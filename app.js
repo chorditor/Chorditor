@@ -2,18 +2,19 @@
 const canvas = document.getElementById('c');
 const ctx    = canvas.getContext('2d');
 
-const BASE_W       = 680;
-const BASE_TABLE_H = Math.round(BASE_W * 404 / 604);
-const BASE_Y_OFF   = 160;
-const BASE_MX      = 80;
-const BASE_MY      = 90;
-const BASE_H       = BASE_Y_OFF + BASE_TABLE_H + 60;
-const STRINGS      = 6;
-const FRETS        = 4;
+// ── 논리 기준 크기 (4:3, 400×300) ──
+const BASE_W     = 400;
+const BASE_H     = 300;
+const BASE_Y_OFF = 55;   // 코드명 상단 영역
+const BASE_MX    = 45;   // 좌우 여백 (오픈/뮤트 포함)
+const BASE_MY    = 18;   // 격자 상하 내부 여백
+const BASE_TABLE_H = BASE_H - BASE_Y_OFF - 40; // 하단 여백 40
+const STRINGS    = 6;
+const FRETS      = 4;
 
 let RATIO = 1;
 
-const r = () => RATIO;
+const r  = () => RATIO;
 const W  = () => Math.round(BASE_W       * r());
 const CH = () => Math.round(BASE_H       * r());
 const TH = () => Math.round(BASE_TABLE_H * r());
@@ -29,7 +30,8 @@ const SH = () => (TB() - TT()) / (STRINGS - 1);
 const DS = () => Math.round(SH() * 0.85);
 
 function resizeCanvas() {
-  RATIO = Math.min(1, (canvas.parentElement.clientWidth || BASE_W) / BASE_W);
+  const availW = canvas.parentElement.clientWidth || BASE_W;
+  RATIO = availW / BASE_W; // 화면에 꽉 차도록 (max 제한 없음)
   canvas.width  = W();
   canvas.height = CH();
   draw();
@@ -222,7 +224,7 @@ function drawCanvas(c, ratio) {
   const fw  = (tr - tl) / FRETS;
   const sh  = (tb - tt) / (STRINGS - 1);
   const ds  = Math.round(sh * 0.85);
-  const sc  = w / 604;
+  const sc  = w / BASE_W;
 
   c.clearRect(0, 0, w, ch);
   c.fillStyle = '#ffffff';
@@ -230,13 +232,13 @@ function drawCanvas(c, ratio) {
 
   // 너트
   c.strokeStyle = '#000000';
-  c.lineWidth = 6 * sc;
+  c.lineWidth = Math.max(1, 3 * sc);
   c.lineCap = 'round';
   c.beginPath(); c.moveTo(tl, tt); c.lineTo(tl, tb); c.stroke();
 
   // 프렛선
   c.strokeStyle = '#2a2a2a';
-  c.lineWidth = 1;
+  c.lineWidth = Math.max(0.5, sc);
   c.lineCap = 'butt';
   for (let f = 0; f <= FRETS; f++) {
     const x = tl + f * fw;
@@ -253,7 +255,7 @@ function drawCanvas(c, ratio) {
   openMute.forEach((v, s) => {
     if (dots.some(d => d.s === s)) return;
     const y   = tt + s * sh;
-    const x   = tl - 40 * ratio;
+    const x   = tl - 24 * sc;
     const key = v === 'mute' ? 'mute' : (rootMode && s === rootIndex) ? 'open_root' : 'open';
     if (IMAGES[key]) c.drawImage(IMAGES[key], x - ds/2, y - ds/2, ds, ds);
   });
@@ -287,10 +289,10 @@ function drawCanvas(c, ratio) {
   c.fillStyle = '#1a1714';
   c.textBaseline = 'alphabetic';
 
-  const bSize = Math.round(80 * ratio);
-  const sSize = Math.round(44 * ratio);
-  const bY    = yo - Math.round(10 * ratio);
-  const sY    = bY - Math.round(32 * ratio);
+  const bSize = Math.round(36 * sc);
+  const sSize = Math.round(20 * sc);
+  const bY    = yo - Math.round(4 * sc);
+  const sY    = bY - Math.round(14 * sc);
 
   let cx = tl;
   const base = selectedRoot + selectedTriad + selectedSeventh + (selectedFunc === 'b5' ? '' : selectedFunc);
@@ -319,10 +321,10 @@ function drawCanvas(c, ratio) {
   // 프렛 번호
   const fretNum = (document.getElementById('fret-number')?.value || '').trim();
   if (fretNum) {
-    c.font = `400 ${Math.round(28 * ratio)}px "Times New Roman", serif`;
+    c.font = `400 ${Math.round(14 * sc)}px "Times New Roman", serif`;
     c.textAlign = 'center';
     c.textBaseline = 'top';
-    c.fillText(fretNum, tl + 1.5 * fw, tb + Math.round(32 * ratio));
+    c.fillText(fretNum, tl + 1.5 * fw, tb + Math.round(8 * sc));
   }
 
   c.restore();
@@ -393,15 +395,19 @@ canvas.addEventListener('click', e => {
 });
 
 // ── PNG 저장 ──
+// 배율 옵션: 0.5=200×150, 1=400×300, 2=800×600(잠금), 3=1200×900(잠금)
 async function savePNG() {
-  const exp = document.createElement('canvas');
-  exp.width  = BASE_W * 3;
-  exp.height = BASE_H * 3;
-  const ec = exp.getContext('2d');
-  ec.scale(3, 3);
-  drawCanvas(ec, 1);
+  const select = document.getElementById('export-scale');
+  const scale  = parseFloat(select.value);
 
-  const base64 = exp.toDataURL('image/png').split(',')[1];
+  const exp = document.createElement('canvas');
+  exp.width  = Math.round(BASE_W * scale);
+  exp.height = Math.round(BASE_H * scale);
+  const ec = exp.getContext('2d');
+  ec.scale(scale, scale);
+  drawCanvas(ec, 1); // ratio=1 기준으로 그린 후 scale 적용
+
+  const base64  = exp.toDataURL('image/png').split(',')[1];
   const fileName = buildChordName() + '_chord.png';
 
   // Capacitor 환경 감지
@@ -409,7 +415,6 @@ async function savePNG() {
     try {
       const { Filesystem, Media } = window.Capacitor.Plugins;
 
-      // 1. Cache에 임시 파일 저장
       const tempResult = await Filesystem.writeFile({
         path: fileName,
         data: base64,
@@ -417,7 +422,6 @@ async function savePNG() {
         recursive: true,
       });
 
-      // 2. 권한 확인 및 요청
       const permStatus = await Media.checkPermissions();
       const isGranted = permStatus.photos === 'granted' ||
                         permStatus.publicStorage === 'granted' ||
@@ -434,7 +438,6 @@ async function savePNG() {
         }
       }
 
-      // 3. 앨범 확인 후 없으면 생성
       let albumId = null;
       try {
         const { albums } = await Media.getAlbums();
@@ -451,24 +454,17 @@ async function savePNG() {
         console.log('앨범 처리 실패, 기본 갤러리 사용:', e);
       }
 
-      // 4. 갤러리 저장
       const saveOpts = { path: tempResult.uri };
       if (albumId) saveOpts.albumIdentifier = albumId;
       await Media.savePhoto(saveOpts);
 
-      // 4. 임시 파일 삭제
-      await Filesystem.deleteFile({
-        path: fileName,
-        directory: 'CACHE',
-      });
-
+      await Filesystem.deleteFile({ path: fileName, directory: 'CACHE' });
       alert('갤러리에 저장되었습니다.');
     } catch (e) {
       console.error('저장 실패:', e);
       alert('저장 실패: ' + JSON.stringify(e));
     }
   } else {
-    // 웹 환경
     const link = document.createElement('a');
     link.download = fileName;
     link.href = exp.toDataURL('image/png');
@@ -505,7 +501,6 @@ async function renderKarplusStrong(freq, duration) {
   const d = new Float32Array(total);
   const delay = new Float32Array(N);
 
-  // 주파수가 높을수록 더 빠르게 감쇠 (고음 째짐 방지)
   const decay = 1 - (0.5 / (N * 2));
 
   for (let i = 0; i < N; i++) delay[i] = (Math.random() * 2 - 1) * 0.5;
@@ -571,7 +566,7 @@ async function strumChord() {
   if (!notes.length) return;
 
   const DURATION = 2.5;
-  const INTERVAL = 0.075; //스트럼 간격 수동 수정 75ms
+  const INTERVAL = 0.075;
   const now = audioCtx.currentTime + 0.05;
 
   const buffers = await Promise.all(notes.map(n => getBuffer(midiToFreq(n.midi), DURATION)));

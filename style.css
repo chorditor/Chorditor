@@ -238,14 +238,19 @@ body {
   justify-content: center;
   background: #ffffff;
   border-radius: var(--radius);
-  padding: 20px;
+  padding: 0;
 }
 .canvas-inner {
   position: relative;
-  display: inline-block;
+  width: 100%;
 }
 
-canvas { display: block; cursor: crosshair; }
+canvas {
+  display: block;
+  cursor: crosshair;
+  width: 100%;
+  height: auto;
+}
 
 /* ── 액션 ── */
 .actions {
@@ -262,7 +267,7 @@ canvas { display: block; cursor: crosshair; }
   letter-spacing: 0.04em;
 }
 
-.btn-group { display: flex; gap: 8px; }
+.btn-group { display: flex; gap: 8px; align-items: center; }
 
 .btn {
   font-family: 'Pretendard', sans-serif;
@@ -288,3 +293,18 @@ canvas { display: block; cursor: crosshair; }
 }
 .btn-primary:hover { opacity: 0.85; }
 .btn-primary:active { transform: scale(0.97); }
+
+/* ── 내보내기 셀렉트 ── */
+.export-select {
+  font-family: 'Pretendard', sans-serif;
+  font-size: 12px;
+  padding: 8px 10px;
+  border-radius: var(--radius);
+  border: 1px solid var(--border);
+  background: transparent;
+  color: var(--text-secondary);
+  cursor: pointer;
+  outline: none;
+  appearance: auto;
+}
+.export-select:focus { border-color: var(--text-primary); }
