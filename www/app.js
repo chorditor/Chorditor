@@ -657,34 +657,52 @@ function parseChordNameToComponents(name) {
     rest = rest.slice(0, slashIdx);
   }
 
-  // suffix → 컴포넌트 (긴 것 우선)
+  // 괄호 텐션 추출: (9), (b9), (#11) 등 — suffix 매칭 전에 분리
+  // _fmt()는 텐션을 항상 suffix 뒤 (...)로 붙임
+  let tension = '';
+  let hasFuncB5 = false;
+  const parenMatch = rest.match(/\(([^)]+)\)$/);
+  if (parenMatch) {
+    const parts = parenMatch[1].split(',').map(s => s.trim());
+    for (const p of parts) {
+      if (p === 'b5') hasFuncB5 = true;
+      else if (['b9','9','#9','11','#11','b13','13'].includes(p)) tension = p;
+    }
+    rest = rest.slice(0, rest.length - parenMatch[0].length); // 괄호 제거
+  }
+
+  // suffix → 컴포넌트 (긴 것 우선, 괄호 분리 후 매칭)
   const MAP = [
-    ['mM7',    { triad: 'm',   seventh: 'M7', func: '' }],
-    ['m7(b5)', { triad: 'm',   seventh: '7',  func: 'b5' }],
-    ['m7',     { triad: 'm',   seventh: '7',  func: '' }],
-    ['m6',     { triad: 'm',   seventh: '6',  func: '' }],
-    ['M7(9)',  { triad: '',    seventh: 'M7', func: '' }],
-    ['M7',     { triad: '',    seventh: 'M7', func: '' }],
-    ['7sus4',  { triad: '',    seventh: '7',  func: 'sus4' }],
-    ['7',      { triad: '',    seventh: '7',  func: '' }],
-    ['6',      { triad: '',    seventh: '6',  func: '' }],
-    ['dim7',   { triad: 'dim', seventh: '7',  func: '' }],
-    ['dim',    { triad: 'dim', seventh: '',   func: '' }],
-    ['aug7',   { triad: 'aug', seventh: '7',  func: '' }],
-    ['aug',    { triad: 'aug', seventh: '',   func: '' }],
-    ['sus4',   { triad: '',    seventh: '',   func: 'sus4' }],
-    ['sus2',   { triad: '',    seventh: '',   func: 'sus2' }],
-    ['add9',   { triad: '',    seventh: '',   func: 'add9' }],
-    ['m',      { triad: 'm',   seventh: '',   func: '' }],
-    ['',       { triad: '',    seventh: '',   func: '' }],
+    ['mM7',   { triad: 'm',   seventh: 'M7', func: '' }],
+    ['m7',    { triad: 'm',   seventh: '7',  func: '' }],
+    ['m6',    { triad: 'm',   seventh: '6',  func: '' }],
+    ['M7',    { triad: '',    seventh: 'M7', func: '' }],
+    ['7sus4', { triad: '',    seventh: '7',  func: 'sus4' }],
+    ['7',     { triad: '',    seventh: '7',  func: '' }],
+    ['6',     { triad: '',    seventh: '6',  func: '' }],
+    ['dim7',  { triad: 'dim', seventh: '7',  func: '' }],
+    ['dim',   { triad: 'dim', seventh: '',   func: '' }],
+    ['aug7',  { triad: 'aug', seventh: '7',  func: '' }],
+    ['aug',   { triad: 'aug', seventh: '',   func: '' }],
+    ['sus4',  { triad: '',    seventh: '',   func: 'sus4' }],
+    ['sus2',  { triad: '',    seventh: '',   func: 'sus2' }],
+    ['add9',  { triad: '',    seventh: '',   func: 'add9' }],
+    ['m',     { triad: 'm',   seventh: '',   func: '' }],
+    ['',      { triad: '',    seventh: '',   func: '' }],
   ];
 
   for (const [suffix, comp] of MAP) {
     if (rest === suffix) {
-      return { root, bass, ...comp };
+      return {
+        root, bass,
+        triad:   comp.triad,
+        seventh: comp.seventh,
+        func:    hasFuncB5 ? 'b5' : comp.func,
+        tension,
+      };
     }
   }
-  return { root, bass, triad: '', seventh: '', func: '' };
+  return { root, bass, triad: '', seventh: '', func: '', tension };
 }
 
 // 추천 코드명 클릭 → 휠피커 적용
@@ -698,7 +716,7 @@ function applyChordSuggestion(name) {
   selectTriad(comp.triad);
   selectSeventh(comp.seventh);
   selectFunc(comp.func);
-  selectTension('');
+  selectTension(comp.tension || '');
 }
 
 // ═══════════════════════════════════════════════════════════════
