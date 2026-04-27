@@ -559,7 +559,7 @@ body {
   align-items: flex-start;
   background: #ffffff;
   border-radius: var(--radius);
-  padding: 0 0 0 30px;
+  padding: 0 0 0 10px;
 }
 .canvas-inner {
   position: relative;
