@@ -32,24 +32,15 @@ const SH = () => (TB() - TT()) / (STRINGS - 1);
 const DS = () => Math.round(SH() * 0.85);
 
 function resizeCanvas() {
-  let availW;
-  if (isMobileOrTablet()) {
-    // 모바일/태블릿: 가용 너비에 맞게 반응형
-    // canvas와 canvas-inner의 고정 너비를 모두 해제해야
-    // clientWidth가 캔버스 자신의 크기가 아닌 실제 컨테이너 너비를 반환함
-    canvas.style.width = '';
-    canvas.parentElement.style.width = '';
-    availW = canvas.parentElement.clientWidth || BASE_W;
-  } else {
-    // 데스크탑 웹브라우저: 캔버스 크기 고정 (BASE_W 기준)
-    availW = BASE_W;
-  }
-  const displayW = Math.round(availW * MAIN_DISPLAY_SCALE);
+  // ⚠️ 캔버스 크기 항상 고정 — 환경·세션 무관하게 BASE_W * MAIN_DISPLAY_SCALE 로 고정
+  // style.width를 절대 초기화(='')하지 말 것:
+  //   2x 물리픽셀(canvas.width)이 큰 상태에서 style.width='' 하면 브라우저가
+  //   물리픽셀을 CSS크기로 적용 → 컨테이너 팽창 → RATIO 양성 피드백 발생
+  const displayW = Math.round(BASE_W * MAIN_DISPLAY_SCALE); // 항상 고정: 320px
   canvas.style.width  = displayW + 'px';
   canvas.style.height = 'auto';
-  // canvas-inner를 캔버스 표시 크기에 맞춤 (바레 버튼 기준점, 중앙정렬용)
-  canvas.parentElement.style.width = displayW + 'px';
-  RATIO = (displayW * 2) / BASE_W; // 2x 화질: 물리 픽셀 = CSS 표시 크기의 2배
+  canvas.parentElement.style.width = displayW + 'px'; // canvas-inner 고정 (바레 버튼 기준점)
+  RATIO = (displayW * 2) / BASE_W; // 2x 화질: 물리픽셀 = CSS 표시 크기의 2배
   canvas.width  = W();
   canvas.height = CH();
   draw();
