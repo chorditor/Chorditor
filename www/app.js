@@ -4203,6 +4203,7 @@ function openEditModal(chord, projectId) {
   me_accidental  = chord.accidental || 'sharp';
   me_selectedFinger = 1;
 
+  _meDirty = false;
   buildEditModalUI();
   document.getElementById('modal-edit').classList.remove('hidden');
   lucide.createIcons();
@@ -4359,6 +4360,14 @@ function buildEditModalUI() {
   const meBarreBtns = document.createElement('div');
   meBarreBtns.id = 'me-barre-btns';
   canvasInner.appendChild(meBarreBtns);
+
+  const meApplyBtn = document.createElement('button');
+  meApplyBtn.className = 'chord-apply-btn';
+  meApplyBtn.id = 'me-chord-apply-btn';
+  meApplyBtn.title = '추천 코드명 적용';
+  meApplyBtn.innerHTML = '<i data-lucide="check"></i>';
+  meApplyBtn.onclick = meApplyFirstSuggestion;
+  canvasInner.appendChild(meApplyBtn);
 
   canvasWrap.appendChild(canvasInner);
 
@@ -4639,7 +4648,9 @@ function meUpdateChordSuggestions() {
   const el = document.getElementById('me-chord-suggestions');
   if (!el) return;
   const names = meSuggestChordNames();
-  el.innerHTML = names.map(n => `<span class="chord-suggest-item">${n}</span>`).join('');
+  el.innerHTML = names.map(n =>
+    `<span class="chord-suggest-item" onclick="meApplyChordSuggestion('${n.replace(/'/g, "\\'")}')">${n}</span>`
+  ).join('');
 }
 
 function meUpdateChordDisplay() {
@@ -4711,6 +4722,8 @@ function meResizeCanvas() {
   meDraw();
 }
 
+let _meDirty = false;
+
 function meDraw() {
   const cv = document.getElementById('me-canvas');
   if (!cv) return;
@@ -4724,6 +4737,33 @@ function meDraw() {
   drawCanvas(c, me_RATIO, data);
   meUpdateBarreBtns();
   meUpdateChordSuggestions();
+  _meDirty = true;
+  meUpdateApplyBtn();
+}
+
+function meUpdateApplyBtn() {
+  const btn = document.getElementById('me-chord-apply-btn');
+  if (!btn) return;
+  btn.classList.toggle('active', _meDirty);
+}
+
+function meApplyFirstSuggestion() {
+  const names = meSuggestChordNames();
+  if (!names.length) return;
+  meApplyChordSuggestion(names[0]);
+}
+
+function meApplyChordSuggestion(name) {
+  const comp = parseChordNameToComponents(name);
+  if (!comp) return;
+  me_triad    = comp.triad;
+  me_seventh  = comp.seventh;
+  me_func     = comp.func;
+  me_tensions = comp.tension ? [comp.tension] : [];
+  meRenderAllBtns();
+  meUpdateChordDisplay();
+  _meDirty = false;
+  meUpdateApplyBtn();
 }
 
 function meUpdateBarreBtns() {
@@ -4747,13 +4787,14 @@ function meUpdateBarreBtns() {
     }
     const btn = document.createElement('button');
     btn.textContent = 'B';
-    const left = meTL + (f - 0.5) * meFW - 24;
-    const top  = meTT - meDS - 32;
-    btn.style.cssText = `position:absolute;left:${left}px;top:${top}px;width:48px;height:48px;
+    const btnSize = meDS; // 메인 에디터와 동일한 비례
+    const left = meTL + (f - 0.5) * meFW - btnSize / 2;
+    const top  = meTT - meDS - Math.round(btnSize * 0.67);
+    btn.style.cssText = `position:absolute;left:${left}px;top:${top}px;width:${btnSize}px;height:${btnSize}px;
       border-radius:50%;border:1.5px solid #888;
       background:${me_barre[f] ? '#1a1714' : '#fff'};
       color:${me_barre[f] ? '#fff' : '#888'};
-      font-size:22px;font-family:'Pretendard',sans-serif;
+      font-size:${Math.round(btnSize * 0.5)}px;font-family:'Pretendard',sans-serif;
       cursor:pointer;display:flex;align-items:center;justify-content:center;padding:0;`;
     btn.onclick = () => {
       if (!me_barre[f]) {

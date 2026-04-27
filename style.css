@@ -568,9 +568,9 @@ body {
 
 .chord-apply-btn {
   position: absolute;
-  left: 237px;   /* 4번 프렛 중앙(253px) - 버튼반경(16px) */
-  top: 200px;    /* 프렛번호 Y(216px) - 버튼반경(16px) */
-  transform: none;
+  right: -12px;
+  top: 52.5%;
+  transform: translateY(-50%);
   display: flex;
   align-items: center;
   justify-content: center;
