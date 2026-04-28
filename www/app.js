@@ -1548,6 +1548,8 @@ async function initSupabase() {
 
 // supabase-js가 Capacitor WebView에서 hang되므로 세션을 직접 관리
 const SUPABASE_STORAGE_KEY = 'sb-jbvkygeksohlysyvaoab-auth-token';
+const LOGGED_IN_KEY   = 'chorditor-logged-in';   // 최초 로그인 영구 플래그
+const CACHED_USER_KEY = 'chorditor-cached-user';  // 오프라인용 유저 캐시
 
 function saveSessionToStorage(rawJson) {
   const session = {
@@ -1559,6 +1561,9 @@ function saveSessionToStorage(rawJson) {
     user:          rawJson.user,
   };
   localStorage.setItem(SUPABASE_STORAGE_KEY, JSON.stringify(session));
+  // 영구 로그인 플래그 + 유저 캐시 (세션 만료 후에도 온보딩 건너뜀에 사용)
+  localStorage.setItem(LOGGED_IN_KEY, '1');
+  if (rawJson.user) localStorage.setItem(CACHED_USER_KEY, JSON.stringify(rawJson.user));
   return session;
 }
 
@@ -1636,35 +1641,79 @@ let _authReady = false; // 세션 복원 성공 여부
 let _authResolve = null;
 const _authPromise = new Promise(resolve => { _authResolve = resolve; });
 
+// 세션 유효 후 온보딩 없이 바로 메인으로 진입하는 공통 처리
+function _enterAppWithSession(user, accessToken) {
+  _authReady = true;
+  renderAuthUI(user);
+  _authResolve();
+  hideOnboarding();
+  showTutorialIfNeeded(); // 튜토리얼은 세션 단위로 정상 동작
+  _billingReady.then(async () => {
+    if (window._RC) await window._RC.logIn({ appUserID: user.id }).catch(() => {});
+    await syncPlanFromBilling();
+    if (accessToken) fetchPlanWithToken(accessToken).catch(() => {});
+  }).catch(() => {});
+}
+
 async function tryAutoSignIn() {
   if (!window.Capacitor?.isNativePlatform()) { _authResolve(); _showOnboardingButtons(); return; }
 
-  // 1) 저장된 세션이 유효하면 온보딩 건너뜀 → 바로 메인으로
+  const hasLoggedInBefore = localStorage.getItem(LOGGED_IN_KEY) === '1';
+
   try {
     const stored = localStorage.getItem(SUPABASE_STORAGE_KEY);
     if (stored) {
       const session = JSON.parse(stored);
       const now = Math.floor(Date.now() / 1000);
+
+      // 1) 세션 유효 → 바로 진입
       if (session.user && session.expires_at > now) {
-        // ✅ 세션 유효 → 온보딩은 항상 표시, 시작하기 버튼으로 진입
-        _authReady = true;
-        renderAuthUI(session.user);
-        _authResolve();
-        _showOnboardingButtons();
-        // RC 초기화 완료 대기 → RC 플랜 동기화(+Supabase 선반영) → Supabase 읽기
-        // 이 순서를 보장해야 fetchPlanWithToken이 올바른 값을 읽음
-        _billingReady.then(async () => {
-          if (window._RC) await window._RC.logIn({ appUserID: session.user.id }).catch(() => {});
-          await syncPlanFromBilling(); // 유료이면 updateSupabasePlan()까지 완료
-          fetchPlanWithToken(session.access_token).catch(() => {}); // Supabase 읽기 (이미 올바른 값)
-        }).catch(() => {});
+        _enterAppWithSession(session.user, session.access_token);
         return;
+      }
+
+      // 2) 세션 만료 + refresh_token 존재 → 갱신 시도
+      if (session.refresh_token) {
+        try {
+          const resp = await fetch(`${SUPABASE_URL}/auth/v1/token?grant_type=refresh_token`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'apikey': SUPABASE_ANON },
+            body: JSON.stringify({ refresh_token: session.refresh_token }),
+          });
+          if (resp.ok) {
+            const newJson = await resp.json();
+            const newSession = saveSessionToStorage(newJson);
+            if (newSession.user) {
+              _enterAppWithSession(newSession.user, newSession.access_token);
+              return;
+            }
+          }
+        } catch(e) { /* refresh 실패 → 아래로 */ }
       }
     }
   } catch(e) { /* 무시 */ }
 
-  // 2) 저장된 세션 없음 → Google 로그인 버튼 표시
-  // (GoogleAuth.refresh() 선제 호출 제거 — signIn()과 충돌하여 "Something went wrong" 유발)
+  // 3) 이전에 로그인한 적 있음 → 캐시 유저로 온보딩 건너뜀 (재로그인 불요)
+  if (hasLoggedInBefore) {
+    try {
+      const cachedUser = JSON.parse(localStorage.getItem(CACHED_USER_KEY) || 'null');
+      if (cachedUser) renderAuthUI(cachedUser);
+    } catch(e) {}
+    _authReady = true;
+    _authResolve();
+    hideOnboarding();
+    showTutorialIfNeeded();
+    _billingReady.then(async () => {
+      try {
+        const cachedUser = JSON.parse(localStorage.getItem(CACHED_USER_KEY) || 'null');
+        if (window._RC && cachedUser) await window._RC.logIn({ appUserID: cachedUser.id }).catch(() => {});
+        await syncPlanFromBilling().catch(() => {});
+      } catch(e) {}
+    }).catch(() => {});
+    return;
+  }
+
+  // 4) 최초 실행 → Google 로그인 버튼 표시
   _authResolve();
   _showOnboardingButtons();
 }
@@ -1725,10 +1774,15 @@ function handleStart() {
 
 // 다른 계정으로 변경 → 로그아웃 후 Google 로그인 버튼 표시
 function onboardingSwitchAccount() {
+  // 명시적 계정 변경 → 영구 플래그 삭제 (다음 앱 시작 시 로그인 화면 표시)
   localStorage.removeItem(SUPABASE_STORAGE_KEY);
+  localStorage.removeItem(LOGGED_IN_KEY);
+  localStorage.removeItem(CACHED_USER_KEY);
   setPlan('free');
   renderAuthUI(null);
   _authReady = false;
+  showOnboarding();
+  document.getElementById('onboarding-loading')?.classList.add('hidden');
   document.getElementById('onboarding-start-btn')?.classList.add('hidden');
   document.getElementById('onboarding-switch-btn')?.classList.add('hidden');
   document.getElementById('onboarding-google-btn')?.classList.remove('hidden');
