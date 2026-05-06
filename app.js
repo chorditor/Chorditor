@@ -3356,6 +3356,10 @@ function buildLinesSection(project, editMode = true) {
 
   if (editMode) {
     let saveDebounce = null;
+    // Android WebView에서 e.isComposing이 keydown에 신뢰 불가 →
+    // compositionstart/end로 직접 상태 추적
+    let _imeComposing = false;
+
     const removePlaceholderBrs = () => {
       linesEl.querySelectorAll('.project-line').forEach(lineDiv => {
         if (getLineText(lineDiv)) {
@@ -3363,15 +3367,21 @@ function buildLinesSection(project, editMode = true) {
         }
       });
     };
-    linesEl.addEventListener('input', (e) => {
-      // IME 조합 중(한글 등) DOM 조작 금지 — compositionend에서 처리
-      if (e.isComposing) return;
+
+    linesEl.addEventListener('compositionstart', () => {
+      _imeComposing = true;
+    });
+    linesEl.addEventListener('compositionend', () => {
+      _imeComposing = false;
+      // compositionend 후 input이 발생하지 않을 수 있어 직접 처리
       removePlaceholderBrs();
       clearTimeout(saveDebounce);
       saveDebounce = setTimeout(() => saveAllLines(project.id, linesEl), 300);
     });
-    // IME 조합 완료 후 BR 제거 및 저장
-    linesEl.addEventListener('compositionend', () => {
+
+    linesEl.addEventListener('input', (e) => {
+      // IME 조합 중 DOM 조작 금지
+      if (_imeComposing || e.isComposing) return;
       removePlaceholderBrs();
       clearTimeout(saveDebounce);
       saveDebounce = setTimeout(() => saveAllLines(project.id, linesEl), 300);
@@ -3389,8 +3399,9 @@ function buildLinesSection(project, editMode = true) {
     });
 
     linesEl.addEventListener('keydown', e => {
-      // IME 조합 중(한글 등) 내부 이벤트 개입 금지
-      if (e.isComposing) return;
+      // IME 조합 중 Enter/Backspace 가로채기 금지
+      // (Android WebView에서 e.isComposing 불신 → _imeComposing 직접 추적)
+      if (_imeComposing) return;
       if (e.key === 'Enter') {
         e.preventDefault();
         insertNewLineAtCursor(linesEl, project.id);
