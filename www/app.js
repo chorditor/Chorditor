@@ -684,7 +684,6 @@ function parseChordNameToComponents(name) {
     ['m7(b5)', { triad: 'm',   seventh: '7',  func: 'b5' }],
     ['m7',     { triad: 'm',   seventh: '7',  func: '' }],
     ['m6',     { triad: 'm',   seventh: '6',  func: '' }],
-    ['M7(9)',  { triad: '',    seventh: 'M7', func: '' }],
     ['M7',     { triad: '',    seventh: 'M7', func: '' }],
     ['7sus4',  { triad: '',    seventh: '7',  func: 'sus4' }],
     ['7',      { triad: '',    seventh: '7',  func: '' }],
@@ -700,12 +699,28 @@ function parseChordNameToComponents(name) {
     ['',       { triad: '',    seventh: '',   func: '' }],
   ];
 
+  // 1차: 정확 일치 (m7(b5) 등 포함)
   for (const [suffix, comp] of MAP) {
     if (rest === suffix) {
-      return { root, bass, ...comp };
+      return { root, bass, tension: '', ...comp };
     }
   }
-  return { root, bass, triad: '', seventh: '', func: '' };
+
+  // 2차: 텐션 부분 (9), (b9), (#11) 등 제거 후 재시도
+  let tension = '';
+  const tensionMatch = rest.match(/\(([^)]+)\)/);
+  if (tensionMatch) {
+    tension = tensionMatch[1].split(',')[0].trim(); // 첫 번째 텐션만 적용
+    rest = rest.replace(tensionMatch[0], '');
+  }
+
+  for (const [suffix, comp] of MAP) {
+    if (rest === suffix) {
+      return { root, bass, tension, ...comp };
+    }
+  }
+
+  return { root, bass, tension, triad: '', seventh: '', func: '' };
 }
 
 // 추천 코드명 클릭 → 휠피커 적용
@@ -719,7 +734,7 @@ function applyChordSuggestion(name) {
   selectTriad(comp.triad);
   selectSeventh(comp.seventh);
   selectFunc(comp.func);
-  selectTension('');
+  selectTension(comp.tension || '');
 }
 
 // ═══════════════════════════════════════════════════════════════
@@ -1469,7 +1484,7 @@ async function refreshPlanFromDB() {
 // Settings → API → Project URL / anon public
 const SUPABASE_URL  = 'https://jbvkygeksohlysyvaoab.supabase.co';
 const SUPABASE_ANON = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Impidmt5Z2Vrc29obHlzeXZhb2FiIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzYzOTk5NjgsImV4cCI6MjA5MTk3NTk2OH0.6RSgChy0Yq0H2TJpZPSoMKQ2V-OYfR0XzE1aJBBZkXI';
-const APP_VERSION   = '1.1.2';
+const APP_VERSION   = '1.1.3';
 
 // ── Analytics SDK 초기화 ──────────────────────────────────────
 // analytics-sdk.js가 app.js보다 먼저 로드된 경우에만 초기화
@@ -1665,6 +1680,51 @@ async function signInWithGoogle() {
 }
 
 // Android 앱 시작 시 자동 로그인 시도
+// ── 강제 업데이트 ──────────────────────────────────────────────
+async function checkForceUpdate() {
+  // 웹에서는 강제 업데이트 불필요
+  if (!window.Capacitor?.isNativePlatform()) return;
+  try {
+    const res = await fetch(
+      `${SUPABASE_URL}/rest/v1/app_config?key=eq.min_version&select=value`,
+      { headers: { 'apikey': SUPABASE_ANON, 'Authorization': `Bearer ${SUPABASE_ANON}` } }
+    );
+    if (!res.ok) return;
+    const data = await res.json();
+    const minVersion = data?.[0]?.value;
+    if (!minVersion) return;
+
+    if (_compareVersion(APP_VERSION, minVersion) < 0) {
+      // 현재 버전이 최소 버전보다 낮으면 강제 업데이트 오버레이 표시
+      document.getElementById('force-update-overlay')?.classList.remove('hidden');
+    }
+  } catch (e) {
+    // 네트워크 오류 시 무시 — 업데이트 강제화보다 앱 접근성 우선
+  }
+}
+
+// 버전 비교: v1 < v2 → -1, v1 == v2 → 0, v1 > v2 → 1
+function _compareVersion(v1, v2) {
+  const p1 = v1.split('.').map(Number);
+  const p2 = v2.split('.').map(Number);
+  for (let i = 0; i < Math.max(p1.length, p2.length); i++) {
+    const a = p1[i] ?? 0, b = p2[i] ?? 0;
+    if (a < b) return -1;
+    if (a > b) return  1;
+  }
+  return 0;
+}
+
+// Play Store로 이동
+function openPlayStore() {
+  const url = 'https://play.google.com/store/apps/details?id=com.chorditor.app';
+  if (window.Capacitor?.Plugins?.Browser) {
+    window.Capacitor.Plugins.Browser.open({ url });
+  } else {
+    window.open(url, '_blank');
+  }
+}
+
 let _authReady = false; // 세션 복원 성공 여부
 let _authResolve = null;
 const _authPromise = new Promise(resolve => { _authResolve = resolve; });
@@ -5212,6 +5272,7 @@ window._handleShareImport = async function(rawCode) {
   showOnboarding(); // 항상 시작 화면 표시
   initAppVersion(); // 사이드바 버전 표시
   initBilling();    // Android 인앱 결제 초기화 (비동기, 실패해도 앱 동작 유지)
+  checkForceUpdate();                          // 강제 업데이트 체크 (Android 전용)
   initSupabase().then(() => tryAutoSignIn()); // 백그라운드에서 세션 복원 시도
 
   // 새 프로젝트 모달 Enter 키 지원

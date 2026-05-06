@@ -48,6 +48,9 @@ class AnalyticsSDK {
     screen_view:    'session',
   };
 
+  // ── 세션 만료 기준 ────────────────────────────────────────
+  static SESSION_TIMEOUT_MS = 30 * 60 * 1000; // 30분
+
   // ── 생성자 ─────────────────────────────────────────────────
   constructor({ supabaseUrl, supabaseAnonKey, appVersion, debug = false }) {
     this._url        = supabaseUrl;
@@ -55,13 +58,14 @@ class AnalyticsSDK {
     this._appVersion = appVersion;
     this._debug      = debug;
 
-    this._anonId    = this._getOrCreateAnonId();
-    this._sessionId = this._uuidv4();
-    this._screen    = null;
-    this._queue     = [];
-    this._abCache   = {};       // { experimentId: variant }
-    this._isFlushing = false;
-    this._userId    = null;     // app.js의 setUserId()로 직접 주입 (localStorage 파싱 대체)
+    this._anonId       = this._getOrCreateAnonId();
+    this._sessionId    = this._uuidv4();
+    this._screen       = null;
+    this._queue        = [];
+    this._abCache      = {};
+    this._isFlushing   = false;
+    this._userId       = null;
+    this._lastActiveAt = Date.now(); // 마지막 활동 시각
 
     this._setupLifecycleListeners();
     this._startFlushInterval();
@@ -78,6 +82,14 @@ class AnalyticsSDK {
    */
   track(eventName, properties = {}) {
     try {
+      // 30분 비활동 시 새 세션 발급 (로그인 상태와 무관)
+      const now = Date.now();
+      if (now - this._lastActiveAt > AnalyticsSDK.SESSION_TIMEOUT_MS) {
+        this._sessionId = this._uuidv4();
+        if (this._debug) console.log('[Analytics] 세션 만료 → 새 세션:', this._sessionId);
+      }
+      this._lastActiveAt = now;
+
       const event = {
         anon_id:        this._anonId,
         session_id:     this._sessionId,
@@ -271,24 +283,49 @@ class AnalyticsSDK {
   }
 
   _setupLifecycleListeners() {
-    // 앱이 백그라운드/종료될 때 즉시 전송
-    document.addEventListener('visibilitychange', () => {
-      if (document.visibilityState === 'hidden') {
+    // 세션 만료 시간(30분)과 동일한 기준으로 app_background 기록
+    // 30분 미만 이탈 후 복귀는 노이즈로 간주하여 기록하지 않음
+    let _bgTimer = null;
+    let _bgAt    = null; // 백그라운드 진입 시각
+
+    const onBackground = () => {
+      if (_bgTimer) clearTimeout(_bgTimer); // 중복 호출 방지
+      _bgAt    = Date.now();
+      _bgTimer = setTimeout(() => {
         this.track('app_background', {});
         this._flush(true);
-      }
-    });
-    window.addEventListener('pagehide', () => this._flush(true));
+        _bgTimer = null;
+      }, AnalyticsSDK.SESSION_TIMEOUT_MS);
+      this._flush(true); // 이벤트 큐는 즉시 전송
+    };
 
-    // Capacitor 네이티브 앱 상태 변경
-    if (window.Capacitor?.Plugins?.App) {
+    const onForeground = () => {
+      if (_bgTimer) {
+        clearTimeout(_bgTimer);
+        _bgTimer = null;
+      }
+      // 복귀 시 마지막 활동 시각 갱신 (track() 내부 세션 만료 체크용)
+      if (_bgAt) {
+        this._lastActiveAt = Date.now();
+        _bgAt = null;
+      }
+    };
+
+    const isNative = window.Capacitor?.isNativePlatform();
+
+    // Android: Capacitor 리스너만 사용 (visibilitychange 중복 방지)
+    if (isNative && window.Capacitor?.Plugins?.App) {
       window.Capacitor.Plugins.App.addListener('appStateChange', ({ isActive }) => {
-        if (!isActive) {
-          this.track('app_background', {});
-          this._flush(true);
-        }
+        isActive ? onForeground() : onBackground();
+      });
+    } else {
+      // 웹: visibilitychange 사용
+      document.addEventListener('visibilitychange', () => {
+        document.visibilityState === 'hidden' ? onBackground() : onForeground();
       });
     }
+
+    window.addEventListener('pagehide', () => this._flush(true));
   }
 
   async _recordABAssignment(experimentId, variant) {
