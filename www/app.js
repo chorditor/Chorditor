@@ -1497,7 +1497,7 @@ async function refreshPlanFromDB() {
 // Settings → API → Project URL / anon public
 const SUPABASE_URL  = 'https://jbvkygeksohlysyvaoab.supabase.co';
 const SUPABASE_ANON = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Impidmt5Z2Vrc29obHlzeXZhb2FiIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzYzOTk5NjgsImV4cCI6MjA5MTk3NTk2OH0.6RSgChy0Yq0H2TJpZPSoMKQ2V-OYfR0XzE1aJBBZkXI';
-const APP_VERSION   = '1.1.4_pre1';
+const APP_VERSION   = '1.1.4_pre3';
 
 // ── Analytics SDK 초기화 ──────────────────────────────────────
 // analytics-sdk.js가 app.js보다 먼저 로드된 경우에만 초기화
@@ -3373,8 +3373,8 @@ function buildLinesSection(project, editMode = true) {
     });
     linesEl.addEventListener('compositionend', () => {
       _imeComposing = false;
-      // compositionend 후 input이 발생하지 않을 수 있어 직접 처리
-      removePlaceholderBrs();
+      // removePlaceholderBrs()는 직후 발생하는 input 이벤트에서 처리
+      // 조합 취소 등 input이 오지 않는 경우를 위해 saveDebounce는 유지
       clearTimeout(saveDebounce);
       saveDebounce = setTimeout(() => saveAllLines(project.id, linesEl), 300);
     });
@@ -3399,13 +3399,18 @@ function buildLinesSection(project, editMode = true) {
     });
 
     linesEl.addEventListener('keydown', e => {
-      // IME 조합 중 Enter/Backspace 가로채기 금지
-      // (Android WebView에서 e.isComposing 불신 → _imeComposing 직접 추적)
-      if (_imeComposing) return;
-      if (e.key === 'Enter') {
+      // Enter: IME 조합 중이 아닐 때만 처리 (Enter는 조합 확정 후 발생하므로 안전)
+      if (e.key === 'Enter' && !_imeComposing) {
         e.preventDefault();
         insertNewLineAtCursor(linesEl, project.id);
-      } else if (e.key === 'Backspace') {
+      }
+      // Backspace는 beforeinput(deleteContentBackward)에서 처리 — IME 내부 Backspace와 구분
+    });
+
+    // Backspace: beforeinput의 deleteContentBackward는 실제 사용자 입력에만 발생
+    // IME 내부 조합 조작(deleteCompositionText 등)에는 발생하지 않아 IME 충돌 없음
+    linesEl.addEventListener('beforeinput', e => {
+      if (e.inputType === 'deleteContentBackward') {
         e.preventDefault();
         handleBackspace(linesEl, project.id);
       }
