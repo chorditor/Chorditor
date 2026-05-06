@@ -648,10 +648,23 @@ function buildChordHTML() {
   return n;
 }
 
+let _chordBuildTimer = null;
 function updateChordDisplay() {
   const el = document.getElementById('chord-display');
   if (el) el.innerHTML = buildChordHTML();
   draw();
+  // 500ms 디바운스: 휠피커 연속 조작 후 최종 상태만 수집
+  if (_chordBuildTimer) clearTimeout(_chordBuildTimer);
+  _chordBuildTimer = setTimeout(() => {
+    analytics.track('chord_build', {
+      root:    selectedRoot,
+      triad:   selectedTriad,
+      seventh: selectedSeventh,
+      tension: selectedTensions[0] ?? '',
+      bass:    selectedBass,
+    });
+    _chordBuildTimer = null;
+  }, 500);
 }
 
 function updateChordSuggestions() {
@@ -1484,7 +1497,7 @@ async function refreshPlanFromDB() {
 // Settings → API → Project URL / anon public
 const SUPABASE_URL  = 'https://jbvkygeksohlysyvaoab.supabase.co';
 const SUPABASE_ANON = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Impidmt5Z2Vrc29obHlzeXZhb2FiIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzYzOTk5NjgsImV4cCI6MjA5MTk3NTk2OH0.6RSgChy0Yq0H2TJpZPSoMKQ2V-OYfR0XzE1aJBBZkXI';
-const APP_VERSION   = '1.1.3';
+const APP_VERSION   = '1.1.4_pre1';
 
 // ── Analytics SDK 초기화 ──────────────────────────────────────
 // analytics-sdk.js가 app.js보다 먼저 로드된 경우에만 초기화
@@ -1948,6 +1961,8 @@ async function signInWithApple() {
 }
 
 async function signOutWeb() {
+  analytics.track('sign_out', {});
+  analytics.clearUserId();
   // Android: localStorage 세션 직접 삭제
   if (window.Capacitor?.isNativePlatform()) {
     try {
@@ -2339,6 +2354,7 @@ function navigateTo(view, projectId, opts = {}) {
   }
 
   if (view === 'library') {
+    analytics.track('library_opened', {});
     closeSidebar();
     // 라이브러리 페이지는 세로 고정
     if (isMobileOrTablet() && screen.orientation?.lock) {
@@ -2753,6 +2769,7 @@ function addCurrentChordToProject() {
   project.chords.push(chordData);
   project.updatedAt = Date.now();
   saveProjects(projects);
+  analytics.track('chord_added', { chord_name: chordData.name, project_id: projectId });
 
   if (contextProjectId) {
     navigateTo('project', contextProjectId);
@@ -2850,6 +2867,7 @@ function stopMetronome() {
 
 async function toggleMetronome() {
   metronomeActive = !metronomeActive;
+  analytics.track('metronome_toggled', { active: metronomeActive });
   const btn = document.getElementById('metronome-btn');
   if (metronomeActive) {
     if (btn) btn.classList.add('active');
@@ -2892,6 +2910,7 @@ async function playAll(projectId, startIndex = 0) {
   if (!orderedSlots.length) return;
 
   playbackActive = true;
+  analytics.track('playall_started', { project_id: projectId, bpm, start_index: startIndex });
   const btn = document.getElementById('play-all-btn');
   if (btn) { btn.innerHTML = '<i data-lucide="square"></i>'; lucide.createIcons(); }
 
@@ -3068,11 +3087,11 @@ function renderProjectView(projectId) {
   capoUp.textContent = '+';
   capoDown.onclick = () => {
     const p = getProject(projectId);
-    if (p && (p.capo ?? 0) > 0) { p.capo = (p.capo ?? 0) - 1; updateProject(p); capoVal.textContent = p.capo; }
+    if (p && (p.capo ?? 0) > 0) { p.capo = (p.capo ?? 0) - 1; updateProject(p); capoVal.textContent = p.capo; analytics.track('capo_changed', { value: p.capo, direction: 'down', project_id: projectId }); }
   };
   capoUp.onclick = () => {
     const p = getProject(projectId);
-    if (p && (p.capo ?? 0) < 12) { p.capo = (p.capo ?? 0) + 1; updateProject(p); capoVal.textContent = p.capo; }
+    if (p && (p.capo ?? 0) < 12) { p.capo = (p.capo ?? 0) + 1; updateProject(p); capoVal.textContent = p.capo; analytics.track('capo_changed', { value: p.capo, direction: 'up', project_id: projectId }); }
   };
   capoWrap.append(capoLabel, capoDown, capoVal, capoUp);
   row2Controls.appendChild(capoWrap);
@@ -3092,7 +3111,7 @@ function renderProjectView(projectId) {
     const val = Math.min(240, Math.max(40, parseInt(bpmInput.value) || 120));
     bpmInput.value = val;
     const p = getProject(projectId);
-    if (p) { p.bpm = val; updateProject(p); }
+    if (p) { p.bpm = val; updateProject(p); analytics.track('bpm_changed', { value: val, project_id: projectId }); }
   });
   bpmWrap.append(bpmLabel, bpmInput);
   row2Controls.appendChild(bpmWrap);
@@ -3204,6 +3223,7 @@ function buildChordArea(line, project, editMode = true) {
             if (p) playAll(project.id, getGlobalSlotIndex(p, line.id, dataIdx));
           } else {
             playChord(chord);
+            analytics.track('project_chord_played', { chord_name: chord.name, project_id: project.id });
           }
         });
 
@@ -3336,13 +3356,23 @@ function buildLinesSection(project, editMode = true) {
 
   if (editMode) {
     let saveDebounce = null;
-    linesEl.addEventListener('input', () => {
-      // 텍스트가 있는 줄의 <br> placeholder 제거
+    const removePlaceholderBrs = () => {
       linesEl.querySelectorAll('.project-line').forEach(lineDiv => {
         if (getLineText(lineDiv)) {
           lineDiv.querySelectorAll('br').forEach(br => br.remove());
         }
       });
+    };
+    linesEl.addEventListener('input', (e) => {
+      // IME 조합 중(한글 등) DOM 조작 금지 — compositionend에서 처리
+      if (e.isComposing) return;
+      removePlaceholderBrs();
+      clearTimeout(saveDebounce);
+      saveDebounce = setTimeout(() => saveAllLines(project.id, linesEl), 300);
+    });
+    // IME 조합 완료 후 BR 제거 및 저장
+    linesEl.addEventListener('compositionend', () => {
+      removePlaceholderBrs();
       clearTimeout(saveDebounce);
       saveDebounce = setTimeout(() => saveAllLines(project.id, linesEl), 300);
     });
@@ -3359,6 +3389,8 @@ function buildLinesSection(project, editMode = true) {
     });
 
     linesEl.addEventListener('keydown', e => {
+      // IME 조합 중(한글 등) 내부 이벤트 개입 금지
+      if (e.isComposing) return;
       if (e.key === 'Enter') {
         e.preventDefault();
         insertNewLineAtCursor(linesEl, project.id);
@@ -3871,12 +3903,25 @@ function handleBackspace(linesEl, projectId) {
     const textNode = Array.from(currentLine.childNodes).find(n => n.nodeType === Node.TEXT_NODE);
     if (!textNode || cursorOffset === 0) return;
     const text = textNode.textContent;
-    textNode.textContent = text.slice(0, cursorOffset - 1) + text.slice(cursorOffset);
-    const newRange = document.createRange();
-    newRange.setStart(textNode, cursorOffset - 1);
-    newRange.collapse(true);
-    sel.removeAllRanges();
-    sel.addRange(newRange);
+    const newText = text.slice(0, cursorOffset - 1) + text.slice(cursorOffset);
+    if (!newText) {
+      // 마지막 글자 삭제: 빈 textNode 제거 후 <br> placeholder 복원
+      textNode.remove();
+      const br = document.createElement('br');
+      currentLine.appendChild(br);
+      const newRange = document.createRange();
+      newRange.setStartBefore(br);
+      newRange.collapse(true);
+      sel.removeAllRanges();
+      sel.addRange(newRange);
+    } else {
+      textNode.textContent = newText;
+      const newRange = document.createRange();
+      newRange.setStart(textNode, cursorOffset - 1);
+      newRange.collapse(true);
+      sel.removeAllRanges();
+      sel.addRange(newRange);
+    }
   }
 }
 
@@ -5338,6 +5383,7 @@ function renderLibRootTabs() {
 function selectLibRoot(root) {
   closeVoicingModal();
   _libRoot = root;
+  analytics.track('lib_tab_changed', { root_tab: root });
   renderLibRootTabs();
   renderLibCards(root);
 }
@@ -5659,6 +5705,7 @@ function showLibSearchModal() {
   }
 
   const q = (document.getElementById('lib-search')?.value || '').trim();
+  if (q) analytics.track('lib_searched', { query: q, result_count: _libSearchResults.length });
   titleEl.textContent = _libSearchResults.length
     ? `"${q}" 검색 결과 ${_libSearchResults.length}건`
     : `"${q}" 검색 결과 없음`;

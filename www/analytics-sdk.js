@@ -27,6 +27,11 @@ class AnalyticsSDK {
     project_opened:       'project',
     project_limit_hit:    'project',
     chord_added:          'project',
+    capo_changed:         'project',
+    bpm_changed:          'project',
+    metronome_toggled:    'project',
+    playall_started:      'project',
+    project_chord_played: 'project',
     // share
     share_initiated:      'share',
     import_completed:     'share',
