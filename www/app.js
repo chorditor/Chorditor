@@ -1497,7 +1497,7 @@ async function refreshPlanFromDB() {
 // Settings → API → Project URL / anon public
 const SUPABASE_URL  = 'https://jbvkygeksohlysyvaoab.supabase.co';
 const SUPABASE_ANON = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Impidmt5Z2Vrc29obHlzeXZhb2FiIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzYzOTk5NjgsImV4cCI6MjA5MTk3NTk2OH0.6RSgChy0Yq0H2TJpZPSoMKQ2V-OYfR0XzE1aJBBZkXI';
-const APP_VERSION   = '1.1.4_pre5';
+const APP_VERSION   = '1.1.4_pre5d';
 
 // ── Analytics SDK 초기화 ──────────────────────────────────────
 // analytics-sdk.js가 app.js보다 먼저 로드된 경우에만 초기화
@@ -3356,6 +3356,57 @@ function buildLinesSection(project, editMode = true) {
 
   if (editMode) {
     let saveDebounce = null;
+
+    // ── 이벤트 디버그 로거 (삼성 IME 이벤트 실측용, 확인 후 제거) ──
+    const debugLog = (() => {
+      const panel = document.createElement('div');
+      panel.style.cssText = 'position:fixed;bottom:0;left:0;right:0;max-height:40vh;overflow-y:auto;' +
+        'background:rgba(0,0,0,0.85);color:#0f0;font:11px monospace;z-index:99999;' +
+        'padding:4px;pointer-events:auto;';
+      panel.innerHTML = '<b style="color:#ff0">[IME DEBUG] 탭하면 지움</b><br>';
+      document.body.appendChild(panel);
+      panel.addEventListener('click', () => {
+        panel.innerHTML = '<b style="color:#ff0">[IME DEBUG] 탭하면 지움</b><br>';
+      });
+      let count = 0;
+      return (label, data) => {
+        count++;
+        const line = document.createElement('div');
+        // 커서 위치 계산
+        const sel = window.getSelection();
+        let offsetInfo = '-';
+        let containerInfo = '-';
+        if (sel?.rangeCount) {
+          const r = sel.getRangeAt(0);
+          containerInfo = (r.startContainer.nodeType === Node.TEXT_NODE ? 'TEXT' : r.startContainer.nodeName) +
+            '(parent:' + (r.startContainer.parentNode?.nodeName || '?') + ')';
+          // 속한 project-line 찾기
+          let lineEl = r.startContainer;
+          while (lineEl && !lineEl.classList?.contains('project-line')) lineEl = lineEl.parentElement;
+          if (lineEl) offsetInfo = getCursorOffsetInLine(lineEl, r) + '/' + getLineText(lineEl).length;
+        }
+        line.textContent = `#${count} [${label}] ${JSON.stringify(data)} cur:${offsetInfo} cont:${containerInfo}`;
+        panel.appendChild(line);
+        panel.scrollTop = panel.scrollHeight;
+        if (panel.children.length > 60) panel.children[1]?.remove();
+      };
+    })();
+
+    linesEl.addEventListener('compositionstart', e => debugLog('compSTART', { data: e.data }));
+    linesEl.addEventListener('compositionupdate', e => debugLog('compUPDATE', { data: e.data }));
+    linesEl.addEventListener('compositionend', e => debugLog('compEND', { data: e.data }));
+    linesEl.addEventListener('keydown', e => {
+      if (e.key === 'Backspace' || e.key === 'Enter' || e.isComposing) {
+        debugLog('keydown', { key: e.key, isComp: e.isComposing });
+      }
+    }, true); // capture phase로 우선 감지
+    linesEl.addEventListener('beforeinput', e => {
+      debugLog('beforeinput', { type: e.inputType, isComp: e.isComposing, data: e.data });
+    }, true);
+    linesEl.addEventListener('input', e => {
+      debugLog('input', { type: e.inputType, isComp: e.isComposing, data: e.data });
+    }, true);
+    // ── 디버그 로거 끝 ──
 
     linesEl.addEventListener('input', (e) => {
       if (e.isComposing) return;
