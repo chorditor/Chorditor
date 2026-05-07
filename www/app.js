@@ -1497,7 +1497,7 @@ async function refreshPlanFromDB() {
 // Settings → API → Project URL / anon public
 const SUPABASE_URL  = 'https://jbvkygeksohlysyvaoab.supabase.co';
 const SUPABASE_ANON = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Impidmt5Z2Vrc29obHlzeXZhb2FiIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzYzOTk5NjgsImV4cCI6MjA5MTk3NTk2OH0.6RSgChy0Yq0H2TJpZPSoMKQ2V-OYfR0XzE1aJBBZkXI';
-const APP_VERSION   = '1.1.4_pre4';
+const APP_VERSION   = '1.1.4_pre5';
 
 // ── Analytics SDK 초기화 ──────────────────────────────────────
 // analytics-sdk.js가 app.js보다 먼저 로드된 경우에만 초기화
@@ -3404,8 +3404,14 @@ function buildLinesSection(project, editMode = true) {
           lineEl = lineEl.parentElement;
         }
         if (!lineEl || lineEl === linesEl) return;
+        // Android WebView IME 조합 중: 조합 텍스트가 <span>에 들어가 있어
+        // range.startContainer가 span 내부 TEXT_NODE → parentNode가 lineEl이 아님
+        // getCursorOffsetInLine이 0을 잘못 반환하는 케이스 → 브라우저에 위임해야 함
+        const container = range.startContainer;
+        const isDirectTextNode = container.nodeType === Node.TEXT_NODE && container.parentNode === lineEl;
+        const isLineEl = container === lineEl;
+        if (!isDirectTextNode && !isLineEl) return; // IME 조합 span 포함한 모든 서브 엘리먼트 위임
         // 줄 중간(offset > 0): 브라우저 기본 동작에 위임
-        // Samsung IME의 내부 deleteSurroundingText도 항상 offset > 0에서 발생 → 자연스럽게 통과
         if (getCursorOffsetInLine(lineEl, range) > 0) return;
         e.preventDefault();
         handleBackspace(linesEl, project.id);
