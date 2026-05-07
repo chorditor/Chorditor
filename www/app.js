@@ -1497,7 +1497,7 @@ async function refreshPlanFromDB() {
 // Settings → API → Project URL / anon public
 const SUPABASE_URL  = 'https://jbvkygeksohlysyvaoab.supabase.co';
 const SUPABASE_ANON = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Impidmt5Z2Vrc29obHlzeXZhb2FiIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzYzOTk5NjgsImV4cCI6MjA5MTk3NTk2OH0.6RSgChy0Yq0H2TJpZPSoMKQ2V-OYfR0XzE1aJBBZkXI';
-const APP_VERSION   = '1.1.4_pre6d';
+const APP_VERSION   = '1.1.4_pre7d';
 
 // ── Analytics SDK 초기화 ──────────────────────────────────────
 // analytics-sdk.js가 app.js보다 먼저 로드된 경우에만 초기화
@@ -3182,16 +3182,13 @@ function getCursorOffsetInLine(lineDiv, range) {
 }
 
 function setLineText(lineDiv, text) {
-  // 기존 <br> placeholder 제거
+  // 기존 <br> placeholder 제거 (혹시 남아있을 경우)
   lineDiv.querySelectorAll('br').forEach(br => br.remove());
   for (const node of lineDiv.childNodes) {
-    if (node.nodeType === Node.TEXT_NODE) { node.textContent = text; if (!text) lineDiv.appendChild(document.createElement('br')); return; }
+    if (node.nodeType === Node.TEXT_NODE) { node.textContent = text; return; }
   }
-  if (text) {
-    lineDiv.appendChild(document.createTextNode(text));
-  } else {
-    lineDiv.appendChild(document.createElement('br'));
-  }
+  // TEXT 노드 없으면 새로 추가 (text가 ""여도 빈 TEXT 노드 유지 — IME composition context 보존)
+  lineDiv.appendChild(document.createTextNode(text));
 }
 
 function buildChordArea(line, project, editMode = true) {
@@ -3346,11 +3343,9 @@ function buildLinesSection(project, editMode = true) {
     div.className = 'project-line';
     div.dataset.lineId = line.id;
     div.appendChild(buildChordArea(line, project, editMode));
-    if (line.text) {
-      div.appendChild(document.createTextNode(line.text));
-    } else {
-      div.appendChild(document.createElement('br'));
-    }
+    // 텍스트 유무와 무관하게 항상 TEXT 노드 유지 (빈 "" 포함)
+    // → IME composition 시 cursor container가 DIV→TEXT로 바뀌는 문제 방지
+    div.appendChild(document.createTextNode(line.text || ''));
     linesEl.appendChild(div);
   });
 
@@ -3412,15 +3407,11 @@ function buildLinesSection(project, editMode = true) {
       if (e.isComposing) return;
       // 빈 줄 정리: 텍스트 있으면 br 제거, 없으면 빈 textNode 정리 후 br 보장
       linesEl.querySelectorAll('.project-line').forEach(lineDiv => {
-        const text = getLineText(lineDiv);
-        if (text) {
-          lineDiv.querySelectorAll('br').forEach(br => br.remove());
-        } else {
-          Array.from(lineDiv.childNodes).forEach(n => {
-            if (n.nodeType === Node.TEXT_NODE && !n.textContent) n.remove();
-          });
-          if (!lineDiv.querySelector('br')) lineDiv.appendChild(document.createElement('br'));
-        }
+        // br이 남아있으면 제거
+        lineDiv.querySelectorAll('br').forEach(br => br.remove());
+        // TEXT 노드가 없으면 빈 TEXT 노드 추가 (IME composition context 유지)
+        const hasTextNode = Array.from(lineDiv.childNodes).some(n => n.nodeType === Node.TEXT_NODE);
+        if (!hasTextNode) lineDiv.appendChild(document.createTextNode(''));
       });
       clearTimeout(saveDebounce);
       saveDebounce = setTimeout(() => saveAllLines(project.id, linesEl), 300);
@@ -3818,11 +3809,7 @@ function insertNewLineAtCursor(linesEl, projectId) {
     newDiv.className = 'project-line';
     newDiv.dataset.lineId = newLineId;
     newDiv.appendChild(buildChordArea(newLine, p || { id: projectId, chords: [] }));
-    if (displaced) {
-      newDiv.appendChild(document.createTextNode(displaced));
-    } else {
-      newDiv.appendChild(document.createElement('br'));
-    }
+    newDiv.appendChild(document.createTextNode(displaced));
     lastRow.insertAdjacentElement('afterend', newDiv);
     // 커서를 nextSibling(밀린 후 첫 번째 기존 행)의 시작으로 이동
     const newRange = document.createRange();
@@ -3830,9 +3817,7 @@ function insertNewLineAtCursor(linesEl, projectId) {
     if (firstTextNode) {
       newRange.setStart(firstTextNode, 0);
     } else {
-      const br = nextSibling.querySelector('br');
-      if (br) newRange.setStartBefore(br);
-      else { newRange.selectNodeContents(nextSibling); newRange.collapse(true); }
+      newRange.selectNodeContents(nextSibling); newRange.collapse(true);
     }
     newRange.collapse(true);
     sel.removeAllRanges();
@@ -3846,18 +3831,10 @@ function insertNewLineAtCursor(linesEl, projectId) {
     newDiv.className = 'project-line';
     newDiv.dataset.lineId = newLineId;
     newDiv.appendChild(buildChordArea(newLine, p || { id: projectId, chords: [] }));
-    if (after) {
-      newDiv.appendChild(document.createTextNode(after));
-    } else {
-      newDiv.appendChild(document.createElement('br'));
-    }
+    newDiv.appendChild(document.createTextNode(after));
     currentLine.insertAdjacentElement('afterend', newDiv);
     const newRange = document.createRange();
-    if (after) {
-      newRange.setStart(newDiv.lastChild, 0);
-    } else {
-      newRange.setStartBefore(newDiv.lastChild);
-    }
+    newRange.setStart(newDiv.lastChild, 0);
     newRange.collapse(true);
     sel.removeAllRanges();
     sel.addRange(newRange);
@@ -3905,12 +3882,10 @@ function handleBackspace(linesEl, projectId) {
     if (prevLine) {
       const textNode = Array.from(prevLine.childNodes).find(n => n.nodeType === Node.TEXT_NODE);
       const newRange = document.createRange();
-      if (textNode && textNode.textContent.length > 0) {
+      if (textNode) {
         newRange.setStart(textNode, textNode.textContent.length);
       } else {
-        const br = prevLine.querySelector('br');
-        if (br) newRange.setStartBefore(br);
-        else newRange.selectNodeContents(prevLine);
+        newRange.selectNodeContents(prevLine);
         newRange.collapse(false);
       }
       newRange.collapse(true);
@@ -3974,12 +3949,10 @@ function handleBackspace(linesEl, projectId) {
     const text = textNode.textContent;
     const newText = text.slice(0, cursorOffset - 1) + text.slice(cursorOffset);
     if (!newText) {
-      // 마지막 글자 삭제: 빈 textNode 제거 후 <br> placeholder 복원
-      textNode.remove();
-      const br = document.createElement('br');
-      currentLine.appendChild(br);
+      // 마지막 글자 삭제: TEXT 노드를 빈 문자열로 유지 (br 대신 — IME context 보존)
+      textNode.textContent = '';
       const newRange = document.createRange();
-      newRange.setStartBefore(br);
+      newRange.setStart(textNode, 0);
       newRange.collapse(true);
       sel.removeAllRanges();
       sel.addRange(newRange);
