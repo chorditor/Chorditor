@@ -1497,7 +1497,7 @@ async function refreshPlanFromDB() {
 // Settings → API → Project URL / anon public
 const SUPABASE_URL  = 'https://jbvkygeksohlysyvaoab.supabase.co';
 const SUPABASE_ANON = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Impidmt5Z2Vrc29obHlzeXZhb2FiIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzYzOTk5NjgsImV4cCI6MjA5MTk3NTk2OH0.6RSgChy0Yq0H2TJpZPSoMKQ2V-OYfR0XzE1aJBBZkXI';
-const APP_VERSION   = '1.1.4_pre7d';
+const APP_VERSION   = '1.1.4_pre8';
 
 // ── Analytics SDK 초기화 ──────────────────────────────────────
 // analytics-sdk.js가 app.js보다 먼저 로드된 경우에만 초기화
@@ -3182,13 +3182,19 @@ function getCursorOffsetInLine(lineDiv, range) {
 }
 
 function setLineText(lineDiv, text) {
-  // 기존 <br> placeholder 제거 (혹시 남아있을 경우)
   lineDiv.querySelectorAll('br').forEach(br => br.remove());
   for (const node of lineDiv.childNodes) {
-    if (node.nodeType === Node.TEXT_NODE) { node.textContent = text; return; }
+    if (node.nodeType === Node.TEXT_NODE) {
+      node.textContent = text;
+      if (!text) lineDiv.appendChild(document.createElement('br'));
+      return;
+    }
   }
-  // TEXT 노드 없으면 새로 추가 (text가 ""여도 빈 TEXT 노드 유지 — IME composition context 보존)
-  lineDiv.appendChild(document.createTextNode(text));
+  if (text) {
+    lineDiv.appendChild(document.createTextNode(text));
+  } else {
+    lineDiv.appendChild(document.createElement('br'));
+  }
 }
 
 function buildChordArea(line, project, editMode = true) {
@@ -3343,78 +3349,39 @@ function buildLinesSection(project, editMode = true) {
     div.className = 'project-line';
     div.dataset.lineId = line.id;
     div.appendChild(buildChordArea(line, project, editMode));
-    // 텍스트 유무와 무관하게 항상 TEXT 노드 유지 (빈 "" 포함)
-    // → IME composition 시 cursor container가 DIV→TEXT로 바뀌는 문제 방지
-    div.appendChild(document.createTextNode(line.text || ''));
+    if (line.text) {
+      div.appendChild(document.createTextNode(line.text));
+    } else {
+      div.appendChild(document.createElement('br'));
+    }
     linesEl.appendChild(div);
   });
 
   if (editMode) {
     let saveDebounce = null;
 
-    // ── 이벤트 디버그 로거 (삼성 IME 이벤트 실측용, 확인 후 제거) ──
-    const debugLog = (() => {
-      const panel = document.createElement('div');
-      panel.style.cssText = 'position:fixed;bottom:0;left:0;right:0;max-height:40vh;overflow-y:auto;' +
-        'background:rgba(0,0,0,0.85);color:#0f0;font:11px monospace;z-index:99999;' +
-        'padding:4px;pointer-events:auto;';
-      panel.innerHTML = '<b style="color:#ff0">[IME DEBUG] 탭하면 지움</b><br>';
-      document.body.appendChild(panel);
-      panel.addEventListener('click', () => {
-        panel.innerHTML = '<b style="color:#ff0">[IME DEBUG] 탭하면 지움</b><br>';
-      });
-      let count = 0;
-      return (label, data) => {
-        count++;
-        const line = document.createElement('div');
-        // 커서 위치 계산
-        const sel = window.getSelection();
-        let offsetInfo = '-';
-        let containerInfo = '-';
-        if (sel?.rangeCount) {
-          const r = sel.getRangeAt(0);
-          containerInfo = (r.startContainer.nodeType === Node.TEXT_NODE ? 'TEXT' : r.startContainer.nodeName) +
-            '(parent:' + (r.startContainer.parentNode?.nodeName || '?') + ')';
-          // 속한 project-line 찾기
-          let lineEl = r.startContainer;
-          while (lineEl && !lineEl.classList?.contains('project-line')) lineEl = lineEl.parentElement;
-          if (lineEl) offsetInfo = getCursorOffsetInLine(lineEl, r) + '/' + getLineText(lineEl).length;
-        }
-        line.textContent = `#${count} [${label}] ${JSON.stringify(data)} cur:${offsetInfo} cont:${containerInfo}`;
-        panel.appendChild(line);
-        panel.scrollTop = panel.scrollHeight;
-        if (panel.children.length > 60) panel.children[1]?.remove();
-      };
-    })();
-
-    linesEl.addEventListener('compositionstart', e => debugLog('compSTART', { data: e.data }));
-    linesEl.addEventListener('compositionupdate', e => debugLog('compUPDATE', { data: e.data }));
-    linesEl.addEventListener('compositionend', e => debugLog('compEND', { data: e.data }));
-    linesEl.addEventListener('keydown', e => {
-      if (e.key === 'Backspace' || e.key === 'Enter' || e.isComposing) {
-        debugLog('keydown', { key: e.key, isComp: e.isComposing });
-      }
-    }, true); // capture phase로 우선 감지
-    linesEl.addEventListener('beforeinput', e => {
-      debugLog('beforeinput', { type: e.inputType, isComp: e.isComposing, data: e.data });
-    }, true);
-    linesEl.addEventListener('input', e => {
-      debugLog('input', { type: e.inputType, isComp: e.isComposing, data: e.data });
-    }, true);
-    // ── 디버그 로거 끝 ──
-
     linesEl.addEventListener('input', (e) => {
       if (e.isComposing) return;
-      // 빈 줄 정리: 텍스트 있으면 br 제거, 없으면 빈 textNode 정리 후 br 보장
+      // 빈 줄 br 보장, 텍스트 있는 줄 br 제거
       linesEl.querySelectorAll('.project-line').forEach(lineDiv => {
-        // br이 남아있으면 제거
-        lineDiv.querySelectorAll('br').forEach(br => br.remove());
-        // TEXT 노드가 없으면 빈 TEXT 노드 추가 (IME composition context 유지)
-        const hasTextNode = Array.from(lineDiv.childNodes).some(n => n.nodeType === Node.TEXT_NODE);
-        if (!hasTextNode) lineDiv.appendChild(document.createTextNode(''));
+        const text = getLineText(lineDiv);
+        if (text) {
+          lineDiv.querySelectorAll('br').forEach(br => br.remove());
+        } else if (!lineDiv.querySelector('br')) {
+          lineDiv.appendChild(document.createElement('br'));
+        }
       });
       clearTimeout(saveDebounce);
       saveDebounce = setTimeout(() => saveAllLines(project.id, linesEl), 300);
+    });
+
+    // Samsung 키보드: 여러 줄 붙여넣기가 insertText + \n 으로 들어오는 경우 처리
+    linesEl.addEventListener('beforeinput', e => {
+      if (e.inputType !== 'insertText') return;
+      const text = e.data || '';
+      if (!text.includes('\n')) return;
+      e.preventDefault();
+      applyPastedText(text, lastFocusedLine);
     });
 
     // 텍스트 영역에 드래그 드롭으로 이미지 삽입 차단
@@ -3435,28 +3402,20 @@ function buildLinesSection(project, editMode = true) {
         return;
       }
       if (e.key === 'Backspace') {
+        // 빈 줄에서 Backspace → 줄 삭제 없음 (삭제는 우측 버튼으로만)
+        // 텍스트가 있는 줄에서는 브라우저에 완전 위임 → Samsung IME 정상 동작
         const sel = window.getSelection();
         if (!sel?.rangeCount) return;
         const range = sel.getRangeAt(0);
-        if (!range.collapsed) return; // 선택 영역 있으면 브라우저에 위임
-        // 커서가 속한 project-line 찾기
+        if (!range.collapsed) return;
         let lineEl = range.startContainer;
         while (lineEl && lineEl !== linesEl) {
           if (lineEl.classList?.contains('project-line')) break;
           lineEl = lineEl.parentElement;
         }
         if (!lineEl || lineEl === linesEl) return;
-        // Android WebView IME 조합 중: 조합 텍스트가 <span>에 들어가 있어
-        // range.startContainer가 span 내부 TEXT_NODE → parentNode가 lineEl이 아님
-        // getCursorOffsetInLine이 0을 잘못 반환하는 케이스 → 브라우저에 위임해야 함
-        const container = range.startContainer;
-        const isDirectTextNode = container.nodeType === Node.TEXT_NODE && container.parentNode === lineEl;
-        const isLineEl = container === lineEl;
-        if (!isDirectTextNode && !isLineEl) return; // IME 조합 span 포함한 모든 서브 엘리먼트 위임
-        // 줄 중간(offset > 0): 브라우저 기본 동작에 위임
-        if (getCursorOffsetInLine(lineEl, range) > 0) return;
-        e.preventDefault();
-        handleBackspace(linesEl, project.id);
+        if (!getLineText(lineEl)) e.preventDefault(); // 빈 줄: 아무것도 안 함
+        // 텍스트 있는 줄: 브라우저 완전 위임
       }
     });
 
@@ -3809,7 +3768,11 @@ function insertNewLineAtCursor(linesEl, projectId) {
     newDiv.className = 'project-line';
     newDiv.dataset.lineId = newLineId;
     newDiv.appendChild(buildChordArea(newLine, p || { id: projectId, chords: [] }));
-    newDiv.appendChild(document.createTextNode(displaced));
+    if (displaced) {
+      newDiv.appendChild(document.createTextNode(displaced));
+    } else {
+      newDiv.appendChild(document.createElement('br'));
+    }
     lastRow.insertAdjacentElement('afterend', newDiv);
     // 커서를 nextSibling(밀린 후 첫 번째 기존 행)의 시작으로 이동
     const newRange = document.createRange();
@@ -3817,7 +3780,9 @@ function insertNewLineAtCursor(linesEl, projectId) {
     if (firstTextNode) {
       newRange.setStart(firstTextNode, 0);
     } else {
-      newRange.selectNodeContents(nextSibling); newRange.collapse(true);
+      const br = nextSibling.querySelector('br');
+      if (br) newRange.setStartBefore(br);
+      else { newRange.selectNodeContents(nextSibling); newRange.collapse(true); }
     }
     newRange.collapse(true);
     sel.removeAllRanges();
@@ -3831,10 +3796,18 @@ function insertNewLineAtCursor(linesEl, projectId) {
     newDiv.className = 'project-line';
     newDiv.dataset.lineId = newLineId;
     newDiv.appendChild(buildChordArea(newLine, p || { id: projectId, chords: [] }));
-    newDiv.appendChild(document.createTextNode(after));
+    if (after) {
+      newDiv.appendChild(document.createTextNode(after));
+    } else {
+      newDiv.appendChild(document.createElement('br'));
+    }
     currentLine.insertAdjacentElement('afterend', newDiv);
     const newRange = document.createRange();
-    newRange.setStart(newDiv.lastChild, 0);
+    if (after) {
+      newRange.setStart(newDiv.lastChild, 0);
+    } else {
+      newRange.setStartBefore(newDiv.lastChild);
+    }
     newRange.collapse(true);
     sel.removeAllRanges();
     sel.addRange(newRange);
@@ -3850,121 +3823,6 @@ function lineHasChords(lineDiv, projectId) {
   if (line?.slots?.some(s => s !== null)) return true;
   // DOM 폴백 (saveAllLines 전 상태)
   return Array.from(lineDiv.querySelectorAll('[data-slot-idx]')).some(el => el.dataset.chordId);
-}
-
-function handleBackspace(linesEl, projectId) {
-  const sel = window.getSelection();
-  if (!sel.rangeCount) return;
-  const range = sel.getRangeAt(0);
-
-  // 현재 커서가 속한 project-line 찾기
-  let currentLine = range.startContainer;
-  while (currentLine && currentLine !== linesEl) {
-    if (currentLine.classList?.contains('project-line')) break;
-    currentLine = currentLine.parentElement;
-  }
-  if (!currentLine || currentLine === linesEl) return;
-
-  const lines = Array.from(linesEl.querySelectorAll('.project-line'));
-  const lineText = getLineText(currentLine);
-  const cursorOffset = getCursorOffsetInLine(currentLine, range);
-
-  if (lines.length === 1 && !lineText) {
-    // 마지막 줄이고 빈 줄 → 삭제 차단
-    return;
-  }
-
-  if (cursorOffset === 0 && !lineText) {
-    // 빈 줄에서 줄 시작: 코드 슬롯이 있으면 행 보존
-    if (lineHasChords(currentLine, projectId)) return;
-    const prevLine = currentLine.previousElementSibling;
-    currentLine.remove();
-    if (prevLine) {
-      const textNode = Array.from(prevLine.childNodes).find(n => n.nodeType === Node.TEXT_NODE);
-      const newRange = document.createRange();
-      if (textNode) {
-        newRange.setStart(textNode, textNode.textContent.length);
-      } else {
-        newRange.selectNodeContents(prevLine);
-        newRange.collapse(false);
-      }
-      newRange.collapse(true);
-      sel.removeAllRanges();
-      sel.addRange(newRange);
-      // 커서 위치로 스크롤 자동 추적
-      requestAnimationFrame(() => prevLine?.scrollIntoView({ block: 'nearest', behavior: 'smooth' }));
-    }
-    saveAllLines(projectId, linesEl);
-
-  } else if (cursorOffset === 0 && lineText) {
-    // 텍스트 있는 줄의 맨 앞: 이전 줄에 텍스트 병합
-    const prevLine = currentLine.previousElementSibling;
-    if (!prevLine) return; // 첫 줄이면 아무것도 안 함
-    const prevText = getLineText(prevLine);
-    setLineText(prevLine, prevText + lineText);
-    // 이전 줄 텍스트 끝(병합 경계)으로 커서 이동
-    const textNode = Array.from(prevLine.childNodes).find(n => n.nodeType === Node.TEXT_NODE);
-    const newRange = document.createRange();
-    if (textNode) {
-      newRange.setStart(textNode, prevText.length);
-    } else {
-      newRange.selectNodeContents(prevLine); newRange.collapse(false);
-    }
-    newRange.collapse(true);
-    sel.removeAllRanges();
-    sel.addRange(newRange);
-    // 커서 위치로 스크롤 자동 추적
-    requestAnimationFrame(() => prevLine?.scrollIntoView({ block: 'nearest', behavior: 'smooth' }));
-    if (lineHasChords(currentLine, projectId)) {
-      // Q1-B: 코드 슬롯 있으면 행 보존 — 텍스트만 비움, 아래 텍스트 한 칸씩 위로
-      setLineText(currentLine, '');
-      // 아래 모든 행의 텍스트를 한 칸씩 위로 당기기
-      let upper = currentLine;
-      let lower = currentLine.nextElementSibling;
-      while (lower) {
-        const lowerText = getLineText(lower);
-        setLineText(upper, lowerText);
-        const nextLower = lower.nextElementSibling;
-        if (!lowerText && !lineHasChords(lower, projectId)) {
-          // 텍스트도 없고 코드 슬롯도 없는 마지막 행 → 제거
-          lower.remove();
-          break;
-        } else if (!nextLower) {
-          // 마지막 행이지만 코드 슬롯이 있으면 텍스트만 비움
-          setLineText(lower, '');
-        }
-        upper = lower;
-        lower = nextLower;
-      }
-    } else {
-      // 코드 슬롯 없으면 행 삭제
-      currentLine.remove();
-    }
-    saveAllLines(projectId, linesEl);
-
-  } else {
-    // 줄 중간: 커서 앞 글자 하나 삭제
-    const textNode = Array.from(currentLine.childNodes).find(n => n.nodeType === Node.TEXT_NODE);
-    if (!textNode || cursorOffset === 0) return;
-    const text = textNode.textContent;
-    const newText = text.slice(0, cursorOffset - 1) + text.slice(cursorOffset);
-    if (!newText) {
-      // 마지막 글자 삭제: TEXT 노드를 빈 문자열로 유지 (br 대신 — IME context 보존)
-      textNode.textContent = '';
-      const newRange = document.createRange();
-      newRange.setStart(textNode, 0);
-      newRange.collapse(true);
-      sel.removeAllRanges();
-      sel.addRange(newRange);
-    } else {
-      textNode.textContent = newText;
-      const newRange = document.createRange();
-      newRange.setStart(textNode, cursorOffset - 1);
-      newRange.collapse(true);
-      sel.removeAllRanges();
-      sel.addRange(newRange);
-    }
-  }
 }
 
 // ═══════════════════════════════════════════════════════════════
