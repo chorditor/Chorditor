@@ -29,6 +29,25 @@ npx cap copy android
 
 ---
 
+## 디자인 현황
+
+### 프로젝트 뷰 헤더
+- **Row1** (4칸/8칸, 공유하기, 완료, 삭제): 높이 28px 고정 (`box-sizing: border-box`)
+- **Row2** (카포, BPM, 메트로놈, 재생): 높이 28px 통일
+- Row1 ↔ Row2 간격: `gap: 8px`
+
+### 프로젝트 줄(line) 구조
+- 구분선: `rgba(180,168,152,0.35)` (흐린 색), `padding-bottom: 5px` / `margin-bottom: 19px` (텍스트에 가깝게)
+- `+` 버튼: 33px 원형, `margin-top: 20px`
+- 새 줄 생성 애니메이션: `cubic-bezier(0.22,1,0.36,1)` 0.28s 슬라이드인
+
+### 아이콘
+- 아이콘 라이브러리: **Lucide** (`lucide@latest` CDN)
+- 메트로놈 아이콘: `metronome` (v0.575.0 이상)
+- 메트로놈·재생 버튼 SVG 크기: 13px (버튼 원형 28px)
+
+---
+
 ## ⛔ 절대 수정 금지
 
 - `chord-voicings.js` — 보이싱 데이터 원본. Claude 수정 금지.

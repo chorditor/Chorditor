@@ -489,6 +489,8 @@ body {
   font-family: 'Pretendard', sans-serif;
   font-size: 12px;
   padding: 6px 14px;
+  height: 28px;
+  box-sizing: border-box;
   border-radius: var(--radius);
   border: 1px solid var(--border);
   background: transparent;
@@ -865,7 +867,7 @@ canvas {
 .project-header {
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 8px;
   margin-bottom: 8px;
   width: 100%;
   min-width: 0;
@@ -885,6 +887,8 @@ canvas {
 .project-header-btn {
   font-size: 11px;
   padding: 5px 10px;
+  height: 28px;
+  box-sizing: border-box;
   white-space: nowrap;
   flex-shrink: 1;
   min-width: 0;
@@ -954,6 +958,8 @@ canvas {
 .col-toggle-btn {
   font-size: 11px;
   padding: 4px 12px;
+  height: 28px;
+  box-sizing: border-box;
   border: none;
   background: transparent;
   color: var(--text-secondary);
@@ -1062,7 +1068,7 @@ canvas {
   color: var(--surface);
   border-color: var(--text-primary);
 }
-.metronome-btn i { width: 13px; height: 13px; }
+.metronome-btn svg { width: 13px; height: 13px; }
 
 /* 전체재생 버튼 */
 .play-all-btn {
@@ -1080,7 +1086,7 @@ canvas {
   transition: opacity .15s;
 }
 .play-all-btn:hover { opacity: .75; }
-.play-all-btn i { width: 13px; height: 13px; }
+.play-all-btn svg { width: 13px; height: 13px; }
 
 /* 전체재생 중 현재 슬롯 강조 */
 .chord-slot--playing {
@@ -1294,25 +1300,59 @@ canvas {
   scrollbar-width: none;
   outline: none;
   font-family: 'Pretendard', sans-serif;
-  padding-bottom: 160px; /* 마지막 행 3-dot 드롭다운 잘림 방지 */
   font-size: 14px;
   line-height: 1.6;
   color: var(--text-primary);
   caret-color: var(--text-primary);
-  padding: 8px 12px;
+  padding: 8px 12px 160px; /* 하단 160px: 마지막 행 3-dot 드롭다운 잘림 방지 */
   word-break: break-word;
 }
 .project-lines::-webkit-scrollbar { display: none; }
-.project-lines[contenteditable="false"] { cursor: default; caret-color: transparent; user-select: none; }
+
+.line-text {
+  outline: none;
+  min-height: 1.4em;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.add-line-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 33px;
+  height: 33px;
+  border-radius: 50%;
+  border: 1.5px solid var(--border);
+  background: transparent;
+  color: var(--text-muted);
+  font-size: 22px;
+  line-height: 1;
+  cursor: pointer;
+  margin: 20px auto 0;
+  opacity: 0.35;
+  transition: opacity .15s;
+  flex-shrink: 0;
+}
+.add-line-btn:hover, .add-line-btn:active { opacity: 0.9; }
+@media (pointer: coarse) { .add-line-btn { opacity: 0.55; } }
+
+@keyframes projectLineIn {
+  from { opacity: 0; transform: translateY(-12px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.project-line-enter {
+  animation: projectLineIn 0.28s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
 
 .project-line {
   font-size: 22px;
   min-height: 1.6em;
-  border-bottom: 1px solid var(--border);
-  padding-bottom: 12px;
-  margin-bottom: 12px;
+  border-bottom: 1px solid rgba(180, 168, 152, 0.35);
+  padding-bottom: 5px;
+  margin-bottom: 19px;
 }
-.project-line:last-child {
+.project-line:last-of-type {
   border-bottom: none;
   margin-bottom: 0;
 }
