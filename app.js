@@ -32,11 +32,25 @@ const SH = () => (TB() - TT()) / (STRINGS - 1);
 const DS = () => Math.round(SH() * 0.85);
 
 function resizeCanvas() {
-  // ⚠️ 캔버스 크기 항상 고정 — 환경·세션 무관하게 BASE_W * MAIN_DISPLAY_SCALE 로 고정
+  // ⚠️ 캔버스 크기 — 모바일에서 viewport 기반으로 자동 축소
   // style.width를 절대 초기화(='')하지 말 것:
   //   2x 물리픽셀(canvas.width)이 큰 상태에서 style.width='' 하면 브라우저가
   //   물리픽셀을 CSS크기로 적용 → 컨테이너 팽창 → RATIO 양성 피드백 발생
-  const displayW = Math.round(BASE_W * MAIN_DISPLAY_SCALE); // 항상 고정: 320px
+  let displayW = Math.round(BASE_W * MAIN_DISPLAY_SCALE); // 기본 320px
+
+  if (window.innerWidth <= 1400) {
+    // 모바일: 카드 content 너비에서 gap(8) + apply-btn(32) + 여백(6) 차감
+    const cardEl = canvas.closest('.card');
+    if (cardEl) {
+      const cs = getComputedStyle(cardEl);
+      const contentW = cardEl.getBoundingClientRect().width
+        - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight)
+        - parseFloat(cs.borderLeftWidth) - parseFloat(cs.borderRightWidth);
+      const maxW = Math.floor(contentW - 8 - 32 - 6); // gap + btn + safety
+      displayW = Math.min(displayW, Math.max(220, maxW));
+    }
+  }
+
   canvas.style.width  = displayW + 'px';
   canvas.style.height = 'auto';
   canvas.parentElement.style.width = displayW + 'px'; // canvas-inner 고정 (바레 버튼 기준점)
@@ -97,7 +111,14 @@ class GuitarChordSuggester {
     const flat = flatNames
       ? (Array.isArray(flatNames) ? flatNames : [flatNames])
       : sharp.map(n => GuitarChordSuggester._sharpToFlat(n));
-    this.voicingLibrary.set(key, { sharp, flat });
+    // 동일 운지에 여러 이름이 있을 경우 누적 (덮어쓰기 금지)
+    const existing = this.voicingLibrary.get(key);
+    if (existing) {
+      for (const n of sharp) if (!existing.sharp.includes(n)) existing.sharp.push(n);
+      for (const n of flat)  if (!existing.flat.includes(n))  existing.flat.push(n);
+    } else {
+      this.voicingLibrary.set(key, { sharp: [...sharp], flat: [...flat] });
+    }
   }
 
   suggest(input, opts = {}) {
@@ -108,7 +129,7 @@ class GuitarChordSuggester {
     const exact = this.voicingLibrary.get(anal.voicingKey);
     if (exact?.sharp?.length) {
       const names = this.options.spellingMode === 'flat' ? exact.flat : exact.sharp;
-      return [names[0]];
+      return names.slice(0, maxR);  // 동일 운지의 모든 코드명 반환 (최대 maxResults개)
     }
 
     const candidates = [];
@@ -627,10 +648,23 @@ function buildChordHTML() {
   return n;
 }
 
+let _chordBuildTimer = null;
 function updateChordDisplay() {
   const el = document.getElementById('chord-display');
   if (el) el.innerHTML = buildChordHTML();
   draw();
+  // 500ms 디바운스: 휠피커 연속 조작 후 최종 상태만 수집
+  if (_chordBuildTimer) clearTimeout(_chordBuildTimer);
+  _chordBuildTimer = setTimeout(() => {
+    analytics.track('chord_build', {
+      root:    selectedRoot,
+      triad:   selectedTriad,
+      seventh: selectedSeventh,
+      tension: selectedTensions[0] ?? '',
+      bass:    selectedBass,
+    });
+    _chordBuildTimer = null;
+  }, 500);
 }
 
 function updateChordSuggestions() {
@@ -657,52 +691,49 @@ function parseChordNameToComponents(name) {
     rest = rest.slice(0, slashIdx);
   }
 
-  // 괄호 텐션 추출: (9), (b9), (#11) 등 — suffix 매칭 전에 분리
-  // _fmt()는 텐션을 항상 suffix 뒤 (...)로 붙임
-  let tension = '';
-  let hasFuncB5 = false;
-  const parenMatch = rest.match(/\(([^)]+)\)$/);
-  if (parenMatch) {
-    const parts = parenMatch[1].split(',').map(s => s.trim());
-    for (const p of parts) {
-      if (p === 'b5') hasFuncB5 = true;
-      else if (['b9','9','#9','11','#11','b13','13'].includes(p)) tension = p;
+  // suffix → 컴포넌트 (긴 것 우선)
+  const MAP = [
+    ['mM7',    { triad: 'm',   seventh: 'M7', func: '' }],
+    ['m7(b5)', { triad: 'm',   seventh: '7',  func: 'b5' }],
+    ['m7',     { triad: 'm',   seventh: '7',  func: '' }],
+    ['m6',     { triad: 'm',   seventh: '6',  func: '' }],
+    ['M7',     { triad: '',    seventh: 'M7', func: '' }],
+    ['7sus4',  { triad: '',    seventh: '7',  func: 'sus4' }],
+    ['7',      { triad: '',    seventh: '7',  func: '' }],
+    ['6',      { triad: '',    seventh: '6',  func: '' }],
+    ['dim7',   { triad: 'dim', seventh: '7',  func: '' }],
+    ['dim',    { triad: 'dim', seventh: '',   func: '' }],
+    ['aug7',   { triad: 'aug', seventh: '7',  func: '' }],
+    ['aug',    { triad: 'aug', seventh: '',   func: '' }],
+    ['sus4',   { triad: '',    seventh: '',   func: 'sus4' }],
+    ['sus2',   { triad: '',    seventh: '',   func: 'sus2' }],
+    ['add9',   { triad: '',    seventh: '',   func: 'add9' }],
+    ['m',      { triad: 'm',   seventh: '',   func: '' }],
+    ['',       { triad: '',    seventh: '',   func: '' }],
+  ];
+
+  // 1차: 정확 일치 (m7(b5) 등 포함)
+  for (const [suffix, comp] of MAP) {
+    if (rest === suffix) {
+      return { root, bass, tension: '', ...comp };
     }
-    rest = rest.slice(0, rest.length - parenMatch[0].length); // 괄호 제거
   }
 
-  // suffix → 컴포넌트 (긴 것 우선, 괄호 분리 후 매칭)
-  const MAP = [
-    ['mM7',   { triad: 'm',   seventh: 'M7', func: '' }],
-    ['m7',    { triad: 'm',   seventh: '7',  func: '' }],
-    ['m6',    { triad: 'm',   seventh: '6',  func: '' }],
-    ['M7',    { triad: '',    seventh: 'M7', func: '' }],
-    ['7sus4', { triad: '',    seventh: '7',  func: 'sus4' }],
-    ['7',     { triad: '',    seventh: '7',  func: '' }],
-    ['6',     { triad: '',    seventh: '6',  func: '' }],
-    ['dim7',  { triad: 'dim', seventh: '7',  func: '' }],
-    ['dim',   { triad: 'dim', seventh: '',   func: '' }],
-    ['aug7',  { triad: 'aug', seventh: '7',  func: '' }],
-    ['aug',   { triad: 'aug', seventh: '',   func: '' }],
-    ['sus4',  { triad: '',    seventh: '',   func: 'sus4' }],
-    ['sus2',  { triad: '',    seventh: '',   func: 'sus2' }],
-    ['add9',  { triad: '',    seventh: '',   func: 'add9' }],
-    ['m',     { triad: 'm',   seventh: '',   func: '' }],
-    ['',      { triad: '',    seventh: '',   func: '' }],
-  ];
+  // 2차: 텐션 부분 (9), (b9), (#11) 등 제거 후 재시도
+  let tension = '';
+  const tensionMatch = rest.match(/\(([^)]+)\)/);
+  if (tensionMatch) {
+    tension = tensionMatch[1].split(',')[0].trim(); // 첫 번째 텐션만 적용
+    rest = rest.replace(tensionMatch[0], '');
+  }
 
   for (const [suffix, comp] of MAP) {
     if (rest === suffix) {
-      return {
-        root, bass,
-        triad:   comp.triad,
-        seventh: comp.seventh,
-        func:    hasFuncB5 ? 'b5' : comp.func,
-        tension,
-      };
+      return { root, bass, tension, ...comp };
     }
   }
-  return { root, bass, triad: '', seventh: '', func: '', tension };
+
+  return { root, bass, tension, triad: '', seventh: '', func: '' };
 }
 
 // 추천 코드명 클릭 → 휠피커 적용
@@ -888,9 +919,17 @@ function drawCanvas(c, ratio, data = null) {
   const barreFrets = [];
   Object.keys(_barreCount).filter(f => _barreCount[f] >= 2).map(Number).forEach(f => {
     if (!_barre[f]) return;
-    const same  = _dots.filter(d => d.f === f);
-    const minS  = Math.min(...same.map(d => d.s));
-    const maxS  = Math.max(...same.map(d => d.s));
+    // barreRange: 라이브러리 엔트리가 제공하는 커버 범위 우선 사용 (Rule 1/2/3)
+    // 없으면 dots 기반 minS/maxS 자동 계산 (에디터 캔버스 기본 동작)
+    let minS, maxS;
+    if (data && data.barreRange) {
+      minS = data.barreRange.min;
+      maxS = data.barreRange.max;
+    } else {
+      const same = _dots.filter(d => d.f === f);
+      minS = Math.min(...same.map(d => d.s));
+      maxS = Math.max(...same.map(d => d.s));
+    }
     const key   = BARRE_KEYS[maxS - minS + 1];
     if (!key || !IMAGES[key]) return;
     barreFrets.push(f);
@@ -986,6 +1025,7 @@ function applyFirstSuggestion() {
   applyChordSuggestion(names[0]);
   _chordDirty = false;
   updateApplyBtn();
+  analytics.track('chord_applied', { chord_name: names[0] });
 }
 
 // ═══════════════════════════════════════════════════════════════
@@ -1158,12 +1198,14 @@ async function _doSavePNG(scale) {
       const SaveImage = window.Capacitor.Plugins.SaveImage;
       await SaveImage.saveToGallery({ base64, fileName: fileName.replace(/[^\w.\-]/g, '_') });
       showSaveToast();
-    } catch (e) { console.error('저장 실패:', e); }
+      analytics.track('image_saved', { scale, source: 'editor', success: true });
+    } catch (e) { console.error('저장 실패:', e); analytics.track('image_saved', { scale, source: 'editor', success: false }); }
   } else {
     const link = document.createElement('a');
     link.download = fileName;
     link.href = exp.toDataURL('image/png');
     document.body.appendChild(link); link.click(); document.body.removeChild(link);
+    analytics.track('image_saved', { scale, source: 'editor', success: true });
   }
 }
 
@@ -1338,6 +1380,7 @@ async function strumChord() {
   activeSources = [];
   const notes = calcStringNotes().sort((a, b) => b.s - a.s);
   if (!notes.length) return;
+  analytics.track('chord_played', { chord_name: buildChordName(), source: 'editor' });
   const DURATION = 2.5;
   const INTERVAL = 0.075;
   const now = audioCtx.currentTime + 0.05;
@@ -1361,6 +1404,10 @@ document.getElementById('finger-group').style.opacity = fingerNumMode ? '1' : '0
 const _fd = document.getElementById('fret-number-display');
 if (_fd) _fd.textContent = String(currentFretNumber);
 setupOrientationListener();
+
+// ── 앱 시작 이벤트 ──────────────────────────────────────────
+// app_open은 tryAutoSignIn() 완료 후 추적 → user_id 첨부 보장
+// (웹은 initSupabase 내부에서 세션 복원 후 추적)
 
 // ═══════════════════════════════════════════════════════════════
 // localStorage 유틸리티
@@ -1450,6 +1497,13 @@ async function refreshPlanFromDB() {
 // Settings → API → Project URL / anon public
 const SUPABASE_URL  = 'https://jbvkygeksohlysyvaoab.supabase.co';
 const SUPABASE_ANON = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Impidmt5Z2Vrc29obHlzeXZhb2FiIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzYzOTk5NjgsImV4cCI6MjA5MTk3NTk2OH0.6RSgChy0Yq0H2TJpZPSoMKQ2V-OYfR0XzE1aJBBZkXI';
+const APP_VERSION   = '1.1.4_pre11';
+
+// ── Analytics SDK 초기화 ──────────────────────────────────────
+// analytics-sdk.js가 app.js보다 먼저 로드된 경우에만 초기화
+const analytics = (typeof AnalyticsSDK !== 'undefined')
+  ? new AnalyticsSDK({ supabaseUrl: SUPABASE_URL, supabaseAnonKey: SUPABASE_ANON, appVersion: APP_VERSION, debug: false })
+  : { track: () => {}, setScreen: () => {}, assignABVariant: async () => 'control' }; // fallback no-op
 
 let _supabase = null;
 
@@ -1514,6 +1568,7 @@ async function initSupabase() {
   // 인증 상태 변화 감지
   _supabase.auth.onAuthStateChange(async (event, session) => {
     if (session?.user) {
+      if (window.analytics) window.analytics.setUserId(session.user.id); // Analytics user_id 주입
       if (window._RC) await window._RC.logIn({ appUserID: session.user.id }).catch(() => {});
       await fetchWebPlan();
       renderAuthUI(session.user);
@@ -1525,6 +1580,7 @@ async function initSupabase() {
         showTutorialIfNeeded();
       }
     } else {
+      if (window.analytics) window.analytics.clearUserId(); // Analytics user_id 초기화
       setPlan('free');
       renderAuthUI(null);
     }
@@ -1536,6 +1592,7 @@ async function initSupabase() {
     const { data: { session } } = await _supabase.auth.getSession();
     if (session?.user) {
       _authReady = true;
+      if (window.analytics) window.analytics.setUserId(session.user.id); // Analytics user_id 주입
       if (window._RC) await window._RC.logIn({ appUserID: session.user.id }).catch(() => {});
       await fetchWebPlan();
       renderAuthUI(session.user);
@@ -1548,8 +1605,6 @@ async function initSupabase() {
 
 // supabase-js가 Capacitor WebView에서 hang되므로 세션을 직접 관리
 const SUPABASE_STORAGE_KEY = 'sb-jbvkygeksohlysyvaoab-auth-token';
-const LOGGED_IN_KEY   = 'chorditor-logged-in';   // 최초 로그인 영구 플래그
-const CACHED_USER_KEY = 'chorditor-cached-user';  // 오프라인용 유저 캐시
 
 function saveSessionToStorage(rawJson) {
   const session = {
@@ -1561,9 +1616,6 @@ function saveSessionToStorage(rawJson) {
     user:          rawJson.user,
   };
   localStorage.setItem(SUPABASE_STORAGE_KEY, JSON.stringify(session));
-  // 영구 로그인 플래그 + 유저 캐시 (세션 만료 후에도 온보딩 건너뜀에 사용)
-  localStorage.setItem(LOGGED_IN_KEY, '1');
-  if (rawJson.user) localStorage.setItem(CACHED_USER_KEY, JSON.stringify(rawJson.user));
   return session;
 }
 
@@ -1589,6 +1641,8 @@ async function fetchPlanWithToken(accessToken) {
 
 async function signInWithGoogle() {
   if (!_supabase) { console.error('[Auth] Supabase 미초기화'); return; }
+
+  analytics.track('login_started', { method: 'google' }); // 로그인 시도
 
   if (window.Capacitor?.isNativePlatform()) {
     try {
@@ -1618,6 +1672,8 @@ async function signInWithGoogle() {
       const user = session.user;
 
       if (user) {
+        analytics.setUserId(user.id);
+        analytics.track('sign_in', { method: 'google', is_new_user: !session.user.last_sign_in_at });
         if (window._RC) await window._RC.logIn({ appUserID: user.id }).catch(() => {});
         await fetchPlanWithToken(session.access_token);
         renderAuthUI(user);
@@ -1637,43 +1693,68 @@ async function signInWithGoogle() {
 }
 
 // Android 앱 시작 시 자동 로그인 시도
+// ── 강제 업데이트 ──────────────────────────────────────────────
+async function checkForceUpdate() {
+  // 웹에서는 강제 업데이트 불필요
+  if (!window.Capacitor?.isNativePlatform()) return;
+  try {
+    const res = await fetch(
+      `${SUPABASE_URL}/rest/v1/app_config?key=eq.min_version&select=value`,
+      { headers: { 'apikey': SUPABASE_ANON, 'Authorization': `Bearer ${SUPABASE_ANON}` } }
+    );
+    if (!res.ok) return;
+    const data = await res.json();
+    const minVersion = data?.[0]?.value;
+    if (!minVersion) return;
+
+    if (_compareVersion(APP_VERSION, minVersion) < 0) {
+      // 현재 버전이 최소 버전보다 낮으면 강제 업데이트 오버레이 표시
+      document.getElementById('force-update-overlay')?.classList.remove('hidden');
+    }
+  } catch (e) {
+    // 네트워크 오류 시 무시 — 업데이트 강제화보다 앱 접근성 우선
+  }
+}
+
+// 버전 비교: v1 < v2 → -1, v1 == v2 → 0, v1 > v2 → 1
+function _compareVersion(v1, v2) {
+  // _dev5 등 suffix 제거 후 비교 (예: '1.1.4_dev5' → '1.1.4')
+  const clean = v => v.replace(/_.*$/, '');
+  const p1 = clean(v1).split('.').map(Number);
+  const p2 = clean(v2).split('.').map(Number);
+  for (let i = 0; i < Math.max(p1.length, p2.length); i++) {
+    const a = p1[i] ?? 0, b = p2[i] ?? 0;
+    if (a < b) return -1;
+    if (a > b) return  1;
+  }
+  return 0;
+}
+
+// Play Store로 이동
+function openPlayStore() {
+  const url = 'https://play.google.com/store/apps/details?id=com.chorditor.app';
+  if (window.Capacitor?.Plugins?.Browser) {
+    window.Capacitor.Plugins.Browser.open({ url });
+  } else {
+    window.open(url, '_blank');
+  }
+}
+
 let _authReady = false; // 세션 복원 성공 여부
 let _authResolve = null;
 const _authPromise = new Promise(resolve => { _authResolve = resolve; });
 
-// 세션 유효 후 온보딩 없이 바로 메인으로 진입하는 공통 처리
-function _enterAppWithSession(user, accessToken) {
-  _authReady = true;
-  renderAuthUI(user);
-  _authResolve();
-  hideOnboarding();
-  showTutorialIfNeeded(); // 튜토리얼은 세션 단위로 정상 동작
-  _billingReady.then(async () => {
-    if (window._RC) await window._RC.logIn({ appUserID: user.id }).catch(() => {});
-    await syncPlanFromBilling();
-    if (accessToken) fetchPlanWithToken(accessToken).catch(() => {});
-  }).catch(() => {});
-}
-
 async function tryAutoSignIn() {
   if (!window.Capacitor?.isNativePlatform()) { _authResolve(); _showOnboardingButtons(); return; }
-
-  const hasLoggedInBefore = localStorage.getItem(LOGGED_IN_KEY) === '1';
 
   try {
     const stored = localStorage.getItem(SUPABASE_STORAGE_KEY);
     if (stored) {
-      const session = JSON.parse(stored);
+      let session = JSON.parse(stored);
       const now = Math.floor(Date.now() / 1000);
 
-      // 1) 세션 유효 → 바로 진입
-      if (session.user && session.expires_at > now) {
-        _enterAppWithSession(session.user, session.access_token);
-        return;
-      }
-
-      // 2) 세션 만료 + refresh_token 존재 → 갱신 시도
-      if (session.refresh_token) {
+      // ── 세션 만료 시 refresh_token으로 갱신 시도 ──────────────
+      if ((!session.expires_at || session.expires_at <= now) && session.refresh_token) {
         try {
           const resp = await fetch(`${SUPABASE_URL}/auth/v1/token?grant_type=refresh_token`, {
             method: 'POST',
@@ -1681,39 +1762,45 @@ async function tryAutoSignIn() {
             body: JSON.stringify({ refresh_token: session.refresh_token }),
           });
           if (resp.ok) {
-            const newJson = await resp.json();
-            const newSession = saveSessionToStorage(newJson);
-            if (newSession.user) {
-              _enterAppWithSession(newSession.user, newSession.access_token);
-              return;
+            const refreshed = await resp.json();
+            if (refreshed.access_token) {
+              session = saveSessionToStorage(refreshed); // 갱신된 세션 저장
             }
           }
-        } catch(e) { /* refresh 실패 → 아래로 */ }
+        } catch(e) { /* 네트워크 오류 — 아래에서 재확인 */ }
+      }
+
+      // ── 세션 유효 확인 (최초 유효 or 갱신 성공) ──────────────
+      const nowAfter = Math.floor(Date.now() / 1000);
+      if (session.user && session.expires_at > nowAfter) {
+        // ✅ 세션 유효 → 온보딩은 항상 표시, 시작하기 버튼으로 진입
+        _authReady = true;
+        renderAuthUI(session.user);
+        if (window.analytics) {
+          window.analytics.setUserId(session.user.id);
+          window.analytics.track('app_open', {
+            platform: 'android',
+            project_count: loadProjects().length,
+          });
+        }
+        _authResolve();
+        _showOnboardingButtons();
+        // RC 초기화 완료 대기 → RC 플랜 동기화(+Supabase 선반영) → Supabase 읽기
+        _billingReady.then(async () => {
+          if (window._RC) await window._RC.logIn({ appUserID: session.user.id }).catch(() => {});
+          await syncPlanFromBilling();
+          fetchPlanWithToken(session.access_token).catch(() => {});
+        }).catch(() => {});
+        return;
       }
     }
   } catch(e) { /* 무시 */ }
 
-  // 3) 이전에 로그인한 적 있음 → 캐시 유저로 온보딩 건너뜀 (재로그인 불요)
-  if (hasLoggedInBefore) {
-    try {
-      const cachedUser = JSON.parse(localStorage.getItem(CACHED_USER_KEY) || 'null');
-      if (cachedUser) renderAuthUI(cachedUser);
-    } catch(e) {}
-    _authReady = true;
-    _authResolve();
-    hideOnboarding();
-    showTutorialIfNeeded();
-    _billingReady.then(async () => {
-      try {
-        const cachedUser = JSON.parse(localStorage.getItem(CACHED_USER_KEY) || 'null');
-        if (window._RC && cachedUser) await window._RC.logIn({ appUserID: cachedUser.id }).catch(() => {});
-        await syncPlanFromBilling().catch(() => {});
-      } catch(e) {}
-    }).catch(() => {});
-    return;
-  }
-
-  // 4) 최초 실행 → Google 로그인 버튼 표시
+  // 세션 없음 or 갱신 실패 → Google 로그인 버튼 표시
+  analytics.track('app_open', {
+    platform: 'android',
+    project_count: loadProjects().length,
+  });
   _authResolve();
   _showOnboardingButtons();
 }
@@ -1725,6 +1812,10 @@ function _showOnboardingButtons() {
     document.getElementById('onboarding-switch-btn')?.classList.remove('hidden');
   } else {
     document.getElementById('onboarding-google-btn')?.classList.remove('hidden');
+    // 미로그인 유저에게만 온보딩 화면 노출 추적
+    analytics.track('onboarding_viewed', {
+      platform: window.Capacitor?.isNativePlatform() ? 'android' : 'web',
+    });
   }
 }
 
@@ -1770,19 +1861,84 @@ function hideOnboarding() {
 function handleStart() {
   hideOnboarding();
   showTutorialIfNeeded();
+  checkAndShowNotice();
+}
+
+// ── 공지 팝업 ────────────────────────────────────────────────────
+let _currentNoticeId = null;
+
+async function checkAndShowNotice() {
+  if (!_authReady) return;
+  const stored = localStorage.getItem(SUPABASE_STORAGE_KEY);
+  if (!stored) return;
+  let session;
+  try { session = JSON.parse(stored); } catch(e) { return; }
+  if (!session?.access_token || !session?.user?.id) return;
+
+  const headers = {
+    'Content-Type': 'application/json',
+    'apikey': SUPABASE_ANON,
+    'Authorization': 'Bearer ' + session.access_token,
+  };
+
+  try {
+    // 읽은 공지 ID 목록
+    const readsResp = await fetch(
+      `${SUPABASE_URL}/rest/v1/notice_reads?select=notice_id&user_id=eq.${session.user.id}`,
+      { headers }
+    );
+    const reads = readsResp.ok ? await readsResp.json() : [];
+    const readIds = reads.map(r => r.notice_id);
+
+    // 안 읽은 공지 중 가장 오래된 것 1개
+    let url = `${SUPABASE_URL}/rest/v1/notices?select=id,title,message&order=created_at.asc&limit=1`;
+    if (readIds.length > 0) {
+      url += `&id=not.in.(${readIds.join(',')})`;
+    }
+    const noticesResp = await fetch(url, { headers });
+    const notices = noticesResp.ok ? await noticesResp.json() : [];
+    if (!notices?.length) return;
+
+    const notice = notices[0];
+    _currentNoticeId = notice.id;
+    document.getElementById('notice-modal-title').textContent = notice.title;
+    document.getElementById('notice-modal-message').textContent = notice.message.replace(/\\n/g, '\n');
+    document.getElementById('notice-modal-overlay').classList.remove('hidden');
+  } catch(e) { /* 무시 */ }
+}
+
+async function closeNoticeModal() {
+  document.getElementById('notice-modal-overlay').classList.add('hidden');
+  if (!_currentNoticeId) return;
+  const noticeId = _currentNoticeId;
+  _currentNoticeId = null;
+
+  const stored = localStorage.getItem(SUPABASE_STORAGE_KEY);
+  if (!stored) return;
+  let session;
+  try { session = JSON.parse(stored); } catch(e) { return; }
+  if (!session?.access_token || !session?.user?.id) return;
+
+  try {
+    await fetch(`${SUPABASE_URL}/rest/v1/notice_reads`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'apikey': SUPABASE_ANON,
+        'Authorization': 'Bearer ' + session.access_token,
+        'Prefer': 'return=minimal',
+      },
+      body: JSON.stringify({ user_id: session.user.id, notice_id: noticeId }),
+    });
+  } catch(e) { /* 무시 */ }
 }
 
 // 다른 계정으로 변경 → 로그아웃 후 Google 로그인 버튼 표시
 function onboardingSwitchAccount() {
-  // 명시적 계정 변경 → 영구 플래그 삭제 (다음 앱 시작 시 로그인 화면 표시)
   localStorage.removeItem(SUPABASE_STORAGE_KEY);
-  localStorage.removeItem(LOGGED_IN_KEY);
-  localStorage.removeItem(CACHED_USER_KEY);
   setPlan('free');
   renderAuthUI(null);
   _authReady = false;
-  showOnboarding();
-  document.getElementById('onboarding-loading')?.classList.add('hidden');
   document.getElementById('onboarding-start-btn')?.classList.add('hidden');
   document.getElementById('onboarding-switch-btn')?.classList.add('hidden');
   document.getElementById('onboarding-google-btn')?.classList.remove('hidden');
@@ -1877,6 +2033,8 @@ async function signInWithApple() {
 }
 
 async function signOutWeb() {
+  analytics.track('sign_out', {});
+  analytics.clearUserId();
   // Android: localStorage 세션 직접 삭제
   if (window.Capacitor?.isNativePlatform()) {
     try {
@@ -2092,10 +2250,19 @@ async function purchasePlan(planId) {
     // Supabase DB에도 플랜 반영
     await updateSupabasePlan(newPlan);
 
+    analytics.track('plan_upgrade_completed', {
+      from_plan: getPlan() !== newPlan ? getPlan() : 'free',
+      to_plan: newPlan,
+    });
+
     closePlanModal();
   } catch(e) {
     const msg = (e?.message || e?.code || '').toLowerCase();
     const isCancelled = msg.includes('cancel');
+    analytics.track(isCancelled ? 'plan_upgrade_cancelled' : 'plan_upgrade_started', {
+      to_plan: planId,
+      error: isCancelled ? 'user_cancelled' : (e?.message || 'unknown'),
+    });
     if (!isCancelled) {
       console.error('[Billing] purchasePlan 실패:', e);
       alert(e?.message || '결제 중 오류가 발생했습니다. 다시 시도해주세요.');
@@ -2113,6 +2280,7 @@ async function restorePurchases() {
     // syncPlanFromBilling 내부에서 RC 유료 플랜 → updateSupabasePlan()까지 처리
     // fetchWebPlan 호출 금지: RC 결과를 Supabase free로 덮어쓸 수 있음
     await syncPlanFromBilling();
+    analytics.track('purchase_restored', { plan: getPlan() });
     alert('구매 내역을 복원했습니다.');
   } catch(e) {
     console.error('[Billing] restorePurchases 실패:', e);
@@ -2195,6 +2363,7 @@ function showUpgradeModal(reason) {
   document.getElementById('upgrade-modal-title').textContent = msg.title;
   document.getElementById('upgrade-modal-desc').textContent  = msg.desc[plan] || '';
   document.getElementById('upgrade-modal-overlay').classList.remove('hidden');
+  analytics.track('paywall_viewed', { trigger_source: reason, current_plan: plan });
 }
 
 function closeUpgradeModal() {
@@ -2233,6 +2402,8 @@ function updateProject(updated) {
 // (let 선언은 TDZ로 인해 선언 전 접근 시 ReferenceError 발생)
 
 function navigateTo(view, projectId, opts = {}) {
+  analytics.setScreen(view);
+  analytics.track('screen_view', { view, project_id: projectId || null });
   stopPlayAll();
   stopMetronome();
   // 프로젝트 뷰를 떠나기 전 즉시 저장
@@ -2255,6 +2426,7 @@ function navigateTo(view, projectId, opts = {}) {
   }
 
   if (view === 'library') {
+    analytics.track('library_opened', {});
     closeSidebar();
     // 라이브러리 페이지는 세로 고정
     if (isMobileOrTablet() && screen.orientation?.lock) {
@@ -2267,7 +2439,7 @@ function navigateTo(view, projectId, opts = {}) {
     renderLibCards(_libRoot);
     // 첫 번째 엔트리 자동 선택 → #lib-canvas 초기 표시
     const _initEntries = (window.chordsLibrary || {})[_libRoot] || [];
-    if (_initEntries.length > 0) selectLibEntry(0);
+    if (_initEntries.length > 0) selectLibEntry(0, { silent: true });
     // .lib-bottom 초기 높이 고정 (한 번만)
     requestAnimationFrame(() => {
       const bottom = document.querySelector('.lib-bottom');
@@ -2295,6 +2467,19 @@ function navigateTo(view, projectId, opts = {}) {
     closeSidebar();
     if (screen.orientation?.unlock) {
       try { screen.orientation.unlock(); } catch(e) {}
+    }
+    // 프로젝트 열기 전용 이벤트 (screen_view와 분리)
+    const _p = loadProjects().find(p => p.id === projectId);
+    if (_p) {
+      const chordCount = (_p.arrangement || []).reduce((acc, l) => acc + (l.chords?.length || 0), 0);
+      const ageDays = _p.createdAt
+        ? Math.floor((Date.now() - new Date(_p.createdAt)) / 86400000)
+        : null;
+      analytics.track('project_opened', {
+        project_id:  projectId,
+        chord_count: chordCount,
+        age_days:    ageDays,
+      });
     }
   }
   renderSidebar();
@@ -2556,6 +2741,10 @@ function selectActiveProjects(projects, limit = 2) {
 async function promptCreateProject() {
   await refreshPlanFromDB();
   if (!canCreateProject()) {
+    analytics.track('project_limit_hit', {
+      current_count: loadProjects().length,
+      plan_limit: getPlanLimit('maxProjects'),
+    });
     showUpgradeModal('project_limit');
     return;
   }
@@ -2592,6 +2781,7 @@ function confirmCreateProject() {
   saveProjects(projects);
   renderSidebar();
   populateProjectSelect();
+  analytics.track('project_created', { total_count: projects.length });
   navigateTo('project', newProject.id);
 }
 
@@ -2651,6 +2841,7 @@ function addCurrentChordToProject() {
   project.chords.push(chordData);
   project.updatedAt = Date.now();
   saveProjects(projects);
+  analytics.track('chord_added', { chord_name: chordData.name, project_id: projectId });
 
   if (contextProjectId) {
     navigateTo('project', contextProjectId);
@@ -2670,6 +2861,7 @@ let metronomeSchedulerTimeout = null;
 let metronomeNextBeatTime = 0;
 let metronomeBeatCount = 0;
 let playbackStartAudioTime = 0;
+let playbackEndAudioTime = 0;   // 곡 종료 오디오 시각 (0 = 제한 없음)
 
 function metronomeClick(time, isDownbeat) {
   if (!audioCtx) return;
@@ -2697,12 +2889,13 @@ function metronomeClick(time, isDownbeat) {
 }
 
 function scheduleMetronome() {
-  if (!metronomeActive || !audioCtx) return;
+  if (!metronomeActive || !playbackActive || !audioCtx) return;
   const bpm = getProject(currentProjectId)?.bpm ?? 120;
   const beatDuration = 60 / bpm;
   const now = audioCtx.currentTime;
 
   while (metronomeNextBeatTime < now + 0.12) {
+    if (playbackEndAudioTime > 0 && metronomeNextBeatTime >= playbackEndAudioTime) break;
     metronomeClick(metronomeNextBeatTime, metronomeBeatCount % 4 === 0);
     metronomeNextBeatTime += beatDuration;
     metronomeBeatCount++;
@@ -2718,7 +2911,7 @@ function syncMetronomeToPlayback() {
     const now = audioCtx.currentTime;
     const elapsed = now - playbackStartAudioTime;
     const beatsPassed = Math.max(0, Math.floor(elapsed / beatDuration));
-    metronomeBeatCount = beatsPassed + 1;
+    metronomeBeatCount = beatsPassed;
     metronomeNextBeatTime = playbackStartAudioTime + metronomeBeatCount * beatDuration;
   } else {
     metronomeBeatCount = 0;
@@ -2739,26 +2932,29 @@ async function startMetronome(synced = false) {
   scheduleMetronome();
 }
 
+function _stopMetronomeAudio() {
+  if (metronomeSchedulerTimeout) { clearTimeout(metronomeSchedulerTimeout); metronomeSchedulerTimeout = null; }
+}
+
 function stopMetronome() {
   metronomeActive = false;
-  if (metronomeSchedulerTimeout) { clearTimeout(metronomeSchedulerTimeout); metronomeSchedulerTimeout = null; }
+  _stopMetronomeAudio();
   const btn = document.getElementById('metronome-btn');
   if (btn) btn.classList.remove('active');
 }
 
-async function toggleMetronome() {
+function toggleMetronome() {
   metronomeActive = !metronomeActive;
+  analytics.track('metronome_toggled', { active: metronomeActive });
   const btn = document.getElementById('metronome-btn');
-  if (metronomeActive) {
-    if (btn) btn.classList.add('active');
-    await startMetronome(true); // 재생 중이면 동기화, 아니면 자유 시작
-  } else {
-    stopMetronome();
-  }
+  if (btn) btn.classList.toggle('active', metronomeActive);
+  // 소리는 재생 버튼이 결정 — 토글만으로는 오디오 없음
 }
 
 function stopPlayAll() {
   playbackActive = false;
+  playbackEndAudioTime = 0;
+  _stopMetronomeAudio();
   if (currentPlayTimeout) { clearTimeout(currentPlayTimeout); currentPlayTimeout = null; }
   activeSources.forEach(s => { try { s.stop(); } catch(e) {} });
   activeSources = [];
@@ -2789,7 +2985,9 @@ async function playAll(projectId, startIndex = 0) {
   );
   if (!orderedSlots.length) return;
 
+  playbackEndAudioTime = playbackStartAudioTime + orderedSlots.length * (slotMs / 1000);
   playbackActive = true;
+  analytics.track('playall_started', { project_id: projectId, bpm, start_index: startIndex });
   const btn = document.getElementById('play-all-btn');
   if (btn) { btn.innerHTML = '<i data-lucide="square"></i>'; lucide.createIcons(); }
 
@@ -2800,7 +2998,8 @@ async function playAll(projectId, startIndex = 0) {
   const refWallTime = performance.now() - startIndex * slotMs;
   let i = startIndex;
   async function next() {
-    if (!playbackActive || i >= orderedSlots.length) { stopPlayAll(); return; }
+    if (!playbackActive) { stopPlayAll(); return; }
+    if (i >= orderedSlots.length) { stopPlayAll(); return; }
     const item = orderedSlots[i++];
 
     // 이전 강조 제거 후 현재 슬롯 강조
@@ -2966,11 +3165,11 @@ function renderProjectView(projectId) {
   capoUp.textContent = '+';
   capoDown.onclick = () => {
     const p = getProject(projectId);
-    if (p && (p.capo ?? 0) > 0) { p.capo = (p.capo ?? 0) - 1; updateProject(p); capoVal.textContent = p.capo; }
+    if (p && (p.capo ?? 0) > 0) { p.capo = (p.capo ?? 0) - 1; updateProject(p); capoVal.textContent = p.capo; analytics.track('capo_changed', { value: p.capo, direction: 'down', project_id: projectId }); }
   };
   capoUp.onclick = () => {
     const p = getProject(projectId);
-    if (p && (p.capo ?? 0) < 12) { p.capo = (p.capo ?? 0) + 1; updateProject(p); capoVal.textContent = p.capo; }
+    if (p && (p.capo ?? 0) < 12) { p.capo = (p.capo ?? 0) + 1; updateProject(p); capoVal.textContent = p.capo; analytics.track('capo_changed', { value: p.capo, direction: 'up', project_id: projectId }); }
   };
   capoWrap.append(capoLabel, capoDown, capoVal, capoUp);
   row2Controls.appendChild(capoWrap);
@@ -2990,7 +3189,7 @@ function renderProjectView(projectId) {
     const val = Math.min(240, Math.max(40, parseInt(bpmInput.value) || 120));
     bpmInput.value = val;
     const p = getProject(projectId);
-    if (p) { p.bpm = val; updateProject(p); }
+    if (p) { p.bpm = val; updateProject(p); analytics.track('bpm_changed', { value: val, project_id: projectId }); }
   });
   bpmWrap.append(bpmLabel, bpmInput);
   row2Controls.appendChild(bpmWrap);
@@ -2999,7 +3198,7 @@ function renderProjectView(projectId) {
   const metronomeBtn = document.createElement('button');
   metronomeBtn.id = 'metronome-btn';
   metronomeBtn.className = 'btn metronome-btn' + (metronomeActive ? ' active' : '');
-  metronomeBtn.innerHTML = '<i data-lucide="timer"></i>';
+  metronomeBtn.innerHTML = '<i data-lucide="metronome"></i>';
   metronomeBtn.title = '메트로놈';
   metronomeBtn.onclick = () => toggleMetronome();
   row2Controls.appendChild(metronomeBtn);
@@ -3009,7 +3208,10 @@ function renderProjectView(projectId) {
   playAllBtn.id = 'play-all-btn';
   playAllBtn.className = 'btn play-all-btn';
   playAllBtn.innerHTML = playbackActive ? '<i data-lucide="square"></i>' : '<i data-lucide="play"></i>';
-  playAllBtn.onclick = () => { if (playbackActive) stopPlayAll(); else playAll(projectId); };
+  playAllBtn.onclick = () => {
+    if (playbackActive) stopPlayAll();
+    else playAll(projectId);
+  };
   row2Controls.appendChild(playAllBtn);
 
   headerRow2.appendChild(row2Controls);
@@ -3036,41 +3238,60 @@ function renderProjectView(projectId) {
   lucide.createIcons();
 
   linesEl.scrollTop = 0;
-  linesEl.focus();
+  // linesEl.focus() 제거: 프로그래밍적 focus → 커서가 chord-area 앞에 잡힘
+  // → 사용자 탭 시 커서 이동 → Android IME context 재초기화 → 첫 한글 자모 분리
+  // 사용자가 직접 탭하면 cursor position이 처음부터 올바르게 설정됨
 }
 
 function getLineText(lineDiv) {
+  const lineTextEl = lineDiv.querySelector('.line-text');
+  if (!lineTextEl) return '';
   let text = '';
-  for (const node of lineDiv.childNodes) {
+  for (const node of lineTextEl.childNodes) {
     if (node.nodeType === Node.TEXT_NODE) text += node.textContent;
+    else if (node.nodeName === 'BR') text += '\n';
   }
-  return text;
+  // 브라우저 placeholder <br> 로 인한 trailing \n 제거
+  return text.replace(/\n$/, '');
 }
 
-// preRange.toString() 대신 TEXT_NODE 기준으로 커서 이전 오프셋 계산
-// (chord-area 내 ✕ 버튼 텍스트를 포함하지 않음)
+// 커서 이전 문자 오프셋 계산 (line-text 기준, <br>='\n' 포함)
 function getCursorOffsetInLine(lineDiv, range) {
-  const textNode = Array.from(lineDiv.childNodes).find(n => n.nodeType === Node.TEXT_NODE);
-  if (!textNode) return 0;
-  if (range.startContainer === textNode) return range.startOffset;
-  if (range.startContainer === lineDiv) {
-    const idx = Array.from(lineDiv.childNodes).indexOf(textNode);
-    return idx < range.startOffset ? textNode.textContent.length : 0;
+  const lineTextEl = lineDiv.querySelector('.line-text');
+  if (!lineTextEl) return 0;
+  // range.startContainer가 lineTextEl 자체인 경우
+  if (range.startContainer === lineTextEl) {
+    let off = 0;
+    for (let i = 0; i < range.startOffset; i++) {
+      const child = lineTextEl.childNodes[i];
+      if (!child) break;
+      if (child.nodeType === Node.TEXT_NODE) off += child.textContent.length;
+      else if (child.nodeName === 'BR') off += 1;
+    }
+    return off;
   }
-  return 0;
+  let offset = 0, found = false;
+  function walk(node) {
+    if (found) return;
+    if (node === range.startContainer) { offset += range.startOffset; found = true; return; }
+    if (node.nodeType === Node.TEXT_NODE) { offset += node.textContent.length; }
+    else if (node.nodeName === 'BR') { offset += 1; }
+    else { for (const c of node.childNodes) { if (found) return; walk(c); } }
+  }
+  for (const c of lineTextEl.childNodes) { if (found) break; walk(c); }
+  return offset;
 }
 
 function setLineText(lineDiv, text) {
-  // 기존 <br> placeholder 제거
-  lineDiv.querySelectorAll('br').forEach(br => br.remove());
-  for (const node of lineDiv.childNodes) {
-    if (node.nodeType === Node.TEXT_NODE) { node.textContent = text; if (!text) lineDiv.appendChild(document.createElement('br')); return; }
-  }
-  if (text) {
-    lineDiv.appendChild(document.createTextNode(text));
-  } else {
-    lineDiv.appendChild(document.createElement('br'));
-  }
+  const lineTextEl = lineDiv.querySelector('.line-text');
+  if (!lineTextEl) return;
+  while (lineTextEl.firstChild) lineTextEl.removeChild(lineTextEl.firstChild);
+  if (!text) { lineTextEl.appendChild(document.createElement('br')); return; }
+  const parts = text.split('\n');
+  parts.forEach((part, i) => {
+    if (part) lineTextEl.appendChild(document.createTextNode(part));
+    if (i < parts.length - 1) lineTextEl.appendChild(document.createElement('br'));
+  });
 }
 
 function buildChordArea(line, project, editMode = true) {
@@ -3102,6 +3323,7 @@ function buildChordArea(line, project, editMode = true) {
             if (p) playAll(project.id, getGlobalSlotIndex(p, line.id, dataIdx));
           } else {
             playChord(chord);
+            analytics.track('project_chord_played', { chord_name: chord.name, project_id: project.id });
           }
         });
 
@@ -3171,16 +3393,15 @@ function buildChordArea(line, project, editMode = true) {
     menuBtn.className = 'row-menu-btn';
     menuBtn.setAttribute('aria-label', '행 메뉴');
     menuBtn.innerHTML = '<i data-lucide="more-vertical"></i>';
-    // 터치: touchstart에서 즉시 linesEl.contentEditable=false → 키보드 원천 차단
-    // (touchstart.preventDefault()만으로는 Android WebView 상위 contenteditable 포커스 못 막음)
+    // 터치: touchstart에서 line-text.contentEditable=false → 키보드 차단
     let _btnTouchPending = false;
+    let _activeLineText = null;
     menuBtn.addEventListener('touchstart', e => {
       e.preventDefault();
       e.stopPropagation();
       _btnTouchPending = true;
-      // touchstart 시점에 contentEditable 비활성화 → 포커스/키보드 차단
-      const linesEl = menuBtn.closest('.project-lines');
-      if (linesEl) linesEl.contentEditable = 'false';
+      const lineText = menuBtn.closest('.project-line')?.querySelector('.line-text');
+      if (lineText) { lineText.contentEditable = 'false'; _activeLineText = lineText; }
     }, { passive: false });
     menuBtn.addEventListener('touchend', e => {
       e.preventDefault();
@@ -3192,9 +3413,7 @@ function buildChordArea(line, project, editMode = true) {
     }, { passive: false });
     menuBtn.addEventListener('touchcancel', () => {
       _btnTouchPending = false;
-      // 메뉴 열리지 않은 채 취소 → contentEditable 즉시 복원
-      const linesEl = menuBtn.closest('.project-lines');
-      if (linesEl) linesEl.contentEditable = 'true';
+      if (_activeLineText) { _activeLineText.contentEditable = 'true'; _activeLineText = null; }
     });
     // 마우스: mousedown으로 포커스 방지, click에서 메뉴 호출
     menuBtn.addEventListener('mousedown', e => { e.preventDefault(); e.stopPropagation(); });
@@ -3208,6 +3427,32 @@ function buildChordArea(line, project, editMode = true) {
   return area;
 }
 
+function buildProjectLine(line, project, editMode) {
+  if (!line.slots) line.slots = new Array(8).fill(null);
+  const div = document.createElement('div');
+  div.className = 'project-line';
+  div.dataset.lineId = line.id;
+
+  div.appendChild(buildChordArea(line, project, editMode));
+
+  const lineText = document.createElement('div');
+  lineText.className = 'line-text';
+  if (editMode) {
+    lineText.contentEditable = 'true';
+    lineText.spellcheck = false;
+  }
+  // text 내용 렌더링: \n → <br>
+  const textParts = (line.text || '').split('\n');
+  textParts.forEach((part, i) => {
+    if (part) lineText.appendChild(document.createTextNode(part));
+    if (i < textParts.length - 1) lineText.appendChild(document.createElement('br'));
+  });
+  if (!lineText.childNodes.length) lineText.appendChild(document.createElement('br'));
+  div.appendChild(lineText);
+
+  return div;
+}
+
 function buildLinesSection(project, editMode = true) {
   if (!project.arrangement || project.arrangement.length === 0) {
     project.arrangement = [{ id: genId(), text: '', slots: new Array(8).fill(null) }];
@@ -3216,36 +3461,63 @@ function buildLinesSection(project, editMode = true) {
   const linesEl = document.createElement('div');
   linesEl.className = 'project-lines';
   linesEl.id = 'project-lines-' + project.id;
-  linesEl.contentEditable = editMode ? 'true' : 'false';
+  // linesEl은 contenteditable 아님 — 각 line-text가 개별 contenteditable
 
   project.arrangement.forEach(line => {
-    if (!line.slots) line.slots = new Array(8).fill(null);
-    const div = document.createElement('div');
-    div.className = 'project-line';
-    div.dataset.lineId = line.id;
-    div.appendChild(buildChordArea(line, project, editMode));
-    if (line.text) {
-      div.appendChild(document.createTextNode(line.text));
-    } else {
-      div.appendChild(document.createElement('br'));
-    }
-    linesEl.appendChild(div);
+    linesEl.appendChild(buildProjectLine(line, project, editMode));
   });
 
   if (editMode) {
+    // 맨 아래 + 버튼 (줄 추가)
+    const addLineBtn = document.createElement('button');
+    addLineBtn.className = 'add-line-btn';
+    addLineBtn.setAttribute('aria-label', '줄 추가');
+    addLineBtn.textContent = '+';
+    addLineBtn.addEventListener('mousedown', e => e.preventDefault());
+    addLineBtn.addEventListener('click', () => {
+      const p = getProject(project.id);
+      const newId = genId();
+      const newObj = { id: newId, text: '', slots: new Array(8).fill(null) };
+      const newDiv = buildProjectLine(newObj, p || project, true);
+      newDiv.classList.add('project-line-enter');
+      newDiv.addEventListener('animationend', () => newDiv.classList.remove('project-line-enter'), { once: true });
+      linesEl.insertBefore(newDiv, addLineBtn);
+      saveAllLines(project.id, linesEl);
+      lucide.createIcons();
+    });
+    linesEl.appendChild(addLineBtn);
+
     let saveDebounce = null;
-    linesEl.addEventListener('input', () => {
-      // 텍스트가 있는 줄의 <br> placeholder 제거
-      linesEl.querySelectorAll('.project-line').forEach(lineDiv => {
-        if (getLineText(lineDiv)) {
-          lineDiv.querySelectorAll('br').forEach(br => br.remove());
-        }
-      });
+
+    let _isComposing = false;
+
+    linesEl.addEventListener('compositionstart', () => {
+      _isComposing = true;
+    });
+    linesEl.addEventListener('compositionend', () => {
+      _isComposing = false;
       clearTimeout(saveDebounce);
       saveDebounce = setTimeout(() => saveAllLines(project.id, linesEl), 300);
     });
 
-    // 텍스트 영역에 드래그 드롭으로 이미지 삽입 차단
+    linesEl.addEventListener('input', (e) => {
+      if (!e.target.classList?.contains('line-text')) return;
+      if (e.isComposing || _isComposing) return;
+      clearTimeout(saveDebounce);
+      saveDebounce = setTimeout(() => saveAllLines(project.id, linesEl), 300);
+    });
+
+    // Samsung 키보드: 여러 줄 붙여넣기가 insertText + \n 으로 들어오는 경우 처리
+    linesEl.addEventListener('beforeinput', e => {
+      if (!e.target.classList?.contains('line-text')) return;
+      if (e.inputType !== 'insertText') return;
+      const text = e.data || '';
+      if (!text.includes('\n')) return;
+      e.preventDefault();
+      applyPastedText(text, lastFocusedLine);
+    });
+
+    // 드래그 드롭 이미지 삽입 차단
     linesEl.addEventListener('dragover', e => {
       if (e.target.closest('.chord-slot')) return;
       e.preventDefault();
@@ -3257,67 +3529,134 @@ function buildLinesSection(project, editMode = true) {
     });
 
     linesEl.addEventListener('keydown', e => {
+      if (!e.target.classList?.contains('line-text')) return;
+
       if (e.key === 'Enter') {
         e.preventDefault();
-        insertNewLineAtCursor(linesEl, project.id);
-      } else if (e.key === 'Backspace') {
-        e.preventDefault();
-        handleBackspace(linesEl, project.id);
+        const sel = window.getSelection();
+        if (!sel?.rangeCount) return;
+        const range = sel.getRangeAt(0);
+        range.deleteContents();
+        const br = document.createElement('br');
+        range.insertNode(br);
+        // br이 마지막 자식이면 커서가 다음 줄에 보이도록 추가 br 삽입
+        if (!br.nextSibling) br.after(document.createElement('br'));
+        const newRange = document.createRange();
+        newRange.setStartAfter(br);
+        newRange.collapse(true);
+        sel.removeAllRanges();
+        sel.addRange(newRange);
+        clearTimeout(saveDebounce);
+        saveDebounce = setTimeout(() => saveAllLines(project.id, linesEl), 300);
+        return;
+      }
+
+      if (e.key === 'Backspace') {
+        const lineEl = e.target.closest('.project-line');
+        if (!lineEl) return;
+
+        const sel = window.getSelection();
+        if (!sel?.rangeCount || !sel.isCollapsed) return;
+
+        const isAtStart = getCursorOffsetInLine(lineEl, sel.getRangeAt(0)) === 0;
+
+        if (isAtStart) {
+          e.preventDefault();
+          const prevLineEl = lineEl.previousElementSibling;
+          if (!prevLineEl?.classList?.contains('project-line')) return; // 첫 줄: 아무것도 안 함
+
+          // 이전 줄 텍스트 끝 위치 계산 (커서 복원용)
+          const prevText = getLineText(prevLineEl);
+          const curText  = getLineText(lineEl);
+
+          // 이전 줄에 합치기 & 현재 줄 제거
+          setLineText(prevLineEl, prevText + curText);
+          lineEl.remove();
+
+          // 커서를 이전 줄의 prevText.length 위치에 놓기
+          const prevLineTextEl = prevLineEl.querySelector('.line-text');
+          prevLineTextEl.focus();
+          let remaining = prevText.length;
+          const newRange = document.createRange();
+          let placed = false;
+          for (const node of prevLineTextEl.childNodes) {
+            if (placed) break;
+            if (node.nodeType === Node.TEXT_NODE) {
+              if (remaining <= node.textContent.length) {
+                newRange.setStart(node, remaining);
+                newRange.collapse(true);
+                placed = true;
+              } else {
+                remaining -= node.textContent.length;
+              }
+            } else if (node.nodeName === 'BR') {
+              if (remaining === 0) {
+                newRange.setStartBefore(node);
+                newRange.collapse(true);
+                placed = true;
+              } else {
+                remaining -= 1;
+              }
+            }
+          }
+          if (!placed) { newRange.selectNodeContents(prevLineTextEl); newRange.collapse(false); }
+          sel.removeAllRanges();
+          sel.addRange(newRange);
+
+          saveAllLines(project.id, linesEl);
+          return;
+        }
+
+        // 빈 줄이 아닌 경우 기본 동작 허용
+        if (!getLineText(lineEl)) e.preventDefault();
       }
     });
 
-    // 포커스가 linesEl 외부로 완전히 이동할 때만 저장
     linesEl.addEventListener('focusout', e => {
       if (!e.relatedTarget || !linesEl.contains(e.relatedTarget)) {
         clearTimeout(saveDebounce);
         saveAllLines(project.id, linesEl);
       }
     });
+
+    // line-text 외부 터치 시 커서 해제
+    const _blurOnTapOutside = (e) => {
+      if (!linesEl.isConnected) {
+        document.removeEventListener('touchstart', _blurOnTapOutside);
+        return;
+      }
+      const active = document.activeElement;
+      if (!active?.classList?.contains('line-text')) return;
+      if (!linesEl.contains(active)) return;
+      if (e.target.closest('.line-text')) return;
+      active.blur();
+    };
+    document.addEventListener('touchstart', _blurOnTapOutside, { passive: true });
   }
 
-  // 마지막 포커스된 라인 추적 (모바일 selection 복원용)
+  // 마지막 포커스된 라인 추적
   let lastFocusedLine = null;
   linesEl.addEventListener('focusin', e => {
-    let t = e.target;
-    while (t && t !== linesEl) {
-      if (t.classList?.contains('project-line')) { lastFocusedLine = t; break; }
-      t = t.parentElement;
-    }
+    const lineEl = e.target.closest?.('.project-line');
+    if (lineEl && linesEl.contains(lineEl)) lastFocusedLine = lineEl;
   });
-
-  // 모바일: 길게 누르기로 컨텍스트 메뉴가 뜨면 focusin이 유실될 수 있어 touchstart로 보강
   linesEl.addEventListener('touchstart', e => {
-    let t = e.target;
-    while (t && t !== linesEl) {
-      if (t.classList?.contains('project-line')) { lastFocusedLine = t; break; }
-      t = t.parentElement;
-    }
+    const lineEl = e.target.closest?.('.project-line');
+    if (lineEl && linesEl.contains(lineEl)) lastFocusedLine = lineEl;
   }, { passive: true });
 
-  // 클립보드 히스토리 경로 차단 (Android WebView: paste 이벤트를 우회하고 beforeinput → DOM 삽입)
+  // 클립보드 히스토리 경로 차단 (Android WebView)
   linesEl.addEventListener('beforeinput', e => {
+    if (!e.target.classList?.contains('line-text')) return;
     if (e.inputType !== 'insertFromPaste' && e.inputType !== 'insertFromPasteAsQuotation') return;
-
-    // 비동기 처리 전에 대상 라인 캡처 (async 이후 포커스 유실 방지)
     const anchorLine = lastFocusedLine;
-
     const dt = e.dataTransfer;
     let pasted = dt?.getData('text/plain') || dt?.getData('text') || '';
-    // text/plain이 없으면 text/html에서 plain text 추출 (웹 복사본 클립보드 히스토리)
     if (!pasted && dt) {
       const html = dt.getData('text/html') || '';
       if (html) pasted = htmlClipboardToText(html);
     }
-
-    if (pasted) {
-      // dataTransfer에서 텍스트 확보 — 동기 처리
-      e.preventDefault();
-      applyPastedText(pasted, anchorLine);
-      return;
-    }
-
-    // dataTransfer가 완전히 null인 경우 (IME/클립보드 히스토리 경로):
-    // 브라우저 삽입을 막고 async Clipboard API로 직접 읽어서 줄바꿈 보존
+    if (pasted) { e.preventDefault(); applyPastedText(pasted, anchorLine); return; }
     e.preventDefault();
     navigator.clipboard?.readText().then(text => {
       if (text) applyPastedText(text, anchorLine);
@@ -3325,17 +3664,12 @@ function buildLinesSection(project, editMode = true) {
   });
 
   function applyPastedText(pasted, anchorLine) {
-    // 줄바꿈 정규화: \r\n, \r, \n 및 Unicode 줄/문단 구분자 처리
     const segments = pasted
-      .replace(/\r\n/g, '\n')
-      .replace(/\r/g, '\n')
-      .replace(/\u2028/g, '\n')
-      .replace(/\u2029/g, '\n')
+      .replace(/\r\n/g, '\n').replace(/\r/g, '\n')
+      .replace(/\u2028/g, '\n').replace(/\u2029/g, '\n')
       .split('\n');
     const sel = window.getSelection();
-    let currentLine = null;
-    let cursorOff = 0;
-    let before = '', after = '';
+    let currentLine = null, cursorOff = 0, before = '', after = '';
 
     if (sel && sel.rangeCount) {
       const range = sel.getRangeAt(0);
@@ -3353,11 +3687,9 @@ function buildLinesSection(project, editMode = true) {
       }
     }
 
-    // selection이 없으면 마지막 포커스 라인 끝에 붙여넣기
     if (!currentLine) {
       currentLine = anchorLine || lastFocusedLine;
       if (!currentLine) {
-        // document.activeElement 탐색 (모바일 컨텍스트 메뉴 후 포커스 유실 시)
         let el = document.activeElement;
         while (el && el !== linesEl) {
           if (el.classList?.contains('project-line')) { currentLine = el; break; }
@@ -3365,7 +3697,6 @@ function buildLinesSection(project, editMode = true) {
         }
       }
       if (!currentLine) {
-        // 최후 폴백: DOM의 마지막 라인
         const allLines = linesEl.querySelectorAll('.project-line');
         currentLine = allLines[allLines.length - 1] || null;
       }
@@ -3379,51 +3710,42 @@ function buildLinesSection(project, editMode = true) {
     let lastLine = currentLine;
     for (let i = 1; i < segments.length; i++) {
       const text = i === segments.length - 1 ? segments[i] + after : segments[i];
-      // 다음 기존 행이 있으면 새 행을 만들지 않고 텍스트만 덮어씌움 (코드 슬롯 보존)
       const nextExisting = lastLine.nextElementSibling;
       if (nextExisting && nextExisting.classList.contains('project-line')) {
         setLineText(nextExisting, text);
         lastLine = nextExisting;
       } else {
-        // 기존 행 없음 → 새 행 생성
         const newLineId = genId();
         const newLine = { id: newLineId, text, slots: new Array(8).fill(null) };
-        const newDiv = document.createElement('div');
-        newDiv.className = 'project-line';
-        newDiv.dataset.lineId = newLineId;
-        newDiv.appendChild(buildChordArea(newLine, p || project));
-        newDiv.appendChild(document.createTextNode(text));
+        const newDiv = buildProjectLine(newLine, p || project, true);
         lastLine.insertAdjacentElement('afterend', newDiv);
+        lucide.createIcons();
         lastLine = newDiv;
       }
     }
     if (segments.length === 1) setLineText(currentLine, before + segments[0] + after);
 
+    const endLineText = lastLine.querySelector('.line-text') || lastLine;
     const endRange = document.createRange();
-    endRange.selectNodeContents(lastLine);
+    endRange.selectNodeContents(endLineText);
     endRange.collapse(false);
     if (sel) { sel.removeAllRanges(); sel.addRange(endRange); }
     saveAllLines(project.id, linesEl);
   }
 
-  // HTML 클립보드에서 줄바꿈 보존하여 텍스트 추출
   function htmlClipboardToText(html) {
     const tmp = document.createElement('div');
     tmp.innerHTML = html;
     const lines = [];
     let cur = '';
     const walk = (node) => {
-      if (node.nodeType === Node.TEXT_NODE) {
-        cur += node.textContent;
-      } else if (node.nodeName === 'BR') {
-        lines.push(cur); cur = '';
-      } else if (['P', 'DIV', 'LI', 'H1', 'H2', 'H3', 'H4', 'H5', 'H6'].includes(node.nodeName)) {
+      if (node.nodeType === Node.TEXT_NODE) { cur += node.textContent; }
+      else if (node.nodeName === 'BR') { lines.push(cur); cur = ''; }
+      else if (['P', 'DIV', 'LI', 'H1', 'H2', 'H3', 'H4', 'H5', 'H6'].includes(node.nodeName)) {
         if (cur || lines.length > 0) { lines.push(cur); cur = ''; }
         for (const c of node.childNodes) walk(c);
         if (cur || lines.length > 0) { lines.push(cur); cur = ''; }
-      } else {
-        for (const c of node.childNodes) walk(c);
-      }
+      } else { for (const c of node.childNodes) walk(c); }
     };
     for (const c of tmp.childNodes) walk(c);
     if (cur) lines.push(cur);
@@ -3431,9 +3753,8 @@ function buildLinesSection(project, editMode = true) {
   }
 
   linesEl.addEventListener('paste', async e => {
-    e.preventDefault(); // 항상 브라우저 기본 붙여넣기 차단
-
-    // 비동기 전에 삽입 대상 라인을 동기적으로 캡처
+    if (!e.target.classList?.contains('line-text')) return;
+    e.preventDefault();
     const sel = window.getSelection();
     let targetLine = null;
     if (sel?.rangeCount) {
@@ -3444,11 +3765,8 @@ function buildLinesSection(project, editMode = true) {
       }
     }
     if (!targetLine) targetLine = lastFocusedLine;
-
     const cd = e.clipboardData || window.clipboardData;
     let pasted = cd?.getData('text/plain') || cd?.getData('text') || '';
-
-    // text/plain에 줄바꿈이 없으면 text/html에서 구조 추출
     if (pasted && !/[\n\r\u2028\u2029]/.test(pasted)) {
       const html = cd?.getData('text/html') || '';
       if (html) {
@@ -3456,13 +3774,7 @@ function buildLinesSection(project, editMode = true) {
         if (/\n/.test(fromHtml)) pasted = fromHtml;
       }
     }
-
-    if (pasted) {
-      applyPastedText(pasted, targetLine || lastFocusedLine);
-      return;
-    }
-
-    // async Clipboard API (iOS Safari — clipboardData가 완전히 비어있는 경우)
+    if (pasted) { applyPastedText(pasted, targetLine || lastFocusedLine); return; }
     if (navigator.clipboard?.readText) {
       try {
         pasted = await navigator.clipboard.readText();
@@ -3471,72 +3783,48 @@ function buildLinesSection(project, editMode = true) {
     }
   });
 
-  // input 폴백: beforeinput이 처리 못 한 경우 (dataTransfer null) HTML 잔류 정리
+  // input 폴백: line-text에 HTML이 삽입된 경우 정리
   linesEl.addEventListener('input', e => {
     if (e.inputType !== 'insertFromPaste' && e.inputType !== 'insertFromPasteAsQuotation') return;
-
-    // chord-area가 아닌 element child를 가진 라인 = HTML이 삽입된 라인
-    const dirtyLines = Array.from(linesEl.querySelectorAll('.project-line')).filter(line =>
-      Array.from(line.childNodes).some(n => n.nodeType === Node.ELEMENT_NODE && !n.classList.contains('chord-area'))
+    if (!e.target.classList?.contains('line-text')) return;
+    const lineTextEl = e.target;
+    const lineDiv = lineTextEl.closest('.project-line');
+    if (!lineDiv) return;
+    const hasDirty = Array.from(lineTextEl.childNodes).some(n =>
+      n.nodeType === Node.ELEMENT_NODE && n.nodeName !== 'BR'
     );
-    if (!dirtyLines.length) return;
-
+    if (!hasDirty) return;
+    const segments = [];
+    let cur = '';
+    const walk = (node) => {
+      if (node.nodeType === Node.TEXT_NODE) { cur += node.textContent; }
+      else if (node.nodeName === 'BR') { segments.push(cur); cur = ''; }
+      else if (['P', 'DIV', 'H1', 'H2', 'H3', 'H4', 'H5', 'H6', 'LI', 'SPAN'].includes(node.nodeName)) {
+        if (cur || segments.length > 0) { segments.push(cur); cur = ''; }
+        for (const c of node.childNodes) walk(c);
+        if (cur || segments.length > 0) { segments.push(cur); cur = ''; }
+      } else { for (const c of node.childNodes) walk(c); }
+    };
+    for (const c of lineTextEl.childNodes) walk(c);
+    if (cur || segments.length === 0) segments.push(cur);
+    while (segments.length > 1 && segments[0] === '') segments.shift();
+    while (segments.length > 1 && segments[segments.length - 1] === '') segments.pop();
+    setLineText(lineDiv, segments[0] || '');
     const p = getProject(project.id);
-    let lastInsertedLine = null;
-
-    for (const line of dirtyLines) {
-      const chordArea = line.querySelector('.chord-area');
-      const segments = [];
-      let cur = '';
-
-      const walk = (node) => {
-        if (node === chordArea) return;
-        if (node.nodeType === Node.TEXT_NODE) {
-          cur += node.textContent;
-        } else if (node.nodeName === 'BR') {
-          segments.push(cur); cur = '';
-        } else if (['P', 'DIV', 'H1', 'H2', 'H3', 'H4', 'H5', 'H6', 'LI'].includes(node.nodeName) &&
-                   !node.classList.contains('chord-area') && !node.classList.contains('chord-slot')) {
-          if (cur || segments.length > 0) { segments.push(cur); cur = ''; }
-          for (const c of node.childNodes) walk(c);
-          if (cur || segments.length > 0) { segments.push(cur); cur = ''; }
-        } else {
-          // span, b, i, a 등 인라인 요소: 재귀로 텍스트 추출
-          for (const c of node.childNodes) walk(c);
-        }
-      };
-
-      for (const c of line.childNodes) walk(c);
-      if (cur || segments.length === 0) segments.push(cur);
-
-      // 앞뒤 빈 세그먼트 정리
-      while (segments.length > 1 && segments[0] === '') segments.shift();
-      while (segments.length > 1 && segments[segments.length - 1] === '') segments.pop();
-
-      setLineText(line, segments[0] || '');
-      lastInsertedLine = line;
-
-      for (let i = 1; i < segments.length; i++) {
-        const newLineId = genId();
-        const newLineData = { id: newLineId, text: segments[i], slots: new Array(8).fill(null) };
-        const newDiv = document.createElement('div');
-        newDiv.className = 'project-line';
-        newDiv.dataset.lineId = newLineId;
-        newDiv.appendChild(buildChordArea(newLineData, p || project));
-        newDiv.appendChild(document.createTextNode(segments[i]));
-        lastInsertedLine.insertAdjacentElement('afterend', newDiv);
-        lastInsertedLine = newDiv;
-      }
+    let lastInsertedLine = lineDiv;
+    for (let i = 1; i < segments.length; i++) {
+      const newLineId = genId();
+      const newDiv = buildProjectLine({ id: newLineId, text: segments[i], slots: new Array(8).fill(null) }, p || project, true);
+      lastInsertedLine.insertAdjacentElement('afterend', newDiv);
+      lastInsertedLine = newDiv;
     }
-
-    if (lastInsertedLine) {
-      const sel = window.getSelection();
-      const endRange = document.createRange();
-      endRange.selectNodeContents(lastInsertedLine);
-      endRange.collapse(false);
-      if (sel) { sel.removeAllRanges(); sel.addRange(endRange); }
-      saveAllLines(project.id, linesEl);
-    }
+    const endLineText = lastInsertedLine.querySelector('.line-text') || lastInsertedLine;
+    const sel = window.getSelection();
+    const endRange = document.createRange();
+    endRange.selectNodeContents(endLineText);
+    endRange.collapse(false);
+    if (sel) { sel.removeAllRanges(); sel.addRange(endRange); }
+    saveAllLines(project.id, linesEl);
   });
 
   return linesEl;
@@ -3672,112 +3960,6 @@ function lineHasChords(lineDiv, projectId) {
   return Array.from(lineDiv.querySelectorAll('[data-slot-idx]')).some(el => el.dataset.chordId);
 }
 
-function handleBackspace(linesEl, projectId) {
-  const sel = window.getSelection();
-  if (!sel.rangeCount) return;
-  const range = sel.getRangeAt(0);
-
-  // 현재 커서가 속한 project-line 찾기
-  let currentLine = range.startContainer;
-  while (currentLine && currentLine !== linesEl) {
-    if (currentLine.classList?.contains('project-line')) break;
-    currentLine = currentLine.parentElement;
-  }
-  if (!currentLine || currentLine === linesEl) return;
-
-  const lines = Array.from(linesEl.querySelectorAll('.project-line'));
-  const lineText = getLineText(currentLine);
-  const cursorOffset = getCursorOffsetInLine(currentLine, range);
-
-  if (lines.length === 1 && !lineText) {
-    // 마지막 줄이고 빈 줄 → 삭제 차단
-    return;
-  }
-
-  if (cursorOffset === 0 && !lineText) {
-    // 빈 줄에서 줄 시작: 코드 슬롯이 있으면 행 보존
-    if (lineHasChords(currentLine, projectId)) return;
-    const prevLine = currentLine.previousElementSibling;
-    currentLine.remove();
-    if (prevLine) {
-      const textNode = Array.from(prevLine.childNodes).find(n => n.nodeType === Node.TEXT_NODE);
-      const newRange = document.createRange();
-      if (textNode && textNode.textContent.length > 0) {
-        newRange.setStart(textNode, textNode.textContent.length);
-      } else {
-        const br = prevLine.querySelector('br');
-        if (br) newRange.setStartBefore(br);
-        else newRange.selectNodeContents(prevLine);
-        newRange.collapse(false);
-      }
-      newRange.collapse(true);
-      sel.removeAllRanges();
-      sel.addRange(newRange);
-      // 커서 위치로 스크롤 자동 추적
-      requestAnimationFrame(() => prevLine?.scrollIntoView({ block: 'nearest', behavior: 'smooth' }));
-    }
-    saveAllLines(projectId, linesEl);
-
-  } else if (cursorOffset === 0 && lineText) {
-    // 텍스트 있는 줄의 맨 앞: 이전 줄에 텍스트 병합
-    const prevLine = currentLine.previousElementSibling;
-    if (!prevLine) return; // 첫 줄이면 아무것도 안 함
-    const prevText = getLineText(prevLine);
-    setLineText(prevLine, prevText + lineText);
-    // 이전 줄 텍스트 끝(병합 경계)으로 커서 이동
-    const textNode = Array.from(prevLine.childNodes).find(n => n.nodeType === Node.TEXT_NODE);
-    const newRange = document.createRange();
-    if (textNode) {
-      newRange.setStart(textNode, prevText.length);
-    } else {
-      newRange.selectNodeContents(prevLine); newRange.collapse(false);
-    }
-    newRange.collapse(true);
-    sel.removeAllRanges();
-    sel.addRange(newRange);
-    // 커서 위치로 스크롤 자동 추적
-    requestAnimationFrame(() => prevLine?.scrollIntoView({ block: 'nearest', behavior: 'smooth' }));
-    if (lineHasChords(currentLine, projectId)) {
-      // Q1-B: 코드 슬롯 있으면 행 보존 — 텍스트만 비움, 아래 텍스트 한 칸씩 위로
-      setLineText(currentLine, '');
-      // 아래 모든 행의 텍스트를 한 칸씩 위로 당기기
-      let upper = currentLine;
-      let lower = currentLine.nextElementSibling;
-      while (lower) {
-        const lowerText = getLineText(lower);
-        setLineText(upper, lowerText);
-        const nextLower = lower.nextElementSibling;
-        if (!lowerText && !lineHasChords(lower, projectId)) {
-          // 텍스트도 없고 코드 슬롯도 없는 마지막 행 → 제거
-          lower.remove();
-          break;
-        } else if (!nextLower) {
-          // 마지막 행이지만 코드 슬롯이 있으면 텍스트만 비움
-          setLineText(lower, '');
-        }
-        upper = lower;
-        lower = nextLower;
-      }
-    } else {
-      // 코드 슬롯 없으면 행 삭제
-      currentLine.remove();
-    }
-    saveAllLines(projectId, linesEl);
-
-  } else {
-    // 줄 중간: 커서 앞 글자 하나 삭제
-    const textNode = Array.from(currentLine.childNodes).find(n => n.nodeType === Node.TEXT_NODE);
-    if (!textNode || cursorOffset === 0) return;
-    const text = textNode.textContent;
-    textNode.textContent = text.slice(0, cursorOffset - 1) + text.slice(cursorOffset);
-    const newRange = document.createRange();
-    newRange.setStart(textNode, cursorOffset - 1);
-    newRange.collapse(true);
-    sel.removeAllRanges();
-    sel.addRange(newRange);
-  }
-}
-
 // ═══════════════════════════════════════════════════════════════
 // 행 메뉴 (3-dot) — 코드 슬롯 행 독립 관리
 // ═══════════════════════════════════════════════════════════════
@@ -3851,8 +4033,12 @@ function openRowMenu(e, lineId, projectId) {
 function _closeRowMenu() {
   _rowMenuEl?.classList.add('hidden');
   _backdropEl?.classList.add('hidden');
-  // 메뉴 닫힐 때 contentEditable 복원 (터치로 열었을 때 비활성화됐던 것)
-  if (_rowMenuLinesEl) _rowMenuLinesEl.contentEditable = 'true';
+  // 메뉴 닫힐 때 line-text contentEditable 복원 (터치로 열었을 때 비활성화됐던 것)
+  if (_rowMenuLinesEl) {
+    _rowMenuLinesEl.querySelectorAll('.line-text').forEach(lt => {
+      lt.contentEditable = 'true';
+    });
+  }
 }
 
 function _rowMenuAction(action) {
@@ -3869,11 +4055,9 @@ function _rowMenuAction(action) {
   if (action === 'above' || action === 'below') {
     const newId  = genId();
     const newObj = { id: newId, text: '', slots: new Array(8).fill(null) };
-    const newDiv = document.createElement('div');
-    newDiv.className      = 'project-line';
-    newDiv.dataset.lineId = newId;
-    newDiv.appendChild(buildChordArea(newObj, p, true));
-    newDiv.appendChild(document.createElement('br'));
+    const newDiv = buildProjectLine(newObj, p, true);
+    newDiv.classList.add('project-line-enter');
+    newDiv.addEventListener('animationend', () => newDiv.classList.remove('project-line-enter'), { once: true });
     lineDiv.insertAdjacentElement(action === 'above' ? 'beforebegin' : 'afterend', newDiv);
     saveAllLines(projectId, linesEl);
     lucide.createIcons();
@@ -4257,7 +4441,6 @@ function openEditModal(chord, projectId) {
   me_accidental  = chord.accidental || 'sharp';
   me_selectedFinger = 1;
 
-  _meDirty = false;
   buildEditModalUI();
   document.getElementById('modal-edit').classList.remove('hidden');
   lucide.createIcons();
@@ -4414,14 +4597,6 @@ function buildEditModalUI() {
   const meBarreBtns = document.createElement('div');
   meBarreBtns.id = 'me-barre-btns';
   canvasInner.appendChild(meBarreBtns);
-
-  const meApplyBtn = document.createElement('button');
-  meApplyBtn.className = 'chord-apply-btn';
-  meApplyBtn.id = 'me-chord-apply-btn';
-  meApplyBtn.title = '추천 코드명 적용';
-  meApplyBtn.innerHTML = '<i data-lucide="check"></i>';
-  meApplyBtn.onclick = meApplyFirstSuggestion;
-  canvasInner.appendChild(meApplyBtn);
 
   canvasWrap.appendChild(canvasInner);
 
@@ -4702,9 +4877,7 @@ function meUpdateChordSuggestions() {
   const el = document.getElementById('me-chord-suggestions');
   if (!el) return;
   const names = meSuggestChordNames();
-  el.innerHTML = names.map(n =>
-    `<span class="chord-suggest-item" onclick="meApplyChordSuggestion('${n.replace(/'/g, "\\'")}')">${n}</span>`
-  ).join('');
+  el.innerHTML = names.map(n => `<span class="chord-suggest-item">${n}</span>`).join('');
 }
 
 function meUpdateChordDisplay() {
@@ -4776,8 +4949,6 @@ function meResizeCanvas() {
   meDraw();
 }
 
-let _meDirty = false;
-
 function meDraw() {
   const cv = document.getElementById('me-canvas');
   if (!cv) return;
@@ -4791,33 +4962,6 @@ function meDraw() {
   drawCanvas(c, me_RATIO, data);
   meUpdateBarreBtns();
   meUpdateChordSuggestions();
-  _meDirty = true;
-  meUpdateApplyBtn();
-}
-
-function meUpdateApplyBtn() {
-  const btn = document.getElementById('me-chord-apply-btn');
-  if (!btn) return;
-  btn.classList.toggle('active', _meDirty);
-}
-
-function meApplyFirstSuggestion() {
-  const names = meSuggestChordNames();
-  if (!names.length) return;
-  meApplyChordSuggestion(names[0]);
-}
-
-function meApplyChordSuggestion(name) {
-  const comp = parseChordNameToComponents(name);
-  if (!comp) return;
-  me_triad    = comp.triad;
-  me_seventh  = comp.seventh;
-  me_func     = comp.func;
-  me_tensions = comp.tension ? [comp.tension] : [];
-  meRenderAllBtns();
-  meUpdateChordDisplay();
-  _meDirty = false;
-  meUpdateApplyBtn();
 }
 
 function meUpdateBarreBtns() {
@@ -4841,14 +4985,13 @@ function meUpdateBarreBtns() {
     }
     const btn = document.createElement('button');
     btn.textContent = 'B';
-    const btnSize = meDS; // 메인 에디터와 동일한 비례
-    const left = meTL + (f - 0.5) * meFW - btnSize / 2;
-    const top  = meTT - meDS - Math.round(btnSize * 0.67);
-    btn.style.cssText = `position:absolute;left:${left}px;top:${top}px;width:${btnSize}px;height:${btnSize}px;
+    const left = meTL + (f - 0.5) * meFW - 24;
+    const top  = meTT - meDS - 32;
+    btn.style.cssText = `position:absolute;left:${left}px;top:${top}px;width:48px;height:48px;
       border-radius:50%;border:1.5px solid #888;
       background:${me_barre[f] ? '#1a1714' : '#fff'};
       color:${me_barre[f] ? '#fff' : '#888'};
-      font-size:${Math.round(btnSize * 0.5)}px;font-family:'Pretendard',sans-serif;
+      font-size:22px;font-family:'Pretendard',sans-serif;
       cursor:pointer;display:flex;align-items:center;justify-content:center;padding:0;`;
     btn.onclick = () => {
       if (!me_barre[f]) {
@@ -5096,6 +5239,7 @@ async function copyShareCode() {
   if (navigator.clipboard) await navigator.clipboard.writeText(val).catch(() => _fallbackCopy(val));
   else _fallbackCopy(val);
   _flashBtn('share-code-copy-btn', '복사됨!');
+  analytics.track('share_initiated', { type: 'code' });
 }
 async function copyShareUrl() {
   const el = document.getElementById('share-url-input');
@@ -5103,6 +5247,7 @@ async function copyShareUrl() {
   if (navigator.clipboard) await navigator.clipboard.writeText(val).catch(() => _fallbackCopy(val));
   else _fallbackCopy(val);
   _flashBtn('share-url-copy-btn', '복사됨!');
+  analytics.track('share_initiated', { type: 'url' });
 }
 
 let _pendingImportPayload = null;
@@ -5140,7 +5285,12 @@ function confirmImport(mode) {
     if (!targetId) { alert('프로젝트를 선택하세요.'); return; }
   }
   applyImportPayload(targetId, payload, opts);
-  closeModal('modal-import'); _pendingImportPayload = null;
+  closeModal('modal-import');
+  analytics.track('import_completed', {
+    chord_count: payload.chords?.length || 0,
+    target: mode === 'new' ? 'new_project' : 'existing_project',
+  });
+  _pendingImportPayload = null;
   renderSidebar(); populateProjectSelect();
   navigateTo('project', targetId);
 }
@@ -5192,7 +5342,7 @@ window._handleShareImport = async function(rawCode) {
 // ═══════════════════════════════════════════════════════════════
 // 초기 렌더링
 // ═══════════════════════════════════════════════════════════════
-(function init() {
+(async function init() {
   renderRootBtns();
   renderBassBtns();
   initStaticWheelPickers();
@@ -5201,6 +5351,7 @@ window._handleShareImport = async function(rawCode) {
   lucide.createIcons();
   updateExportScaleOptions();
   renderPlanBadge();
+  await checkForceUpdate();                    // 강제 업데이트 체크 (Android 전용) — 온보딩보다 먼저
   showOnboarding(); // 항상 시작 화면 표시
   initAppVersion(); // 사이드바 버전 표시
   initBilling();    // Android 인앱 결제 초기화 (비동기, 실패해도 앱 동작 유지)
@@ -5269,6 +5420,7 @@ function renderLibRootTabs() {
 function selectLibRoot(root) {
   closeVoicingModal();
   _libRoot = root;
+  analytics.track('lib_tab_changed', { root_tab: root });
   renderLibRootTabs();
   renderLibCards(root);
 }
@@ -5322,12 +5474,19 @@ function renderLibCards(root) {
   });
 }
 
-function selectLibEntry(idx) {
+function selectLibEntry(idx, { silent = false } = {}) {
   const entries = (window.chordsLibrary || {})[_libRoot] || [];
   _libEntry = entries[idx];
   if (!_libEntry) return;
   _libCurrentIdx = idx;
   _libFingeringIdx = 0;
+
+  if (!silent) {
+    analytics.track('lib_chord_selected', {
+      chord_name: _libEntry.name,
+      root:       _libRoot,
+    });
+  }
 
   _ensureLibCanvas();
   drawLibViewerCanvas();
@@ -5376,6 +5535,8 @@ function _drawLibCanvas(canvas, ratio, entry, nameOverride, fingeringIdx = 0) {
   Object.entries(activeBarre).forEach(([f, v]) => {
     normBarre[Number(f) - fretOffset] = v;
   });
+  // barreRange: 바레 라인 커버 범위 (canvas string index 기준, 운지별)
+  const barreRange = entry.barreRanges?.[fingeringIdx] ?? entry.barreRanges?.[0] ?? entry.barreRange ?? null;
 
   drawCanvas(canvas.getContext('2d'), ratio, {
     root: '', triad: '', seventh: '', func: '', tensions: [], bass: '',
@@ -5383,6 +5544,7 @@ function _drawLibCanvas(canvas, ratio, entry, nameOverride, fingeringIdx = 0) {
     dots:          dotsArr,
     openMute:      entry.openMute,
     barre:         normBarre,
+    barreRange,
     fretNumber:    entry.fretNumber,
     fingerNumMode: _libFingerMode,
   });
@@ -5580,6 +5742,7 @@ function showLibSearchModal() {
   }
 
   const q = (document.getElementById('lib-search')?.value || '').trim();
+  if (q) analytics.track('lib_searched', { query: q, result_count: _libSearchResults.length });
   titleEl.textContent = _libSearchResults.length
     ? `"${q}" 검색 결과 ${_libSearchResults.length}건`
     : `"${q}" 검색 결과 없음`;
@@ -5696,21 +5859,22 @@ function importLibChordToProject() {
   const fnBtn = document.getElementById('btn-finger-num');
   if (fnBtn) fnBtn.classList.toggle('active', fingerNumMode);
 
-  // 코드명 구성요소 설정
-  const rootMatch = dispName.match(/^([A-G][#b]?)/);
-  const rootNote  = rootMatch ? rootMatch[1] : 'A';
-  const comp = window.qualityToComponents ? window.qualityToComponents(entry.quality)
-    : { triad: '', seventh: '', func: '', tensions: [] };
-  selectedRoot = rootNote;
-  selectedBass = '';
+  // 코드명 전체 파싱: 근음 → 3화음 → 7음 → 기능 → 텐션 → 분수
+  // parseChordNameToComponents가 모든 구성요소를 한 번에 추출
+  const comp = parseChordNameToComponents(dispName)
+    || { root: 'C', bass: '', triad: '', seventh: '', func: '', tension: '' };
+  selectedRoot = comp.root;
+  selectedBass = comp.bass || '';
 
+  analytics.track('lib_chord_imported', { chord_name: dispName });
   navigateTo('editor', null, { skipResize: true });
   renderRootBtns();
   renderBassBtns();
 
-  // 휠피커 UI + 상태 동시 반영
+  // 휠피커 UI + 상태 동시 반영 (순서: 근음 → 3화음 → 7음 → 기능 → 텐션 → 분수)
   selectTriad(comp.triad);
   selectSeventh(comp.seventh);
   selectFunc(comp.func);
-  selectTension(comp.tensions?.[0] || '');
+  selectTension(comp.tension || '');
+  selectBass(comp.bass || '');
 }

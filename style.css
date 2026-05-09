@@ -489,6 +489,8 @@ body {
   font-family: 'Pretendard', sans-serif;
   font-size: 12px;
   padding: 6px 14px;
+  height: 28px;
+  box-sizing: border-box;
   border-radius: var(--radius);
   border: 1px solid var(--border);
   background: transparent;
@@ -555,11 +557,19 @@ body {
 /* ── 캔버스 ── */
 .canvas-wrap {
   display: flex;
-  justify-content: flex-start;
+  justify-content: center;   /* canvas-unit 항상 카드 중앙 정렬 */
   align-items: flex-start;
   background: #ffffff;
   border-radius: var(--radius);
-  padding: 0 0 0 10px;
+  padding: 0;
+}
+/* canvas-inner + chord-apply-btn 을 한 덩어리로 묶는 래퍼 */
+.canvas-unit {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
 }
 .canvas-inner {
   position: relative;
@@ -567,15 +577,13 @@ body {
 }
 
 .chord-apply-btn {
-  position: absolute;
-  right: -12px;
-  top: 52.5%;
-  transform: translateY(-50%);
+  /* absolute 포지셔닝 제거 — flex 흐름에 편입 */
   display: flex;
   align-items: center;
   justify-content: center;
   width: 32px;
   height: 32px;
+  flex-shrink: 0;
   border: none;
   border-radius: 50%;
   background: var(--border);
@@ -859,7 +867,7 @@ canvas {
 .project-header {
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 8px;
   margin-bottom: 8px;
   width: 100%;
   min-width: 0;
@@ -879,6 +887,8 @@ canvas {
 .project-header-btn {
   font-size: 11px;
   padding: 5px 10px;
+  height: 28px;
+  box-sizing: border-box;
   white-space: nowrap;
   flex-shrink: 1;
   min-width: 0;
@@ -948,6 +958,8 @@ canvas {
 .col-toggle-btn {
   font-size: 11px;
   padding: 4px 12px;
+  height: 28px;
+  box-sizing: border-box;
   border: none;
   background: transparent;
   color: var(--text-secondary);
@@ -1056,7 +1068,7 @@ canvas {
   color: var(--surface);
   border-color: var(--text-primary);
 }
-.metronome-btn i { width: 13px; height: 13px; }
+.metronome-btn svg { width: 13px; height: 13px; }
 
 /* 전체재생 버튼 */
 .play-all-btn {
@@ -1074,7 +1086,7 @@ canvas {
   transition: opacity .15s;
 }
 .play-all-btn:hover { opacity: .75; }
-.play-all-btn i { width: 13px; height: 13px; }
+.play-all-btn svg { width: 13px; height: 13px; }
 
 /* 전체재생 중 현재 슬롯 강조 */
 .chord-slot--playing {
@@ -1288,25 +1300,59 @@ canvas {
   scrollbar-width: none;
   outline: none;
   font-family: 'Pretendard', sans-serif;
-  padding-bottom: 160px; /* 마지막 행 3-dot 드롭다운 잘림 방지 */
   font-size: 14px;
   line-height: 1.6;
   color: var(--text-primary);
   caret-color: var(--text-primary);
-  padding: 8px 12px;
+  padding: 8px 12px 160px; /* 하단 160px: 마지막 행 3-dot 드롭다운 잘림 방지 */
   word-break: break-word;
 }
 .project-lines::-webkit-scrollbar { display: none; }
-.project-lines[contenteditable="false"] { cursor: default; caret-color: transparent; user-select: none; }
+
+.line-text {
+  outline: none;
+  min-height: 1.4em;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.add-line-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 33px;
+  height: 33px;
+  border-radius: 50%;
+  border: 1.5px solid var(--border);
+  background: transparent;
+  color: var(--text-muted);
+  font-size: 22px;
+  line-height: 1;
+  cursor: pointer;
+  margin: 20px auto 0;
+  opacity: 0.35;
+  transition: opacity .15s;
+  flex-shrink: 0;
+}
+.add-line-btn:hover, .add-line-btn:active { opacity: 0.9; }
+@media (pointer: coarse) { .add-line-btn { opacity: 0.55; } }
+
+@keyframes projectLineIn {
+  from { opacity: 0; transform: translateY(-12px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.project-line-enter {
+  animation: projectLineIn 0.28s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
 
 .project-line {
   font-size: 22px;
   min-height: 1.6em;
-  border-bottom: 1px solid var(--border);
-  padding-bottom: 12px;
-  margin-bottom: 12px;
+  border-bottom: 1px solid rgba(180, 168, 152, 0.35);
+  padding-bottom: 5px;
+  margin-bottom: 19px;
 }
-.project-line:last-child {
+.project-line:last-of-type {
   border-bottom: none;
   margin-bottom: 0;
 }
@@ -1418,17 +1464,18 @@ canvas {
     padding-top: 0;
   }
   #view-library .lib-search-bar {
-    padding-left: 16px;
-    padding-right: 16px;
-    padding-top: 14px;
+    padding-left: clamp(8px, 3vw, 16px);
+    padding-right: clamp(8px, 3vw, 16px);
+    padding-top: clamp(10px, 2.5vw, 14px);
   }
   #view-library .lib-viewer {
-    padding-left: 16px;
-    padding-right: 16px;
+    padding-left: clamp(12px, 4vw, 20px);
+    padding-right: clamp(12px, 4vw, 20px);
+    padding-top: clamp(20px, 5vw, 40px);
   }
   #view-library .lib-action-bar {
-    padding-left: 16px;
-    padding-right: 16px;
+    padding-left: clamp(8px, 3vw, 16px);
+    padding-right: clamp(8px, 3vw, 16px);
   }
 
   .card {
@@ -1461,11 +1508,11 @@ canvas {
   }
 
   .project-lines {
-    font-size: 14px;
+    font-size: 17px;
   }
 
   .project-line {
-    font-size: 14px;
+    font-size: 17px;
   }
 
   .row-textarea {
@@ -1529,6 +1576,205 @@ canvas {
     max-width: 100%;
     margin: 0 8px;
   }
+
+  /* ════════════════════════════════════════════════════════
+     모바일 전체 반응형 — viewport 상대 단위 (clamp / min)
+     기준: 375px (일반 모바일) ↔ 320px (소형) ↔ 480px (대형)
+     ════════════════════════════════════════════════════════ */
+
+  /* ── 1. 탭 (줄바꿈 완전 방지) ── */
+  .main-tab {
+    font-size: clamp(12px, 4.4vw, 18px);
+    padding: clamp(12px, 2.5vh, 20px) clamp(4px, 2vw, 16px);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  /* ── 2. 헤더 타이틀 ── */
+  .main-header .header {
+    padding: clamp(12px, 3vw, 18px);
+  }
+  .main-header .header h1 {
+    font-size: clamp(18px, 6vw, 24px);
+  }
+
+  /* ── 3. 카드 컨테이너 ── */
+  .card {
+    padding: clamp(14px, 4vw, 20px) clamp(12px, 4vw, 18px);
+    gap: clamp(16px, 4vw, 24px);
+  }
+
+  /* ── 4. 코드명 표시 ── */
+  .chord-display {
+    font-size: clamp(22px, 8vw, 32px);
+    min-height: auto;
+  }
+  .chord-display sup {
+    font-size: clamp(13px, 4.5vw, 18px);
+  }
+  .chord-suggest-item {
+    font-size: clamp(10px, 2.8vw, 12px);
+  }
+
+  /* ── 5. 샵/플랫 토글 버튼 ── */
+  .acc-btn {
+    font-size: clamp(11px, 3.2vw, 13px);
+    padding: 5px clamp(8px, 3.5vw, 14px);
+  }
+
+  /* ── 6. 범용 버튼 ── */
+  .btn {
+    font-size: clamp(11px, 3.2vw, 13px);
+    padding: clamp(7px, 2.5vw, 9px) clamp(14px, 4.5vw, 22px);
+  }
+  /* Bug Fix: .btn 미디어쿼리가 하위 클래스를 cascade override하는 문제 수정
+     compact/icon 버튼들을 .btn 이후에 재선언해서 우선순위 회복 */
+
+  /* 프로젝트 헤더 텍스트 버튼 */
+  .project-header-btn {
+    font-size: 11px;
+    padding: 5px clamp(6px, 1.8vw, 10px);
+    white-space: nowrap;
+  }
+
+  /* 아이콘 원형 버튼 — padding:0 복원, 정원형 유지 */
+  .metronome-btn,
+  .play-all-btn {
+    padding: 0;
+    width: 28px;
+    height: 28px;
+    flex-shrink: 0;
+  }
+  .mode-btn {
+    font-size: clamp(10px, 3vw, 12px);
+    padding: 6px clamp(8px, 3vw, 14px);
+  }
+
+  /* ── 7. 핑거 버튼 ── */
+  .finger-btn {
+    width: clamp(26px, 7.5vw, 32px);
+    height: clamp(26px, 7.5vw, 32px);
+    font-size: clamp(11px, 3.2vw, 13px);
+  }
+
+  /* ── 8. 코드 빌더 피커 ── */
+  .builder-col .sel-btn {
+    font-size: clamp(14px, 4.5vw, 18px);
+  }
+  .col-label {
+    font-size: clamp(9px, 2.5vw, 10px);
+    padding: clamp(5px, 1.5vw, 8px) 2px clamp(3px, 1vw, 4px);
+  }
+
+  /* ── 9. 에디터 액션바 버튼 ── */
+  .ab-btn,
+  .ab-select {
+    font-size: clamp(11px, 3.2vw, 13px);
+    padding: 8px clamp(8px, 3.2vw, 16px);
+  }
+
+  /* ── 10. 라이브러리 검색바 ── */
+  .lib-search-bar {
+    width: min(320px, calc(100vw - 24px));
+    margin-top: clamp(10px, 3vw, 16px);
+  }
+  .lib-search-bar input {
+    font-size: clamp(12px, 3.5vw, 14px);
+  }
+
+  /* ── 11. 라이브러리 캔버스 & 플레이 버튼 ── */
+  .lib-viewer {
+    padding: clamp(20px, 5vw, 40px) clamp(12px, 4vw, 20px) 10px;
+  }
+  #lib-canvas {
+    width: min(300px, calc(100vw - 28px));
+  }
+  .lib-play-btn {
+    width: min(300px, calc(100vw - 28px));
+  }
+  .lib-play-btn svg {
+    width: clamp(18px, 5.5vw, 22px);
+    height: clamp(18px, 5.5vw, 22px);
+  }
+
+  /* ── 12. 라이브러리 카드 ── */
+  .lib-card-canvas {
+    width: 100%;
+    min-width: 0;
+  }
+  .lib-card-name {
+    max-width: 100%;
+    font-size: clamp(9px, 2.8vw, 11px);
+  }
+  .lib-card-badge {
+    font-size: 8px;
+    width: 13px;
+    height: 13px;
+  }
+  .lib-cards {
+    gap: clamp(4px, 1.2vw, 6px);
+    padding: clamp(6px, 1.5vw, 8px) clamp(6px, 1.5vw, 8px) 24px;
+  }
+
+  /* ── 13. 라이브러리 액션바 ── */
+  .lib-action-bar {
+    padding: 8px clamp(8px, 3vw, 20px) 10px;
+    gap: clamp(4px, 1.5vw, 8px);
+  }
+  .lib-action-bar .acc-btn,
+  .lib-action-bar .ab-btn,
+  .lib-action-bar .mode-btn {
+    font-size: clamp(11px, 3.2vw, 13px);
+    padding-left: clamp(8px, 3vw, 14px);
+    padding-right: clamp(8px, 3vw, 14px);
+  }
+
+  /* ── 14. 근음 목록 (폭·높이 연동) ── */
+  .lib-root-list {
+    width: clamp(36px, 10vw, 45px);
+    flex-shrink: 0;
+  }
+  .lib-root-item {
+    height: clamp(36px, 10vw, 45px);
+    font-size: clamp(11px, 3.2vw, 14px);
+  }
+  /* 보이싱 오버레이/모달 — 근음 목록 폭과 연동 */
+  .lib-voicing-overlay,
+  .lib-voicing-modal {
+    left: calc(clamp(36px, 10vw, 45px) + 1px);
+  }
+
+  /* ── 15. 모달 ── */
+  .modal-title {
+    font-size: clamp(16px, 5vw, 20px);
+  }
+  .modal-body {
+    padding: clamp(14px, 4vw, 20px);
+  }
+
+  /* ── 16. 프로젝트 헤더 row2 컨트롤 높이 통일 ── */
+  /* capo-control과 bpm-control을 원형 버튼(28px)과 동일한 높이로 고정 */
+  .capo-control,
+  .bpm-control {
+    height: 28px;
+    box-sizing: border-box;
+  }
+  /* bpm-input: 브라우저 기본 padding/height 초기화 */
+  .bpm-input {
+    height: 16px;
+    padding: 0;
+    line-height: 16px;
+    box-sizing: border-box;
+  }
+
+  /* ── 18. 에디터 캔버스 — canvas-unit이 카드 내 중앙 정렬됨 (기본값 유지) ── */
+
+  /* ── 19. 프로젝트 헤더 뒤로 버튼 줄바꿈 방지 ── */
+  .back-btn {
+    white-space: nowrap;
+    flex-shrink: 0;
+  }
 }
 
 /* 모바일/태블릿 가로모드: 8칸은 1행×8열 */
@@ -1576,7 +1822,7 @@ canvas {
     padding-top: 0;
   }
   #view-library .lib-search-bar {
-    padding-top: 14px;
+    padding-top: clamp(10px, 2.5vw, 14px);
   }
 
   .card {
@@ -1638,6 +1884,14 @@ canvas {
     width: 100%;
     height: auto;
     aspect-ratio: 4 / 3;
+  }
+
+  /* 가로모드 탭 반응형 */
+  .main-tab {
+    font-size: clamp(12px, 2.2vw, 18px);
+    padding: clamp(10px, 1.8vh, 20px) clamp(6px, 1.5vw, 16px);
+    white-space: nowrap;
+    overflow: hidden;
   }
 
   .modal {
@@ -2582,7 +2836,7 @@ canvas {
   display: grid;
   grid-template-columns: repeat(4, 1fr);
   gap: 6px;
-  padding: 8px;
+  padding: 8px 8px 24px;
   align-content: start;
 }
 
@@ -2693,6 +2947,62 @@ canvas {
   transform: scale(1);
   pointer-events: all;
 }
+
+/* ── 공지 팝업 모달 ──────────────────────────────── */
+.notice-modal {
+  background: var(--surface);
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--border);
+  width: calc(100% - 32px);
+  max-width: 340px;
+  padding: 32px 28px 24px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  gap: 0;
+}
+
+.notice-modal-icon {
+  font-size: 52px;
+  line-height: 1;
+  margin-bottom: 20px;
+}
+
+.notice-modal-title {
+  font-family: 'Times New Roman', serif;
+  font-size: 21px;
+  color: var(--text-primary);
+  line-height: 1.35;
+  margin-bottom: 14px;
+}
+
+.notice-modal-message {
+  font-size: 13.5px;
+  color: var(--text-secondary);
+  line-height: 1.75;
+  text-align: left;
+  white-space: pre-line;
+  width: 100%;
+  margin-bottom: 28px;
+}
+
+.notice-modal-btn {
+  width: 100%;
+  padding: 12px;
+  background: var(--text-primary);
+  color: #fff;
+  border: none;
+  border-radius: var(--radius);
+  font-family: 'Pretendard', sans-serif;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  letter-spacing: 0.02em;
+  transition: opacity .15s;
+}
+.notice-modal-btn:hover { opacity: 0.85; }
+.notice-modal-btn:active { transform: scale(0.98); }
 
 /* 모달 내부 4열 그리드 (lib-cards와 동일 구조) */
 .lib-voicing-grid {

@@ -22,6 +22,12 @@
   // 플랫 근음 → 샵 근음 정규화 (라이브러리 키 분류용)
   const FLAT_TO_SHARP = { 'Db':'C#', 'Eb':'D#', 'Gb':'F#', 'Ab':'G#', 'Bb':'A#' };
 
+  // 샵 음이름 → 플랫 음이름 자동 변환 (STATIC flatName 생성용)
+  const SHARP_TO_FLAT = { 'C#':'Db', 'D#':'Eb', 'F#':'Gb', 'G#':'Ab', 'A#':'Bb' };
+  function toFlatName(name) {
+    return name.replace(/[A-G]#/g, m => SHARP_TO_FLAT[m] || m);
+  }
+
   // quality → 코드명 접미사 ('M'은 빈 문자열)
   const Q_SUFFIX = {
     'M':'', 'm':'m', 'M7':'M7', '7':'7', 'm7':'m7',
@@ -34,6 +40,7 @@
   const QUALITY_ORDER = [
     'M', 'm', 'M7', '7', 'm7', 'sus4', '7sus4', 'add9',
     'sus2', 'aug', 'dim', 'aug7', 'dim7', 'm7(b5)', '6', 'm6',
+    'slash', 'hybrid', 'tension',  // 후순위 — 분수 → 하이브리드 → 텐션
   ];
 
   // ── 파싱 헬퍼 ────────────────────────────────────────────────
@@ -67,6 +74,16 @@
       if (m) return r + parseInt(m[1], 10);
       return parseInt(p, 10);
     });
+  }
+
+  // Rule 4: 바레 프렛보다 작은 실제 프렛 값이 있는 현은 바레 범위에서 제외
+  // min/max 양쪽에서 fret < barreFret 인 경우 범위 축소 → 범위가 역전되면 null 반환
+  function applyBarreRule4(range, frets, barreFret) {
+    if (!range) return null;
+    let { min, max } = range;
+    while (min <= max && frets[min] !== null && frets[min] < barreFret) min++;
+    while (max >= min && frets[max] !== null && frets[max] < barreFret) max--;
+    return min <= max ? { min, max } : null;
   }
 
   // frets 배열 → openMute 배열 자동 추론
@@ -106,29 +123,63 @@
         const rootNote  = sharpName.match(/^([A-G]#?)/)?.[1] ?? sharpName[0];
         if (!lib[rootNote]) lib[rootNote] = [];
 
-        const barreObj  = pat.barre ? { [r]: true } : {};
+        // ── 바레 프렛 탐지 + 커버 범위 결정 ──────────────────────
+        // barre: true 이더라도 바레가 걸리는 실제 프렛은 r이 아닐 수 있다.
+        // 손가락 번호 1이 2회 이상 등장하는 포지션의 실제 프렛을 바레 프렛으로 결정.
+        //
+        // 커버 범위(바레 라인 그림 범위) 규칙 (canvas 인덱스 0=1번줄 기준):
+        //  Rule 1/3: canvas 0(1번줄)부터 연속 non-null 블록 안에 1이 2개 이상 → min=0, max=가장 먼 1의 위치
+        //  Rule 2  : 그 외 → min=첫번째 1, max=마지막 1
+        let barreObj = {};
+        let barreRange = null;
+        if (pat.barre) {
+          const oneIdxs = fingerArr.reduce((acc, f, i) => { if (f === 1) acc.push(i); return acc; }, []);
+          const barreFret = oneIdxs.length >= 2 ? (frets[oneIdxs[0]] ?? r) : r;
+          barreObj = { [barreFret]: true };
+
+          if (oneIdxs.length >= 2) {
+            // canvas 0부터 연속 non-null 블록 끝 계산
+            let blockEnd = -1;
+            for (let i = 0; i < frets.length; i++) {
+              if (frets[i] === null) break;
+              blockEnd = i;
+            }
+            const oneInBlock = oneIdxs.filter(i => i <= blockEnd);
+            if (blockEnd >= 0 && oneInBlock.length >= 2) {
+              // Rule 1/3: 1번줄(canvas 0)부터 전체에서 가장 먼 1번 손가락 위치까지
+              barreRange = { min: 0, max: Math.max(...oneIdxs) };
+            } else {
+              // Rule 2: 첫 1번 손가락 ~ 마지막 1번 손가락
+              barreRange = { min: Math.min(...oneIdxs), max: Math.max(...oneIdxs) };
+            }
+            // Rule 4: 바레 프렛보다 작은 실제 프렛 값이 있는 현은 바레 범위에서 제외
+            barreRange = applyBarreRule4(barreRange, frets, barreFret);
+          }
+        }
         const openMute  = frets.map(f => f === null ? 'mute' : null);
         // 패턴 보이싱: fretNumber 직접 지정 시 사용, 생략 시 Math.max(2, r+1)
         // fretNumber는 슬롯2 위치의 프렛 번호 → 슬롯1 = r이 되려면 r+1 필요
         const minFret   = pat.fretNumber !== undefined ? pat.fretNumber : Math.max(2, r + 1);
 
-        lib[rootNote].push({
+        const patEntry = {
           quality:      pat.quality,
           voicingLabel,
           frets,
           fingering:    fingerArr,
           barre:        barreObj,
+          barreRange,
           openMute,
           fretNumber:   minFret,
           name:         sharpName,
           flatName,
           source:       'pattern',
-        });
+        };
+        lib[rootNote].push(patEntry);
       }
     });
 
     // 2) 정적 보이싱 ─────────────────────────────────────────
-    STATIC.forEach(([fretsStr, names, fingersStr, quality, fretNum]) => {
+    STATIC.forEach(([fretsStr, names, fingersStr, quality, fretNum, opts]) => {
       // 입력: 6번줄→1번줄 순 / 캔버스: 1번줄→6번줄 순 → 반전
       const frets   = parseTokens(fretsStr).reverse();
       const fingers = parseFingers(fingersStr).reverse();
@@ -138,6 +189,32 @@
       const minFret   = fretNum !== undefined ? fretNum
                       : (positives.length ? Math.min(...positives) : 0);
 
+      // ── opts.barre: true → PATTERN과 동일한 Rules 1/2/3 바레 탐지 ──
+      let staticBarre = {};
+      let staticBarreRange = null;
+      if (opts?.barre) {
+        const oneIdxs = fingers.reduce((acc, f, i) => { if (f === 1) acc.push(i); return acc; }, []);
+        if (oneIdxs.length >= 2) {
+          const barreFret = frets[oneIdxs[0]];
+          if (barreFret != null && barreFret > 0) {
+            staticBarre = { [barreFret]: true };
+            let blockEnd = -1;
+            for (let i = 0; i < frets.length; i++) {
+              if (frets[i] === null) break;
+              blockEnd = i;
+            }
+            const oneInBlock = oneIdxs.filter(i => i <= blockEnd);
+            if (blockEnd >= 0 && oneInBlock.length >= 2) {
+              staticBarreRange = { min: 0, max: Math.max(...oneIdxs) };
+            } else {
+              staticBarreRange = { min: Math.min(...oneIdxs), max: Math.max(...oneIdxs) };
+            }
+            // Rule 4: 바레 프렛보다 작은 실제 프렛 값이 있는 현은 바레 범위에서 제외
+            staticBarreRange = applyBarreRule4(staticBarreRange, frets, barreFret);
+          }
+        }
+      }
+
       names.forEach(name => {
         // 코드명 첫 토큰에서 근음 추출 (슬래시 코드는 분자 기준)
         const rootMatch = name.match(/^([A-G][#b]?)/);
@@ -146,18 +223,23 @@
         const rootKey   = FLAT_TO_SHARP[rootNote] || rootNote;
         if (!lib[rootKey]) lib[rootKey] = [];
 
-        lib[rootKey].push({
+        // opts.flat: true → 샵 음이름을 플랫으로 자동 변환하여 flatName 생성
+        const flatName = opts?.flat ? toFlatName(name) : name;
+
+        const staticEntry = {
           quality,
           voicingLabel: 'Open',
           frets,
           fingering:    fingers,
-          barre:        {},
+          barre:        staticBarre,
+          barreRange:   staticBarreRange,
           openMute,
           fretNumber:   minFret,
           name,
-          flatName:     name, // 정적 코드는 이름 고정
+          flatName,
           source:       'static',
-        });
+        };
+        lib[rootKey].push(staticEntry);
       });
     });
 
@@ -190,9 +272,11 @@
         if (keyMap.has(key)) {
           keyMap.get(key).fingerings.push(entry.fingering);
           keyMap.get(key).barres.push(entry.barre);
+          keyMap.get(key).barreRanges.push(entry.barreRange);
         } else {
-          entry.fingerings = [entry.fingering];
-          entry.barres     = [entry.barre];
+          entry.fingerings   = [entry.fingering];
+          entry.barres       = [entry.barre];
+          entry.barreRanges  = [entry.barreRange];
           keyMap.set(key, entry);
           merged.push(entry);
         }
