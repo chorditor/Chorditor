@@ -489,6 +489,8 @@ body {
   font-family: 'Pretendard', sans-serif;
   font-size: 12px;
   padding: 6px 14px;
+  height: 28px;
+  box-sizing: border-box;
   border-radius: var(--radius);
   border: 1px solid var(--border);
   background: transparent;
@@ -748,6 +750,33 @@ canvas {
 .ab-btn-primary:hover { background: var(--text-primary); color: var(--bg); opacity: 0.85; }
 .ab-btn-primary:active { transform: scale(0.97); }
 
+/* ── 프로젝트 코드 수정 바 ── */
+.project-edit-bar.hidden { display: none; }
+.project-edit-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 16px;
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+  gap: 12px;
+}
+.project-edit-label {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-primary);
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.project-edit-actions {
+  display: flex;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
 /* ── 프로젝트에 추가 행 ── */
 .add-to-project-row {
   display: flex;
@@ -865,7 +894,7 @@ canvas {
 .project-header {
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 8px;
   margin-bottom: 8px;
   width: 100%;
   min-width: 0;
@@ -885,6 +914,8 @@ canvas {
 .project-header-btn {
   font-size: 11px;
   padding: 5px 10px;
+  height: 28px;
+  box-sizing: border-box;
   white-space: nowrap;
   flex-shrink: 1;
   min-width: 0;
@@ -954,6 +985,8 @@ canvas {
 .col-toggle-btn {
   font-size: 11px;
   padding: 4px 12px;
+  height: 28px;
+  box-sizing: border-box;
   border: none;
   background: transparent;
   color: var(--text-secondary);
@@ -1062,7 +1095,7 @@ canvas {
   color: var(--surface);
   border-color: var(--text-primary);
 }
-.metronome-btn i { width: 13px; height: 13px; }
+.metronome-btn svg { width: 13px; height: 13px; }
 
 /* 전체재생 버튼 */
 .play-all-btn {
@@ -1080,7 +1113,7 @@ canvas {
   transition: opacity .15s;
 }
 .play-all-btn:hover { opacity: .75; }
-.play-all-btn i { width: 13px; height: 13px; }
+.play-all-btn svg { width: 13px; height: 13px; }
 
 /* 전체재생 중 현재 슬롯 강조 */
 .chord-slot--playing {
@@ -1294,25 +1327,75 @@ canvas {
   scrollbar-width: none;
   outline: none;
   font-family: 'Pretendard', sans-serif;
-  padding-bottom: 160px; /* 마지막 행 3-dot 드롭다운 잘림 방지 */
   font-size: 14px;
   line-height: 1.6;
   color: var(--text-primary);
   caret-color: var(--text-primary);
-  padding: 8px 12px;
+  padding: 8px 12px 160px; /* 하단 160px: 마지막 행 3-dot 드롭다운 잘림 방지 */
   word-break: break-word;
 }
 .project-lines::-webkit-scrollbar { display: none; }
-.project-lines[contenteditable="false"] { cursor: default; caret-color: transparent; user-select: none; }
+
+.line-text {
+  outline: none;
+  min-height: 1.4em;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.add-line-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 33px;
+  height: 33px;
+  border-radius: 50%;
+  border: 1.5px solid var(--border);
+  background: transparent;
+  color: var(--text-muted);
+  font-size: 22px;
+  line-height: 1;
+  cursor: pointer;
+  margin: 20px auto 0;
+  opacity: 0.35;
+  transition: opacity .15s;
+  flex-shrink: 0;
+}
+.add-line-btn:hover, .add-line-btn:active { opacity: 0.9; }
+@media (pointer: coarse) { .add-line-btn { opacity: 0.55; } }
+
+@keyframes projectLineInBelow {
+  from { opacity: 0; transform: translateY(-8px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+@keyframes projectLineInAbove {
+  from { opacity: 0; transform: translateY(8px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+@keyframes projectLineOut {
+  from { opacity: 1; transform: translateY(0);    max-height: 200px; margin-bottom: 19px; }
+  to   { opacity: 0; transform: translateY(-6px); max-height: 0;     margin-bottom: 0;   }
+}
+.project-line-enter {
+  animation: projectLineInBelow 0.25s ease-out both;
+}
+.project-line-enter-above {
+  animation: projectLineInAbove 0.25s ease-out both;
+}
+.project-line-exit {
+  animation: projectLineOut 0.2s ease-in both;
+  overflow: hidden;
+  pointer-events: none;
+}
 
 .project-line {
   font-size: 22px;
   min-height: 1.6em;
-  border-bottom: 1px solid var(--border);
-  padding-bottom: 12px;
-  margin-bottom: 12px;
+  border-bottom: 1px solid rgba(180, 168, 152, 0.35);
+  padding-bottom: 5px;
+  margin-bottom: 19px;
 }
-.project-line:last-child {
+.project-line:last-of-type {
   border-bottom: none;
   margin-bottom: 0;
 }
@@ -2907,6 +2990,62 @@ canvas {
   transform: scale(1);
   pointer-events: all;
 }
+
+/* ── 공지 팝업 모달 ──────────────────────────────── */
+.notice-modal {
+  background: var(--surface);
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--border);
+  width: calc(100% - 32px);
+  max-width: 340px;
+  padding: 32px 28px 24px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  gap: 0;
+}
+
+.notice-modal-icon {
+  font-size: 52px;
+  line-height: 1;
+  margin-bottom: 20px;
+}
+
+.notice-modal-title {
+  font-family: 'Times New Roman', serif;
+  font-size: 21px;
+  color: var(--text-primary);
+  line-height: 1.35;
+  margin-bottom: 14px;
+}
+
+.notice-modal-message {
+  font-size: 13.5px;
+  color: var(--text-secondary);
+  line-height: 1.75;
+  text-align: left;
+  white-space: pre-line;
+  width: 100%;
+  margin-bottom: 28px;
+}
+
+.notice-modal-btn {
+  width: 100%;
+  padding: 12px;
+  background: var(--text-primary);
+  color: #fff;
+  border: none;
+  border-radius: var(--radius);
+  font-family: 'Pretendard', sans-serif;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  letter-spacing: 0.02em;
+  transition: opacity .15s;
+}
+.notice-modal-btn:hover { opacity: 0.85; }
+.notice-modal-btn:active { transform: scale(0.98); }
 
 /* 모달 내부 4열 그리드 (lib-cards와 동일 구조) */
 .lib-voicing-grid {
