@@ -750,6 +750,33 @@ canvas {
 .ab-btn-primary:hover { background: var(--text-primary); color: var(--bg); opacity: 0.85; }
 .ab-btn-primary:active { transform: scale(0.97); }
 
+/* ── 프로젝트 코드 수정 바 ── */
+.project-edit-bar.hidden { display: none; }
+.project-edit-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 16px;
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+  gap: 12px;
+}
+.project-edit-label {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-primary);
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.project-edit-actions {
+  display: flex;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
 /* ── 프로젝트에 추가 행 ── */
 .add-to-project-row {
   display: flex;
@@ -1337,12 +1364,28 @@ canvas {
 .add-line-btn:hover, .add-line-btn:active { opacity: 0.9; }
 @media (pointer: coarse) { .add-line-btn { opacity: 0.55; } }
 
-@keyframes projectLineIn {
-  from { opacity: 0; transform: translateY(-12px); }
+@keyframes projectLineInBelow {
+  from { opacity: 0; transform: translateY(-8px); }
   to   { opacity: 1; transform: translateY(0); }
 }
+@keyframes projectLineInAbove {
+  from { opacity: 0; transform: translateY(8px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+@keyframes projectLineOut {
+  from { opacity: 1; transform: translateY(0);    max-height: 200px; margin-bottom: 19px; }
+  to   { opacity: 0; transform: translateY(-6px); max-height: 0;     margin-bottom: 0;   }
+}
 .project-line-enter {
-  animation: projectLineIn 0.28s cubic-bezier(0.22, 1, 0.36, 1) both;
+  animation: projectLineInBelow 0.25s ease-out both;
+}
+.project-line-enter-above {
+  animation: projectLineInAbove 0.25s ease-out both;
+}
+.project-line-exit {
+  animation: projectLineOut 0.2s ease-in both;
+  overflow: hidden;
+  pointer-events: none;
 }
 
 .project-line {

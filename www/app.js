@@ -1497,7 +1497,7 @@ async function refreshPlanFromDB() {
 // Settings → API → Project URL / anon public
 const SUPABASE_URL  = 'https://jbvkygeksohlysyvaoab.supabase.co';
 const SUPABASE_ANON = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Impidmt5Z2Vrc29obHlzeXZhb2FiIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzYzOTk5NjgsImV4cCI6MjA5MTk3NTk2OH0.6RSgChy0Yq0H2TJpZPSoMKQ2V-OYfR0XzE1aJBBZkXI';
-const APP_VERSION   = '1.1.4_pre11';
+const APP_VERSION   = '1.1.4_pre18';
 
 // ── Analytics SDK 초기화 ──────────────────────────────────────
 // analytics-sdk.js가 app.js보다 먼저 로드된 경우에만 초기화
@@ -2412,6 +2412,12 @@ function navigateTo(view, projectId, opts = {}) {
     if (currentLinesEl) saveAllLines(currentProjectId, currentLinesEl);
   }
 
+  // 에디터를 떠날 때 project edit context 초기화
+  if (view !== 'editor' && _projectChordEditCtx) {
+    _projectChordEditCtx = null;
+    document.getElementById('project-edit-bar')?.classList.add('hidden');
+  }
+
   // 뷰 표시/숨김
   document.getElementById('view-editor').classList.toggle('hidden', view !== 'editor');
   document.getElementById('view-project').classList.toggle('hidden', view !== 'project');
@@ -2454,6 +2460,10 @@ function navigateTo(view, projectId, opts = {}) {
 
   if (view === 'editor') {
     contextProjectId = projectId || null;
+    // 탭 직접 클릭 시 project edit context 초기화
+    if (!opts.skipResize && !_projectChordEditCtx) {
+      document.getElementById('project-edit-bar')?.classList.add('hidden');
+    }
     populateProjectSelect();
     closeSidebar();
     if (opts.skipResize) draw(); else requestAnimationFrame(resizeCanvas);
@@ -4056,8 +4066,9 @@ function _rowMenuAction(action) {
     const newId  = genId();
     const newObj = { id: newId, text: '', slots: new Array(8).fill(null) };
     const newDiv = buildProjectLine(newObj, p, true);
-    newDiv.classList.add('project-line-enter');
-    newDiv.addEventListener('animationend', () => newDiv.classList.remove('project-line-enter'), { once: true });
+    const enterClass = action === 'above' ? 'project-line-enter-above' : 'project-line-enter';
+    newDiv.classList.add(enterClass);
+    newDiv.addEventListener('animationend', () => newDiv.classList.remove(enterClass), { once: true });
     lineDiv.insertAdjacentElement(action === 'above' ? 'beforebegin' : 'afterend', newDiv);
     saveAllLines(projectId, linesEl);
     lucide.createIcons();
@@ -4078,8 +4089,11 @@ function _rowMenuAction(action) {
 
   } else if (action === 'delete') {
     if (linesEl.querySelectorAll('.project-line').length <= 1) return;
-    lineDiv.remove();
-    saveAllLines(projectId, linesEl);
+    lineDiv.classList.add('project-line-exit');
+    lineDiv.addEventListener('animationend', () => {
+      lineDiv.remove();
+      saveAllLines(projectId, linesEl);
+    }, { once: true });
   }
 }
 
@@ -4380,6 +4394,66 @@ function setupOrientationListener() {
 }
 
 // ═══════════════════════════════════════════════════════════════
+// 프로젝트 코드 수정 (에디터 페이지로 이동)
+// ═══════════════════════════════════════════════════════════════
+let _projectChordEditCtx = null; // { projectId, chordId }
+
+function loadChordIntoEditor(chord) {
+  // accidental 먼저 적용
+  accidental = chord.accidental || 'sharp';
+  document.getElementById('acc-sharp')?.classList.toggle('active', accidental === 'sharp');
+  document.getElementById('acc-flat')?.classList.toggle('active', accidental === 'flat');
+
+  // 지판 상태 복원
+  dots        = JSON.parse(JSON.stringify(chord.dots || []));
+  barreActive = JSON.parse(JSON.stringify(chord.barre || {}));
+  openMute    = [...(chord.openMute || new Array(STRINGS).fill('open'))];
+  currentFretNumber = chord.fretNumber || 2;
+  fingerNumMode = chord.fingerNumMode || false;
+
+  const fnBtn = document.getElementById('btn-finger-num');
+  if (fnBtn) fnBtn.classList.toggle('active', fingerNumMode);
+  const fretDisplay = document.getElementById('fret-number-display');
+  if (fretDisplay) fretDisplay.textContent = currentFretNumber >= 2 ? String(currentFretNumber) : '';
+
+  // 코드명 컴포넌트 복원
+  selectedRoot = chord.root || 'A';
+  renderRootBtns();
+  renderBassBtns();
+  selectTriad(chord.triad || '');
+  selectSeventh(chord.seventh || '');
+  selectFunc(chord.func || '');
+  selectTension((chord.tensions || [])[0] || '');
+  selectBass(chord.bass || '');
+}
+
+function saveProjectChordEdit() {
+  if (!_projectChordEditCtx) return;
+  const { projectId, chordId } = _projectChordEditCtx;
+  const p = getProject(projectId);
+  if (!p) return;
+
+  const idx = p.chords.findIndex(c => c.id === chordId);
+  if (idx === -1) return;
+
+  const updated = { ...getCurrentChordState(), id: chordId };
+  p.chords[idx] = updated;
+  p.updatedAt = Date.now();
+  updateProject(p);
+
+  _projectChordEditCtx = null;
+  document.getElementById('project-edit-bar')?.classList.add('hidden');
+  navigateTo('project', projectId);
+}
+
+function cancelProjectChordEdit() {
+  const projectId = _projectChordEditCtx?.projectId;
+  _projectChordEditCtx = null;
+  document.getElementById('project-edit-bar')?.classList.add('hidden');
+  navigateTo('project', projectId || currentProjectId);
+}
+
+// ═══════════════════════════════════════════════════════════════
 // 모달: 뷰
 // ═══════════════════════════════════════════════════════════════
 let viewModalChord    = null;
@@ -4419,7 +4493,15 @@ let me_editingChord = null;
 function switchToEditModal() {
   if (!viewModalChord) return;
   closeModal('modal-view');
-  openEditModal(viewModalChord, viewModalProjectId);
+  _projectChordEditCtx = { projectId: viewModalProjectId, chordId: viewModalChord.id };
+  loadChordIntoEditor(viewModalChord);
+  navigateTo('editor', null, { skipResize: true });
+  requestAnimationFrame(() => resizeCanvas());
+  // project-edit-bar 표시
+  const bar = document.getElementById('project-edit-bar');
+  const label = document.getElementById('project-edit-label');
+  if (label) label.textContent = `"${viewModalChord.name || '코드'}" 수정 중`;
+  bar?.classList.remove('hidden');
 }
 
 function openEditModal(chord, projectId) {

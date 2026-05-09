@@ -75,6 +75,15 @@
       <!-- 에디터 뷰 -->
       <div class="view" id="view-editor">
 
+        <!-- 프로젝트 코드 수정 모드 바 (project에서 편집 진입 시에만 표시) -->
+        <div class="project-edit-bar hidden" id="project-edit-bar">
+          <span class="project-edit-label" id="project-edit-label">코드 수정 중</span>
+          <div class="project-edit-actions">
+            <button class="btn btn-ghost" onclick="cancelProjectChordEdit()">취소</button>
+            <button class="btn btn-primary" onclick="saveProjectChordEdit()">수정 완료</button>
+          </div>
+        </div>
+
         <div class="card">
 
           <!-- ── 코드명 빌더 ── -->
@@ -361,7 +370,7 @@
         </div>
         <div class="btn-group">
           <button class="btn btn-ghost" id="modal-view-play">▶ 재생</button>
-          <button class="btn btn-primary" onclick="switchToEditModal()">✏️ 편집</button>
+          <button class="btn btn-primary" onclick="switchToEditModal()">편집</button>
         </div>
       </div>
     </div>
