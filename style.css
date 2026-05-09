@@ -2908,6 +2908,62 @@ canvas {
   pointer-events: all;
 }
 
+/* ── 공지 팝업 모달 ──────────────────────────────── */
+.notice-modal {
+  background: var(--surface);
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--border);
+  width: calc(100% - 32px);
+  max-width: 340px;
+  padding: 32px 28px 24px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  gap: 0;
+}
+
+.notice-modal-icon {
+  font-size: 52px;
+  line-height: 1;
+  margin-bottom: 20px;
+}
+
+.notice-modal-title {
+  font-family: 'Times New Roman', serif;
+  font-size: 21px;
+  color: var(--text-primary);
+  line-height: 1.35;
+  margin-bottom: 14px;
+}
+
+.notice-modal-message {
+  font-size: 13.5px;
+  color: var(--text-secondary);
+  line-height: 1.75;
+  text-align: left;
+  white-space: pre-line;
+  width: 100%;
+  margin-bottom: 28px;
+}
+
+.notice-modal-btn {
+  width: 100%;
+  padding: 12px;
+  background: var(--text-primary);
+  color: #fff;
+  border: none;
+  border-radius: var(--radius);
+  font-family: 'Pretendard', sans-serif;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  letter-spacing: 0.02em;
+  transition: opacity .15s;
+}
+.notice-modal-btn:hover { opacity: 0.85; }
+.notice-modal-btn:active { transform: scale(0.98); }
+
 /* 모달 내부 4열 그리드 (lib-cards와 동일 구조) */
 .lib-voicing-grid {
   display: grid;

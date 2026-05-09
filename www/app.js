@@ -1497,7 +1497,7 @@ async function refreshPlanFromDB() {
 // Settings → API → Project URL / anon public
 const SUPABASE_URL  = 'https://jbvkygeksohlysyvaoab.supabase.co';
 const SUPABASE_ANON = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Impidmt5Z2Vrc29obHlzeXZhb2FiIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzYzOTk5NjgsImV4cCI6MjA5MTk3NTk2OH0.6RSgChy0Yq0H2TJpZPSoMKQ2V-OYfR0XzE1aJBBZkXI';
-const APP_VERSION   = '1.1.4_pre8';
+const APP_VERSION   = '1.1.4_dev1';
 
 // ── Analytics SDK 초기화 ──────────────────────────────────────
 // analytics-sdk.js가 app.js보다 먼저 로드된 경우에만 초기화
@@ -1745,6 +1745,10 @@ const _authPromise = new Promise(resolve => { _authResolve = resolve; });
 async function tryAutoSignIn() {
   if (!window.Capacitor?.isNativePlatform()) { _authResolve(); _showOnboardingButtons(); return; }
 
+  // ── DEV ONLY: 온보딩 건너뜀 (USB 디버깅 환경에서 Google 로그인 불가) ──
+  hideOnboarding(); _authReady = true; _authResolve(); return;
+  // ── /DEV ──
+
   try {
     const stored = localStorage.getItem(SUPABASE_STORAGE_KEY);
     if (stored) {
@@ -1859,6 +1863,76 @@ function hideOnboarding() {
 function handleStart() {
   hideOnboarding();
   showTutorialIfNeeded();
+  checkAndShowNotice();
+}
+
+// ── 공지 팝업 ────────────────────────────────────────────────────
+let _currentNoticeId = null;
+
+async function checkAndShowNotice() {
+  if (!_authReady) return;
+  const stored = localStorage.getItem(SUPABASE_STORAGE_KEY);
+  if (!stored) return;
+  let session;
+  try { session = JSON.parse(stored); } catch(e) { return; }
+  if (!session?.access_token || !session?.user?.id) return;
+
+  const headers = {
+    'Content-Type': 'application/json',
+    'apikey': SUPABASE_ANON,
+    'Authorization': 'Bearer ' + session.access_token,
+  };
+
+  try {
+    // 읽은 공지 ID 목록
+    const readsResp = await fetch(
+      `${SUPABASE_URL}/rest/v1/notice_reads?select=notice_id&user_id=eq.${session.user.id}`,
+      { headers }
+    );
+    const reads = readsResp.ok ? await readsResp.json() : [];
+    const readIds = reads.map(r => r.notice_id);
+
+    // 안 읽은 공지 중 가장 오래된 것 1개
+    let url = `${SUPABASE_URL}/rest/v1/notices?select=id,title,message&order=created_at.asc&limit=1`;
+    if (readIds.length > 0) {
+      url += `&id=not.in.(${readIds.join(',')})`;
+    }
+    const noticesResp = await fetch(url, { headers });
+    const notices = noticesResp.ok ? await noticesResp.json() : [];
+    if (!notices?.length) return;
+
+    const notice = notices[0];
+    _currentNoticeId = notice.id;
+    document.getElementById('notice-modal-title').textContent = notice.title;
+    document.getElementById('notice-modal-message').textContent = notice.message.replace(/\\n/g, '\n');
+    document.getElementById('notice-modal-overlay').classList.remove('hidden');
+  } catch(e) { /* 무시 */ }
+}
+
+async function closeNoticeModal() {
+  document.getElementById('notice-modal-overlay').classList.add('hidden');
+  if (!_currentNoticeId) return;
+  const noticeId = _currentNoticeId;
+  _currentNoticeId = null;
+
+  const stored = localStorage.getItem(SUPABASE_STORAGE_KEY);
+  if (!stored) return;
+  let session;
+  try { session = JSON.parse(stored); } catch(e) { return; }
+  if (!session?.access_token || !session?.user?.id) return;
+
+  try {
+    await fetch(`${SUPABASE_URL}/rest/v1/notice_reads`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'apikey': SUPABASE_ANON,
+        'Authorization': 'Bearer ' + session.access_token,
+        'Prefer': 'return=minimal',
+      },
+      body: JSON.stringify({ user_id: session.user.id, notice_id: noticeId }),
+    });
+  } catch(e) { /* 무시 */ }
 }
 
 // 다른 계정으로 변경 → 로그아웃 후 Google 로그인 버튼 표시
@@ -3360,9 +3434,12 @@ function buildLinesSection(project, editMode = true) {
   if (editMode) {
     let saveDebounce = null;
 
-    linesEl.addEventListener('input', (e) => {
-      if (e.isComposing) return;
-      // 빈 줄 br 보장, 텍스트 있는 줄 br 제거
+    // Android WebView: 첫 번째 composition input 이벤트에서 e.isComposing=false를 보내는 경우가 있음
+    // → <br> DOM 조작이 조합 중 실행되어 한글 첫 글자가 자모 분리됨
+    // → compositionstart/compositionend로 수동 추적하여 조합 중 DOM 변경 차단
+    let _isComposing = false;
+
+    function brCleanup() {
       linesEl.querySelectorAll('.project-line').forEach(lineDiv => {
         const text = getLineText(lineDiv);
         if (text) {
@@ -3371,6 +3448,19 @@ function buildLinesSection(project, editMode = true) {
           lineDiv.appendChild(document.createElement('br'));
         }
       });
+    }
+
+    linesEl.addEventListener('compositionstart', () => { _isComposing = true; });
+    linesEl.addEventListener('compositionend', () => {
+      _isComposing = false;
+      brCleanup();
+      clearTimeout(saveDebounce);
+      saveDebounce = setTimeout(() => saveAllLines(project.id, linesEl), 300);
+    });
+
+    linesEl.addEventListener('input', (e) => {
+      if (e.isComposing || _isComposing) return;
+      brCleanup();
       clearTimeout(saveDebounce);
       saveDebounce = setTimeout(() => saveAllLines(project.id, linesEl), 300);
     });
