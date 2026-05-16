@@ -412,6 +412,11 @@ let contextProjectId = null;
 let currentProjectId = null;
 let isEditMode = true;
 
+// 하단 탭 네비게이션 상태
+let _activeTab      = 'home';    // 'home' | 'projects' | 'profile'
+let _homeSubView    = 'home';    // 'home' | 'editor' | 'library'
+let _projectsSubView = 'list';   // 'list' | 'project'
+
 
 // ── Wheel Picker ─────────────────────────────────────────────
 // CSS --picker-item-h 와 반드시 일치
@@ -1405,6 +1410,25 @@ const _fd = document.getElementById('fret-number-display');
 if (_fd) _fd.textContent = String(currentFretNumber);
 setupOrientationListener();
 
+// ── 하단 탭 초기화 ───────────────────────────────────────────
+(function initBottomNav() {
+  // 홈 탭이 기본 활성화 상태로 시작
+  switchTab('home');
+  lucide.createIcons();
+
+  // 모바일 물리 뒤로가기 (Capacitor backButton)
+  const AppPlugin = window.Capacitor?.Plugins?.App;
+  if (AppPlugin) {
+    AppPlugin.addListener('backButton', () => {
+      const backVisible = !document.getElementById('back-btn')?.classList.contains('hidden');
+      if (backVisible) {
+        goBack();
+      }
+      // 홈 탭 루트 상태면 아무것도 안 함 (앱 종료는 OS 기본 동작)
+    });
+  }
+})();
+
 // ── 앱 시작 이벤트 ──────────────────────────────────────────
 // app_open은 tryAutoSignIn() 완료 후 추적 → user_id 첨부 보장
 // (웹은 initSupabase 내부에서 세션 복원 후 추적)
@@ -1497,7 +1521,8 @@ async function refreshPlanFromDB() {
 // Settings → API → Project URL / anon public
 const SUPABASE_URL  = 'https://jbvkygeksohlysyvaoab.supabase.co';
 const SUPABASE_ANON = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Impidmt5Z2Vrc29obHlzeXZhb2FiIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzYzOTk5NjgsImV4cCI6MjA5MTk3NTk2OH0.6RSgChy0Yq0H2TJpZPSoMKQ2V-OYfR0XzE1aJBBZkXI';
-const APP_VERSION   = '1.1.4_pre11';
+const APP_VERSION   = '1.2.0_dev6';
+
 
 // ── Analytics SDK 초기화 ──────────────────────────────────────
 // analytics-sdk.js가 app.js보다 먼저 로드된 경우에만 초기화
@@ -1745,6 +1770,12 @@ let _authResolve = null;
 const _authPromise = new Promise(resolve => { _authResolve = resolve; });
 
 async function tryAutoSignIn() {
+  // ── DEV ONLY: 모든 로그인/계정 코드 중단 — 버튼은 디자인 요소 ──
+  _authResolve();
+  _showOnboardingButtons();
+  return;
+  // ── /DEV ──
+
   if (!window.Capacitor?.isNativePlatform()) { _authResolve(); _showOnboardingButtons(); return; }
 
   try {
@@ -1797,10 +1828,12 @@ async function tryAutoSignIn() {
   } catch(e) { /* 무시 */ }
 
   // 세션 없음 or 갱신 실패 → Google 로그인 버튼 표시
-  analytics.track('app_open', {
-    platform: 'android',
-    project_count: loadProjects().length,
-  });
+  if (window.analytics) {
+    window.analytics.track('app_open', {
+      platform: 'android',
+      project_count: loadProjects().length,
+    });
+  }
   _authResolve();
   _showOnboardingButtons();
 }
@@ -1945,6 +1978,13 @@ function onboardingSwitchAccount() {
 }
 
 async function onboardingSignIn() {
+  // ── DEV ONLY: 버튼은 디자인 요소 — 누르면 바로 앱 진입 ──
+  hideOnboarding();
+  showTutorialIfNeeded();
+  checkAndShowNotice();
+  return;
+  // ── /DEV ──
+
   // 웹: Supabase OAuth 리다이렉트 방식 (네이티브 플러그인 없음)
   if (!window.Capacitor?.isNativePlatform()) {
     if (!_supabase) return;
@@ -2401,46 +2441,63 @@ function updateProject(updated) {
 // contextProjectId는 초기화 시점 이전에도 참조되므로 파일 상단에 선언
 // (let 선언은 TDZ로 인해 선언 전 접근 시 ReferenceError 발생)
 
-function navigateTo(view, projectId, opts = {}) {
-  analytics.setScreen(view);
-  analytics.track('screen_view', { view, project_id: projectId || null });
-  stopPlayAll();
-  stopMetronome();
-  // 프로젝트 뷰를 떠나기 전 즉시 저장
-  if (currentProjectId) {
-    const currentLinesEl = document.getElementById('project-lines-' + currentProjectId);
-    if (currentLinesEl) saveAllLines(currentProjectId, currentLinesEl);
+// ─── 하단 탭 전환 ────────────────────────────────────────────
+function switchTab(tab) {
+  _activeTab = tab;
+
+  // 탭뷰 표시/숨김
+  document.getElementById('tab-view-home')?.classList.toggle('hidden', tab !== 'home');
+  document.getElementById('tab-view-projects')?.classList.toggle('hidden', tab !== 'projects');
+  document.getElementById('tab-view-profile')?.classList.toggle('hidden', tab !== 'profile');
+
+  // 하단 탭 활성화
+  ['home', 'projects', 'profile'].forEach(t => {
+    document.getElementById('nav-' + t)?.classList.toggle('active', t === tab);
+  });
+
+  // 뒤로가기 버튼: 홈탭이면 서브뷰 여부, 프로젝트탭이면 개별뷰 여부
+  _updateBackBtn();
+
+  if (tab === 'projects') {
+    renderProjectsList();
   }
 
-  // 뷰 표시/숨김
-  document.getElementById('view-editor').classList.toggle('hidden', view !== 'editor');
-  document.getElementById('view-project').classList.toggle('hidden', view !== 'project');
+  analytics.setScreen(tab);
+}
+
+// ─── 홈 탭 → 서브뷰 진입 ─────────────────────────────────────
+function enterFromHome(view) {
+  _homeSubView = view;
+
+  document.getElementById('view-home')?.classList.toggle('hidden', view !== 'home');
+  document.getElementById('view-editor')?.classList.toggle('hidden', view !== 'editor');
+
   document.getElementById('view-library')?.classList.toggle('hidden', view !== 'library');
 
-  // 통합 헤더: 에디터·라이브러리에서 표시, 프로젝트 뷰에서 숨김
-  const headerEl = document.getElementById('main-header');
-  if (headerEl) {
-    headerEl.classList.toggle('hidden', view === 'project');
-    document.getElementById('tab-editor')?.classList.toggle('active', view === 'editor');
-    document.getElementById('tab-library')?.classList.toggle('active', view === 'library');
-  }
+  _updateBackBtn();
 
-  if (view === 'library') {
+  if (view === 'editor') {
+    analytics.setScreen('editor');
+    analytics.track('screen_view', { view: 'editor', project_id: null });
+    contextProjectId = null;
+    document.getElementById('project-edit-bar')?.classList.add('hidden');
+    populateProjectSelect();
+    requestAnimationFrame(resizeCanvas);
+    if (isMobileOrTablet() && screen.orientation?.lock) {
+      screen.orientation.lock('landscape').catch(() => {});
+    }
+  } else if (view === 'library') {
+    analytics.setScreen('library');
     analytics.track('library_opened', {});
-    closeSidebar();
-    // 라이브러리 페이지는 세로 고정
     if (isMobileOrTablet() && screen.orientation?.lock) {
       screen.orientation.lock('portrait').catch(() => {});
     }
-    // 샵/플랫 버튼 현재 전역 상태 반영
     document.getElementById('lib-acc-sharp')?.classList.toggle('active', accidental === 'sharp');
     document.getElementById('lib-acc-flat')?.classList.toggle('active', accidental === 'flat');
     renderLibRootTabs();
     renderLibCards(_libRoot);
-    // 첫 번째 엔트리 자동 선택 → #lib-canvas 초기 표시
     const _initEntries = (window.chordsLibrary || {})[_libRoot] || [];
     if (_initEntries.length > 0) selectLibEntry(0, { silent: true });
-    // .lib-bottom 초기 높이 고정 (한 번만)
     requestAnimationFrame(() => {
       const bottom = document.querySelector('.lib-bottom');
       if (bottom && !bottom.dataset.heightFixed) {
@@ -2449,107 +2506,151 @@ function navigateTo(view, projectId, opts = {}) {
         bottom.dataset.heightFixed = '1';
       }
     });
-    return;
+  }
+}
+
+// ─── 뒤로가기 ────────────────────────────────────────────────
+function goBack() {
+  stopPlayAll();
+  stopMetronome();
+
+  if (_activeTab === 'home' && _homeSubView !== 'home') {
+    // 에디터/라이브러리 → 홈 화면
+    if (_projectChordEditCtx) {
+      _projectChordEditCtx = null;
+      document.getElementById('project-edit-bar')?.classList.add('hidden');
+    }
+    if (screen.orientation?.unlock) { try { screen.orientation.unlock(); } catch(e) {} }
+    enterFromHome('home');
+  } else if (_activeTab === 'projects' && _projectsSubView !== 'list') {
+    // 개별 프로젝트 → 목록
+    if (currentProjectId) {
+      const linesEl = document.getElementById('project-lines-' + currentProjectId);
+      if (linesEl) saveAllLines(currentProjectId, linesEl);
+
+    }
+    _projectsSubView = 'list';
+    document.getElementById('view-projects-list')?.classList.remove('hidden');
+    document.getElementById('view-project')?.classList.add('hidden');
+    _updateBackBtn();
+    renderProjectsList();
+    if (screen.orientation?.unlock) { try { screen.orientation.unlock(); } catch(e) {} }
+  }
+}
+
+function _updateBackBtn() {
+  const show =
+    (_activeTab === 'home' && _homeSubView !== 'home') ||
+    (_activeTab === 'projects' && _projectsSubView !== 'list');
+  document.getElementById('back-btn')?.classList.toggle('hidden', !show);
+}
+
+// ─── navigateTo: 프로젝트 탭 내 개별 프로젝트 진입 ────────────
+function navigateTo(view, projectId, opts = {}) {
+  analytics.setScreen(view);
+  analytics.track('screen_view', { view, project_id: projectId || null });
+  stopPlayAll();
+  stopMetronome();
+
+  if (currentProjectId) {
+    const currentLinesEl = document.getElementById('project-lines-' + currentProjectId);
+    if (currentLinesEl) saveAllLines(currentProjectId, currentLinesEl);
   }
 
-  if (view === 'editor') {
-    contextProjectId = projectId || null;
-    populateProjectSelect();
-    closeSidebar();
-    if (opts.skipResize) draw(); else requestAnimationFrame(resizeCanvas);
-    if (isMobileOrTablet() && screen.orientation?.lock) {
-      screen.orientation.lock('landscape').catch(() => {});
-    }
-  } else if (view === 'project' && projectId) {
+  if (view === 'project' && projectId) {
+    // 프로젝트 탭으로 이동 후 개별 프로젝트 표시
+    switchTab('projects');
+    _projectsSubView = 'project';
     contextProjectId = null;
     isEditMode = true;
+
+    document.getElementById('view-projects-list')?.classList.add('hidden');
+    document.getElementById('view-project')?.classList.remove('hidden');
+    _updateBackBtn();
+
     renderProjectView(projectId);
-    closeSidebar();
-    if (screen.orientation?.unlock) {
-      try { screen.orientation.unlock(); } catch(e) {}
-    }
-    // 프로젝트 열기 전용 이벤트 (screen_view와 분리)
+    if (screen.orientation?.unlock) { try { screen.orientation.unlock(); } catch(e) {} }
+
     const _p = loadProjects().find(p => p.id === projectId);
     if (_p) {
       const chordCount = (_p.arrangement || []).reduce((acc, l) => acc + (l.chords?.length || 0), 0);
       const ageDays = _p.createdAt
         ? Math.floor((Date.now() - new Date(_p.createdAt)) / 86400000)
         : null;
-      analytics.track('project_opened', {
-        project_id:  projectId,
-        chord_count: chordCount,
-        age_days:    ageDays,
-      });
+      analytics.track('project_opened', { project_id: projectId, chord_count: chordCount, age_days: ageDays });
     }
+    return;
   }
-  renderSidebar();
+
+  if (view === 'editor') {
+    enterFromHome('editor');
+    return;
+  }
+
+  if (view === 'library') {
+    enterFromHome('library');
+    return;
+  }
 }
 
 function switchMainTab(tab) {
-  navigateTo(tab);
+  if (tab === 'editor' || tab === 'library') enterFromHome(tab);
 }
 
 // ═══════════════════════════════════════════════════════════════
 // 사이드바
 // ═══════════════════════════════════════════════════════════════
-function toggleSidebar() {
-  const sidebar   = document.getElementById('sidebar');
-  const backdrop  = document.getElementById('sidebar-backdrop');
-  const hamburger = document.getElementById('hamburger');
-  const isOpen = sidebar.classList.contains('open');
-  if (isOpen) {
-    closeSidebar();
-  } else {
-    sidebar.classList.add('open');
-    backdrop.classList.remove('hidden');
-    backdrop.classList.add('visible');
-    hamburger?.classList.add('hidden');   // 사이드바 열릴 때 햄버거 숨김
-  }
-}
+function toggleSidebar() { /* 사이드바 제거됨 — no-op */ }
 
-function closeSidebar() {
-  const sidebar   = document.getElementById('sidebar');
-  const backdrop  = document.getElementById('sidebar-backdrop');
-  const hamburger = document.getElementById('hamburger');
-  sidebar.classList.remove('open');
-  backdrop.classList.remove('visible');
-  backdrop.classList.add('hidden');
-  hamburger?.classList.remove('hidden'); // 사이드바 닫힐 때 햄버거 복원
-}
+
+function closeSidebar() { /* 사이드바 제거됨 — no-op */ }
 
 function renderSidebar() {
+  renderProjectsList();
+}
+
+function renderProjectsList() {
+  const container = document.getElementById('projects-list-body');
+  if (!container) return;
+
   const projects = loadProjects();
   const important = projects.filter(p => p.important).sort((a, b) => (a.importantOrder || 0) - (b.importantOrder || 0));
   const pinned    = projects.filter(p => p.pinned && !p.important).sort((a, b) => (a.pinnedOrder || 0) - (b.pinnedOrder || 0));
-  const recent    = projects.filter(p => !p.pinned && !p.important).sort((a, b) => {
-    if (a.id === currentProjectId) return -1;
-    if (b.id === currentProjectId) return 1;
-    return b.updatedAt - a.updatedAt;
-  });
+  const recent    = projects.filter(p => !p.pinned && !p.important).sort((a, b) => b.updatedAt - a.updatedAt);
 
-  renderSidebarList('sidebar-important', important, 'important');
-  renderSidebarList('sidebar-pinned',    pinned,    'pinned');
-  renderSidebarList('sidebar-recent',    recent,    'recent');
+  container.innerHTML = '';
+
+  if (important.length > 0) _renderProjectsSection(container, '중요', important);
+  if (pinned.length > 0)    _renderProjectsSection(container, '즐겨찾기', pinned);
+  if (recent.length > 0)    _renderProjectsSection(container, '최근', recent);
+
+  if (projects.length === 0) {
+    container.innerHTML = '<p style="padding:32px 20px;color:var(--text-muted);font-size:14px;text-align:center;">프로젝트가 없습니다.<br>+ 버튼으로 새 프로젝트를 만들어보세요.</p>';
+  }
 
   lucide.createIcons();
 }
 
-function renderSidebarList(containerId, projects, sectionType) {
-  const container = document.getElementById(containerId);
-  if (!container) return;
-  container.innerHTML = '';
+function _renderProjectsSection(container, label, projects) {
+  const section = document.createElement('div');
+  section.className = 'projects-section';
+
+  const sectionLabel = document.createElement('div');
+  sectionLabel.className = 'projects-section-label';
+  sectionLabel.textContent = label;
+  section.appendChild(sectionLabel);
 
   projects.forEach(project => {
     const item = document.createElement('div');
-    item.className = 'sidebar-item';
+    item.className = 'projects-item';
     item.dataset.id = project.id;
 
     const name = document.createElement('span');
-    name.className = 'sidebar-item-name';
+    name.className = 'projects-item-name';
     name.textContent = project.name;
 
     const actions = document.createElement('div');
-    actions.className = 'sidebar-item-actions';
+    actions.className = 'projects-item-actions';
 
     const renameBtn = document.createElement('button');
     renameBtn.innerHTML = '<i data-lucide="pencil"></i>';
@@ -2575,43 +2676,25 @@ function renderSidebarList(containerId, projects, sectionType) {
     item.appendChild(name);
     item.appendChild(actions);
 
-    // 클릭: 프로젝트 열기
     item.addEventListener('click', () => navigateTo('project', project.id));
 
-    // 500ms 홀드: 액션 표시
     let holdTimer = null;
     item.addEventListener('pointerdown', () => {
-      holdTimer = setTimeout(() => {
-        item.classList.toggle('show-actions');
-      }, 500);
+      holdTimer = setTimeout(() => item.classList.toggle('show-actions'), 500);
     });
-    item.addEventListener('pointerup', () => clearTimeout(holdTimer));
+    item.addEventListener('pointerup',    () => clearTimeout(holdTimer));
     item.addEventListener('pointerleave', () => clearTimeout(holdTimer));
 
-    // 중요/고정 항목: 드래그로 순서 변경 가능
-    if (sectionType === 'important' || sectionType === 'pinned') {
-      item.draggable = true;
-      item.addEventListener('dragstart', e => {
-        e.dataTransfer.setData('sidebar-project-id', project.id);
-        e.dataTransfer.setData('sidebar-section-type', sectionType);
-        item.style.opacity = '0.4';
-      });
-      item.addEventListener('dragend', () => { item.style.opacity = ''; });
-      item.addEventListener('dragover', e => { e.preventDefault(); });
-      item.addEventListener('drop', e => {
-        e.preventDefault();
-        const dragId = e.dataTransfer.getData('sidebar-project-id');
-        const dragSection = e.dataTransfer.getData('sidebar-section-type');
-        if (dragId && dragId !== project.id && dragSection === sectionType) {
-          if (sectionType === 'important') reorderImportant(dragId, project.id);
-          else reorderPinned(dragId, project.id);
-        }
-      });
-    }
-
-    container.appendChild(item);
+    section.appendChild(item);
   });
+
+  const divider = document.createElement('div');
+  divider.className = 'projects-section-divider';
+  section.appendChild(divider);
+
+  container.appendChild(section);
 }
+
 
 function togglePin(projectId) {
   const projects = loadProjects();

@@ -11,69 +11,51 @@
 </head>
 <body>
 
-  <!-- 모바일 햄버거 버튼 -->
-  <button class="hamburger" id="hamburger" onclick="toggleSidebar()">
-    <i data-lucide="menu"></i>
-  </button>
+  <div class="app-shell">
 
-  <!-- 사이드바 백드롭 -->
-  <div class="sidebar-backdrop hidden" id="sidebar-backdrop" onclick="closeSidebar()"></div>
+    <!-- ── 뒤로가기 버튼 (서브뷰 진입 시 표시) ── -->
+    <button class="back-btn hidden" id="back-btn" onclick="goBack()">
+      <i data-lucide="chevron-left"></i>
+    </button>
 
-  <div class="app-wrapper">
+    <!-- ── 메인 콘텐츠 ── -->
+    <div class="main-content" id="main-content">
 
-    <!-- ── 사이드바 ── -->
-    <aside class="sidebar" id="sidebar">
-      <div class="sidebar-header">
-        <span class="sidebar-logo" onclick="navigateTo('editor')">CHORDITOR</span>
-        <button class="icon-btn" onclick="promptCreateProject()" title="새 프로젝트">
-          <i data-lucide="circle-plus"></i>
-        </button>
-      </div>
+      <!-- ── 홈 탭 ── -->
+      <div class="tab-view" id="tab-view-home">
 
-      <nav class="sidebar-nav">
-        <div class="sidebar-section">
-          <div class="sidebar-section-label">중요</div>
-          <div id="sidebar-important" class="sidebar-list"></div>
+        <!-- 홈 화면 -->
+        <div class="view" id="view-home">
+          <div class="home-header">
+            <span class="home-logo">CHORDITOR</span>
+            <span class="home-version" id="app-version"></span>
+          </div>
+          <div class="home-blocks">
+            <div class="home-block" onclick="enterFromHome('editor')">
+              <div class="home-block-icon"><i data-lucide="guitar"></i></div>
+              <div class="home-block-title">코드 에디터</div>
+              <div class="home-block-desc">코드표 제작 · 이미지 저장</div>
+            </div>
+            <div class="home-block" onclick="enterFromHome('library')">
+              <div class="home-block-icon"><i data-lucide="book-open"></i></div>
+              <div class="home-block-title">코드 사전</div>
+              <div class="home-block-desc">코드 운지 검색 · 가져오기</div>
+            </div>
+            <div class="home-block home-block--soon">
+              <div class="home-block-icon"><i data-lucide="dumbbell"></i></div>
+              <div class="home-block-title">훈련소</div>
+              <div class="home-block-desc">Coming Soon</div>
+            </div>
+            <div class="home-block home-block--soon">
+              <div class="home-block-icon"><i data-lucide="map"></i></div>
+              <div class="home-block-title">나의 기타 여정</div>
+              <div class="home-block-desc">Coming Soon</div>
+            </div>
+          </div>
         </div>
-        <div class="sidebar-section">
-          <div class="sidebar-section-label">즐겨찾기</div>
-          <div id="sidebar-pinned" class="sidebar-list"></div>
-        </div>
-        <div class="sidebar-section">
-          <div class="sidebar-section-label">최근</div>
-          <div id="sidebar-recent" class="sidebar-list"></div>
-        </div>
-      </nav>
-      <!-- 로그인 UI 숨김: 자동 로그인으로만 처리 -->
-      <div class="sidebar-auth-footer" id="sidebar-auth-footer" style="display:none">
-        <div id="auth-logged-out"></div>
-        <div id="auth-logged-in" style="display:none">
-          <span id="auth-user-email" class="auth-user-email"></span>
-        </div>
-      </div>
-      <div class="sidebar-plan-footer">
-        <span id="sidebar-plan-badge" class="plan-badge" data-plan="free">FREE</span>
-        <button class="btn btn-ghost btn-sm plan-upgrade-btn" onclick="openPlanModal()">요금제 보기</button>
-      </div>
-    </aside>
 
-    <!-- ── 메인 영역 ── -->
-    <div class="main-area" id="main-area">
-
-      <!-- ── 통합 헤더: 타이틀 + 탭 바 ── -->
-      <div class="main-header" id="main-header">
-        <div class="header">
-          <h1>Chorditor<span class="sidebar-version" id="app-version"></span></h1>
-        </div>
-        <div class="main-tabs" id="main-tabs">
-          <button class="main-tab active" id="tab-editor" onclick="switchMainTab('editor')">코드 에디터</button>
-          <button class="main-tab" id="tab-library" onclick="switchMainTab('library')">코드 사전</button>
-          <button class="main-tab" id="tab-lecture" disabled>기타 강좌</button>
-        </div>
-      </div>
-
-      <!-- 에디터 뷰 -->
-      <div class="view" id="view-editor">
+        <!-- 에디터 뷰 -->
+        <div class="view hidden" id="view-editor">
 
         <div class="card">
 
@@ -344,9 +326,60 @@
 
       </div>
 
-    </div>
+      </div><!-- /tab-view-home -->
 
-  </div>
+      <!-- ── 프로젝트 탭 ── -->
+      <div class="tab-view hidden" id="tab-view-projects">
+
+        <!-- 프로젝트 목록 -->
+        <div class="view" id="view-projects-list">
+          <div class="projects-list-header">
+            <span class="projects-list-title">프로젝트</span>
+            <button class="icon-btn" onclick="promptCreateProject()" title="새 프로젝트">
+              <i data-lucide="circle-plus"></i>
+            </button>
+          </div>
+          <div class="projects-list-body" id="projects-list-body">
+            <!-- JS로 렌더링 -->
+          </div>
+        </div>
+
+        <!-- 개별 프로젝트 뷰 -->
+        <div class="view hidden" id="view-project">
+          <!-- JS로 렌더링 -->
+        </div>
+
+      </div><!-- /tab-view-projects -->
+
+      <!-- ── 프로필 탭 ── -->
+      <div class="tab-view hidden" id="tab-view-profile">
+        <div class="view" id="view-profile">
+          <!-- 빈 화면 -->
+        </div>
+      </div><!-- /tab-view-profile -->
+
+    </div><!-- /main-content -->
+
+    <!-- ── 하단 탭바 ── -->
+    <nav class="bottom-nav">
+      <button class="bottom-nav-item active" id="nav-home" onclick="switchTab('home')">
+        <i data-lucide="home"></i>
+        <span>홈</span>
+      </button>
+      <button class="bottom-nav-item" id="nav-projects" onclick="switchTab('projects')">
+        <i data-lucide="book-open"></i>
+        <span>프로젝트</span>
+      </button>
+      <button class="bottom-nav-item" id="nav-profile" onclick="switchTab('profile')">
+        <i data-lucide="user"></i>
+        <span>프로필</span>
+      </button>
+    </nav>
+
+    <!-- 플랜 배지 (숨김 상태 유지, JS 참조용) -->
+    <span id="sidebar-plan-badge" class="plan-badge" data-plan="free" style="display:none">FREE</span>
+
+  </div><!-- /app-shell -->
 
   <!-- ── 모달: 뷰 ── -->
   <div class="modal-overlay hidden" id="modal-view">

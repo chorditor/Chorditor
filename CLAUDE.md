@@ -1,91 +1,59 @@
 # Chorditor — CLAUDE.md
 
+@docs/project-rules.md
+
 ---
 
-## ⛔🚨 CRITICAL — staging/main 커밋 전 필수 (컴팩션 후에도 반드시 적용)
+## Behavioral Guidelines
 
-### 1. DEV ONLY 코드 제거 확인
-```bash
-grep -n "DEV ONLY" app.js   # 출력이 없어야 정상
+> Bias toward caution over speed. For trivial tasks, use judgment.
+
+### 1. Think Before Coding
+Don't assume. Don't hide confusion. Surface tradeoffs.
+
+Before implementing:
+- State assumptions explicitly. If uncertain, ask.
+- If multiple interpretations exist, present them — don't pick silently.
+- If a simpler approach exists, say so. Push back when warranted.
+- If something is unclear, stop. Name what's confusing. Ask.
+
+### 2. Simplicity First
+Minimum code that solves the problem. Nothing speculative.
+
+- No features beyond what was asked.
+- No abstractions for single-use code.
+- No "flexibility" or "configurability" that wasn't requested.
+- No error handling for impossible scenarios.
+- If you write 200 lines and it could be 50, rewrite it.
+
+Ask yourself: "Would a senior engineer say this is overcomplicated?" If yes, simplify.
+
+### 3. Surgical Changes
+Touch only what you must. Clean up only your own mess.
+
+When editing existing code:
+- Don't "improve" adjacent code, comments, or formatting.
+- Don't refactor things that aren't broken.
+- Match existing style, even if you'd do it differently.
+- If you notice unrelated dead code, mention it — don't delete it.
+
+When your changes create orphans:
+- Remove imports/variables/functions that YOUR changes made unused.
+- Don't remove pre-existing dead code unless asked.
+
+The test: Every changed line should trace directly to the user's request.
+
+### 4. Goal-Driven Execution
+Define success criteria. Loop until verified.
+
+Transform tasks into verifiable goals:
+- "Add validation" → "Write tests for invalid inputs, then make them pass"
+- "Fix the bug" → "Write a test that reproduces it, then make it pass"
+- "Refactor X" → "Ensure tests pass before and after"
+
+For multi-step tasks, state a brief plan:
 ```
-출력이 한 줄이라도 나오면 → **커밋 중단** → 해당 블록 전체 삭제 후 재진행.
-
-```js
-// ── 이 블록 전체 제거 ──
-// ── DEV ONLY: 온보딩 건너뜀 (USB 디버깅 환경에서 Google 로그인 불가) ──
-hideOnboarding(); _authReady = true; _authResolve(); return;
-// ── /DEV ──
+1. [Step] → verify: [check]
+2. [Step] → verify: [check]
+3. [Step] → verify: [check]
 ```
-
-### 2. 파일 동기화
-```bash
-cp app.js www/app.js && cp index.html www/index.html && cp style.css www/style.css
-npx cap copy android
-```
-
-### 3. 버전 두 곳 일치 확인
-- `app.js` → `APP_VERSION`
-- `android/app/build.gradle` → `versionCode` / `versionName`
-
----
-
-## 디자인 현황
-
-### 프로젝트 뷰 헤더
-- **Row1** (4칸/8칸, 공유하기, 완료, 삭제): 높이 28px 고정 (`box-sizing: border-box`)
-- **Row2** (카포, BPM, 메트로놈, 재생): 높이 28px 통일
-- Row1 ↔ Row2 간격: `gap: 8px`
-
-### 프로젝트 줄(line) 구조
-- 구분선: `rgba(180,168,152,0.35)` (흐린 색), `padding-bottom: 5px` / `margin-bottom: 19px` (텍스트에 가깝게)
-- `+` 버튼: 33px 원형, `margin-top: 20px`
-- 새 줄 생성 애니메이션: `cubic-bezier(0.22,1,0.36,1)` 0.28s 슬라이드인
-
-### 아이콘
-- 아이콘 라이브러리: **Lucide** (`lucide@latest` CDN)
-- 메트로놈 아이콘: `metronome` (v0.575.0 이상)
-- 메트로놈·재생 버튼 SVG 크기: 13px (버튼 원형 28px)
-
----
-
-## ⛔ 절대 수정 금지
-
-- `chord-voicings.js` — 보이싱 데이터 원본. Claude 수정 금지.
-- `parseChordNameToComponents()` — 코드 파싱 함수. 수정 시 텐션 파싱 깨짐.
-- `applyChordSuggestion()` — 추천 코드명 적용 함수. 수정 금지.
-
----
-
-## 동기화 규칙
-
-app.js / index.html / style.css 수정 후 **항상** 동기화:
-
-```bash
-cp app.js www/app.js && cp index.html www/index.html && cp style.css www/style.css
-npx cap copy android
-```
-
-4곳 버전 검증:
-```bash
-grep "APP_VERSION" app.js | head -1
-grep "APP_VERSION" www/app.js | head -1
-grep "APP_VERSION" android/app/src/main/assets/public/app.js | head -1
-grep "versionCode\|versionName" android/app/build.gradle
-```
-
----
-
-## Supabase DB 쿼리 규칙 (Android)
-
-`_supabase` 클라이언트는 Android에서 세션 자동 인식 안 함 → `auth.uid() = null` → RLS 차단.
-**반드시 raw fetch + Bearer 토큰 방식 사용** (fetchPlanWithToken, updateSupabasePlan 패턴 참고)
-
----
-
-## 상세 문서 (topic별)
-
-@docs/architecture.md
-@docs/branch-deploy.md
-@docs/billing.md
-@docs/library.md
-@docs/ui-rules.md
