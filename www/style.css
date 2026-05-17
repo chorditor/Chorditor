@@ -3646,6 +3646,9 @@ canvas {
 
 /* 라이브러리 페이지 제목 */
 .lib-page-title {
+  font-size: 20px;
+  font-weight: 800;
+  color: var(--text-primary);
   padding: 20px 20px 0;
   flex-shrink: 0;
 }
@@ -3655,7 +3658,7 @@ canvas {
   display: flex;
   flex-direction: column;
   align-items: stretch;   /* .view의 align-items:center 덮어쓰기 */
-  overflow: hidden;
+  overflow: hidden !important; /* #tab-view-home .view의 overflow-y:auto 덮어쓰기 */
   padding: 0;             /* .view padding 덮어쓰기 */
   position: relative;     /* 검색 모달 absolute 기준점 */
   background: #ffffff;
