@@ -3,6 +3,10 @@
   "appName": "Chorditor",
   "webDir": "www",
   "plugins": {
+    "StatusBar": {
+      "overlaysWebView": true,
+      "style": "DARK"
+    },
     "GoogleAuth": {
       "scopes": ["profile", "email"],
       "serverClientId": "495859421223-rkjalna3ckhslfrk12gvbehn69o9j4qe.apps.googleusercontent.com",

@@ -4,6 +4,7 @@ import android.content.Intent;
 import android.net.Uri;
 import android.os.Bundle;
 import android.os.Handler;
+import androidx.activity.OnBackPressedCallback;
 import com.getcapacitor.BridgeActivity;
 
 public class MainActivity extends BridgeActivity {
@@ -14,6 +15,15 @@ public class MainActivity extends BridgeActivity {
         registerPlugin(SaveImagePlugin.class);
         super.onCreate(savedInstanceState);
         pendingCode = extractCode(getIntent());
+
+        getOnBackPressedDispatcher().addCallback(this, new OnBackPressedCallback(true) {
+            @Override
+            public void handleOnBackPressed() {
+                getBridge().getWebView().evaluateJavascript(
+                    "(function(){ if(typeof handleNativeBack==='function') handleNativeBack(); })()", null
+                );
+            }
+        });
     }
 
     @Override

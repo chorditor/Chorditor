@@ -1,91 +1,76 @@
-# Chorditor — CLAUDE.md
+Chorditor — CLAUDE.md
+@docs/project-rules.md
 
----
+행동 지침 (Behavioral Guidelines)
+속도보다는 신중함을 우선시하십시오. 사소한 작업에 대해서는 스스로의 판단력을 발휘하십시오.
 
-## ⛔🚨 CRITICAL — staging/main 커밋 전 필수 (컴팩션 후에도 반드시 적용)
+1. 코드 작성 전 생각하기
+추측하지 마십시오. 혼란스러운 부분을 숨기지 마십시오. 트레이드오프(상충 관계)를 명확히 제시하십시오.
 
-### 1. DEV ONLY 코드 제거 확인
-```bash
-grep -n "DEV ONLY" app.js   # 출력이 없어야 정상
-```
-출력이 한 줄이라도 나오면 → **커밋 중단** → 해당 블록 전체 삭제 후 재진행.
+구현하기 전에 다음을 수행하십시오:
 
-```js
-// ── 이 블록 전체 제거 ──
-// ── DEV ONLY: 온보딩 건너뜀 (USB 디버깅 환경에서 Google 로그인 불가) ──
-hideOnboarding(); _authReady = true; _authResolve(); return;
-// ── /DEV ──
-```
+가정을 명시적으로 밝히십시오. 불확실하다면 질문하십시오.
 
-### 2. 파일 동기화
-```bash
-cp app.js www/app.js && cp index.html www/index.html && cp style.css www/style.css
-npx cap copy android
-```
+여러 해석이 가능하다면 이를 모두 제시하십시오. 독단적으로 선택하지 마십시오.
 
-### 3. 버전 두 곳 일치 확인
-- `app.js` → `APP_VERSION`
-- `android/app/build.gradle` → `versionCode` / `versionName`
+더 간단한 접근 방식이 있다면 제안하십시오. 정당한 사유가 있다면 의견을 피력하십시오.
 
----
+불분명한 부분이 있다면 중단하십시오. 무엇이 혼란스러운지 명시하고 질문하십시오.
 
-## 디자인 현황
+2. 단순성 우선 (Simplicity First)
+문제를 해결하는 최소한의 코드만 작성하십시오. 추측에 근거한 코드는 지양합니다.
 
-### 프로젝트 뷰 헤더
-- **Row1** (4칸/8칸, 공유하기, 완료, 삭제): 높이 28px 고정 (`box-sizing: border-box`)
-- **Row2** (카포, BPM, 메트로놈, 재생): 높이 28px 통일
-- Row1 ↔ Row2 간격: `gap: 8px`
+요청받은 기능 외에는 추가하지 마십시오.
 
-### 프로젝트 줄(line) 구조
-- 구분선: `rgba(180,168,152,0.35)` (흐린 색), `padding-bottom: 5px` / `margin-bottom: 19px` (텍스트에 가깝게)
-- `+` 버튼: 33px 원형, `margin-top: 20px`
-- 새 줄 생성 애니메이션: `cubic-bezier(0.22,1,0.36,1)` 0.28s 슬라이드인
+단발성 코드를 위해 추상화하지 마십시오.
 
-### 아이콘
-- 아이콘 라이브러리: **Lucide** (`lucide@latest` CDN)
-- 메트로놈 아이콘: `metronome` (v0.575.0 이상)
-- 메트로놈·재생 버튼 SVG 크기: 13px (버튼 원형 28px)
+요청되지 않은 "유연성"이나 "설정 가능성"을 고려하지 마십시오.
 
----
+발생 불가능한 시나리오에 대한 예외 처리를 하지 마십시오.
 
-## ⛔ 절대 수정 금지
+50줄이면 될 코드를 200줄로 작성했다면, 다시 작성하십시오.
 
-- `chord-voicings.js` — 보이싱 데이터 원본. Claude 수정 금지.
-- `parseChordNameToComponents()` — 코드 파싱 함수. 수정 시 텐션 파싱 깨짐.
-- `applyChordSuggestion()` — 추천 코드명 적용 함수. 수정 금지.
+스스로에게 물어보십시오: "시니어 엔지니어가 보기에 이 코드가 과하게 복잡한가?" 만약 그렇다면 단순화하십시오.
 
----
+3. 정밀한 변경 (Surgical Changes)
+꼭 필요한 부분만 수정하십시오. 자신이 만든 코드만 정리하십시오.
 
-## 동기화 규칙
+기존 코드를 편집할 때:
 
-app.js / index.html / style.css 수정 후 **항상** 동기화:
+인접한 코드, 주석, 포맷을 임의로 "개선"하지 마십시오.
 
-```bash
-cp app.js www/app.js && cp index.html www/index.html && cp style.css www/style.css
-npx cap copy android
-```
+고장 나지 않은 부분을 리팩토링하지 마십시오.
 
-4곳 버전 검증:
-```bash
-grep "APP_VERSION" app.js | head -1
-grep "APP_VERSION" www/app.js | head -1
-grep "APP_VERSION" android/app/src/main/assets/public/app.js | head -1
-grep "versionCode\|versionName" android/app/build.gradle
-```
+본인의 스타일과 다르더라도 기존 스타일을 따르십시오.
 
----
+관련 없는 유휴 코드(Dead code)를 발견하면 언급만 하되, 직접 삭제하지 마십시오.
 
-## Supabase DB 쿼리 규칙 (Android)
+변경으로 인해 사용되지 않게 된 코드가 발생할 경우:
 
-`_supabase` 클라이언트는 Android에서 세션 자동 인식 안 함 → `auth.uid() = null` → RLS 차단.
-**반드시 raw fetch + Bearer 토큰 방식 사용** (fetchPlanWithToken, updateSupabasePlan 패턴 참고)
+본인의 변경 사항으로 인해 더 이상 사용되지 않게 된 임포트(imports), 변수, 함수는 제거하십시오.
 
----
+요청받지 않았다면 기존부터 존재하던 유휴 코드는 삭제하지 마십시오.
 
-## 상세 문서 (topic별)
+테스트 기준: 변경된 모든 줄은 사용자의 요청과 직접적으로 연결되어야 합니다.
 
-@docs/architecture.md
-@docs/branch-deploy.md
-@docs/billing.md
-@docs/library.md
-@docs/ui-rules.md
+4. 목표 중심 실행 (Goal-Driven Execution)
+성공 기준을 정의하십시오. 검증될 때까지 반복하십시오.
+
+작업을 검증 가능한 목표로 변환하십시오:
+
+"유효성 검사 추가" → "유효하지 않은 입력에 대한 테스트 작성 후, 이를 통과시키기"
+
+"버그 수정" → "버그를 재현하는 테스트 작성 후, 이를 통과시키기"
+
+"X 리팩토링" → "작업 전후에 테스트가 통과하는지 확인하기"
+
+여러 단계의 작업인 경우 간략한 계획을 명시하십시오:
+
+1. [단계] → 확인: [체크 항목]
+2. [단계] → 확인: [체크 항목]
+3. [단계] → 확인: [체크 항목]
+
+5. 반복적인 코드 읽기 금지
+이미 작성된 많은 분량의 코드를 리빌딩/리팩토링 해야할 때는 절대 완전히 새롭게 코드를 처음부터 다시 작성하지 마시오.
+이미 존재하는 코드를 복사한 후 불필요한 부분을 제거하고 수정하시오.
+이 경우 자원 소모를 1/10 또는 그 이상으로 크게 절약할 수 있는 강력한 수단입니다.
