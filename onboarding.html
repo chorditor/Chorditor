@@ -60,6 +60,7 @@
         <span class="ob-dot"></span>
         <span class="ob-dot"></span>
         <span class="ob-dot"></span>
+        <span class="ob-dot"></span>
       </div>
     </div>
     <div class="ob-main">
@@ -119,6 +120,7 @@
         <span class="ob-dot ob-dot--active"></span>
         <span class="ob-dot"></span>
         <span class="ob-dot"></span>
+        <span class="ob-dot"></span>
       </div>
     </div>
     <div class="ob-main">
@@ -141,6 +143,7 @@
         <span class="ob-dot ob-dot--done"></span>
         <span class="ob-dot ob-dot--active"></span>
         <span class="ob-dot"></span>
+        <span class="ob-dot"></span>
       </div>
     </div>
     <div class="ob-main">
@@ -161,6 +164,7 @@
         <span class="ob-dot ob-dot--done"></span>
         <span class="ob-dot ob-dot--done"></span>
         <span class="ob-dot ob-dot--active"></span>
+        <span class="ob-dot"></span>
       </div>
     </div>
     <div class="ob-main">
@@ -171,7 +175,28 @@
         <div class="ob-year-fade ob-year-fade--top"></div>
         <div class="ob-year-fade ob-year-fade--bottom"></div>
       </div>
-      <button class="onboarding-start-btn ob-next-btn ob-next-btn--bottom" id="ob-step4-complete" onpointerdown="obStep4Complete()">시작하기</button>
+      <button class="onboarding-start-btn ob-next-btn ob-next-btn--bottom" id="ob-step4-next" onpointerdown="obStep4Next()">다음</button>
+    </div><!-- ob-main -->
+  </div>
+
+  <!-- ── 온보딩 Step 5: 닉네임 ── -->
+  <div class="onboarding-overlay ob-overlay--step hidden" id="ob-step5">
+    <div class="ob-topbar">
+      <div class="ob-progress-dots">
+        <span class="ob-dot ob-dot--done"></span>
+        <span class="ob-dot ob-dot--done"></span>
+        <span class="ob-dot ob-dot--done"></span>
+        <span class="ob-dot ob-dot--done"></span>
+        <span class="ob-dot ob-dot--active"></span>
+      </div>
+    </div>
+    <div class="ob-main">
+      <h2 class="ob-title">어떻게<br>불러드릴까요?</h2>
+      <div class="ob-nickname-wrap">
+        <input class="ob-nickname-input" id="ob-nickname-input" type="text" maxlength="20" placeholder="닉네임 입력" oninput="obOnNicknameInput(this)" />
+        <span class="ob-nickname-count"><span id="ob-nickname-len">0</span>/20</span>
+      </div>
+      <button class="onboarding-start-btn ob-next-btn ob-next-btn--bottom" id="ob-step5-complete" disabled onpointerdown="obStep5Complete()">시작하기</button>
     </div><!-- ob-main -->
   </div>
 
