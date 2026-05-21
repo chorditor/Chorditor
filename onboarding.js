@@ -157,15 +157,16 @@ async function _saveOnboardingData() {
     const token  = session?.access_token;
     const userId = session?.user?.id;
     if (!token || !userId) return;
-    await fetch(`${SUPABASE_URL}/rest/v1/subscriptions?user_id=eq.${userId}`, {
-      method: 'PATCH',
+    await fetch(`${SUPABASE_URL}/rest/v1/subscriptions`, {
+      method: 'POST',
       headers: {
         'Content-Type': 'application/json',
         'apikey': SUPABASE_ANON,
         'Authorization': `Bearer ${token}`,
-        'Prefer': 'return=minimal',
+        'Prefer': 'resolution=merge-duplicates,return=minimal',
       },
       body: JSON.stringify({
+        user_id:                  userId,
         persona:                  _obData.persona,
         guitar_experience:        _obData.guitar_experience,
         gender:                   _obData.gender,
@@ -353,9 +354,11 @@ async function tryAutoSignIn() {
 
 // ── 앱 초기화 ─────────────────────────────────────────────────
 document.addEventListener('DOMContentLoaded', async () => {
+  // 로딩 스피너 즉시 표시 (checkForceUpdate/initBilling 대기 중 빈 화면 방지)
+  document.getElementById('onboarding-overlay')?.classList.remove('hidden');
+
   await checkForceUpdate();
   await initBilling();
 
-  document.getElementById('onboarding-overlay')?.classList.remove('hidden');
   initSupabase().then(() => tryAutoSignIn());
 });
