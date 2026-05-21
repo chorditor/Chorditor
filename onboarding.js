@@ -152,12 +152,15 @@ function _initYearPicker() {
 async function _saveOnboardingData() {
   try {
     const stored = localStorage.getItem(SUPABASE_STORAGE_KEY);
-    if (!stored) return;
+    if (!stored) { console.error('[Onboarding] 세션 없음'); return; }
     const session = JSON.parse(stored);
     const token  = session?.access_token;
     const userId = session?.user?.id;
-    if (!token || !userId) return;
-    await fetch(`${SUPABASE_URL}/rest/v1/subscriptions`, {
+    if (!token || !userId) { console.error('[Onboarding] token/userId 없음', { token: !!token, userId }); return; }
+
+    console.log('[Onboarding] 저장 시도:', { userId, ..._obData });
+
+    const resp = await fetch(`${SUPABASE_URL}/rest/v1/subscriptions`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -175,7 +178,16 @@ async function _saveOnboardingData() {
         onboarding_completed_at:  new Date().toISOString(),
       }),
     });
-  } catch(e) {}
+
+    if (!resp.ok) {
+      const errText = await resp.text();
+      console.error('[Onboarding] 저장 실패:', resp.status, errText);
+    } else {
+      console.log('[Onboarding] 저장 성공:', resp.status);
+    }
+  } catch(e) {
+    console.error('[Onboarding] 저장 예외:', e);
+  }
 }
 
 // ── 온보딩 버튼 표시 ─────────────────────────────────────────
