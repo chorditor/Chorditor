@@ -152,24 +152,21 @@ function _initYearPicker() {
 async function _saveOnboardingData() {
   try {
     const stored = localStorage.getItem(SUPABASE_STORAGE_KEY);
-    if (!stored) { console.error('[Onboarding] 세션 없음'); return; }
+    if (!stored) { alert('[OB] 세션 없음'); return; }
     const session = JSON.parse(stored);
     const token  = session?.access_token;
     const userId = session?.user?.id;
-    if (!token || !userId) { console.error('[Onboarding] token/userId 없음', { token: !!token, userId }); return; }
+    if (!token || !userId) { alert('[OB] token/userId 없음'); return; }
 
-    console.log('[Onboarding] 저장 시도:', { userId, ..._obData });
-
-    const resp = await fetch(`${SUPABASE_URL}/rest/v1/subscriptions`, {
-      method: 'POST',
+    const resp = await fetch(`${SUPABASE_URL}/rest/v1/subscriptions?user_id=eq.${userId}`, {
+      method: 'PATCH',
       headers: {
         'Content-Type': 'application/json',
         'apikey': SUPABASE_ANON,
         'Authorization': `Bearer ${token}`,
-        'Prefer': 'resolution=merge-duplicates,return=minimal',
+        'Prefer': 'return=minimal',
       },
       body: JSON.stringify({
-        user_id:                  userId,
         persona:                  _obData.persona,
         guitar_experience:        _obData.guitar_experience,
         gender:                   _obData.gender,
@@ -181,12 +178,10 @@ async function _saveOnboardingData() {
 
     if (!resp.ok) {
       const errText = await resp.text();
-      console.error('[Onboarding] 저장 실패:', resp.status, errText);
-    } else {
-      console.log('[Onboarding] 저장 성공:', resp.status);
+      alert('[OB] 저장 실패 ' + resp.status + '\n' + errText);
     }
   } catch(e) {
-    console.error('[Onboarding] 저장 예외:', e);
+    alert('[OB] 예외: ' + e.message);
   }
 }
 
