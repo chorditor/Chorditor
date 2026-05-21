@@ -1,0 +1,140 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <title>Chorditor - 훈련소</title>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css" />
+  <link rel="stylesheet" href="style.css" />
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
+</head>
+<body>
+
+  <!-- 페이지 커버: 초기화 완료 전 화면 가림 -->
+  <div id="page-cover"></div>
+
+  <div class="app-shell">
+
+    <!-- ── 탑바 ── -->
+    <div class="top-bar">
+      <button id="back-btn" class="icon-btn" onpointerup="closeTrainingPage()">
+        <i data-lucide="x"></i>
+      </button>
+    </div>
+
+    <!-- ── 메인 콘텐츠 ── -->
+    <div class="main-content" id="main-content">
+      <div class="training-scroll">
+
+        <!-- 0. 페이지 타이틀 -->
+        <span class="training-page-title">훈련소</span>
+
+        <!-- 1. 통계 섹션 -->
+        <div class="training-stats-wrap">
+          <div class="training-stats-icon"><i class="ph-fill ph-chart-bar"></i></div>
+          <span class="training-stats-title">훈련 통계</span>
+          <div class="training-stats-row">
+            <div class="training-stat-card">
+              <span class="training-stat-value" id="stat-streak">0</span>
+              <span class="training-stat-label">연속 기록</span>
+            </div>
+            <div class="training-stat-card">
+              <span class="training-stat-value" id="stat-time">—</span>
+              <span class="training-stat-label">훈련 시간</span>
+            </div>
+            <div class="training-stat-card">
+              <span class="training-stat-value" id="stat-total">0</span>
+              <span class="training-stat-label">훈련 완료</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- 2. 훈련 카드 그리드 -->
+        <div class="training-section-label">훈련 목록</div>
+        <div class="training-grid">
+
+          <!-- 코드 맞추기 -->
+          <div class="training-card training-card--chord-name" data-key="chord-name">
+            <div class="training-card-icon"><i class="ph-fill ph-grid-nine"></i></div>
+            <div class="training-card-bottom">
+              <span class="training-card-name">코드<br>맞추기</span>
+            </div>
+          </div>
+
+          <!-- 스케일 훈련 -->
+          <div class="training-card training-card--soon training-card--chord-diagram" data-key="scale">
+            <div class="training-card-icon"><i class="ph-fill ph-music-notes"></i></div>
+            <div class="training-card-bottom">
+              <span class="training-card-soon-badge">Coming Soon</span>
+              <span class="training-card-name">스케일<br>훈련</span>
+            </div>
+          </div>
+
+          <!-- 코드 청음 챌린지 -->
+          <div class="training-card training-card--soon training-card--fretboard" data-key="ear-training">
+            <div class="training-card-icon"><i class="ph-fill ph-headphones"></i></div>
+            <div class="training-card-bottom">
+              <span class="training-card-soon-badge">Coming Soon</span>
+              <span class="training-card-name">코드 청음<br>챌린지</span>
+            </div>
+          </div>
+
+          <!-- 코드 진행 리스트 -->
+          <div class="training-card training-card--soon training-card--rhythm" data-key="progression">
+            <div class="training-card-icon"><i class="ph-fill ph-rows-plus-bottom"></i></div>
+            <div class="training-card-bottom">
+              <span class="training-card-soon-badge">Coming Soon</span>
+              <span class="training-card-name">코드 진행<br>리스트</span>
+            </div>
+          </div>
+
+          <!-- 주법 리듬 훈련 -->
+          <div class="training-card training-card--soon training-card--strumming" data-key="strumming">
+            <div class="training-card-icon"><i class="ph-fill ph-metronome"></i></div>
+            <div class="training-card-bottom">
+              <span class="training-card-soon-badge">Coming Soon</span>
+              <span class="training-card-name">주법 리듬<br>훈련</span>
+            </div>
+          </div>
+
+          <!-- 패밀리코드 훈련 -->
+          <div class="training-card training-card--soon training-card--family" data-key="family">
+            <div class="training-card-icon"><i class="ph-fill ph-house-line"></i></div>
+            <div class="training-card-bottom">
+              <span class="training-card-soon-badge">Coming Soon</span>
+              <span class="training-card-name">패밀리코드<br>훈련</span>
+            </div>
+          </div>
+
+          <!-- 리하모니 퀴즈 -->
+          <div class="training-card training-card--soon training-card--reharmony" data-key="reharmony">
+            <div class="training-card-icon"><i class="ph-fill ph-pencil"></i></div>
+            <div class="training-card-bottom">
+              <span class="training-card-soon-badge">Coming Soon</span>
+              <span class="training-card-name">리하모니<br>퀴즈</span>
+            </div>
+          </div>
+
+          <!-- 리하모니 청음 챌린지 -->
+          <div class="training-card training-card--soon training-card--reharmony-ear" data-key="reharmony-ear">
+            <div class="training-card-icon"><i class="ph-fill ph-speaker-simple-high"></i></div>
+            <div class="training-card-bottom">
+              <span class="training-card-soon-badge">Coming Soon</span>
+              <span class="training-card-name">리하모니 청음<br>챌린지</span>
+            </div>
+          </div>
+
+        </div><!-- /training-grid -->
+
+      </div><!-- /training-scroll -->
+    </div><!-- /main-content -->
+
+  </div><!-- /app-shell -->
+
+  <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.js"></script>
+  <script src="https://unpkg.com/@phosphor-icons/web"></script>
+  <script src="analytics-sdk.js"></script>
+  <script src="shared.js"></script>
+  <script src="training.js"></script>
+</body>
+</html>
