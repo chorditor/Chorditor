@@ -4,8 +4,8 @@
 const STRINGS        = 6;
 const FRETS          = 4;
 const BASE_OPEN_W    = 70;
-const BASE_PAD_L     = 20;
-const BASE_PAD_R     = 110;  // 우측 여백 (5:4 비율 맞춤: BASE_W=440)
+const BASE_PAD_L     = 35;   // nut 포함 시각 중앙정렬: tl=(BASE_W-FBW+nutW)/2=105, PAD_L=105-OPEN_W
+const BASE_PAD_R     = 95;   // 우측 여백 = BASE_W - tl - FBW = 440-105-240 = 95
 const BASE_PAD_T     = 80;
 const BASE_PAD_B     = 80;
 const BASE_FBW       = 240;
@@ -585,9 +585,10 @@ function updateExportScaleOptions() {
   });
 }
 
-// ── 요금제 페이지 이동 ────────────────────────────────────────
+// ── 요금제 바텀시트 열기 ─────────────────────────────────────
 function openPlanModal() {
-  location.href = 'plan.html?back=' + encodeURIComponent(location.href);
+  analytics.track('paywall_viewed', { trigger_source: 'upgrade_modal', current_plan: getPlan() });
+  openPlanSheet('upgrade_modal');
 }
 
 // ── 업그레이드 유도 모달 ───────────────────────────────────────
@@ -595,8 +596,7 @@ const UPGRADE_MESSAGES = {
   project_limit: {
     title: '프로젝트 한도에 도달했습니다',
     desc: {
-      free:     '무료 플랜은 프로젝트를 3개까지 만들 수 있습니다. Standard 또는 Pro로 업그레이드하세요.',
-      standard: 'Standard 플랜은 프로젝트를 10개까지 만들 수 있습니다. Pro로 업그레이드하면 무제한으로 사용할 수 있습니다.',
+      free:     '무료 플랜은 프로젝트를 3개까지 만들 수 있습니다. Pro로 업그레이드하면 무제한으로 사용할 수 있습니다.',
       pro:      '',
     },
   },
@@ -604,7 +604,6 @@ const UPGRADE_MESSAGES = {
     title: '이 배율은 Pro 플랜 전용입니다',
     desc: {
       free:     'x2, x3 고화질 저장은 Pro 플랜에서 사용할 수 있습니다.',
-      standard: 'x2, x3 고화질 저장은 Pro 플랜에서 사용할 수 있습니다.',
       pro:      '',
     },
   },
@@ -629,7 +628,7 @@ function renderPlanBadge() {
   const el = document.getElementById('sidebar-plan-badge');
   if (!el) return;
   const plan = getPlan();
-  const labels = { free: 'FREE', standard: 'STANDARD', pro: 'PRO' };
+  const labels = { free: 'FREE', pro: 'PRO' };
   el.textContent = labels[plan] || 'FREE';
   el.dataset.plan = plan;
 }
@@ -846,6 +845,7 @@ function togglePin(projectId) {
   const p = projects.find(x => x.id === projectId);
   if (!p) return;
   p.pinned = !p.pinned;
+  analytics.track('project_pinned', { project_id: projectId, pinned: p.pinned });
   if (p.pinned) {
     // 중요와 상호 배타적
     p.important = false;
@@ -899,6 +899,7 @@ function toggleImportant(projectId) {
       alert('중요 항목은 최대 3개까지 등록할 수 있습니다.');
       return;
     }
+    analytics.track('project_marked_important', { project_id: projectId, important: true });
     // 즐겨찾기와 상호 배타적
     p.pinned = false;
     p.pinnedOrder = 0;
@@ -906,6 +907,7 @@ function toggleImportant(projectId) {
     p.importantOrder = maxOrder + 1;
     p.important = true;
   } else {
+    analytics.track('project_marked_important', { project_id: projectId, important: false });
     p.important = false;
     p.importantOrder = 0;
   }
@@ -1716,6 +1718,22 @@ function buildLinesSection(project, editMode = true) {
     linesEl.addEventListener('keydown', e => {
       if (!e.target.classList?.contains('line-text')) return;
 
+      // Ctrl+A / Cmd+A: 모든 line-text의 텍스트를 전체 선택
+      if ((e.ctrlKey || e.metaKey) && e.key === 'a') {
+        e.preventDefault();
+        const lineTexts = Array.from(linesEl.querySelectorAll('.line-text'));
+        if (lineTexts.length === 0) return;
+        const sel = window.getSelection();
+        const range = document.createRange();
+        const first = lineTexts[0];
+        const last = lineTexts[lineTexts.length - 1];
+        range.setStart(first, 0);
+        range.setEnd(last, last.childNodes.length);
+        sel.removeAllRanges();
+        sel.addRange(range);
+        return;
+      }
+
       if (e.key === 'Enter') {
         e.preventDefault();
         const sel = window.getSelection();
@@ -1891,24 +1909,26 @@ function buildLinesSection(project, editMode = true) {
     }
 
     const p = getProject(project.id);
-    setLineText(currentLine, before + segments[0]);
+
     let lastLine = currentLine;
-    for (let i = 1; i < segments.length; i++) {
-      const text = i === segments.length - 1 ? segments[i] + after : segments[i];
-      const nextExisting = lastLine.nextElementSibling;
-      if (nextExisting && nextExisting.classList.contains('project-line')) {
-        setLineText(nextExisting, text);
-        lastLine = nextExisting;
-      } else {
+
+    if (segments.length === 1) {
+      // 단일 줄 붙여넣기: 커서 위치에 삽입
+      setLineText(currentLine, before + segments[0] + after);
+    } else {
+      // 여러 줄 붙여넣기: 첫 번째 줄은 현재 줄에 병합, 나머지는 새 줄로 순서대로 삽입
+      // 기존 다음 줄은 덮어쓰지 않고 새 줄을 삽입하여 밀어냄
+      setLineText(currentLine, before + segments[0]);
+      for (let i = 1; i < segments.length; i++) {
+        const text = i === segments.length - 1 ? segments[i] + after : segments[i];
         const newLineId = genId();
         const newLine = { id: newLineId, text, slots: new Array(8).fill(null) };
         const newDiv = buildProjectLine(newLine, p || project, true);
         lastLine.insertAdjacentElement('afterend', newDiv);
-        lucide.createIcons();
         lastLine = newDiv;
       }
+      lucide.createIcons();
     }
-    if (segments.length === 1) setLineText(currentLine, before + segments[0] + after);
 
     const endLineText = lastLine.querySelector('.line-text') || lastLine;
     const endRange = document.createRange();
@@ -2555,6 +2575,8 @@ function placeChordInSlot(projectId, rowId, slotIdx, chordId) {
   row.slots[slotIdx] = chordId;
   p.updatedAt = Date.now();
   updateProject(p);
+  const chord = p.chords.find(c => c.id === chordId);
+  analytics.track('chord_slot_placed', { project_id: projectId, chord_name: chord?.name ?? '' });
   reRenderChordArea(rowId, row, p);
   // 드롭 애니메이션
   requestAnimationFrame(() => {
@@ -2663,6 +2685,9 @@ function closeDeleteConfirm() {
 
 function deleteProject(projectId) {
   let projects = loadProjects();
+  const target = projects.find(p => p.id === projectId);
+  const chordCount = target?.chords?.length ?? 0;
+  analytics.track('project_deleted', { project_id: projectId, chord_count: chordCount });
   projects = projects.filter(p => p.id !== projectId);
   saveProjects(projects);
   renderSidebar();
@@ -2692,6 +2717,7 @@ let viewModalProjectId = null;
 function openViewModal(chord, projectId) {
   viewModalChord = chord;
   viewModalProjectId = projectId;
+  analytics.track('chord_view_modal_opened', { chord_name: chord?.name ?? '', project_id: projectId });
 
   document.getElementById('modal-view-title').textContent = buildChordName(chord);
 

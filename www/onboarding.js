@@ -8,6 +8,175 @@ function goToHome() {
   window.location.replace('home.html');
 }
 
+// ── 온보딩 정보수집 스텝 ──────────────────────────────────────
+let _obData = { persona: null, guitar_experience: null, gender: null, birth_year: null };
+
+function _startOnboardingSteps() {
+  if (localStorage.getItem('onboarding_done')) {
+    goToHome();
+    return;
+  }
+  document.getElementById('onboarding-overlay')?.classList.add('hidden');
+  _showStep('ob-step1');
+}
+
+function _showStep(toId, fromId) {
+  const to   = document.getElementById(toId);
+  const from = fromId ? document.getElementById(fromId) : null;
+  if (!to) return;
+
+  if (from) {
+    from.classList.add('ob-step-exiting');
+    setTimeout(() => {
+      from.classList.add('hidden');
+      from.classList.remove('ob-step-exiting');
+    }, 200);
+  }
+
+  to.classList.remove('hidden');
+  to.classList.add('ob-step-entering');
+  to.addEventListener('animationend', () => to.classList.remove('ob-step-entering'), { once: true });
+}
+
+// Step 1: 페르소나 선택
+function obSelectPersona(el) {
+  document.querySelectorAll('.ob-persona-card').forEach(c => c.classList.remove('ob-persona-card--selected'));
+  el.classList.add('ob-persona-card--selected');
+  _obData.persona = el.dataset.value;
+  document.getElementById('ob-step1-next').disabled = false;
+}
+
+function obStep1Next() {
+  if (!_obData.persona) return;
+  document.getElementById('ob-consent-backdrop')?.classList.remove('hidden');
+}
+
+function obToggleTerms() {
+  const terms = document.getElementById('ob-consent-terms');
+  const icon  = document.getElementById('ob-consent-toggle-icon');
+  const isHidden = terms.classList.toggle('hidden');
+  icon.textContent = isHidden ? '▾' : '▴';
+}
+
+function obOnConsentCheck() {}
+
+function obConsentAgree() {
+  const checkbox = document.getElementById('ob-consent-checkbox');
+  if (checkbox) checkbox.checked = true;
+  document.getElementById('ob-consent-backdrop')?.classList.add('hidden');
+  _showStep('ob-step2', 'ob-step1');
+}
+
+// Step 2: 기타 경력 / Step 3: 성별·나이 공통 선택 처리
+function obSelectChoice(el, field) {
+  const group = el.closest(`[data-group="${field}"]`);
+  if (group) {
+    group.querySelectorAll('.ob-choice-item, .ob-chip, .ob-big-card').forEach(c =>
+      c.classList.remove('ob-choice-item--selected', 'ob-chip--selected', 'ob-big-card--selected')
+    );
+  }
+  if (el.classList.contains('ob-big-card'))  el.classList.add('ob-big-card--selected');
+  else if (el.classList.contains('ob-chip')) el.classList.add('ob-chip--selected');
+  else                                       el.classList.add('ob-choice-item--selected');
+  _obData[field] = el.dataset.value;
+
+  if (field === 'guitar_experience') {
+    document.getElementById('ob-step2-next').disabled = false;
+  } else if (field === 'gender') {
+    document.getElementById('ob-step3-next').disabled = false;
+  } else if (field === 'age_group') {
+    document.getElementById('ob-step4-complete').disabled = false;
+  }
+}
+
+function obStep2Next() {
+  if (!_obData.guitar_experience) return;
+  _showStep('ob-step3', 'ob-step2');
+}
+
+function obStep3Next() {
+  if (!_obData.gender) return;
+  _showStep('ob-step4', 'ob-step3');
+  _initYearPicker();
+}
+
+// Step 4: 완료 → Supabase 저장 → home 이동
+async function obStep4Complete() {
+  const btn = document.getElementById('ob-step4-complete');
+  if (btn) { btn.disabled = true; btn.textContent = '저장 중...'; }
+  await _saveOnboardingData();
+  localStorage.setItem('onboarding_done', '1');
+  goToHome();
+}
+
+// ── 년도 휠피커 ─────────────────────────────────────────────
+function _initYearPicker() {
+  const scroll = document.getElementById('ob-year-scroll');
+  if (!scroll || scroll.childElementCount > 0) return;
+
+  const ITEM_H    = 42;
+  const PAD_H     = ITEM_H * 2; // 위아래 여백 (2칸)
+  const START     = 1940;
+  const END       = new Date().getFullYear() - 10;
+  const DEFAULT   = 1995;
+
+  // 위 여백
+  const top = document.createElement('div');
+  top.style.height = PAD_H + 'px';
+  scroll.appendChild(top);
+
+  for (let y = START; y <= END; y++) {
+    const el = document.createElement('div');
+    el.className = 'ob-year-item';
+    el.textContent = y + '년';
+    el.dataset.year = y;
+    scroll.appendChild(el);
+  }
+
+  // 아래 여백
+  const bot = document.createElement('div');
+  bot.style.height = PAD_H + 'px';
+  scroll.appendChild(bot);
+
+  // 기본값 스크롤
+  scroll.scrollTop = (DEFAULT - START) * ITEM_H;
+  _obData.birth_year = DEFAULT;
+
+  // 스크롤 중 선택값 갱신
+  scroll.addEventListener('scroll', () => {
+    const idx = Math.round(scroll.scrollTop / ITEM_H);
+    _obData.birth_year = START + Math.max(0, Math.min(idx, END - START));
+  });
+}
+
+async function _saveOnboardingData() {
+  try {
+    const stored = localStorage.getItem(SUPABASE_STORAGE_KEY);
+    if (!stored) return;
+    const session = JSON.parse(stored);
+    const token  = session?.access_token;
+    const userId = session?.user?.id;
+    if (!token || !userId) return;
+    await fetch(`${SUPABASE_URL}/rest/v1/subscriptions?user_id=eq.${userId}`, {
+      method: 'PATCH',
+      headers: {
+        'Content-Type': 'application/json',
+        'apikey': SUPABASE_ANON,
+        'Authorization': `Bearer ${token}`,
+        'Prefer': 'return=minimal',
+      },
+      body: JSON.stringify({
+        persona:                  _obData.persona,
+        guitar_experience:        _obData.guitar_experience,
+        gender:                   _obData.gender,
+        birth_year:               _obData.birth_year,
+        consent_agreed_at:        new Date().toISOString(),
+        onboarding_completed_at:  new Date().toISOString(),
+      }),
+    });
+  } catch(e) {}
+}
+
 // ── 온보딩 버튼 표시 ─────────────────────────────────────────
 function _showOnboardingButtons() {
   document.getElementById('onboarding-loading')?.classList.add('hidden');
@@ -38,12 +207,13 @@ function onAuthSignedIn() {
 
 // ── 시작하기 버튼 ────────────────────────────────────────────
 function handleStart() {
-  goToHome();
+  _startOnboardingSteps();
 }
 
 // ── DEV 온보딩 진입 ──────────────────────────────────────────
 function devOnboardingEnter() {
-  goToHome();
+  document.getElementById('dev-onboarding-overlay')?.classList.add('hidden');
+  _startOnboardingSteps();
 }
 
 // ── 다른 계정으로 변경 ────────────────────────────────────────
@@ -100,7 +270,7 @@ async function onboardingSignIn() {
     if (session.user) {
       if (window._RC) await window._RC.logIn({ appUserID: session.user.id }).catch(() => {});
       await fetchPlanWithToken(session.access_token);
-      goToHome();
+      _startOnboardingSteps();
     }
   } catch(e) {
     const msg = e?.message || String(e) || '';

@@ -14,7 +14,7 @@ CREATE TABLE IF NOT EXISTS public.analytics_events (
   properties   jsonb       NOT NULL DEFAULT '{}',
   ab_variants  jsonb       NOT NULL DEFAULT '{}',
   screen       text,
-  plan         text        CHECK (plan IN ('free','standard','pro')),
+  plan         text        CHECK (plan IN ('free','pro')),
   app_version  text,
   created_at   timestamptz NOT NULL DEFAULT now()
 );
@@ -210,3 +210,14 @@ LEFT JOIN public.analytics_events ae
   AND ae.created_at >= aa.assigned_at
 GROUP BY 1, 2
 ORDER BY 1, 2;
+
+-- ═══════════════════════════════════════════════════════════════
+-- 온보딩 정보수집 컬럼 추가 (public.subscriptions)
+-- ═══════════════════════════════════════════════════════════════
+ALTER TABLE public.subscriptions
+  ADD COLUMN IF NOT EXISTS persona                 text,
+  ADD COLUMN IF NOT EXISTS guitar_experience       text,
+  ADD COLUMN IF NOT EXISTS gender                  text,
+  ADD COLUMN IF NOT EXISTS birth_year              integer,
+  ADD COLUMN IF NOT EXISTS consent_agreed_at       timestamptz,
+  ADD COLUMN IF NOT EXISTS onboarding_completed_at timestamptz;

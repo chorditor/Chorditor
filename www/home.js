@@ -9,8 +9,8 @@ const ctx    = canvas.getContext('2d');
 const STRINGS        = 6;
 const FRETS          = 4;
 const BASE_OPEN_W    = 70;   // 개방현 영역 너비 (nut 좌측)
-const BASE_PAD_L     = 20;   // 프렛보드 좌측 여백 (프렛보드 중앙정렬: PAD_R - OPEN_W)
-const BASE_PAD_R     = 110;  // 프렛보드 우측 여백 (5:4 비율 맞춤: BASE_W=440)
+const BASE_PAD_L     = 35;   // nut 포함 시각 중앙정렬: tl=(BASE_W-FBW+nutW)/2=105, PAD_L=105-OPEN_W
+const BASE_PAD_R     = 95;   // 우측 여백 = BASE_W - tl - FBW = 440-105-240 = 95
 const BASE_PAD_T     = 80;   // 프렛보드 상단 여백 (코드명 영역)
 const BASE_PAD_B     = 80;   // 프렛보드 하단 여백 (프렛번호 영역)
 const BASE_FBW       = 240;  // 프렛보드 너비
@@ -709,6 +709,7 @@ function setAccidental(mode) {
   renderRootBtns();
   renderBassBtns();
   updateChordDisplay();
+  analytics.track('accidental_switched', { mode });
 }
 
 function selectTriad(val) {
@@ -833,8 +834,13 @@ function updateChordSuggestions() {
   if (!el) return;
   const names = suggestChordNames();
   el.innerHTML = names.map(n =>
-    `<span class="chord-suggest-item" onclick="applyChordSuggestion('${n.replace(/'/g, "\\'")}')">${chordNameToHtml(n)}</span>`
+    `<span class="chord-suggest-item" onclick="onSuggestionTapped('${n.replace(/'/g, "\\'")}')">${chordNameToHtml(n)}</span>`
   ).join('');
+}
+
+function onSuggestionTapped(name) {
+  analytics.track('chord_suggestion_tapped', { chord_name: name });
+  applyChordSuggestion(name);
 }
 
 // 코드명 문자열 → 휠피커 컴포넌트 파싱
@@ -949,6 +955,7 @@ function selectFinger(n) {
 }
 
 function resetAll() {
+  analytics.track('editor_reset', {});
   // 프로젝트 선택값 보존
   const projectSelect = document.getElementById('add-project-select');
   const savedProject  = projectSelect?.value ?? '';
@@ -1725,6 +1732,7 @@ async function checkAndShowNotice() {
     document.getElementById('notice-modal-title').textContent = notice.title;
     document.getElementById('notice-modal-message').textContent = notice.message.replace(/\\n/g, '\n');
     document.getElementById('notice-modal-overlay').classList.remove('hidden');
+    analytics.track('notice_viewed', { notice_id: notice.id, title: notice.title });
   } catch(e) { /* 무시 */ }
 }
 
@@ -1779,6 +1787,7 @@ function showTutorial() {
   const el = document.getElementById('modal-tutorial');
   el.classList.remove('hidden');
   el.classList.remove('closing');
+  analytics.track('tutorial_viewed', {});
 }
 
 function closeTutorial() {
@@ -1810,14 +1819,10 @@ function updateExportScaleOptions() {
   });
 }
 
-// ── 요금제 페이지 이동 ─────────────────────────────────────────
+// ── 요금제 바텀시트 열기 ──────────────────────────────────────
 function openPlanModal() {
-  const tab = _activeTab || 'home';
-  let back = 'home.html?tab=' + tab;
-  if (tab === 'home' && _homeSubView && _homeSubView !== 'home') {
-    back += '&subview=' + _homeSubView;
-  }
-  location.href = 'plan.html?back=' + encodeURIComponent(back);
+  analytics.track('paywall_viewed', { trigger_source: 'profile', current_plan: getPlan() });
+  openPlanSheet('profile');
 }
 
 // ── 업그레이드 유도 모달 ───────────────────────────────────────
@@ -1825,8 +1830,7 @@ const UPGRADE_MESSAGES = {
   project_limit: {
     title: '프로젝트 한도에 도달했습니다',
     desc: {
-      free:     '무료 플랜은 프로젝트를 3개까지 만들 수 있습니다. Standard 또는 Pro로 업그레이드하세요.',
-      standard: 'Standard 플랜은 프로젝트를 10개까지 만들 수 있습니다. Pro로 업그레이드하면 무제한으로 사용할 수 있습니다.',
+      free:     '무료 플랜은 프로젝트를 3개까지 만들 수 있습니다. Pro로 업그레이드하면 무제한으로 사용할 수 있습니다.',
       pro:      '',
     },
   },
@@ -1834,7 +1838,6 @@ const UPGRADE_MESSAGES = {
     title: '이 배율은 Pro 플랜 전용입니다',
     desc: {
       free:     'x2, x3 고화질 저장은 Pro 플랜에서 사용할 수 있습니다.',
-      standard: 'x2, x3 고화질 저장은 Pro 플랜에서 사용할 수 있습니다.',
       pro:      '',
     },
   },
@@ -1859,7 +1862,7 @@ function renderPlanBadge() {
   const el = document.getElementById('sidebar-plan-badge');
   if (!el) return;
   const plan = getPlan();
-  const labels = { free: 'FREE', standard: 'STANDARD', pro: 'PRO' };
+  const labels = { free: 'FREE', pro: 'PRO' };
   el.textContent = labels[plan] || 'FREE';
   el.dataset.plan = plan;
 }
@@ -1929,7 +1932,10 @@ function switchTab(tab, noAnim = false) {
   if (tab === 'home') enterFromHome('home');
   if (tab === 'projects') renderProjectsList();
 
-  if (typeof analytics !== 'undefined') analytics.setScreen(tab);
+  if (typeof analytics !== 'undefined') {
+    analytics.setScreen(tab);
+    if (prevTab !== tab) analytics.track('tab_switched', { from: prevTab, to: tab });
+  }
 }
 
 // ─── 탭 애니메이션 후 진입 ───────────────────────────────────
@@ -1952,7 +1958,11 @@ function enterFromBlock(e, el, view) {
     const elapsed = Date.now() - startTime;
     const moveY   = Math.abs(ev.clientY - startY);
     cleanup();
-    if (elapsed < 300 && moveY < 10) enterFromHome(view);
+    if (elapsed < 300 && moveY < 10) {
+      analytics.track('home_block_tapped', { block: view });
+      if (view === 'training') { location.href = 'training.html'; return; }
+      enterFromHome(view);
+    }
   }
 
   function onCancel() { cleanup(); }
@@ -2146,6 +2156,12 @@ function _returnToProject(returnId) {
 
 // ─── 프로젝트 페이지 열기 (슬라이드업 애니메이션) ────────────────
 function openProject(projectId) {
+  const proj = loadProjects().find(p => p.id === projectId);
+  if (proj) {
+    const chordCount = (proj.slots || []).filter(s => s && s.name).length;
+    const ageDays    = proj.createdAt ? Math.floor((Date.now() - proj.createdAt) / 86400000) : 0;
+    analytics.track('project_opened', { project_id: projectId, chord_count: chordCount, age_days: ageDays });
+  }
   const shell = document.querySelector('.app-shell');
   if (shell) {
     shell.classList.add('home-recede');
@@ -2657,6 +2673,7 @@ function openProjectSheet() {
   if (!overlay || !list) return;
 
   const projects = loadProjects();
+  analytics.track('project_sheet_opened', { project_count: projects.length });
   list.innerHTML = '';
 
   projects.forEach(p => {
@@ -4153,6 +4170,8 @@ function prevLibFingering() {
   _libFingeringIdx = (_libFingeringIdx - 1 + total) % total;
   drawLibViewerCanvas();
   _updateFingeringNav();
+  const useFlat = accidental === 'flat';
+  analytics.track('lib_fingering_changed', { chord_name: useFlat ? _libEntry.flatName : _libEntry.name, to_idx: _libFingeringIdx, total });
 }
 
 function nextLibFingering() {
@@ -4160,6 +4179,8 @@ function nextLibFingering() {
   _libFingeringIdx = (_libFingeringIdx + 1) % total;
   drawLibViewerCanvas();
   _updateFingeringNav();
+  const useFlat = accidental === 'flat';
+  analytics.track('lib_fingering_changed', { chord_name: useFlat ? _libEntry.flatName : _libEntry.name, to_idx: _libFingeringIdx, total });
 }
 
 // ── 보이싱 피커 모달 ────────────────────────────────────────────
@@ -4278,10 +4299,13 @@ function toggleLibFingerNum() {
   drawLibViewerCanvas();
   // 미니 카드도 재렌더
   if (_libEntry) renderLibCards(_libRoot);
+  analytics.track('lib_finger_num_toggled', { active: _libFingerMode });
 }
 
 function libPlayChord() {
   if (!_libEntry) return;
+  const useFlat = accidental === 'flat';
+  analytics.track('lib_chord_played', { chord_name: useFlat ? _libEntry.flatName : _libEntry.name });
   playChord({ dots: _libEntry.frets.map((f, s) => f !== null && f > 0 ? {s, f} : null).filter(Boolean), openMute: _libEntry.openMute });
 }
 
@@ -4379,6 +4403,8 @@ function selectLibSearchResult(idx) {
   _ensureLibCanvas();
   drawLibViewerCanvas();
   _updateFingeringNav();
+  const useFlat = accidental === 'flat';
+  analytics.track('lib_search_result_selected', { chord_name: useFlat ? entry.flatName : entry.name });
   // 모달 active 상태 갱신
   const container = document.getElementById('lib-search-cards');
   container?.querySelectorAll('.lib-card').forEach((el, i) => {
@@ -4409,12 +4435,14 @@ async function _doExportLibChordImage(scale) {
       const SaveImage = window.Capacitor.Plugins.SaveImage;
       await SaveImage.saveToGallery({ base64, fileName: fileName.replace(/[^\w.\-]/g, '_') });
       showSaveToast();
-    } catch (e) { console.error('저장 실패:', e); }
+      analytics.track('lib_image_saved', { chord_name: dispName, scale, success: true });
+    } catch (e) { console.error('저장 실패:', e); analytics.track('lib_image_saved', { chord_name: dispName, scale, success: false }); }
   } else {
     const link = document.createElement('a');
     link.download = fileName;
     link.href = exp.toDataURL('image/png');
     document.body.appendChild(link); link.click(); document.body.removeChild(link);
+    analytics.track('lib_image_saved', { chord_name: dispName, scale, success: true });
   }
 }
 

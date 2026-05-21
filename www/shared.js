@@ -6,7 +6,7 @@
 // ── 상수 ─────────────────────────────────────────────────────
 const SUPABASE_URL  = 'https://jbvkygeksohlysyvaoab.supabase.co';
 const SUPABASE_ANON = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Impidmt5Z2Vrc29obHlzeXZhb2FiIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzYzOTk5NjgsImV4cCI6MjA5MTk3NTk2OH0.6RSgChy0Yq0H2TJpZPSoMKQ2V-OYfR0XzE1aJBBZkXI';
-const APP_VERSION   = '1.2.0_dev2';
+const APP_VERSION   = '1.2.0_pre1';
 const SUPABASE_STORAGE_KEY = 'sb-jbvkygeksohlysyvaoab-auth-token';
 
 // ── Analytics SDK ─────────────────────────────────────────────
@@ -90,9 +90,8 @@ function saveProjects(projects) {
 
 // ── 플랜 관리 ─────────────────────────────────────────────────
 const PLAN_LIMITS = {
-  free:     { maxProjects: 3,        maxScale: 1 },
-  standard: { maxProjects: 10,       maxScale: 1 },
-  pro:      { maxProjects: Infinity, maxScale: 3 },
+  free: { maxProjects: 3,        maxScale: 1 },
+  pro:  { maxProjects: Infinity, maxScale: 3 },
 };
 
 function getPlan() {
@@ -357,10 +356,8 @@ function openPlayStore() {
 
 // ── RevenueCat (인앱 결제) ─────────────────────────────────────
 const REVENUECAT_ANDROID_KEY = 'goog_KNGCSoBxhHnHfZuTVgJoNKglKhM';
-const ENTITLEMENT_STANDARD  = 'standard_entitlement';
-const ENTITLEMENT_PRO       = 'pro_entitlement';
-const PRODUCT_STANDARD      = '$rc_monthly';
-const PRODUCT_PRO           = 'pro_monthly';
+const ENTITLEMENT_PRO  = 'pro_entitlement';
+const PRODUCT_PRO      = 'pro_monthly';
 
 let _billingReady = Promise.resolve();
 
@@ -382,8 +379,7 @@ async function syncPlanFromBilling() {
     const { customerInfo } = await window._RC.getCustomerInfo();
     const active = customerInfo?.entitlements?.active || {};
     let newPlan;
-    if (active[ENTITLEMENT_PRO])           newPlan = 'pro';
-    else if (active[ENTITLEMENT_STANDARD]) newPlan = 'standard';
+    if (active[ENTITLEMENT_PRO]) newPlan = 'pro';
     else return;
     setPlan(newPlan);
     await updateSupabasePlan(newPlan);
@@ -408,6 +404,246 @@ async function updateSupabasePlan(plan) {
     if (!resp.ok) console.error('[Billing] updateSupabasePlan RPC 실패:', resp.status);
   } catch(e) { console.error('[Billing] updateSupabasePlan 네트워크 오류:', e); }
 }
+
+// ── 플랜 바텀시트 & 결제 함수 ────────────────────────────────
+
+let _purchaseConfirmResolve = null;
+
+function showPurchaseConfirm() {
+  return new Promise(resolve => {
+    _purchaseConfirmResolve = resolve;
+    try {
+      const stored = localStorage.getItem(SUPABASE_STORAGE_KEY);
+      const email = stored ? (JSON.parse(stored)?.user?.email ?? '') : '';
+      const emailEl = document.getElementById('purchase-confirm-email');
+      if (emailEl) emailEl.textContent = email || '(이메일 없음)';
+    } catch(e) {}
+    document.getElementById('purchase-confirm-modal')?.classList.remove('hidden');
+  });
+}
+
+function closePurchaseConfirm(confirmed) {
+  document.getElementById('purchase-confirm-modal')?.classList.add('hidden');
+  if (_purchaseConfirmResolve) { _purchaseConfirmResolve(!!confirmed); _purchaseConfirmResolve = null; }
+}
+
+function openBillingFaq() {
+  analytics.track('billing_faq_opened', {});
+  document.getElementById('billing-faq-modal')?.classList.remove('hidden');
+  if (typeof lucide !== 'undefined') lucide.createIcons();
+}
+
+function closeBillingFaq() {
+  document.getElementById('billing-faq-modal')?.classList.add('hidden');
+}
+
+async function purchasePlan(planId) {
+  if (!window._RC) {
+    alert('결제 초기화 중입니다. 잠시 후 다시 시도해주세요.');
+    return;
+  }
+
+  const confirmed = await showPurchaseConfirm();
+  if (!confirmed) return;
+
+  analytics.track('plan_upgrade_started', { from_plan: getPlan(), to_plan: planId });
+
+  try {
+    const stored = localStorage.getItem(SUPABASE_STORAGE_KEY);
+    if (stored) {
+      const session = JSON.parse(stored);
+      if (session.user?.id) await window._RC.logIn({ appUserID: session.user.id }).catch(() => {});
+    }
+  } catch(e) {}
+
+  const productId = PRODUCT_PRO;
+  try {
+    const offeringsResult = await window._RC.getOfferings();
+    const offerings = offeringsResult?.offerings ?? offeringsResult;
+    const current = offerings?.current ?? null;
+    if (!current) throw new Error('상품 정보를 불러올 수 없습니다. 잠시 후 다시 시도해주세요.');
+
+    const pkg = current.availablePackages.find(p =>
+      p.identifier === productId || p.product?.identifier?.includes(productId)
+    );
+    if (!pkg) throw new Error('상품을 찾을 수 없습니다: ' + productId);
+
+    const purchaseParams = { aPackage: pkg };
+    try {
+      const { customerInfo: currentInfo } = await window._RC.getCustomerInfo();
+      const activeSubs = currentInfo?.activeSubscriptions || [];
+      if (activeSubs.length > 0) {
+        purchaseParams.upgradeInfo = { oldSKU: activeSubs[0], prorationMode: 1 };
+      }
+    } catch(e) {}
+
+    const { customerInfo } = await window._RC.purchasePackage(purchaseParams);
+
+    const active = customerInfo?.entitlements?.active || {};
+    const newPlan = active[ENTITLEMENT_PRO] ? 'pro' : planId;
+    setPlan(newPlan);
+    await updateSupabasePlan(newPlan);
+
+    analytics.track('plan_upgrade_completed', { to_plan: newPlan });
+
+    // 바텀시트에서 호출됐으면 시트 닫기, plan.html에서는 뒤로가기
+    const sheet = document.getElementById('plan-sheet');
+    if (sheet && sheet.classList.contains('plan-sheet--open')) {
+      closePlanSheet();
+    } else {
+      history.back();
+    }
+  } catch(e) {
+    const msg = (e?.message || e?.code || '').toLowerCase();
+    const isCancelled = msg.includes('cancel');
+    if (isCancelled) {
+      analytics.track('plan_upgrade_cancelled', { to_plan: planId });
+    } else {
+      analytics.track('plan_upgrade_failed', { to_plan: planId, error: e?.message || 'unknown' });
+      console.error('[Billing] purchasePlan 실패:', e);
+      alert(e?.message || '결제 중 오류가 발생했습니다. 다시 시도해주세요.');
+    }
+  }
+}
+
+async function restorePurchases() {
+  if (!window._RC) {
+    alert('인앱 결제를 사용할 수 없는 환경입니다.');
+    return;
+  }
+  try {
+    await window._RC.restorePurchases();
+    await syncPlanFromBilling();
+    analytics.track('purchase_restored', { plan: getPlan() });
+    alert('구매 내역을 복원했습니다.');
+  } catch(e) {
+    console.error('[Billing] restorePurchases 실패:', e);
+  }
+}
+
+function openPlanSheet(triggerSource) {
+  const overlay = document.getElementById('plan-sheet-overlay');
+  const sheet   = document.getElementById('plan-sheet');
+  if (!sheet) return;
+
+  const plan     = getPlan();
+  const isNative = window.Capacitor?.isNativePlatform();
+
+  const btn = document.getElementById('plan-sheet-btn-pro');
+  if (btn) {
+    if (plan === 'pro') {
+      btn.textContent = '현재 플랜';
+      btn.disabled = true;
+      btn.onclick = null;
+    } else {
+      btn.disabled = false;
+      if (isNative) {
+        btn.textContent = '구독하기';
+        btn.onclick = () => purchasePlan('pro');
+      } else {
+        btn.textContent = '앱에서 구독';
+        btn.onclick = () => alert('구독은 Android 앱에서 가능합니다.\nGoogle Play에서 Chorditor를 다운로드하세요.');
+      }
+    }
+  }
+
+  const faqBtn     = document.getElementById('plan-sheet-faq-btn');
+  const restoreBtn = document.getElementById('plan-sheet-restore-btn');
+  if (faqBtn)     faqBtn.style.display     = isNative ? '' : 'none';
+  if (restoreBtn) restoreBtn.style.display = isNative ? '' : 'none';
+
+  // setTimeout(0): 합성 click 이벤트(pointerup 직후 dispatch)가
+  // overlay에 도달하지 못하도록 다음 태스크에서 overlay를 활성화
+  setTimeout(() => {
+    if (overlay) overlay.classList.add('plan-sheet-overlay--open');
+    requestAnimationFrame(() => sheet.classList.add('plan-sheet--open'));
+    if (typeof lucide !== 'undefined') lucide.createIcons();
+  }, 0);
+}
+
+function closePlanSheet() {
+  document.getElementById('plan-sheet-overlay')?.classList.remove('plan-sheet-overlay--open');
+  document.getElementById('plan-sheet')?.classList.remove('plan-sheet--open');
+}
+
+function _initPlanSheet() {
+  // plan.html 자체 페이지는 자체 HTML 사용 — 주입 불필요
+  if (location.href.includes('plan.html')) return;
+  // 이미 주입됐으면 스킵
+  if (document.getElementById('plan-sheet')) return;
+
+  const el = document.createElement('div');
+  el.innerHTML = `
+<div class="plan-sheet-overlay" id="plan-sheet-overlay" onclick="closePlanSheet()"></div>
+<div class="plan-sheet" id="plan-sheet">
+  <div class="plan-sheet-handle"></div>
+  <div class="plan-sheet-header">
+    <span class="plan-sheet-title">Pro 플랜으로 업그레이드</span>
+    <button class="icon-btn" onclick="closePlanSheet()"><i data-lucide="x"></i></button>
+  </div>
+  <div class="plan-sheet-inner">
+    <div class="plan-launch-banner">출시 기념 특별 할인 — 지금 구독하면 첫 달부터 할인가 적용!</div>
+    <div class="plan-card plan-card--highlight">
+      <div class="plan-card-badge">추천</div>
+      <div class="plan-card-name">Pro <span class="plan-tag">크리에이터</span></div>
+      <div class="plan-card-price">
+        <div class="price-top">
+          <span class="price-original">₩6,900</span>
+          <span class="price-badge">29% OFF</span>
+        </div>
+        <span class="price-amount">₩4,900<small>/월</small></span>
+      </div>
+      <ul class="plan-card-features">
+        <li>프로젝트 <strong>무제한</strong></li>
+        <li>이미지 저장 <strong>전 배율</strong> (x0.5~x3)</li>
+        <li>코드표 편집 무제한</li>
+      </ul>
+      <button class="btn btn-primary plan-card-btn" id="plan-sheet-btn-pro">구독하기</button>
+    </div>
+    <div class="plan-page-footer">
+      <span class="hint">구독은 Google Play에서 언제든지 취소할 수 있습니다.</span>
+      <div class="plan-modal-footer-links">
+        <span class="plan-restore-link" id="plan-sheet-faq-btn" onclick="openBillingFaq()" style="display:none">결제 도움말</span>
+        <span class="plan-restore-link" id="plan-sheet-restore-btn" onclick="restorePurchases()" style="display:none">구매 복원</span>
+      </div>
+    </div>
+  </div>
+</div>
+<div class="modal-overlay hidden" id="purchase-confirm-modal" onclick="closePurchaseConfirm(false)">
+  <div class="modal purchase-confirm-modal" onclick="event.stopPropagation()">
+    <div class="modal-header"><span class="modal-title">결제 전 확인</span></div>
+    <div class="purchase-confirm-body">
+      <div class="purchase-confirm-account">
+        <span class="purchase-confirm-label">결제 계정</span>
+        <span class="purchase-confirm-email" id="purchase-confirm-email">—</span>
+      </div>
+      <p class="purchase-confirm-notice">Google Play 결제 계정과 앱 로그인 계정이 다를 경우, 구독 취소·환불이 어려울 수 있습니다.</p>
+    </div>
+    <div class="modal-footer purchase-confirm-footer">
+      <button class="btn btn-ghost" onclick="closePurchaseConfirm(false)">취소</button>
+      <button class="btn btn-primary" onclick="closePurchaseConfirm(true)">결제 진행</button>
+    </div>
+  </div>
+</div>
+<div class="modal-overlay hidden" id="billing-faq-modal" onclick="closeBillingFaq()">
+  <div class="modal billing-faq-modal" onclick="event.stopPropagation()">
+    <div class="modal-header">
+      <span class="modal-title">결제 도움말</span>
+      <button class="icon-btn" onclick="closeBillingFaq()"><i data-lucide="x"></i></button>
+    </div>
+    <div class="modal-body billing-faq-body">
+      <div class="faq-item"><div class="faq-q">결제는 어떤 계정으로 청구되나요?</div><div class="faq-a">플레이스토어에서 앱을 다운받은 계정으로 결제됩니다.</div></div>
+      <div class="faq-item"><div class="faq-q">구독 취소는 어떻게 하나요?</div><div class="faq-a">플레이스토어 → 내 프로필 → 결제 및 정기 결제 → 정기 결제에서 취소할 수 있습니다.</div></div>
+      <div class="faq-item"><div class="faq-q">환불은 어떻게 받나요?</div><div class="faq-a">플레이스토어 웹사이트 → 내 프로필 → 결제 및 정기 결제 → 예산 및 내역에서 환불 신청 가능합니다.</div></div>
+      <div class="faq-item"><div class="faq-q">앱 계정과 Play Store 계정이 다르면?</div><div class="faq-a">플레이스토어 계정의 결제 정보를 사용하게 되어 구독 관리가 어려워질 수 있습니다.</div></div>
+      <div class="faq-item"><div class="faq-q">구독했는데 앱에서 Free로 표시되면?</div><div class="faq-a">플랜 설명창 하단의 "구매 복원" 버튼을 눌러주세요.</div></div>
+    </div>
+  </div>
+</div>`;
+  while (el.firstChild) document.body.appendChild(el.firstChild);
+}
+
+document.addEventListener('DOMContentLoaded', _initPlanSheet);
 
 // ── 앱 버전 표시 ──────────────────────────────────────────────
 async function initAppVersion() {

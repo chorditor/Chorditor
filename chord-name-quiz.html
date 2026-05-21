@@ -1,0 +1,244 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <title>Chorditor - 코드 이름 맞추기</title>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css" />
+  <link rel="stylesheet" href="style.css" />
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
+</head>
+<body>
+
+  <!-- 페이지 커버: 초기화 완료 전 화면 가림 -->
+  <div id="page-cover"></div>
+
+  <div class="app-shell">
+
+    <!-- ── 탑바 ── -->
+    <div class="top-bar">
+      <button id="back-btn" class="icon-btn" onpointerup="handleBack()">
+        <i data-lucide="x"></i>
+      </button>
+      <div id="quiz-topbar-center" class="quiz-topbar-center"></div>
+    </div>
+
+    <!-- ── 메인 콘텐츠 ── -->
+    <div class="main-content" id="main-content">
+
+      <!-- ── 레벨 선택 뷰 ── -->
+      <div id="view-level-select" class="quiz-view">
+        <div class="level-select-layout">
+          <!-- 상단: 선택된 레벨 상세 패널 (JS로 채움) -->
+          <div id="level-detail-panel" class="level-detail-panel"></div>
+          <!-- 하단: 레벨 리스트 -->
+          <div id="level-wheel-track" class="level-wheel-track"></div>
+        </div>
+      </div>
+
+      <!-- ── 모드 선택 뷰 ── -->
+      <div id="view-mode-select" class="quiz-view quiz-view--right">
+        <div class="mode-select-scroll">
+          <!-- 튜토리얼 캐러셀 -->
+        <div class="mode-carousel">
+          <div class="mode-carousel-track" id="mode-carousel-track">
+
+            <div class="mode-carousel-card">
+              <div class="mode-carousel-card-header">
+                <i class="ph-fill ph-grid-nine"></i>
+                <span class="mode-carousel-card-title">두 가지 모드로 훈련해요</span>
+              </div>
+              <ul class="mode-carousel-card-list">
+                <li>코드 보고 이름 맞추기</li>
+                <li>이름 보고 운지 맞추기</li>
+              </ul>
+            </div>
+
+            <div class="mode-carousel-card">
+              <div class="mode-carousel-card-header">
+                <i data-lucide="timer"></i>
+                <span class="mode-carousel-card-title">반응속도는 정답만 측정해요</span>
+              </div>
+              <p class="mode-carousel-card-desc">오답은 속도 통계에서 제외되며, 정답들의 평균 반응속도로 기록됩니다.</p>
+            </div>
+
+            <div class="mode-carousel-card">
+              <div class="mode-carousel-card-header">
+                <i data-lucide="trophy"></i>
+                <span class="mode-carousel-card-title">최고기록 기준</span>
+              </div>
+              <p class="mode-carousel-card-desc">전문제 정답 달성 시에만 갱신돼요. 모든 문제를 맞히면서 가장 빠른 평균이 기록됩니다.</p>
+            </div>
+
+          </div>
+          <div class="mode-carousel-dots" id="mode-carousel-dots">
+            <div class="mode-carousel-dot mode-carousel-dot--active"></div>
+            <div class="mode-carousel-dot"></div>
+            <div class="mode-carousel-dot"></div>
+          </div>
+        </div>
+
+        <div class="mode-cards">
+
+            <div class="mode-card mode-card--active" onpointerup="startQuiz('name-from-diagram')">
+              <div class="mode-card-icon"><i class="ph ph-grid-nine"></i></div>
+              <div class="mode-card-info">
+                <span class="mode-card-title">코드 보고 이름 맞추기</span>
+              </div>
+            </div>
+
+            <div class="mode-card mode-card--active" onpointerup="startQuiz('diagram-from-name')">
+              <div class="mode-card-icon mode-card-icon--text">Am</div>
+              <div class="mode-card-info">
+                <span class="mode-card-title">이름 보고 운지 맞추기</span>
+              </div>
+            </div>
+
+          </div>
+        </div>
+      </div>
+
+      <!-- ── 퀴즈 뷰 ── -->
+      <div id="view-quiz" class="quiz-view quiz-view--right">
+        <div class="quiz-wrap">
+          <div class="quiz-inner">
+
+          <!-- 상단 그룹: 피드백 + 문제 카드 + 타임어택 바 -->
+          <div class="quiz-upper-group">
+
+            <!-- ① 피드백 + 반응속도 -->
+            <div class="quiz-info-area">
+              <div id="quiz-feedback-msg" class="quiz-feedback-msg"></div>
+              <div id="quiz-speed" class="quiz-speed"></div>
+            </div>
+
+            <!-- ② 문제 카드 (5:4) -->
+            <div class="quiz-question-area">
+              <div class="quiz-canvas-wrap">
+                <div class="quiz-canvas-inner">
+                  <canvas id="quiz-canvas"></canvas>
+                  <div id="quiz-countdown" class="quiz-countdown"></div>
+                </div>
+              </div>
+              <div id="quiz-chord-name-display" class="quiz-chord-name-display" style="display:none"></div>
+            </div>
+
+            <!-- ③ 타임어택 바 -->
+            <div class="quiz-timer-track">
+              <div id="quiz-timer-bar" class="quiz-timer-bar"></div>
+            </div>
+
+          </div><!-- /quiz-upper-group -->
+
+          <!-- ④ 다음 버튼 -->
+          <button id="quiz-next-btn" class="quiz-next-btn" onpointerup="advanceQuestion()">다음</button>
+
+          <!-- ⑤ 선택지 (5:4) -->
+          <div class="quiz-choices-area">
+            <div id="quiz-choices" class="quiz-choices"></div>
+          </div>
+
+          </div><!-- /quiz-inner -->
+        </div><!-- /quiz-wrap -->
+      </div><!-- /view-quiz -->
+
+    </div>
+
+  </div><!-- /app-shell -->
+
+  <!-- ── 예습 모달 ── -->
+  <div id="preview-modal-overlay" class="preview-modal-overlay">
+    <div class="preview-modal">
+      <div class="preview-modal-header">
+        <span id="preview-modal-title" class="preview-modal-title"></span>
+        <button class="icon-btn" onpointerup="closePreviewModal()">
+          <i data-lucide="x"></i>
+        </button>
+      </div>
+      <!-- ── #/b 토글 (챌린지 모드 전용) ── -->
+      <div id="preview-accidental-bar" class="preview-accidental-bar" style="display:none">
+        <div class="preview-acc-seg">
+          <button class="preview-acc-btn preview-acc-btn--active" id="preview-acc-sharp"
+                  onpointerup="setPreviewAccidental('sharp')">♯</button>
+          <button class="preview-acc-btn" id="preview-acc-flat"
+                  onpointerup="setPreviewAccidental('flat')">♭</button>
+        </div>
+      </div>
+      <div id="preview-modal-grid" class="preview-modal-grid"></div>
+    </div>
+  </div>
+
+  <!-- ── 결과 모달 ── -->
+  <div id="result-modal-overlay" class="result-modal-overlay">
+    <div class="result-modal">
+      <div class="result-modal-handle"></div>
+      <div id="result-modal-score" class="result-modal-score">0 / 5</div>
+      <div id="result-modal-avg" class="result-modal-avg"></div>
+      <div id="result-items" class="result-items"></div>
+      <div class="result-modal-actions">
+        <button class="result-btn result-btn--back" onpointerup="closeResultModal()">뒤로가기</button>
+        <button class="result-btn result-btn--retry" onpointerup="retryFromResult()">다시하기</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── 신기록 모달 ── -->
+  <div id="newrecord-modal-overlay" class="newrecord-modal-overlay">
+    <div class="newrecord-modal">
+      <div class="newrecord-modal-icon"><i data-lucide="trophy"></i></div>
+      <div class="newrecord-modal-title">신기록!</div>
+      <div id="newrecord-modal-speed" class="newrecord-modal-speed"></div>
+      <button class="newrecord-modal-btn" onpointerup="closeNewRecordModal()">확인</button>
+    </div>
+  </div>
+
+  <!-- ── 출석 완료 모달 ── -->
+  <div id="attendance-modal-overlay" class="attendance-modal-overlay">
+    <div class="attendance-modal">
+      <div class="attendance-modal-icon">
+        <i data-lucide="award"></i>
+      </div>
+      <div class="attendance-modal-title">출석 완료!</div>
+      <div class="attendance-modal-desc">오늘 훈련 3회를 달성했어요</div>
+      <div id="attendance-modal-streak" class="attendance-modal-streak">1일 연속</div>
+      <button class="attendance-modal-btn" onpointerup="closeAttendanceModal()">확인</button>
+    </div>
+  </div>
+
+  <!-- ── 차트 모달 ── -->
+  <div id="chart-modal-overlay" class="chart-modal-overlay">
+    <div class="chart-modal">
+      <div class="chart-modal-handle"></div>
+      <div class="chart-modal-header">
+        <span id="chart-modal-title" class="chart-modal-title"></span>
+        <button class="icon-btn" onpointerup="closeChartModal()">
+          <i data-lucide="x"></i>
+        </button>
+      </div>
+      <div class="chart-modal-body">
+        <div class="chart-section">
+          <span class="chart-section-label">평균 반응속도</span>
+          <div id="chart-speed-wrap" class="chart-canvas-wrap">
+            <canvas id="chart-speed"></canvas>
+          </div>
+        </div>
+        <div class="chart-section">
+          <span class="chart-section-label">누적 정답률</span>
+          <div id="chart-accuracy-wrap" class="chart-canvas-wrap">
+            <canvas id="chart-accuracy"></canvas>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.js"></script>
+  <script src="https://unpkg.com/@phosphor-icons/web"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4/dist/chart.umd.min.js"></script>
+  <script src="analytics-sdk.js"></script>
+  <script src="shared.js"></script>
+  <script src="chord-voicings.js"></script>
+  <script src="chords-library.js"></script>
+  <script src="chord-name-quiz.js"></script>
+</body>
+</html>

@@ -49,22 +49,22 @@
           </div>
           <div class="home-blocks">
             <div class="home-block" onpointerdown="enterFromBlock(event,this,'editor')">
-              <div class="home-block-icon"><i data-lucide="guitar"></i></div>
+              <div class="home-block-icon"><i class="ph-bold ph-grid-nine home-block-icon--blue"></i></div>
               <div class="home-block-title">코드 에디터</div>
               <div class="home-block-desc">코드표 제작 · 이미지 저장</div>
             </div>
             <div class="home-block" onpointerdown="enterFromBlock(event,this,'library')">
-              <div class="home-block-icon"><i data-lucide="book-open"></i></div>
+              <div class="home-block-icon"><i class="ph-bold ph-book-open home-block-icon--violet"></i></div>
               <div class="home-block-title">코드 사전</div>
               <div class="home-block-desc">코드 운지 검색 · 가져오기</div>
             </div>
-            <div class="home-block home-block--soon">
-              <div class="home-block-icon"><i data-lucide="dumbbell"></i></div>
+            <div class="home-block" onpointerdown="enterFromBlock(event,this,'training')">
+              <div class="home-block-icon"><i class="ph-bold ph-barbell home-block-icon--amber"></i></div>
               <div class="home-block-title">훈련소</div>
-              <div class="home-block-desc">Coming Soon</div>
+              <div class="home-block-desc">기타 실력 향상 훈련</div>
             </div>
             <div class="home-block home-block--soon">
-              <div class="home-block-icon"><i data-lucide="map"></i></div>
+              <div class="home-block-icon"><i class="ph-bold ph-map-trifold home-block-icon--emerald"></i></div>
               <div class="home-block-title">나의 기타 여정</div>
               <div class="home-block-desc">Coming Soon</div>
             </div>
@@ -722,6 +722,7 @@
   </div>
 
   <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.js"></script>
+  <script src="https://unpkg.com/@phosphor-icons/web"></script>
 
   <script src="analytics-sdk.js"></script>
   <script src="shared.js"></script>
