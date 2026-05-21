@@ -41,8 +41,8 @@ window.CHORD_STATIC = [
   ['3 3 2 0 1 0',  ['C/G'],   '3 4 2 x 1 x',  'slash',  2],
   ['x 2 2 0 1 0',  ['C/B'],   'x 2 3 x 1 x',  'slash',  2],
   ['x 2 2 0 1 0',  ['CM7/B'],   'x 2 3 x 1 x',  'slash',  2],
-  ['x 1 2 0 1 0',  ['C/Bb'],   'x 2 3 x 1 x',  'slash',  2],
-  ['x 1 2 0 1 0',  ['C7/Bb'],   'x 2 3 x 1 x',  'slash',  2],
+  ['x 1 2 0 1 0',  ['C/A#'],   'x 2 3 x 1 x',  'slash',  2,  { flat: true }],
+  ['x 1 2 0 1 0',  ['C7/A#'],  'x 2 3 x 1 x',  'slash',  2,  { flat: true }],
   ['x x 0 0 1 0',  ['C/D'],   'x x x x 1 x',  'hybrid',  2],
   ['x x 3 0 1 0',  ['C/F'],   'x x 3 x 1 x',  'hybrid',  2],
   ['1 x 3 0 1 0',  ['C/F'],   'T x 3 x 1 x',  'hybrid',  2],
@@ -69,7 +69,7 @@ window.CHORD_STATIC = [
   ['0 0 2 2 2 0',  ['A/E'],  'x x 2 3 4 x',  'slash', 2],
   ['0 x 2 2 1 0',  ['Am/E'],  'x x 2 3 1 x',  'slash', 2],
   ['x 4 2 2 2 0',  ['A/C#'],  'x 3 1 1 1 x',  'slash', 3, { flat: true }],
-  ['x 4 2 2 0 0',  ['Aadd9/C#'],  'x 4 2 1 x x',  'slash', 3,],
+  ['x 4 2 2 0 0',  ['Aadd9/C#'],  'x 4 2 1 x x',  'slash', 3, { flat: true }],
   
   // ── G 계열 ────────────────────────────────────────────────
   ['3 2 0 0 0 3',  ['G'],    '2 1 x x x 3',  'M',  2],
@@ -84,7 +84,7 @@ window.CHORD_STATIC = [
   ['x 2 0 0 0 3',  ['G/B'],    'x 2 x x x 4',  'slash',  2],
   ['x 2 0 0 0 3',  ['G/B'],    'x 1 x x x 3',  'slash',  2],
   ['x x 0 0 0 3',  ['G/D'],    'x x x x x 3',  'slash',  2],
-  ['2 x 0 0 0 3',  ['G/F#'],    '2 x x x x 4',  'slash',  2],
+  ['2 x 0 0 0 3',  ['G/F#'],    '2 x x x x 4',  'slash',  2, { flat: true }],
   ['1 x 0 0 0 3',  ['G/F'],    '1 x x x x 4',  'slash',  2],
   ['x 3 0 0 0 3',  ['G/C'],    'x 2 x x x 3',  'hybrid',  2],
   ['x 3 0 0 0 3',  ['GM7(9)'],    'x 2 x x x 3',  'tension',  2],
@@ -117,8 +117,8 @@ window.CHORD_STATIC = [
   ['x x 0 2 1 1',  ['Dm7'],    'x x x 2 1 1',  'm7',  2, { barre: true }],
   ['x x 0 1 1 1',  ['Dm7(b5)'],    'x x x 1 1 1',  'm7(b5)',  2, { barre: true }],
   ['x x 0 1 0 1',  ['Ddim7'],    'x x x 1 x 2',  'dim7',  2],
-  ['2 x 0 2 3 2',  ['D/F#'],    'T x x 2 3 1',  'slash',  2],
-  ['2 x 0 2 3 2',  ['D/F#'],    'T x x 1 3 2',  'slash',  2],
+  ['2 x 0 2 3 2',  ['D/F#'],    'T x x 2 3 1',  'slash',  2, { flat: true }],
+  ['2 x 0 2 3 2',  ['D/F#'],    'T x x 1 3 2',  'slash',  2, { flat: true }],
   ['x 0 0 2 3 2',  ['D/A'],    'x x x 2 3 1',  'slash',  2],
   ['x 0 0 2 3 2',  ['D/A'],    'x x x 1 3 2',  'slash',  2],
 
@@ -250,7 +250,7 @@ window.CHORD_PATTERN = [
   { pattern: 'x r r+3 r+2 r+1 x', rootStr: 5, fingers: 'x 1 4 3 2 x', barre: false, quality: 'slash', name: (r, flat) => chordNoteName(2, r+3, flat) + '/' + chordNoteName(1, r, flat)},
   { pattern: 'x x r+2 r r+1 r', rootStr: 4, fingers: 'x x 3 1 2 1', barre: true, quality: 'slash', name: (r, flat) => chordNoteName(4, r+1, flat) + '/' + chordNoteName(2, r+2, flat)},
   // 1전위 코드 (Cm/Eb)
-  { pattern: 'r+1 x r r+2 r+3 x', rootStr: 6, fingers: '2 x 1 3 4 x', barre: false, quality: 'slash', name: (r, flat) => chordNoteName(4, r+3, flat) + 'm' + '/' + chordNoteName(0, r+1, flat)},
+  { pattern: 'r+1 x r r+2 r+3 x', rootStr: 6, fingers: '2 x 1 3 4 x', barre: false, quality: 'slash', name: (r, flat) => chordNoteName(4, r+3, flat) + 'm' + '/' + chordNoteName(0, r+1, true)},
   { pattern: 'x r+2 r+1 r+1 r x', rootStr: 5, fingers: 'x 4 2 3 1 x', barre: false, quality: 'slash', name: (r, flat) => chordNoteName(3, r+1, flat) + 'm' + '/' + chordNoteName(1, r+2, flat)},
   { pattern: 'x x r+2 r+1 r+2 r', rootStr: 4, fingers: 'x x 3 2 4 1', barre: false, quality: 'slash', name: (r, flat) => chordNoteName(4, r+2, flat) + 'm' + '/' + chordNoteName(2, r+2, flat)},
 

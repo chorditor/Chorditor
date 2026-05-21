@@ -1,0 +1,182 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <title>Chorditor</title>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css" />
+  <link rel="stylesheet" href="style.css" />
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
+</head>
+<body>
+
+  <!-- ── 온보딩 오버레이 ── -->
+  <div class="onboarding-overlay hidden" id="onboarding-overlay">
+    <div class="onboarding-card">
+      <div class="onboarding-logo">CHORDITOR</div>
+      <p class="onboarding-desc">기타 코드표 제작 도구</p>
+      <div class="onboarding-loading" id="onboarding-loading">
+        <span class="onboarding-loading-dot"></span>
+        <span class="onboarding-loading-dot"></span>
+        <span class="onboarding-loading-dot"></span>
+      </div>
+      <div class="onboarding-signin-loading hidden" id="onboarding-signin-loading">
+        <span class="onboarding-spinner"></span>
+        <span class="onboarding-signin-loading-text">로그인 중...</span>
+      </div>
+      <button class="onboarding-start-btn hidden" id="onboarding-start-btn" onpointerdown="handleStart()">시작하기</button>
+      <span class="onboarding-switch-account hidden" id="onboarding-switch-btn" onpointerdown="onboardingSwitchAccount()">다른 계정으로 변경</span>
+      <button class="btn onboarding-btn hidden" id="onboarding-google-btn" onpointerdown="onboardingSignIn()">
+        <svg width="18" height="18" viewBox="0 0 48 48" xmlns="http://www.w3.org/2000/svg">
+          <path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"/>
+          <path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"/>
+          <path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"/>
+          <path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.18 1.48-4.97 2.31-8.16 2.31-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"/>
+        </svg>
+        Google 계정으로 계속하기
+      </button>
+    </div>
+    <div class="onboarding-footer">
+      <p>© 2026 LEE-HANSOL. All rights reserved.</p>
+      <p>Chorditor · Guitar Chord Editor</p>
+    </div>
+  </div>
+
+  <!-- ── 강제 업데이트 오버레이 ── -->
+  <div class="onboarding-overlay hidden" id="force-update-overlay">
+    <div class="onboarding-card">
+      <div class="onboarding-logo">CHORDITOR</div>
+      <p class="onboarding-desc" style="margin-bottom:8px;">새로운 버전이 출시되었습니다.</p>
+      <p class="onboarding-desc" style="font-size:13px;opacity:0.7;margin-bottom:24px;">계속 사용하려면 최신 버전으로 업데이트해 주세요.</p>
+      <button class="onboarding-start-btn" onclick="openPlayStore()">업데이트 하기</button>
+    </div>
+  </div>
+
+  <!-- ── 온보딩 Step 1: 페르소나 선택 ── -->
+  <div class="onboarding-overlay ob-overlay--step hidden" id="ob-step1">
+    <div class="ob-topbar">
+      <div class="ob-progress-dots">
+        <span class="ob-dot ob-dot--active"></span>
+        <span class="ob-dot"></span>
+        <span class="ob-dot"></span>
+        <span class="ob-dot"></span>
+      </div>
+    </div>
+    <div class="ob-main">
+      <h2 class="ob-title">나는 어떤<br>기타리스트인가요?</h2>
+      <div class="ob-persona-list">
+        <button class="ob-persona-card" data-value="unboxing" onpointerdown="obSelectPersona(this)">
+          <span class="ob-persona-label">언박싱 1일차</span>
+          <span class="ob-persona-sub">기타 막 샀어요</span>
+        </button>
+        <button class="ob-persona-card" data-value="beginner" onpointerdown="obSelectPersona(this)">
+          <span class="ob-persona-label">굳은살 비기너</span>
+          <span class="ob-persona-sub">조금씩 연습 중</span>
+        </button>
+        <button class="ob-persona-card" data-value="sheet_reader" onpointerdown="obSelectPersona(this)">
+          <span class="ob-persona-label">악보 의존자</span>
+          <span class="ob-persona-sub">악보 없으면 못 쳐요</span>
+        </button>
+        <button class="ob-persona-card" data-value="home_master" onpointerdown="obSelectPersona(this)">
+          <span class="ob-persona-label">방구석 기타마스터</span>
+          <span class="ob-persona-sub">혼자선 잘 쳐요</span>
+        </button>
+      </div>
+      <button class="onboarding-start-btn ob-next-btn ob-next-btn--bottom" id="ob-step1-next" disabled onpointerdown="obStep1Next()">다음</button>
+    </div><!-- ob-main -->
+  </div>
+
+  <!-- ── 개인정보 수집 동의 바텀시트 ── -->
+  <div class="ob-consent-backdrop hidden" id="ob-consent-backdrop">
+    <div class="ob-consent-sheet">
+      <p class="ob-consent-title">약관에 동의해 주세요</p>
+      <p class="ob-consent-desc">여러분의 정보는 더 나은 코디터를 위해 활용됩니다. 여러분의 개인 정보는 꼭 지켜드릴게요.</p>
+      <button class="ob-consent-toggle" id="ob-consent-toggle" onpointerdown="obToggleTerms()">
+        <span>개인정보 수집·이용 약관 보기</span>
+        <span class="ob-consent-toggle-icon" id="ob-consent-toggle-icon">▾</span>
+      </button>
+      <div class="ob-consent-terms hidden" id="ob-consent-terms">
+        <table class="ob-terms-table">
+          <tr><th>수집 항목</th><td>성별, 나이대</td></tr>
+          <tr><th>수집·이용 목적</th><td>서비스 개선 및 맞춤형 콘텐츠 제공</td></tr>
+          <tr><th>보유·이용 기간</th><td>회원 탈퇴 시까지</td></tr>
+          <tr><th>거부 권리</th><td>동의를 거부할 수 있으며, 거부 시 일부 맞춤 서비스가 제공되지 않을 수 있습니다.</td></tr>
+        </table>
+      </div>
+      <label class="ob-consent-check-row">
+        <input type="checkbox" id="ob-consent-checkbox" onchange="obOnConsentCheck()">
+        <span class="ob-consent-check-label">위 내용을 확인했습니다</span>
+      </label>
+      <button class="onboarding-start-btn" id="ob-consent-btn" onpointerdown="obConsentAgree()">동의하고 계속하기</button>
+    </div>
+  </div>
+
+  <!-- ── 온보딩 Step 2: 기타 경력 ── -->
+  <div class="onboarding-overlay ob-overlay--step hidden" id="ob-step2">
+    <div class="ob-topbar">
+      <div class="ob-progress-dots">
+        <span class="ob-dot ob-dot--done"></span>
+        <span class="ob-dot ob-dot--active"></span>
+        <span class="ob-dot"></span>
+        <span class="ob-dot"></span>
+      </div>
+    </div>
+    <div class="ob-main">
+      <h2 class="ob-title">기타를 친 지<br>얼마나 됐나요?</h2>
+      <div class="ob-choice-list" data-group="guitar_experience">
+        <button class="ob-choice-item" data-value="lt_1m" onpointerdown="obSelectChoice(this,'guitar_experience')">1개월 미만</button>
+        <button class="ob-choice-item" data-value="lt_6m" onpointerdown="obSelectChoice(this,'guitar_experience')">6개월 미만</button>
+        <button class="ob-choice-item" data-value="gte_1y" onpointerdown="obSelectChoice(this,'guitar_experience')">1년 이상</button>
+        <button class="ob-choice-item" data-value="gte_3y" onpointerdown="obSelectChoice(this,'guitar_experience')">3년 이상</button>
+      </div>
+      <button class="onboarding-start-btn ob-next-btn ob-next-btn--bottom" id="ob-step2-next" disabled onpointerdown="obStep2Next()">다음</button>
+    </div><!-- ob-main -->
+  </div>
+
+  <!-- ── 온보딩 Step 3: 성별 ── -->
+  <div class="onboarding-overlay ob-overlay--step hidden" id="ob-step3">
+    <div class="ob-topbar">
+      <div class="ob-progress-dots">
+        <span class="ob-dot ob-dot--done"></span>
+        <span class="ob-dot ob-dot--done"></span>
+        <span class="ob-dot ob-dot--active"></span>
+        <span class="ob-dot"></span>
+      </div>
+    </div>
+    <div class="ob-main">
+      <h2 class="ob-title">성별을<br>알려주세요</h2>
+      <div class="ob-big-card-list ob-big-card-list--row" data-group="gender">
+        <button class="ob-big-card" data-value="male" onpointerdown="obSelectChoice(this,'gender')">남</button>
+        <button class="ob-big-card" data-value="female" onpointerdown="obSelectChoice(this,'gender')">여</button>
+      </div>
+      <button class="onboarding-start-btn ob-next-btn ob-next-btn--bottom" id="ob-step3-next" disabled onpointerdown="obStep3Next()">다음</button>
+    </div><!-- ob-main -->
+  </div>
+
+  <!-- ── 온보딩 Step 4: 태어난 년도 ── -->
+  <div class="onboarding-overlay ob-overlay--step hidden" id="ob-step4">
+    <div class="ob-topbar">
+      <div class="ob-progress-dots">
+        <span class="ob-dot ob-dot--done"></span>
+        <span class="ob-dot ob-dot--done"></span>
+        <span class="ob-dot ob-dot--done"></span>
+        <span class="ob-dot ob-dot--active"></span>
+      </div>
+    </div>
+    <div class="ob-main">
+      <h2 class="ob-title">태어난 년도를<br>선택해주세요</h2>
+      <div class="ob-year-picker">
+        <div class="ob-year-highlight"></div>
+        <div class="ob-year-scroll" id="ob-year-scroll"></div>
+        <div class="ob-year-fade ob-year-fade--top"></div>
+        <div class="ob-year-fade ob-year-fade--bottom"></div>
+      </div>
+      <button class="onboarding-start-btn ob-next-btn ob-next-btn--bottom" id="ob-step4-complete" onpointerdown="obStep4Complete()">시작하기</button>
+    </div><!-- ob-main -->
+  </div>
+
+  <script src="analytics-sdk.js"></script>
+  <script src="shared.js"></script>
+  <script src="onboarding.js"></script>
+</body>
+</html>
