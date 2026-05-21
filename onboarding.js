@@ -210,12 +210,6 @@ function handleStart() {
   _startOnboardingSteps();
 }
 
-// ── DEV 온보딩 진입 ──────────────────────────────────────────
-function devOnboardingEnter() {
-  document.getElementById('dev-onboarding-overlay')?.classList.add('hidden');
-  _startOnboardingSteps();
-}
-
 // ── 다른 계정으로 변경 ────────────────────────────────────────
 function onboardingSwitchAccount() {
   localStorage.removeItem(SUPABASE_STORAGE_KEY);
@@ -362,13 +356,6 @@ document.addEventListener('DOMContentLoaded', async () => {
   await checkForceUpdate();
   await initBilling();
 
-  if (APP_VERSION.includes('_dev')) {
-    // DEV: 실제 온보딩 숨기고 dev 온보딩 표시
-    document.getElementById('onboarding-overlay')?.classList.add('hidden');
-    document.getElementById('dev-onboarding-overlay')?.classList.remove('hidden');
-    _authResolve();
-  } else {
-    document.getElementById('onboarding-overlay')?.classList.remove('hidden');
-    initSupabase().then(() => tryAutoSignIn());
-  }
+  document.getElementById('onboarding-overlay')?.classList.remove('hidden');
+  initSupabase().then(() => tryAutoSignIn());
 });
