@@ -7,7 +7,7 @@ android {
         applicationId "com.chorditor.app"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
-versionCode 81
+        versionCode 82
         versionName "1.2.0_pre1"
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
         aaptOptions {
