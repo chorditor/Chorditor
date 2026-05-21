@@ -84,8 +84,6 @@ function obSelectChoice(el, field) {
     document.getElementById('ob-step2-next').disabled = false;
   } else if (field === 'gender') {
     document.getElementById('ob-step3-next').disabled = false;
-  } else if (field === 'age_group') {
-    document.getElementById('ob-step4-complete').disabled = false;
   }
 }
 
