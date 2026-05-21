@@ -1461,6 +1461,7 @@ async function _doSavePNG(scale) {
       const SaveImage = window.Capacitor.Plugins.SaveImage;
       await SaveImage.saveToGallery({ base64, fileName: fileName.replace(/[^\w.\-]/g, '_') });
       showSaveToast();
+      incrementStat('images');
       analytics.track('image_saved', { scale, source: 'editor', success: true });
     } catch (e) { console.error('저장 실패:', e); analytics.track('image_saved', { scale, source: 'editor', success: false }); }
   } else {
@@ -1468,6 +1469,7 @@ async function _doSavePNG(scale) {
     link.download = fileName;
     link.href = exp.toDataURL('image/png');
     document.body.appendChild(link); link.click(); document.body.removeChild(link);
+    incrementStat('images');
     analytics.track('image_saved', { scale, source: 'editor', success: true });
   }
 }
@@ -1858,6 +1860,61 @@ function closeUpgradeModal() {
 }
 
 // ── 사이드바 플랜 배지 ─────────────────────────────────────────
+async function loadProfileFromDB() {
+  const PLAN_DESC = {
+    free:     '프로젝트 3개 · 이미지 x1',
+    standard: '프로젝트 10개 · 이미지 x3',
+    pro:      '프로젝트 무제한 · 이미지 x5',
+  };
+
+  // 통계 (로컬)
+  const projects = loadProjects();
+  const chordCount = projects.reduce((s, p) => s + (p.chords?.length || 0), 0);
+  const stats = getStats();
+  const _sv = (id, v) => { const el = document.getElementById(id); if (el) el.textContent = v; };
+  _sv('stat-projects', projects.length);
+  _sv('stat-chords', chordCount);
+  _sv('stat-images', stats.images);
+  _sv('stat-shares', stats.shares);
+
+  syncStatsToDB();
+
+  // DB 데이터
+  try {
+    const stored = localStorage.getItem(SUPABASE_STORAGE_KEY);
+    if (!stored) return;
+    const session = JSON.parse(stored);
+    const token = session?.access_token;
+    const userId = session?.user?.id;
+    if (!token || !userId) return;
+
+    const resp = await fetch(
+      `${SUPABASE_URL}/rest/v1/subscriptions?user_id=eq.${userId}&select=nickname,plan,created_at`,
+      { headers: { 'apikey': SUPABASE_ANON, 'Authorization': `Bearer ${token}` } }
+    );
+    if (!resp.ok) return;
+    const rows = await resp.json();
+    if (!rows.length) return;
+    const row = rows[0];
+
+    const nickname = row.nickname || session?.user?.user_metadata?.full_name || '—';
+    const plan = row.plan || getPlan() || 'free';
+    const joinedAt = row.created_at
+      ? new Date(row.created_at).toLocaleDateString('ko-KR', { year: 'numeric', month: 'long', day: 'numeric' })
+      : '—';
+    const planLabel = plan === 'pro' ? 'Pro' : plan === 'standard' ? 'Standard' : 'Free';
+
+    _sv('profile-name', nickname);
+    _sv('profile-joined', '가입일 ' + joinedAt);
+    _sv('profile-plan-badge', planLabel);
+    _sv('profile-plan-name', planLabel);
+    _sv('profile-plan-desc', PLAN_DESC[plan] || PLAN_DESC.free);
+
+    const badge = document.getElementById('profile-plan-badge');
+    if (badge) badge.dataset.plan = plan;
+  } catch(e) {}
+}
+
 function renderPlanBadge() {
   const el = document.getElementById('sidebar-plan-badge');
   if (!el) return;
@@ -1931,6 +1988,7 @@ function switchTab(tab, noAnim = false) {
 
   if (tab === 'home') enterFromHome('home');
   if (tab === 'projects') renderProjectsList();
+  if (tab === 'profile') loadProfileFromDB();
 
   if (typeof analytics !== 'undefined') {
     analytics.setScreen(tab);
@@ -3647,6 +3705,7 @@ async function copyShareCode() {
   if (navigator.clipboard) await navigator.clipboard.writeText(val).catch(() => _fallbackCopy(val));
   else _fallbackCopy(val);
   _flashBtn('share-code-copy-btn', '복사됨!');
+  incrementStat('shares');
   analytics.track('share_initiated', { type: 'code' });
 }
 async function copyShareUrl() {
@@ -3655,6 +3714,7 @@ async function copyShareUrl() {
   if (navigator.clipboard) await navigator.clipboard.writeText(val).catch(() => _fallbackCopy(val));
   else _fallbackCopy(val);
   _flashBtn('share-url-copy-btn', '복사됨!');
+  incrementStat('shares');
   analytics.track('share_initiated', { type: 'url' });
 }
 
@@ -3774,22 +3834,6 @@ document.addEventListener('pointerdown', (e) => {
 });
 
 document.addEventListener('DOMContentLoaded', async () => {
-  // ── 온보딩 저장 디버그 배너 ────────────────────────────────
-  const _obDebug = localStorage.getItem('ob_debug');
-  if (_obDebug) {
-    try {
-      const d = JSON.parse(_obDebug);
-      const msg = d.err
-        ? `❌ OB저장실패: ${d.err}`
-        : `${d.status === 204 ? '✅' : '⚠️'} OB저장 ${d.status}${d.body ? ' | ' + d.body.slice(0, 80) : ''}`;
-      const banner = document.createElement('div');
-      banner.style.cssText = 'position:fixed;top:env(safe-area-inset-top,0);left:0;right:0;z-index:99999;background:#1a1a1a;color:#fff;font-size:12px;padding:8px 12px;word-break:break-all;';
-      banner.textContent = msg;
-      banner.onclick = () => { localStorage.removeItem('ob_debug'); banner.remove(); };
-      document.body.appendChild(banner);
-    } catch(e) {}
-  }
-
   // ── UI 초기화 ──────────────────────────────────────────────
   // 배너 버전 표시 (프로덕션 버전: _dev 접미사 제거)
   const _prodVer = 'v' + APP_VERSION.replace(/_dev\d*$/, '');
@@ -4451,6 +4495,7 @@ async function _doExportLibChordImage(scale) {
       const SaveImage = window.Capacitor.Plugins.SaveImage;
       await SaveImage.saveToGallery({ base64, fileName: fileName.replace(/[^\w.\-]/g, '_') });
       showSaveToast();
+      incrementStat('images');
       analytics.track('lib_image_saved', { chord_name: dispName, scale, success: true });
     } catch (e) { console.error('저장 실패:', e); analytics.track('lib_image_saved', { chord_name: dispName, scale, success: false }); }
   } else {
@@ -4458,6 +4503,7 @@ async function _doExportLibChordImage(scale) {
     link.download = fileName;
     link.href = exp.toDataURL('image/png');
     document.body.appendChild(link); link.click(); document.body.removeChild(link);
+    incrementStat('images');
     analytics.track('lib_image_saved', { chord_name: dispName, scale, success: true });
   }
 }

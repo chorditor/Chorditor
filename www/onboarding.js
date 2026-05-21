@@ -175,19 +175,15 @@ function _initYearPicker() {
 }
 
 async function _saveOnboardingData() {
-  const log = { ts: new Date().toISOString() };
   try {
     const stored = localStorage.getItem(SUPABASE_STORAGE_KEY);
-    if (!stored) { localStorage.setItem('ob_debug', JSON.stringify({ ...log, err: '세션 없음' })); return; }
+    if (!stored) return;
     const session = JSON.parse(stored);
     const token  = session?.access_token;
     const userId = session?.user?.id;
-    if (!token || !userId) { localStorage.setItem('ob_debug', JSON.stringify({ ...log, err: 'token/userId 없음', userId })); return; }
+    if (!token || !userId) return;
 
-    log.userId = userId;
-    log.data   = { ..._obData };
-
-    const resp = await fetch(`${SUPABASE_URL}/rest/v1/subscriptions?user_id=eq.${userId}`, {
+    await fetch(`${SUPABASE_URL}/rest/v1/subscriptions?user_id=eq.${userId}`, {
       method: 'PATCH',
       headers: {
         'Content-Type': 'application/json',
@@ -204,13 +200,7 @@ async function _saveOnboardingData() {
         onboarding_completed_at:  new Date().toISOString(),
       }),
     });
-
-    log.status = resp.status;
-    if (!resp.ok) log.body = await resp.text();
-    localStorage.setItem('ob_debug', JSON.stringify(log));
-  } catch(e) {
-    localStorage.setItem('ob_debug', JSON.stringify({ ...log, err: e.message }));
-  }
+  } catch(e) {}
 }
 
 // ── 온보딩 버튼 표시 ─────────────────────────────────────────

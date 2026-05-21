@@ -346,6 +346,7 @@ async function _doSavePNG(scale) {
       const SaveImage = window.Capacitor.Plugins.SaveImage;
       await SaveImage.saveToGallery({ base64, fileName: fileName.replace(/[^\w.\-]/g, '_') });
       showSaveToast();
+      incrementStat('images');
       analytics.track('image_saved', { scale, source: 'editor', success: true });
     } catch (e) { console.error('저장 실패:', e); analytics.track('image_saved', { scale, source: 'editor', success: false }); }
   } else {
@@ -353,6 +354,7 @@ async function _doSavePNG(scale) {
     link.download = fileName;
     link.href = exp.toDataURL('image/png');
     document.body.appendChild(link); link.click(); document.body.removeChild(link);
+    incrementStat('images');
     analytics.track('image_saved', { scale, source: 'editor', success: true });
   }
 }
@@ -2880,6 +2882,7 @@ async function copyShareCode() {
   if (navigator.clipboard) await navigator.clipboard.writeText(val).catch(() => _fallbackCopy(val));
   else _fallbackCopy(val);
   _flashBtn('share-code-copy-btn', '복사됨!');
+  incrementStat('shares');
   analytics.track('share_initiated', { type: 'code' });
 }
 async function copyShareUrl() {
@@ -2888,6 +2891,7 @@ async function copyShareUrl() {
   if (navigator.clipboard) await navigator.clipboard.writeText(val).catch(() => _fallbackCopy(val));
   else _fallbackCopy(val);
   _flashBtn('share-url-copy-btn', '복사됨!');
+  incrementStat('shares');
   analytics.track('share_initiated', { type: 'url' });
 }
 

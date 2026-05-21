@@ -6,7 +6,7 @@
 // ── 상수 ─────────────────────────────────────────────────────
 const SUPABASE_URL  = 'https://jbvkygeksohlysyvaoab.supabase.co';
 const SUPABASE_ANON = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Impidmt5Z2Vrc29obHlzeXZhb2FiIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzYzOTk5NjgsImV4cCI6MjA5MTk3NTk2OH0.6RSgChy0Yq0H2TJpZPSoMKQ2V-OYfR0XzE1aJBBZkXI';
-const APP_VERSION   = '1.2.0_pre4';
+const APP_VERSION   = '1.2.0_pre5';
 const SUPABASE_STORAGE_KEY = 'sb-jbvkygeksohlysyvaoab-auth-token';
 
 // ── Analytics SDK ─────────────────────────────────────────────
@@ -646,6 +646,49 @@ function _initPlanSheet() {
 document.addEventListener('DOMContentLoaded', _initPlanSheet);
 
 // ── 앱 버전 표시 ──────────────────────────────────────────────
+// ── 활동 통계 (로컬 저장 + 자정 DB 동기화) ───────────────────
+const _STAT_KEYS = { images: 'chorditor_stat_images', shares: 'chorditor_stat_shares' };
+const _STAT_SYNC_KEY = 'chorditor_stats_sync_date';
+
+function incrementStat(type) {
+  const key = _STAT_KEYS[type];
+  if (!key) return;
+  const cur = parseInt(localStorage.getItem(key) || '0', 10);
+  localStorage.setItem(key, String(cur + 1));
+}
+
+function getStats() {
+  return {
+    images: parseInt(localStorage.getItem(_STAT_KEYS.images) || '0', 10),
+    shares: parseInt(localStorage.getItem(_STAT_KEYS.shares) || '0', 10),
+  };
+}
+
+async function syncStatsToDB() {
+  const today = new Date().toISOString().slice(0, 10);
+  if (localStorage.getItem(_STAT_SYNC_KEY) === today) return;
+  try {
+    const stored = localStorage.getItem(SUPABASE_STORAGE_KEY);
+    if (!stored) return;
+    const session = JSON.parse(stored);
+    const token = session?.access_token;
+    const userId = session?.user?.id;
+    if (!token || !userId) return;
+    const stats = getStats();
+    const resp = await fetch(`${SUPABASE_URL}/rest/v1/subscriptions?user_id=eq.${userId}`, {
+      method: 'PATCH',
+      headers: {
+        'Content-Type': 'application/json',
+        'apikey': SUPABASE_ANON,
+        'Authorization': `Bearer ${token}`,
+        'Prefer': 'return=minimal',
+      },
+      body: JSON.stringify({ stat_images: stats.images, stat_shares: stats.shares }),
+    });
+    if (resp.ok) localStorage.setItem(_STAT_SYNC_KEY, today);
+  } catch(e) {}
+}
+
 async function initAppVersion() {
   try {
     const el = document.getElementById('app-version');
