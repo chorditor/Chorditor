@@ -3774,6 +3774,22 @@ document.addEventListener('pointerdown', (e) => {
 });
 
 document.addEventListener('DOMContentLoaded', async () => {
+  // ── 온보딩 저장 디버그 배너 ────────────────────────────────
+  const _obDebug = localStorage.getItem('ob_debug');
+  if (_obDebug) {
+    try {
+      const d = JSON.parse(_obDebug);
+      const msg = d.err
+        ? `❌ OB저장실패: ${d.err}`
+        : `${d.status === 204 ? '✅' : '⚠️'} OB저장 ${d.status}${d.body ? ' | ' + d.body.slice(0, 80) : ''}`;
+      const banner = document.createElement('div');
+      banner.style.cssText = 'position:fixed;top:env(safe-area-inset-top,0);left:0;right:0;z-index:99999;background:#1a1a1a;color:#fff;font-size:12px;padding:8px 12px;word-break:break-all;';
+      banner.textContent = msg;
+      banner.onclick = () => { localStorage.removeItem('ob_debug'); banner.remove(); };
+      document.body.appendChild(banner);
+    } catch(e) {}
+  }
+
   // ── UI 초기화 ──────────────────────────────────────────────
   // 배너 버전 표시 (프로덕션 버전: _dev 접미사 제거)
   const _prodVer = 'v' + APP_VERSION.replace(/_dev\d*$/, '');

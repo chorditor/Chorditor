@@ -175,15 +175,19 @@ function _initYearPicker() {
 }
 
 async function _saveOnboardingData() {
+  const log = { ts: new Date().toISOString() };
   try {
     const stored = localStorage.getItem(SUPABASE_STORAGE_KEY);
-    if (!stored) return;
+    if (!stored) { localStorage.setItem('ob_debug', JSON.stringify({ ...log, err: '세션 없음' })); return; }
     const session = JSON.parse(stored);
     const token  = session?.access_token;
     const userId = session?.user?.id;
-    if (!token || !userId) return;
+    if (!token || !userId) { localStorage.setItem('ob_debug', JSON.stringify({ ...log, err: 'token/userId 없음', userId })); return; }
 
-    await fetch(`${SUPABASE_URL}/rest/v1/subscriptions?user_id=eq.${userId}`, {
+    log.userId = userId;
+    log.data   = { ..._obData };
+
+    const resp = await fetch(`${SUPABASE_URL}/rest/v1/subscriptions?user_id=eq.${userId}`, {
       method: 'PATCH',
       headers: {
         'Content-Type': 'application/json',
@@ -197,11 +201,16 @@ async function _saveOnboardingData() {
         gender:                   _obData.gender,
         birth_year:               _obData.birth_year,
         nickname:                 _obData.nickname,
-        consent_agreed_at:        new Date().toISOString(),
         onboarding_completed_at:  new Date().toISOString(),
       }),
     });
-  } catch(e) {}
+
+    log.status = resp.status;
+    if (!resp.ok) log.body = await resp.text();
+    localStorage.setItem('ob_debug', JSON.stringify(log));
+  } catch(e) {
+    localStorage.setItem('ob_debug', JSON.stringify({ ...log, err: e.message }));
+  }
 }
 
 // ── 온보딩 버튼 표시 ─────────────────────────────────────────
