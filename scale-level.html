@@ -1,0 +1,108 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <title>Chorditor - 스케일 훈련</title>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css" />
+  <link rel="stylesheet" href="style.css" />
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
+</head>
+<body>
+
+  <div id="page-cover"></div>
+
+  <div class="app-shell">
+
+    <!-- ── 탑바 ── -->
+    <div class="top-bar top-bar--white">
+      <button id="back-btn" class="icon-btn" onpointerup="closeScaleLevel()">
+        <i data-lucide="chevron-left"></i>
+      </button>
+      <span class="top-bar-title"></span>
+    </div>
+
+    <!-- ── 메인 콘텐츠 ── -->
+    <div class="main-content" id="main-content">
+      <div class="scale-level-layout">
+
+        <!-- 상단: 프랫보드 -->
+        <div class="scale-level-top">
+
+          <div class="form-label" id="form-label"></div>
+
+          <div class="fretboard-row">
+            <button class="fb-arrow-btn" id="fb-arrow-prev">
+              <i data-lucide="chevron-left"></i>
+            </button>
+
+            <!-- 0~20프랫 슬라이딩 뷰포트 -->
+            <div class="fb-viewport" id="fb-viewport">
+              <div class="fb-full-wrapper" id="fb-full-wrapper">
+                <div class="fb-full-neck" id="fb-full-neck"></div>
+                <div class="fb-full-nums" id="fb-full-nums"></div>
+              </div>
+            </div>
+
+            <button class="fb-arrow-btn" id="fb-arrow-next">
+              <i data-lucide="chevron-right"></i>
+            </button>
+          </div>
+
+          <!-- 블럭 인디케이터 -->
+          <div class="block-indicator" id="block-indicator"></div>
+
+        </div>
+
+        <!-- 하단: 키 선택 -->
+        <div class="scale-level-bottom">
+          <div class="key-selector-section">
+            <div class="accidental-toggle-row">
+              <div class="accidental-toggle" id="accidental-toggle">
+                <span class="toggle-opt toggle-opt--active" id="toggle-sharp">#</span>
+                <span class="toggle-opt" id="toggle-flat">b</span>
+              </div>
+            </div>
+            <span class="key-selector-label">KEY</span>
+            <div class="key-selector" id="key-selector"></div>
+            <button class="start-test-btn" id="start-test-btn">이 Key로 테스트 시작하기</button>
+          </div>
+        </div>
+
+      </div>
+    </div>
+
+    <!-- ── 스케일 테스트 오버레이 ── -->
+    <div class="scale-test-overlay" id="scale-test-overlay">
+      <div class="scale-test-top">
+        <button class="icon-btn" id="test-close-btn">
+          <i data-lucide="x"></i>
+        </button>
+      </div>
+      <div class="scale-test-body">
+        <p class="test-question-text" id="test-question-text"></p>
+        <div class="scale-test-fb-wrap">
+          <div class="fb-full-neck" id="test-fb-full-neck"></div>
+          <div class="fb-full-nums" id="test-fb-full-nums"></div>
+        </div>
+        <div class="test-result-row" id="test-result-row">
+          <span class="test-result-score" id="test-result-score"></span>
+          <span class="test-result-detail" id="test-result-detail"></span>
+        </div>
+        <div class="test-btn-row">
+          <button class="test-back-btn" id="test-back-btn">돌아가기</button>
+          <button class="test-submit-btn" id="test-submit-btn">제출하기</button>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.js"></script>
+  <script src="https://unpkg.com/@phosphor-icons/web"></script>
+  <script src="analytics-sdk.js"></script>
+  <script src="shared.js"></script>
+  <script src="scale-data.js"></script>
+  <script src="scale-level.js"></script>
+</body>
+</html>

@@ -6575,3 +6575,724 @@ canvas {
 .attendance-modal-btn:active {
   transform: scale(0.97);
 }
+
+/* ═══════════════════════════════════════════════════════════════
+   스케일 훈련 (scale-training.html)
+═══════════════════════════════════════════════════════════════ */
+
+.scale-scroll {
+  height: 100%;
+  box-sizing: border-box;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding: 20px 16px 32px;
+  display: flex;
+  flex-direction: column;
+  gap: 28px;
+}
+.scale-scroll::-webkit-scrollbar { display: none; }
+
+.scale-chapter {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.scale-chapter-header {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.scale-chapter-label {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--text-muted);
+  letter-spacing: 1.2px;
+  text-transform: uppercase;
+}
+
+.scale-chapter-title {
+  font-size: 20px;
+  font-weight: 800;
+  color: var(--text-primary);
+  letter-spacing: -0.4px;
+}
+
+.scale-item-list {
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
+}
+
+.scale-item-card .lw-badge { color: #334155; }
+.scale-item-card .lw-name  { color: #1a1a1a; }
+
+.scale-item-card {
+  background: linear-gradient(145deg, #f6f8ff 0%, #ffffff 45%, #eef1f9 100%);
+  border: 1.5px solid rgba(170, 190, 225, 0.35);
+  border-radius: 14px;
+  padding: 0 14px;
+  height: 72px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  box-shadow:
+    0 2px 10px rgba(90, 110, 160, 0.1),
+    inset 0 1px 0 rgba(255, 255, 255, 0.95);
+  cursor: pointer;
+  box-sizing: border-box;
+  position: relative;
+  transition: background 0.15s, transform 0.1s, box-shadow 0.1s;
+  -webkit-tap-highlight-color: transparent;
+}
+.scale-item-card:active:not(.scale-item-card--soon) {
+  transform: translateY(2px);
+  box-shadow: 0 1px 4px rgba(90, 110, 160, 0.08);
+}
+.scale-item-card--soon {
+  opacity: 0.42;
+  cursor: default;
+}
+.scale-item-card--soon:active { transform: none !important; }
+
+.scale-item-num {
+  width: 34px;
+  height: 34px;
+  border-radius: 10px;
+  background: #EFF6FF;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 14px;
+  font-weight: 700;
+  color: #3B82F6;
+  flex-shrink: 0;
+}
+
+.scale-item-info {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+.scale-item-title {
+  font-size: 15px;
+  font-weight: 700;
+  color: #1a1a1a;
+  letter-spacing: -0.2px;
+}
+.scale-item-desc {
+  font-size: 11px;
+  font-weight: 400;
+  color: var(--text-muted);
+}
+
+.scale-item-arrow {
+  color: #CBD5E1;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+}
+.scale-item-arrow svg {
+  width: 18px;
+  height: 18px;
+}
+
+/* ════════════════════════════════════════════════════════
+   스케일 레벨 페이지 & 프랫보드
+   ════════════════════════════════════════════════════════ */
+
+/* ── 상단/하단 반반 레이아웃 ── */
+.scale-level-layout {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  overflow: hidden;
+  background: #ffffff;
+}
+
+.scale-level-top {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  background: #ffffff;
+  position: relative;
+}
+
+.scale-level-bottom {
+  flex: 1;
+  background: #ffffff;
+  overflow-y: auto;
+}
+
+/* ── 프랫보드 래퍼 ── */
+.fretboard-wrap {
+  position: relative;
+  width: 100%;
+  padding: 0 20px;
+  box-sizing: border-box;
+}
+
+/* ── 프랫 번호 행 ── */
+.fretboard-nums {
+  display: flex;
+  width: 100%;
+  margin-top: 10px;
+}
+
+.fret-num {
+  flex: 1;
+  text-align: center;
+  font-size: 11px;
+  font-weight: 600;
+  color: #aaa;
+  letter-spacing: 0;
+}
+
+/* ── 기타 넥 ── */
+.fretboard-neck {
+  position: relative;
+  width: 100%;
+  height: 160px;
+  background: #ffffff;
+  box-sizing: border-box;
+  overflow: visible;
+}
+
+/* ── 줄 선 ── */
+.fb-string {
+  position: absolute;
+  left: 0;
+  right: 0;
+  transform: translateY(-50%);
+  background: #1a1a1a;
+  border-radius: 1px;
+  pointer-events: none;
+  z-index: 2;
+}
+
+/* ── 프랫 선 ── */
+.fb-fret-line {
+  position: absolute;
+  top: calc(100% / 12);      /* 1번줄 중심 = 8.33% */
+  bottom: calc(100% / 12);   /* 6번줄 중심 = 8.33% */
+  width: 1.5px;
+  background: #d0d0d0;
+  transform: translateX(-50%);
+  pointer-events: none;
+  z-index: 1;
+}
+
+/* ── 도트 마커 ── */
+.fb-dot {
+  position: absolute;
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: #d8d8d8;
+  transform: translate(-50%, -50%);
+  pointer-events: none;
+}
+
+/* ── 좌/우 그라데이션 페이드 ── */
+.fretboard-fade-left,
+.fretboard-fade-right {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 68px;
+  pointer-events: none;
+  z-index: 5;
+}
+
+.fretboard-fade-left {
+  left: 20px;
+  background: linear-gradient(to right, #ffffff 15%, transparent);
+}
+
+.fretboard-fade-right {
+  right: 20px;
+  background: linear-gradient(to left, #ffffff 15%, transparent);
+}
+
+/* ── 스케일 음표 ── */
+.fb-note {
+  position: absolute;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: #444;
+  transform: translate(-50%, -50%);
+  z-index: 3;
+  pointer-events: none;
+}
+
+.fb-note--root {
+  background: #1a1a1a;
+}
+
+.fb-note--root::after {
+  content: '';
+  position: absolute;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #ffffff;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+}
+
+/* ── 음표 터치 애니메이션 ── */
+.fb-note--pressed {
+  transform: translate(-50%, -50%) scale(0.82) !important;
+  transition: transform 0.08s ease-out;
+}
+
+.fb-note-ripple {
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  background: rgba(26, 26, 26, 0.25);
+  animation: fb-ripple 0.5s ease-out forwards;
+  pointer-events: none;
+}
+
+@keyframes fb-ripple {
+  0%   { transform: scale(1);   opacity: 1; }
+  100% { transform: scale(2.2); opacity: 0; }
+}
+
+/* ── 고스트 dot (다른 포지션) ── */
+.fb-note--ghost {
+  background: #d8d8d8;
+  z-index: 2;
+  opacity: 0.45;
+}
+
+.fb-note--ghost.fb-note--root {
+  background: #c8c8c8;
+}
+
+.fb-note--ghost.fb-note--root::after {
+  display: none;
+}
+
+.fb-note--ghost.fb-note--open {
+  background: transparent;
+  border-color: #d8d8d8;
+}
+
+/* ── 개방현 (fret 0) — 빈 원 ── */
+.fb-note--open {
+  background: transparent;
+  border: 2px solid #444;
+}
+
+.fb-note--open.fb-note--root {
+  border-color: #1a1a1a;
+  border-width: 2.5px;
+}
+
+.fb-note--open.fb-note--root::after {
+  display: none;
+}
+
+/* ── 슬라이딩 뷰포트 ── */
+.fb-viewport {
+  flex: 1;
+  overflow: hidden;
+  position: relative;
+  min-width: 0;
+}
+
+.fb-full-wrapper {
+  /* width는 JS에서 설정 */
+}
+
+/* ── 풀 넥 ── */
+.fb-full-neck {
+  position: relative;
+  height: 160px;
+  background: #ffffff;
+}
+
+/* ── 넛 선 ── */
+.fb-nut-line {
+  position: absolute;
+  top: calc(100% / 12);
+  bottom: calc(100% / 12);
+  width: 4px;
+  background: #1a1a1a;
+  border-radius: 2px;
+  transform: translateX(-50%);
+  pointer-events: none;
+  z-index: 2;
+}
+
+/* ── 프랫 번호 행 ── */
+.fb-full-nums {
+  position: relative;
+  height: 22px;
+  margin-top: 6px;
+}
+
+.fb-fret-num {
+  position: absolute;
+  top: 0;
+  font-size: 11px;
+  font-weight: 600;
+  color: #aaa;
+  transform: translateX(-50%);
+  pointer-events: none;
+  white-space: nowrap;
+}
+
+/* ── 폼 레이블 ── */
+.form-label {
+  position: absolute;
+  top: 16px;
+  left: 16px;
+  font-size: 18px;
+  font-weight: 700;
+  color: #1a1a1a;
+  letter-spacing: -0.3px;
+}
+
+/* ── 프랫보드 화살표 행 ── */
+.fretboard-row {
+  display: flex;
+  align-items: center;
+  width: 100%;
+}
+
+.fb-arrow-btn {
+  flex-shrink: 0;
+  width: 36px;
+  height: 36px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: none;
+  border: none;
+  color: #bbb;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.fb-arrow-btn svg {
+  width: 22px;
+  height: 22px;
+}
+
+/* ── 블럭 인디케이터 ── */
+.block-indicator {
+  display: flex;
+  gap: 6px;
+  justify-content: center;
+  margin-top: 14px;
+}
+
+.block-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #d0d0d0;
+}
+
+.block-dot--active {
+  background: #1a1a1a;
+}
+
+/* ── 샵/플랫 토글 ── */
+.accidental-toggle-row {
+  display: flex;
+  justify-content: center;
+  margin-bottom: 4px;
+}
+
+.accidental-toggle {
+  display: flex;
+  background: #f0f0f0;
+  border-radius: 8px;
+  padding: 3px;
+  gap: 2px;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.toggle-opt {
+  padding: 4px 14px;
+  border-radius: 6px;
+  font-size: 13px;
+  font-weight: 700;
+  color: #999;
+  font-family: 'Pretendard', sans-serif;
+  transition: background 0.15s, color 0.15s;
+  user-select: none;
+}
+
+.toggle-opt--active {
+  background: #ffffff;
+  color: #1a1a1a;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.12);
+}
+
+/* ── 키 선택 ── */
+.key-selector-section {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 24px 16px 24px;
+}
+
+.key-selector-label {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--text-muted);
+  letter-spacing: 1.2px;
+}
+
+.key-selector {
+  display: grid;
+  grid-template-columns: repeat(6, 1fr);
+  gap: 8px;
+}
+
+.key-btn {
+  height: 44px;
+  border-radius: 10px;
+  border: 1.5px solid #e0e0e0;
+  background: #ffffff;
+  font-size: 13px;
+  font-weight: 600;
+  color: #444;
+  cursor: pointer;
+  font-family: 'Pretendard', sans-serif;
+  -webkit-tap-highlight-color: transparent;
+  transition: background 0.1s, border-color 0.1s, color 0.1s;
+}
+
+.key-btn--active {
+  background: #1a1a1a;
+  border-color: #1a1a1a;
+  color: #ffffff;
+}
+
+/* ── 테스트 시작 버튼 ── */
+.start-test-btn {
+  display: inline-block;
+  margin-top: 16px;
+  padding: 14px 20px;
+  border-radius: 14px;
+  border: none;
+  background: #1a1a1a;
+  color: #ffffff;
+  font-size: 15px;
+  font-weight: 700;
+  font-family: 'Pretendard', sans-serif;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  transition: opacity 0.15s;
+  white-space: nowrap;
+}
+
+.start-test-btn:active {
+  opacity: 0.7;
+}
+
+/* ── 스케일 테스트 오버레이 ── */
+.scale-test-overlay {
+  position: fixed;
+  inset: 0;
+  background: #ffffff;
+  z-index: 300;
+  display: flex;
+  flex-direction: column;
+  padding-top: env(safe-area-inset-top);
+  transform: translateY(100%);
+  transition: transform 0.32s cubic-bezier(0.4, 0, 0.2, 1);
+  pointer-events: none; /* 닫혀있을 때 탭 차단 */
+}
+
+.scale-test-overlay.is-open {
+  transform: translateY(0);
+  pointer-events: auto;
+}
+
+/* ── 테스트 질문 텍스트 ── */
+.test-question-text {
+  width: 100%;
+  padding: 0 20px;
+  box-sizing: border-box;
+  font-size: 24px;
+  font-weight: 700;
+  color: #1a1a1a;
+  letter-spacing: -0.5px;
+  line-height: 1.45;
+  text-align: center;
+  margin: 0 0 24px;
+  opacity: 0;
+}
+
+.test-question--in {
+  animation: test-question-in 1.2s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+}
+
+@keyframes test-question-in {
+  from { opacity: 0; transform: translateY(16px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+/* ── 개방현 비활성 힌트 원 (독립 클래스 — .fb-note 상속 없음) ── */
+.fb-open-hint {
+  position: absolute;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: transparent;
+  border: 2px solid rgba(0, 0, 0, 0.18);
+  transform: translate(-50%, -50%);
+  z-index: 2;
+  pointer-events: none; /* 이벤트는 neck 핸들러에 위임 */
+}
+
+/* ── 플레이어가 찍은 dot ── */
+.fb-note--placed {
+  background: #444;
+  cursor: pointer;
+  pointer-events: auto;
+  animation: fb-note-pop 0.18s cubic-bezier(0.34, 1.56, 0.64, 1) both;
+}
+
+@keyframes fb-note-pop {
+  0%   { transform: translate(-50%, -50%) scale(0); }
+  100% { transform: translate(-50%, -50%) scale(1); }
+}
+
+/* ── 채점 결과 dot ── */
+.fb-note--correct {
+  background: #34C759;
+}
+
+.fb-note--wrong {
+  background: #FF3B30;
+}
+
+.fb-note--missed {
+  background: transparent;
+  border: 2px dashed #aaa;
+}
+
+/* ── 결과 영역 ── */
+.test-result-row {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  margin-top: 24px;
+  visibility: hidden;
+}
+
+.test-result-row.is-visible {
+  visibility: visible;
+}
+
+.test-result-score {
+  font-size: 32px;
+  font-weight: 800;
+  color: #1a1a1a;
+  letter-spacing: -1px;
+}
+
+.test-result-detail {
+  font-size: 13px;
+  font-weight: 500;
+  color: #888;
+  letter-spacing: 0.2px;
+}
+
+/* ── 테스트 버튼 행 ── */
+.test-btn-row {
+  display: flex;
+  gap: 10px;
+  margin-top: 20px;
+}
+
+/* ── 테스트 제출/다시풀기 버튼 ── */
+.test-submit-btn {
+  padding: 14px 32px;
+  border-radius: 14px;
+  border: none;
+  background: #1a1a1a;
+  color: #ffffff;
+  font-size: 15px;
+  font-weight: 700;
+  font-family: 'Pretendard', sans-serif;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  transition: opacity 0.15s;
+}
+
+.test-submit-btn:active {
+  opacity: 0.7;
+}
+
+/* ── 돌아가기 버튼 ── */
+.test-back-btn {
+  display: none;
+}
+
+.test-back-btn.is-visible {
+  display: block;
+  padding: 14px 24px;
+  border-radius: 14px;
+  border: 1.5px solid #e0e0e0;
+  background: #ffffff;
+  color: #444;
+  font-size: 15px;
+  font-weight: 700;
+  font-family: 'Pretendard', sans-serif;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  transition: opacity 0.15s;
+}
+
+.test-back-btn:active {
+  opacity: 0.7;
+}
+
+.scale-test-top {
+  height: 54px;
+  display: flex;
+  align-items: center;
+  padding: 0 8px;
+  flex-shrink: 0;
+}
+
+.scale-test-info {
+  flex: 1;
+  text-align: center;
+  font-size: 15px;
+  font-weight: 700;
+  color: #1a1a1a;
+  margin-right: 40px; /* close 버튼 너비만큼 오프셋 */
+}
+
+.scale-test-body {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+}
+
+.scale-test-fb-wrap {
+  width: 100%;
+  padding: 0 36px;
+  box-sizing: border-box;
+}

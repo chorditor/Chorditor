@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <title>Chorditor - 스케일 훈련</title>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css" />
+  <link rel="stylesheet" href="style.css" />
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
+</head>
+<body>
+
+  <!-- 페이지 커버: 초기화 완료 전 화면 가림 -->
+  <div id="page-cover"></div>
+
+  <div class="app-shell">
+
+    <!-- ── 탑바 ── -->
+    <div class="top-bar">
+      <button id="back-btn" class="icon-btn" onpointerup="closeScaleTraining()">
+        <i data-lucide="x"></i>
+      </button>
+    </div>
+
+    <!-- ── 메인 콘텐츠 ── -->
+    <div class="main-content" id="main-content">
+      <div class="scale-scroll">
+
+        <!-- 페이지 타이틀 -->
+        <span class="training-page-title">스케일 훈련</span>
+
+        <!-- ── Ch. 1: 펜타토닉 스케일 ── -->
+        <div class="scale-chapter">
+          <div class="scale-chapter-header">
+            <span class="scale-chapter-title">Ch. 1</span>
+          </div>
+
+          <div class="scale-item-list">
+
+            <!-- 1. 메이저 스케일 -->
+            <div class="scale-item-card" data-key="major" onpointerup="onScaleItemTap(this)">
+              <div class="lw-row1">
+                <span class="lw-badge">LEVEL 1</span>
+              </div>
+              <span class="lw-name">메이저 스케일</span>
+            </div>
+
+            <!-- 2. 펜타토닉 스케일 -->
+            <div class="scale-item-card" data-key="pentatonic" onpointerup="onScaleItemTap(this)">
+              <div class="lw-row1">
+                <span class="lw-badge">LEVEL 2</span>
+              </div>
+              <span class="lw-name">펜타토닉 스케일</span>
+            </div>
+
+            <!-- 3. 블루스 스케일 -->
+            <div class="scale-item-card" data-key="blues" onpointerup="onScaleItemTap(this)">
+              <div class="lw-row1">
+                <span class="lw-badge">LEVEL 3</span>
+              </div>
+              <span class="lw-name">블루스 스케일</span>
+            </div>
+
+            <!-- 4. 내추럴 마이너 스케일 -->
+            <div class="scale-item-card" data-key="natural-minor" onpointerup="onScaleItemTap(this)">
+              <div class="lw-row1">
+                <span class="lw-badge">LEVEL 4</span>
+              </div>
+              <span class="lw-name">내추럴 마이너 스케일</span>
+            </div>
+
+            <!-- 5. 하모닉 마이너 스케일 -->
+            <div class="scale-item-card" data-key="harmonic-minor" onpointerup="onScaleItemTap(this)">
+              <div class="lw-row1">
+                <span class="lw-badge">LEVEL 5</span>
+              </div>
+              <span class="lw-name">하모닉 마이너 스케일</span>
+            </div>
+
+            <!-- 6. 믹솔리디안 스케일 -->
+            <div class="scale-item-card" data-key="mixolydian" onpointerup="onScaleItemTap(this)">
+              <div class="lw-row1">
+                <span class="lw-badge">LEVEL 6</span>
+              </div>
+              <span class="lw-name">믹솔리디안 스케일</span>
+            </div>
+
+          </div><!-- /scale-item-list -->
+        </div><!-- /scale-chapter -->
+
+      </div><!-- /scale-scroll -->
+    </div><!-- /main-content -->
+
+  </div><!-- /app-shell -->
+
+  <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.js"></script>
+  <script src="https://unpkg.com/@phosphor-icons/web"></script>
+  <script src="analytics-sdk.js"></script>
+  <script src="shared.js"></script>
+  <script src="scale-training.js"></script>
+</body>
+</html>
