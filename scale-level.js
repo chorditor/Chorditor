@@ -358,6 +358,8 @@ function renderTestNeck(startFret) {
 
   // ?? ?꾨옯 ??(媛???寃쎄퀎) ??
   for (let col = 1; col < FRETS_VISIBLE; col++) {
+    const absFret = startFret + col;
+    if (showNut ? absFret <= 1 : absFret <= 0) continue;
     const leftPct = col / FRETS_VISIBLE * 100;
     const el = document.createElement('div');
     el.className = 'fb-fret-line';
@@ -626,7 +628,7 @@ function initTestTap() {
   });
 
   neckEl.addEventListener('pointerup', e => {
-    // ?뚰듃 dot??stopPropagation?섎?濡??ш린???꾨떖 ?????????쒕━?꾪듃 泥댄겕留?    const dx = Math.abs(e.clientX - _tapStartX);
+    const dx = Math.abs(e.clientX - _tapStartX);
     const dy = Math.abs(e.clientY - _tapStartY);
     if (dx > 8 || dy > 8) return;   // ?먭????붾뱾由?臾댁떆
     if (_testSubmitted) return;      // ?쒖텧 ???낅젰 遺덇?
@@ -767,7 +769,7 @@ renderFullNeck();
   initAccidentalToggle();
   initKeySelector();
 
-  // ?뚯뒪???꾨옯蹂대뱶 ??  initTestTap();
+  initTestTap();
 
   // ?뚯뒪???쒖옉 踰꾪듉
   document.getElementById('start-test-btn')?.addEventListener('pointerup', () => {
