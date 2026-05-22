@@ -492,6 +492,10 @@ function checkAnswer() {
     } else {
       el.classList.add('fb-note--wrong');
     }
+    const ripple = document.createElement('span');
+    ripple.className = 'fb-note-ripple';
+    el.appendChild(ripple);
+    ripple.addEventListener('animationend', () => ripple.remove());
     el.style.pointerEvents = 'auto';
     el.style.cursor = 'pointer';
     el.addEventListener('pointerup', () => { if (pAbsF >= 0) playScaleNote(ps, pAbsF); });
@@ -509,6 +513,10 @@ function checkAnswer() {
     el.className = 'fb-note fb-note--missed';
     el.style.cssText = `left:${leftPct}%; top:${topPct}%; pointer-events:auto; cursor:pointer;`;
     el.addEventListener('pointerup', () => { if (absF >= 0) playScaleNote(s, absF); });
+    const missedRipple = document.createElement('span');
+    missedRipple.className = 'fb-note-ripple';
+    el.appendChild(missedRipple);
+    missedRipple.addEventListener('animationend', () => missedRipple.remove());
     neckEl?.appendChild(el);
   });
 
