@@ -354,6 +354,12 @@ async function tryAutoSignIn() {
 
 // ── 앱 초기화 ─────────────────────────────────────────────────
 document.addEventListener('DOMContentLoaded', async () => {
+  // ── DEV 빌드: 온보딩/로그인 건너뛰고 바로 홈으로 ────────────
+  if (typeof APP_VERSION !== 'undefined' && APP_VERSION.includes('_dev')) {
+    window.location.replace('home.html');
+    return;
+  }
+
   // 로딩 스피너 즉시 표시 (checkForceUpdate/initBilling 대기 중 빈 화면 방지)
   document.getElementById('onboarding-overlay')?.classList.remove('hidden');
 

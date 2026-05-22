@@ -157,15 +157,16 @@ async function _saveOnboardingData() {
     const token  = session?.access_token;
     const userId = session?.user?.id;
     if (!token || !userId) return;
-    await fetch(`${SUPABASE_URL}/rest/v1/subscriptions?user_id=eq.${userId}`, {
-      method: 'PATCH',
+    await fetch(`${SUPABASE_URL}/rest/v1/subscriptions`, {
+      method: 'POST',
       headers: {
         'Content-Type': 'application/json',
         'apikey': SUPABASE_ANON,
         'Authorization': `Bearer ${token}`,
-        'Prefer': 'return=minimal',
+        'Prefer': 'resolution=merge-duplicates,return=minimal',
       },
       body: JSON.stringify({
+        user_id:                  userId,
         persona:                  _obData.persona,
         guitar_experience:        _obData.guitar_experience,
         gender:                   _obData.gender,
@@ -207,12 +208,6 @@ function onAuthSignedIn() {
 
 // ── 시작하기 버튼 ────────────────────────────────────────────
 function handleStart() {
-  _startOnboardingSteps();
-}
-
-// ── DEV 온보딩 진입 ──────────────────────────────────────────
-function devOnboardingEnter() {
-  document.getElementById('dev-onboarding-overlay')?.classList.add('hidden');
   _startOnboardingSteps();
 }
 
@@ -359,16 +354,17 @@ async function tryAutoSignIn() {
 
 // ── 앱 초기화 ─────────────────────────────────────────────────
 document.addEventListener('DOMContentLoaded', async () => {
+  // ── DEV 빌드: 온보딩/로그인 건너뛰고 바로 홈으로 ────────────
+  if (typeof APP_VERSION !== 'undefined' && APP_VERSION.includes('_dev')) {
+    window.location.replace('home.html');
+    return;
+  }
+
+  // 로딩 스피너 즉시 표시 (checkForceUpdate/initBilling 대기 중 빈 화면 방지)
+  document.getElementById('onboarding-overlay')?.classList.remove('hidden');
+
   await checkForceUpdate();
   await initBilling();
 
-  if (APP_VERSION.includes('_dev')) {
-    // DEV: 실제 온보딩 숨기고 dev 온보딩 표시
-    document.getElementById('onboarding-overlay')?.classList.add('hidden');
-    document.getElementById('dev-onboarding-overlay')?.classList.remove('hidden');
-    _authResolve();
-  } else {
-    document.getElementById('onboarding-overlay')?.classList.remove('hidden');
-    initSupabase().then(() => tryAutoSignIn());
-  }
+  initSupabase().then(() => tryAutoSignIn());
 });
