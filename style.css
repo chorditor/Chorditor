@@ -6866,10 +6866,6 @@ canvas {
   100% { transform: scale(2.2); opacity: 0; }
 }
 
-.fb-note--correct .fb-note-ripple,
-.fb-note--wrong .fb-note-ripple {
-  background: rgba(255, 255, 255, 0.55);
-}
 
 /* ── 고스트 dot (다른 포지션) ── */
 .fb-note--ghost {
