@@ -37,6 +37,8 @@ let _testHint      = null;        // ?뚰듃 ?꾩튂 { s, col } ???ш린??dot �
 let _placedNotes   = new Set();   // ?뚮젅?댁뼱媛 李띿? dot: "s,col" 臾몄옄??Set
 let _testSubmitted = false;       // ?쒖텧 ??異붽? ?낅젰 李⑤떒
 
+let _shuffleBag = null;  // ShuffleBag 인스턴스 — lazy 초기화
+
 // ?? Audio Engine (Karplus-Strong) ????????????????????????????
 const _AudioCtx   = window.AudioContext || window.webkitAudioContext;
 let   _audioCtx   = null;
@@ -260,6 +262,7 @@ function createNoteEl(absF, s, degree, ghost = false) {
       el.appendChild(ripple);
       ripple.addEventListener('animationend', () => ripple.remove());
       playScaleNote(s, absF);
+      _trackBlockPlayed();
     });
 
     el.addEventListener('pointerleave', () => {
@@ -461,6 +464,7 @@ function checkAnswer() {
   if (!_testItem || _testSubmitted) return;
   _testSubmitted = true;
 
+
   const parsed = ScaleData.parseGrid(_testItem.block.grid);
   const { startFret } = _testItem;
 
@@ -511,10 +515,44 @@ function checkAnswer() {
   // 寃곌낵 ?쒖떆
   const scoreEl  = document.getElementById('test-result-score');
   const detailEl = document.getElementById('test-result-detail');
-  if (scoreEl)  scoreEl.textContent  = `${nCorrect} / ${correctSet.size}`;
-  if (detailEl) detailEl.textContent = `정답 ${nCorrect}개`;
+  const nPlacedWrong = _placedNotes.size - nCorrect;   // 잘못 찍은 수
+  const nMissed      = correctSet.size - nCorrect;      // 안 찍은 정답 수
+  const nWrong       = nPlacedWrong + nMissed;          // 총 오답 수
+  const _pct = correctSet.size > 0
+    ? (nWrong === 0 ? 1 : nCorrect / (correctSet.size + nPlacedWrong))
+    : 0;
+  const _PERFECT_MSGS = ['완벽해요!', '정확해요!', '맞았어요! 잘하고 있어요.'];
+  const _scoreMsg = _pct === 1
+    ? _PERFECT_MSGS[Math.floor(Math.random() * _PERFECT_MSGS.length)]
+    : _pct >= 0.7
+    ? '거의 다 왔어요!'
+    : _pct >= 0.4
+    ? '아쉐워요...! 다시 도전해보세요!'
+    : '조금 더 연습해보아요!';
+
+  if (scoreEl)  scoreEl.textContent  = `오답 ${nWrong}개`;
+  if (detailEl) detailEl.textContent = '';
+
+  analytics.track('scale_test_result', {
+    scale_key:  _scaleKey,
+    root_name:  (_useFlat ? KEY_NAMES_FLAT : KEY_NAMES)[_rootNote],
+    form:       FORM_NAMES[_testItem.bi] ?? (_testItem.bi + 1 + '번폼'),
+    bi:         _testItem.bi,
+    correct:    nCorrect,
+    total:      correctSet.size,
+    score_pct:  correctSet.size > 0 ? Math.round(nCorrect / correctSet.size * 100) : 0,
+  });
 
   document.getElementById('test-result-row')?.classList.add('is-visible');
+
+  // 문제 텍스트 재소 사용 — 정답 문구로 교체
+  const qEl2 = document.getElementById('test-question-text');
+  if (qEl2) {
+    qEl2.classList.remove('test-question--in');
+    void qEl2.offsetWidth;
+    qEl2.textContent = _scoreMsg;
+    qEl2.classList.add('test-question--in');
+  }
 
   // 踰꾪듉 ???ㅼ떆 ?湲?+ ?뚯븘媛湲??쒖떆
   const btn = document.getElementById('test-submit-btn');
@@ -532,7 +570,12 @@ function startTest() {
   _testSubmitted = false;
 
   // ?쒕뜡 釉붾윮 ?좏깮
-  _testItem = seq[Math.floor(Math.random() * seq.length)];
+  // 셸플백: 키/스케일 변경 시 새로 생성, 동일 키는 이어서 진행
+  const bagKey = `scale-test:${_scaleKey}:${_rootNote}`;
+  if (!_shuffleBag || _shuffleBag._storageKey !== `shuffle-bag:${bagKey}`) {
+    _shuffleBag = new ShuffleBag(bagKey, seq);
+  }
+  _testItem = _shuffleBag.next();
 
   const names = _useFlat ? KEY_NAMES_FLAT : KEY_NAMES;
 
@@ -540,7 +583,14 @@ function startTest() {
   renderTestNeck(_testItem.startFret);
   renderTestNotes();
 
-  // 寃곌낵 珥덇린??  document.getElementById('test-result-row')?.classList.remove('is-visible');
+  const resultRow = document.getElementById('test-result-row');
+  if (resultRow) {
+    resultRow.classList.remove('is-visible');
+    const scoreEl  = resultRow.querySelector('#test-result-score');
+    const detailEl = resultRow.querySelector('#test-result-detail');
+    if (scoreEl)  scoreEl.textContent  = '';
+    if (detailEl) detailEl.textContent = '';
+  }
   const btn = document.getElementById('test-submit-btn');
   if (btn) btn.textContent = '제출하기';
   document.getElementById('test-back-btn')?.classList.remove('is-visible');
@@ -558,9 +608,15 @@ function startTest() {
   const overlay = document.getElementById('scale-test-overlay');
   if (overlay) overlay.classList.add('is-open');
 
+  // 제출 버튼 비활성화 — 질문 애니메이션 중 입력 ̨차단
+  const submitBtn = document.getElementById('test-submit-btn');
+  if (submitBtn) submitBtn.disabled = true;
   setTimeout(() => {
     qEl?.classList.add('test-question--in');
   }, 800);
+  setTimeout(() => {
+    if (submitBtn) submitBtn.disabled = false;
+  }, 2000);  // 800ms 딜레이 + 1200ms 애니메이션
 }
 
 // ?? ?뚮젅?댁뼱 dot 1媛?異붽? ????????????????????????????????????
@@ -622,7 +678,7 @@ function initTestTap() {
 
   // pointerdown: ?쒖옉 醫뚰몴 湲곗뼲
   let _tapStartX = 0, _tapStartY = 0;
-  neckEl.addEventListener('pointerdown', e => {
+  document.addEventListener('pointerdown', e => {
     _tapStartX = e.clientX;
     _tapStartY = e.clientY;
   });
@@ -694,6 +750,7 @@ function initArrows() {
     renderNotes();
     updateFormLabel();
     updateBlockIndicator();
+    _trackBlockViewed();
   });
 
   document.getElementById('fb-arrow-next')?.addEventListener('pointerup', () => {
@@ -703,6 +760,7 @@ function initArrows() {
     renderNotes();
     updateFormLabel();
     updateBlockIndicator();
+    _trackBlockViewed();
   });
 }
 
@@ -715,6 +773,44 @@ function updateKeyLabels() {
 }
 
 // ?? ???뚮옯 ?좉? ?????????????????????????????????????????????
+// ── Analytics 헬퍼 ──────────────────────────────────────────────
+// scale_block_viewed: 디바운스 1.5초
+let _blockViewTimer = null;
+function _trackBlockViewed() {
+  clearTimeout(_blockViewTimer);
+  _blockViewTimer = setTimeout(() => {
+    const seq = buildNavSequence();
+    if (seq.length === 0) return;
+    const { bi, startFret } = seq[_navIdx];
+    const names = _useFlat ? KEY_NAMES_FLAT : KEY_NAMES;
+    analytics.track('scale_block_viewed', {
+      scale_key:  _scaleKey,
+      root_name:  names[_rootNote],
+      form:       FORM_NAMES[bi] ?? (bi + 1 + '번폼'),
+      bi,
+      start_fret: startFret,
+    });
+  }, 1500);
+}
+
+// scale_block_played: 쓰로틀 5초
+let _lastPlayedAt = 0;
+function _trackBlockPlayed() {
+  const now = Date.now();
+  if (now - _lastPlayedAt < 5000) return;
+  _lastPlayedAt = now;
+  const seq = buildNavSequence();
+  if (seq.length === 0) return;
+  const { bi } = seq[_navIdx];
+  const names = _useFlat ? KEY_NAMES_FLAT : KEY_NAMES;
+  analytics.track('scale_block_played', {
+    scale_key: _scaleKey,
+    root_name: names[_rootNote],
+    form:      FORM_NAMES[bi] ?? (bi + 1 + '번폼'),
+    bi,
+  });
+}
+
 function initAccidentalToggle() {
   const toggle    = document.getElementById('accidental-toggle');
   const sharpSpan = document.getElementById('toggle-sharp');
@@ -726,6 +822,10 @@ function initAccidentalToggle() {
     sharpSpan.classList.toggle('toggle-opt--active', !_useFlat);
     flatSpan.classList.toggle('toggle-opt--active',   _useFlat);
     updateKeyLabels();
+    analytics.track('scale_accidental_toggled', {
+      scale_key: _scaleKey,
+      to: _useFlat ? 'flat' : 'sharp',
+    });
   });
 }
 
@@ -746,6 +846,11 @@ function initKeySelector() {
       renderNotes();
       updateFormLabel();
       updateBlockIndicator();
+      analytics.track('scale_key_selected', {
+        scale_key: _scaleKey,
+        root_note: semitone,
+        root_name: (_useFlat ? KEY_NAMES_FLAT : KEY_NAMES)[semitone],
+      });
     });
     el.appendChild(btn);
   });
@@ -773,14 +878,33 @@ renderFullNeck();
 
   // ?뚯뒪???쒖옉 踰꾪듉
   document.getElementById('start-test-btn')?.addEventListener('pointerup', () => {
+    analytics.track('scale_test_started', {
+      scale_key: _scaleKey,
+      root_name: (_useFlat ? KEY_NAMES_FLAT : KEY_NAMES)[_rootNote],
+    });
+    analytics.track('scale_test_started', {
+      scale_key: _scaleKey,
+      root_name: (_useFlat ? KEY_NAMES_FLAT : KEY_NAMES)[_rootNote],
+    });
     startTest();
   });
 
   // ?쒖텧?섍린 / ?ㅼ떆 ?湲?踰꾪듉
-  document.getElementById('test-submit-btn')?.addEventListener('pointerup', () => {
+  document.getElementById('test-submit-btn')?.addEventListener('pointerup', (e) => {
+    if (e.currentTarget.disabled) return;
     if (_testSubmitted) {
+      analytics.track('scale_test_retry', {
+        scale_key: _scaleKey,
+        root_name: (_useFlat ? KEY_NAMES_FLAT : KEY_NAMES)[_rootNote],
+      });
       startTest();
     } else {
+      analytics.track('scale_test_submitted', {
+        scale_key: _scaleKey,
+        root_name: (_useFlat ? KEY_NAMES_FLAT : KEY_NAMES)[_rootNote],
+        form:      FORM_NAMES[_testItem.bi] ?? (_testItem.bi + 1 + '번폼'),
+        bi:        _testItem?.bi,
+      });
       checkAnswer();
     }
   });
@@ -790,7 +914,13 @@ renderFullNeck();
     document.getElementById('scale-test-overlay')?.classList.remove('is-open');
 
   document.getElementById('test-close-btn')?.addEventListener('pointerup', closeTestOverlay);
-  document.getElementById('test-back-btn')?.addEventListener('pointerup', closeTestOverlay);
+  document.getElementById('test-back-btn')?.addEventListener('pointerup', () => {
+    analytics.track('scale_test_closed', {
+      scale_key: _scaleKey,
+      root_name: (_useFlat ? KEY_NAMES_FLAT : KEY_NAMES)[_rootNote],
+    });
+    closeTestOverlay();
+  });
 
   const cover = document.getElementById('page-cover');
   if (cover) {

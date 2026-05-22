@@ -15,8 +15,9 @@ function closeScaleTraining() {
 
 // ── 스케일 아이템 탭 ─────────────────────────────────────────
 function onScaleItemTap(el) {
-  const key = el.dataset.key;
-  analytics.track('scale_item_tapped', { key });
+  const key   = el.dataset.key;
+  const level = parseInt(el.dataset.level, 10);
+  analytics.track('scale_item_tapped', { scale_key: key, level });
   const shell = document.querySelector('.app-shell');
   if (shell) {
     shell.classList.add('project-exit');

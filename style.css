@@ -6973,6 +6973,8 @@ canvas {
   flex-shrink: 0;
   width: 36px;
   height: 36px;
+  align-self: flex-start;
+  margin-top: calc((160px - 36px) / 2); /* 넥 높이 160px 기준 중앙 */
   display: flex;
   align-items: center;
   justify-content: center;
@@ -7085,11 +7087,12 @@ canvas {
 /* ── 테스트 시작 버튼 ── */
 .start-test-btn {
   display: inline-block;
+  align-self: center;
   margin-top: 16px;
-  padding: 14px 20px;
+  padding: 14px 32px;
   border-radius: 14px;
   border: none;
-  background: #1a1a1a;
+  background: #4f7cff;
   color: #ffffff;
   font-size: 15px;
   font-weight: 700;
@@ -7194,6 +7197,7 @@ canvas {
   align-items: center;
   gap: 4px;
   margin-top: 24px;
+  min-height: 65px;   /* score(~38px) + gap(4px) + detail(~16px) — 항상 공간 예약 */
   visibility: hidden;
 }
 
@@ -7224,10 +7228,12 @@ canvas {
 
 /* ── 테스트 제출/다시풀기 버튼 ── */
 .test-submit-btn {
-  padding: 14px 32px;
+  flex: 1;
+  padding: 13px 20px;
+  white-space: nowrap;
   border-radius: 14px;
   border: none;
-  background: #1a1a1a;
+  background: #4f7cff;
   color: #ffffff;
   font-size: 15px;
   font-weight: 700;
@@ -7236,6 +7242,7 @@ canvas {
   -webkit-tap-highlight-color: transparent;
   transition: opacity 0.15s;
 }
+
 
 .test-submit-btn:active {
   opacity: 0.7;
@@ -7248,7 +7255,9 @@ canvas {
 
 .test-back-btn.is-visible {
   display: block;
-  padding: 14px 24px;
+  flex: 1;
+  padding: 13px 20px;
+  white-space: nowrap;
   border-radius: 14px;
   border: 1.5px solid #e0e0e0;
   background: #ffffff;
