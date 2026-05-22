@@ -565,7 +565,8 @@ function startTest() {
   const seq = buildNavSequence();
   if (seq.length === 0) return;
 
-  // ?곹깭 珥덇린??  clearTestDots();
+  // 상태 초기화
+  clearTestDots();
   _testHint      = null;
   _testSubmitted = false;
 
