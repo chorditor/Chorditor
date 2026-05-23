@@ -3,8 +3,8 @@
 // ?? ?곸닔 ????????????????????????????????????????????????????
 const SCALE_TITLES = {
   'major':          '메이저 스케일',
-  'pentatonic':     '펜타토닉 스케일',
-  'blues':          '블루스 스케일',
+  'pentatonic':     '마이너 펜타토닉 스케일',
+  'blues':          '마이너 블루스 스케일',
   'natural-minor':  '내추럴 마이너 스케일',
   'harmonic-minor': '하모닉 마이너 스케일',
   'mixolydian':     '믹솔리디안 스케일',
@@ -12,8 +12,8 @@ const SCALE_TITLES = {
 
 const SCALE_SHORT_NAMES = {
   'major':          '메이저',
-  'pentatonic':     '펜타토닉',
-  'blues':          '블루스',
+  'pentatonic':     '마이너 펜타토닉',
+  'blues':          '마이너 블루스',
   'natural-minor':  '내추럴 마이너',
   'harmonic-minor': '하모닉 마이너',
   'mixolydian':     '믹솔리디안',
@@ -38,6 +38,7 @@ let _placedNotes   = new Set();   // ?뚮젅?댁뼱媛 李띿? dot: "s,col" �
 let _testSubmitted = false;       // ?쒖텧 ??異붽? ?낅젰 李⑤떒
 
 let _shuffleBag = null;  // ShuffleBag 인스턴스 — lazy 초기화
+let _scaleSessionStart = 0; // 페이지 진입 시각 (훈련 시간 측정)
 
 // ?? Audio Engine (Karplus-Strong) ????????????????????????????
 const _AudioCtx   = window.AudioContext || window.webkitAudioContext;
@@ -112,6 +113,7 @@ function buildNavSequence() {
 
 // ?? ?섏씠吏 ?リ린 ??????????????????????????????????????????????
 function closeScaleLevel() {
+  _recordScaleSessionTime();
   const shell = document.querySelector('.app-shell');
   if (shell) {
     shell.classList.add('project-exit');
@@ -235,13 +237,17 @@ function createNoteEl(absF, s, degree, ghost = false) {
   const leftPct = (absF + 0.5) / TOTAL_FRETS * 100;
   const topPct  = (s + 0.5) / STRINGS * 100;
   const isRoot  = degree === 1;
+  const isBlue5 = degree === -5;
+  const isNat7  = degree === 7 && _scaleKey === 'harmonic-minor';
   const isOpen  = absF === 0;
 
   const el = document.createElement('div');
   el.className = 'fb-note'
-    + (isRoot  ? ' fb-note--root'  : '')
-    + (isOpen  ? ' fb-note--open'  : '')
-    + (ghost   ? ' fb-note--ghost' : '');
+    + (isRoot  ? ' fb-note--root'   : '')
+    + (isBlue5 ? ' fb-note--blue5'  : '')
+    + (isNat7  ? ' fb-note--nat7'   : '')
+    + (isOpen  ? ' fb-note--open'   : '')
+    + (ghost   ? ' fb-note--ghost'  : '');
   el.style.cssText = `left:${leftPct}%; top:${topPct}%;`;
 
   if (!ghost) {
@@ -463,6 +469,7 @@ function renderTestNotes() {
 function checkAnswer() {
   if (!_testItem || _testSubmitted) return;
   _testSubmitted = true;
+  _recordScaleSubmit();
 
 
   const parsed = ScaleData.parseGrid(_testItem.block.grid);
@@ -539,7 +546,7 @@ function checkAnswer() {
     : _pct >= 0.7
     ? '거의 다 왔어요!'
     : _pct >= 0.4
-    ? '아쉐워요...! 다시 도전해보세요!'
+    ? '아쉬워요...! 다시 도전해보세요!'
     : '조금 더 연습해보아요!';
 
   if (scoreEl)  scoreEl.textContent  = `오답 ${nWrong}개`;
@@ -548,7 +555,7 @@ function checkAnswer() {
   analytics.track('scale_test_result', {
     scale_key:  _scaleKey,
     root_name:  (_useFlat ? KEY_NAMES_FLAT : KEY_NAMES)[_rootNote],
-    form:       FORM_NAMES[_testItem.bi] ?? (_testItem.bi + 1 + '번폼'),
+    form:       _testItem.block.label || FORM_NAMES[_testItem.bi] || (_testItem.bi + 1 + '번폼'),
     bi:         _testItem.bi,
     correct:    nCorrect,
     total:      correctSet.size,
@@ -611,7 +618,8 @@ function startTest() {
   // 吏덈Ц ?띿뒪??珥덇린??(?좊땲硫붿씠???ъ떎??以鍮?
   const qEl = document.getElementById('test-question-text');
   if (qEl) {
-    const formName = FORM_NAMES[_testItem.bi] ?? (_testItem.bi + 1 + '번폼');
+    const _lbl = _testItem.block.label || FORM_NAMES[_testItem.bi] || (_testItem.bi + 1 + '번폼');
+    const formName = _lbl.split(' ').pop();
     qEl.innerHTML = `${names[_rootNote]} ${SCALE_TITLES[_scaleKey]}의<br>${formName}을 입력해주세요!`;
     qEl.classList.remove('test-question--in');
     void qEl.offsetWidth; // reflow ???좊땲硫붿씠??由ъ뀑
@@ -729,9 +737,9 @@ function updateFormLabel() {
   if (!el) return;
   const seq = buildNavSequence();
   if (seq.length === 0) { el.textContent = ''; return; }
-  const { bi } = seq[_navIdx];
+  const { block, bi } = seq[_navIdx];
   const title = SCALE_TITLES[_scaleKey] || _scaleKey;
-  el.textContent = `${title} ${FORM_NAMES[bi] ?? (bi + 1 + '踰덊뤌')}`;
+  el.textContent = block.label || `${title} ${FORM_NAMES[bi] ?? (bi + 1 + '번폼')}`;
 }
 
 // ?? 釉붾윮 ?몃뵒耳?댄꽣 ?낅뜲?댄듃 ?????????????????????????????????
@@ -786,6 +794,50 @@ function updateKeyLabels() {
 }
 
 // ?? ???뚮옯 ?좉? ?????????????????????????????????????????????
+// ── 훈련 통계 ────────────────────────────────────────────────────
+const TRAINING_STATS_KEY = 'training_stats';
+
+/** 제출 완료 1회: today_sessions / total_completed / streak 갱신 */
+function _recordScaleSubmit() {
+  const today     = new Date().toISOString().slice(0, 10);
+  const yesterday = new Date(Date.now() - 86400000).toISOString().slice(0, 10);
+  const stats     = JSON.parse(localStorage.getItem(TRAINING_STATS_KEY) || '{}');
+
+  if (stats.today_date !== today) {
+    stats.today_sessions = 0;
+    stats.today_date     = today;
+  }
+
+  stats.today_sessions  = (stats.today_sessions  || 0) + 1;
+  stats.total_completed = (stats.total_completed || 0) + 1;
+
+  // 하루 1회 완료 시 스트릭 갱신 (quiz와 공유 카운터)
+  if (stats.today_sessions === 1) {
+    if (stats.streak_last_counted_date === yesterday) {
+      stats.streak = (stats.streak || 0) + 1;
+    } else {
+      stats.streak = 1;
+    }
+    stats.streak_last_counted_date = today;
+  }
+
+  localStorage.setItem(TRAINING_STATS_KEY, JSON.stringify(stats));
+  syncTrainingStatsToDB(); // 즉시 DB 반영 (fire-and-forget)
+}
+
+/** 페이지 이탈 시 훈련 시간 누적 (문제 미완료여도 기록) */
+function _recordScaleSessionTime() {
+  if (!_scaleSessionStart) return;
+  const durationMin = (Date.now() - _scaleSessionStart) / 60000;
+  if (durationMin < 0.1) return; // 6초 미만 무시
+  const stats = JSON.parse(localStorage.getItem(TRAINING_STATS_KEY) || '{}');
+  stats.training_time_min = Math.round(
+    ((stats.training_time_min || 0) + durationMin) * 10
+  ) / 10;
+  localStorage.setItem(TRAINING_STATS_KEY, JSON.stringify(stats));
+  _scaleSessionStart = 0; // 중복 기록 방지
+}
+
 // ── Analytics 헬퍼 ──────────────────────────────────────────────
 // scale_block_viewed: 디바운스 1.5초
 let _blockViewTimer = null;
@@ -794,12 +846,12 @@ function _trackBlockViewed() {
   _blockViewTimer = setTimeout(() => {
     const seq = buildNavSequence();
     if (seq.length === 0) return;
-    const { bi, startFret } = seq[_navIdx];
+    const { block, bi, startFret } = seq[_navIdx];
     const names = _useFlat ? KEY_NAMES_FLAT : KEY_NAMES;
     analytics.track('scale_block_viewed', {
       scale_key:  _scaleKey,
       root_name:  names[_rootNote],
-      form:       FORM_NAMES[bi] ?? (bi + 1 + '번폼'),
+      form:       block.label || FORM_NAMES[bi] || (bi + 1 + '번폼'),
       bi,
       start_fret: startFret,
     });
@@ -814,12 +866,12 @@ function _trackBlockPlayed() {
   _lastPlayedAt = now;
   const seq = buildNavSequence();
   if (seq.length === 0) return;
-  const { bi } = seq[_navIdx];
+  const { block, bi } = seq[_navIdx];
   const names = _useFlat ? KEY_NAMES_FLAT : KEY_NAMES;
   analytics.track('scale_block_played', {
     scale_key: _scaleKey,
     root_name: names[_rootNote],
-    form:      FORM_NAMES[bi] ?? (bi + 1 + '번폼'),
+    form:      block.label || FORM_NAMES[bi] || (bi + 1 + '번폼'),
     bi,
   });
 }
@@ -915,7 +967,7 @@ renderFullNeck();
       analytics.track('scale_test_submitted', {
         scale_key: _scaleKey,
         root_name: (_useFlat ? KEY_NAMES_FLAT : KEY_NAMES)[_rootNote],
-        form:      FORM_NAMES[_testItem.bi] ?? (_testItem.bi + 1 + '번폼'),
+        form:      _testItem.block.label || FORM_NAMES[_testItem.bi] || (_testItem.bi + 1 + '번폼'),
         bi:        _testItem?.bi,
       });
       checkAnswer();
@@ -944,4 +996,10 @@ renderFullNeck();
   }
 
   analytics.track('scale_level_viewed', { key: _scaleKey });
+
+  // 훈련 시간 측정 시작
+  _scaleSessionStart = Date.now();
+
+  // 브라우저 탭 닫기 / 뒤로가기 등 예외 경로 처리
+  window.addEventListener('pagehide', _recordScaleSessionTime, { once: true });
 });

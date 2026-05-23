@@ -6601,6 +6601,7 @@ canvas {
 .scale-chapter-header {
   display: flex;
   flex-direction: column;
+  align-items: flex-start;
   gap: 3px;
 }
 
@@ -6655,6 +6656,20 @@ canvas {
   cursor: default;
 }
 .scale-item-card--soon:active { transform: none !important; }
+
+.lw-soon-badge {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  color: #94a3b8;
+  margin-left: 6px;
+}
+
+.scale-chapter-subtitle {
+  font-size: 13px;
+  font-weight: 600;
+  color: #64748b;
+}
 
 .scale-item-num {
   width: 34px;
@@ -6832,6 +6847,22 @@ canvas {
 
 .fb-note--root {
   background: #1a1a1a;
+}
+
+.fb-note--blue5 {
+  background: #2e4a6e;
+}
+
+.fb-note--ghost.fb-note--blue5 {
+  background: #a0b4cc;
+}
+
+.fb-note--nat7 {
+  background: #2e4a6e;
+}
+
+.fb-note--ghost.fb-note--nat7 {
+  background: #a0b4cc;
 }
 
 .fb-note--root::after {
@@ -7305,4 +7336,50 @@ canvas {
   width: 100%;
   padding: 0 36px;
   box-sizing: border-box;
+}
+
+/* ── 네트워크 오프라인 오버레이 ── */
+#network-offline-overlay {
+  position: fixed;
+  inset: 0;
+  background: #fff;
+  z-index: 99999;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.network-offline-box {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  padding: 40px 32px;
+  text-align: center;
+}
+.network-offline-icon {
+  font-size: 48px;
+  margin-bottom: 8px;
+  opacity: 0.35;
+}
+.network-offline-title {
+  font-size: 18px;
+  font-weight: 700;
+  color: #1a1a1a;
+  margin: 0;
+}
+.network-offline-desc {
+  font-size: 14px;
+  color: #888;
+  margin: 0;
+}
+.network-offline-btn {
+  margin-top: 20px;
+  background: none;
+  border: none;
+  color: #4f7cff;
+  font-size: 16px;
+  font-weight: 600;
+  font-family: inherit;
+  cursor: pointer;
+  padding: 8px 16px;
 }

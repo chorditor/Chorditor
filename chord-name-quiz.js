@@ -1800,7 +1800,7 @@ function updateTrainingOverviewStats(durationMin) {
   ) / 10;
 
   // 스트릭 갱신 — 오늘 정확히 3번째 달성 시점에만 1회 적용
-  if (stats.today_sessions === 3) {
+  if (stats.today_sessions === 1) {
     const yesterday = new Date(Date.now() - 86400000).toISOString().slice(0, 10);
     if (stats.streak_last_counted_date === yesterday) {
       stats.streak = (stats.streak || 0) + 1;
@@ -1812,6 +1812,7 @@ function updateTrainingOverviewStats(durationMin) {
   }
 
   localStorage.setItem(TRAINING_STATS_KEY, JSON.stringify(stats));
+  syncTrainingStatsToDB(); // 즉시 DB 반영 (fire-and-forget)
 }
 
 // ── 세션 로컬 캐시 & DB 플러시 ───────────────────────────────

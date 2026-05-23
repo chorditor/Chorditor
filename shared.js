@@ -58,6 +58,31 @@ const analytics = (typeof AnalyticsSDK !== 'undefined')
   window.isScrolling = () => _movelock || _velolock;
 })();
 
+// ── 네트워크 오프라인 오버레이 ────────────────────────────────
+(function() {
+  function _showOffline() {
+    if (document.getElementById('network-offline-overlay')) return;
+    const el = document.createElement('div');
+    el.id = 'network-offline-overlay';
+    el.innerHTML = `
+      <div class="network-offline-box">
+        <span class="network-offline-icon">✈︎</span>
+        <p class="network-offline-title">인터넷 연결 없음</p>
+        <p class="network-offline-desc">네트워크 연결을 확인해주세요</p>
+        <button class="network-offline-btn" onclick="location.reload()">새로고침</button>
+      </div>`;
+    document.body.appendChild(el);
+  }
+  function _hideOffline() {
+    document.getElementById('network-offline-overlay')?.remove();
+  }
+  window.addEventListener('offline', _showOffline);
+  window.addEventListener('online',  _hideOffline);
+  if (!navigator.onLine) {
+    document.addEventListener('DOMContentLoaded', _showOffline, { once: true });
+  }
+})();
+
 // ── localStorage 유틸 ─────────────────────────────────────────
 function safeSave(key, value) {
   try {
@@ -658,4 +683,105 @@ async function initAppVersion() {
       el.textContent = 'v1.1.0';
     }
   } catch(e) {}
+}
+
+// ── 훈련 통계 DB → localStorage 복원 ────────────────────────
+// 앱 재설치 후 localStorage가 비어있어도 DB 데이터로 복원.
+// streak/total/time은 max(local, server) — 되감기 방지.
+async function restoreTrainingStatsFromDB() {
+  let accessToken = null, userId = null;
+  try {
+    const stored = localStorage.getItem(SUPABASE_STORAGE_KEY);
+    if (stored) {
+      const parsed = JSON.parse(stored);
+      accessToken  = parsed?.access_token ?? null;
+      userId       = parsed?.user?.id     ?? null;
+    }
+  } catch (_) {}
+  if (!accessToken || !userId) return;
+
+  try {
+    const resp = await fetch(
+      `${SUPABASE_URL}/rest/v1/user_training_stats?user_id=eq.${userId}&select=stats`,
+      { headers: { 'apikey': SUPABASE_ANON, 'Authorization': `Bearer ${accessToken}` } }
+    );
+    if (!resp.ok) return;
+    const rows = await resp.json();
+    if (!rows.length) return;
+
+    const overview = rows[0]?.stats?.training_overview;
+    if (!overview) return;
+
+    const local = JSON.parse(localStorage.getItem('training_stats') || '{}');
+
+    // 서버 값이 더 크면 덮어씀 (되감기 방지)
+    const merged = { ...local };
+    if ((overview.streak            || 0) > (local.streak            || 0))
+      merged.streak = overview.streak;
+    if ((overview.total_completed   || 0) > (local.total_completed   || 0))
+      merged.total_completed = overview.total_completed;
+    if ((overview.training_time_min || 0) > (local.training_time_min || 0))
+      merged.training_time_min = overview.training_time_min;
+    // streak_last_counted_date: 서버 streak이 더 크면 함께 복원
+    if ((overview.streak || 0) > (local.streak || 0) && overview.synced_date)
+      merged.streak_last_counted_date = overview.synced_date;
+
+    localStorage.setItem('training_stats', JSON.stringify(merged));
+  } catch (_) {}
+}
+
+// ── 훈련 통계 DB 즉시 동기화 (upsert/merge) ─────────────────
+// training_stats localStorage → Supabase user_training_stats.stats.training_overview
+// 로그 추가 없이 덮어쓰기 방식. 비로그인 시 무시.
+async function syncTrainingStatsToDB() {
+  const stats = JSON.parse(localStorage.getItem('training_stats') || 'null');
+  if (!stats) return;
+
+  let accessToken = null, userId = null;
+  try {
+    const stored = localStorage.getItem(SUPABASE_STORAGE_KEY);
+    if (stored) {
+      const parsed = JSON.parse(stored);
+      accessToken  = parsed?.access_token ?? null;
+      userId       = parsed?.user?.id     ?? null;
+    }
+  } catch (_) {}
+  if (!accessToken || !userId) return;
+
+  const today = new Date().toISOString().slice(0, 10);
+  const overview = {
+    streak:            stats.streak            || 0,
+    training_time_min: stats.training_time_min || 0,
+    total_completed:   stats.total_completed   || 0,
+    synced_date:       today,
+  };
+
+  try {
+    // 기존 row 읽기 → training_overview 키만 덮어쓰고 upsert
+    const getResp = await fetch(
+      `${SUPABASE_URL}/rest/v1/user_training_stats?user_id=eq.${userId}&select=stats`,
+      { headers: { 'apikey': SUPABASE_ANON, 'Authorization': `Bearer ${accessToken}` } }
+    );
+    let existingStats = {};
+    if (getResp.ok) {
+      const rows = await getResp.json();
+      if (rows.length > 0) existingStats = rows[0].stats || {};
+    }
+
+    const merged = { ...existingStats, training_overview: overview };
+    await fetch(`${SUPABASE_URL}/rest/v1/user_training_stats`, {
+      method:  'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'apikey':        SUPABASE_ANON,
+        'Authorization': `Bearer ${accessToken}`,
+        'Prefer':        'resolution=merge-duplicates',
+      },
+      body: JSON.stringify({
+        user_id:    userId,
+        stats:      merged,
+        updated_at: new Date().toISOString(),
+      }),
+    });
+  } catch (_) {}
 }

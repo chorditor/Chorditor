@@ -26,6 +26,16 @@ function onTrainingCardTap(key) {
     }
     return;
   }
+  if (key === 'scale') {
+    const shell = document.querySelector('.app-shell');
+    if (shell) {
+      shell.classList.add('project-exit');
+      setTimeout(() => { location.href = 'scale-training.html'; }, 260);
+    } else {
+      location.href = 'scale-training.html';
+    }
+    return;
+  }
   console.log('training:', key);
 }
 
@@ -54,73 +64,7 @@ function loadTrainingStats() {
   if (totalEl)  totalEl.textContent  = stats.total_completed   ?? 0;
 }
 
-// ── 훈련 통계 DB 동기화 (하루 경과 시 플러시) ─────────────────
-async function flushTrainingStatsToDB() {
-  const stats = JSON.parse(localStorage.getItem('training_stats') || 'null');
-  if (!stats) return;
-
-  const today = new Date().toISOString().slice(0, 10);
-  if ((stats._last_synced_date || '') >= today) return; // 오늘 이미 동기화됨
-
-  // auth 정보
-  let accessToken = null, userId = null;
-  try {
-    const stored = localStorage.getItem(SUPABASE_STORAGE_KEY);
-    if (stored) {
-      const parsed = JSON.parse(stored);
-      accessToken  = parsed?.access_token ?? null;
-      userId       = parsed?.user?.id     ?? null;
-    }
-  } catch (_) {}
-  if (!accessToken || !userId) return; // 비로그인이면 다음 기회에
-
-  const overview = {
-    streak:            stats.streak            || 0,
-    training_time_min: stats.training_time_min || 0,
-    total_completed:   stats.total_completed   || 0,
-    synced_date:       today,
-  };
-
-  try {
-    // 기존 stats row 읽기 (JSONB 병합 목적)
-    const getResp = await fetch(
-      `${SUPABASE_URL}/rest/v1/user_training_stats?user_id=eq.${userId}&select=stats`,
-      { headers: { 'apikey': SUPABASE_ANON, 'Authorization': `Bearer ${accessToken}` } }
-    );
-    let existingStats = {};
-    if (getResp.ok) {
-      const rows = await getResp.json();
-      if (rows.length > 0) existingStats = rows[0].stats || {};
-    }
-
-    // training_overview 키만 덮어쓰고 upsert
-    const merged = { ...existingStats, training_overview: overview };
-    const upsertResp = await fetch(`${SUPABASE_URL}/rest/v1/user_training_stats`, {
-      method:  'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'apikey':        SUPABASE_ANON,
-        'Authorization': `Bearer ${accessToken}`,
-        'Prefer':        'resolution=merge-duplicates',
-      },
-      body: JSON.stringify({
-        user_id:    userId,
-        stats:      merged,
-        updated_at: new Date().toISOString(),
-      }),
-    });
-
-    if (upsertResp.ok) {
-      stats._last_synced_date = today;
-      localStorage.setItem('training_stats', JSON.stringify(stats));
-      console.log('[Training] 통계 DB 동기화 완료');
-    } else {
-      console.warn('[Training] 통계 동기화 실패:', upsertResp.status);
-    }
-  } catch (err) {
-    console.warn('[Training] 통계 동기화 오류 (다음 실행 시 재시도):', err.message);
-  }
-}
+// flushTrainingStatsToDB → shared.js의 syncTrainingStatsToDB()로 통합됨
 
 // ── DOMContentLoaded ─────────────────────────────────────────
 document.addEventListener('DOMContentLoaded', () => {
@@ -140,8 +84,11 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   }
 
-  loadTrainingStats();
-  flushTrainingStatsToDB(); // 전일 이전 통계 DB 동기화 (백그라운드)
+  // DB→localStorage 복원 후 UI 갱신 (앱 재설치 시 데이터 복구)
+  restoreTrainingStatsFromDB().then(() => {
+    loadTrainingStats();
+    syncTrainingStatsToDB();
+  });
 
   // 훈련소 진입 이벤트
   const _stats = JSON.parse(localStorage.getItem('training_stats') || 'null');
