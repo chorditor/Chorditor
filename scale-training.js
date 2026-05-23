@@ -17,6 +17,14 @@ function closeScaleTraining() {
 function onScaleItemTap(el) {
   const key   = el.dataset.key;
   const level = parseInt(el.dataset.level, 10);
+
+  // 프리미엄 카드 + 무료 플랜 → 구독 모달
+  if (el.dataset.premium === '1' && getPlan() === 'free') {
+    analytics.track('paywall_viewed', { trigger_source: 'scale_premium', current_plan: 'free', level });
+    openPlanSheet('scale_premium');
+    return;
+  }
+
   analytics.track('scale_item_tapped', { scale_key: key, level });
   const shell = document.querySelector('.app-shell');
   if (shell) {

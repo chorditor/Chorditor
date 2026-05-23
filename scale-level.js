@@ -20,6 +20,11 @@ const SCALE_SHORT_NAMES = {
 };
 
 const FORM_NAMES       = ['A폼', 'G폼', 'E폼', 'D폼', 'C폼'];
+// Ch.2 secondary-iv: 원폼(bi) → 짝궁폼(bi) 매핑 (4도 메이저 전환)
+const PAIR_PARTNER_BI  = { 0: 3, 1: 4, 2: 0, 3: 1, 4: 2 };
+// bi별 짝궁폼의 startFret 오프셋 (짝궁_startFret = cur.startFret + offset)
+// G폼(bi=1)↔C폼만 +1, 나머지는 동일
+const PAIR_STARTFRET_OFFSET = { 1: 1 };
 const KEY_NAMES        = ['C','C#','D','D#','E','F','F#','G','G#','A','A#','B'];
 const KEY_NAMES_FLAT   = ['C','Db','D','Eb','E','F','Gb','G','Ab','A','Bb','B'];
 const STRINGS          = 6;
@@ -98,7 +103,9 @@ async function playScaleNote(stringIdx, absFret) {
 // 紐⑤뱺 block 횞 position???섎굹???좏삎 諛곗뿴濡??쇱묠
 // 諛섑솚: [{ block, bi, startFret }, ...]
 function buildNavSequence() {
-  const blocks = ScaleData.getBlocks(_scaleKey);
+  // Ch.2: secondary-iv는 major 블럭 사용
+  const blockKey = _scaleKey === 'secondary-iv' ? 'major' : _scaleKey;
+  const blocks = ScaleData.getBlocks(blockKey);
   const seq = [];
   blocks.forEach((block, bi) => {
     const startFrets = ScaleData.getStartFrets(block, _rootNote);
@@ -112,6 +119,488 @@ function buildNavSequence() {
 }
 
 // ?? ?섏씠吏 ?リ린 ??????????????????????????????????????????????
+
+// ================================================================
+// Ch.2 C폼 -> E폼 전환 애니메이션
+// ================================================================
+let _transitioning = false;
+let _pairTransitioned = false; // 전환 버튼으로 짝궁 폼으로 이동한 상태
+
+// Ch.2: 현재 _pairTransitioned 상태 기준으로 파트너 블럭을 ghost로 렌더
+// _pairTransitioned=false → 파트너폼(전환 대상) ghost 표시
+// _pairTransitioned=true  → 원래폼(복구 대상) ghost 표시
+function _refreshSecondaryGhost() {
+  const neckEl = document.getElementById('fb-full-neck');
+  if (!neckEl) return;
+  neckEl.querySelectorAll('.fb-note--ghost').forEach(el => el.remove());
+
+  const seq = buildNavSequence();
+  const cur = seq[_navIdx];
+  if (!cur) return;
+
+  const offset     = PAIR_STARTFRET_OFFSET[cur.bi] || 0;
+  // 전환 전: 파트너폼을 실제 startFret(+offset)으로 ghost 표시
+  // 전환 후: 원폼을 실제 startFret(offset 없음)으로 ghost 표시
+  const ghostStartFret = _pairTransitioned ? cur.startFret : cur.startFret + offset;
+  const ghostBi    = _pairTransitioned ? cur.bi : PAIR_PARTNER_BI[cur.bi];
+  const ghostBlock = ScaleData.getBlocks('major')[ghostBi];
+  if (!ghostBlock) return;
+
+  const parsed    = ScaleData.parseGrid(ghostBlock.grid);
+  const firstReal = neckEl.querySelector('.fb-note:not(.fb-note--ghost)');
+  parsed.notes.forEach(note => {
+    const absF = ghostStartFret + note.col;
+    if (absF < 0 || absF >= TOTAL_FRETS) return;
+    neckEl.insertBefore(createNoteEl(absF, note.s, note.degree, true), firstReal || null);
+  });
+}
+
+// 전환 완료 공통 마무리 — 상태 저장 + 버튼 라벨 + 폼 라벨 + ghost 갱신 + 뷰포트 + 잠금 해제
+function _finishTransition(forward) {
+  _pairTransitioned = forward;
+  updateFormLabel();
+  _refreshSecondaryGhost();
+  _transitioning = false;
+}
+
+function _applyDegMap(neckEl, degMap) {
+  neckEl.querySelectorAll('.fb-note:not(.fb-note--ghost)').forEach(el => {
+    const nd = degMap[el.dataset.s + ',' + el.dataset.degree];
+    if (nd !== undefined) {
+      el.dataset.degree = nd;
+      el.classList.toggle('fb-note--root', nd === 1);
+      if (nd === 1) {
+        el.classList.add('fb-note--root-pop');
+        setTimeout(() => el.classList.remove('fb-note--root-pop'), 400);
+      }
+    }
+  });
+}
+
+function _spawnNote(neckEl, absF, s, degree) {
+  const newEl = createNoteEl(absF, s, degree, false);
+  newEl.style.opacity   = '0';
+  newEl.style.transform = 'translate(-50%, -50%) scale(0)';
+  newEl.style.transition = 'opacity 200ms ease, transform 360ms cubic-bezier(0.34, 1.56, 0.64, 1)';
+  neckEl.appendChild(newEl);
+  void newEl.offsetHeight;
+  newEl.style.opacity   = '1';
+  newEl.style.transform = 'translate(-50%, -50%) scale(1)';
+}
+
+function transitionPair() {
+  if (_transitioning) return;
+  const neckEl = document.getElementById('fb-full-neck');
+  if (!neckEl) return;
+
+  const seq = buildNavSequence();
+  const cur = seq[_navIdx];
+  if (!cur) return;
+  const bi = cur.bi;
+
+  const activeEls = [...neckEl.querySelectorAll('.fb-note:not(.fb-note--ghost)')];
+  if (!activeEls.length) return;
+
+  const DURATION = 350;
+  _transitioning = true;
+
+  activeEls.forEach(el => {
+    el.style.transition =
+      'left ' + DURATION + 'ms cubic-bezier(0.4,0,0.2,1),' +
+      'opacity ' + Math.round(DURATION * 0.6) + 'ms ease,' +
+      'transform ' + DURATION + 'ms cubic-bezier(0.4,0,0.2,1)';
+  });
+  void neckEl.offsetHeight;
+
+  // ── C폼 (bi=4) ↔ E폼 ──────────────────────────────────────────
+  if (bi === 4) {
+    if (!_pairTransitioned) {
+      // C폼 → E폼
+      activeEls.forEach(el => {
+        if (parseInt(el.dataset.s) === 1 && parseInt(el.dataset.degree) === 7) {
+          el.style.opacity   = '0';
+          el.style.transform = 'translate(-50%, -50%) scale(0)';
+        }
+      });
+      activeEls.forEach(el => {
+        if (parseInt(el.dataset.s) === 4 && parseInt(el.dataset.degree) === 7) {
+          const newAbsF = parseInt(el.dataset.absf) - 1;
+          el.style.left     = ((newAbsF + 0.5) / TOTAL_FRETS * 100) + '%';
+          el.dataset.absf   = newAbsF;
+          el.dataset.degree = 4;
+        }
+      });
+      setTimeout(function() {
+        neckEl.querySelectorAll('.fb-note:not(.fb-note--ghost)').forEach(el => {
+          if (parseInt(el.dataset.s) === 1 && parseFloat(el.style.opacity) === 0) el.remove();
+        });
+        _applyDegMap(neckEl, {
+          '0,3':7,'0,4':1,'0,5':2,
+          '1,1':5,'1,2':6,
+          '2,5':2,'2,6':3,
+          '3,2':6,'3,3':7,'3,4':1,
+          '4,6':3,'4,4':4,'4,1':5,
+          '5,3':7,'5,4':1,'5,5':2,
+        });
+        _spawnNote(neckEl, cur.startFret + 4, 2, 4);
+        _finishTransition(true);
+      }, DURATION + 60);
+
+    } else {
+      // E폼 → C폼
+      activeEls.forEach(el => {
+        if (parseInt(el.dataset.s) === 2 && parseInt(el.dataset.degree) === 4) {
+          el.style.opacity   = '0';
+          el.style.transform = 'translate(-50%, -50%) scale(0)';
+        }
+      });
+      activeEls.forEach(el => {
+        if (parseInt(el.dataset.s) === 4 && parseInt(el.dataset.degree) === 4) {
+          const newAbsF = parseInt(el.dataset.absf) + 1;
+          el.style.left     = ((newAbsF + 0.5) / TOTAL_FRETS * 100) + '%';
+          el.dataset.absf   = newAbsF;
+          el.dataset.degree = 7;
+        }
+      });
+      setTimeout(function() {
+        neckEl.querySelectorAll('.fb-note:not(.fb-note--ghost)').forEach(el => {
+          if (parseInt(el.dataset.s) === 2 && parseFloat(el.style.opacity) === 0) el.remove();
+        });
+        _applyDegMap(neckEl, {
+          '0,7':3,'0,1':4,'0,2':5,
+          '1,5':1,'1,6':2,
+          '2,2':5,'2,3':6,
+          '3,6':2,'3,7':3,'3,1':4,
+          '4,3':6,'4,7':7,'4,5':1,
+          '5,7':3,'5,1':4,'5,2':5,
+        });
+        _spawnNote(neckEl, cur.startFret + 1, 1, 7);
+        _finishTransition(false);
+      }, DURATION + 60);
+    }
+
+  // ── A폼 (bi=0) ↔ D폼 ──────────────────────────────────────────
+  } else if (bi === 0) {
+    if (!_pairTransitioned) {
+      // A폼 → D폼
+      // 5번줄(s=4) degree=7 페이드 아웃
+      activeEls.forEach(el => {
+        if (parseInt(el.dataset.s) === 4 && parseInt(el.dataset.degree) === 7) {
+          el.style.opacity   = '0';
+          el.style.transform = 'translate(-50%, -50%) scale(0)';
+        }
+      });
+      // 3번줄(s=2) degree=7 → 왼쪽 1프렛 슬라이드, degree=4
+      activeEls.forEach(el => {
+        if (parseInt(el.dataset.s) === 2 && parseInt(el.dataset.degree) === 7) {
+          const newAbsF = parseInt(el.dataset.absf) - 1;
+          el.style.left     = ((newAbsF + 0.5) / TOTAL_FRETS * 100) + '%';
+          el.dataset.absf   = newAbsF;
+          el.dataset.degree = 4;
+        }
+      });
+      setTimeout(function() {
+        neckEl.querySelectorAll('.fb-note:not(.fb-note--ghost)').forEach(el => {
+          if (parseInt(el.dataset.s) === 4 && parseFloat(el.style.opacity) === 0) el.remove();
+        });
+        _applyDegMap(neckEl, {
+          '0,5':2, '0,6':3,
+          '1,2':6, '1,3':7, '1,4':1,
+          '2,6':3, '2,1':5,
+          '3,3':7, '3,4':1, '3,5':2,
+          '4,1':5, '4,2':6,
+          '5,5':2, '5,6':3,
+        });
+        // 6번줄(s=5) degree=6 오른쪽에 degree=4 생성 (startFret+5)
+        _spawnNote(neckEl, cur.startFret + 5, 5, 4);
+        _finishTransition(true);
+      }, DURATION + 60);
+
+    } else {
+      // D폼 → A폼 (역전환)
+      // 6번줄(s=5) degree=4 페이드 아웃
+      activeEls.forEach(el => {
+        if (parseInt(el.dataset.s) === 5 && parseInt(el.dataset.degree) === 4) {
+          el.style.opacity   = '0';
+          el.style.transform = 'translate(-50%, -50%) scale(0)';
+        }
+      });
+      // 3번줄(s=2) degree=4 → 오른쪽 1프렛 슬라이드, degree=7
+      activeEls.forEach(el => {
+        if (parseInt(el.dataset.s) === 2 && parseInt(el.dataset.degree) === 4) {
+          const newAbsF = parseInt(el.dataset.absf) + 1;
+          el.style.left     = ((newAbsF + 0.5) / TOTAL_FRETS * 100) + '%';
+          el.dataset.absf   = newAbsF;
+          el.dataset.degree = 7;
+        }
+      });
+      setTimeout(function() {
+        neckEl.querySelectorAll('.fb-note:not(.fb-note--ghost)').forEach(el => {
+          if (parseInt(el.dataset.s) === 5 && parseFloat(el.style.opacity) === 0) el.remove();
+        });
+        _applyDegMap(neckEl, {
+          '0,2':5, '0,3':6,
+          '1,6':2, '1,7':3, '1,1':4,
+          '2,3':6, '2,5':1,
+          '3,7':3, '3,1':4, '3,2':5,
+          '4,5':1, '4,6':2,
+          '5,2':5, '5,3':6,
+        });
+        // 5번줄(s=4) degree=7 생성 (startFret+1)
+        _spawnNote(neckEl, cur.startFret + 1, 4, 7);
+        _finishTransition(false);
+      }, DURATION + 60);
+    }
+
+  // ── G폼 (bi=1) ↔ C폼 ──────────────────────────────────────────
+  } else if (bi === 1) {
+    if (!_pairTransitioned) {
+      // G폼 → C폼
+      // 3번줄(s=2) degree=7 페이드 아웃 (삭제)
+      activeEls.forEach(el => {
+        if (parseInt(el.dataset.s) === 2 && parseInt(el.dataset.degree) === 7) {
+          el.style.opacity   = '0';
+          el.style.transform = 'translate(-50%, -50%) scale(0)';
+        }
+      });
+      // 1번줄(s=0) degree=7 → 왼쪽 1프렛, degree=4
+      activeEls.forEach(el => {
+        if (parseInt(el.dataset.s) === 0 && parseInt(el.dataset.degree) === 7) {
+          const newAbsF = parseInt(el.dataset.absf) - 1;
+          el.style.left     = ((newAbsF + 0.5) / TOTAL_FRETS * 100) + '%';
+          el.dataset.absf   = newAbsF;
+          el.dataset.degree = 4;
+        }
+      });
+      // 6번줄(s=5) degree=7 → 왼쪽 1프렛, degree=4
+      activeEls.forEach(el => {
+        if (parseInt(el.dataset.s) === 5 && parseInt(el.dataset.degree) === 7) {
+          const newAbsF = parseInt(el.dataset.absf) - 1;
+          el.style.left     = ((newAbsF + 0.5) / TOTAL_FRETS * 100) + '%';
+          el.dataset.absf   = newAbsF;
+          el.dataset.degree = 4;
+        }
+      });
+      setTimeout(function() {
+        neckEl.querySelectorAll('.fb-note:not(.fb-note--ghost)').forEach(el => {
+          if (parseInt(el.dataset.s) === 2 && parseFloat(el.style.opacity) === 0) el.remove();
+        });
+        _applyDegMap(neckEl, {
+          '0,6':3, '0,1':5,
+          '1,3':7, '1,4':1, '1,5':2,
+          '2,1':5, '2,2':6,
+          '3,5':2, '3,6':3,
+          '4,2':6, '4,3':7, '4,4':1,
+          '5,6':3, '5,1':5,
+        });
+        // 4번줄(s=3) degree=4 생성 (startFret+5)
+        _spawnNote(neckEl, cur.startFret + 5, 3, 4);
+        _finishTransition(true);
+      }, DURATION + 60);
+
+    } else {
+      // C폼 → G폼 (역전환)
+      // 4번줄(s=3) degree=4 페이드 아웃 (삭제)
+      activeEls.forEach(el => {
+        if (parseInt(el.dataset.s) === 3 && parseInt(el.dataset.degree) === 4) {
+          el.style.opacity   = '0';
+          el.style.transform = 'translate(-50%, -50%) scale(0)';
+        }
+      });
+      // 1번줄(s=0) degree=4 → 오른쪽 1프렛, degree=7
+      activeEls.forEach(el => {
+        if (parseInt(el.dataset.s) === 0 && parseInt(el.dataset.degree) === 4) {
+          const newAbsF = parseInt(el.dataset.absf) + 1;
+          el.style.left     = ((newAbsF + 0.5) / TOTAL_FRETS * 100) + '%';
+          el.dataset.absf   = newAbsF;
+          el.dataset.degree = 7;
+        }
+      });
+      // 6번줄(s=5) degree=4 → 오른쪽 1프렛, degree=7
+      activeEls.forEach(el => {
+        if (parseInt(el.dataset.s) === 5 && parseInt(el.dataset.degree) === 4) {
+          const newAbsF = parseInt(el.dataset.absf) + 1;
+          el.style.left     = ((newAbsF + 0.5) / TOTAL_FRETS * 100) + '%';
+          el.dataset.absf   = newAbsF;
+          el.dataset.degree = 7;
+        }
+      });
+      setTimeout(function() {
+        neckEl.querySelectorAll('.fb-note:not(.fb-note--ghost)').forEach(el => {
+          if (parseInt(el.dataset.s) === 3 && parseFloat(el.style.opacity) === 0) el.remove();
+        });
+        _applyDegMap(neckEl, {
+          '0,3':6, '0,5':1,
+          '1,7':3, '1,1':4, '1,2':5,
+          '2,5':1, '2,6':2,
+          '3,2':5, '3,3':6,
+          '4,6':2, '4,7':3, '4,1':4,
+          '5,3':6, '5,5':1,
+        });
+        // 3번줄(s=2) degree=7 생성 (startFret+1)
+        _spawnNote(neckEl, cur.startFret + 1, 2, 7);
+        _finishTransition(false);
+      }, DURATION + 60);
+    }
+
+  // ── E폼 (bi=2) ↔ A폼 ──────────────────────────────────────────
+  } else if (bi === 2) {
+    if (!_pairTransitioned) {
+      // E폼 → A폼
+      // 1번줄(s=0), 6번줄(s=5) degree=7 페이드 아웃 (삭제)
+      activeEls.forEach(el => {
+        const s = parseInt(el.dataset.s);
+        if ((s === 0 || s === 5) && parseInt(el.dataset.degree) === 7) {
+          el.style.opacity   = '0';
+          el.style.transform = 'translate(-50%, -50%) scale(0)';
+        }
+      });
+      // 4번줄(s=3) degree=7 → 왼쪽 1프렛, degree=4
+      activeEls.forEach(el => {
+        if (parseInt(el.dataset.s) === 3 && parseInt(el.dataset.degree) === 7) {
+          const newAbsF = parseInt(el.dataset.absf) - 1;
+          el.style.left     = ((newAbsF + 0.5) / TOTAL_FRETS * 100) + '%';
+          el.dataset.absf   = newAbsF;
+          el.dataset.degree = 4;
+        }
+      });
+      setTimeout(function() {
+        neckEl.querySelectorAll('.fb-note:not(.fb-note--ghost)').forEach(el => {
+          if (parseFloat(el.style.opacity) === 0) el.remove();
+        });
+        _applyDegMap(neckEl, {
+          '0,1':5, '0,2':6,
+          '1,5':2, '1,6':3,
+          '2,2':6, '2,3':7, '2,4':1,
+          '3,6':3, '3,1':5,
+          '4,3':7, '4,4':1, '4,5':2,
+          '5,1':5, '5,2':6,
+        });
+        // 2번줄(s=1) degree=4 생성 (startFret+5)
+        _spawnNote(neckEl, cur.startFret + 5, 1, 4);
+        _finishTransition(true);
+      }, DURATION + 60);
+
+    } else {
+      // A폼 → E폼 (역전환)
+      // 2번줄(s=1) degree=4 페이드 아웃 (삭제)
+      activeEls.forEach(el => {
+        if (parseInt(el.dataset.s) === 1 && parseInt(el.dataset.degree) === 4) {
+          el.style.opacity   = '0';
+          el.style.transform = 'translate(-50%, -50%) scale(0)';
+        }
+      });
+      // 4번줄(s=3) degree=4 → 오른쪽 1프렛, degree=7
+      activeEls.forEach(el => {
+        if (parseInt(el.dataset.s) === 3 && parseInt(el.dataset.degree) === 4) {
+          const newAbsF = parseInt(el.dataset.absf) + 1;
+          el.style.left     = ((newAbsF + 0.5) / TOTAL_FRETS * 100) + '%';
+          el.dataset.absf   = newAbsF;
+          el.dataset.degree = 7;
+        }
+      });
+      setTimeout(function() {
+        neckEl.querySelectorAll('.fb-note:not(.fb-note--ghost)').forEach(el => {
+          if (parseFloat(el.style.opacity) === 0) el.remove();
+        });
+        _applyDegMap(neckEl, {
+          '0,5':1, '0,6':2,
+          '1,2':5, '1,3':6,
+          '2,6':2, '2,7':3, '2,1':4,
+          '3,3':6, '3,5':1,
+          '4,7':3, '4,1':4, '4,2':5,
+          '5,5':1, '5,6':2,
+        });
+        // 1번줄(s=0), 6번줄(s=5) degree=7 생성 (startFret+1)
+        _spawnNote(neckEl, cur.startFret + 1, 0, 7);
+        _spawnNote(neckEl, cur.startFret + 1, 5, 7);
+        _finishTransition(false);
+      }, DURATION + 60);
+    }
+
+  // ── D폼 (bi=3) ↔ G폼 ──────────────────────────────────────────
+  } else if (bi === 3) {
+    if (!_pairTransitioned) {
+      // D폼 → G폼
+      // 4번줄(s=3) degree=7 페이드 아웃 (삭제)
+      activeEls.forEach(el => {
+        if (parseInt(el.dataset.s) === 3 && parseInt(el.dataset.degree) === 7) {
+          el.style.opacity   = '0';
+          el.style.transform = 'translate(-50%, -50%) scale(0)';
+        }
+      });
+      // 2번줄(s=1) degree=7 → 왼쪽 1프렛, degree=4
+      activeEls.forEach(el => {
+        if (parseInt(el.dataset.s) === 1 && parseInt(el.dataset.degree) === 7) {
+          const newAbsF = parseInt(el.dataset.absf) - 1;
+          el.style.left     = ((newAbsF + 0.5) / TOTAL_FRETS * 100) + '%';
+          el.dataset.absf   = newAbsF;
+          el.dataset.degree = 4;
+        }
+      });
+      setTimeout(function() {
+        neckEl.querySelectorAll('.fb-note:not(.fb-note--ghost)').forEach(el => {
+          if (parseFloat(el.style.opacity) === 0) el.remove();
+        });
+        _applyDegMap(neckEl, {
+          '0,2':6, '0,3':7,
+          '1,6':3, '1,1':5,
+          '2,3':7, '2,4':1, '2,5':2,
+          '3,1':5, '3,2':6,
+          '4,5':2, '4,6':3,
+          '5,2':6, '5,3':7, '5,4':1,
+        });
+        // 1번줄(s=0) degree=1 생성 (startFret+5)
+        _spawnNote(neckEl, cur.startFret + 5, 0, 1);
+        // 5번줄(s=4) degree=4 생성 (startFret+5)
+        _spawnNote(neckEl, cur.startFret + 5, 4, 4);
+        _finishTransition(true);
+      }, DURATION + 60);
+
+    } else {
+      // G폼 → D폼 (역전환)
+      // 1번줄(s=0) degree=1, 5번줄(s=4) degree=4 페이드 아웃 (삭제)
+      activeEls.forEach(el => {
+        const s = parseInt(el.dataset.s);
+        const d = parseInt(el.dataset.degree);
+        if ((s === 0 && d === 1) || (s === 4 && d === 4)) {
+          el.style.opacity   = '0';
+          el.style.transform = 'translate(-50%, -50%) scale(0)';
+        }
+      });
+      // 2번줄(s=1) degree=4 → 오른쪽 1프렛, degree=7
+      activeEls.forEach(el => {
+        if (parseInt(el.dataset.s) === 1 && parseInt(el.dataset.degree) === 4) {
+          const newAbsF = parseInt(el.dataset.absf) + 1;
+          el.style.left     = ((newAbsF + 0.5) / TOTAL_FRETS * 100) + '%';
+          el.dataset.absf   = newAbsF;
+          el.dataset.degree = 7;
+        }
+      });
+      setTimeout(function() {
+        neckEl.querySelectorAll('.fb-note:not(.fb-note--ghost)').forEach(el => {
+          if (parseFloat(el.style.opacity) === 0) el.remove();
+        });
+        _applyDegMap(neckEl, {
+          '0,6':2, '0,7':3,
+          '1,3':6, '1,5':1,
+          '2,7':3, '2,1':4, '2,2':5,
+          '3,5':1, '3,6':2,
+          '4,2':5, '4,3':6,
+          '5,6':2, '5,7':3, '5,1':4,
+        });
+        // 4번줄(s=3) degree=7 생성 (startFret+1)
+        _spawnNote(neckEl, cur.startFret + 1, 3, 7);
+        _finishTransition(false);
+      }, DURATION + 60);
+    }
+
+  } else {
+    // 미구현 폼: 즉시 해제
+    _transitioning = false;
+  }
+}
+
 function closeScaleLevel() {
   _recordScaleSessionTime();
   const shell = document.querySelector('.app-shell');
@@ -249,6 +738,9 @@ function createNoteEl(absF, s, degree, ghost = false) {
     + (isOpen  ? ' fb-note--open'   : '')
     + (ghost   ? ' fb-note--ghost'  : '');
   el.style.cssText = `left:${leftPct}%; top:${topPct}%;`;
+  el.dataset.s      = s;
+  el.dataset.degree = degree;
+  el.dataset.absf   = absF;
 
   if (!ghost) {
     el.style.pointerEvents = 'auto';
@@ -267,7 +759,7 @@ function createNoteEl(absF, s, degree, ghost = false) {
       ripple.className = 'fb-note-ripple';
       el.appendChild(ripple);
       ripple.addEventListener('animationend', () => ripple.remove());
-      playScaleNote(s, absF);
+      playScaleNote(s, parseInt(el.dataset.absf));
       _trackBlockPlayed();
     });
 
@@ -287,19 +779,28 @@ function renderNotes(animate = true) {
 
   neckEl.querySelectorAll('.fb-note').forEach(el => el.remove());
 
+  // 블록 이동 시 전환 상태 초기화
+  _pairTransitioned = false;
+
   const seq = buildNavSequence();
   if (seq.length === 0) return;
 
   // ghost 癒쇱? ?뚮뜑 (z-index ??쾶 源붾┝)
-  seq.forEach((item, i) => {
-    if (i === _navIdx) return;
-    const parsed = ScaleData.parseGrid(item.block.grid);
-    parsed.notes.forEach(note => {
-      const absF = item.startFret + note.col;
-      if (absF < 0 || absF >= TOTAL_FRETS) return;
-      neckEl.appendChild(createNoteEl(absF, note.s, note.degree, true));
+  if (_scaleKey === 'secondary-iv') {
+    // Ch.2: 전환 대상(짝궁) 블럭을 ghost로 표시 (_pairTransitioned=false이므로 파트너폼)
+    _refreshSecondaryGhost();
+  } else {
+    // Ch.1/3: 인접 블럭 ghost 표시
+    seq.forEach((item, i) => {
+      if (i === _navIdx) return;
+      const parsed = ScaleData.parseGrid(item.block.grid);
+      parsed.notes.forEach(note => {
+        const absF = item.startFret + note.col;
+        if (absF < 0 || absF >= TOTAL_FRETS) return;
+        neckEl.appendChild(createNoteEl(absF, note.s, note.degree, true));
+      });
     });
-  });
+  }
 
   // ?꾩옱 ?ъ????뚮뜑 (?꾩뿉 ?щ씪??
   const current = seq[_navIdx];
@@ -429,6 +930,12 @@ function renderTestNotes() {
 
   neckEl.querySelectorAll('.fb-note').forEach(el => el.remove());
 
+  // Ch.2: 소스폼 ghost + 타겟폼 hint
+  if (_scaleKey === 'secondary-iv') {
+    _renderTestNotesCh2(neckEl);
+    return;
+  }
+
   const { startFret } = _testItem;
   const hint = findHighestRoot(_testItem.block, startFret);
   if (!hint) return;
@@ -465,6 +972,31 @@ function renderTestNotes() {
   neckEl.appendChild(el);
 }
 
+
+// Ch.2 테스트 노트 렌더: 소스폼 ghost만 표시 (hint 없음)
+function _renderTestNotesCh2(neckEl) {
+  const { bi, startFret, forward } = _testItem;
+  const offset       = PAIR_STARTFRET_OFFSET[bi] || 0;
+  const partnerBi    = PAIR_PARTNER_BI[bi];
+  const srcBi        = forward ? bi : partnerBi;
+  const srcStartFret = forward ? startFret : startFret + offset;
+
+  const srcBlock = ScaleData.getBlocks('major')[srcBi];
+  if (!srcBlock) return;
+
+  const srcParsed = ScaleData.parseGrid(srcBlock.grid);
+  srcParsed.notes.forEach(note => {
+    const absF = srcStartFret + note.col;
+    const col  = absF - startFret;
+    if (col < 0 || col >= FRETS_VISIBLE) return;
+    const leftPct = (col + 0.5) / FRETS_VISIBLE * 100;
+    const topPct  = (note.s + 0.5) / STRINGS * 100;
+    const el = document.createElement('div');
+    el.className = 'fb-note fb-note--ghost';
+    el.style.cssText = `left:${leftPct}%; top:${topPct}%; pointer-events:none;`;
+    neckEl.appendChild(el);
+  });
+}
 // ?? ?뺣떟 梨꾩젏 ?????????????????????????????????????????????????
 function checkAnswer() {
   if (!_testItem || _testSubmitted) return;
@@ -472,18 +1004,28 @@ function checkAnswer() {
   _recordScaleSubmit();
 
 
-  const parsed = ScaleData.parseGrid(_testItem.block.grid);
+  // Ch.2: 타겟폼 기준으로 정답 set 구성
   const { startFret } = _testItem;
+  let _answerBlock = _testItem.block;
+  let _answerStartFret = startFret;
+  if (_scaleKey === 'secondary-iv') {
+    const { bi, forward } = _testItem;
+    const offset = PAIR_STARTFRET_OFFSET[bi] || 0;
+    const tgtBi = forward ? PAIR_PARTNER_BI[bi] : bi;
+    _answerBlock = ScaleData.getBlocks('major')[tgtBi];
+    _answerStartFret = forward ? startFret + offset : startFret;
+  }
+  const parsed = ScaleData.parseGrid(_answerBlock.grid);
 
-  // ?뚰듃瑜??쒖쇅???뺣떟 ?명듃 set
   const correctSet = new Set();
   parsed.notes.forEach(note => {
-    const absF = startFret + note.col;
+    const absF = _answerStartFret + note.col;
     if (absF < 0 || absF >= TOTAL_FRETS) return;
-    if (_testHint && note.s === _testHint.s && note.col === _testHint.col) return;
-    correctSet.add(`${note.s},${note.col}`);
+    const col = absF - startFret;
+    if (col < 0 || col >= FRETS_VISIBLE) return;
+    if (_testHint && note.s === _testHint.s && col === _testHint.col) return;
+    correctSet.add(`${note.s},${col}`);
   });
-
   // ?뚮젅?댁뼱 dot 梨꾩젏
   let nCorrect = 0;
   _placedNotes.forEach(key => {
@@ -589,11 +1131,18 @@ function startTest() {
   _testHint      = null;
   _testSubmitted = false;
 
-  // ?쒕뜡 釉붾윮 ?좏깮
-  // 셸플백: 키/스케일 변경 시 새로 생성, 동일 키는 이어서 진행
+  // 셔플백: 키/스케일 변경 시 새로 생성, 동일 키는 이어서 진행
   const bagKey = `scale-test:${_scaleKey}:${_rootNote}`;
+  let bagItems = seq;
+  if (_scaleKey === 'secondary-iv') {
+    // Ch.2: 각 블럭 × 정방향/역방향 = 2배 아이템
+    bagItems = seq.flatMap(item => [
+      { ...item, forward: true },
+      { ...item, forward: false }
+    ]);
+  }
   if (!_shuffleBag || _shuffleBag._storageKey !== `shuffle-bag:${bagKey}`) {
-    _shuffleBag = new ShuffleBag(bagKey, seq);
+    _shuffleBag = new ShuffleBag(bagKey, bagItems);
   }
   _testItem = _shuffleBag.next();
 
@@ -618,11 +1167,23 @@ function startTest() {
   // 吏덈Ц ?띿뒪??珥덇린??(?좊땲硫붿씠???ъ떎??以鍮?
   const qEl = document.getElementById('test-question-text');
   if (qEl) {
-    const _lbl = _testItem.block.label || FORM_NAMES[_testItem.bi] || (_testItem.bi + 1 + '번폼');
-    const formName = _lbl.split(' ').pop();
-    qEl.innerHTML = `${names[_rootNote]} ${SCALE_TITLES[_scaleKey]}의<br>${formName}을 입력해주세요!`;
+    let questionHtml;
+    if (_scaleKey === 'secondary-iv') {
+      const { bi, forward } = _testItem;
+      const partnerBi  = PAIR_PARTNER_BI[bi];
+      const srcBi      = forward ? bi : partnerBi;
+      const tgtBi      = forward ? partnerBi : bi;
+      const srcKeyNote = forward ? _rootNote : (_rootNote + 5) % 12;
+      const tgtKeyNote = forward ? (_rootNote + 5) % 12 : _rootNote;
+      questionHtml = `${names[srcKeyNote]}메이저 ${FORM_NAMES[srcBi]}에서<br>${names[tgtKeyNote]}메이저 ${FORM_NAMES[tgtBi]}으로 전환해보세요!`;
+    } else {
+      const _lbl = _testItem.block.label || FORM_NAMES[_testItem.bi] || (_testItem.bi + 1 + '번폼');
+      const formName = _lbl.split(' ').pop();
+      questionHtml = `${names[_rootNote]} ${SCALE_TITLES[_scaleKey]}의<br>${formName}을 입력해주세요!`;
+    }
+    qEl.innerHTML = questionHtml;
     qEl.classList.remove('test-question--in');
-    void qEl.offsetWidth; // reflow ???좊땲硫붿씠??由ъ뀑
+    void qEl.offsetWidth;
   }
 
   // ?ㅻ쾭?덉씠 ?ㅽ뵂
@@ -738,6 +1299,20 @@ function updateFormLabel() {
   const seq = buildNavSequence();
   if (seq.length === 0) { el.textContent = ''; return; }
   const { block, bi } = seq[_navIdx];
+
+  // Ch.2 secondary-iv: "[Key]메이저 [Form]폼" 형식 (짝궁 전환 시 파트너 키+폼 표시)
+  if (_scaleKey === 'secondary-iv') {
+    const names = _useFlat ? KEY_NAMES_FLAT : KEY_NAMES;
+    if (_pairTransitioned) {
+      const partnerKey = (_rootNote + 5) % 12;
+      const partnerBi  = PAIR_PARTNER_BI[bi];
+      el.textContent = `${names[partnerKey]}메이저 ${FORM_NAMES[partnerBi]}`;
+    } else {
+      el.textContent = `${names[_rootNote]}메이저 ${FORM_NAMES[bi]}`;
+    }
+    return;
+  }
+
   const title = SCALE_TITLES[_scaleKey] || _scaleKey;
   el.textContent = block.label || `${title} ${FORM_NAMES[bi] ?? (bi + 1 + '번폼')}`;
 }
@@ -887,6 +1462,7 @@ function initAccidentalToggle() {
     sharpSpan.classList.toggle('toggle-opt--active', !_useFlat);
     flatSpan.classList.toggle('toggle-opt--active',   _useFlat);
     updateKeyLabels();
+    updateFormLabel();
     analytics.track('scale_accidental_toggled', {
       scale_key: _scaleKey,
       to: _useFlat ? 'flat' : 'sharp',
@@ -930,6 +1506,15 @@ document.addEventListener('DOMContentLoaded', () => {
 
   const params = new URLSearchParams(location.search);
   _scaleKey = params.get('key') || 'major';
+
+  // Ch.2: 전환 버튼 표시
+  if (_scaleKey === 'secondary-iv') {
+    const btn = document.getElementById('pair-transition-btn');
+    if (btn) {
+      btn.style.display = 'inline-flex';
+      btn.addEventListener('pointerup', () => transitionPair());
+    }
+  }
 
 renderFullNeck();
   renderNotes(false);        // 珥덇린 ?뚮뜑???좊땲硫붿씠???놁씠 利됱떆 ?대룞
