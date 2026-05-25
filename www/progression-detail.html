@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <title>Chorditor - 코드 진행 연습</title>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css" />
+  <link rel="stylesheet" href="style.css" />
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
+</head>
+<body>
+
+  <div id="page-cover"></div>
+
+  <div class="app-shell">
+
+    <!-- 탑바 -->
+    <div class="top-bar">
+      <button class="icon-btn" onpointerup="goBack()">
+        <i data-lucide="chevron-left"></i>
+      </button>
+      <span class="top-bar-title" id="detail-title"></span>
+    </div>
+
+    <!-- 메인 콘텐츠 -->
+    <div class="main-content progd-layout" id="main-content">
+
+      <!-- ① 액션바: 키 + 샵/플랫 -->
+      <div class="progd-action-bar">
+        <div class="prog-key-strip" id="detail-key-strip"></div>
+        <div class="prog-acc-row">
+          <button class="prog-acc-btn prog-acc-btn--active" id="detail-acc-sharp">&#9839; 샵</button>
+          <button class="prog-acc-btn" id="detail-acc-flat">&#9837; 플랫</button>
+        </div>
+      </div>
+
+      <!-- ② 코드 뷰 -->
+      <div class="progd-chord-view">
+        <div class="progd-count-dots" id="detail-count-dots">
+          <span class="progd-count-dot"></span>
+          <span class="progd-count-dot"></span>
+          <span class="progd-count-dot"></span>
+          <span class="progd-count-dot"></span>
+        </div>
+        <div class="progd-chord-view-inner" id="detail-chord-row"></div>
+      </div>
+
+      <!-- ③ BPM + 재생 -->
+      <div class="progd-playbar">
+        <div class="progd-bpm-row">
+          <button class="progd-bpm-btn" onpointerup="changeBpm(-5)">−</button>
+          <span class="progd-bpm-display" id="detail-bpm">80 BPM</span>
+          <button class="progd-bpm-btn" onpointerup="changeBpm(5)">+</button>
+        </div>
+        <button class="progd-play-btn" id="detail-play-btn" onpointerup="togglePlay()">
+          <i data-lucide="play"></i>
+        </button>
+      </div>
+
+    </div>
+
+  </div>
+
+  <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.js"></script>
+  <script src="analytics-sdk.js"></script>
+  <script src="shared.js"></script>
+  <script src="chord-voicings.js"></script>
+  <script src="chords-library.js"></script>
+  <script src="progression-detail.js"></script>
+</body>
+</html>

@@ -6,7 +6,7 @@
 // ── 상수 ─────────────────────────────────────────────────────
 const SUPABASE_URL  = 'https://jbvkygeksohlysyvaoab.supabase.co';
 const SUPABASE_ANON = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Impidmt5Z2Vrc29obHlzeXZhb2FiIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzYzOTk5NjgsImV4cCI6MjA5MTk3NTk2OH0.6RSgChy0Yq0H2TJpZPSoMKQ2V-OYfR0XzE1aJBBZkXI';
-const APP_VERSION   = '1.2.1_dev1';
+const APP_VERSION   = '1.2.1_dev3';
 const SUPABASE_STORAGE_KEY = 'sb-jbvkygeksohlysyvaoab-auth-token';
 
 // ── Analytics SDK ─────────────────────────────────────────────
@@ -621,7 +621,7 @@ function _initPlanSheet() {
       <ul class="plan-card-features">
         <li>프로젝트 <strong>무제한</strong></li>
         <li>이미지 저장 <strong>전 배율</strong> (x0.5~x3)</li>
-        <li>코드표 편집 무제한</li>
+        <li>훈련소 컨텐츠 전체 개방</li>
       </ul>
       <button class="btn btn-primary plan-card-btn" id="plan-sheet-btn-pro">구독하기</button>
     </div>
