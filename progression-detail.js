@@ -305,53 +305,13 @@ function _drawVoicingCanvas(canvas, voicing, chordName, ratio) {
   }
 }
 
-// ── 오디오 엔진 (Karplus-Strong) ────────────────────────────
-const _AudioCtx   = window.AudioContext || window.webkitAudioContext;
-let   _audioCtx   = null;
-const _audioCache = {};
-const _midiToFreq = midi => 440 * Math.pow(2, (midi - 69) / 12);
+// ── 메트로놈 클릭 ────────────────────────────────────────────
+const _MetroCtx = window.AudioContext || window.webkitAudioContext;
+let   _metroCtx = null;
 
-async function _renderKS(freq, duration) {
-  const sr = 44100, total = Math.round(sr * duration);
-  const offline = new OfflineAudioContext(1, total, sr);
-  const N = Math.round(sr / freq);
-  const d = new Float32Array(total), delay = new Float32Array(N);
-  const decay = 1 - (0.5 / (N * 2));
-  for (let i = 0; i < N; i++) delay[i] = (Math.random() * 2 - 1) * 0.5;
-  for (let i = 0; i < total; i++) {
-    const idx = i % N, next = (i + 1) % N;
-    d[i] = delay[idx];
-    delay[idx] = decay * 0.5 * (delay[idx] + delay[next]);
-  }
-  const buf = offline.createBuffer(1, total, sr);
-  buf.getChannelData(0).set(d);
-  const gain = offline.createGain();
-  gain.gain.setValueAtTime(0.5, 0);
-  gain.gain.exponentialRampToValueAtTime(0.001, duration);
-  const src = offline.createBufferSource();
-  src.buffer = buf; src.connect(gain); gain.connect(offline.destination);
-  src.start(0);
-  return await offline.startRendering();
-}
-
-async function _getKSBuffer(freq) {
-  const key = freq.toFixed(2);
-  if (!_audioCache[key]) _audioCache[key] = await _renderKS(freq, 2.5);
-  return _audioCache[key];
-}
-
-const _QUALITY_INTERVALS = {
-  'M':   [0,  7, 12, 16, 19],
-  'm':   [0,  7, 12, 15, 19],
-  '7':   [0,  7, 10, 16, 19],
-  'M7':  [0,  7, 11, 16, 19],
-  'm7':  [0,  7, 10, 15, 19],
-};
-
-// 메트로놈 클릭 (isDownbeat: 1박 = 높은 음)
 function _playClick(isDownbeat) {
-  if (!_audioCtx) _audioCtx = new _AudioCtx();
-  const ctx  = _audioCtx;
+  if (!_metroCtx) _metroCtx = new _MetroCtx();
+  const ctx  = _metroCtx;
   const play = () => {
     const now  = ctx.currentTime;
     const freq = isDownbeat ? 1200 : 800;
@@ -369,30 +329,6 @@ function _playClick(isDownbeat) {
   if (ctx.state === 'suspended') { ctx.resume().then(play); } else { play(); }
 }
 
-let _activeSources = [];
-
-async function _playChord(rootKey, semitones, quality) {
-  if (!_audioCtx) _audioCtx = new _AudioCtx();
-  if (_audioCtx.state === 'suspended') await _audioCtx.resume();
-  _activeSources.forEach(s => { try { s.stop(); } catch (e) {} });
-  _activeSources = [];
-
-  const rootMidi  = 48 + rootKey + semitones;
-  const intervals = _QUALITY_INTERVALS[quality] || _QUALITY_INTERVALS['M'];
-  const midis     = intervals.map(i => rootMidi + i);
-  const now       = _audioCtx.currentTime + 0.03;
-  const STRUM_MS  = 0.055;
-
-  const buffers = await Promise.all(midis.map(m => _getKSBuffer(_midiToFreq(m))));
-  buffers.forEach((buf, i) => {
-    const src = _audioCtx.createBufferSource();
-    src.buffer = buf;
-    src.connect(_audioCtx.destination);
-    src.start(now + i * STRUM_MS);
-    _activeSources.push(src);
-  });
-}
-
 // ── 재생 로직 ────────────────────────────────────────────────
 function _resetCountDots() {
   const wrap = document.getElementById('detail-count-dots');
@@ -402,8 +338,7 @@ function _resetCountDots() {
 
 function _stopPlay() {
   if (_timer) { clearTimeout(_timer); _timer = null; }
-  _activeSources.forEach(s => { try { s.stop(); } catch (e) {} });
-  _activeSources = [];
+  GuitarAudio.stop();
   _playing    = false;
   _masterBeat = 0;
   _resetCountDots();
@@ -430,7 +365,7 @@ function _masterTick() {
   if (beatPhase === 0) {
     const chordIdx = Math.floor(_masterBeat / 4) % count;
     const step     = _prog.steps[chordIdx];
-    _playChord(_key, step.semitones, step.quality);
+    GuitarAudio.playChord(_key, step.semitones, step.quality);
   }
 
   // 3박 직후 0.5비트: 다음 코드 슬라이드 애니메이션 (7/8마디 = 3.5비트)
@@ -470,10 +405,15 @@ function _runCountIn(onComplete) {
   tick();
 }
 
-function togglePlay() {
+async function togglePlay() {
   if (_playing) {
     _stopPlay();
   } else {
+    // _metroCtx와 Tone.js 동기화 (첫 재생 시)
+    if (!_metroCtx) _metroCtx = new _MetroCtx();
+    if (_metroCtx.state === 'suspended') await _metroCtx.resume();
+    await GuitarAudio.syncContext(_metroCtx);
+
     _playing    = true;
     _masterBeat = 0;
     _updatePlayBtn();

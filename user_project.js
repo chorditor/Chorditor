@@ -370,17 +370,11 @@ let currentFretNumber = 2;
 // ═══════════════════════════════════════════════════════════════
 const AudioCtx = window.AudioContext || window.webkitAudioContext;
 let audioCtx = null;
-const renderedCache = {};
-let activeSources = [];
 
 const OPEN_MIDI = [64, 59, 55, 50, 45, 40];
-const midiToFreq = midi => 440 * Math.pow(2, (midi - 69) / 12);
+const STRUM_INTERVAL = 0.008;
 
-async function playChord(chord) {
-  if (!audioCtx) audioCtx = new AudioCtx();
-  if (audioCtx.state === 'suspended') await audioCtx.resume();
-  activeSources.forEach(s => { try { s.stop(); } catch(e) {} });
-  activeSources = [];
+function playChord(chord) {
   const notes = [];
   const fretBase = chord.fretNumber >= 2 ? chord.fretNumber - 2 : 0;
   const capoOffset = getProject(currentProjectId)?.capo ?? 0;
@@ -391,7 +385,6 @@ async function playChord(chord) {
     const dot = sd.length > 0 ? sd.reduce((a, b) => a.f >= b.f ? a : b) : undefined;
     const barreFret = barreMap[s];
     let fret = 0;
-    // 가장 우측(높은 프렛) dot만 소리남
     if (dot !== undefined && barreFret !== undefined) {
       fret = fretBase + Math.max(dot.f, barreFret);
     } else if (dot !== undefined) {
@@ -403,49 +396,7 @@ async function playChord(chord) {
   }
   const sorted = notes.sort((a, b) => b.s - a.s);
   if (!sorted.length) return;
-  const DURATION = 2.5, INTERVAL = 0.075;
-  const now = audioCtx.currentTime + 0.05;
-  const buffers = await Promise.all(sorted.map(n => getBuffer(midiToFreq(n.midi), DURATION)));
-  buffers.forEach((buf, i) => {
-    const src = audioCtx.createBufferSource();
-    src.buffer = buf; src.connect(audioCtx.destination);
-    src.start(now + i * INTERVAL);
-    activeSources.push(src);
-  });
-}
-
-async function renderKarplusStrong(freq, duration) {
-  const sr = 44100;
-  const total = Math.round(sr * duration);
-  const offline = new OfflineAudioContext(1, total, sr);
-  const N = Math.round(sr / freq);
-  const d = new Float32Array(total);
-  const delay = new Float32Array(N);
-  const decay = 1 - (0.5 / (N * 2));
-  for (let i = 0; i < N; i++) delay[i] = (Math.random() * 2 - 1) * 0.5;
-  for (let i = 0; i < total; i++) {
-    const idx  = i % N;
-    const next = (i + 1) % N;
-    d[i] = delay[idx];
-    delay[idx] = decay * 0.5 * (delay[idx] + delay[next]);
-  }
-  const buf = offline.createBuffer(1, total, sr);
-  buf.getChannelData(0).set(d);
-  const gain = offline.createGain();
-  gain.gain.setValueAtTime(0.5, 0);
-  gain.gain.exponentialRampToValueAtTime(0.001, duration);
-  const src = offline.createBufferSource();
-  src.buffer = buf;
-  src.connect(gain);
-  gain.connect(offline.destination);
-  src.start(0);
-  return await offline.startRendering();
-}
-
-async function getBuffer(freq, duration) {
-  const key = freq.toFixed(2);
-  if (!renderedCache[key]) renderedCache[key] = await renderKarplusStrong(freq, duration);
-  return renderedCache[key];
+  GuitarAudio.strumNotes(sorted.map(n => n.midi), STRUM_INTERVAL);
 }
 
 function buildBarreMap(dotList, barre) {
@@ -1131,8 +1082,7 @@ function stopPlayAll(autoStop = false) {
   playbackEndAudioTime = 0;
   _stopMetronomeAudio();
   if (currentPlayTimeout) { clearTimeout(currentPlayTimeout); currentPlayTimeout = null; }
-  activeSources.forEach(s => { try { s.stop(); } catch(e) {} });
-  activeSources = [];
+  GuitarAudio.stop();
   document.querySelectorAll('.chord-slot--playing').forEach(el => el.classList.remove('chord-slot--playing'));
   const btn = document.getElementById('play-all-btn');
   if (btn) { btn.innerHTML = '<i data-lucide="play"></i>'; lucide.createIcons(); }
@@ -1146,8 +1096,11 @@ async function playAll(projectId, startIndex = 0) {
   const project = getProject(projectId);
   if (!project) return;
 
+  const isFirstInit = !audioCtx;
   if (!audioCtx) audioCtx = new AudioCtx();
   if (audioCtx.state === 'suspended') await audioCtx.resume();
+  if (isFirstInit) await GuitarAudio.syncContext(audioCtx); // Tone.js 동기화
+  else await GuitarAudio.resume();
 
   const bpm = project.bpm ?? 120;
   const beatMs = 60000 / bpm;

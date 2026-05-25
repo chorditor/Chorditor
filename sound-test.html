@@ -1,0 +1,189 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>스틸 기타 사운드 테스트 — 커스텀 녹음</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: -apple-system, 'Pretendard', sans-serif;
+      background: #f5f5f5;
+      padding: 32px 20px;
+    }
+    h1  { font-size: 18px; font-weight: 700; margin-bottom: 6px; }
+    .sub { font-size: 13px; color: #888; margin-bottom: 32px; }
+    .card {
+      background: #fff; border-radius: 16px;
+      padding: 20px; margin-bottom: 16px;
+      box-shadow: 0 1px 4px rgba(0,0,0,0.08);
+    }
+    .card-title { font-size: 15px; font-weight: 600; margin-bottom: 4px; }
+    .card-desc  { font-size: 12px; color: #888; margin-bottom: 14px; line-height: 1.5; }
+    button {
+      background: #242729; color: #fff; border: none;
+      border-radius: 10px; padding: 10px 24px;
+      font-size: 14px; font-weight: 600; cursor: pointer;
+      transition: opacity 0.15s;
+    }
+    button:active   { opacity: 0.7; }
+    button:disabled { opacity: 0.35; cursor: default; }
+    .status { display: inline-block; margin-left: 12px; font-size: 12px; color: #888; }
+    .status.loading { color: #f59e0b; }
+    .status.playing { color: #10b981; }
+    .status.error   { color: #ef4444; }
+  </style>
+
+  <script>
+  'use strict';
+
+  let _sampler = null;
+
+  // 커스텀 녹음 샘플 매핑
+  // E3_2nd=6번줄12프랫, E3_12th=4번줄2프랫, E4_open=1번줄개방, E4_14th=4번줄14프랫
+  // 파일명 → 음이름 매핑
+  const FILE_NOTE_MAP = {
+    'E2.mp3':      'E2',
+    'E3_2nd.mp3':  'E3',
+    'E3_12th.mp3': 'E3',  // E3 두 개 중 나중 선택이 덮어씀
+    'E4_open.mp3': 'E4',
+    'E4_14th.mp3': 'E4',
+    'E5.mp3':      'E5',
+  };
+
+  function setStatus(id, msg, cls) {
+    const el = document.getElementById(id);
+    if (!el) return;
+    el.textContent = msg;
+    el.className = 'status' + (cls ? ' ' + cls : '');
+  }
+
+  function onToneError() { setStatus('s1', 'Tone.js 로드 실패', 'error'); }
+
+  // 파일 선택 후 blob URL → Sampler 로드
+  function loadFiles() {
+    if (typeof Tone === 'undefined') { setStatus('s1', 'Tone.js 없음', 'error'); return; }
+    const input = document.getElementById('file-input');
+    const files = Array.from(input.files);
+    if (files.length === 0) { setStatus('s1', '파일을 선택하세요', 'error'); return; }
+
+    const urls = {};
+    const blobUrls = [];
+    files.forEach(f => {
+      const note = FILE_NOTE_MAP[f.name];
+      if (note) {
+        const blobUrl = URL.createObjectURL(f);
+        blobUrls.push(blobUrl);
+        urls[note] = blobUrl;
+      }
+    });
+
+    if (Object.keys(urls).length === 0) {
+      setStatus('s1', '인식된 파일 없음 (파일명 확인)', 'error');
+      return;
+    }
+
+    setStatus('s1', `${Object.keys(urls).length}개 로딩 중... (${Object.keys(urls).join(', ')})`, 'loading');
+
+    if (_sampler) { _sampler.dispose(); _sampler = null; }
+
+    _sampler = new Tone.Sampler({
+      urls,
+      baseUrl: '',
+      onload: () => {
+        // 범위 버튼 전체 활성화
+        document.querySelectorAll('[id^="rng-"]').forEach(b => b.disabled = false);
+        document.getElementById('btn-chord').disabled = false;
+        setStatus('s1', `준비됨 ✓  (${Object.keys(urls).join(', ')})`);
+      },
+      onerror: (e) => setStatus('s1', '로드 실패: ' + String(e), 'error'),
+    }).toDestination();
+  }
+
+  const NOTE_NAMES = ['C','C#','D','D#','E','F','F#','G','G#','A','A#','B'];
+  function midiToNote(midi) {
+    return NOTE_NAMES[midi % 12] + Math.floor(midi / 12 - 1);
+  }
+
+  // 각 샘플 기준 범위 버튼 생성
+  // E2=MIDI40, E3=MIDI52, E4=MIDI64, E5=MIDI76
+  const RANGES = [
+    { containerId: 'range-e2', sampleMidi: 40, from: 40, to: 51 },  // E2~D#3
+    { containerId: 'range-e3', sampleMidi: 52, from: 47, to: 63 },  // B2~D#4
+    { containerId: 'range-e4', sampleMidi: 64, from: 59, to: 75 },  // B3~D#5
+    { containerId: 'range-e5', sampleMidi: 76, from: 71, to: 84 },  // B4~C6
+  ];
+
+  function buildRangeButtons() {
+    RANGES.forEach(({ containerId, sampleMidi, from, to }) => {
+      const container = document.getElementById(containerId);
+      if (!container) return;
+      container.innerHTML = '';
+      for (let midi = from; midi <= to; midi++) {
+        const note = midiToNote(midi);
+        const btn = document.createElement('button');
+        btn.textContent = note;
+        btn.id = 'rng-' + note;
+        btn.disabled = true;
+        btn.style.cssText = 'padding:7px 10px;font-size:13px;border-radius:8px;min-width:48px;' +
+          (midi === sampleMidi ? 'background:#10b981;' : 'background:#242729;');
+        btn.addEventListener('click', () => playNote(note));
+        container.appendChild(btn);
+      }
+    });
+  }
+
+  // 기존 id 기반 버튼 hidden IDs (단음 버튼 숨김용 — 범위 버튼이 대체)
+  const LEGACY_BTN_IDS = ['btn-e2','btn-e3','btn-e4','btn-e5'];
+
+  async function playNote(note) {
+    if (!_sampler) return;
+    await Tone.start();
+    _sampler.triggerAttackRelease(note, 3);
+  }
+
+  async function playChord() {
+    if (!_sampler) return;
+    await Tone.start();
+    // E major 코드: E2 B2 E3 G#3 B3 E4
+    const notes = ['E2', 'B2', 'E3', 'G#3', 'B3', 'E4'];
+    const strum = 0.055;
+    notes.forEach((n, i) => {
+      _sampler.triggerAttackRelease(n, 2.5, Tone.now() + i * strum);
+    });
+  }
+  </script>
+</head>
+<body>
+
+<h1>🎸 커스텀 녹음 사운드 테스트</h1>
+<p class="sub">직접 녹음한 스틸 기타 샘플 → Tone.js Sampler</p>
+
+<div class="card">
+  <div class="card-title">① mp3 파일 선택</div>
+  <div class="card-desc">E2.mp3 / E3_2nd.mp3 / E3_12th.mp3 / E4_open.mp3 / E4_14th.mp3 / E5.mp3<br>파일명이 정확해야 자동 인식됨</div>
+  <input type="file" id="file-input" accept=".mp3" multiple
+         style="font-size:13px; margin-bottom:12px; display:block;" />
+  <button onclick="loadFiles()">로드</button>
+  <span class="status" id="s1">파일 선택 후 로드 클릭</span>
+</div>
+
+<div class="card">
+  <div class="card-title">② 피치 시프트 범위 테스트</div>
+  <div class="card-desc" id="range-legend">파일 로드 후 표시됨</div>
+  <div id="range-grid" style="display:flex;flex-wrap:wrap;gap:5px;margin-top:12px;"></div>
+</div>
+
+<div class="card">
+  <div class="card-title">③ 코드 테스트 — E major</div>
+  <div class="card-desc">E2 B2 E3 G#3 B3 E4 스트럼 (피치 시프트 포함)</div>
+  <button onclick="playChord()" id="btn-chord" disabled>▶ E 코드 재생</button>
+</div>
+
+<script>
+  document.addEventListener('DOMContentLoaded', buildRangeButtons);
+</script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/tone/14.8.49/Tone.js"
+        onerror="onToneError()"></script>
+</body>
+</html>

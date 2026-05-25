@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <title>Chorditor - 코드 진행 리스트</title>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css" />
+  <link rel="stylesheet" href="style.css" />
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
+</head>
+<body>
+
+  <!-- 페이지 커버: 초기화 완료 전 화면 가림 -->
+  <div id="page-cover"></div>
+
+  <div class="app-shell">
+
+    <!-- ── 탑바 ── -->
+    <div class="top-bar">
+      <button id="back-btn" class="icon-btn" onpointerup="closeProgressionPage()">
+        <i data-lucide="x"></i>
+      </button>
+    </div>
+
+    <!-- ── 메인 콘텐츠 ── -->
+    <div class="main-content" id="main-content">
+      <div class="prog-scroll">
+
+        <!-- 페이지 타이틀 -->
+        <span class="training-page-title">코드 진행 리스트</span>
+
+        <!-- 키 선택 스트립 -->
+        <div class="prog-key-strip" id="prog-key-strip"></div>
+
+        <!-- 샵/플랫 토글 -->
+        <div class="prog-acc-row">
+          <button class="prog-acc-btn prog-acc-btn--active" id="acc-sharp">&#9839; 샵</button>
+          <button class="prog-acc-btn" id="acc-flat">&#9837; 플랫</button>
+        </div>
+
+        <!-- 진행 목록 -->
+        <div class="prog-list" id="prog-list"></div>
+
+      </div><!-- /prog-scroll -->
+    </div><!-- /main-content -->
+
+  </div><!-- /app-shell -->
+
+  <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.js"></script>
+  <script src="https://unpkg.com/@phosphor-icons/web"></script>
+  <script src="analytics-sdk.js"></script>
+  <script src="shared.js"></script>
+  <script src="guitar-samples.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/tone/14.8.49/Tone.js"></script>
+  <script src="guitar-audio.js"></script>
+  <script src="progression.js"></script>
+</body>
+</html>

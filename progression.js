@@ -103,77 +103,6 @@ function _getChordName(rootKey, semitones, quality) {
   return note + (sfx[quality] ?? '');
 }
 
-// ── 오디오 엔진 (Karplus-Strong) ────────────────────────────
-const _AudioCtx   = window.AudioContext || window.webkitAudioContext;
-let   _audioCtx   = null;
-const _audioCache = {};
-const _midiToFreq = midi => 440 * Math.pow(2, (midi - 69) / 12);
-
-async function _renderKS(freq, duration) {
-  const sr = 44100, total = Math.round(sr * duration);
-  const offline = new OfflineAudioContext(1, total, sr);
-  const N = Math.round(sr / freq);
-  const d = new Float32Array(total), delay = new Float32Array(N);
-  const decay = 1 - (0.5 / (N * 2));
-  for (let i = 0; i < N; i++) delay[i] = (Math.random() * 2 - 1) * 0.5;
-  for (let i = 0; i < total; i++) {
-    const idx = i % N, next = (i + 1) % N;
-    d[i] = delay[idx];
-    delay[idx] = decay * 0.5 * (delay[idx] + delay[next]);
-  }
-  const buf = offline.createBuffer(1, total, sr);
-  buf.getChannelData(0).set(d);
-  const gain = offline.createGain();
-  gain.gain.setValueAtTime(0.5, 0);
-  gain.gain.exponentialRampToValueAtTime(0.001, duration);
-  const src = offline.createBufferSource();
-  src.buffer = buf; src.connect(gain); gain.connect(offline.destination);
-  src.start(0);
-  return await offline.startRendering();
-}
-
-async function _getKSBuffer(freq) {
-  const key = freq.toFixed(2);
-  if (!_audioCache[key]) _audioCache[key] = await _renderKS(freq, 2.5);
-  return _audioCache[key];
-}
-
-// 코드 보이싱 인터벌 (semitone offsets from root)
-const QUALITY_INTERVALS = {
-  'M':    [0,  7, 12, 16, 19],
-  'm':    [0,  7, 12, 15, 19],
-  '7':    [0,  7, 10, 16, 19],
-  'M7':   [0,  7, 11, 16, 19],
-  'm7':   [0,  7, 10, 15, 19],
-  'dim':  [0,  6, 12, 15, 18],
-  'dim7': [0,  6,  9, 12, 15],
-  'aug':  [0,  8, 12, 16, 20],
-};
-
-let _activeSources = [];
-
-async function _playChord(rootKey, semitones, quality) {
-  if (!_audioCtx) _audioCtx = new _AudioCtx();
-  if (_audioCtx.state === 'suspended') await _audioCtx.resume();
-  _activeSources.forEach(s => { try { s.stop(); } catch (e) {} });
-  _activeSources = [];
-
-  const rootMidi  = 48 + rootKey + semitones; // C3(48) 기준
-  const intervals = QUALITY_INTERVALS[quality] || QUALITY_INTERVALS['M'];
-  const midis     = intervals.map(i => rootMidi + i);
-  const now       = _audioCtx.currentTime + 0.03;
-  const STRUM_MS  = 0.055;
-
-  const buffers = await Promise.all(midis.map(m => _getKSBuffer(_midiToFreq(m))));
-  buffers.forEach((buf, i) => {
-    const src = _audioCtx.createBufferSource();
-    src.buffer = buf;
-    src.connect(_audioCtx.destination);
-    src.start(now + i * STRUM_MS);
-    _activeSources.push(src);
-  });
-}
-
 // ── 상태 ────────────────────────────────────────────────────
 let _currentKey = 0;
 let _useFlat    = false;
@@ -194,8 +123,7 @@ function _stopPlay() {
   }
   _playingId = null;
   _playStep  = 0;
-  _activeSources.forEach(s => { try { s.stop(); } catch (e) {} });
-  _activeSources = [];
+  GuitarAudio.stop();
 }
 
 function _startPlay(progId) {
@@ -226,7 +154,7 @@ function _startPlay(progId) {
     }
 
     const step = prog.steps[_playStep % prog.steps.length];
-    _playChord(_currentKey, step.semitones, step.quality);
+    GuitarAudio.playChord(_currentKey, step.semitones, step.quality);
 
     _playStep++;
     const msPerChord = (60000 / 80) * 2; // 2박자 per chord (BPM 고정 80 — 연습실로 이식 예정)
