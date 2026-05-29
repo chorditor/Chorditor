@@ -269,12 +269,6 @@ async function onboardingSignIn() {
     if (googleBtn)    googleBtn.classList.add('hidden');
     if (signinLoader) signinLoader.classList.remove('hidden');
 
-    await GoogleAuth.initialize({
-      clientId: '495859421223-rkjalna3ckhslfrk12gvbehn69o9j4qe.apps.googleusercontent.com',
-      scopes: ['profile', 'email'],
-      grantOfflineAccess: true,
-    });
-
     const googleUser = await GoogleAuth.signIn();
     const idToken = googleUser?.authentication?.idToken ?? googleUser?.idToken;
     if (!idToken) throw new Error('ID 토큰을 받지 못했습니다.');
@@ -391,6 +385,18 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   await checkForceUpdate();
   await initBilling();
+
+  // Android: GoogleAuth 1회 사전 초기화 (onboardingSignIn에서 재호출 시 상태 꼬임 방지)
+  if (window.Capacitor?.isNativePlatform()) {
+    const GoogleAuth = window.Capacitor?.Plugins?.GoogleAuth;
+    if (GoogleAuth) {
+      GoogleAuth.initialize({
+        clientId: '495859421223-rkjalna3ckhslfrk12gvbehn69o9j4qe.apps.googleusercontent.com',
+        scopes: ['profile', 'email'],
+        grantOfflineAccess: true,
+      }).catch(() => {});
+    }
+  }
 
   initSupabase().then(() => tryAutoSignIn());
 });
