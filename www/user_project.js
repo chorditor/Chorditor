@@ -1077,17 +1077,18 @@ function toggleMetronome() {
   }
 }
 
-function stopPlayAll(autoStop = false) {
+async function stopPlayAll(autoStop = false, options = {}) {
   playbackActive = false;
   playbackEndAudioTime = 0;
   _stopMetronomeAudio();
   if (currentPlayTimeout) { clearTimeout(currentPlayTimeout); currentPlayTimeout = null; }
-  GuitarAudio.stop();
+  const stopPromise = GuitarAudio.stop({ wait: options.wait === true });
   document.querySelectorAll('.chord-slot--playing').forEach(el => el.classList.remove('chord-slot--playing'));
   const btn = document.getElementById('play-all-btn');
   if (btn) { btn.innerHTML = '<i data-lucide="play"></i>'; lucide.createIcons(); }
   // 코드슬롯 자동 종료 시 메트로놈 off
   if (autoStop) stopMetronome();
+  if (options.wait) await stopPromise;
 }
 
 async function playAll(projectId, startIndex = 0) {
@@ -2262,7 +2263,8 @@ function buildChordPalette(project, editMode = true) {
     addBtn.className = 'chord-palette-add';
     addBtn.title = '코드 추가';
     addBtn.innerHTML = '+';
-    addBtn.onclick = () => {
+    addBtn.onclick = async () => {
+      await stopPlayAll(false, { wait: true });
       location.href = 'home.html?view=editor&from_project=' + project.id;
     };
     chordPalette.appendChild(addBtn);
@@ -2417,9 +2419,10 @@ function createPaletteItem(chord, idx, projectId, editMode = true) {
   let mouseDragged = false;
   thumb.addEventListener('mousedown', () => { mouseDragged = false; });
   thumb.addEventListener('mousemove', () => { mouseDragged = true; });
-  thumb.addEventListener('click', e => {
+  thumb.addEventListener('click', async e => {
     if (mouseDragged) return;
     if (editMode) {
+      await stopPlayAll(false, { wait: true });
       location.href = 'home.html?view=editor&from_project=' + projectId + '&chord_id=' + chord.id;
     } else {
       openViewModal(chord, projectId);
@@ -2636,7 +2639,7 @@ function closeDeleteConfirm() {
   }, 220);
 }
 
-function deleteProject(projectId) {
+async function deleteProject(projectId) {
   let projects = loadProjects();
   const target = projects.find(p => p.id === projectId);
   const chordCount = target?.chords?.length ?? 0;
@@ -2644,6 +2647,7 @@ function deleteProject(projectId) {
   projects = projects.filter(p => p.id !== projectId);
   saveProjects(projects);
   renderSidebar();
+  await stopPlayAll(false, { wait: true });
   location.href = 'home.html?tab=projects';
 }
 
@@ -2934,7 +2938,8 @@ function onAuthSignedIn() {
 // 초기화 (home.html 전용)
 // ═══════════════════════════════════════════════════════════════
 // ─── 프로젝트 페이지 닫기 (슬라이드다운 애니메이션) ──────────────
-function closeProjectPage() {
+async function closeProjectPage() {
+  await stopPlayAll(false, { wait: true });
   const shell = document.querySelector('.app-shell');
   if (shell) {
     shell.classList.add('project-exit');

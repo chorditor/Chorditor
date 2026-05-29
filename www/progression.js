@@ -132,7 +132,9 @@ function _renderKeyGrid() {
     btn.addEventListener('pointerup', () => {
       if (k === _currentKey) return;
       _stopPlay();
+      const prevKey = _getKeyDisplayName(_currentKey);
       _currentKey = k;
+      analytics.track('progression_key_changed', { from_key: prevKey, to_key: _getKeyDisplayName(_currentKey), flat: _useFlat });
       _renderKeyGrid();
       _renderProgList();
       _updateKeyChipLabel();
@@ -208,6 +210,7 @@ function _renderProgList() {
 
       card.querySelector('.prog-play-btn').addEventListener('pointerup', async () => {
         await _stopPlay({ wait: true });
+        analytics.track('progression_detail_entered', { prog_id: prog.id, key: _getKeyDisplayName(_currentKey), no: prog.no ?? 1 });
         location.href = `progression-detail.html?id=${encodeURIComponent(prog.id)}&key=${_currentKey}&flat=${_useFlat ? 1 : 0}`;
       });
       list.appendChild(card);

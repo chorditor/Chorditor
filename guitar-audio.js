@@ -41,10 +41,51 @@ const GuitarAudio = (() => {
   const NOTE_NAMES = ['C','C#','D','D#','E','F','F#','G','G#','A','A#','B'];
   const midiToName = midi => NOTE_NAMES[midi % 12] + (Math.floor(midi / 12) - 1);
 
-  let _sampler   = null;
-  let _ready     = false;
-  let _pending    = [];   // ready 전 요청 큐
-  let _lastNotes  = [];   // 마지막 재생된 노트 목록
+  let _sampler      = null;
+  let _masterGain   = null;
+  let _ready        = false;
+  let _pending      = [];   // ready 전 요청 큐
+  let _lastNotes    = [];   // 마지막 재생된 노트 목록
+  let _releaseTimer = null; // 자동 감쇄 타이머
+
+  const SUSTAIN_MS = 3500; // 어택 후 자동 release까지 ms — release envelope 포함 ~4초 이내 감쇄
+  const STOP_FADE_SECONDS = 0.06;
+  const STOP_SETTLE_MS    = 80;
+
+  const _sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
+
+  function _setMasterGain(value, time) {
+    if (!_masterGain) return;
+    const param = _masterGain.gain;
+    if (param.cancelScheduledValues) param.cancelScheduledValues(time);
+    if (param.setValueAtTime) param.setValueAtTime(value, time);
+    else param.value = value;
+  }
+
+  function _restoreOutput() {
+    if (!_masterGain || typeof Tone === 'undefined') return;
+    _setMasterGain(1, Tone.now());
+  }
+
+  function _fadeOutOutput(duration) {
+    if (!_masterGain || typeof Tone === 'undefined') return;
+    const param = _masterGain.gain;
+    const now = Tone.now();
+    const current = typeof param.value === 'number' ? Math.max(param.value, 0.0001) : 1;
+    if (param.cancelScheduledValues) param.cancelScheduledValues(now);
+    if (param.setValueAtTime) param.setValueAtTime(current, now);
+    if (param.linearRampToValueAtTime) param.linearRampToValueAtTime(0.0001, now + duration);
+    else param.value = 0.0001;
+  }
+
+  function _scheduleAutoRelease() {
+    if (_releaseTimer) clearTimeout(_releaseTimer);
+    _releaseTimer = setTimeout(() => {
+      if (_lastNotes.length) _sampler.triggerRelease(_lastNotes, Tone.now());
+      _lastNotes    = [];
+      _releaseTimer = null;
+    }, SUSTAIN_MS);
+  }
 
   function _init() {
     if (typeof Tone === 'undefined') {
@@ -74,16 +115,20 @@ const GuitarAudio = (() => {
       gain:       1.5,
     }).connect(_lowShelf);
 
+    _masterGain = new Tone.Gain(1).connect(_highShelf);
+
     _sampler = new Tone.Sampler({
       urls,
       baseUrl: '',
+      attack: 0.005,
+      release: 0.08,
       onload: () => {
         _ready = true;
         _pending.forEach(fn => fn());
         _pending = [];
       },
       onerror: e => console.error('[GuitarAudio] 샘플 로드 실패', e),
-    }).connect(_highShelf);
+    }).connect(_masterGain);
   }
 
   function _run(fn) {
@@ -95,41 +140,56 @@ const GuitarAudio = (() => {
   // C3(MIDI 48) 기준으로 보이싱 계산
   function playChord(rootKey, semitones, quality) {
     _run(() => {
+      _restoreOutput();
       const rootMidi  = 48 + rootKey + semitones;
       const intervals = QUALITY_INTERVALS[quality] || QUALITY_INTERVALS['M'];
       const STRUM     = 0.008;
       const notes     = intervals.map(offset => midiToName(rootMidi + offset));
+      if (_releaseTimer) clearTimeout(_releaseTimer);
       if (_lastNotes.length) _sampler.triggerRelease(_lastNotes, Tone.now());
       _lastNotes = notes;
-      notes.forEach((note, i) => _sampler.triggerAttack(note, Tone.now() + i * STRUM));
+      const now0 = Tone.now();
+      notes.forEach((note, i) => _sampler.triggerAttack(note, now0 + i * STRUM));
+      _scheduleAutoRelease();
     });
   }
 
   // 코드 에디터/사전용 — MIDI 배열 직접 스트럼
   function strumNotes(midis, interval) {
     _run(() => {
+      _restoreOutput();
       const notes = midis.map(midiToName);
+      if (_releaseTimer) clearTimeout(_releaseTimer);
       if (_lastNotes.length) _sampler.triggerRelease(_lastNotes, Tone.now());
       _lastNotes = notes;
-      notes.forEach((note, i) => _sampler.triggerAttack(note, Tone.now() + i * (interval ?? 0.055)));
+      const now1 = Tone.now();
+      notes.forEach((note, i) => _sampler.triggerAttack(note, now1 + i * (interval ?? 0.055)));
+      _scheduleAutoRelease();
     });
   }
 
   // midi: MIDI 번호 (예: E2=40, A2=45, D3=50, G3=55, B3=59, E4=64)
   function playNote(midi, duration, delay) {
     _run(() => {
+      _restoreOutput();
       const note = midiToName(midi);
       // 이전 노트 즉시 release 후 새 노트 attack
+      if (_releaseTimer) clearTimeout(_releaseTimer);
       if (_lastNotes.length) _sampler.triggerRelease(_lastNotes, Tone.now());
       _lastNotes = [note];
       _sampler.triggerAttack(note, Tone.now() + (delay ?? 0));
+      _scheduleAutoRelease();
     });
   }
 
-  function stop() {
+  async function stop(options = {}) {
+    if (_releaseTimer) { clearTimeout(_releaseTimer); _releaseTimer = null; }
     if (!_sampler || !_lastNotes.length) return;
+    const fadeSeconds = options.fadeSeconds ?? STOP_FADE_SECONDS;
+    _fadeOutOutput(fadeSeconds);
     _sampler.triggerRelease(_lastNotes, Tone.now());
     _lastNotes = [];
+    if (options.wait) await _sleep(options.settleMs ?? STOP_SETTLE_MS);
   }
 
   // Tone.js 로드 완료 후 자동 초기화 (외부 스크립트 onload 이후 실행됨)
@@ -150,6 +210,7 @@ const GuitarAudio = (() => {
     // 샘플러 재생성
     _ready = false;
     if (_sampler) { _sampler.dispose(); _sampler = null; }
+    if (_masterGain) { _masterGain.dispose(); _masterGain = null; }
     _init();
   }
 

@@ -1014,8 +1014,9 @@ function _transitionPairV() {
   }
 }
 
-function closeScaleLevel() {
+async function closeScaleLevel() {
   _recordScaleSessionTime();
+  await GuitarAudio.stop({ wait: true });
   const shell = document.querySelector('.app-shell');
   if (shell) {
     shell.classList.add('project-exit');

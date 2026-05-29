@@ -1954,9 +1954,14 @@ function tapSwitchTab(el, tab) {
 }
 
 // ─── 홈 탭 → 서브뷰 진입 ─────────────────────────────────────
-function enterFromHome(view, skipAnim = false) {
+async function enterFromHome(view, skipAnim = false) {
   const prevView = _homeSubView;
   _homeSubView = view;
+
+  // 에디터·라이브러리 이탈 시 사운드 중지
+  if (prevView !== view && (prevView === 'editor' || prevView === 'library')) {
+    if (typeof GuitarAudio !== 'undefined') await GuitarAudio.stop({ wait: true });
+  }
 
   const ids = { home: 'view-home', editor: 'view-editor', library: 'view-library' };
   const incoming = document.getElementById(ids[view]);
@@ -2080,10 +2085,11 @@ function _updateBackBtn() {
 
 // ─── from_project 모드에서 user_project로 복귀 ─────────────────
 // 커버를 즉시 복원 후 이동 → 새 페이지가 project-enter와 함께 커버를 걷어냄
-function _returnToProject(returnId) {
+async function _returnToProject(returnId) {
   _editorReturnProjectId = null;
   _editorEditingChordId  = null;
   _isFromProject         = false;
+  if (typeof GuitarAudio !== 'undefined') await GuitarAudio.stop({ wait: true });
   const cover = document.getElementById('page-cover');
   if (cover) {
     cover.style.transition = 'none';
@@ -2101,13 +2107,14 @@ function _returnToProject(returnId) {
 }
 
 // ─── 프로젝트 페이지 열기 (슬라이드업 애니메이션) ────────────────
-function openProject(projectId) {
+async function openProject(projectId) {
   const proj = loadProjects().find(p => p.id === projectId);
   if (proj) {
     const chordCount = (proj.slots || []).filter(s => s && s.name).length;
     const ageDays    = proj.createdAt ? Math.floor((Date.now() - proj.createdAt) / 86400000) : 0;
     analytics.track('project_opened', { project_id: projectId, chord_count: chordCount, age_days: ageDays });
   }
+  if (typeof GuitarAudio !== 'undefined') await GuitarAudio.stop({ wait: true });
   const shell = document.querySelector('.app-shell');
   if (shell) {
     shell.classList.add('home-recede');
@@ -4071,14 +4078,18 @@ function _drawLibCanvas(canvas, ratio, entry, nameOverride, fingeringIdx = 0) {
   const frets     = entry.frets;
   const fingering = (entry.fingerings?.[fingeringIdx]) ?? entry.fingerings?.[0] ?? entry.fingering;
   // 절대 프렛 → 슬롯 번호 변환
-  // fretNumber는 슬롯2의 프렛 번호 → 슬롯1 = fretNumber-1 → offset = fretNumber-2
-  const fretOffset = entry.fretNumber >= 2 ? entry.fretNumber - 2 : 0;
+  // pattern: fretNumber = r = 슬롯1 → offset = fretNumber - 1
+  // static:  fretNumber = minFret, 슬롯2 기준 → offset = fretNumber - 2
+  const fretOffset = entry.fretNumber >= 2
+    ? (entry.source === 'pattern' ? entry.fretNumber - 1 : entry.fretNumber - 2)
+    : 0;
 
   const dotsArr = frets
     .map((f, s) => f !== null && f > 0
       ? { s, f: f - fretOffset, n: _libFingerMode ? (typeof fingering?.[s] === 'number' ? fingering[s] : 0) : 0 }
       : null)
     .filter(Boolean);
+
 
   // barre 키도 절대 프렛 → 슬롯 번호로 정규화 (운지별 barre 우선)
   const activeBarre = entry.barres?.[fingeringIdx] ?? entry.barres?.[0] ?? entry.barre ?? {};
@@ -4096,7 +4107,7 @@ function _drawLibCanvas(canvas, ratio, entry, nameOverride, fingeringIdx = 0) {
     openMute:      entry.openMute,
     barre:         normBarre,
     barreRange,
-    fretNumber:    entry.fretNumber,
+    fretNumber:    (entry.source === 'pattern' && entry.fretNumber >= 1) ? entry.fretNumber + 1 : entry.fretNumber,
     fingerNumMode: _libFingerMode,
   });
 }
