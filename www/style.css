@@ -643,6 +643,25 @@ body {
   border-radius: var(--radius);
 }
 
+.project-loading-spinner {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.project-loading-spinner::after {
+  content: '';
+  width: 32px;
+  height: 32px;
+  border: 3px solid rgba(44,44,44,0.12);
+  border-top-color: #2C2C2C;
+  border-radius: 50%;
+  animation: project-spin 0.7s linear infinite;
+}
+@keyframes project-spin {
+  to { transform: rotate(360deg); }
+}
+
 .project-inner {
   display: flex;
   flex-direction: column;
@@ -1892,6 +1911,15 @@ canvas {
   transition: left 0.06s linear;
   box-shadow: 0 1px 4px rgba(0,0,0,0.18);
 }
+.palette-scrollbar-dot::before {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 44px;
+  height: 44px;
+}
 
 
 .chord-palette-item {
@@ -1990,7 +2018,7 @@ canvas {
   user-select: none;
 }
 .chord-area.cols-4 { grid-template-columns: repeat(4, 140px); justify-content: space-between; }
-.chord-area.cols-8 { grid-template-columns: repeat(8, 140px); justify-content: space-between; }
+.chord-area.cols-8 { grid-template-columns: repeat(4, 140px); justify-content: space-between; }
 
 .chord-slot {
   position: relative;
@@ -2591,10 +2619,10 @@ canvas {
   }
 }
 
-/* 모바일/태블릿 가로모드: 8칸은 1행×8열 */
+/* 모바일/태블릿 가로모드: cols-8도 4열 고정 */
 @media (max-width: 1400px) and (orientation: landscape) {
   .chord-area.cols-8 {
-    grid-template-columns: repeat(8, 1fr);
+    grid-template-columns: repeat(4, 1fr);
     justify-content: stretch;
   }
 }
@@ -2689,7 +2717,7 @@ canvas {
   }
 
   .chord-area.cols-8 {
-    grid-template-columns: repeat(8, 1fr);
+    grid-template-columns: repeat(4, 1fr);
     justify-content: stretch;
   }
 
