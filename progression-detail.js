@@ -195,6 +195,7 @@ async function togglePlay() {
 
     _playing    = true;
     _masterBeat = 0;
+    analytics.track('progression_detail_played', { prog_id: _prog?.id, key: _getKeyDisplayName(_key), bpm: _bpm });
     _updatePlayBtn();
     _runCountIn(() => _masterTick());
   }

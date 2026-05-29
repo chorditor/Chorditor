@@ -2,6 +2,9 @@
 // scale-training.js — 스케일 훈련 페이지
 // ═══════════════════════════════════════════════════════════════
 
+// ── 프리미엄 전역 스위치 (출시 직전 true로 변경) ─────────────
+const PREMIUM_ENABLED = true;
+
 // ── 페이지 닫기 (훈련소로 복귀) ─────────────────────────────
 function closeScaleTraining() {
   const shell = document.querySelector('.app-shell');
@@ -19,7 +22,7 @@ function onScaleItemTap(el) {
   const level = parseInt(el.dataset.level, 10);
 
   // 프리미엄 카드 + 무료 플랜 → 구독 모달
-  if (el.dataset.premium === '1' && getPlan() === 'free') {
+  if (PREMIUM_ENABLED && el.dataset.premium === '1' && getPlan() === 'free') {
     analytics.track('paywall_viewed', { trigger_source: 'scale_premium', current_plan: 'free', level });
     openPlanSheet('scale_premium');
     return;
