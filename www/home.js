@@ -1814,29 +1814,32 @@ async function loadProfileFromDB() {
   };
 
   // 통계 (로컬)
-  const projects = loadProjects();
-  const chordCount = projects.reduce((s, p) => s + (p.chords?.length || 0), 0);
-  const stats = getStats();
-  const _sv = (id, v) => { const el = document.getElementById(id); if (el) el.textContent = v; };
-  _sv('stat-projects', projects.length);
-  _sv('stat-chords', chordCount);
-  _sv('stat-images', stats.images);
-  _sv('stat-shares', stats.shares);
-
-  syncStatsToDB();
+  try {
+    const projects = loadProjects();
+    const chordCount = projects.reduce((s, p) => s + (p.chords?.length || 0), 0);
+    const stats = getStats();
+    const _sv2 = (id, v) => { const el = document.getElementById(id); if (el) el.textContent = v; };
+    _sv2('stat-projects', projects.length);
+    _sv2('stat-chords', chordCount);
+    _sv2('stat-images', stats.images);
+    _sv2('stat-shares', stats.shares);
+    syncStatsToDB();
+  } catch(e) { console.warn('[Profile] stats err:', e); }
 
   // DB 데이터
   try {
+    const _sv = (id, v) => { const el = document.getElementById(id); if (el) el.textContent = v; };
     const stored = localStorage.getItem(SUPABASE_STORAGE_KEY);
-    if (!stored) return;
+    if (!stored) { console.warn('[Profile] session 없음'); return; }
     let session = JSON.parse(stored);
     let token = session?.access_token;
     const userId = session?.user?.id;
-    if (!token || !userId) return;
+    if (!token || !userId) { console.warn('[Profile] token/userId 없음'); return; }
 
     // token 만료 시 refresh 시도
     const now = Math.floor(Date.now() / 1000);
-    if (session.expires_at && session.expires_at <= now && session.refresh_token) {
+    const expired = session.expires_at && session.expires_at <= now;
+    if (expired && session.refresh_token) {
       try {
         const rr = await fetch(`${SUPABASE_URL}/auth/v1/token?grant_type=refresh_token`, {
           method: 'POST',
@@ -1850,16 +1853,22 @@ async function loadProfileFromDB() {
             token = session.access_token;
           }
         }
-      } catch(e) {}
+      } catch(e) { console.warn('[Profile] refresh 실패:', e); }
     }
 
     const resp = await fetch(
       `${SUPABASE_URL}/rest/v1/subscriptions?user_id=eq.${userId}&select=nickname,plan,created_at`,
       { headers: { 'apikey': SUPABASE_ANON, 'Authorization': `Bearer ${token}` } }
     );
-    if (!resp.ok) return;
+    if (!resp.ok) {
+      console.warn('[Profile] fetch 실패:', resp.status);
+      return;
+    }
     const rows = await resp.json();
-    if (!rows.length) return;
+    if (!rows.length) {
+      console.warn('[Profile] row 없음 uid=', userId);
+      return;
+    }
     const row = rows[0];
 
     const nickname = row.nickname || session?.user?.user_metadata?.full_name || '—';
@@ -1877,7 +1886,9 @@ async function loadProfileFromDB() {
 
     const badge = document.getElementById('profile-plan-badge');
     if (badge) badge.dataset.plan = plan;
-  } catch(e) {}
+  } catch(e) {
+    console.warn('[Profile] catch:', e);
+  }
 }
 
 function renderPlanBadge() {
@@ -4003,6 +4014,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       _authReady = true;
       analytics.setUserId(session.user.id);
       analytics.track('app_open', { platform: 'android', project_count: loadProjects().length });
+      loadProfileFromDB();
       _billingReady.then(async () => {
         if (window._RC) await window._RC.logIn({ appUserID: session.user.id }).catch(() => {});
         await syncPlanFromBilling();
