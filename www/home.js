@@ -1829,10 +1829,29 @@ async function loadProfileFromDB() {
   try {
     const stored = localStorage.getItem(SUPABASE_STORAGE_KEY);
     if (!stored) return;
-    const session = JSON.parse(stored);
-    const token = session?.access_token;
+    let session = JSON.parse(stored);
+    let token = session?.access_token;
     const userId = session?.user?.id;
     if (!token || !userId) return;
+
+    // token 만료 시 refresh 시도
+    const now = Math.floor(Date.now() / 1000);
+    if (session.expires_at && session.expires_at <= now && session.refresh_token) {
+      try {
+        const rr = await fetch(`${SUPABASE_URL}/auth/v1/token?grant_type=refresh_token`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'apikey': SUPABASE_ANON },
+          body: JSON.stringify({ refresh_token: session.refresh_token }),
+        });
+        if (rr.ok) {
+          const refreshed = await rr.json();
+          if (refreshed.access_token) {
+            session = saveSessionToStorage(refreshed);
+            token = session.access_token;
+          }
+        }
+      } catch(e) {}
+    }
 
     const resp = await fetch(
       `${SUPABASE_URL}/rest/v1/subscriptions?user_id=eq.${userId}&select=nickname,plan,created_at`,

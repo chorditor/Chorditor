@@ -786,6 +786,108 @@ async function syncTrainingStatsToDB() {
   } catch (_) {}
 }
 
+// ── 퀴즈 레벨 통계 DB 동기화 ────────────────────────────────────
+// quiz_stats_level{N} localStorage → Supabase quiz_level_stats
+async function syncQuizLevelStatsToDB(levelId) {
+  let accessToken = null, userId = null;
+  try {
+    const stored = localStorage.getItem(SUPABASE_STORAGE_KEY);
+    if (stored) {
+      const parsed = JSON.parse(stored);
+      accessToken  = parsed?.access_token ?? null;
+      userId       = parsed?.user?.id     ?? null;
+    }
+  } catch (_) {}
+  if (!accessToken || !userId) return;
+
+  const raw = JSON.parse(localStorage.getItem(`quiz_stats_level${levelId}`) || 'null');
+  if (!raw) return;
+
+  const modes = ['name-from-diagram', 'diagram-from-name'];
+  const rows = modes.map(mode => {
+    const s = raw[mode];
+    if (!s) return null;
+    return {
+      user_id:            userId,
+      level_id:           levelId,
+      mode,
+      total_played:       s.totalPlayed       || 0,
+      total_correct:      s.totalCorrect      || 0,
+      sessions_completed: s.sessionsCompleted || 0,
+      best_speed_sec:     s.bestSpeedSec      ?? null,
+      updated_at:         new Date().toISOString(),
+    };
+  }).filter(Boolean);
+
+  for (const row of rows) {
+    try {
+      await fetch(`${SUPABASE_URL}/rest/v1/quiz_level_stats`, {
+        method:  'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'apikey':        SUPABASE_ANON,
+          'Authorization': `Bearer ${accessToken}`,
+          'Prefer':        'resolution=merge-duplicates',
+        },
+        body: JSON.stringify(row),
+      });
+    } catch (_) {}
+  }
+}
+
+// ── 퀴즈 레벨 통계 DB 복원 ──────────────────────────────────────
+// Supabase quiz_level_stats → quiz_stats_level{N} localStorage
+// 서버값이 로컬보다 크면 덮어씀 (되감기 방지)
+async function restoreQuizLevelStatsFromDB() {
+  let accessToken = null, userId = null;
+  try {
+    const stored = localStorage.getItem(SUPABASE_STORAGE_KEY);
+    if (stored) {
+      const parsed = JSON.parse(stored);
+      accessToken  = parsed?.access_token ?? null;
+      userId       = parsed?.user?.id     ?? null;
+    }
+  } catch (_) {}
+  if (!accessToken || !userId) return;
+
+  try {
+    const resp = await fetch(
+      `${SUPABASE_URL}/rest/v1/quiz_level_stats?user_id=eq.${userId}&select=level_id,mode,total_played,total_correct,sessions_completed,best_speed_sec`,
+      { headers: { 'apikey': SUPABASE_ANON, 'Authorization': `Bearer ${accessToken}` } }
+    );
+    if (!resp.ok) return;
+    const rows = await resp.json();
+    if (!rows.length) return;
+
+    // level_id별로 그룹핑 후 localStorage 병합
+    const byLevel = {};
+    rows.forEach(r => {
+      if (!byLevel[r.level_id]) byLevel[r.level_id] = {};
+      byLevel[r.level_id][r.mode] = r;
+    });
+
+    Object.entries(byLevel).forEach(([levelId, modes]) => {
+      const key   = `quiz_stats_level${levelId}`;
+      const local = JSON.parse(localStorage.getItem(key) || '{}');
+      let changed = false;
+
+      Object.entries(modes).forEach(([mode, db]) => {
+        const loc = local[mode] || { totalPlayed:0, totalCorrect:0, sessionsCompleted:0, bestSpeedSec:null };
+        const merged = { ...loc };
+        if ((db.total_played       || 0) > (loc.totalPlayed       || 0)) { merged.totalPlayed       = db.total_played;       changed = true; }
+        if ((db.total_correct      || 0) > (loc.totalCorrect      || 0)) { merged.totalCorrect      = db.total_correct;      changed = true; }
+        if ((db.sessions_completed || 0) > (loc.sessionsCompleted || 0)) { merged.sessionsCompleted = db.sessions_completed; changed = true; }
+        if (db.best_speed_sec !== null && (loc.bestSpeedSec === null || db.best_speed_sec < loc.bestSpeedSec)) {
+          merged.bestSpeedSec = db.best_speed_sec; changed = true;
+        }
+        local[mode] = merged;
+      });
+
+      if (changed) localStorage.setItem(key, JSON.stringify(local));
+    });
+  } catch (_) {}
+}
+
 // ═══════════════════════════════════════════════════════════════
 // drawVoicingCanvas — 코드 운지 캔버스 공통 드로잉
 // voicing: chordsLibrary 엔트리 호환 객체

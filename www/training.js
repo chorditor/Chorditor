@@ -100,6 +100,9 @@ document.addEventListener('DOMContentLoaded', () => {
     syncTrainingStatsToDB();
   });
 
+  // 퀴즈 레벨 통계 복원
+  if (typeof restoreQuizLevelStatsFromDB === 'function') restoreQuizLevelStatsFromDB();
+
   // 훈련소 진입 이벤트
   const _stats = JSON.parse(localStorage.getItem('training_stats') || 'null');
   analytics.track('training_page_viewed', {

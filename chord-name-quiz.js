@@ -1776,6 +1776,9 @@ function saveSessionStats() {
   // DB 업로드용 로컬 캐시에 이번 세션 추가
   cacheSessionRecord();
 
+  // 퀴즈 레벨 통계 DB 동기화 (fire-and-forget)
+  if (typeof syncQuizLevelStatsToDB === 'function') syncQuizLevelStatsToDB(levelId);
+
   // 훈련소 전체 통계 갱신 (연속기록 / 훈련 시간 / 훈련 완료)
   const durationMin = Math.round((Date.now() - _sessionStartTime) / 60000 * 10) / 10;
   updateTrainingOverviewStats(Math.max(0.1, durationMin));
