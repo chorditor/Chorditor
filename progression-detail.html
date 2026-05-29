@@ -1,0 +1,87 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <title>Chorditor - 코드 진행 연습</title>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css" />
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Serif:wght@400;700&display=swap" />
+  <link rel="stylesheet" href="style.css" />
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
+</head>
+<body>
+
+  <div id="page-cover"></div>
+
+  <div class="app-shell">
+
+    <!-- 탑바 -->
+    <div class="top-bar top-bar--white">
+      <button id="back-btn" onpointerup="goBack()">
+        <i data-lucide="chevron-left"></i>
+      </button>
+    </div>
+
+    <!-- 메인 콘텐츠 -->
+    <div class="main-content progd-layout" id="main-content">
+
+      <!-- ① 코드 뷰 -->
+      <div class="progd-chord-view">
+        <!-- 코드 진행 나열 -->
+        <div class="progd-prog-bar" id="detail-prog-bar"></div>
+        <!-- 메트로놈 인디케이터 -->
+        <div class="progd-count-dots" id="detail-count-dots">
+          <span class="progd-count-dot"></span>
+          <span class="progd-count-dot"></span>
+          <span class="progd-count-dot"></span>
+          <span class="progd-count-dot"></span>
+        </div>
+        <div class="progd-chord-view-inner" id="detail-chord-row"></div>
+      </div>
+
+      <!-- ② BPM + 재생 -->
+      <div class="progd-playbar">
+        <div class="progd-bpm-row">
+          <button class="progd-bpm-btn" onpointerup="changeBpm(-1)">−</button>
+          <div class="progd-bpm-wheel-wrap">
+            <div class="progd-bpm-wheel" id="detail-bpm-wheel"></div>
+          </div>
+          <button class="progd-bpm-btn" onpointerup="changeBpm(1)">+</button>
+        </div>
+        <button class="progd-play-btn" id="detail-play-btn" onpointerup="togglePlay()">
+          <i class="ph-fill ph-play"></i>
+        </button>
+      </div>
+
+      <!-- ③ 키 선택 (하단) -->
+      <div class="key-selector-section">
+        <div class="accidental-toggle-row">
+          <div class="accidental-toggle" id="detail-accidental-toggle">
+            <span class="acc-btn active" id="detail-acc-sharp">&#9839;</span>
+            <span class="acc-btn" id="detail-acc-flat">b</span>
+          </div>
+        </div>
+        <span class="key-selector-label">KEY</span>
+        <div class="key-selector" id="detail-key-strip"></div>
+      </div>
+
+    </div>
+
+  </div>
+
+  <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.js"></script>
+  <script src="https://unpkg.com/@phosphor-icons/web"></script>
+  <script src="analytics-sdk.js"></script>
+  <script src="shared.js"></script>
+  <script src="chord-voicings.js"></script>
+  <script src="chords-library.js"></script>
+  <script src="guitar-samples.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/tone/14.8.49/Tone.js"></script>
+  <script src="guitar-audio.js"></script>
+  <script src="progression-data.js"></script>
+  <script src="progression-parser.js"></script>
+  <script src="progression-voicing-list.js"></script>
+  <script src="progression-voicings.js"></script>
+  <script src="progression-detail.js"></script>
+</body>
+</html>

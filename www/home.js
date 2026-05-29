@@ -43,10 +43,8 @@ function resizeCanvas() {
   const unitEl = canvas.closest('.canvas-unit');
   if (unitEl) {
     const unitW  = unitEl.getBoundingClientRect().width;
-    const sideEl = document.getElementById('canvas-side-btns');
-    const sideW  = sideEl ? Math.ceil(sideEl.getBoundingClientRect().width) : 0;
-    const gap    = sideW > 0 ? 8 : 0;
-    displayW = Math.max(220, Math.floor(unitW - sideW - gap));
+    // 버튼이 캔버스 위에 오버레이되므로 sideW 차감 없음
+    displayW = Math.max(160, Math.floor(unitW));
   }
 
   canvas.style.width  = displayW + 'px';
@@ -80,7 +78,7 @@ function resizeCanvas() {
   // 사이드 버튼: 캔버스 크기에 비례한 동적 크기 + 프렛보드 기준 수직 중앙정렬
   const sideBtnsEl = document.getElementById('canvas-side-btns');
   if (sideBtnsEl) {
-    const btnSize  = Math.max(32, Math.round(displayW * 0.15));
+    const btnSize  = Math.max(26, Math.round(displayW * 0.12));
     const btnGap   = Math.max(8,  Math.round(btnSize * 0.3));
     const iconSize = Math.round(btnSize * 0.44);
     // 버튼 크기 적용 (초기화 포함 전체)
@@ -92,6 +90,9 @@ function resizeCanvas() {
     });
     // canvas-side-btns gap 제거 (paddingTop으로 직접 제어)
     sideBtnsEl.style.gap = '0';
+    // 우측 오프셋: 캔버스 우측 여백(BASE_PAD_R) 중앙에 버튼 배치
+    const rightOffset = Math.max(4, Math.round(BASE_PAD_R * displayW / BASE_W * 0.15));
+    sideBtnsEl.style.right = rightOffset + 'px';
 
     const mainBtnsEl = document.getElementById('canvas-main-btns');
     if (mainBtnsEl) {
@@ -688,6 +689,15 @@ function renderBassBtns() {
     group.querySelectorAll('.sel-btn').forEach((b, j) => b.classList.toggle('active', j === i));
     updateChordDisplay();
   });
+}
+
+function toggleAccidental() {
+  const current = document.getElementById('acc-sharp')?.classList.contains('active') ? 'sharp' : 'flat';
+  setAccidental(current === 'sharp' ? 'flat' : 'sharp');
+}
+function toggleLibAccidental() {
+  const current = document.getElementById('lib-acc-sharp')?.classList.contains('active') ? 'sharp' : 'flat';
+  setLibAccidental(current === 'sharp' ? 'flat' : 'sharp');
 }
 
 function setAccidental(mode) {
@@ -1497,21 +1507,12 @@ function adjustFretNumber(delta) {
 }
 
 // ═══════════════════════════════════════════════════════════════
-// Audio Engine (Karplus-Strong)
 // ═══════════════════════════════════════════════════════════════
-const AudioCtx = window.AudioContext || window.webkitAudioContext;
-let audioCtx = null;
-const renderedCache = {};
-let activeSources = [];
+// Audio — GuitarAudio (guitar-audio.js) 사용
+// ═══════════════════════════════════════════════════════════════
+const OPEN_MIDI = [64, 59, 55, 50, 45, 40]; // E4 B3 G3 D3 A2 E2
 
-const OPEN_MIDI = [64, 59, 55, 50, 45, 40];
-const midiToFreq = midi => 440 * Math.pow(2, (midi - 69) / 12);
-
-async function playChord(chord) {
-  if (!audioCtx) audioCtx = new AudioCtx();
-  if (audioCtx.state === 'suspended') await audioCtx.resume();
-  activeSources.forEach(s => { try { s.stop(); } catch(e) {} });
-  activeSources = [];
+function playChord(chord) {
   const notes = [];
   const fretBase = chord.fretNumber >= 2 ? chord.fretNumber - 2 : 0;
   const capoOffset = getProject(currentProjectId)?.capo ?? 0;
@@ -1522,7 +1523,6 @@ async function playChord(chord) {
     const dot = sd.length > 0 ? sd.reduce((a, b) => a.f >= b.f ? a : b) : undefined;
     const barreFret = barreMap[s];
     let fret = 0;
-    // 가장 우측(높은 프렛) dot만 소리남
     if (dot !== undefined && barreFret !== undefined) {
       fret = fretBase + Math.max(dot.f, barreFret);
     } else if (dot !== undefined) {
@@ -1534,49 +1534,7 @@ async function playChord(chord) {
   }
   const sorted = notes.sort((a, b) => b.s - a.s);
   if (!sorted.length) return;
-  const DURATION = 2.5, INTERVAL = 0.075;
-  const now = audioCtx.currentTime + 0.05;
-  const buffers = await Promise.all(sorted.map(n => getBuffer(midiToFreq(n.midi), DURATION)));
-  buffers.forEach((buf, i) => {
-    const src = audioCtx.createBufferSource();
-    src.buffer = buf; src.connect(audioCtx.destination);
-    src.start(now + i * INTERVAL);
-    activeSources.push(src);
-  });
-}
-
-async function renderKarplusStrong(freq, duration) {
-  const sr = 44100;
-  const total = Math.round(sr * duration);
-  const offline = new OfflineAudioContext(1, total, sr);
-  const N = Math.round(sr / freq);
-  const d = new Float32Array(total);
-  const delay = new Float32Array(N);
-  const decay = 1 - (0.5 / (N * 2));
-  for (let i = 0; i < N; i++) delay[i] = (Math.random() * 2 - 1) * 0.5;
-  for (let i = 0; i < total; i++) {
-    const idx  = i % N;
-    const next = (i + 1) % N;
-    d[i] = delay[idx];
-    delay[idx] = decay * 0.5 * (delay[idx] + delay[next]);
-  }
-  const buf = offline.createBuffer(1, total, sr);
-  buf.getChannelData(0).set(d);
-  const gain = offline.createGain();
-  gain.gain.setValueAtTime(0.5, 0);
-  gain.gain.exponentialRampToValueAtTime(0.001, duration);
-  const src = offline.createBufferSource();
-  src.buffer = buf;
-  src.connect(gain);
-  gain.connect(offline.destination);
-  src.start(0);
-  return await offline.startRendering();
-}
-
-async function getBuffer(freq, duration) {
-  const key = freq.toFixed(2);
-  if (!renderedCache[key]) renderedCache[key] = await renderKarplusStrong(freq, duration);
-  return renderedCache[key];
+  GuitarAudio.strumNotes(sorted.map(n => n.midi), STRUM_INTERVAL);
 }
 
 function calcActualFret(f) {
@@ -1638,25 +1596,13 @@ function calcStringNotes() {
   return notes;
 }
 
-async function strumChord() {
-  if (!audioCtx) audioCtx = new AudioCtx();
-  if (audioCtx.state === 'suspended') await audioCtx.resume();
-  activeSources.forEach(s => { try { s.stop(); } catch(e) {} });
-  activeSources = [];
+const STRUM_INTERVAL = 0.055; // 줄 간 간격(초) — 값 높이면 느린 스트럼
+
+function strumChord() {
   const notes = calcStringNotes().sort((a, b) => b.s - a.s);
   if (!notes.length) return;
   analytics.track('chord_played', { chord_name: buildChordName(), source: 'editor' });
-  const DURATION = 2.5;
-  const INTERVAL = 0.075;
-  const now = audioCtx.currentTime + 0.05;
-  const buffers = await Promise.all(notes.map(n => getBuffer(midiToFreq(n.midi), DURATION)));
-  buffers.forEach((buf, i) => {
-    const src = audioCtx.createBufferSource();
-    src.buffer = buf;
-    src.connect(audioCtx.destination);
-    src.start(now + i * INTERVAL);
-    activeSources.push(src);
-  });
+  GuitarAudio.strumNotes(notes.map(n => n.midi), STRUM_INTERVAL);
 }
 
 
@@ -1868,33 +1814,61 @@ async function loadProfileFromDB() {
   };
 
   // 통계 (로컬)
-  const projects = loadProjects();
-  const chordCount = projects.reduce((s, p) => s + (p.chords?.length || 0), 0);
-  const stats = getStats();
-  const _sv = (id, v) => { const el = document.getElementById(id); if (el) el.textContent = v; };
-  _sv('stat-projects', projects.length);
-  _sv('stat-chords', chordCount);
-  _sv('stat-images', stats.images);
-  _sv('stat-shares', stats.shares);
-
-  syncStatsToDB();
+  try {
+    const projects = loadProjects();
+    const chordCount = projects.reduce((s, p) => s + (p.chords?.length || 0), 0);
+    const stats = getStats();
+    const _sv2 = (id, v) => { const el = document.getElementById(id); if (el) el.textContent = v; };
+    _sv2('stat-projects', projects.length);
+    _sv2('stat-chords', chordCount);
+    _sv2('stat-images', stats.images);
+    _sv2('stat-shares', stats.shares);
+    syncStatsToDB();
+  } catch(e) { console.warn('[Profile] stats err:', e); }
 
   // DB 데이터
   try {
+    const _sv = (id, v) => { const el = document.getElementById(id); if (el) el.textContent = v; };
     const stored = localStorage.getItem(SUPABASE_STORAGE_KEY);
-    if (!stored) return;
-    const session = JSON.parse(stored);
-    const token = session?.access_token;
+    if (!stored) { console.warn('[Profile] session 없음'); return; }
+    let session = JSON.parse(stored);
+    let token = session?.access_token;
     const userId = session?.user?.id;
-    if (!token || !userId) return;
+    if (!token || !userId) { console.warn('[Profile] token/userId 없음'); return; }
+
+    // token 만료 시 refresh 시도
+    const now = Math.floor(Date.now() / 1000);
+    const expired = session.expires_at && session.expires_at <= now;
+    if (expired && session.refresh_token) {
+      try {
+        const rr = await fetch(`${SUPABASE_URL}/auth/v1/token?grant_type=refresh_token`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'apikey': SUPABASE_ANON },
+          body: JSON.stringify({ refresh_token: session.refresh_token }),
+        });
+        if (rr.ok) {
+          const refreshed = await rr.json();
+          if (refreshed.access_token) {
+            session = saveSessionToStorage(refreshed);
+            token = session.access_token;
+          }
+        }
+      } catch(e) { console.warn('[Profile] refresh 실패:', e); }
+    }
 
     const resp = await fetch(
       `${SUPABASE_URL}/rest/v1/subscriptions?user_id=eq.${userId}&select=nickname,plan,created_at`,
       { headers: { 'apikey': SUPABASE_ANON, 'Authorization': `Bearer ${token}` } }
     );
-    if (!resp.ok) return;
+    if (!resp.ok) {
+      console.warn('[Profile] fetch 실패:', resp.status);
+      return;
+    }
     const rows = await resp.json();
-    if (!rows.length) return;
+    if (!rows.length) {
+      console.warn('[Profile] row 없음 uid=', userId);
+      return;
+    }
     const row = rows[0];
 
     const nickname = row.nickname || session?.user?.user_metadata?.full_name || '—';
@@ -1912,7 +1886,9 @@ async function loadProfileFromDB() {
 
     const badge = document.getElementById('profile-plan-badge');
     if (badge) badge.dataset.plan = plan;
-  } catch(e) {}
+  } catch(e) {
+    console.warn('[Profile] catch:', e);
+  }
 }
 
 function renderPlanBadge() {
@@ -2066,9 +2042,14 @@ function tapSwitchTab(el, tab) {
 }
 
 // ─── 홈 탭 → 서브뷰 진입 ─────────────────────────────────────
-function enterFromHome(view, skipAnim = false) {
+async function enterFromHome(view, skipAnim = false) {
   const prevView = _homeSubView;
   _homeSubView = view;
+
+  // 에디터·라이브러리 이탈 시 사운드 중지
+  if (prevView !== view && (prevView === 'editor' || prevView === 'library')) {
+    if (typeof GuitarAudio !== 'undefined') await GuitarAudio.stop({ wait: true });
+  }
 
   const ids = { home: 'view-home', editor: 'view-editor', library: 'view-library' };
   const incoming = document.getElementById(ids[view]);
@@ -2192,10 +2173,11 @@ function _updateBackBtn() {
 
 // ─── from_project 모드에서 user_project로 복귀 ─────────────────
 // 커버를 즉시 복원 후 이동 → 새 페이지가 project-enter와 함께 커버를 걷어냄
-function _returnToProject(returnId) {
+async function _returnToProject(returnId) {
   _editorReturnProjectId = null;
   _editorEditingChordId  = null;
   _isFromProject         = false;
+  if (typeof GuitarAudio !== 'undefined') await GuitarAudio.stop({ wait: true });
   const cover = document.getElementById('page-cover');
   if (cover) {
     cover.style.transition = 'none';
@@ -2213,13 +2195,14 @@ function _returnToProject(returnId) {
 }
 
 // ─── 프로젝트 페이지 열기 (슬라이드업 애니메이션) ────────────────
-function openProject(projectId) {
+async function openProject(projectId) {
   const proj = loadProjects().find(p => p.id === projectId);
   if (proj) {
     const chordCount = (proj.slots || []).filter(s => s && s.name).length;
     const ageDays    = proj.createdAt ? Math.floor((Date.now() - proj.createdAt) / 86400000) : 0;
     analytics.track('project_opened', { project_id: projectId, chord_count: chordCount, age_days: ageDays });
   }
+  if (typeof GuitarAudio !== 'undefined') await GuitarAudio.stop({ wait: true });
   const shell = document.querySelector('.app-shell');
   if (shell) {
     shell.classList.add('home-recede');
@@ -4031,6 +4014,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       _authReady = true;
       analytics.setUserId(session.user.id);
       analytics.track('app_open', { platform: 'android', project_count: loadProjects().length });
+      loadProfileFromDB();
       _billingReady.then(async () => {
         if (window._RC) await window._RC.logIn({ appUserID: session.user.id }).catch(() => {});
         await syncPlanFromBilling();
@@ -4185,14 +4169,18 @@ function _drawLibCanvas(canvas, ratio, entry, nameOverride, fingeringIdx = 0) {
   const frets     = entry.frets;
   const fingering = (entry.fingerings?.[fingeringIdx]) ?? entry.fingerings?.[0] ?? entry.fingering;
   // 절대 프렛 → 슬롯 번호 변환
-  // fretNumber는 슬롯2의 프렛 번호 → 슬롯1 = fretNumber-1 → offset = fretNumber-2
-  const fretOffset = entry.fretNumber >= 2 ? entry.fretNumber - 2 : 0;
+  // pattern: fretNumber = r = 슬롯1 → offset = fretNumber - 1
+  // static:  fretNumber = minFret, 슬롯2 기준 → offset = fretNumber - 2
+  const fretOffset = entry.fretNumber >= 2
+    ? (entry.source === 'pattern' ? entry.fretNumber - 1 : entry.fretNumber - 2)
+    : 0;
 
   const dotsArr = frets
     .map((f, s) => f !== null && f > 0
       ? { s, f: f - fretOffset, n: _libFingerMode ? (typeof fingering?.[s] === 'number' ? fingering[s] : 0) : 0 }
       : null)
     .filter(Boolean);
+
 
   // barre 키도 절대 프렛 → 슬롯 번호로 정규화 (운지별 barre 우선)
   const activeBarre = entry.barres?.[fingeringIdx] ?? entry.barres?.[0] ?? entry.barre ?? {};
@@ -4210,7 +4198,7 @@ function _drawLibCanvas(canvas, ratio, entry, nameOverride, fingeringIdx = 0) {
     openMute:      entry.openMute,
     barre:         normBarre,
     barreRange,
-    fretNumber:    entry.fretNumber,
+    fretNumber:    (entry.source === 'pattern' && entry.fretNumber >= 1) ? entry.fretNumber + 1 : entry.fretNumber,
     fingerNumMode: _libFingerMode,
   });
 }

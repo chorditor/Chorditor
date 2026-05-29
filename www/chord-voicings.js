@@ -37,6 +37,7 @@ window.CHORD_STATIC = [
   ['x 3 2 0 3 0',  ['Cadd9'],    'x 2 1 x 3 x',  'add9',  2],
   ['x 3 2 0 3 3',  ['Cadd9'],    'x 2 1 x 3 4',  'add9',  2],
   ['x 3 2 0 0 0',  ['CM7'],    'x 3 2 x x x',  'M7',  2],
+  ['x 3 2 3 1 0',  ['C7'],    'x 3 2 4 1 x',  '7',  2],
   ['0 3 2 0 1 0',  ['C/E'],   'x 3 2 x 1 x',  'slash',  2],
   ['3 3 2 0 1 0',  ['C/G'],   '3 4 2 x 1 x',  'slash',  2],
   ['x 2 2 0 1 0',  ['C/B'],   'x 2 3 x 1 x',  'slash',  2],
@@ -121,6 +122,14 @@ window.CHORD_STATIC = [
   ['2 x 0 2 3 2',  ['D/F#'],    'T x x 1 3 2',  'slash',  2, { flat: true }],
   ['x 0 0 2 3 2',  ['D/A'],    'x x x 2 3 1',  'slash',  2],
   ['x 0 0 2 3 2',  ['D/A'],    'x x x 1 3 2',  'slash',  2],
+
+  // ── F 계열 ────────────────────────────────────────────────
+  ['x x 3 2 1 1',  ['F'],    'x x 3 2 1 1',  'M',  2, { barre: true }],
+  ['x 0 3 2 1 1',  ['F/A'],    'x x 3 2 1 1',  'slash',  2, { barre: true }],
+  ['x x 3 2 1 0',  ['FM7'],    'x x 3 2 1 0',  'M7',  2],
+
+  // ── B 계열 ────────────────────────────────────────────────
+  ['x 2 1 2 0 2',  ['B7'],    'x 2 1 3 x 4',  '7',  2],
 
   // ── 어쿠스틱 보이싱 ────────────────────────────────────────────────
   ['0 7 9 9 0 0',  ['E'],    'x 1 3 4 x x',  'M',  8],
@@ -237,7 +246,7 @@ window.CHORD_PATTERN = [
   { pattern: 'x x r+1 r+2 r+2 r+2', rootStr: 4, fingers: 'x x 1 2 3 4', barre: true, quality: 'm7(b5)', name: (r, flat) => chordNoteName(2, r+1, flat) + 'm7(b5)'},
 
   // dim7 코드 쉘 보이싱
-  { pattern: 'r+2 x r+1 r+2 r+1 x', rootStr: 6, fingers: '2 x 1 3 1 x', barre: true, quality: 'dim7', name: (r, flat) => chordNoteName(0, r+2, flat) + 'dim7'}, // -> 바레 적용 안되고 있음.
+  { pattern: 'r+2 x r+1 r+2 r+1 x', rootStr: 6, fingers: '2 x 1 3 1 x', barre: true, quality: 'dim7', name: (r, flat) => chordNoteName(0, r+2, flat) + 'dim7'},
   { pattern: 'x r+1 r+2 r r+2 x', rootStr: 5, fingers: 'x 2 3 1 4 x', barre: true, quality: 'dim7', name: (r, flat) => chordNoteName(1, r+1, flat) + 'dim7'},
   { pattern: 'x x r+1 r+2 r+1 r+2', rootStr: 4, fingers: 'x x 1 3 2 4', barre: true, quality: 'dim7', name: (r, flat) => chordNoteName(2, r+1, flat) + 'dim7'},
 

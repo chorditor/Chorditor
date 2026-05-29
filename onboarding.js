@@ -9,13 +9,39 @@ function goToHome() {
 }
 
 // ── 온보딩 정보수집 스텝 ──────────────────────────────────────
-let _obData = { persona: null, guitar_experience: null, gender: null, birth_year: null, nickname: null };
+let _obData = { persona: null, guitar_experience: null, gender: null, birth_year: null };
 
-function _startOnboardingSteps() {
+async function _startOnboardingSteps() {
   if (localStorage.getItem('onboarding_done')) {
     goToHome();
     return;
   }
+
+  // 앱 재설치 후 localStorage 소멸 케이스:
+  // Supabase subscriptions에 onboarding_completed_at 있으면 복원 후 home 이동
+  try {
+    const stored = localStorage.getItem(SUPABASE_STORAGE_KEY);
+    if (stored) {
+      const session = JSON.parse(stored);
+      const token   = session?.access_token;
+      const userId  = session?.user?.id;
+      if (token && userId) {
+        const resp = await fetch(
+          `${SUPABASE_URL}/rest/v1/subscriptions?user_id=eq.${userId}&select=onboarding_completed_at`,
+          { headers: { 'apikey': SUPABASE_ANON, 'Authorization': `Bearer ${token}` } }
+        );
+        if (resp.ok) {
+          const rows = await resp.json();
+          if (rows.length > 0 && rows[0].onboarding_completed_at) {
+            localStorage.setItem('onboarding_done', '1');
+            goToHome();
+            return;
+          }
+        }
+      }
+    }
+  } catch (_) {}
+
   document.getElementById('onboarding-overlay')?.classList.add('hidden');
   _showStep('ob-step1');
 }
@@ -84,6 +110,8 @@ function obSelectChoice(el, field) {
     document.getElementById('ob-step2-next').disabled = false;
   } else if (field === 'gender') {
     document.getElementById('ob-step3-next').disabled = false;
+  } else if (field === 'age_group') {
+    document.getElementById('ob-step4-complete').disabled = false;
   }
 }
 
@@ -98,36 +126,9 @@ function obStep3Next() {
   _initYearPicker();
 }
 
-// Step 4: 년도 선택 → Step 5 이동
-function obStep4Next() {
-  _showStep('ob-step5', 'ob-step4');
-  // Google 이름 자동 채움
-  try {
-    const session = JSON.parse(localStorage.getItem(SUPABASE_STORAGE_KEY) || '{}');
-    const googleName = session?.user?.user_metadata?.full_name
-                    || session?.user?.user_metadata?.name
-                    || '';
-    const input = document.getElementById('ob-nickname-input');
-    if (input && googleName) {
-      input.value = googleName;
-      _obData.nickname = googleName;
-      document.getElementById('ob-nickname-len').textContent = googleName.length;
-      document.getElementById('ob-step5-complete').disabled = false;
-    }
-  } catch(e) {}
-}
-
-// Step 5: 닉네임 입력 처리
-function obOnNicknameInput(input) {
-  const val = input.value.trim();
-  _obData.nickname = val || null;
-  document.getElementById('ob-nickname-len').textContent = input.value.length;
-  document.getElementById('ob-step5-complete').disabled = val.length === 0;
-}
-
-// Step 5: 완료 → Supabase 저장 → home 이동
-async function obStep5Complete() {
-  const btn = document.getElementById('ob-step5-complete');
+// Step 4: 완료 → Supabase 저장 → home 이동
+async function obStep4Complete() {
+  const btn = document.getElementById('ob-step4-complete');
   if (btn) { btn.disabled = true; btn.textContent = '저장 중...'; }
   await _saveOnboardingData();
   localStorage.setItem('onboarding_done', '1');
@@ -182,21 +183,21 @@ async function _saveOnboardingData() {
     const token  = session?.access_token;
     const userId = session?.user?.id;
     if (!token || !userId) return;
-
-    await fetch(`${SUPABASE_URL}/rest/v1/subscriptions?user_id=eq.${userId}`, {
-      method: 'PATCH',
+    await fetch(`${SUPABASE_URL}/rest/v1/subscriptions`, {
+      method: 'POST',
       headers: {
         'Content-Type': 'application/json',
         'apikey': SUPABASE_ANON,
         'Authorization': `Bearer ${token}`,
-        'Prefer': 'return=minimal',
+        'Prefer': 'resolution=merge-duplicates,return=minimal',
       },
       body: JSON.stringify({
+        user_id:                  userId,
         persona:                  _obData.persona,
         guitar_experience:        _obData.guitar_experience,
         gender:                   _obData.gender,
         birth_year:               _obData.birth_year,
-        nickname:                 _obData.nickname,
+        consent_agreed_at:        new Date().toISOString(),
         onboarding_completed_at:  new Date().toISOString(),
       }),
     });
@@ -267,12 +268,6 @@ async function onboardingSignIn() {
 
     if (googleBtn)    googleBtn.classList.add('hidden');
     if (signinLoader) signinLoader.classList.remove('hidden');
-
-    await GoogleAuth.initialize({
-      clientId: '495859421223-rkjalna3ckhslfrk12gvbehn69o9j4qe.apps.googleusercontent.com',
-      scopes: ['profile', 'email'],
-      grantOfflineAccess: true,
-    });
 
     const googleUser = await GoogleAuth.signIn();
     const idToken = googleUser?.authentication?.idToken ?? googleUser?.idToken;
@@ -379,11 +374,29 @@ async function tryAutoSignIn() {
 
 // ── 앱 초기화 ─────────────────────────────────────────────────
 document.addEventListener('DOMContentLoaded', async () => {
+  // ── DEV 빌드: 온보딩/로그인 건너뛰고 바로 홈으로 ────────────
+  if (typeof APP_VERSION !== 'undefined' && APP_VERSION.includes('_dev')) {
+    window.location.replace('home.html');
+    return;
+  }
+
   // 로딩 스피너 즉시 표시 (checkForceUpdate/initBilling 대기 중 빈 화면 방지)
   document.getElementById('onboarding-overlay')?.classList.remove('hidden');
 
   await checkForceUpdate();
   await initBilling();
+
+  // Android: GoogleAuth 1회 사전 초기화 (onboardingSignIn에서 재호출 시 상태 꼬임 방지)
+  if (window.Capacitor?.isNativePlatform()) {
+    const GoogleAuth = window.Capacitor?.Plugins?.GoogleAuth;
+    if (GoogleAuth) {
+      GoogleAuth.initialize({
+        clientId: '495859421223-rkjalna3ckhslfrk12gvbehn69o9j4qe.apps.googleusercontent.com',
+        scopes: ['profile', 'email'],
+        grantOfflineAccess: true,
+      }).catch(() => {});
+    }
+  }
 
   initSupabase().then(() => tryAutoSignIn());
 });

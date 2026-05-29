@@ -1,0 +1,60 @@
+// ═══════════════════════════════════════════════════════════════
+// scale-training.js — 스케일 훈련 페이지
+// ═══════════════════════════════════════════════════════════════
+
+// ── 프리미엄 전역 스위치 (출시 직전 true로 변경) ─────────────
+const PREMIUM_ENABLED = true;
+
+// ── 페이지 닫기 (훈련소로 복귀) ─────────────────────────────
+function closeScaleTraining() {
+  const shell = document.querySelector('.app-shell');
+  if (shell) {
+    shell.classList.add('project-exit');
+    setTimeout(() => { location.href = 'training.html'; }, 260);
+  } else {
+    location.href = 'training.html';
+  }
+}
+
+// ── 스케일 아이템 탭 ─────────────────────────────────────────
+function onScaleItemTap(el) {
+  const key   = el.dataset.key;
+  const level = parseInt(el.dataset.level, 10);
+
+  // 프리미엄 카드 + 무료 플랜 → 구독 모달
+  if (PREMIUM_ENABLED && el.dataset.premium === '1' && getPlan() === 'free') {
+    analytics.track('paywall_viewed', { trigger_source: 'scale_premium', current_plan: 'free', level });
+    openPlanSheet('scale_premium');
+    return;
+  }
+
+  analytics.track('scale_item_tapped', { scale_key: key, level });
+  const shell = document.querySelector('.app-shell');
+  if (shell) {
+    shell.classList.add('project-exit');
+    setTimeout(() => { location.href = `scale-level.html?key=${key}`; }, 260);
+  } else {
+    location.href = `scale-level.html?key=${key}`;
+  }
+}
+
+// ── DOMContentLoaded ─────────────────────────────────────────
+document.addEventListener('DOMContentLoaded', () => {
+
+  // 슬라이드업 진입 애니메이션
+  const shell = document.querySelector('.app-shell');
+  if (shell) shell.classList.add('project-enter');
+
+  lucide.createIcons();
+
+  // 페이지 커버 제거
+  const cover = document.getElementById('page-cover');
+  if (cover) {
+    requestAnimationFrame(() => {
+      cover.classList.add('cover-out');
+      setTimeout(() => { cover.style.display = 'none'; }, 200);
+    });
+  }
+
+  analytics.track('scale_training_viewed', {});
+});
