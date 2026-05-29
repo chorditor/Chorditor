@@ -37,8 +37,8 @@
             <div class="home-banner-block">
               <div class="home-banner-cols">
                 <div class="home-banner-left">
-                  <div class="home-banner-subtitle">누구나 기타를 즐기는 세상, 코디터</div>
-                  <div class="home-banner-title">Chorditor <span id="home-banner-version"></span></div>
+                  <div class="home-banner-title">누구나 기타를 즐기는 세상, 코디터</div>
+                  <div class="home-banner-subtitle">Chorditor <span id="home-banner-version"></span></div>
                 </div>
                 <div class="home-banner-right">
                   <span class="home-banner-note">Note</span>
@@ -49,22 +49,22 @@
           </div>
           <div class="home-blocks">
             <div class="home-block" onpointerdown="enterFromBlock(event,this,'editor')">
-              <div class="home-block-icon"><i class="ph-bold ph-grid-nine home-block-icon--blue"></i></div>
+              <div class="home-block-icon"><i class="ph-bold ph-grid-nine"></i></div>
               <div class="home-block-title">코드 에디터</div>
               <div class="home-block-desc">코드표 제작 · 이미지 저장</div>
             </div>
             <div class="home-block" onpointerdown="enterFromBlock(event,this,'library')">
-              <div class="home-block-icon"><i class="ph-bold ph-book-open home-block-icon--violet"></i></div>
+              <div class="home-block-icon"><i class="ph-bold ph-book-open"></i></div>
               <div class="home-block-title">코드 사전</div>
               <div class="home-block-desc">코드 운지 검색 · 가져오기</div>
             </div>
             <div class="home-block" onpointerdown="enterFromBlock(event,this,'training')">
-              <div class="home-block-icon"><i class="ph-bold ph-barbell home-block-icon--amber"></i></div>
+              <div class="home-block-icon"><i class="ph-bold ph-barbell"></i></div>
               <div class="home-block-title">훈련소</div>
               <div class="home-block-desc">기타 실력 향상 훈련</div>
             </div>
             <div class="home-block home-block--soon">
-              <div class="home-block-icon"><i class="ph-bold ph-map-trifold home-block-icon--emerald"></i></div>
+              <div class="home-block-icon"><i class="ph-bold ph-map-trifold"></i></div>
               <div class="home-block-title">나의 기타 여정</div>
               <div class="home-block-desc">Coming Soon</div>
             </div>
@@ -186,35 +186,33 @@
 
             <!-- 캔버스 -->
             <div class="canvas-wrap">
-              <div class="accidental-toggle canvas-wrap-acc-overlay">
-                <button class="acc-btn active" id="acc-sharp" onclick="setAccidental('sharp')">#</button>
-                <button class="acc-btn" id="acc-flat" onclick="setAccidental('flat')">b</button>
+              <div class="accidental-toggle canvas-wrap-acc-overlay" onclick="toggleAccidental()">
+                <button class="acc-btn active" id="acc-sharp">#</button>
+                <button class="acc-btn" id="acc-flat">b</button>
               </div>
               <div class="canvas-unit">
-                <div class="canvas-col">
-                  <div class="canvas-inner">
-                    <canvas id="c"></canvas>
-                    <div id="fret-ctrl">
-                      <button class="fret-arrow-btn" onclick="adjustFretNumber(-1)">&#9664;</button>
-                      <button class="fret-arrow-btn" onclick="adjustFretNumber(1)">&#9654;</button>
+                <div class="canvas-inner">
+                  <canvas id="c"></canvas>
+                  <div id="fret-ctrl">
+                    <button class="fret-arrow-btn" onclick="adjustFretNumber(-1)">&#9664;</button>
+                    <button class="fret-arrow-btn" onclick="adjustFretNumber(1)">&#9654;</button>
+                  </div>
+                  <div class="canvas-side-btns" id="canvas-side-btns">
+                    <button class="canvas-side-btn canvas-side-btn--ghost" id="btn-reset-chord" onclick="resetChord()" title="초기화">
+                      <i data-lucide="rotate-ccw"></i>
+                    </button>
+                    <div id="canvas-main-btns">
+                      <button class="canvas-side-btn" id="btn-save-image" onclick="saveChordImage()" title="이미지 저장">
+                        <i data-lucide="image-down"></i>
+                      </button>
+                      <button class="canvas-side-btn" id="btn-play-chord" onclick="strumChord()" title="재생">
+                        <i data-lucide="play"></i>
+                      </button>
                     </div>
                   </div>
-                  <div id="barre-wrap">
-                    <div id="barre-btns"></div>
-                  </div>
                 </div>
-                <div class="canvas-side-btns" id="canvas-side-btns">
-                  <button class="canvas-side-btn canvas-side-btn--ghost" id="btn-reset-chord" onclick="resetChord()" title="초기화">
-                    <i data-lucide="rotate-ccw"></i>
-                  </button>
-                  <div id="canvas-main-btns">
-                    <button class="canvas-side-btn" id="btn-save-image" onclick="saveChordImage()" title="이미지 저장">
-                      <i data-lucide="image-down"></i>
-                    </button>
-                    <button class="canvas-side-btn" id="btn-play-chord" onclick="strumChord()" title="재생">
-                      <i data-lucide="play"></i>
-                    </button>
-                  </div>
+                <div id="barre-wrap">
+                  <div id="barre-btns"></div>
                 </div>
               </div>
             </div>
@@ -232,8 +230,12 @@
       <div class="view hidden" id="view-library">
 
         <!-- 페이지 제목 -->
-        <span class="home-section-label lib-page-title">코드 사전</span>
+        <div class="lib-title">
+          <span class="home-section-label lib-page-title">코드 사전</span>
+        </div>
 
+        <!-- 2. 검색바 + 뷰어 -->
+        <div class="lib-viewer-section">
         <!-- 1. 검색창 -->
         <div class="lib-search-bar">
           <i data-lucide="search" class="lib-search-icon"></i>
@@ -241,17 +243,6 @@
                  placeholder="코드 검색... (C, Am, G7)"
                  oninput="onLibSearch(this.value)"
                  onkeydown="if(event.key==='Enter'){event.target.blur();showLibSearchModal();}" />
-        </div>
-
-        <!-- 검색 결과 모달 -->
-        <div class="lib-search-modal" id="lib-search-modal">
-          <div class="lib-search-modal-header">
-            <span class="lib-search-modal-title" id="lib-search-modal-title"></span>
-            <button class="icon-btn" onclick="closeLibSearchModal()">
-              <i data-lucide="x"></i>
-            </button>
-          </div>
-          <div class="lib-cards" id="lib-search-cards"></div>
         </div>
 
         <!-- 2. 코드 뷰어: 캔버스 + 사이드버튼 + 운지 내비게이션 -->
@@ -277,39 +268,53 @@
             </button>
           </div>
         </div>
+        </div><!-- /lib-viewer-section -->
 
-        <!-- 3. 액션 바: 샵/플랫 + 손가락번호 + 저장 + 가져오기 -->
-        <div class="lib-action-bar">
-          <div class="accidental-toggle">
-            <button class="acc-btn active" id="lib-acc-sharp"
-                    onclick="setLibAccidental('sharp')">#</button>
-            <button class="acc-btn" id="lib-acc-flat"
-                    onclick="setLibAccidental('flat')">b</button>
-          </div>
-          <button class="mode-btn active" id="lib-finger-btn"
-                  onclick="toggleLibFingerNum()" title="손가락 번호">
-            <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.5" xmlns="http://www.w3.org/2000/svg">
-              <circle cx="12" cy="12" r="10"/>
-              <text x="12" y="16.5" text-anchor="middle" font-size="11" font-family="serif" fill="currentColor" stroke="none" font-weight="bold">T</text>
-            </svg>
-          </button>
-          <span class="ab-spacer"></span>
-          <button class="ab-btn" onclick="libSaveToProject()">프로젝트에 저장</button>
-          <button class="ab-btn ab-btn-primary" onclick="importLibChordToProject()">에디터로</button>
-        </div>
+        <!-- 3+4. 액션바 + 코드목록 묶음 -->
+        <div class="lib-bottom-area">
+          <div class="lib-action-section">
+            <div class="lib-action-bar">
+              <div class="accidental-toggle" onclick="toggleLibAccidental()">
+                <button class="acc-btn active" id="lib-acc-sharp">#</button>
+                <button class="acc-btn" id="lib-acc-flat">b</button>
+              </div>
+              <button class="mode-btn active" id="lib-finger-btn"
+                      onclick="toggleLibFingerNum()" title="손가락 번호">
+                <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.5" xmlns="http://www.w3.org/2000/svg">
+                  <circle cx="12" cy="12" r="10"/>
+                  <text x="12" y="16.5" text-anchor="middle" font-size="11" font-family="serif" fill="currentColor" stroke="none" font-weight="bold">T</text>
+                </svg>
+              </button>
+              <span class="ab-spacer"></span>
+              <button class="ab-btn" onclick="libSaveToProject()">프로젝트에 저장</button>
+              <button class="ab-btn ab-btn-primary" onclick="importLibChordToProject()">에디터로</button>
+            </div>
+          </div><!-- /lib-action-section -->
 
-        <!-- 4. 코드 목록: 근음 세로(좌) + 카드 그리드(우) -->
-        <div class="lib-bottom">
-          <div class="lib-root-list" id="lib-root-tabs"></div>
-          <div class="lib-cards-area">
-            <div class="lib-cards" id="lib-cards"></div>
+          <!-- 4. 코드 목록: 근음 세로(좌) + 카드 그리드(우) -->
+          <div class="lib-bottom">
+            <div class="lib-root-list" id="lib-root-tabs"></div>
+            <div class="lib-cards-area">
+              <div class="lib-cards" id="lib-cards"></div>
+            </div>
+            <div class="lib-voicing-overlay" id="lib-voicing-overlay"
+                 onclick="closeVoicingModal()"></div>
+            <div class="lib-voicing-modal" id="lib-voicing-modal"
+                 onclick="closeVoicingModal()">
+              <div class="lib-voicing-grid" id="lib-voicing-grid"></div>
+            </div>
           </div>
-          <div class="lib-voicing-overlay" id="lib-voicing-overlay"
-               onclick="closeVoicingModal()"></div>
-          <div class="lib-voicing-modal" id="lib-voicing-modal"
-               onclick="closeVoicingModal()">
-            <div class="lib-voicing-grid" id="lib-voicing-grid"></div>
+        </div><!-- /lib-bottom-area -->
+
+        <!-- 검색 결과 모달 -->
+        <div class="lib-search-modal" id="lib-search-modal">
+          <div class="lib-search-modal-header">
+            <span class="lib-search-modal-title" id="lib-search-modal-title"></span>
+            <button class="icon-btn" onclick="closeLibSearchModal()">
+              <i data-lucide="x"></i>
+            </button>
           </div>
+          <div class="lib-cards" id="lib-search-cards"></div>
         </div>
 
       </div>
@@ -362,7 +367,6 @@
               <div class="profile-plan-left">
                 <span class="profile-plan-label">현재 플랜</span>
                 <span class="profile-plan-name" id="profile-plan-name">Free</span>
-                <span class="profile-plan-desc" id="profile-plan-desc">프로젝트 3개 · 이미지 x1</span>
               </div>
               <button class="profile-upgrade-btn" onclick="openPlanModal()">
                 업그레이드
@@ -724,6 +728,9 @@
   <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.js"></script>
   <script src="https://unpkg.com/@phosphor-icons/web"></script>
 
+  <script src="guitar-samples.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/tone/14.8.49/Tone.js"></script>
+  <script src="guitar-audio.js"></script>
   <script src="analytics-sdk.js"></script>
   <script src="shared.js"></script>
   <script src="home.js"></script>

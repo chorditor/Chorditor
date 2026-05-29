@@ -157,9 +157,8 @@
           }
         }
         const openMute  = frets.map(f => f === null ? 'mute' : null);
-        // 패턴 보이싱: fretNumber 직접 지정 시 사용, 생략 시 Math.max(2, r+1)
-        // fretNumber는 슬롯2 위치의 프렛 번호 → 슬롯1 = r이 되려면 r+1 필요
-        const minFret   = pat.fretNumber !== undefined ? pat.fretNumber : Math.max(2, r + 1);
+        // 패턴 보이싱: fretNumber 직접 지정 시 사용, 생략 시 r (근음 프렛 = 슬롯1)
+        const minFret   = pat.fretNumber !== undefined ? pat.fretNumber : r;
 
         const patEntry = {
           quality:      pat.quality,
@@ -270,9 +269,15 @@
       lib[root].forEach(entry => {
         const key = entry.name + '§' + entry.frets.join(',');
         if (keyMap.has(key)) {
-          keyMap.get(key).fingerings.push(entry.fingering);
-          keyMap.get(key).barres.push(entry.barre);
-          keyMap.get(key).barreRanges.push(entry.barreRange);
+          const base = keyMap.get(key);
+          base.fingerings.push(entry.fingering);
+          base.barres.push(entry.barre);
+          base.barreRanges.push(entry.barreRange);
+          // static source 우선 보존: pattern이 먼저 정렬돼도 static entry와 병합 시 source='static' 유지
+          if (entry.source === 'static') {
+            base.source      = 'static';
+            base.fretNumber  = entry.fretNumber;
+          }
         } else {
           entry.fingerings   = [entry.fingering];
           entry.barres       = [entry.barre];

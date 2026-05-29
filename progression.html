@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <title>Chorditor - 코드 진행 리스트</title>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css" />
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Serif:wght@300;400;700&display=swap" />
+  <link rel="stylesheet" href="style.css" />
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
+</head>
+<body>
+
+  <!-- 페이지 커버: 초기화 완료 전 화면 가림 -->
+  <div id="page-cover"></div>
+
+  <div class="app-shell">
+
+    <!-- ── 탑바 ── -->
+    <div class="top-bar top-bar--white">
+      <button id="back-btn" class="icon-btn" onpointerup="closeProgressionPage()">
+        <i data-lucide="x"></i>
+      </button>
+    </div>
+
+    <!-- ── 메인 콘텐츠 ── -->
+    <div class="main-content" id="main-content">
+      <div class="prog-scroll">
+
+        <!-- 스티키 헤더 -->
+        <div class="prog-sticky-header">
+          <span class="training-page-title">코드 진행 리스트</span>
+
+          <!-- 액션바 -->
+          <div class="prog-action-bar" id="prog-action-bar">
+            <div class="prog-action-bar-left">
+              <button class="prog-filter-chip" id="filter-difficulty">목록 별</button>
+              <button class="prog-filter-chip" id="filter-steps">전체</button>
+              <button class="prog-filter-chip prog-filter-chip--key" id="filter-key">C</button>
+            </div>
+            <div class="accidental-toggle">
+              <button class="acc-btn active" id="acc-sharp">&#9839;</button>
+              <button class="acc-btn" id="acc-flat">b</button>
+            </div>
+          </div>
+
+          <!-- No(목록 별) 드롭다운 -->
+          <div class="prog-no-dropdown" id="prog-no-dropdown" hidden>
+            <div class="prog-no-list" id="prog-no-list"></div>
+          </div>
+
+          <!-- Key 드롭다운 -->
+          <div class="prog-key-dropdown" id="prog-key-dropdown" hidden>
+            <div class="prog-key-grid" id="prog-key-grid"></div>
+          </div>
+        </div>
+
+        <!-- 진행 목록 -->
+        <div class="prog-list" id="prog-list"></div>
+
+      </div><!-- /prog-scroll -->
+    </div><!-- /main-content -->
+
+  </div><!-- /app-shell -->
+
+  <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.js"></script>
+  <script src="https://unpkg.com/@phosphor-icons/web"></script>
+  <script src="analytics-sdk.js"></script>
+  <script src="shared.js"></script>
+  <script src="guitar-samples.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/tone/14.8.49/Tone.js"></script>
+  <script src="guitar-audio.js"></script>
+  <script src="progression-data.js"></script>
+  <script src="progression-parser.js"></script>
+  <script src="progression.js"></script>
+</body>
+</html>

@@ -349,7 +349,7 @@ const LEVEL_CONFIGS = [
   { id: '3',  poolReady: true,  premium: false, name: '코드 꾸미기',   info: '세련된 소리가 나는 코드 모음',      timePerQ: '5초', timeSec: 5, count: 10, locked: false },
   { id: '4',  poolReady: true,  premium: false, name: '필수 분수코드', info: '노래에서 자주 쓰이는 분수코드',     timePerQ: '5초', timeSec: 5, count: 10, locked: false },
   { id: '5',  poolReady: true,  premium: false, name: '필수 7th코드',  info: 'M7 / m7 / 7 코드 정복하기',       timePerQ: '5초', timeSec: 5, count: 10, locked: false },
-  { id: 'c1', poolReady: true,  premium: true,  type: 'challenge', name: '기본코드 챌린지', info: 'LEVEL1~5 까지의 모든 코드가 등장합니다. 신기록에 도전해보세요!', timePerQ: '5초', timeSec: 5, count: 10, locked: false },
+  { id: 'c1', poolReady: true,  premium: true,  type: 'challenge', name: '기본코드 챌린지', info: 'LEVEL1~5까지의 모든 코드가 등장합니다!', timePerQ: '5초', timeSec: 5, count: 10, locked: false },
   { id: '6',  poolReady: false, premium: true,  name: '프렛의 확장',         info: '다양한 프렛에서의 코드를 익혀보세요.',     timePerQ: '—', timeSec: null, count: null, locked: true },
   { id: '7',  poolReady: false, premium: true,  name: '기능성 & 오픈코드',   info: '개방현을 활용하는 불규칙적인 코드',       timePerQ: '—', timeSec: null, count: null, locked: true },
   { id: '8',  poolReady: false, premium: true,  name: '7th 코드 정복하기',   info: '모든 7음 코드를 정복해보세요.',           timePerQ: '—', timeSec: null, count: null, locked: true },
@@ -1322,7 +1322,7 @@ let _current           = 0;
 let _questionStartTime = 0; // 문제 노출 시각 (ms)
 let _sessionStartTime  = 0; // 퀴즈 세션 시작 시각 (ms) — 훈련 시간 측정용
 let _results           = []; // { name, isCorrect, speedSec } 배열
-let _attendanceAchieved = false; // 이번 세션에서 오늘 3회 달성 여부
+let _attendanceAchieved = false; // 이번 세션에서 오늘 1회 달성 여부
 let _newRecordSpeed     = null;  // 신기록 달성 시 기록값 (null이면 미달성)
 let _timerTimeout       = null;  // 문제 타임어택 타이머 ID
 let _countdownTimers    = [];    // 카운트다운 setTimeout ID 목록
@@ -1800,7 +1800,7 @@ function updateTrainingOverviewStats(durationMin) {
   ) / 10;
 
   // 스트릭 갱신 — 오늘 정확히 3번째 달성 시점에만 1회 적용
-  if (stats.today_sessions === 3) {
+  if (stats.today_sessions === 1) {
     const yesterday = new Date(Date.now() - 86400000).toISOString().slice(0, 10);
     if (stats.streak_last_counted_date === yesterday) {
       stats.streak = (stats.streak || 0) + 1;
@@ -1812,6 +1812,7 @@ function updateTrainingOverviewStats(durationMin) {
   }
 
   localStorage.setItem(TRAINING_STATS_KEY, JSON.stringify(stats));
+  syncTrainingStatsToDB(); // 즉시 DB 반영 (fire-and-forget)
 }
 
 // ── 세션 로컬 캐시 & DB 플러시 ───────────────────────────────
@@ -2070,7 +2071,7 @@ function showResultModal() {
     setTimeout(() => showNewRecordModal(speed), 500);
   }
 
-  // 오늘 3회 달성 시 출석 완료 팝업 (결과 모달 등장 후 딜레이)
+  // 오늘 1회 달성 시 출석 완료 팝업 (결과 모달 등장 후 딜레이)
   if (_attendanceAchieved) {
     _attendanceAchieved = false;
     const streak = JSON.parse(localStorage.getItem(TRAINING_STATS_KEY) || '{}').streak || 1;

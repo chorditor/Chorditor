@@ -1,0 +1,270 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <title>Chorditor - 스케일 훈련</title>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css" />
+  <link rel="stylesheet" href="style.css" />
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
+</head>
+<body>
+
+  <!-- 페이지 커버: 초기화 완료 전 화면 가림 -->
+  <div id="page-cover"></div>
+
+  <div class="app-shell">
+
+    <!-- ── 탑바 ── -->
+    <div class="top-bar">
+      <button id="back-btn" class="icon-btn" onpointerup="closeScaleTraining()">
+        <i data-lucide="x"></i>
+      </button>
+    </div>
+
+    <!-- ── 메인 콘텐츠 ── -->
+    <div class="main-content" id="main-content">
+      <div class="scale-scroll">
+
+        <!-- 페이지 타이틀 -->
+        <span class="training-page-title">스케일 훈련</span>
+
+        <!-- ── Ch. 1: 마이너 펜타토닉 스케일 ── -->
+        <div class="scale-chapter">
+          <div class="scale-chapter-header">
+            <span class="scale-chapter-title">Ch. 1</span>
+            <span class="scale-chapter-subtitle">기초 스케일 연습</span>
+          </div>
+
+          <div class="scale-item-list">
+
+            <!-- 1. 메이저 스케일 -->
+            <div class="scale-item-card" data-key="major" data-level="1" onpointerup="onScaleItemTap(this)">
+              <div class="lw-row1">
+                <span class="lw-badge">LEVEL 1</span>
+                <span class="lw-row1-right"></span>
+              </div>
+              <span class="lw-name">메이저 스케일</span>
+            </div>
+
+            <!-- 2. 마이너 펜타토닉 스케일 -->
+            <div class="scale-item-card" data-key="pentatonic" data-level="2" onpointerup="onScaleItemTap(this)">
+              <div class="lw-row1">
+                <span class="lw-badge">LEVEL 2</span>
+                <span class="lw-row1-right"></span>
+              </div>
+              <span class="lw-name">마이너 펜타토닉 스케일</span>
+            </div>
+
+            <!-- 3. 마이너 블루스 스케일 -->
+            <div class="scale-item-card" data-key="blues" data-level="3" onpointerup="onScaleItemTap(this)">
+              <div class="lw-row1">
+                <span class="lw-badge">LEVEL 3</span>
+                <span class="lw-row1-right"></span>
+              </div>
+              <span class="lw-name">마이너 블루스 스케일</span>
+            </div>
+
+            <!-- 4. 내추럴 마이너 스케일 (프리미엄) -->
+            <div class="scale-item-card" data-key="natural-minor" data-level="4" data-premium="1" onpointerup="onScaleItemTap(this)">
+              <div class="lw-row1">
+                <span class="lw-badge">LEVEL 4</span>
+                <span class="lw-row1-right"><i class="ph-fill ph-crown lw-premium-crown"></i></span>
+              </div>
+              <span class="lw-name">내추럴 마이너 스케일</span>
+            </div>
+
+            <!-- 5. 하모닉 마이너 스케일 (프리미엄) -->
+            <div class="scale-item-card" data-key="harmonic-minor" data-level="5" data-premium="1" onpointerup="onScaleItemTap(this)">
+              <div class="lw-row1">
+                <span class="lw-badge">LEVEL 5</span>
+                <span class="lw-row1-right"><i class="ph-fill ph-crown lw-premium-crown"></i></span>
+              </div>
+              <span class="lw-name">하모닉 마이너 스케일</span>
+            </div>
+
+          </div><!-- /scale-item-list -->
+        </div><!-- /scale-chapter -->
+
+        <!-- ── Ch. 2: 세컨더리 도미넌트 활용 ── -->
+        <div class="scale-chapter">
+          <div class="scale-chapter-header">
+            <span class="scale-chapter-title">Ch. 2</span>
+            <span class="scale-chapter-subtitle">세컨더리 도미넌트 활용</span>
+          </div>
+
+          <div class="scale-item-list">
+
+            <!-- 6. 4도 메이저 전환 -->
+            <div class="scale-item-card" data-key="secondary-iv" data-level="6" onpointerup="onScaleItemTap(this)">
+              <div class="lw-row1">
+                <span class="lw-badge">LEVEL 6</span>
+                <span class="lw-row1-right"></span>
+              </div>
+              <span class="lw-name">4도 메이저 전환</span>
+            </div>
+
+            <!-- 7. 5도 메이저 전환 -->
+            <div class="scale-item-card" data-key="secondary-v" data-level="7" onpointerup="onScaleItemTap(this)">
+              <div class="lw-row1">
+                <span class="lw-badge">LEVEL 7</span>
+                <span class="lw-row1-right"></span>
+              </div>
+              <span class="lw-name">5도 메이저 전환</span>
+            </div>
+
+            <!-- 8. 2도 마이너 전환 -->
+            <div class="scale-item-card" data-key="secondary-ii" data-level="8" data-premium="1" onpointerup="onScaleItemTap(this)">
+              <div class="lw-row1">
+                <span class="lw-badge">LEVEL 8</span>
+                <span class="lw-row1-right"><i class="ph-fill ph-crown lw-premium-crown"></i></span>
+              </div>
+              <span class="lw-name">6도 마이너 전환</span>
+            </div>
+
+            <!-- 9. 2도 마이너 전환 -->
+            <div class="scale-item-card" data-key="secondary-vi" data-level="9" data-premium="1" onpointerup="onScaleItemTap(this)">
+              <div class="lw-row1">
+                <span class="lw-badge">LEVEL 9</span>
+                <span class="lw-row1-right"><i class="ph-fill ph-crown lw-premium-crown"></i></span>
+              </div>
+              <span class="lw-name">2도 마이너 전환</span>
+            </div>
+
+            <!-- 10. 3도 마이너 전환 (커밍순, 프리미엄) -->
+            <div class="scale-item-card scale-item-card--soon lw-item--coming-soon" data-key="secondary-iii" data-level="10">
+              <div class="lw-row1">
+                <span class="lw-badge">LEVEL 10</span>
+                <span class="lw-row1-right"><i class="ph-fill ph-crown lw-premium-crown"></i></span>
+              </div>
+              <span class="lw-name">3도 마이너 전환</span>
+              <span class="lw-coming-soon">COMING SOON</span>
+            </div>
+
+          </div><!-- /scale-item-list -->
+        </div><!-- /scale-chapter -->
+
+        <!-- ── Ch. 3: 모드 스케일 ── -->
+        <div class="scale-chapter">
+          <div class="scale-chapter-header">
+            <span class="scale-chapter-title">Ch. 3</span>
+            <span class="scale-chapter-subtitle">모드 스케일</span>
+          </div>
+
+          <div class="scale-item-list">
+
+            <!-- 11. 아이오니안 스케일 (커밍순) -->
+            <div class="scale-item-card scale-item-card--soon lw-item--coming-soon" data-key="ionian" data-level="11">
+              <div class="lw-row1">
+                <span class="lw-badge">LEVEL 11</span>
+                <span class="lw-row1-right"></span>
+              </div>
+              <span class="lw-name">아이오니안 스케일</span>
+              <span class="lw-coming-soon">COMING SOON</span>
+            </div>
+
+            <!-- 12. 도리안 스케일 (커밍순) -->
+            <div class="scale-item-card scale-item-card--soon lw-item--coming-soon" data-key="dorian" data-level="12">
+              <div class="lw-row1">
+                <span class="lw-badge">LEVEL 12</span>
+                <span class="lw-row1-right"></span>
+              </div>
+              <span class="lw-name">도리안 스케일</span>
+              <span class="lw-coming-soon">COMING SOON</span>
+            </div>
+
+            <!-- 13. 프리지안 스케일 (커밍순, 프리미엄) -->
+            <div class="scale-item-card scale-item-card--soon lw-item--coming-soon" data-key="phrygian" data-level="13">
+              <div class="lw-row1">
+                <span class="lw-badge">LEVEL 13</span>
+                <span class="lw-row1-right"><i class="ph-fill ph-crown lw-premium-crown"></i></span>
+              </div>
+              <span class="lw-name">프리지안 스케일</span>
+              <span class="lw-coming-soon">COMING SOON</span>
+            </div>
+
+            <!-- 14. 리디안 스케일 (커밍순, 프리미엄) -->
+            <div class="scale-item-card scale-item-card--soon lw-item--coming-soon" data-key="lydian" data-level="14">
+              <div class="lw-row1">
+                <span class="lw-badge">LEVEL 14</span>
+                <span class="lw-row1-right"><i class="ph-fill ph-crown lw-premium-crown"></i></span>
+              </div>
+              <span class="lw-name">리디안 스케일</span>
+              <span class="lw-coming-soon">COMING SOON</span>
+            </div>
+
+            <!-- 15. 믹솔리디안 스케일 (커밍순, 프리미엄) -->
+            <div class="scale-item-card scale-item-card--soon lw-item--coming-soon" data-key="mixolydian" data-level="15">
+              <div class="lw-row1">
+                <span class="lw-badge">LEVEL 15</span>
+                <span class="lw-row1-right"><i class="ph-fill ph-crown lw-premium-crown"></i></span>
+              </div>
+              <span class="lw-name">믹솔리디안 스케일</span>
+              <span class="lw-coming-soon">COMING SOON</span>
+            </div>
+
+            <!-- 16. 에올리안 스케일 (커밍순, 프리미엄) -->
+            <div class="scale-item-card scale-item-card--soon lw-item--coming-soon" data-key="aeolian" data-level="16">
+              <div class="lw-row1">
+                <span class="lw-badge">LEVEL 16</span>
+                <span class="lw-row1-right"><i class="ph-fill ph-crown lw-premium-crown"></i></span>
+              </div>
+              <span class="lw-name">에올리안 스케일</span>
+              <span class="lw-coming-soon">COMING SOON</span>
+            </div>
+
+            <!-- 17. 로크리안 스케일 (커밍순, 프리미엄) -->
+            <div class="scale-item-card scale-item-card--soon lw-item--coming-soon" data-key="locrian" data-level="17">
+              <div class="lw-row1">
+                <span class="lw-badge">LEVEL 17</span>
+                <span class="lw-row1-right"><i class="ph-fill ph-crown lw-premium-crown"></i></span>
+              </div>
+              <span class="lw-name">로크리안 스케일</span>
+              <span class="lw-coming-soon">COMING SOON</span>
+            </div>
+
+            <!-- 18. 멜로딕 마이너 스케일 (커밍순, 프리미엄) -->
+            <div class="scale-item-card scale-item-card--soon lw-item--coming-soon" data-key="melodic-minor" data-level="18">
+              <div class="lw-row1">
+                <span class="lw-badge">LEVEL 18</span>
+                <span class="lw-row1-right"><i class="ph-fill ph-crown lw-premium-crown"></i></span>
+              </div>
+              <span class="lw-name">멜로딕 마이너 스케일</span>
+              <span class="lw-coming-soon">COMING SOON</span>
+            </div>
+
+            <!-- 19. 프리지안 도미넌트 스케일 (커밍순, 프리미엄) -->
+            <div class="scale-item-card scale-item-card--soon lw-item--coming-soon" data-key="phrygian-dominant" data-level="19">
+              <div class="lw-row1">
+                <span class="lw-badge">LEVEL 19</span>
+                <span class="lw-row1-right"><i class="ph-fill ph-crown lw-premium-crown"></i></span>
+              </div>
+              <span class="lw-name">프리지안 도미넌트 스케일</span>
+              <span class="lw-coming-soon">COMING SOON</span>
+            </div>
+
+            <!-- 20. 믹솔리디안 b9 b13 스케일 (커밍순, 프리미엄) -->
+            <div class="scale-item-card scale-item-card--soon lw-item--coming-soon" data-key="mixolydian-b9b13" data-level="20">
+              <div class="lw-row1">
+                <span class="lw-badge">LEVEL 20</span>
+                <span class="lw-row1-right"><i class="ph-fill ph-crown lw-premium-crown"></i></span>
+              </div>
+              <span class="lw-name">믹솔리디안 b9 b13 스케일</span>
+              <span class="lw-coming-soon">COMING SOON</span>
+            </div>
+
+          </div><!-- /scale-item-list -->
+        </div><!-- /scale-chapter -->
+
+      </div><!-- /scale-scroll -->
+    </div><!-- /main-content -->
+
+  </div><!-- /app-shell -->
+
+  <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.js"></script>
+  <script src="https://unpkg.com/@phosphor-icons/web"></script>
+  <script src="analytics-sdk.js"></script>
+  <script src="shared.js"></script>
+  <script src="scale-training.js"></script>
+</body>
+</html>

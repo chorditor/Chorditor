@@ -6,7 +6,7 @@
 // ── 상수 ─────────────────────────────────────────────────────
 const SUPABASE_URL  = 'https://jbvkygeksohlysyvaoab.supabase.co';
 const SUPABASE_ANON = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Impidmt5Z2Vrc29obHlzeXZhb2FiIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzYzOTk5NjgsImV4cCI6MjA5MTk3NTk2OH0.6RSgChy0Yq0H2TJpZPSoMKQ2V-OYfR0XzE1aJBBZkXI';
-const APP_VERSION   = '1.2.0';
+const APP_VERSION   = '1.2.1_pre1';
 const SUPABASE_STORAGE_KEY = 'sb-jbvkygeksohlysyvaoab-auth-token';
 
 // ── Analytics SDK ─────────────────────────────────────────────
@@ -56,6 +56,31 @@ const analytics = (typeof AnalyticsSDK !== 'undefined')
   };
 
   window.isScrolling = () => _movelock || _velolock;
+})();
+
+// ── 네트워크 오프라인 오버레이 ────────────────────────────────
+(function() {
+  function _showOffline() {
+    if (document.getElementById('network-offline-overlay')) return;
+    const el = document.createElement('div');
+    el.id = 'network-offline-overlay';
+    el.innerHTML = `
+      <div class="network-offline-box">
+        <span class="network-offline-icon">✈︎</span>
+        <p class="network-offline-title">인터넷 연결 없음</p>
+        <p class="network-offline-desc">네트워크 연결을 확인해주세요</p>
+        <button class="network-offline-btn" onclick="location.reload()">새로고침</button>
+      </div>`;
+    document.body.appendChild(el);
+  }
+  function _hideOffline() {
+    document.getElementById('network-offline-overlay')?.remove();
+  }
+  window.addEventListener('offline', _showOffline);
+  window.addEventListener('online',  _hideOffline);
+  if (!navigator.onLine) {
+    document.addEventListener('DOMContentLoaded', _showOffline, { once: true });
+  }
 })();
 
 // ── localStorage 유틸 ─────────────────────────────────────────
@@ -596,7 +621,7 @@ function _initPlanSheet() {
       <ul class="plan-card-features">
         <li>프로젝트 <strong>무제한</strong></li>
         <li>이미지 저장 <strong>전 배율</strong> (x0.5~x3)</li>
-        <li>코드표 편집 무제한</li>
+        <li>훈련소 컨텐츠 전체 개방</li>
       </ul>
       <button class="btn btn-primary plan-card-btn" id="plan-sheet-btn-pro">구독하기</button>
     </div>
@@ -646,49 +671,6 @@ function _initPlanSheet() {
 document.addEventListener('DOMContentLoaded', _initPlanSheet);
 
 // ── 앱 버전 표시 ──────────────────────────────────────────────
-// ── 활동 통계 (로컬 저장 + 자정 DB 동기화) ───────────────────
-const _STAT_KEYS = { images: 'chorditor_stat_images', shares: 'chorditor_stat_shares' };
-const _STAT_SYNC_KEY = 'chorditor_stats_sync_date';
-
-function incrementStat(type) {
-  const key = _STAT_KEYS[type];
-  if (!key) return;
-  const cur = parseInt(localStorage.getItem(key) || '0', 10);
-  localStorage.setItem(key, String(cur + 1));
-}
-
-function getStats() {
-  return {
-    images: parseInt(localStorage.getItem(_STAT_KEYS.images) || '0', 10),
-    shares: parseInt(localStorage.getItem(_STAT_KEYS.shares) || '0', 10),
-  };
-}
-
-async function syncStatsToDB() {
-  const today = new Date().toISOString().slice(0, 10);
-  if (localStorage.getItem(_STAT_SYNC_KEY) === today) return;
-  try {
-    const stored = localStorage.getItem(SUPABASE_STORAGE_KEY);
-    if (!stored) return;
-    const session = JSON.parse(stored);
-    const token = session?.access_token;
-    const userId = session?.user?.id;
-    if (!token || !userId) return;
-    const stats = getStats();
-    const resp = await fetch(`${SUPABASE_URL}/rest/v1/subscriptions?user_id=eq.${userId}`, {
-      method: 'PATCH',
-      headers: {
-        'Content-Type': 'application/json',
-        'apikey': SUPABASE_ANON,
-        'Authorization': `Bearer ${token}`,
-        'Prefer': 'return=minimal',
-      },
-      body: JSON.stringify({ stat_images: stats.images, stat_shares: stats.shares }),
-    });
-    if (resp.ok) localStorage.setItem(_STAT_SYNC_KEY, today);
-  } catch(e) {}
-}
-
 async function initAppVersion() {
   try {
     const el = document.getElementById('app-version');
@@ -702,3 +684,290 @@ async function initAppVersion() {
     }
   } catch(e) {}
 }
+
+// ── 훈련 통계 DB → localStorage 복원 ────────────────────────
+// 앱 재설치 후 localStorage가 비어있어도 DB 데이터로 복원.
+// streak/total/time은 max(local, server) — 되감기 방지.
+async function restoreTrainingStatsFromDB() {
+  let accessToken = null, userId = null;
+  try {
+    const stored = localStorage.getItem(SUPABASE_STORAGE_KEY);
+    if (stored) {
+      const parsed = JSON.parse(stored);
+      accessToken  = parsed?.access_token ?? null;
+      userId       = parsed?.user?.id     ?? null;
+    }
+  } catch (_) {}
+  if (!accessToken || !userId) return;
+
+  try {
+    const resp = await fetch(
+      `${SUPABASE_URL}/rest/v1/user_training_stats?user_id=eq.${userId}&select=stats`,
+      { headers: { 'apikey': SUPABASE_ANON, 'Authorization': `Bearer ${accessToken}` } }
+    );
+    if (!resp.ok) return;
+    const rows = await resp.json();
+    if (!rows.length) return;
+
+    const overview = rows[0]?.stats?.training_overview;
+    if (!overview) return;
+
+    const local = JSON.parse(localStorage.getItem('training_stats') || '{}');
+
+    // 서버 값이 더 크면 덮어씀 (되감기 방지)
+    const merged = { ...local };
+    if ((overview.streak            || 0) > (local.streak            || 0))
+      merged.streak = overview.streak;
+    if ((overview.total_completed   || 0) > (local.total_completed   || 0))
+      merged.total_completed = overview.total_completed;
+    if ((overview.training_time_min || 0) > (local.training_time_min || 0))
+      merged.training_time_min = overview.training_time_min;
+    // streak_last_counted_date: 서버 streak이 더 크면 함께 복원
+    if ((overview.streak || 0) > (local.streak || 0) && overview.synced_date)
+      merged.streak_last_counted_date = overview.synced_date;
+
+    localStorage.setItem('training_stats', JSON.stringify(merged));
+  } catch (_) {}
+}
+
+// ── 훈련 통계 DB 즉시 동기화 (upsert/merge) ─────────────────
+// training_stats localStorage → Supabase user_training_stats.stats.training_overview
+// 로그 추가 없이 덮어쓰기 방식. 비로그인 시 무시.
+async function syncTrainingStatsToDB() {
+  const stats = JSON.parse(localStorage.getItem('training_stats') || 'null');
+  if (!stats) return;
+
+  let accessToken = null, userId = null;
+  try {
+    const stored = localStorage.getItem(SUPABASE_STORAGE_KEY);
+    if (stored) {
+      const parsed = JSON.parse(stored);
+      accessToken  = parsed?.access_token ?? null;
+      userId       = parsed?.user?.id     ?? null;
+    }
+  } catch (_) {}
+  if (!accessToken || !userId) return;
+
+  const today = new Date().toISOString().slice(0, 10);
+  const overview = {
+    streak:            stats.streak            || 0,
+    training_time_min: stats.training_time_min || 0,
+    total_completed:   stats.total_completed   || 0,
+    synced_date:       today,
+  };
+
+  try {
+    // 기존 row 읽기 → training_overview 키만 덮어쓰고 upsert
+    const getResp = await fetch(
+      `${SUPABASE_URL}/rest/v1/user_training_stats?user_id=eq.${userId}&select=stats`,
+      { headers: { 'apikey': SUPABASE_ANON, 'Authorization': `Bearer ${accessToken}` } }
+    );
+    let existingStats = {};
+    if (getResp.ok) {
+      const rows = await getResp.json();
+      if (rows.length > 0) existingStats = rows[0].stats || {};
+    }
+
+    const merged = { ...existingStats, training_overview: overview };
+    await fetch(`${SUPABASE_URL}/rest/v1/user_training_stats`, {
+      method:  'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'apikey':        SUPABASE_ANON,
+        'Authorization': `Bearer ${accessToken}`,
+        'Prefer':        'resolution=merge-duplicates',
+      },
+      body: JSON.stringify({
+        user_id:    userId,
+        stats:      merged,
+        updated_at: new Date().toISOString(),
+      }),
+    });
+  } catch (_) {}
+}
+
+// ═══════════════════════════════════════════════════════════════
+// drawVoicingCanvas — 코드 운지 캔버스 공통 드로잉
+// voicing: chordsLibrary 엔트리 호환 객체
+//   { frets, openMute, barre, barreRange, fretNumber, [chordName] }
+// ratio: canvas px / BASE_W (예: 1.0, 0.5 등)
+// ═══════════════════════════════════════════════════════════════
+const VOICING_CANVAS = (() => {
+  const STRINGS    = 6;
+  const FRETS      = 4;
+  const BASE_PAD_L  = 35;
+  const BASE_OPEN_W = 60;
+  const BASE_FBW    = 240;
+  const BASE_FBH    = 192;
+  const BASE_PAD_R  = 95;
+  const BASE_PAD_T  = 80;
+  const BASE_PAD_B  = 80;
+  const BASE_W = BASE_PAD_L + BASE_OPEN_W + BASE_FBW + BASE_PAD_R; // 430
+  const BASE_H = BASE_PAD_T + BASE_FBH + BASE_PAD_B;               // 352
+
+  function draw(canvas, voicing, chordName, ratio) {
+    const w  = Math.round(BASE_W * ratio);
+    const ch = Math.round(BASE_H * ratio);
+    canvas.width  = w;
+    canvas.height = ch;
+    const c = canvas.getContext('2d');
+
+    const tl = Math.round((BASE_PAD_L + BASE_OPEN_W) * ratio);
+    const tr = Math.round((BASE_PAD_L + BASE_OPEN_W + BASE_FBW) * ratio);
+    const tt = Math.round(BASE_PAD_T * ratio);
+    const tb = Math.round((BASE_PAD_T + BASE_FBH) * ratio);
+    const fw = (tr - tl) / FRETS;
+    const sh = (tb - tt) / (STRINGS - 1);
+    const ds = Math.round(sh * 0.95);
+    const sc = w / BASE_W;
+
+    c.clearRect(0, 0, w, ch);
+
+    // 너트
+    const nutW  = Math.max(1, Math.round(9 * sc));
+    const lineW = Math.max(1, 3 * sc);
+    c.fillStyle = '#242729';
+    c.fillRect(tl - nutW, tt - lineW / 2, nutW, (tb - tt) + lineW);
+
+    // 프렛선
+    c.strokeStyle = '#242729';
+    c.lineWidth   = Math.max(1, 3 * sc);
+    c.lineCap     = 'butt';
+    for (let f = 0; f <= FRETS; f++) {
+      const x = tl + f * fw;
+      c.beginPath(); c.moveTo(x, tt); c.lineTo(x, tb); c.stroke();
+    }
+
+    // 줄선
+    for (let s = 0; s < STRINGS; s++) {
+      const y = tt + s * sh;
+      c.beginPath(); c.moveTo(tl, y); c.lineTo(tr, y); c.stroke();
+    }
+
+    if (!voicing) return;
+
+    // 프랫 정규화
+    // fretNumber = r = 슬롯1 의 프렛 번호 → offset = fretNumber - 1
+    const rawFrets       = voicing.frets;
+    const positives      = rawFrets.filter(f => f !== null && f > 0);
+    const minF           = positives.length ? Math.min(...positives) : 0;
+    const maxF           = positives.length ? Math.max(...positives) : 0;
+    const displayFretNum = voicing.fretNumber || null;
+    const offset         = (displayFretNum >= 2)
+                         ? (voicing.source === 'pattern' ? displayFretNum - 1 : displayFretNum - 2)
+                         : (maxF > FRETS ? minF - 1 : 0);
+    const frets      = offset ? rawFrets.map(f => f === null ? null : (f === 0 ? 0 : f - offset)) : rawFrets;
+    const rawBarre   = voicing.barre || {};
+    const barre      = offset
+      ? Object.fromEntries(Object.keys(rawBarre).map(k => [+k - offset, true]))
+      : rawBarre;
+    const openMute   = voicing.openMute || rawFrets.map(f => f === null ? 'mute' : null);
+    const barreRange = voicing.barreRange;
+
+    // 바레 커버 계산
+    const barreCount = {};
+    frets.forEach(f => { if (f !== null && f > 0) barreCount[f] = (barreCount[f] || 0) + 1; });
+    const coveredByBarre = new Set();
+    Object.keys(barreCount).filter(fk => barreCount[+fk] >= 2 && barre[+fk]).forEach(fk => {
+      const f    = +fk;
+      const idxs = frets.reduce((acc, v, s) => { if (v === f) acc.push(s); return acc; }, []);
+      const minS = barreRange ? barreRange.min : Math.min(...idxs);
+      const maxS = barreRange ? barreRange.max : Math.max(...idxs);
+      for (let s = minS; s <= maxS; s++) coveredByBarre.add(s);
+    });
+
+    // 개방/뮤트
+    openMute.forEach((v, s) => {
+      if (frets[s] !== null && frets[s] > 0) return;
+      if (v !== 'mute' && coveredByBarre.has(s)) return;
+      const y = tt + s * sh;
+      const x = tl - Math.round(BASE_OPEN_W / 2 * sc);
+      if (v === 'mute') {
+        const half = ds * 0.38;
+        c.save();
+        c.strokeStyle = '#242729';
+        c.lineWidth   = Math.round(ds * 0.18);
+        c.lineCap     = 'round';
+        c.beginPath(); c.moveTo(x - half, y - half); c.lineTo(x + half, y + half); c.stroke();
+        c.beginPath(); c.moveTo(x + half, y - half); c.lineTo(x - half, y + half); c.stroke();
+        c.restore();
+      } else if (frets[s] === 0) {
+        c.save();
+        c.strokeStyle = '#242729';
+        c.lineWidth   = Math.max(1, ds * 0.15);
+        c.beginPath(); c.arc(x, y, ds * 0.45, 0, Math.PI * 2); c.stroke();
+        c.restore();
+      }
+    });
+
+    // 바레
+    const barreFrets = [];
+    Object.keys(barreCount).filter(fk => barreCount[+fk] >= 2).map(Number).forEach(f => {
+      if (!barre[f]) return;
+      const idxs = frets.reduce((acc, v, s) => { if (v === f) acc.push(s); return acc; }, []);
+      const minS = barreRange ? barreRange.min : Math.min(...idxs);
+      const maxS = barreRange ? barreRange.max : Math.max(...idxs);
+      if (maxS <= minS) return;
+      barreFrets.push(f);
+      const cx   = tl + (f - 0.5) * fw;
+      const topY = tt + minS * sh;
+      const botY = tt + maxS * sh;
+      const r    = ds / 2;
+      c.save();
+      c.fillStyle = '#242729';
+      c.beginPath();
+      c.arc(cx, topY, r, Math.PI, 0);
+      c.lineTo(cx + r, botY);
+      c.arc(cx, botY, r, 0, Math.PI);
+      c.lineTo(cx - r, topY);
+      c.closePath();
+      c.fill();
+      c.restore();
+    });
+
+    // 도트
+    frets.forEach((f, s) => {
+      if (f === null || f === 0) return;
+      if (barre[f] && barreFrets.includes(f)) return;
+      const cx = tl + (f - 0.5) * fw;
+      const cy = tt + s * sh;
+      c.save();
+      c.beginPath();
+      c.arc(cx, cy, ds / 2, 0, Math.PI * 2);
+      c.fillStyle = '#242729';
+      c.fill();
+      c.restore();
+    });
+
+    // 프렛 번호 라벨 — 슬롯2 위치 고정
+    // pattern: 슬롯2 = r+1 → labelFret = fretNumber + 1
+    // static:  슬롯2 = fretNumber → labelFret = fretNumber
+    const _showLabel = displayFretNum !== null &&
+      (voicing.source === 'pattern' ? displayFretNum >= 1 : displayFretNum >= 2);
+    if (_showLabel) {
+      const labelFret = voicing.source === 'pattern' ? displayFretNum + 1 : displayFretNum;
+      c.save();
+      c.font         = `500 ${Math.round(28 * sc)}px "Pretendard", sans-serif`;
+      c.fillStyle    = '#666';
+      c.textAlign    = 'center';
+      c.textBaseline = 'top';
+      c.fillText(String(labelFret), tl + 1.5 * fw, tb + Math.round(28 * sc));
+      c.restore();
+    }
+
+    // 코드명
+    if (chordName) {
+      const bSize = Math.round(48 * sc);
+      const bY    = tt - Math.round(30 * sc);
+      c.save();
+      c.fillStyle    = '#242729';
+      c.font         = `500 ${bSize}px "Pretendard", sans-serif`;
+      c.textAlign    = 'left';
+      c.textBaseline = 'alphabetic';
+      c.fillText(chordName, tl, bY);
+      c.restore();
+    }
+  }
+
+  return { draw, BASE_W, BASE_H };
+})();
