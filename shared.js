@@ -6,7 +6,7 @@
 // ── 상수 ─────────────────────────────────────────────────────
 const SUPABASE_URL  = 'https://jbvkygeksohlysyvaoab.supabase.co';
 const SUPABASE_ANON = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Impidmt5Z2Vrc29obHlzeXZhb2FiIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzYzOTk5NjgsImV4cCI6MjA5MTk3NTk2OH0.6RSgChy0Yq0H2TJpZPSoMKQ2V-OYfR0XzE1aJBBZkXI';
-const APP_VERSION   = '1.2.1_dev3';
+const APP_VERSION   = '1.2.1_dev4';
 const SUPABASE_STORAGE_KEY = 'sb-jbvkygeksohlysyvaoab-auth-token';
 
 // ── Analytics SDK ─────────────────────────────────────────────
@@ -785,3 +785,189 @@ async function syncTrainingStatsToDB() {
     });
   } catch (_) {}
 }
+
+// ═══════════════════════════════════════════════════════════════
+// drawVoicingCanvas — 코드 운지 캔버스 공통 드로잉
+// voicing: chordsLibrary 엔트리 호환 객체
+//   { frets, openMute, barre, barreRange, fretNumber, [chordName] }
+// ratio: canvas px / BASE_W (예: 1.0, 0.5 등)
+// ═══════════════════════════════════════════════════════════════
+const VOICING_CANVAS = (() => {
+  const STRINGS    = 6;
+  const FRETS      = 4;
+  const BASE_PAD_L  = 35;
+  const BASE_OPEN_W = 60;
+  const BASE_FBW    = 240;
+  const BASE_FBH    = 192;
+  const BASE_PAD_R  = 95;
+  const BASE_PAD_T  = 80;
+  const BASE_PAD_B  = 80;
+  const BASE_W = BASE_PAD_L + BASE_OPEN_W + BASE_FBW + BASE_PAD_R; // 430
+  const BASE_H = BASE_PAD_T + BASE_FBH + BASE_PAD_B;               // 352
+
+  function draw(canvas, voicing, chordName, ratio) {
+    const w  = Math.round(BASE_W * ratio);
+    const ch = Math.round(BASE_H * ratio);
+    canvas.width  = w;
+    canvas.height = ch;
+    const c = canvas.getContext('2d');
+
+    const tl = Math.round((BASE_PAD_L + BASE_OPEN_W) * ratio);
+    const tr = Math.round((BASE_PAD_L + BASE_OPEN_W + BASE_FBW) * ratio);
+    const tt = Math.round(BASE_PAD_T * ratio);
+    const tb = Math.round((BASE_PAD_T + BASE_FBH) * ratio);
+    const fw = (tr - tl) / FRETS;
+    const sh = (tb - tt) / (STRINGS - 1);
+    const ds = Math.round(sh * 0.95);
+    const sc = w / BASE_W;
+
+    c.clearRect(0, 0, w, ch);
+
+    // 너트
+    const nutW  = Math.max(1, Math.round(9 * sc));
+    const lineW = Math.max(1, 3 * sc);
+    c.fillStyle = '#242729';
+    c.fillRect(tl - nutW, tt - lineW / 2, nutW, (tb - tt) + lineW);
+
+    // 프렛선
+    c.strokeStyle = '#242729';
+    c.lineWidth   = Math.max(1, 3 * sc);
+    c.lineCap     = 'butt';
+    for (let f = 0; f <= FRETS; f++) {
+      const x = tl + f * fw;
+      c.beginPath(); c.moveTo(x, tt); c.lineTo(x, tb); c.stroke();
+    }
+
+    // 줄선
+    for (let s = 0; s < STRINGS; s++) {
+      const y = tt + s * sh;
+      c.beginPath(); c.moveTo(tl, y); c.lineTo(tr, y); c.stroke();
+    }
+
+    if (!voicing) return;
+
+    // 프랫 정규화
+    // fretNumber = r = 슬롯1 의 프렛 번호 → offset = fretNumber - 1
+    const rawFrets       = voicing.frets;
+    const positives      = rawFrets.filter(f => f !== null && f > 0);
+    const minF           = positives.length ? Math.min(...positives) : 0;
+    const maxF           = positives.length ? Math.max(...positives) : 0;
+    const displayFretNum = voicing.fretNumber || null;
+    const offset         = (displayFretNum >= 2)
+                         ? (voicing.source === 'pattern' ? displayFretNum - 1 : displayFretNum - 2)
+                         : (maxF > FRETS ? minF - 1 : 0);
+    const frets      = offset ? rawFrets.map(f => f === null ? null : (f === 0 ? 0 : f - offset)) : rawFrets;
+    const rawBarre   = voicing.barre || {};
+    const barre      = offset
+      ? Object.fromEntries(Object.keys(rawBarre).map(k => [+k - offset, true]))
+      : rawBarre;
+    const openMute   = voicing.openMute || rawFrets.map(f => f === null ? 'mute' : null);
+    const barreRange = voicing.barreRange;
+
+    // 바레 커버 계산
+    const barreCount = {};
+    frets.forEach(f => { if (f !== null && f > 0) barreCount[f] = (barreCount[f] || 0) + 1; });
+    const coveredByBarre = new Set();
+    Object.keys(barreCount).filter(fk => barreCount[+fk] >= 2 && barre[+fk]).forEach(fk => {
+      const f    = +fk;
+      const idxs = frets.reduce((acc, v, s) => { if (v === f) acc.push(s); return acc; }, []);
+      const minS = barreRange ? barreRange.min : Math.min(...idxs);
+      const maxS = barreRange ? barreRange.max : Math.max(...idxs);
+      for (let s = minS; s <= maxS; s++) coveredByBarre.add(s);
+    });
+
+    // 개방/뮤트
+    openMute.forEach((v, s) => {
+      if (frets[s] !== null && frets[s] > 0) return;
+      if (v !== 'mute' && coveredByBarre.has(s)) return;
+      const y = tt + s * sh;
+      const x = tl - Math.round(BASE_OPEN_W / 2 * sc);
+      if (v === 'mute') {
+        const half = ds * 0.38;
+        c.save();
+        c.strokeStyle = '#242729';
+        c.lineWidth   = Math.round(ds * 0.18);
+        c.lineCap     = 'round';
+        c.beginPath(); c.moveTo(x - half, y - half); c.lineTo(x + half, y + half); c.stroke();
+        c.beginPath(); c.moveTo(x + half, y - half); c.lineTo(x - half, y + half); c.stroke();
+        c.restore();
+      } else if (frets[s] === 0) {
+        c.save();
+        c.strokeStyle = '#242729';
+        c.lineWidth   = Math.max(1, ds * 0.15);
+        c.beginPath(); c.arc(x, y, ds * 0.45, 0, Math.PI * 2); c.stroke();
+        c.restore();
+      }
+    });
+
+    // 바레
+    const barreFrets = [];
+    Object.keys(barreCount).filter(fk => barreCount[+fk] >= 2).map(Number).forEach(f => {
+      if (!barre[f]) return;
+      const idxs = frets.reduce((acc, v, s) => { if (v === f) acc.push(s); return acc; }, []);
+      const minS = barreRange ? barreRange.min : Math.min(...idxs);
+      const maxS = barreRange ? barreRange.max : Math.max(...idxs);
+      if (maxS <= minS) return;
+      barreFrets.push(f);
+      const cx   = tl + (f - 0.5) * fw;
+      const topY = tt + minS * sh;
+      const botY = tt + maxS * sh;
+      const r    = ds / 2;
+      c.save();
+      c.fillStyle = '#242729';
+      c.beginPath();
+      c.arc(cx, topY, r, Math.PI, 0);
+      c.lineTo(cx + r, botY);
+      c.arc(cx, botY, r, 0, Math.PI);
+      c.lineTo(cx - r, topY);
+      c.closePath();
+      c.fill();
+      c.restore();
+    });
+
+    // 도트
+    frets.forEach((f, s) => {
+      if (f === null || f === 0) return;
+      if (barre[f] && barreFrets.includes(f)) return;
+      const cx = tl + (f - 0.5) * fw;
+      const cy = tt + s * sh;
+      c.save();
+      c.beginPath();
+      c.arc(cx, cy, ds / 2, 0, Math.PI * 2);
+      c.fillStyle = '#242729';
+      c.fill();
+      c.restore();
+    });
+
+    // 프렛 번호 라벨 — 슬롯2 위치 고정
+    // pattern: 슬롯2 = r+1 → labelFret = fretNumber + 1
+    // static:  슬롯2 = fretNumber → labelFret = fretNumber
+    const _showLabel = displayFretNum !== null &&
+      (voicing.source === 'pattern' ? displayFretNum >= 1 : displayFretNum >= 2);
+    if (_showLabel) {
+      const labelFret = voicing.source === 'pattern' ? displayFretNum + 1 : displayFretNum;
+      c.save();
+      c.font         = `500 ${Math.round(28 * sc)}px "Pretendard", sans-serif`;
+      c.fillStyle    = '#666';
+      c.textAlign    = 'center';
+      c.textBaseline = 'top';
+      c.fillText(String(labelFret), tl + 1.5 * fw, tb + Math.round(28 * sc));
+      c.restore();
+    }
+
+    // 코드명
+    if (chordName) {
+      const bSize = Math.round(48 * sc);
+      const bY    = tt - Math.round(30 * sc);
+      c.save();
+      c.fillStyle    = '#242729';
+      c.font         = `500 ${bSize}px "Pretendard", sans-serif`;
+      c.textAlign    = 'left';
+      c.textBaseline = 'alphabetic';
+      c.fillText(chordName, tl, bY);
+      c.restore();
+    }
+  }
+
+  return { draw, BASE_W, BASE_H };
+})();

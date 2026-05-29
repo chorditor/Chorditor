@@ -1,90 +1,7 @@
 'use strict';
 
-// ── 진행 데이터 (progression.js와 동기화) ────────────────────
-const PROGRESSIONS = [
-  // ── Tier 1: 3화음만 (I 시작) ────────────────────────────────
-  {
-    id: 'I-IV-V-I',
-    name: 'I - IV - V - I',
-    keys: ['C', 'D', 'G', 'A'],
-    steps: [
-      { semitones: 0, quality: 'M', label: 'I'  },
-      { semitones: 5, quality: 'M', label: 'IV' },
-      { semitones: 7, quality: 'M', label: 'V'  },
-      { semitones: 0, quality: 'M', label: 'I'  },
-    ],
-  },
-  {
-    id: 'I-V-vi-IV',
-    name: 'I - V - vi - IV',
-    keys: '',
-    steps: [
-      { semitones: 0, quality: 'M', label: 'I'  },
-      { semitones: 7, quality: 'M', label: 'V'  },
-      { semitones: 9, quality: 'm', label: 'vi' },
-      { semitones: 5, quality: 'M', label: 'IV' },
-    ],
-  },
-  {
-    id: 'I-vi-IV-V',
-    name: 'I - vi - IV - V',
-    keys: '',
-    steps: [
-      { semitones: 0, quality: 'M', label: 'I'  },
-      { semitones: 9, quality: 'm', label: 'vi' },
-      { semitones: 5, quality: 'M', label: 'IV' },
-      { semitones: 7, quality: 'M', label: 'V'  },
-    ],
-  },
-  // ── Tier 2: 7th 포함 (I 시작) ──────────────────────────────
-  {
-    id: 'I-IV-I-V-blues',
-    name: 'I - IV - I - V',
-    keys: '',
-    steps: [
-      { semitones: 0, quality: '7', label: 'I7'  },
-      { semitones: 5, quality: '7', label: 'IV7' },
-      { semitones: 0, quality: '7', label: 'I7'  },
-      { semitones: 7, quality: '7', label: 'V7'  },
-    ],
-  },
-  {
-    id: 'I-vi-ii-V',
-    name: 'I - vi - ii - V',
-    keys: '',
-    steps: [
-      { semitones: 0, quality: 'M7', label: 'IM7'  },
-      { semitones: 9, quality: 'm7', label: 'vim7' },
-      { semitones: 2, quality: 'm7', label: 'iim7' },
-      { semitones: 7, quality: '7',  label: 'V7'   },
-    ],
-  },
-  // ── Tier 2: 7th 포함 (ii 시작) ──────────────────────────────
-  {
-    id: 'ii-V-I',
-    name: 'ii - V - I',
-    keys: '',
-    steps: [
-      { semitones: 2, quality: 'm7', label: 'iim7' },
-      { semitones: 7, quality: '7',  label: 'V7'   },
-      { semitones: 0, quality: 'M7', label: 'IM7'  },
-    ],
-  },
-  // ── Tier 2: 7th 포함 (iii 시작) ─────────────────────────────
-  {
-    id: 'iii-vi-ii-V',
-    name: 'iii - vi - ii - V',
-    keys: '',
-    steps: [
-      { semitones: 4, quality: 'm7', label: 'iiim7' },
-      { semitones: 9, quality: 'm7', label: 'vim7'  },
-      { semitones: 2, quality: 'm7', label: 'iim7'  },
-      { semitones: 7, quality: '7',  label: 'V7'    },
-    ],
-  },
-];
+// 진행 데이터: progression-data.js + progression.js 에서 window.PROGRESSIONS 로 로드
 
-// ── 키/노트 상수 ─────────────────────────────────────────────
 const KEY_NAMES_SHARP = ['C','C#','D','D#','E','F','F#','G','G#','A','A#','B'];
 const KEY_NAMES_FLAT  = ['C','Db','D','Eb','E','F','Gb','G','Ab','A','Bb','B'];
 const FLAT_TO_SHARP   = { 'Db':'C#','Eb':'D#','Gb':'F#','Ab':'G#','Bb':'A#' };
@@ -93,12 +10,34 @@ function _getKeyDisplayName(k) {
   return _useFlat ? KEY_NAMES_FLAT[k] : KEY_NAMES_SHARP[k];
 }
 
-function _getChordName(rootKey, semitones, quality) {
+const _SEMITONE_TO_DEGREE   = { 0:'I', 2:'II', 4:'III', 5:'IV', 7:'V', 9:'VI', 11:'VII' };
+const _SEMITONE_TO_BASS_NUM = { 0:1, 2:2, 4:3, 5:4, 7:5, 9:6, 11:7 };
+
+function _getRomanNumeral(semitones, quality, bass) {
+  const norm  = ((semitones % 12) + 12) % 12;
+  const roman = _SEMITONE_TO_DEGREE[norm] || '?';
+  const sfx   = { M:'', m:'m', '7':'7', M7:'M7', m7:'m7', dim:'dim', dim7:'dim7', aug:'aug' };
+  const suffix = sfx[quality] ?? '';
+  let result  = roman + (suffix ? `<span class="progd-prog-sfx">${suffix}</span>` : '');
+  if (bass != null) {
+    const bassNorm = ((bass % 12) + 12) % 12;
+    const bassNum  = _SEMITONE_TO_BASS_NUM[bassNorm];
+    if (bassNum != null) result += `<span class="progd-prog-sfx">/${bassNum}</span>`;
+  }
+  return result;
+}
+
+function _getChordName(rootKey, semitones, quality, bass) {
   const names   = _useFlat ? KEY_NAMES_FLAT : KEY_NAMES_SHARP;
   const noteIdx = (rootKey + semitones + 12) % 12;
   const note    = names[noteIdx];
   const sfx     = { M: '', m: 'm', '7': '7', M7: 'M7', m7: 'm7', dim: 'dim', dim7: 'dim7', aug: 'aug' };
-  return note + (sfx[quality] ?? '');
+  let result    = note + (sfx[quality] ?? '');
+  if (bass != null) {
+    const bassIdx = (noteIdx + bass) % 12;
+    result += '/' + names[bassIdx];
+  }
+  return result;
 }
 
 // ── 상태 ────────────────────────────────────────────────────
@@ -110,199 +49,38 @@ let _playing            = false;
 let _currentDisplayStep = 0;
 let _timer              = null;  // 마스터 비트 타이머 (단일)
 let _masterBeat         = 0;     // 재생 시작 후 누적 비트 수
+// _prevCenterFret 제거됨 — cyclic DP로 대체
 
-// ── 캔버스 드로잉 상수 ──────────────────────────────────────
-const _STRINGS   = 6;
-const _FRETS     = 4;
-const _BASE_PAD_L  = 35;
-const _BASE_OPEN_W = 60;
-const _BASE_FBW    = 240;
-const _BASE_FBH    = 192;
-const _BASE_PAD_R  = 95;
-const _BASE_PAD_T  = 80;
-const _BASE_PAD_B  = 80;
-const _BASE_W = _BASE_PAD_L + _BASE_OPEN_W + _BASE_FBW + _BASE_PAD_R; // 460
-const _BASE_H = _BASE_PAD_T + _BASE_FBH + _BASE_PAD_B;                // 352
+// ── 캔버스 상수 (VOICING_CANVAS 위임) ───────────────────────
+const _BASE_W = VOICING_CANVAS.BASE_W;
+const _BASE_H = VOICING_CANVAS.BASE_H;
 
-// 보이싱 정규화: 프렛이 1-4 범위 밖이면 오프셋 적용
-function _normalizeVoicing(v) {
-  const positives = v.frets.filter(f => f !== null && f > 0);
-  if (!positives.length) return v;
-  const minF = Math.min(...positives);
-  if (minF <= 4) return v;
-  const offset = minF - 1;
-  const newBarre = {};
-  Object.keys(v.barre || {}).forEach(k => { newBarre[+k - offset] = true; });
-  return {
-    ...v,
-    frets:      v.frets.map(f => f === null ? null : (f === 0 ? 0 : f - offset)),
-    barre:      newBarre,
-    fretNumber: minF,
-  };
-}
+// ── 보이싱 사운드 재생 ───────────────────────────────────────
+// 캔버스 인덱스 순서: 0=1번줄(e4=64) … 5=6번줄(E2=40)
+const _OPEN_MIDI = [64, 59, 55, 50, 45, 40];
 
-// 보이싱 룩업
-function _findVoicing(chordName, quality) {
-  const lib = window.chordsLibrary;
-  if (!lib) return null;
-  const m = chordName.match(/^([A-G][b#]?)/);
-  if (!m) return null;
-  const rootKey = FLAT_TO_SHARP[m[1]] || m[1];
-  const entries = lib[rootKey];
-  if (!entries) return null;
-  const match = entries.find(v => v.quality === quality) || null;
-  return match ? _normalizeVoicing(match) : null;
-}
-
-// 캔버스 드로잉
-function _drawVoicingCanvas(canvas, voicing, chordName, ratio) {
-  const w  = Math.round(_BASE_W * ratio);
-  const ch = Math.round(_BASE_H * ratio);
-  canvas.width  = w;
-  canvas.height = ch;
-  const c = canvas.getContext('2d');
-
-  const tl = Math.round((_BASE_PAD_L + _BASE_OPEN_W) * ratio);
-  const tr = Math.round((_BASE_PAD_L + _BASE_OPEN_W + _BASE_FBW) * ratio);
-  const tt = Math.round(_BASE_PAD_T * ratio);
-  const tb = Math.round((_BASE_PAD_T + _BASE_FBH) * ratio);
-  const fw = (tr - tl) / _FRETS;
-  const sh = (tb - tt) / (_STRINGS - 1);
-  const ds = Math.round(sh * 0.95);
-  const sc = w / _BASE_W;
-
-  c.clearRect(0, 0, w, ch);
-
-  // 너트
-  const nutW  = Math.max(1, Math.round(9 * sc));
-  const lineW = Math.max(1, 3 * sc);
-  c.fillStyle = '#242729';
-  c.fillRect(tl - nutW, tt - lineW / 2, nutW, (tb - tt) + lineW);
-
-  // 프렛선
-  c.strokeStyle = '#242729';
-  c.lineWidth   = Math.max(1, 3 * sc);
-  c.lineCap     = 'butt';
-  for (let f = 0; f <= _FRETS; f++) {
-    const x = tl + f * fw;
-    c.beginPath(); c.moveTo(x, tt); c.lineTo(x, tb); c.stroke();
-  }
-
-  // 줄선
-  for (let s = 0; s < _STRINGS; s++) {
-    const y = tt + s * sh;
-    c.beginPath(); c.moveTo(tl, y); c.lineTo(tr, y); c.stroke();
-  }
-
+function _strumVoicing(voicing) {
   if (!voicing) return;
-
-  const frets    = voicing.frets;
-  const openMute = voicing.openMute || frets.map(f => f === null ? 'mute' : null);
-  const barre    = voicing.barre    || {};
-  const barreRange = voicing.barreRange;
-
-  // 바레 커버 계산
-  const _barreCount = {};
-  frets.forEach(f => { if (f !== null && f > 0) _barreCount[f] = (_barreCount[f] || 0) + 1; });
-  const coveredByBarre = new Set();
-  Object.keys(_barreCount).filter(fk => _barreCount[+fk] >= 2 && barre[+fk]).forEach(fk => {
-    const f = +fk;
-    const idxs = frets.reduce((acc, v, s) => { if (v === f) acc.push(s); return acc; }, []);
-    const minS = barreRange ? barreRange.min : Math.min(...idxs);
-    const maxS = barreRange ? barreRange.max : Math.max(...idxs);
-    for (let s = minS; s <= maxS; s++) coveredByBarre.add(s);
-  });
-
-  // 개방/뮤트
-  openMute.forEach((v, s) => {
-    if (frets[s] !== null && frets[s] > 0) return;
-    if (v !== 'mute' && coveredByBarre.has(s)) return;
-    const y = tt + s * sh;
-    const x = tl - Math.round(_BASE_OPEN_W / 2 * sc);
-    if (v === 'mute') {
-      const half = ds * 0.38;
-      c.save();
-      c.strokeStyle = '#242729';
-      c.lineWidth   = Math.round(ds * 0.18);
-      c.lineCap     = 'round';
-      c.beginPath(); c.moveTo(x - half, y - half); c.lineTo(x + half, y + half); c.stroke();
-      c.beginPath(); c.moveTo(x + half, y - half); c.lineTo(x - half, y + half); c.stroke();
-      c.restore();
-    } else if (frets[s] === 0) {
-      c.save();
-      c.strokeStyle = '#242729';
-      c.lineWidth   = Math.max(1, ds * 0.15);
-      c.beginPath(); c.arc(x, y, ds * 0.45, 0, Math.PI * 2); c.stroke();
-      c.restore();
-    }
-  });
-
-  // 바레
-  const barreFrets = [];
-  Object.keys(_barreCount).filter(fk => _barreCount[+fk] >= 2).map(Number).forEach(f => {
-    if (!barre[f]) return;
-    const idxs = frets.reduce((acc, v, s) => { if (v === f) acc.push(s); return acc; }, []);
-    const minS = barreRange ? barreRange.min : Math.min(...idxs);
-    const maxS = barreRange ? barreRange.max : Math.max(...idxs);
-    if (maxS <= minS) return;
-    barreFrets.push(f);
-    const cx   = tl + (f - 0.5) * fw;
-    const topY = tt + minS * sh;
-    const botY = tt + maxS * sh;
-    const r    = ds / 2;
-    c.save();
-    c.fillStyle = '#242729';
-    c.beginPath();
-    c.arc(cx, topY, r, Math.PI, 0);
-    c.lineTo(cx + r, botY);
-    c.arc(cx, botY, r, 0, Math.PI);
-    c.lineTo(cx - r, topY);
-    c.closePath();
-    c.fill();
-    c.restore();
-  });
-
-  // 도트
-  frets.forEach((f, s) => {
-    if (f === null || f === 0) return;
-    if (barre[f] && barreFrets.includes(f)) return;
-    const cx = tl + (f - 0.5) * fw;
-    const cy = tt + s * sh;
-    c.save();
-    c.beginPath();
-    c.arc(cx, cy, ds / 2, 0, Math.PI * 2);
-    c.fillStyle = '#242729';
-    c.fill();
-    c.restore();
-  });
-
-  // 프렛 번호 라벨 (2 이상일 때)
-  const fretNum = voicing.fretNumber;
-  if (fretNum >= 2) {
-    const fret2X   = tl + 1.5 * fw;
-    const fontH    = Math.round(ch * 28 / _BASE_H);
-    const textTopY = ch * (_BASE_PAD_T + _BASE_FBH + 28) / _BASE_H;
-    c.save();
-    c.font         = `500 ${fontH}px "Pretendard", sans-serif`;
-    c.fillStyle    = '#666';
-    c.textAlign    = 'center';
-    c.textBaseline = 'alphabetic';
-    c.fillText(String(fretNum), fret2X, textTopY);
-    c.restore();
+  // chordsLibrary frets는 절대 프렛 → MIDI = 개방현 + 절대프렛 (offset 불필요)
+  const midis = [];
+  // 6번줄(s=5) → 1번줄(s=0) 순서로 스트럼
+  for (let s = 5; s >= 0; s--) {
+    const f = voicing.frets[s];
+    if (f === null) continue;
+    midis.push(_OPEN_MIDI[s] + f);
   }
+  if (midis.length) GuitarAudio.strumNotes(midis, 0.008);
+}
 
-  // 코드명 (좌상단, 에디터와 동일 위치)
-  if (chordName) {
-    const bSize = Math.round(48 * sc);
-    const bY    = tt - Math.round(30 * sc);
-    c.save();
-    c.fillStyle    = '#242729';
-    c.font         = `500 ${bSize}px "Pretendard", sans-serif`;
-    c.textAlign    = 'left';
-    c.textBaseline = 'alphabetic';
-    c.fillText(chordName, tl, bY);
-    c.restore();
-  }
+// 보이싱 후보 조회 (progression-voicings.js 기반)
+function _getCandidates(rootSemitone, quality, bass) {
+  if (typeof ProgressionVoicings === 'undefined') return [];
+  return ProgressionVoicings.getCandidates(rootSemitone, quality, _key, bass);
+}
+
+// 캔버스 드로잉 → shared.js VOICING_CANVAS 위임
+function _drawVoicingCanvas(canvas, voicing, chordName, ratio) {
+  VOICING_CANVAS.draw(canvas, voicing, chordName, ratio);
 }
 
 // ── 메트로놈 클릭 ────────────────────────────────────────────
@@ -336,14 +114,15 @@ function _resetCountDots() {
   wrap.querySelectorAll('.progd-count-dot').forEach(d => d.classList.remove('progd-count-dot--active'));
 }
 
-function _stopPlay() {
+async function _stopPlay(options = {}) {
   if (_timer) { clearTimeout(_timer); _timer = null; }
-  GuitarAudio.stop();
+  const stopPromise = GuitarAudio.stop({ wait: options.wait === true });
   _playing    = false;
   _masterBeat = 0;
   _resetCountDots();
   _updateActiveCard(-1);
   _updatePlayBtn();
+  if (options.wait) await stopPromise;
 }
 
 // 마스터 비트 타이머 — 메트로놈·점·코드 모두 단일 체인으로 처리
@@ -361,11 +140,11 @@ function _masterTick() {
   // 메트로놈 클릭
   _playClick(beatPhase === 0);
 
-  // 다운비트(1박): 코드 재생
+  // 다운비트(1박): 코드 재생 — current 슬롯 voicing 그대로 사용
   if (beatPhase === 0) {
-    const chordIdx = Math.floor(_masterBeat / 4) % count;
-    const step     = _prog.steps[chordIdx];
-    GuitarAudio.playChord(_key, step.semitones, step.quality);
+    const currDomIdx = _slotRoles ? _slotRoles.indexOf(2) : -1;
+    const voicing    = (currDomIdx >= 0 && _slotData) ? _slotData[currDomIdx]?.voicing : null;
+    _strumVoicing(voicing);
   }
 
   // 3박 직후 0.5비트: 다음 코드 슬라이드 애니메이션 (7/8마디 = 3.5비트)
@@ -407,7 +186,7 @@ function _runCountIn(onComplete) {
 
 async function togglePlay() {
   if (_playing) {
-    _stopPlay();
+    await _stopPlay();
   } else {
     // _metroCtx와 Tone.js 동기화 (첫 재생 시)
     if (!_metroCtx) _metroCtx = new _MetroCtx();
@@ -421,19 +200,65 @@ async function togglePlay() {
   }
 }
 
+const BPM_MIN = 40;
+const BPM_MAX = 200;
+const BPM_ITEM_H = 30;
+
+function _initBpmWheel() {
+  const wheel = document.getElementById('detail-bpm-wheel');
+  if (!wheel) return;
+  wheel.innerHTML = '';
+  for (let b = BPM_MIN; b <= BPM_MAX; b++) {
+    const item = document.createElement('div');
+    item.className = 'progd-bpm-item';
+    item.dataset.bpm = b;
+    item.textContent = b;
+    item.addEventListener('pointerup', () => _setBpm(b));
+    wheel.appendChild(item);
+  }
+  _scrollBpmWheel(_bpm, false);
+
+  wheel.addEventListener('scroll', () => {
+    const idx = Math.round(wheel.scrollTop / BPM_ITEM_H);
+    const newBpm = BPM_MIN + idx;
+    if (newBpm !== _bpm) {
+      _bpm = Math.max(BPM_MIN, Math.min(BPM_MAX, newBpm));
+      _updateBpmActiveItem();
+    }
+  }, { passive: true });
+}
+
+function _scrollBpmWheel(bpm, smooth) {
+  const wheel = document.getElementById('detail-bpm-wheel');
+  if (!wheel) return;
+  const idx = bpm - BPM_MIN;
+  wheel.scrollTo({ top: idx * BPM_ITEM_H, behavior: smooth ? 'smooth' : 'instant' });
+  _updateBpmActiveItem();
+}
+
+function _updateBpmActiveItem() {
+  const wheel = document.getElementById('detail-bpm-wheel');
+  if (!wheel) return;
+  wheel.querySelectorAll('.progd-bpm-item').forEach(el => {
+    el.classList.toggle('progd-bpm-item--active', parseInt(el.dataset.bpm) === _bpm);
+  });
+}
+
+function _setBpm(bpm) {
+  _bpm = Math.max(BPM_MIN, Math.min(BPM_MAX, bpm));
+  _scrollBpmWheel(_bpm, true);
+}
+
 function changeBpm(delta) {
-  _bpm = Math.max(40, Math.min(200, _bpm + delta));
-  const el = document.getElementById('detail-bpm');
-  if (el) el.textContent = `${_bpm} BPM`;
+  _setBpm(_bpm + delta);
 }
 
 function _updatePlayBtn() {
   const btn = document.getElementById('detail-play-btn');
   if (!btn) return;
   btn.innerHTML = _playing
-    ? '<i data-lucide="square"></i>'
-    : '<i data-lucide="play"></i>';
-  lucide.createIcons({ nodes: [btn] });
+    ? '<i class="ph-fill ph-stop"></i>'
+    : '<i class="ph-fill ph-play"></i>';
 }
 
 function _updateActiveCard(idx) {
@@ -449,8 +274,8 @@ function _updateActiveCard(idx) {
 }
 
 // ── 뒤로가기 ────────────────────────────────────────────────
-function goBack() {
-  _stopPlay();
+async function goBack() {
+  await _stopPlay({ wait: true });
   const shell = document.querySelector('.app-shell');
   if (shell) {
     shell.classList.add('project-exit');
@@ -467,7 +292,7 @@ function _renderKeyStrip() {
   strip.innerHTML = '';
   for (let k = 0; k < 12; k++) {
     const btn = document.createElement('button');
-    btn.className = 'prog-key-btn' + (k === _key ? ' prog-key-btn--active' : '');
+    btn.className = 'key-btn' + (k === _key ? ' key-btn--active' : '');
     btn.textContent = _getKeyDisplayName(k);
     btn.addEventListener('pointerup', () => {
       if (k === _key) return;
@@ -484,6 +309,7 @@ let _stageRO    = null; // ResizeObserver 인스턴스
 let _slotDoms   = null; // [dom0, dom1, dom2] — 고정 슬롯 DOM 요소
 let _slotRoles  = null; // _slotRoles[domIdx] = 0(prev)|1(current)|2(next)
 let _slotData   = null; // _slotData[domIdx] = { voicing, chordName }
+let _stepCache  = null; // _stepCache[stepIdx] = { voicing, chordName } — 스텝별 보이싱 캐시
 
 // 캔버스 픽셀 크기 계산 + 드로잉
 function _redrawCanvas(canvas, wrap, voicing, chordName) {
@@ -496,13 +322,13 @@ function _redrawCanvas(canvas, wrap, voicing, chordName) {
   canvas.style.height = Math.round(cssW * _BASE_H / _BASE_W) + 'px';
 }
 
-// 특정 슬롯 캔버스 업데이트
+// 특정 슬롯 캔버스 업데이트 (캐시 우선 사용)
 function _drawSlot(domIdx, stepIdx) {
-  const count     = _prog.steps.length;
-  const safeIdx   = ((stepIdx % count) + count) % count;
-  const step      = _prog.steps[safeIdx];
-  const chordName = _getChordName(_key, step.semitones, step.quality);
-  const voicing   = _findVoicing(chordName, step.quality);
+  const count   = _prog.steps.length;
+  const safeIdx = ((stepIdx % count) + count) % count;
+  const cached  = _stepCache && _stepCache[safeIdx];
+  const voicing   = cached ? cached.voicing   : null;
+  const chordName = cached ? cached.chordName : '';
   _slotData[domIdx] = { voicing, chordName };
   const canvas = _slotDoms[domIdx].querySelector('canvas');
   requestAnimationFrame(() => _redrawCanvas(canvas, _slotDoms[domIdx], voicing, chordName));
@@ -516,14 +342,141 @@ function _getSlotByRole(role) {
 // 슬롯 역할명 (인덱스 0~3)
 const _ROLE_NAMES = ['far-left', 'prev', 'current', 'next'];
 
+// 스텝별 보이싱 캐시 빌드 — Cyclic DP
+//
+// 규칙:
+//   1. 순환 경로(마지막→첫 wrap-around 포함) 전체 이동 비용 최소화
+//   2. 같은 줄 이동 우선 — 줄 변경 시 CROSS_PENALTY 가산
+//   3. 동률이면 더 낮은 프렛 보이싱 우선
+//   4. 결과를 _stepCache에 고정 → 재생 반복 중 변경 없음
+function _buildStepCache() {
+  if (!_prog) return;
+  const count = _prog.steps.length;
+  if (count === 0) { _stepCache = []; return; }
+
+  const CROSS_PENALTY       = 2;
+  const HIGH_FRET_THRESH    = 5;   // 이 프렛 초과부터 페널티 시작
+  const HIGH_FRET_FACTOR    = 0.8; // 초과 프렛당 페널티 (튜닝용)
+  const THIN_ROOT_PENALTY   = 2.5; // 3번줄 이상 근음 페널티 (튜닝용)
+  const FOUR_STR_PENALTY    = 2.5; // 4번줄 근음 페널티
+  const LOW_FRET_BONUS      = 1.5; // fret 0~1 오픈 포지션 보너스 (튜닝용)
+  const fret = v => (v && v.fretNumber) || 0;
+
+  // 보이싱의 근음 줄 인덱스 (6번줄=5, 5번줄=4, 4번줄=3, …)
+  function rootStr(v) {
+    if (!v || !v.frets) return -1;
+    for (let s = 5; s >= 0; s--) {
+      if (v.frets[s] !== null) return s;
+    }
+    return -1;
+  }
+
+  // 이동 비용: 프렛 차 + 줄 변경 페널티 + 고프렛 페널티 + 3번줄↑ 근음 페널티 + 4번줄 페널티 - 오픈 포지션 보너스
+  function dist(a, b) {
+    const hfp  = Math.max(0, fret(b) - HIGH_FRET_THRESH) * HIGH_FRET_FACTOR;
+    const trp  = rootStr(b) < 3 ? THIN_ROOT_PENALTY : 0;
+    const fsp  = rootStr(b) === 3 ? FOUR_STR_PENALTY : 0;
+    const lfb  = fret(b) <= 1 ? LOW_FRET_BONUS : 0;
+    return Math.abs(fret(a) - fret(b)) + (rootStr(a) !== rootStr(b) ? CROSS_PENALTY : 0) + hfp + trp + fsp - lfb;
+  }
+
+  // 각 스텝의 후보 목록 수집
+  const stepData = _prog.steps.map(step => {
+    const chordName    = _getChordName(_key, step.semitones, step.quality, step.bass);
+    const rootSemitone = (_key + step.semitones + 120) % 12;
+    const candidates   = _getCandidates(rootSemitone, step.quality, step.bass);
+    return { chordName, candidates };
+  });
+
+  // 후보 없는 스텝 있으면 fallback (null voicing)
+  if (stepData.some(s => !s.candidates.length)) {
+    _stepCache = stepData.map(s => ({ voicing: s.candidates[0] || null, chordName: s.chordName }));
+    return;
+  }
+
+  const cands = stepData.map(s => s.candidates);
+
+  // ① 첫 코드: 최저 fretNumber 후보 고정
+  const firstVoicing = cands[0].reduce((a, b) => fret(a) <= fret(b) ? a : b);
+
+  if (count === 1) {
+    _stepCache = [{ voicing: firstVoicing, chordName: stepData[0].chordName }];
+    return;
+  }
+
+  // ② Cyclic DP (chord 0 고정, chord 1..n-1 최적화)
+  // dp[j]      = chord i를 후보 j로 선택했을 때 chord 0→i까지 누적 최소 비용
+  // track[i][j] = chord i가 j일 때 chord i-1의 최적 후보 인덱스
+
+  let dp = cands[1].map(c => dist(firstVoicing, c));
+  const track = new Array(count);
+  track[1] = cands[1].map(() => 0);
+
+  for (let i = 2; i < count; i++) {
+    const ndp = [], ntr = [];
+    for (let j = 0; j < cands[i].length; j++) {
+      let best = Infinity, bk = 0;
+      for (let k = 0; k < cands[i - 1].length; k++) {
+        const cost = dp[k] + dist(cands[i - 1][k], cands[i][j]);
+        if (cost < best || (cost === best && fret(cands[i - 1][k]) < fret(cands[i - 1][bk]))) {
+          best = cost; bk = k;
+        }
+      }
+      ndp.push(best); ntr.push(bk);
+    }
+    dp = ndp; track[i] = ntr;
+  }
+
+  // ③ wrap-around: 마지막 코드 → 첫 코드 이동 비용 포함해 bestJ 결정
+  const totalCosts = cands[count - 1].map((c, jN) => dp[jN] + dist(c, firstVoicing));
+  let bestJ = 0;
+  for (let j = 1; j < totalCosts.length; j++) {
+    if (totalCosts[j] < totalCosts[bestJ] ||
+        (totalCosts[j] === totalCosts[bestJ] && fret(cands[count - 1][j]) < fret(cands[count - 1][bestJ]))) {
+      bestJ = j;
+    }
+  }
+
+  // ④ 역추적
+  const choices = new Array(count);
+  choices[count - 1] = bestJ;
+  for (let i = count - 1; i >= 2; i--) {
+    choices[i - 1] = track[i][choices[i]];
+  }
+
+  _stepCache = stepData.map((s, i) => ({
+    voicing:   i === 0 ? firstVoicing : cands[i][choices[i]],
+    chordName: s.chordName,
+  }));
+}
+
+// 코드 진행 바 렌더링
+function _renderProgBar() {
+  const bar = document.getElementById('detail-prog-bar');
+  if (!bar || !_prog) return;
+  bar.innerHTML = '';
+  _prog.steps.forEach((step, i) => {
+    const prev   = _prog.steps[i - 1];
+    const isSame = prev && prev.semitones === step.semitones && prev.quality === step.quality && (prev.bass ?? null) === (step.bass ?? null);
+    const name   = isSame ? '-' : _getRomanNumeral(step.semitones, step.quality, step.bass);
+    const chip = document.createElement('span');
+    chip.className = 'progd-prog-chip';
+    chip.innerHTML = name;
+    bar.appendChild(chip);
+  });
+}
+
 // 스테이지 초기화 (전체 재구성) — 4슬롯 모델
 function _renderStage() {
   if (!_prog) return;
   const row = document.getElementById('detail-chord-row');
   if (!row) return;
   row.innerHTML = '';
+  _renderProgBar();
 
   if (_stageRO) { _stageRO.disconnect(); _stageRO = null; }
+
+  _buildStepCache(); // 보이싱 캐시 선빌드
 
   _slotDoms  = [];
   _slotRoles = [0, 1, 2, 3]; // dom0=far-left, dom1=prev, dom2=current, dom3=next
@@ -608,10 +561,6 @@ document.addEventListener('DOMContentLoaded', () => {
   const shell = document.querySelector('.app-shell');
   if (shell) shell.classList.add('project-enter');
 
-  // 타이틀
-  const titleEl = document.getElementById('detail-title');
-  if (titleEl && _prog) titleEl.textContent = _prog.name;
-
   // 페이지 커버
   lucide.createIcons();
   const cover = document.getElementById('page-cover');
@@ -628,19 +577,22 @@ document.addEventListener('DOMContentLoaded', () => {
 
   function _setAccidental(useFlat) {
     _useFlat = useFlat;
-    sharpBtn.classList.toggle('prog-acc-btn--active', !useFlat);
-    flatBtn .classList.toggle('prog-acc-btn--active',  useFlat);
+    sharpBtn.classList.toggle('active', !useFlat);
+    flatBtn .classList.toggle('active',  useFlat);
     _stopPlay();
     _renderKeyStrip();
     _renderStage();
   }
 
-  sharpBtn.addEventListener('pointerup', () => _setAccidental(false));
-  flatBtn .addEventListener('pointerup', () => _setAccidental(true));
+  const accToggle = document.getElementById('detail-accidental-toggle');
+  if (accToggle) {
+    accToggle.addEventListener('pointerup', () => _setAccidental(!_useFlat));
+  }
 
   if (_useFlat) _setAccidental(true);
 
   // 초기 렌더
+  _initBpmWheel();
   _renderKeyStrip();
   _renderStage();
 
