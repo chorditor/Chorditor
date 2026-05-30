@@ -14,13 +14,22 @@ public class MainActivity extends BridgeActivity {
     protected void onCreate(Bundle savedInstanceState) {
         registerPlugin(SaveImagePlugin.class);
         super.onCreate(savedInstanceState);
+
+        new android.os.Handler().post(() -> {
+            android.webkit.WebView webView = getBridge().getWebView();
+            if (webView != null) {
+                android.webkit.WebSettings settings = webView.getSettings();
+                settings.setTextZoom(90);
+            }
+        });
+
         pendingCode = extractCode(getIntent());
 
         getOnBackPressedDispatcher().addCallback(this, new OnBackPressedCallback(true) {
             @Override
             public void handleOnBackPressed() {
                 getBridge().getWebView().evaluateJavascript(
-                    "(function(){ if(typeof handleNativeBack==='function') handleNativeBack(); })()", null
+                        "(function(){ if(typeof handleNativeBack==='function') handleNativeBack(); })()", null
                 );
             }
         });

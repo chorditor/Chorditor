@@ -244,7 +244,7 @@ function drawCanvas(c, ratio, data = null) {
 
 // 프로젝트 뷰 상태
 let currentProjectId   = null;
-let isEditMode         = true;
+let isEditMode         = false;
 let contextProjectId   = null;
 
 // 탭 네비게이션 상태 (home.html SPA에서 이관 — _updateBackBtn 등에서 참조)
@@ -659,14 +659,20 @@ function navigateTo(view, projectId, opts = {}) {
     switchTab('projects');
     _projectsSubView = 'project';
     contextProjectId = null;
-    isEditMode = true;
+    isEditMode = false;
 
     document.getElementById('view-projects-list')?.classList.add('hidden');
-    document.getElementById('view-project')?.classList.remove('hidden');
+    const _viewProject = document.getElementById('view-project');
+    if (_viewProject) {
+      _viewProject.classList.remove('hidden');
+      _viewProject.innerHTML = '<div class="project-loading-spinner"></div>';
+    }
     _updateBackBtn();
 
-    renderProjectView(projectId);
-    if (screen.orientation?.unlock) { try { screen.orientation.unlock(); } catch(e) {} }
+    setTimeout(() => {
+      renderProjectView(projectId);
+      if (screen.orientation?.unlock) { try { screen.orientation.unlock(); } catch(e) {} }
+    }, 200);
 
     const _p = loadProjects().find(p => p.id === projectId);
     if (_p) {
@@ -1112,7 +1118,7 @@ async function playAll(projectId, startIndex = 0) {
   const beatsPerSlot = currentColCount === 4 ? 4 : 2;
   playbackStartAudioTime = audioCtx.currentTime + 0.05 - startIndex * beatsPerSlot * (60 / bpm);
 
-  const playDataIndices = currentColCount === 4 ? [0, 2, 4, 6] : [0, 1, 2, 3, 4, 5, 6, 7];
+  const playDataIndices = currentColCount === 4 ? [0, 2, 4, 6] : [0, 1, 2, 3];
   const orderedSlots = project.arrangement.flatMap(row =>
     playDataIndices.map(dataIdx => ({ chordId: row.slots[dataIdx] ?? null, lineId: row.id, slotIdx: dataIdx }))
   );
@@ -1171,7 +1177,7 @@ function getGlobalSlotIndex(project, lineId, dataIdx) {
       const visualIdx = currentColCount === 4 ? dataIdx / 2 : dataIdx;
       return globalIdx + visualIdx;
     }
-    globalIdx += currentColCount;
+    globalIdx += 4;
   }
   return 0;
 }
@@ -1200,7 +1206,7 @@ function renderProjectView(projectId) {
   viewEl.innerHTML = '';
   viewEl.classList.toggle('view-mode', !isEditMode);
 
-  const maxW = currentColCount === 8 ? '1600px' : '850px';
+  const maxW = '850px';
 
   // ── 헤더 (<header> 로 분리) ──
   const header = document.createElement('div');
@@ -1232,13 +1238,13 @@ function renderProjectView(projectId) {
     renderProjectView(projectId);
   };
 
-  // 4칸/8칸 토글
+  // 1마디/½마디 토글
   const colToggle = document.createElement('div');
   colToggle.className = 'col-toggle';
   [4, 8].forEach(n => {
     const btn = document.createElement('button');
     btn.className = 'col-toggle-btn' + (currentColCount === n ? ' active' : '');
-    btn.textContent = n + '칸';
+    btn.textContent = n === 4 ? '1마디' : '½마디';
     btn.onclick = () => {
       currentColCount = n;
       const p = getProject(projectId);
@@ -1248,7 +1254,7 @@ function renderProjectView(projectId) {
     colToggle.appendChild(btn);
   });
 
-  // ── 1행: [좌] 4칸/8칸 | [우] 공유하기 · 완료/편집 · [삭제] ──
+  // ── 1행: [좌] 1마디/½마디 | [우] 공유하기 · 완료/편집 · [삭제] ──
   const headerRow1 = document.createElement('div');
   headerRow1.className = 'project-header-row1';
 
@@ -1441,7 +1447,7 @@ function buildChordArea(line, project, editMode = true) {
   area.className = `chord-area cols-${currentColCount}`;
   area.contentEditable = 'false';
   const base = line.slots || [];
-  const dataIndices = currentColCount === 4 ? [0, 2, 4, 6] : [0, 1, 2, 3, 4, 5, 6, 7];
+  const dataIndices = currentColCount === 4 ? [0, 2, 4, 6] : [0, 1, 2, 3];
   dataIndices.forEach(dataIdx => {
     const chordId = base[dataIdx] ?? null;
     const slot = document.createElement('div');
@@ -2267,7 +2273,13 @@ function buildChordPalette(project, editMode = true) {
     addBtn.innerHTML = '+';
     addBtn.onclick = async () => {
       await stopPlayAll(false, { wait: true });
-      location.href = 'home.html?view=editor&from_project=' + project.id;
+      const _shell = document.querySelector('.app-shell');
+      if (_shell) {
+        _shell.classList.add('project-exit');
+        setTimeout(() => { location.href = 'home.html?view=editor&from_project=' + project.id; }, 260);
+      } else {
+        location.href = 'home.html?view=editor&from_project=' + project.id;
+      }
     };
     chordPalette.appendChild(addBtn);
   }
@@ -2425,7 +2437,13 @@ function createPaletteItem(chord, idx, projectId, editMode = true) {
     if (mouseDragged) return;
     if (editMode) {
       await stopPlayAll(false, { wait: true });
-      location.href = 'home.html?view=editor&from_project=' + projectId + '&chord_id=' + chord.id;
+      const _shell = document.querySelector('.app-shell');
+      if (_shell) {
+        _shell.classList.add('project-exit');
+        setTimeout(() => { location.href = 'home.html?view=editor&from_project=' + projectId + '&chord_id=' + chord.id; }, 260);
+      } else {
+        location.href = 'home.html?view=editor&from_project=' + projectId + '&chord_id=' + chord.id;
+      }
     } else {
       openViewModal(chord, projectId);
     }
@@ -2992,7 +3010,9 @@ document.addEventListener('DOMContentLoaded', async () => {
   const params = new URLSearchParams(location.search);
   const projectIdParam = params.get('id');
   if (projectIdParam) {
-    renderProjectView(projectIdParam);
+    const _vp = document.getElementById('view-project');
+    if (_vp) _vp.innerHTML = '<div class="project-loading-spinner"></div>';
+    setTimeout(() => renderProjectView(projectIdParam), 200);
   } else {
     // id 없이 접근한 경우 홈으로 리다이렉트
     location.href = 'home.html';
