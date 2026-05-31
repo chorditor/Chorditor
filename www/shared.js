@@ -6,7 +6,7 @@
 // ── 상수 ─────────────────────────────────────────────────────
 const SUPABASE_URL  = 'https://jbvkygeksohlysyvaoab.supabase.co';
 const SUPABASE_ANON = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Impidmt5Z2Vrc29obHlzeXZhb2FiIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzYzOTk5NjgsImV4cCI6MjA5MTk3NTk2OH0.6RSgChy0Yq0H2TJpZPSoMKQ2V-OYfR0XzE1aJBBZkXI';
-const APP_VERSION   = '1.2.2_pre1';
+const APP_VERSION   = '1.2.2_pre2';
 const SUPABASE_STORAGE_KEY = 'sb-jbvkygeksohlysyvaoab-auth-token';
 
 // ── Analytics SDK ─────────────────────────────────────────────
@@ -949,15 +949,16 @@ const VOICING_CANVAS = (() => {
     if (!voicing) return;
 
     // 프랫 정규화
-    // fretNumber = r = 슬롯1 의 프렛 번호 → offset = fretNumber - 1
     const rawFrets       = voicing.frets;
-    const positives      = rawFrets.filter(f => f !== null && f > 0);
-    const minF           = positives.length ? Math.min(...positives) : 0;
-    const maxF           = positives.length ? Math.max(...positives) : 0;
-    const displayFretNum = voicing.fretNumber || null;
-    const offset         = (displayFretNum >= 2)
-                         ? (voicing.source === 'pattern' ? displayFretNum - 1 : displayFretNum - 2)
-                         : (maxF > FRETS ? minF - 1 : 0);
+    const displayFretNum = voicing.fretNumber ?? 0;  // r = 슬롯1 프렛
+    const isPattern      = voicing.source === 'pattern';
+    // 도트 offset — source로만 결정 (패턴·정적 철저 분리)
+    //  pattern: 항상 r-1 → 셀 r,r+1,r+2,r+3 = 슬롯1~4 (token r+k → 슬롯 k+1)
+    //           r=0 이면 offset=-1, r=1 이면 0 (clamp 금지: clamp 시 dot 밀림)
+    //  static : r>=2 → r-2 (입력 그대로 — dot/프렛번호 직접 지정), 그 외 0
+    const offset = isPattern
+      ? displayFretNum - 1
+      : (displayFretNum >= 2 ? displayFretNum - 2 : 0);
     const frets      = offset ? rawFrets.map(f => f === null ? null : (f === 0 ? 0 : f - offset)) : rawFrets;
     const rawBarre   = voicing.barre || {};
     const barre      = offset
@@ -1041,13 +1042,12 @@ const VOICING_CANVAS = (() => {
       c.restore();
     });
 
-    // 프렛 번호 라벨 — 슬롯2 위치 고정
-    // pattern: 슬롯2 = r+1 → labelFret = fretNumber + 1
-    // static:  슬롯2 = fretNumber → labelFret = fretNumber
-    const _showLabel = displayFretNum !== null &&
-      (voicing.source === 'pattern' ? displayFretNum >= 1 : displayFretNum >= 2);
-    if (_showLabel) {
-      const labelFret = voicing.source === 'pattern' ? displayFretNum + 1 : displayFretNum;
+    // 프렛 번호 라벨 — 슬롯2(프랫보드 2번째 프렛) 위치 고정
+    //  pattern: 항상 표시 / 값 = max(2, r+1)
+    //  static : 입력 그대로 — r>=2일 때만 r 표시
+    const showLabel = isPattern ? true : (displayFretNum >= 2);
+    if (showLabel) {
+      const labelFret = isPattern ? Math.max(2, displayFretNum + 1) : displayFretNum;
       c.save();
       c.font         = `500 ${Math.round(28 * sc)}px "Pretendard", sans-serif`;
       c.fillStyle    = '#666';
@@ -1073,3 +1073,29 @@ const VOICING_CANVAS = (() => {
 
   return { draw, BASE_W, BASE_H };
 })();
+
+// ═══════════════════════════════════════════════════════════════
+// chordToVoicing — 에디터 모델 코드 → VoicingCanvas voicing 변환
+//   에디터 모델: dots=[{s,f,n}] (f=슬롯위치), barre={슬롯:true}, fretNumber=슬롯2 프렛
+//   변환: 절대프렛 = 슬롯f + (fretNumber-2), source='static' (입력 그대로)
+//   → VoicingCanvas.draw(canvas, chordToVoicing(chord), { chordName, fingerNumMode, ratio })
+// ═══════════════════════════════════════════════════════════════
+function chordToVoicing(chord) {
+  const fn   = (chord.fretNumber >= 2) ? chord.fretNumber : 2;
+  const base = fn - 2;  // 슬롯 → 절대프렛
+  const frets     = [null, null, null, null, null, null];
+  const fingering = [null, null, null, null, null, null];
+  const om = chord.openMute || [];
+  for (let s = 0; s < 6; s++) frets[s] = (om[s] === 'open') ? 0 : null;  // mute/미지정 → null
+  (chord.dots || []).forEach(d => {
+    frets[d.s]     = d.f + base;
+    fingering[d.s] = (typeof d.n === 'number') ? d.n : null;
+  });
+  const barre = {};
+  Object.entries(chord.barre || {}).forEach(([k, v]) => { if (v) barre[Number(k) + base] = true; });
+  return {
+    frets, openMute: chord.openMute, barre, barreRange: null,
+    fretNumber: fn, source: 'static', fingering,
+  };
+}
+if (typeof window !== 'undefined') window.chordToVoicing = chordToVoicing;

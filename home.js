@@ -2830,8 +2830,10 @@ function openViewModal(chord, projectId) {
   document.getElementById('modal-view-title').textContent = buildChordName(chord);
 
   const cv = document.getElementById('modal-view-canvas');
-  cv.width  = 480; cv.height = 360;
-  drawCanvas(cv.getContext('2d'), 480 / BASE_W, chord);
+  VoicingCanvas.draw(cv, chordToVoicing(chord), {
+    chordName: chord.name, fingerNumMode: chord.fingerNumMode,
+    ratio: 480 / VoicingCanvas.BASE_W,
+  });
 
   // 재생
   document.getElementById('modal-view-play').onclick = () => playChord(chord);
@@ -4166,40 +4168,20 @@ function drawLibViewerCanvas() {
 // 공통 캔버스 렌더 (viewer / mini card 공용)
 // fingeringIdx: 사용할 운지 인덱스 (미지정 시 0 = 대표 운지)
 function _drawLibCanvas(canvas, ratio, entry, nameOverride, fingeringIdx = 0) {
-  const frets     = entry.frets;
-  const fingering = (entry.fingerings?.[fingeringIdx]) ?? entry.fingerings?.[0] ?? entry.fingering;
-  // 절대 프렛 → 슬롯 번호 변환
-  // pattern: fretNumber = r = 슬롯1 → offset = fretNumber - 1
-  // static:  fretNumber = minFret, 슬롯2 기준 → offset = fretNumber - 2
-  const fretOffset = entry.fretNumber >= 2
-    ? (entry.source === 'pattern' ? entry.fretNumber - 1 : entry.fretNumber - 2)
-    : 0;
-
-  const dotsArr = frets
-    .map((f, s) => f !== null && f > 0
-      ? { s, f: f - fretOffset, n: _libFingerMode ? (typeof fingering?.[s] === 'number' ? fingering[s] : 0) : 0 }
-      : null)
-    .filter(Boolean);
-
-
-  // barre 키도 절대 프렛 → 슬롯 번호로 정규화 (운지별 barre 우선)
-  const activeBarre = entry.barres?.[fingeringIdx] ?? entry.barres?.[0] ?? entry.barre ?? {};
-  const normBarre = {};
-  Object.entries(activeBarre).forEach(([f, v]) => {
-    normBarre[Number(f) - fretOffset] = v;
-  });
-  // barreRange: 바레 라인 커버 범위 (canvas string index 기준, 운지별)
-  const barreRange = entry.barreRanges?.[fingeringIdx] ?? entry.barreRanges?.[0] ?? entry.barreRange ?? null;
-
-  drawCanvas(canvas.getContext('2d'), ratio, {
-    root: '', triad: '', seventh: '', func: '', tensions: [], bass: '',
-    nameOverride,
-    dots:          dotsArr,
-    openMute:      entry.openMute,
-    barre:         normBarre,
-    barreRange,
-    fretNumber:    (entry.source === 'pattern' && entry.fretNumber >= 1) ? entry.fretNumber + 1 : entry.fretNumber,
+  // 코드 캔버스 드로잉은 voicing-canvas.js 모듈(VoicingCanvas)로 일원화.
+  // 프렛 정규화·바레·도트·프렛번호·손가락번호·코드명 모두 모듈이 처리.
+  VoicingCanvas.draw(canvas, {
+    frets:      entry.frets,
+    openMute:   entry.openMute,
+    barre:      entry.barres?.[fingeringIdx] ?? entry.barres?.[0] ?? entry.barre ?? {},
+    barreRange: entry.barreRanges?.[fingeringIdx] ?? entry.barreRanges?.[0] ?? entry.barreRange ?? null,
+    fretNumber: entry.fretNumber,
+    source:     entry.source,   // ★ 누락 시 모듈이 static 취급 → offset/라벨 어긋남
+    fingering:  entry.fingerings?.[fingeringIdx] ?? entry.fingerings?.[0] ?? entry.fingering,
+  }, {
+    chordName:     nameOverride,
     fingerNumMode: _libFingerMode,
+    ratio,
   });
 }
 
@@ -4503,8 +4485,12 @@ function importLibChordToProject() {
   const dispName = useFlat ? entry.flatName : entry.name;
 
   // 에디터 상태에 라이브러리 코드 로드
-  // 절대 프렛 → 슬롯 번호 변환 (_drawLibCanvas와 동일 로직)
-  const fretOffset = entry.fretNumber >= 2 ? entry.fretNumber - 2 : 0;
+  // 에디터는 "슬롯2 = fretNumber" 모델 → fretOffset = currentFretNumber - 2
+  //  pattern: 라벨 r+1 → offset r-1 / static: 라벨 r → offset r-2 / 라벨 최소 2
+  const _r         = entry.fretNumber ?? 0;
+  const _isPat     = entry.source === 'pattern';
+  currentFretNumber = Math.max(2, _isPat ? _r + 1 : _r);
+  const fretOffset = currentFretNumber - 2;
 
   const activeFingering = (entry.fingerings?.[_libFingeringIdx]) ?? entry.fingerings?.[0] ?? entry.fingering;
 
@@ -4525,7 +4511,6 @@ function importLibChordToProject() {
     barreActive[parseInt(f) - fretOffset] = v;
   });
 
-  currentFretNumber = entry.fretNumber >= 2 ? entry.fretNumber : 2;
   fingerNumMode = _libFingerMode;
   const fnBtn = document.getElementById('btn-finger-num');
   if (fnBtn) fnBtn.classList.toggle('active', fingerNumMode);

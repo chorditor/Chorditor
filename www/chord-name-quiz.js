@@ -54,288 +54,35 @@ const FEEDBACK_MESSAGES = {
 };
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-// ── 캔버스 상수 (home.js와 동일) ──────────────────────────────
-const STRINGS     = 6;
-const FRETS       = 4;
-const BASE_OPEN_W = 70;
-const BASE_PAD_L  = 35;   // nut 포함 시각 중앙정렬: tl=(BASE_W-FBW+nutW)/2=105, PAD_L=105-OPEN_W
-const BASE_PAD_R  = 95;   // 우측 여백 = BASE_W - tl - FBW = 95
-const BASE_PAD_T  = 80;
-const BASE_PAD_B  = 80;
-const BASE_FBW    = 240;
-const BASE_FBH    = 192;
-const BASE_W      = BASE_PAD_L + BASE_OPEN_W + BASE_FBW + BASE_PAD_R; // 440
-const BASE_H      = BASE_PAD_T + BASE_FBH + BASE_PAD_B;               // 352
+// ── 캔버스 드로잉: voicing-canvas.js 모듈(VoicingCanvas)로 일원화 ──
+// 코드 사전과 동일 규칙. 로컬 drawCanvas/캔버스 상수는 모듈로 대체되어 제거됨.
 
-// ── drawCanvas (home.js의 함수를 그대로 활용) ──────────────────
-// data 객체로만 호출 (에디터 전역 상태 불필요)
-function drawCanvas(c, ratio, data) {
-  const _root     = data.root     ?? '';
-  const _triad    = data.triad    ?? '';
-  const _seventh  = data.seventh  ?? '';
-  const _func     = data.func     ?? '';
-  const _tensions = data.tensions ?? [];
-  const _bass     = data.bass     ?? '';
-  const _dots     = data.dots     ?? [];
-  const _barre    = data.barre    ?? {};
-  const _openMute = data.openMute ?? [];
-  const _fingerNumMode = data.fingerNumMode ?? false;
-  const _nameOverride  = data.nameOverride  ?? null;
-  const _fretNum = data.fretNumber >= 2 ? String(data.fretNumber) : '';
-
-  const w   = Math.round(BASE_W   * ratio);
-  const ch  = Math.round(BASE_H   * ratio);
-  const tl  = Math.round((BASE_PAD_L + BASE_OPEN_W) * ratio);
-  const tr  = Math.round((BASE_PAD_L + BASE_OPEN_W + BASE_FBW) * ratio);
-  const tt  = Math.round(BASE_PAD_T  * ratio);
-  const tb  = Math.round((BASE_PAD_T + BASE_FBH) * ratio);
-  const fw  = (tr - tl) / FRETS;
-  const sh  = (tb - tt) / (STRINGS - 1);
-  const ds  = Math.round(sh * 0.95);
-  const sc  = w / BASE_W;
-
-  c.clearRect(0, 0, w, ch);
-  c.fillStyle = '#ffffff';
-  c.fillRect(0, 0, w, ch);
-
-  // 너트
-  const nutW = Math.max(1, Math.round(9 * sc));
-  const lineW = Math.max(1, 3 * sc);
-  const nx = tl - nutW, ny = tt - lineW / 2, nw = nutW, nh = (tb - tt) + lineW;
-  c.fillStyle = '#242729';
-  c.fillRect(nx, ny, nw, nh);
-
-  // 프렛선
-  c.strokeStyle = '#242729';
-  c.lineWidth = Math.max(1, 3 * sc);
-  c.lineCap = 'butt';
-  for (let f = 0; f <= FRETS; f++) {
-    const x = tl + f * fw;
-    c.beginPath(); c.moveTo(x, tt); c.lineTo(x, tb); c.stroke();
-  }
-
-  // 줄선
-  for (let s = 0; s < STRINGS; s++) {
-    const y = tt + s * sh;
-    c.beginPath(); c.moveTo(tl, y); c.lineTo(tr, y); c.stroke();
-  }
-
-  // 바레 커버 범위 미리 계산
-  const _barreCount = {};
-  _dots.forEach(d => { _barreCount[d.f] = (_barreCount[d.f] || 0) + 1; });
-  const coveredByBarre = new Set();
-  Object.keys(_barreCount).filter(f => _barreCount[Number(f)] >= 2 && _barre[Number(f)]).forEach(f => {
-    const same = _dots.filter(d => d.f === Number(f));
-    const minS = Math.min(...same.map(d => d.s));
-    const maxS = Math.max(...same.map(d => d.s));
-    for (let s = minS; s <= maxS; s++) coveredByBarre.add(s);
-  });
-
-  // 오픈/뮤트
-  _openMute.forEach((v, s) => {
-    if (_dots.some(d => d.s === s)) return;
-    if (v !== 'mute' && coveredByBarre.has(s)) return;
-    const y = tt + s * sh;
-    const x = tl - Math.round(BASE_OPEN_W / 2 * sc);
-    if (v === 'mute') {
-      const half = ds * 0.38;
-      c.save();
-      c.strokeStyle = '#242729';
-      c.lineWidth = Math.round(ds * 0.18);
-      c.lineCap = 'round';
-      c.beginPath(); c.moveTo(x - half, y - half); c.lineTo(x + half, y + half); c.stroke();
-      c.beginPath(); c.moveTo(x + half, y - half); c.lineTo(x - half, y + half); c.stroke();
-      c.restore();
-    } else {
-      const r  = ds * 0.45;
-      const lw = Math.max(1, ds * 0.15);
-      c.save();
-      c.strokeStyle = '#242729';
-      c.lineWidth = lw;
-      c.beginPath();
-      c.arc(x, y, r, 0, Math.PI * 2);
-      c.stroke();
-      c.restore();
-    }
-  });
-
-  // 바레
-  const barreFrets = [];
-  Object.keys(_barreCount).filter(f => _barreCount[f] >= 2).map(Number).forEach(f => {
-    if (!_barre[f]) return;
-    let minS, maxS;
-    if (data.barreRange) {
-      minS = data.barreRange.min;
-      maxS = data.barreRange.max;
-    } else {
-      const same = _dots.filter(d => d.f === f);
-      minS = Math.min(...same.map(d => d.s));
-      maxS = Math.max(...same.map(d => d.s));
-    }
-    if (maxS <= minS) return;
-    barreFrets.push(f);
-    const cx   = tl + (f - 0.5) * fw;
-    const topY = tt + minS * sh;
-    const botY = tt + maxS * sh;
-    const r    = ds / 2;
-    c.save();
-    c.fillStyle = '#242729';
-    c.beginPath();
-    c.arc(cx, topY, r, Math.PI, 0);
-    c.lineTo(cx + r, botY);
-    c.arc(cx, botY, r, 0, Math.PI);
-    c.lineTo(cx - r, topY);
-    c.closePath();
-    c.fill();
-    c.restore();
-  });
-
-  // 도트
-  _dots.forEach(d => {
-    if (_barre[d.f] && barreFrets.includes(d.f)) return;
-    const cx = tl + (d.f - 0.5) * fw;
-    const cy = tt + d.s * sh;
-    const r  = ds / 2;
-    c.save();
-    c.beginPath();
-    c.arc(cx, cy, r, 0, Math.PI * 2);
-    c.fillStyle = '#242729';
-    c.fill();
-    if (_fingerNumMode && d.n !== undefined) {
-      const numStr = d.n === 0 ? 'T' : String(d.n);
-      const fontSize = Math.round(r * 1.35);
-      c.fillStyle = '#ffffff';
-      c.font = `400 ${fontSize}px "Pretendard", sans-serif`;
-      c.textAlign = 'center';
-      c.textBaseline = 'middle';
-      c.fillText(numStr, cx, cy + fontSize * 0.05);
-    }
-    c.restore();
-  });
-
-  // 코드명
-  c.save();
-  c.fillStyle = '#ffffff';
-  c.fillRect(tl, 0, w - tl, tt - ds / 2);
-  c.fillStyle = '#242729';
-  c.textBaseline = 'alphabetic';
-
-  const bSize = Math.round(48 * sc);
-  const sSize = Math.round(30 * sc);
-  const bY    = tt - Math.round(30 * sc);
-  const sY    = bY - Math.round(14 * sc);
-
-  let cxName = tl;
-  if (_nameOverride !== null) {
-    if (_nameOverride) {
-      let _nBase = _nameOverride;
-      let _nTension = '';
-      let _nBass = '';
-      const _slashIdx = _nBase.lastIndexOf('/');
-      if (_slashIdx !== -1) { _nBass = _nBase.slice(_slashIdx); _nBase = _nBase.slice(0, _slashIdx); }
-      const _parenIdx = _nBase.indexOf('(');
-      if (_parenIdx !== -1) { _nTension = _nBase.slice(_parenIdx); _nBase = _nBase.slice(0, _parenIdx); }
-      c.font = `500 ${bSize}px "Pretendard", sans-serif`;
-      c.fillText(_nBase, cxName, bY);
-      cxName += c.measureText(_nBase).width;
-      if (_nTension) {
-        c.font = `500 ${sSize}px "Pretendard", sans-serif`;
-        c.fillText(_nTension, cxName, sY);
-        cxName += c.measureText(_nTension).width;
-      }
-      if (_nBass) {
-        c.font = `500 ${bSize}px "Pretendard", sans-serif`;
-        c.fillText(_nBass, cxName, bY);
-      }
-    }
-  } else {
-    const base = _root + _triad + _seventh + (_func === 'b5' ? '' : _func);
-    c.font = `500 ${bSize}px "Pretendard", sans-serif`;
-    c.fillText(base, cxName, bY);
-    cxName += c.measureText(base).width;
-    if (_func === 'b5') {
-      c.font = `500 ${sSize}px "Pretendard", sans-serif`;
-      c.fillText('(b5)', cxName, sY);
-      cxName += c.measureText('(b5)').width;
-    }
-    if (_tensions && _tensions.length) {
-      const ts = '(' + _tensions.join(',') + ')';
-      c.font = `500 ${sSize}px "Pretendard", sans-serif`;
-      c.fillText(ts, cxName, sY);
-      cxName += c.measureText(ts).width;
-    }
-    if (_bass) {
-      c.font = `500 ${bSize}px "Pretendard", sans-serif`;
-      c.fillText('/' + _bass, cxName, bY);
-    }
-  }
-
-  // 프렛 번호
-  if (_fretNum) {
-    c.font = `500 ${Math.round(28 * sc)}px "Pretendard", sans-serif`;
-    c.textAlign = 'center';
-    c.textBaseline = 'top';
-    c.fillText(_fretNum, tl + 1.5 * fw, tb + Math.round(28 * sc));
-  }
-
-  c.restore();
-}
-
-// ── chordsLibrary 항목 → drawCanvas 호출 (home.js _drawLibCanvas 패턴) ──
+// ── chordsLibrary 항목 → voicing-canvas.js 모듈로 드로잉 (코드명 숨김) ──
 function drawLibEntry(canvas, entry) {
-  const ratio      = canvas.width / BASE_W;
-  const fretOffset = entry.fretNumber >= 2 ? entry.fretNumber - 2 : 0;
-
-  const dots = entry.frets
-    .map((f, s) => f !== null && f > 0
-      ? { s, f: f - fretOffset, n: 0 }
-      : null)
-    .filter(Boolean);
-
-  const activeBarre = entry.barres?.[0] ?? {};
-  const normBarre   = {};
-  Object.entries(activeBarre).forEach(([f, v]) => {
-    normBarre[Number(f) - fretOffset] = v;
-  });
-  const barreRange = entry.barreRanges?.[0] ?? null;
-
-  drawCanvas(canvas.getContext('2d'), ratio, {
-    root: '', triad: '', seventh: '', func: '', tensions: [], bass: '',
-    nameOverride:  '',           // 퀴즈: 캔버스에 코드명 숨김
-    dots,
-    openMute:      entry.openMute,
-    barre:         normBarre,
-    barreRange,
-    fretNumber:    entry.fretNumber,
-    fingerNumMode: false,
+  VoicingCanvas.draw(canvas, {
+    frets:      entry.frets,
+    openMute:   entry.openMute,
+    barre:      entry.barres?.[0]      ?? {},
+    barreRange: entry.barreRanges?.[0] ?? null,
+    fretNumber: entry.fretNumber,
+    source:     entry.source,  // 사전과 동일 분기 (pattern: r-1/r+1, static: r-2/r)
+  }, {
+    ratio: canvas.width / VoicingCanvas.BASE_W,
   });
 }
 
-// 이름 표시 버전 (예습 모달용)
+// 이름 표시 버전 (예습 모달용) — voicing-canvas.js 모듈로 드로잉
 function drawLibEntryWithName(canvas, entry, name) {
-  const ratio      = canvas.width / BASE_W;
-  const fretOffset = entry.fretNumber >= 2 ? entry.fretNumber - 2 : 0;
-
-  const dots = entry.frets
-    .map((f, s) => f !== null && f > 0 ? { s, f: f - fretOffset, n: 0 } : null)
-    .filter(Boolean);
-
-  const activeBarre = entry.barres?.[0] ?? {};
-  const normBarre   = {};
-  Object.entries(activeBarre).forEach(([f, v]) => {
-    normBarre[Number(f) - fretOffset] = v;
-  });
-  const barreRange = entry.barreRanges?.[0] ?? null;
-
-  drawCanvas(canvas.getContext('2d'), ratio, {
-    root: '', triad: '', seventh: '', func: '', tensions: [], bass: '',
-    nameOverride:  name,
-    dots,
-    openMute:      entry.openMute,
-    barre:         normBarre,
-    barreRange,
-    fretNumber:    entry.fretNumber,
-    fingerNumMode: false,
+  VoicingCanvas.draw(canvas, {
+    frets:      entry.frets,
+    openMute:   entry.openMute,
+    barre:      entry.barres?.[0]      ?? {},
+    barreRange: entry.barreRanges?.[0] ?? null,
+    fretNumber: entry.fretNumber,
+    source:     entry.source,  // 사전과 동일 분기 (pattern: r-1/r+1, static: r-2/r)
+  }, {
+    chordName: name,
+    ratio:     canvas.width / VoicingCanvas.BASE_W,
   });
 }
 
@@ -736,7 +483,7 @@ function _renderPreviewGrid() {
     const dpr = window.devicePixelRatio || 1;
     canvasItems.forEach(({ canvas, entry, name }) => {
       const w = canvas.offsetWidth;
-      const h = Math.round(w * BASE_H / BASE_W);
+      const h = Math.round(w * VoicingCanvas.BASE_H / VoicingCanvas.BASE_W);
       canvas.style.width  = w + 'px';
       canvas.style.height = h + 'px';
       canvas.width  = Math.round(w * dpr);
@@ -1525,7 +1272,7 @@ function startCountdown(callback) {
   const W  = Math.round(wrap.clientWidth
                - parseFloat(cs.paddingLeft)
                - parseFloat(cs.paddingRight));
-  const H  = Math.round(W * BASE_H / BASE_W);
+  const H  = Math.round(W * VoicingCanvas.BASE_H / VoicingCanvas.BASE_W);
   canvas.width  = W;
   canvas.height = H;
   const ctx = canvas.getContext('2d');
@@ -1629,7 +1376,7 @@ function renderQuestion() {
     const W      = Math.round(wrap.clientWidth
                      - parseFloat(cs.paddingLeft)
                      - parseFloat(cs.paddingRight));
-    const H      = Math.round(W * BASE_H / BASE_W);
+    const H      = Math.round(W * VoicingCanvas.BASE_H / VoicingCanvas.BASE_W);
     const dpr    = window.devicePixelRatio || 1;
     canvas.width  = Math.round(W * dpr);
     canvas.height = Math.round(H * dpr);
@@ -1671,7 +1418,7 @@ function renderQuestion() {
       choices.forEach((item, i) => {
         const cv = divs[i].querySelector('canvas');
         const w  = cv.offsetWidth;
-        const h  = Math.round(w * BASE_H / BASE_W);
+        const h  = Math.round(w * VoicingCanvas.BASE_H / VoicingCanvas.BASE_W);
         cv.width  = w;
         cv.height = h;
         drawLibEntry(cv, item.entry);
