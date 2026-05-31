@@ -398,5 +398,5 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
   }
 
-  initSupabase().then(() => tryAutoSignIn());
+  initSupabase().then(() => tryAutoSignIn()).catch(() => tryAutoSignIn());
 });
