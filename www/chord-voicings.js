@@ -69,7 +69,7 @@ window.CHORD_STATIC = [
   ['0 0 2 2 2 0',  ['A/E'],  'x x 1 2 3 x',  'slash', 2],
   ['0 0 2 2 2 0',  ['A/E'],  'x x 2 3 4 x',  'slash', 2],
   ['0 x 2 2 1 0',  ['Am/E'],  'x x 2 3 1 x',  'slash', 2],
-  ['x 4 2 2 2 0',  ['A/C#'],  'x 3 1 1 1 x',  'slash', 3, { flat: true }],
+  ['x 4 2 2 2 0',  ['A/C#'],  'x 3 1 1 1 x',  'slash', 3, { flat: true }, { barre: true }],
   ['x 4 2 2 0 0',  ['Aadd9/C#'],  'x 4 2 1 x x',  'slash', 3, { flat: true }],
   
   // ── G 계열 ────────────────────────────────────────────────

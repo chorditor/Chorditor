@@ -8,17 +8,78 @@ function goToHome() {
   window.location.replace('home.html');
 }
 
+// ── 인앱 브라우저(임베디드 WebView) 감지 및 외부 브라우저 유도 ──
+// Google OAuth는 인앱 WebView를 차단(403 disallowed_useragent)하므로
+// 카카오톡/안드로이드 인앱은 외부 브라우저로 자동 전환, 나머지는 안내.
+function _isInAppBrowser() {
+  if (window.Capacitor?.isNativePlatform()) return false; // 우리 네이티브 앱은 GoogleAuth 플러그인 사용 → 제외
+  const ua = navigator.userAgent || '';
+  return /KAKAOTALK|NAVER|Instagram|FBAN|FBAV|FB_IAB|Line\/|Snapchat|Daum|; wv\)/i.test(ua);
+}
+
+function _fallbackCopy(text) {
+  try {
+    const ta = document.createElement('textarea');
+    ta.value = text;
+    ta.style.position = 'fixed';
+    ta.style.opacity = '0';
+    document.body.appendChild(ta);
+    ta.focus(); ta.select();
+    document.execCommand('copy');
+    document.body.removeChild(ta);
+  } catch (_) {}
+}
+
+function copyCurrentUrl() {
+  const url = location.href;
+  if (navigator.clipboard?.writeText) {
+    navigator.clipboard.writeText(url).catch(() => _fallbackCopy(url));
+  } else {
+    _fallbackCopy(url);
+  }
+  const btn = document.getElementById('inapp-copy-btn');
+  if (btn) btn.textContent = 'URL 복사됨!';
+}
+
+function openInExternalBrowser() {
+  const ua  = navigator.userAgent || '';
+  const url = location.href;
+  if (/KAKAOTALK/i.test(ua)) {
+    location.href = 'kakaotalk://web/openExternal?url=' + encodeURIComponent(url);
+    return;
+  }
+  if (/Android/i.test(ua)) {
+    // Chrome으로 강제 오픈 (intent scheme)
+    const noScheme = url.replace(/^https?:\/\//, '');
+    location.href = 'intent://' + noScheme + '#Intent;scheme=https;package=com.android.chrome;end';
+    return;
+  }
+  // iOS 등 자동 오픈 불가 → URL 복사 안내
+  copyCurrentUrl();
+}
+
+function _showInAppGuide() {
+  document.getElementById('onboarding-overlay')?.classList.add('hidden');
+  document.getElementById('inapp-guide-overlay')?.classList.remove('hidden');
+  // 카카오톡/안드로이드는 자동 외부 전환 시도 (실패 시 화면의 버튼으로 수동)
+  const ua = navigator.userAgent || '';
+  if (/KAKAOTALK/i.test(ua) || /Android/i.test(ua)) {
+    setTimeout(openInExternalBrowser, 120);
+  }
+}
+
 // ── 온보딩 정보수집 스텝 ──────────────────────────────────────
 let _obData = { persona: null, guitar_experience: null, gender: null, birth_year: null };
 
 async function _startOnboardingSteps() {
+  // 이미 온보딩 완료한 사용자는 페르소나 등 스텝을 다시 묻지 않고 home으로
   if (localStorage.getItem('onboarding_done')) {
     goToHome();
     return;
   }
 
-  // 앱 재설치 후 localStorage 소멸 케이스:
-  // Supabase subscriptions에 onboarding_completed_at 있으면 복원 후 home 이동
+  // 앱 재설치/세션복원 등으로 localStorage가 비었지만 계정은 완료한 케이스:
+  // Supabase subscriptions에 onboarding_completed_at 있으면 플래그 복원 후 home 이동
   try {
     const stored = localStorage.getItem(SUPABASE_STORAGE_KEY);
     if (stored) {
@@ -42,6 +103,7 @@ async function _startOnboardingSteps() {
     }
   } catch (_) {}
 
+  // 미완료 사용자 → 온보딩 스텝 표시
   document.getElementById('onboarding-overlay')?.classList.add('hidden');
   _showStep('ob-step1');
 }
@@ -254,7 +316,7 @@ async function onboardingSignIn() {
     if (!_supabase) return;
     await _supabase.auth.signInWithOAuth({
       provider: 'google',
-      options: { redirectTo: location.origin + '/home.html' }
+      options: { redirectTo: location.origin + location.pathname.replace(/[^/]*$/, '') + 'home.html' }
     });
     return;
   }
@@ -380,6 +442,12 @@ document.addEventListener('DOMContentLoaded', async () => {
     return;
   }
 
+  // ── 인앱 브라우저(카카오톡 등): Google OAuth 차단(disallowed_useragent) → 외부 브라우저 유도 ──
+  if (_isInAppBrowser()) {
+    _showInAppGuide();
+    return;
+  }
+
   // 로딩 스피너 즉시 표시 (checkForceUpdate/initBilling 대기 중 빈 화면 방지)
   document.getElementById('onboarding-overlay')?.classList.remove('hidden');
 
@@ -398,5 +466,5 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
   }
 
-  initSupabase().then(() => tryAutoSignIn());
+  initSupabase().then(() => tryAutoSignIn()).catch(() => tryAutoSignIn());
 });

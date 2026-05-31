@@ -1,4 +1,5 @@
 :root {
+  color-scheme: light dark; /* dark를 '지원'으로 선언해야 삼성인터넷 등이 강제 자동반전을 안 함. 실제 색은 아래 prefers-color-scheme:dark 블록에서 라이트로 고정 */
   --bg: #F5F5F5; /* hook test */
   --surface: #ffffff;
   --border: #d9d4cc;
@@ -3258,6 +3259,22 @@ canvas {
   -webkit-user-drag: none;
 }
 .onboarding-overlay.hidden { display: none; }
+
+/* 인앱 브라우저 안내 */
+.inapp-guide-title {
+  font-size: 20px;
+  font-weight: 800;
+  color: var(--text-primary);
+  margin: 8px 0 4px;
+  text-align: center;
+}
+.inapp-guide-desc {
+  font-size: 14px;
+  line-height: 1.6;
+  color: var(--text-secondary, #666);
+  text-align: center;
+  margin: 0 0 20px;
+}
 
 
 .onboarding-card {
@@ -8309,4 +8326,39 @@ canvas {
     display: flex;
     justify-content: center;
   }
+
+  /* 온보딩 전체화면(버튼 화면 + 페르소나/연도/성별 스텝) */
+  .onboarding-overlay {
+    max-width: 400px;
+    margin-inline: auto;
+  }
+}
+
+/* ════════════════════════════════════════════════════════════
+   강제 다크모드 차단 — 삼성인터넷 등 자동 다크 엔진 대응
+   prefers-color-scheme: dark 에서 라이트값 재명시 → "다크 대응함" 신호로
+   자동반전을 멈추게 하고, 실제 색은 라이트 유지
+   ════════════════════════════════════════════════════════════ */
+@media (prefers-color-scheme: dark) {
+  :root {
+    color-scheme: light;
+    --bg: #F5F5F5;
+    --surface: #ffffff;
+    --border: #d9d4cc;
+    --text-primary: #242729;
+    --text-secondary: #6b6560;
+    --text-muted: #a09b95;
+    --accent: #e03c31;
+    --blue: #2563EB;
+    --blue-light: rgba(37, 99, 235, 0.08);
+    --charcoal-blue: #334155;
+    --icon-purple: #7B52CC;
+    --icon-green:  #2E9E72;
+    --icon-coral:  #E0332A;
+    --icon-blue:   #3B82F6;
+    --icon-yellow: #E8C000;
+    --icon-pink:   #C94B7A;
+  }
+  html  { background: #FAFAF8 !important; }
+  body  { background: var(--bg) !important; color: var(--text-primary); }
 }

@@ -197,13 +197,15 @@ async function initSupabase() {
   _supabase.auth.onAuthStateChange(async (event, session) => {
     if (session?.user) {
       analytics.setUserId(session.user.id);
-      if (window._RC) await window._RC.logIn({ appUserID: session.user.id }).catch(() => {});
-      await fetchWebPlan();
+      // UI 먼저 갱신 (plan/RC 네트워크 대기에 막혀 무한로딩 걸리지 않도록)
       if (typeof renderAuthUI === 'function') renderAuthUI(session.user);
+      // 세션 복원/재접속 시에도 SIGNED_IN이 발생할 수 있어 자동 home 이동은 하지 않음
+      // (신규 로그인은 redirectTo=home.html로 직접 진입, 재접속은 온보딩 화면 유지)
       if (!window.Capacitor && event === 'SIGNED_IN') {
         _authReady = true;
-        if (typeof onAuthSignedIn === 'function') onAuthSignedIn();
       }
+      if (window._RC) window._RC.logIn({ appUserID: session.user.id }).catch(() => {});
+      fetchWebPlan().catch(() => {});
     } else {
       analytics.clearUserId();
       setPlan('free');
@@ -213,13 +215,17 @@ async function initSupabase() {
 
   // 기존 세션 복원 (웹 전용)
   if (!window.Capacitor?.isNativePlatform()) {
-    const { data: { session } } = await _supabase.auth.getSession();
+    let session = null;
+    try {
+      ({ data: { session } } = await _supabase.auth.getSession());
+    } catch(e) { console.warn('[Supabase] getSession 실패:', e); }
     if (session?.user) {
       _authReady = true;
       analytics.setUserId(session.user.id);
-      if (window._RC) await window._RC.logIn({ appUserID: session.user.id }).catch(() => {});
-      await fetchWebPlan();
+      // UI 먼저 갱신, plan/RC는 백그라운드 (네트워크 대기로 무한로딩 방지)
       if (typeof renderAuthUI === 'function') renderAuthUI(session.user);
+      if (window._RC) window._RC.logIn({ appUserID: session.user.id }).catch(() => {});
+      fetchWebPlan().catch(() => {});
     } else {
       if (typeof renderAuthUI === 'function') renderAuthUI(null);
     }
