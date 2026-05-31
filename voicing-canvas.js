@@ -96,11 +96,11 @@
     const displayFretNum = voicing.fretNumber ?? 0;  // r = 슬롯1 프렛
     const isPattern      = voicing.source === 'pattern';
     // 도트 offset — source로만 결정 (패턴·정적 철저 분리)
-    //  pattern: 항상 r-1 → 셀 r,r+1,r+2,r+3 = 슬롯1~4 (token r+k → 슬롯 k+1)
-    //           r=0 이면 offset=-1, r=1 이면 0 (clamp 금지: clamp 시 dot 밀림)
+    //  pattern: max(0, r-1) → 라벨 max(2,r+1)이 항상 슬롯2에 오도록 정렬
+    //           r=0(오픈 보이싱)일 때 r-1=-1이면 dot가 우측 1칸 밀려 라벨과 어긋남 → 0으로 clamp
     //  static : r>=2 → r-2 (입력 그대로 — dot/프렛번호 직접 지정), 그 외 0
     const offset = isPattern
-      ? displayFretNum - 1
+      ? Math.max(0, displayFretNum - 1)
       : (displayFretNum >= 2 ? displayFretNum - 2 : 0);
     const frets      = offset ? rawFrets.map(f => f === null ? null : (f === 0 ? 0 : f - offset)) : rawFrets;
     const rawBarre   = voicing.barre || {};
