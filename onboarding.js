@@ -12,36 +12,7 @@ function goToHome() {
 let _obData = { persona: null, guitar_experience: null, gender: null, birth_year: null };
 
 async function _startOnboardingSteps() {
-  if (localStorage.getItem('onboarding_done')) {
-    goToHome();
-    return;
-  }
-
-  // 앱 재설치 후 localStorage 소멸 케이스:
-  // Supabase subscriptions에 onboarding_completed_at 있으면 복원 후 home 이동
-  try {
-    const stored = localStorage.getItem(SUPABASE_STORAGE_KEY);
-    if (stored) {
-      const session = JSON.parse(stored);
-      const token   = session?.access_token;
-      const userId  = session?.user?.id;
-      if (token && userId) {
-        const resp = await fetch(
-          `${SUPABASE_URL}/rest/v1/subscriptions?user_id=eq.${userId}&select=onboarding_completed_at`,
-          { headers: { 'apikey': SUPABASE_ANON, 'Authorization': `Bearer ${token}` } }
-        );
-        if (resp.ok) {
-          const rows = await resp.json();
-          if (rows.length > 0 && rows[0].onboarding_completed_at) {
-            localStorage.setItem('onboarding_done', '1');
-            goToHome();
-            return;
-          }
-        }
-      }
-    }
-  } catch (_) {}
-
+  // 시작하기 → 항상 온보딩 스텝 표시 (완료 여부와 무관하게 스킵하지 않음)
   document.getElementById('onboarding-overlay')?.classList.add('hidden');
   _showStep('ob-step1');
 }
