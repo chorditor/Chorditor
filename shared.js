@@ -199,9 +199,10 @@ async function initSupabase() {
       analytics.setUserId(session.user.id);
       // UI 먼저 갱신 (plan/RC 네트워크 대기에 막혀 무한로딩 걸리지 않도록)
       if (typeof renderAuthUI === 'function') renderAuthUI(session.user);
+      // 세션 복원/재접속 시에도 SIGNED_IN이 발생할 수 있어 자동 home 이동은 하지 않음
+      // (신규 로그인은 redirectTo=home.html로 직접 진입, 재접속은 온보딩 화면 유지)
       if (!window.Capacitor && event === 'SIGNED_IN') {
         _authReady = true;
-        if (typeof onAuthSignedIn === 'function') onAuthSignedIn();
       }
       if (window._RC) window._RC.logIn({ appUserID: session.user.id }).catch(() => {});
       fetchWebPlan().catch(() => {});
