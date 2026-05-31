@@ -72,14 +72,9 @@ function _showInAppGuide() {
 let _obData = { persona: null, guitar_experience: null, gender: null, birth_year: null };
 
 async function _startOnboardingSteps() {
-  // 이미 온보딩 완료한 사용자는 페르소나 등 스텝을 다시 묻지 않고 home으로
-  if (localStorage.getItem('onboarding_done')) {
-    goToHome();
-    return;
-  }
-
-  // 앱 재설치/세션복원 등으로 localStorage가 비었지만 계정은 완료한 케이스:
-  // Supabase subscriptions에 onboarding_completed_at 있으면 플래그 복원 후 home 이동
+  // 페르소나 온보딩 노출 조건: DB subscriptions.persona 값이 존재하는지 여부.
+  // persona 있으면 완료 처리 → home / 없으면(기존·신규 무관, 계정 재생성 포함) 온보딩 표시.
+  // localStorage 플래그에 의존하지 않음(계정 삭제 후 재로그인 시 stale 플래그로 스킵되던 버그 방지).
   try {
     const stored = localStorage.getItem(SUPABASE_STORAGE_KEY);
     if (stored) {
@@ -88,12 +83,12 @@ async function _startOnboardingSteps() {
       const userId  = session?.user?.id;
       if (token && userId) {
         const resp = await fetch(
-          `${SUPABASE_URL}/rest/v1/subscriptions?user_id=eq.${userId}&select=onboarding_completed_at`,
+          `${SUPABASE_URL}/rest/v1/subscriptions?user_id=eq.${userId}&select=persona`,
           { headers: { 'apikey': SUPABASE_ANON, 'Authorization': `Bearer ${token}` } }
         );
         if (resp.ok) {
           const rows = await resp.json();
-          if (rows.length > 0 && rows[0].onboarding_completed_at) {
+          if (rows.length > 0 && rows[0].persona) {
             localStorage.setItem('onboarding_done', '1');
             goToHome();
             return;
@@ -103,7 +98,7 @@ async function _startOnboardingSteps() {
     }
   } catch (_) {}
 
-  // 미완료 사용자 → 온보딩 스텝 표시
+  // persona 미입력 사용자 → 온보딩 스텝 표시
   document.getElementById('onboarding-overlay')?.classList.add('hidden');
   _showStep('ob-step1');
 }
