@@ -331,12 +331,14 @@ async function _doSavePNG(scale) {
   if (!canUseScale(scale)) { showUpgradeModal('scale_limit'); return; }
 
   const exp = document.createElement('canvas');
-  exp.width  = Math.round(EXPORT_BASE_W * scale);
-  exp.height = Math.round(EXPORT_BASE_H * scale);
-  const ec = exp.getContext('2d');
-  const _es = EXPORT_BASE_W / BASE_W * scale;
-  ec.scale(_es, _es);
-  drawCanvas(ec, 1);
+  const _curChord = {
+    dots, openMute, barre: barreActive,
+    fretNumber: currentFretNumber, fingerNumMode, name: buildChordName(),
+  };
+  VoicingCanvas.draw(exp, chordToVoicing(_curChord), {
+    chordName: _curChord.name, fingerNumMode,
+    ratio: EXPORT_BASE_W / VoicingCanvas.BASE_W * scale,
+  });
 
   const base64   = exp.toDataURL('image/png').split(',')[1];
   const fileName = buildChordName() + '_chord.png';
@@ -1460,8 +1462,9 @@ function buildChordArea(line, project, editMode = true) {
       if (chord) {
         slot.className = 'chord-slot';
         const cv = document.createElement('canvas');
-        cv.width = 400; cv.height = 300;
-        drawCanvas(cv.getContext('2d'), 1, chord);
+        VoicingCanvas.draw(cv, chordToVoicing(chord), {
+          chordName: chord.name, fingerNumMode: chord.fingerNumMode, ratio: 1,
+        });
         const img = document.createElement('img');
         img.src = cv.toDataURL('image/png');
         img.className = 'chord-slot-img';
@@ -2387,9 +2390,10 @@ function createPaletteItem(chord, idx, projectId, editMode = true) {
 
   const cv = document.createElement('canvas');
   const _thumbW = 160;
-  const _thumbH = Math.round(BASE_H * _thumbW / BASE_W);
-  cv.width = _thumbW; cv.height = _thumbH;
-  drawCanvas(cv.getContext('2d'), _thumbW / BASE_W, chord);
+  VoicingCanvas.draw(cv, chordToVoicing(chord), {
+    chordName: chord.name, fingerNumMode: chord.fingerNumMode,
+    ratio: _thumbW / VoicingCanvas.BASE_W,
+  });
   const thumbImg = document.createElement('img');
   thumbImg.src = cv.toDataURL('image/png');
 
@@ -2474,8 +2478,10 @@ function setupPaletteTouchDrag(thumb, chord, projectId) {
 
   function startGhost(cx, cy) {
     const ghostCv = document.createElement('canvas');
-    ghostCv.width = 160; ghostCv.height = 120;
-    drawCanvas(ghostCv.getContext('2d'), 160 / BASE_W, chord);
+    VoicingCanvas.draw(ghostCv, chordToVoicing(chord), {
+      chordName: chord.name, fingerNumMode: chord.fingerNumMode,
+      ratio: 160 / VoicingCanvas.BASE_W,
+    });
     ghost = document.createElement('img');
     ghost.src = ghostCv.toDataURL('image/png');
     ghost.className = 'drag-ghost';
@@ -2699,8 +2705,10 @@ function openViewModal(chord, projectId) {
   document.getElementById('modal-view-title').textContent = buildChordName(chord);
 
   const cv = document.getElementById('modal-view-canvas');
-  cv.width  = 480; cv.height = 360;
-  drawCanvas(cv.getContext('2d'), 480 / BASE_W, chord);
+  VoicingCanvas.draw(cv, chordToVoicing(chord), {
+    chordName: chord.name, fingerNumMode: chord.fingerNumMode,
+    ratio: 480 / VoicingCanvas.BASE_W,
+  });
 
   // 재생
   document.getElementById('modal-view-play').onclick = () => playChord(chord);

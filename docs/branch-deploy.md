@@ -45,8 +45,8 @@ grep -n "DEV ONLY" app.js   # 출력이 없어야 정상
 
 ### 2. 파일 동기화
 ```bash
-cp app.js www/app.js && cp index.html www/index.html && cp style.css www/style.css
-npx cap copy android
+Get-ChildItem -File | Where-Object { $_.Name -notlike '.*' -and $_.Extension -ne '.md' } | Copy-Item -Destination www -Force
+npx.cmd cap copy android
 ```
 
 ### 3. Android Studio 브랜치 전환

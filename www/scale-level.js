@@ -1,6 +1,7 @@
-// ?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧??// scale-level.js ???ㅼ????덈꺼 ?덈젴 ?섏씠吏
-// ?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧??
-// ?? ?곸닔 ????????????????????????????????????????????????????
+// ═══════════════════════════════════════════════════════════════
+// scale-level.js — 스케일 레벨 개별 훈련 페이지
+// ═══════════════════════════════════════════════════════════════
+// ── 상수 ─────────────────────────────────────────────────────
 const SCALE_TITLES = {
   'major':          '메이저 스케일',
   'pentatonic':     '마이너 펜타토닉 스케일',
@@ -40,6 +41,10 @@ const PAIR_STARTFRET_OFFSET_II = {};        // offset 없음 (같은 startFret)
 const PAIR_PARTNER_BI_VI       = { 0: 3, 1: 4, 2: 0, 3: 1, 4: 2 }; // A↔Cm, G↔Am, E↔Gm, D↔Em, C↔Dm
 const PAIR_STARTFRET_OFFSET_VI = { 1: 1 };  // G폼↔Am폼: Am폼 startFret = G폼 + 1
 
+// Ch.2 secondary-iii: major 원폼(bi) → natural-minor 짝궁폼(bi) 매핑 (내추럴 마이너 전환)
+const PAIR_PARTNER_BI_III       = { 0: 4, 1: 0, 2: 1, 3: 2, 4: 3 }; // A↔Am, G↔Gm, E↔Em, D↔Dm, C↔Cm
+const PAIR_STARTFRET_OFFSET_III = { 0: 1, 1: 1, 3: 1 };  // A폼↔Am폼, G폼↔Gm폼, D폼↔Dm폼: 짝궁 startFret = 원폼 + 1
+
 const KEY_NAMES        = ['C','C#','D','D#','E','F','F#','G','G#','A','A#','B'];
 const KEY_NAMES_FLAT   = ['C','Db','D','Eb','E','F','Gb','G','Ab','A','Bb','B'];
 const STRINGS          = 6;
@@ -47,20 +52,20 @@ const STRING_THICKNESS = [1, 1.5, 2, 2.5, 3, 3.5];
 const SINGLE_DOT_FRETS = new Set([3, 5, 7, 9, 15, 17, 19]);
 const DOUBLE_DOT_FRETS = new Set([12]);
 
-// ?? ?곹깭 ????????????????????????????????????????????????????
+// ── 상태 ─────────────────────────────────────────────────────
 let _scaleKey  = 'major';
 let _rootNote  = 0;
 let _navIdx    = 0;
 let _useFlat   = false;
-let _testItem    = null;        // ?뚯뒪??以묒씤 { block, bi, startFret }
-let _testHint      = null;        // ?뚰듃 ?꾩튂 { s, col } ???ш린??dot 紐?李띿쓬
-let _placedNotes   = new Set();   // ?뚮젅?댁뼱媛 李띿? dot: "s,col" 臾몄옄??Set
-let _testSubmitted = false;       // ?쒖텧 ??異붽? ?낅젰 李⑤떒
+let _testItem    = null;        // 테스트 현재 아이템 { block, bi, startFret }
+let _testHint      = null;        // 힌트 위치 { s, col } — 미리 찍어두는 dot 표시
+let _placedNotes   = new Set();   // 플레이어가 찍은 dot: "s,col" 문자열의 Set
+let _testSubmitted = false;       // 제출 후 입력 방지 플래그
 
 let _shuffleBag = null;  // ShuffleBag 인스턴스 — lazy 초기화
 let _scaleSessionStart = 0; // 페이지 진입 시각 (훈련 시간 측정)
 
-// ?? Audio Engine (Karplus-Strong) ????????????????????????????
+// ── Audio Engine (Karplus-Strong) ───────────────────────────
 const OPEN_MIDI = [64, 59, 55, 50, 45, 40]; // E B G D A E (string 0=1번줄)
 
 function playScaleNote(stringIdx, absFret) {
@@ -68,12 +73,12 @@ function playScaleNote(stringIdx, absFret) {
   GuitarAudio.playNote(OPEN_MIDI[stringIdx] + absFret, 2.5);
 }
 
-// ?? ?ㅻ퉬寃뚯씠???쒗??鍮뚮뱶 ????????????????????????????????????
-// 紐⑤뱺 block 횞 position???섎굹???좏삎 諛곗뿴濡??쇱묠
+// ── 내비게이션 시퀀스 생성 ──────────────────────────────────
+// 모든 block 및 position을 순서대로 정렬
 // 諛섑솚: [{ block, bi, startFret }, ...]
 function buildNavSequence() {
   // Ch.2: secondary-iv / secondary-v / secondary-ii 는 major 블럭 사용
-  const blockKey = (_scaleKey === 'secondary-iv' || _scaleKey === 'secondary-v' || _scaleKey === 'secondary-ii' || _scaleKey === 'secondary-vi') ? 'major' : _scaleKey;
+  const blockKey = (_scaleKey === 'secondary-iv' || _scaleKey === 'secondary-v' || _scaleKey === 'secondary-ii' || _scaleKey === 'secondary-vi' || _scaleKey === 'secondary-iii') ? 'major' : _scaleKey;
   const blocks = ScaleData.getBlocks(blockKey);
   const seq = [];
   blocks.forEach((block, bi) => {
@@ -82,12 +87,12 @@ function buildNavSequence() {
       seq.push({ block, bi, startFret: sf });
     });
   });
-  // startFret ?ㅻ쫫李⑥닚 ?뺣젹 ?????꾩튂 ?쒖꽌?濡??대룞
+  // startFret 오름차순 정렬 — 키 이동 시 순서대로
   seq.sort((a, b) => a.startFret - b.startFret);
   return seq;
 }
 
-// ?? ?섏씠吏 ?リ린 ??????????????????????????????????????????????
+// ── 페이지 초기화 ────────────────────────────────────────────
 
 // ================================================================
 // Ch.2 C폼 -> E폼 전환 애니메이션
@@ -110,13 +115,16 @@ function _refreshSecondaryGhost() {
   const isV        = _scaleKey === 'secondary-v';
   const isII       = _scaleKey === 'secondary-ii';
   const isVI       = _scaleKey === 'secondary-vi';
-  const partnerMap = isVI ? PAIR_PARTNER_BI_VI : isII ? PAIR_PARTNER_BI_II : isV ? PAIR_PARTNER_BI_V : PAIR_PARTNER_BI;
-  const offsetMap  = isVI ? PAIR_STARTFRET_OFFSET_VI : isII ? PAIR_STARTFRET_OFFSET_II : isV ? PAIR_STARTFRET_OFFSET_V : PAIR_STARTFRET_OFFSET;
+  const isIII      = _scaleKey === 'secondary-iii';
+  const partnerMap = isVI ? PAIR_PARTNER_BI_VI : isII ? PAIR_PARTNER_BI_II : isIII ? PAIR_PARTNER_BI_III : isV ? PAIR_PARTNER_BI_V : PAIR_PARTNER_BI;
+  const offsetMap  = isVI ? PAIR_STARTFRET_OFFSET_VI : isII ? PAIR_STARTFRET_OFFSET_II : isIII ? PAIR_STARTFRET_OFFSET_III : isV ? PAIR_STARTFRET_OFFSET_V : PAIR_STARTFRET_OFFSET;
   const offset     = offsetMap[cur.bi] || 0;
   const ghostStartFret = _pairTransitioned ? cur.startFret : cur.startFret + offset;
   const ghostBi    = _pairTransitioned ? cur.bi : partnerMap[cur.bi];
-  // secondary-ii/vi: 전환 전=harmonic-minor ghost, 전환 후=major ghost
-  const ghostScaleKey = (isII || isVI) ? (_pairTransitioned ? 'major' : 'harmonic-minor') : 'major';
+  // secondary-ii/vi/iii: 전환 전=partner ghost, 전환 후=major ghost
+  const ghostScaleKey = (isII || isVI) ? (_pairTransitioned ? 'major' : 'harmonic-minor')
+                      : isIII ? (_pairTransitioned ? 'major' : 'natural-minor')
+                      : 'major';
   const ghostBlock = ScaleData.getBlocks(ghostScaleKey)[ghostBi];
   if (!ghostBlock) return;
 
@@ -167,6 +175,7 @@ function transitionPair() {
   if (_scaleKey === 'secondary-v') { _transitionPairV(); return; }
   if (_scaleKey === 'secondary-ii') { _transitionPairII(); return; }
   if (_scaleKey === 'secondary-vi') { _transitionPairVI(); return; }
+  if (_scaleKey === 'secondary-iii') { _transitionPairIII(); return; }
   const neckEl = document.getElementById('fb-full-neck');
   if (!neckEl) return;
 
@@ -1026,15 +1035,15 @@ async function closeScaleLevel() {
   }
 }
 
-// ?? ?꾩껜 ??援ъ“ ?뚮뜑留?(1?뚮쭔 ?몄텧) ?????????????????????????
-// ids: { neck, nums, wrapper } ???앸왂 ??湲곕낯 硫붿씤 ?꾨옯蹂대뱶 ID ?ъ슜
+// ── 전체 넥 렌더링 (1번만 실행) ─────────────────────────────
+// ids: { neck, nums, wrapper } 형태의 메인 엘리먼트 ID 사용
 function renderFullNeck(ids = {}) {
   const neckEl  = document.getElementById(ids.neck    || 'fb-full-neck');
   const numsEl  = document.getElementById(ids.nums    || 'fb-full-nums');
   const wrapper = document.getElementById(ids.wrapper || 'fb-full-wrapper');
   if (!neckEl || !numsEl || !wrapper) return;
 
-  // ?섑띁쨌?Β룸꽆踰??덈퉬 = TOTAL_FRETS / VISIBLE_FRETS 횞 100%
+  // 전체 너비 = TOTAL_FRETS / VISIBLE_FRETS × 100%
   const widthPct = `${(TOTAL_FRETS / FRETS_VISIBLE) * 100}%`;
   wrapper.style.width = widthPct;
   neckEl.style.width  = '100%';
@@ -1043,7 +1052,7 @@ function renderFullNeck(ids = {}) {
   neckEl.innerHTML = '';
   numsEl.innerHTML = '';
 
-  // ?? 以???(?쏆뿉???쒖옉) ??
+  // ── 줄 선 (뒤에서 먼저 생성) ──
   const nutLeftPct = 1 / TOTAL_FRETS * 100;
   for (let s = 0; s < STRINGS; s++) {
     const topPct = (s + 0.5) / STRINGS * 100;
@@ -1053,13 +1062,13 @@ function renderFullNeck(ids = {}) {
     neckEl.appendChild(el);
   }
 
-  // ?? ??(fret 0怨?1 ?ъ씠) ??
+  // ── 너트 (fret 0과 1 사이) ──
   const nutEl = document.createElement('div');
   nutEl.className = 'fb-nut-line';
   nutEl.style.left = `${1 / TOTAL_FRETS * 100}%`;
   neckEl.appendChild(nutEl);
 
-  // ?? ?꾨옯 ??(fret 2~20 ?쇱そ 寃쎄퀎) ??
+  // ── 프렛 선 (fret 2~20 절반 위치) ──
   for (let f = 2; f < TOTAL_FRETS; f++) {
     const leftPct = f / TOTAL_FRETS * 100;
     const el = document.createElement('div');
@@ -1068,7 +1077,7 @@ function renderFullNeck(ids = {}) {
     neckEl.appendChild(el);
   }
 
-  // ?? 媛?대뱶 ?꾪듃 ??
+  // ── 포지션 점 ──
   SINGLE_DOT_FRETS.forEach(fretNum => {
     if (fretNum >= TOTAL_FRETS) return;
     const cx = (fretNum + 0.5) / TOTAL_FRETS * 100;
@@ -1089,7 +1098,7 @@ function renderFullNeck(ids = {}) {
     });
   });
 
-  // ?? ?꾨옯 踰덊샇 (?꾪듃 ?꾩튂留? ??
+  // ── 프렛 번호 (점 위치에만) ──
   const allDotFrets = new Set([...SINGLE_DOT_FRETS, ...DOUBLE_DOT_FRETS]);
   allDotFrets.forEach(fretNum => {
     if (fretNum >= TOTAL_FRETS) return;
@@ -1102,14 +1111,14 @@ function renderFullNeck(ids = {}) {
   });
 }
 
-// ?? 酉고룷???ㅽ겕濡??좊땲硫붿씠???????????????????????????????????
+// ── 뷰포트 스크롤로 이동 ──────────────────────────────────────
 function scrollToFret(startFret, animate = true, viewportId = 'fb-viewport') {
   const viewport = document.getElementById(viewportId);
   if (!viewport) return;
 
   const vw = viewport.clientWidth;
   // 釉붾윮 以묒븰 fret = startFret + FRETS_VISIBLE/2
-  // 洹??꾩튂瑜?酉고룷??以묒븰???ㅺ쾶 ?섎젮硫?
+  // 해당 위치를 뷰포트 중앙에 오도록 계산
   // targetLeft = (startFret + FRETS_VISIBLE/2) / FRETS_VISIBLE * vw - vw/2
   //            = startFret / FRETS_VISIBLE * vw
   const targetLeft = (startFret / FRETS_VISIBLE) * vw;
@@ -1135,7 +1144,7 @@ function scrollToFret(startFret, animate = true, viewportId = 'fb-viewport') {
   requestAnimationFrame(step);
 }
 
-// ?? ?뚰몴 DOM ?앹꽦 ?ы띁 ???????????????????????????????????????
+// ── 노트 DOM 생성 함수 ───────────────────────────────────────
 function createNoteEl(absF, s, degree, ghost = false) {
   const leftPct = (absF + 0.5) / TOTAL_FRETS * 100;
   const topPct  = (s + 0.5) / STRINGS * 100;
@@ -1168,7 +1177,7 @@ function createNoteEl(absF, s, degree, ghost = false) {
     el.addEventListener('pointerup', e => {
       e.stopPropagation();
       el.classList.remove('fb-note--pressed');
-      // ?뚮룞 ?붿냼 ?앹꽦
+      // 리플 효과 생성
       const ripple = document.createElement('span');
       ripple.className = 'fb-note-ripple';
       el.appendChild(ripple);
@@ -1185,8 +1194,8 @@ function createNoteEl(absF, s, degree, ghost = false) {
   return el;
 }
 
-// ?? ?ㅼ????뚰몴 ?뚮뜑留?????????????????????????????????????????
-// ?꾩옱 ?ъ??? ?쇰컲 dot / ?섎㉧吏 ?ъ??? ghost(?고븳) dot
+// ── 뷰포트 노트 렌더링 ─────────────────────────────────────────
+// 현재 블럭의 실제 dot / 인접 블럭의 ghost(희미한) dot
 function renderNotes(animate = true) {
   const neckEl = document.getElementById('fb-full-neck');
   if (!neckEl) return;
@@ -1199,8 +1208,8 @@ function renderNotes(animate = true) {
   const seq = buildNavSequence();
   if (seq.length === 0) return;
 
-  // ghost 癒쇱? ?뚮뜑 (z-index ??쾶 源붾┝)
-  if (_scaleKey === 'secondary-iv' || _scaleKey === 'secondary-v' || _scaleKey === 'secondary-ii' || _scaleKey === 'secondary-vi') {
+  // ghost 먼저 렌더 (z-index 낮게 배치)
+  if (_scaleKey === 'secondary-iv' || _scaleKey === 'secondary-v' || _scaleKey === 'secondary-ii' || _scaleKey === 'secondary-vi' || _scaleKey === 'secondary-iii') {
     // Ch.2: 전환 대상(짝궁) 블럭을 ghost로 표시 (_pairTransitioned=false이므로 파트너폼)
     _refreshSecondaryGhost();
   } else {
@@ -1216,7 +1225,7 @@ function renderNotes(animate = true) {
     });
   }
 
-  // ?꾩옱 ?ъ????뚮뜑 (?꾩뿉 ?щ씪??
+  // 현재 블럭 렌더 (위에 쌓임)
   const current = seq[_navIdx];
   const parsed  = ScaleData.parseGrid(current.block.grid);
   parsed.notes.forEach(note => {
@@ -1228,8 +1237,8 @@ function renderNotes(animate = true) {
   scrollToFret(current.startFret, animate);
 }
 
-// ?? 媛???믪? ?쇱튂??洹쇱쓬 諛섑솚 ????????????????????????????????
-// { s, absF, degree:1 } ?먮뒗 null
+// ── 가장 높은 루트음 찾기 ────────────────────────────────────
+// { s, absF, degree:1 } 또는 null
 function findHighestRoot(block, startFret) {
   const parsed = ScaleData.parseGrid(block.grid);
   let highest     = null;
@@ -1250,8 +1259,8 @@ function findHighestRoot(block, startFret) {
   return highest;
 }
 
-// ?? ?뚯뒪?????뚮뜑 (7?꾨옯 怨좎젙 ?뺤쟻 酉? ?????????????????????
-// startFret ~ startFret+6 援ш컙??100% ?덈퉬 ?덉뿉 ?뺤쟻 ?뚮뜑
+// ── 테스트 넥 렌더링 (7프렛 고정 위치) ──────────────────────
+// startFret ~ startFret+6 범위를 100% 너비에 맞게 렌더
 function renderTestNeck(startFret) {
   const neckEl = document.getElementById('test-fb-full-neck');
   const numsEl = document.getElementById('test-fb-full-nums');
@@ -1263,7 +1272,7 @@ function renderTestNeck(startFret) {
   const showNut    = startFret <= 0;
   const nutLeftPct = showNut ? (1 - startFret) / FRETS_VISIBLE * 100 : 0;
 
-  // ?? 以?????
+  // ── 줄 선 ──
   for (let s = 0; s < STRINGS; s++) {
     const topPct = (s + 0.5) / STRINGS * 100;
     const el = document.createElement('div');
@@ -1272,7 +1281,7 @@ function renderTestNeck(startFret) {
     neckEl.appendChild(el);
   }
 
-  // ?? ????
+  // ── 너트 ──
   if (showNut) {
     const nutEl = document.createElement('div');
     nutEl.className = 'fb-nut-line';
@@ -1280,7 +1289,7 @@ function renderTestNeck(startFret) {
     neckEl.appendChild(nutEl);
   }
 
-  // ?? ?꾨옯 ??(媛???寃쎄퀎) ??
+  // ── 프렛 선 (현재 구간) ──
   for (let col = 1; col < FRETS_VISIBLE; col++) {
     const absFret = startFret + col;
     if (showNut ? absFret <= 1 : absFret <= 0) continue;
@@ -1291,7 +1300,7 @@ function renderTestNeck(startFret) {
     neckEl.appendChild(el);
   }
 
-  // ?? 媛?대뱶 ?꾪듃 & ?꾨옯 踰덊샇 ??
+  // ── 포지션 점 & 프렛 번호 ──
   for (let col = 0; col < FRETS_VISIBLE; col++) {
     const fretNum = startFret + col;
     if (fretNum < 0) continue;
@@ -1322,7 +1331,7 @@ function renderTestNeck(startFret) {
     }
   }
 
-  // 媛쒕갑?꾩씠 蹂댁씠??寃쎌슦: 媛?以꾩뿉 ?먮┛ 鍮꾪솢????諛곗튂 (?쒓컖 媛?대뱶)
+  // 개방현이 보이는 경우: 개방 위치에 hint 원 표시
   if (startFret <= 0) {
     const openCol = -startFret;
     for (let s = 0; s < STRINGS; s++) {
@@ -1337,7 +1346,7 @@ function renderTestNeck(startFret) {
   }
 }
 
-// ?? ?뚯뒪???뚰듃 ?명듃 ?뚮뜑 (洹쇱쓬 1媛? ?????????????????????????
+// ── 테스트 힌트 노트 렌더링 (최고음 1개) ─────────────────────
 function renderTestNotes() {
   const neckEl = document.getElementById('test-fb-full-neck');
   if (!neckEl || !_testItem) return;
@@ -1345,7 +1354,7 @@ function renderTestNotes() {
   neckEl.querySelectorAll('.fb-note').forEach(el => el.remove());
 
   // Ch.2: 소스폼 ghost (hint 없음)
-  if (_scaleKey === 'secondary-iv' || _scaleKey === 'secondary-v' || _scaleKey === 'secondary-ii' || _scaleKey === 'secondary-vi') {
+  if (_scaleKey === 'secondary-iv' || _scaleKey === 'secondary-v' || _scaleKey === 'secondary-ii' || _scaleKey === 'secondary-vi' || _scaleKey === 'secondary-iii') {
     _renderTestNotesCh2(neckEl);
     return;
   }
@@ -1354,10 +1363,10 @@ function renderTestNotes() {
   const hint = findHighestRoot(_testItem.block, startFret);
   if (!hint) return;
 
-  // 7-fret 怨좎젙 酉??꾩튂 怨꾩궛
+  // 7-fret 고정 뷰 기준 위치 계산
   const col = hint.absF - startFret;
-  _testHint = { s: hint.s, col };  // ??媛?쒖슜 ???
-  // ?뚰듃 ?꾩튂??媛쒕갑??鍮꾪솢???먯씠 ?덉쑝硫??④?
+  _testHint = { s: hint.s, col };  // checkAnswer 채점용 저장
+  // 힌트 위치에 개방현 hint가 있으면 숨김
   neckEl.querySelector(`.fb-open-hint[data-open-hint="${hint.s},${col}"]`)
         ?.style.setProperty('display', 'none');
   const leftPct = (col + 0.5) / FRETS_VISIBLE * 100;
@@ -1418,7 +1427,7 @@ function _renderTestNotesCh2(neckEl) {
     neckEl.appendChild(el);
   });
 }
-// ?? ?뺣떟 梨꾩젏 ?????????????????????????????????????????????????
+// ── 정답 채점 ──────────────────────────────────────────────────
 function checkAnswer() {
   if (!_testItem || _testSubmitted) return;
   _testSubmitted = true;
@@ -1429,17 +1438,19 @@ function checkAnswer() {
   const { startFret } = _testItem;
   let _answerBlock = _testItem.block;
   let _answerStartFret = startFret;
-  if (_scaleKey === 'secondary-iv' || _scaleKey === 'secondary-v' || _scaleKey === 'secondary-ii' || _scaleKey === 'secondary-vi') {
+  if (_scaleKey === 'secondary-iv' || _scaleKey === 'secondary-v' || _scaleKey === 'secondary-ii' || _scaleKey === 'secondary-vi' || _scaleKey === 'secondary-iii') {
     const { bi, forward } = _testItem;
     const isV        = _scaleKey === 'secondary-v';
     const isII       = _scaleKey === 'secondary-ii';
     const isVI       = _scaleKey === 'secondary-vi';
-    const partnerMap = isVI ? PAIR_PARTNER_BI_VI : isII ? PAIR_PARTNER_BI_II : isV ? PAIR_PARTNER_BI_V : PAIR_PARTNER_BI;
-    const offsetMap  = isVI ? PAIR_STARTFRET_OFFSET_VI : isII ? PAIR_STARTFRET_OFFSET_II : isV ? PAIR_STARTFRET_OFFSET_V : PAIR_STARTFRET_OFFSET;
+    const isIII      = _scaleKey === 'secondary-iii';
+    const partnerMap = isVI ? PAIR_PARTNER_BI_VI : isII ? PAIR_PARTNER_BI_II : isIII ? PAIR_PARTNER_BI_III : isV ? PAIR_PARTNER_BI_V : PAIR_PARTNER_BI;
+    const offsetMap  = isVI ? PAIR_STARTFRET_OFFSET_VI : isII ? PAIR_STARTFRET_OFFSET_II : isIII ? PAIR_STARTFRET_OFFSET_III : isV ? PAIR_STARTFRET_OFFSET_V : PAIR_STARTFRET_OFFSET;
     const offset = offsetMap[bi] || 0;
     const tgtBi = forward ? partnerMap[bi] : bi;
-    // secondary-ii/vi: forward=major→harmonic-minor, reverse=harmonic-minor→major
-    const tgtScaleKey = (isII || isVI) ? (forward ? 'harmonic-minor' : 'major') : 'major';
+    const tgtScaleKey = (isII || isVI) ? (forward ? 'harmonic-minor' : 'major')
+                      : isIII ? (forward ? 'natural-minor' : 'major')
+                      : 'major';
     _answerBlock = ScaleData.getBlocks(tgtScaleKey)[tgtBi];
     _answerStartFret = forward ? startFret + offset : startFret;
   }
@@ -1454,7 +1465,7 @@ function checkAnswer() {
     if (_testHint && note.s === _testHint.s && col === _testHint.col) return;
     correctSet.add(`${note.s},${col}`);
   });
-  // ?뚮젅?댁뼱 dot 梨꾩젏
+  // 플레이어 dot 채점
   let nCorrect = 0;
   _placedNotes.forEach(key => {
     const el = document.getElementById('test-fb-full-neck')
@@ -1480,7 +1491,7 @@ function checkAnswer() {
     });
   });
 
-  // ?꾨씫???뺣떟 ?쒖떆
+  // 미찍은 정답 표시
   const neckEl = document.getElementById('test-fb-full-neck');
   correctSet.forEach(key => {
     if (_placedNotes.has(key)) return;
@@ -1501,7 +1512,7 @@ function checkAnswer() {
     neckEl?.appendChild(el);
   });
 
-  // 寃곌낵 ?쒖떆
+  // 결과 표시
   const scoreEl  = document.getElementById('test-result-score');
   const detailEl = document.getElementById('test-result-detail');
   const nPlacedWrong = _placedNotes.size - nCorrect;   // 잘못 찍은 수
@@ -1544,13 +1555,13 @@ function checkAnswer() {
     qEl2.classList.add('test-question--in');
   }
 
-  // 踰꾪듉 ???ㅼ떆 ?湲?+ ?뚯븘媛湲??쒖떆
+  // 버튼 상태 갱신 + 뒤로가기 표시
   const btn = document.getElementById('test-submit-btn');
   if (btn) btn.textContent = '다시 풀기';
   document.getElementById('test-back-btn')?.classList.add('is-visible');
 }
 
-// ?? ?뚯뒪???쒖옉 ???????????????????????????????????????????????
+// ── 테스트 시작 ────────────────────────────────────────────────
 function startTest() {
   const seq = buildNavSequence();
   if (seq.length === 0) return;
@@ -1563,7 +1574,7 @@ function startTest() {
   // 셔플백: 키/스케일 변경 시 새로 생성, 동일 키는 이어서 진행
   const bagKey = `scale-test:${_scaleKey}:${_rootNote}`;
   let bagItems = seq;
-  if (_scaleKey === 'secondary-iv' || _scaleKey === 'secondary-v' || _scaleKey === 'secondary-ii' || _scaleKey === 'secondary-vi') {
+  if (_scaleKey === 'secondary-iv' || _scaleKey === 'secondary-v' || _scaleKey === 'secondary-ii' || _scaleKey === 'secondary-vi' || _scaleKey === 'secondary-iii') {
     // Ch.2: 각 블럭 × 정방향/역방향 = 2배 아이템
     bagItems = seq.flatMap(item => [
       { ...item, forward: true },
@@ -1577,7 +1588,7 @@ function startTest() {
 
   const names = _useFlat ? KEY_NAMES_FLAT : KEY_NAMES;
 
-  // 7-fret ?뺤쟻 酉??뚮뜑 (?ㅽ겕濡?遺덊븘??
+  // 7-fret 고정 넥 렌더 (스크롤 없이 고정 표시)
   renderTestNeck(_testItem.startFret);
   renderTestNotes();
 
@@ -1593,7 +1604,7 @@ function startTest() {
   if (btn) btn.textContent = '제출하기';
   document.getElementById('test-back-btn')?.classList.remove('is-visible');
 
-  // 吏덈Ц ?띿뒪??珥덇린??(?좊땲硫붿씠???ъ떎??以鍮?
+  // 질문 텍스트 초기화 (애니메이션 이후 바뀌도록 숨김)
   const qEl = document.getElementById('test-question-text');
   if (qEl) {
     let questionHtml;
@@ -1630,6 +1641,15 @@ function startTest() {
       } else {
         questionHtml = `${names[hmKeyNote]} 하모닉 마이너 ${FORM_NAMES_HM[srcBi]}에서<br>${names[_rootNote]}메이저 ${FORM_NAMES[tgtBi]}으로<br>전환해보세요!`;
       }
+    } else if (_scaleKey === 'secondary-iii') {
+      const { bi, forward } = _testItem;
+      const partnerBi = PAIR_PARTNER_BI_III[bi];
+      const nmFormNames = ['Gm폼','Em폼','Dm폼','Cm폼','Am폼'];
+      if (forward) {
+        questionHtml = `${names[_rootNote]}메이저 ${FORM_NAMES[bi]}에서<br>${names[_rootNote]} 내추럴 마이너 ${nmFormNames[partnerBi]}으로<br>전환해보세요!`;
+      } else {
+        questionHtml = `${names[_rootNote]} 내추럴 마이너 ${nmFormNames[partnerBi]}에서<br>${names[_rootNote]}메이저 ${FORM_NAMES[bi]}으로<br>전환해보세요!`;
+      }
     } else {
       const _lbl = _testItem.block.label || FORM_NAMES[_testItem.bi] || (_testItem.bi + 1 + '번폼');
       const formName = _lbl.split(' ').pop();
@@ -1640,7 +1660,7 @@ function startTest() {
     void qEl.offsetWidth;
   }
 
-  // ?ㅻ쾭?덉씠 ?ㅽ뵂
+  // 오버레이 열기
   const overlay = document.getElementById('scale-test-overlay');
   if (overlay) overlay.classList.add('is-open');
 
@@ -1655,7 +1675,7 @@ function startTest() {
   }, 2000);  // 800ms 딜레이 + 1200ms 애니메이션
 }
 
-// ?? ?뚮젅?댁뼱 dot 1媛?異붽? ????????????????????????????????????
+// ── 플레이어 dot 1개 추가 ────────────────────────────────────
 function addTestDot(key) {
   const neckEl = document.getElementById('test-fb-full-neck');
   if (!neckEl) return;
@@ -1664,7 +1684,7 @@ function addTestDot(key) {
   const leftPct  = (col + 0.5) / FRETS_VISIBLE * 100;
   const topPct   = (s  + 0.5) / STRINGS * 100;
 
-  // 媛쒕갑??鍮꾪솢?????④?
+  // 개방현 hint 숨김
   neckEl.querySelector(`.fb-open-hint[data-open-hint="${key}"]`)
         ?.style.setProperty('display', 'none');
 
@@ -1686,18 +1706,18 @@ function addTestDot(key) {
   neckEl.appendChild(el);
 }
 
-// ?? ?뚮젅?댁뼱 dot 1媛??쒓굅 ????????????????????????????????????
+// ── 플레이어 dot 1개 삭제 ────────────────────────────────────
 function removeTestDot(key) {
   const neckEl = document.getElementById('test-fb-full-neck');
   if (!neckEl) return;
   neckEl.querySelector(`.fb-note--placed[data-key="${key}"]`)?.remove();
   _placedNotes.delete(key);
-  // 媛쒕갑??鍮꾪솢????蹂듭썝
+  // 개방현 hint 복원
   neckEl.querySelector(`.fb-open-hint[data-open-hint="${key}"]`)
         ?.style.removeProperty('display');
 }
 
-// ?? ?꾩껜 placed dot 珥덇린??????????????????????????????????????
+// ── 전체 placed dot 초기화 ──────────────────────────────────
 function clearTestDots() {
   const neckEl = document.getElementById('test-fb-full-neck');
   if (neckEl) {
@@ -1707,12 +1727,12 @@ function clearTestDots() {
   _placedNotes.clear();
 }
 
-// ?? ?뚯뒪???꾨옯蹂대뱶 ???몃뱾??珥덇린??(DOMContentLoaded ??1?? ?
+// ── 테스트 넥 이벤트 초기화 (DOMContentLoaded 이후 1회) ──────
 function initTestTap() {
   const neckEl = document.getElementById('test-fb-full-neck');
   if (!neckEl) return;
 
-  // pointerdown: ?쒖옉 醫뚰몴 湲곗뼲
+  // pointerdown: 시작 좌표 저장
   let _tapStartX = 0, _tapStartY = 0;
   document.addEventListener('pointerdown', e => {
     _tapStartX = e.clientX;
@@ -1722,8 +1742,8 @@ function initTestTap() {
   neckEl.addEventListener('pointerup', e => {
     const dx = Math.abs(e.clientX - _tapStartX);
     const dy = Math.abs(e.clientY - _tapStartY);
-    if (dx > 8 || dy > 8) return;   // ?먭????붾뱾由?臾댁떆
-    if (_testSubmitted) return;      // ?쒖텧 ???낅젰 遺덇?
+    if (dx > 8 || dy > 8) return;   // 거리 초과 시 취소
+    if (_testSubmitted) return;      // 제출 후 입력 차단
 
     const rect = neckEl.getBoundingClientRect();
     const col  = Math.floor((e.clientX - rect.left) / rect.width  * FRETS_VISIBLE);
@@ -1731,7 +1751,7 @@ function initTestTap() {
 
     if (col < 0 || col >= FRETS_VISIBLE || s < 0 || s >= STRINGS) return;
 
-    // ?뚰듃 ?꾩튂??臾댁떆
+    // 힌트 위치 제외
     if (_testHint && _testHint.s === s && _testHint.col === col) return;
 
     const key = `${s},${col}`;
@@ -1746,7 +1766,7 @@ function initTestTap() {
   });
 }
 
-// ?? ???덉씠釉??낅뜲?댄듃 ???????????????????????????????????????
+// ── 폼 레이블 업데이트 ─────────────────────────────────────────
 // ── Ch.2 secondary-ii: 2도 마이너 전환 애니메이션 ────────────────
 function _transitionPairII() {
   const neckEl = document.getElementById('fb-full-neck');
@@ -2351,6 +2371,605 @@ function _transitionPairVI() {
   }
 }
 
+// ── Ch.2 secondary-iii: 내추럴 마이너 전환 애니메이션 ────────────────
+function _transitionPairIII() {
+  const neckEl = document.getElementById('fb-full-neck');
+  if (!neckEl) return;
+  _transitioning = true;
+
+  const seq = buildNavSequence();
+  const cur = seq[_navIdx];
+  if (!cur) { _transitioning = false; return; }
+  const sf = cur.startFret;
+  const bi = cur.bi;
+  const DURATION = 350;
+
+  const activeEls = Array.from(neckEl.querySelectorAll('.fb-note:not(.fb-note--ghost)'));
+
+  activeEls.forEach(el => {
+    el.style.transition =
+      'left ' + DURATION + 'ms cubic-bezier(0.4,0,0.2,1),' +
+      'opacity ' + Math.round(DURATION * 0.6) + 'ms ease,' +
+      'transform ' + DURATION + 'ms cubic-bezier(0.4,0,0.2,1)';
+  });
+  void neckEl.offsetHeight;
+
+  // ── C폼(bi=4): major C폼 ↔ natural-minor Cm폼 ─────────────────
+  if (bi === 4) {
+    if (!_pairTransitioned) {
+      // 정방향: major C폼 → natural-minor Cm폼
+      const slidNodes = [];
+      activeEls.forEach(el => {
+        const s    = parseInt(el.dataset.s);
+        const d    = el.dataset.degree;
+        const absf = parseInt(el.dataset.absf);
+        // fade: s=0(3), s=1(7), s=4(6), s=5(3) — 모두 col1
+        if ((s===0 && d==='3' && absf===sf+1) ||
+            (s===1 && d==='7' && absf===sf+1) ||
+            (s===4 && d==='6' && absf===sf+1) ||
+            (s===5 && d==='3' && absf===sf+1)) {
+          el.style.opacity = '0';
+          el.style.transform = 'translate(-50%,-50%) scale(0)';
+        }
+        // slide s=2: col3=6 → col2=b6
+        if (s===2 && d==='6' && absf===sf+3) {
+          const nf = sf+2;
+          el.style.left = ((nf+0.5)/TOTAL_FRETS*100)+'%';
+          el.dataset.absf = nf;
+          el.classList.toggle('fb-note--open', nf===0);
+          slidNodes.push({ el, finalDeg: 'b6' });
+        }
+        // slide s=3: col3=3 → col2=b3
+        if (s===3 && d==='3' && absf===sf+3) {
+          const nf = sf+2;
+          el.style.left = ((nf+0.5)/TOTAL_FRETS*100)+'%';
+          el.dataset.absf = nf;
+          el.classList.toggle('fb-note--open', nf===0);
+          slidNodes.push({ el, finalDeg: 'b3' });
+        }
+        // slide s=4: col3=7 → col2=b7
+        if (s===4 && d==='7' && absf===sf+3) {
+          const nf = sf+2;
+          el.style.left = ((nf+0.5)/TOTAL_FRETS*100)+'%';
+          el.dataset.absf = nf;
+          el.classList.toggle('fb-note--open', nf===0);
+          slidNodes.push({ el, finalDeg: 'b7' });
+        }
+      });
+      setTimeout(function() {
+        neckEl.querySelectorAll('.fb-note:not(.fb-note--ghost)').forEach(el => {
+          if (parseFloat(el.style.opacity) === 0) el.remove();
+        });
+        _applyDegMap(neckEl, {});
+        slidNodes.forEach(({ el, finalDeg }) => {
+          el.dataset.degree = finalDeg;
+          el.classList.toggle('fb-note--root', finalDeg === 1);
+        });
+        _spawnNote(neckEl, sf+5, 1, 'b3');
+        _spawnNote(neckEl, sf+4, 2, 'b7');
+        _spawnNote(neckEl, sf+5, 5, 'b6');
+        _finishTransition(true);
+      }, DURATION + 60);
+    } else {
+      // 역방향: natural-minor Cm폼 → major C폼
+      const slidNodes = [];
+      activeEls.forEach(el => {
+        const s    = parseInt(el.dataset.s);
+        const d    = el.dataset.degree;
+        const absf = parseInt(el.dataset.absf);
+        // fade: 정방향 spawn 역방향 — s=1(b3 col5), s=2(b7 col4), s=5(b6 col5)
+        if ((s===1 && d==='b3' && absf===sf+5) ||
+            (s===2 && d==='b7' && absf===sf+4) ||
+            (s===5 && d==='b6' && absf===sf+5)) {
+          el.style.opacity = '0';
+          el.style.transform = 'translate(-50%,-50%) scale(0)';
+        }
+        // slide s=2: col2=b6 → col3=6
+        if (s===2 && d==='b6' && absf===sf+2) {
+          const nf = sf+3;
+          el.style.left = ((nf+0.5)/TOTAL_FRETS*100)+'%';
+          el.dataset.absf = nf;
+          el.classList.toggle('fb-note--open', nf===0);
+          slidNodes.push({ el, finalDeg: '6' });
+        }
+        // slide s=3: col2=b3 → col3=3
+        if (s===3 && d==='b3' && absf===sf+2) {
+          const nf = sf+3;
+          el.style.left = ((nf+0.5)/TOTAL_FRETS*100)+'%';
+          el.dataset.absf = nf;
+          el.classList.toggle('fb-note--open', nf===0);
+          slidNodes.push({ el, finalDeg: '3' });
+        }
+        // slide s=4: col2=b7 → col3=7
+        if (s===4 && d==='b7' && absf===sf+2) {
+          const nf = sf+3;
+          el.style.left = ((nf+0.5)/TOTAL_FRETS*100)+'%';
+          el.dataset.absf = nf;
+          el.classList.toggle('fb-note--open', nf===0);
+          slidNodes.push({ el, finalDeg: '7' });
+        }
+      });
+      setTimeout(function() {
+        neckEl.querySelectorAll('.fb-note:not(.fb-note--ghost)').forEach(el => {
+          if (parseFloat(el.style.opacity) === 0) el.remove();
+        });
+        _applyDegMap(neckEl, {});
+        slidNodes.forEach(({ el, finalDeg }) => {
+          el.dataset.degree = finalDeg;
+          el.classList.toggle('fb-note--root', finalDeg === 1);
+        });
+        _spawnNote(neckEl, sf+1, 0, '3');
+        _spawnNote(neckEl, sf+1, 1, '7');
+        _spawnNote(neckEl, sf+1, 4, '6');
+        _spawnNote(neckEl, sf+1, 5, '3');
+        _finishTransition(false);
+      }, DURATION + 60);
+    }
+  }
+
+  // ── A폼(bi=0): major A폼 ↔ natural-minor Am폼 ─────────────────
+  // Am폼 startFret = major A폼 startFret + 1 (PAIR_STARTFRET_OFFSET_III[0]=1)
+  // major A폼(major-pos1): s0:sf+2=5,sf+4=6 / s1:sf+2=2,sf+4=3,sf+5=4
+  //   s2:sf+1=6,sf+3=7,sf+4=1 / s3:sf+1=3,sf+2=4,sf+4=5
+  //   s4:sf+1=7,sf+2=1,sf+4=2 / s5:sf+2=5,sf+4=6
+  // natural-minor Am폼(at sf+1): s0:sf+2=5,sf+3=b6,sf+5=b7
+  //   s1:sf+2=2,sf+3=b3,sf+5=4 / s2:sf+2=b7,sf+4=1
+  //   s3:sf+2=4,sf+4=5,sf+5=b6 / s4:sf+2=1,sf+4=2,sf+5=b3
+  //   s5:sf+2=5,sf+3=b6,sf+5=b7
+  if (bi === 0) {
+    if (!_pairTransitioned) {
+      // 정방향: major A폼 → natural-minor Am폼
+      const slidNodes = [];
+      activeEls.forEach(el => {
+        const s    = parseInt(el.dataset.s);
+        const d    = el.dataset.degree;
+        const absf = parseInt(el.dataset.absf);
+        // fade: s=2의 6(sf+1), s=3의 3(sf+1), s=4의 7(sf+1)
+        if ((s===2 && d==='6'  && absf===sf+1) ||
+            (s===3 && d==='3'  && absf===sf+1) ||
+            (s===4 && d==='7'  && absf===sf+1)) {
+          el.style.opacity = '0';
+          el.style.transform = 'translate(-50%,-50%) scale(0)';
+        }
+        // slide s=0: sf+4(6) → sf+3 → b6
+        if (s===0 && d==='6' && absf===sf+4) {
+          el.style.left = ((sf+3+0.5)/TOTAL_FRETS*100)+'%';
+          el.dataset.absf = sf+3;
+          slidNodes.push({ el, finalDeg: 'b6' });
+        }
+        // slide s=1: sf+4(3) → sf+3 → b3
+        if (s===1 && d==='3' && absf===sf+4) {
+          el.style.left = ((sf+3+0.5)/TOTAL_FRETS*100)+'%';
+          el.dataset.absf = sf+3;
+          slidNodes.push({ el, finalDeg: 'b3' });
+        }
+        // slide s=2: sf+3(7) → sf+2 → b7
+        if (s===2 && d==='7' && absf===sf+3) {
+          el.style.left = ((sf+2+0.5)/TOTAL_FRETS*100)+'%';
+          el.dataset.absf = sf+2;
+          slidNodes.push({ el, finalDeg: 'b7' });
+        }
+        // slide s=5: sf+4(6) → sf+3 → b6
+        if (s===5 && d==='6' && absf===sf+4) {
+          el.style.left = ((sf+3+0.5)/TOTAL_FRETS*100)+'%';
+          el.dataset.absf = sf+3;
+          slidNodes.push({ el, finalDeg: 'b6' });
+        }
+      });
+      setTimeout(function() {
+        neckEl.querySelectorAll('.fb-note:not(.fb-note--ghost)').forEach(el => {
+          if (parseFloat(el.style.opacity) === 0) el.remove();
+        });
+        _applyDegMap(neckEl, {});
+        slidNodes.forEach(({ el, finalDeg }) => {
+          el.dataset.degree = finalDeg;
+          el.classList.toggle('fb-note--root', finalDeg === 1);
+        });
+        _spawnNote(neckEl, sf+5, 0, 'b7');  // 1번줄: 원래 6자리(sf+4)+1 = sf+5
+        _spawnNote(neckEl, sf+5, 3, 'b6');  // 4번줄: 5(sf+4)+1 = sf+5
+        _spawnNote(neckEl, sf+5, 4, 'b3');  // 5번줄: 2(sf+4)+1 = sf+5
+        _spawnNote(neckEl, sf+5, 5, 'b7');  // 6번줄: 원래 6자리(sf+4)+1 = sf+5
+        _finishTransition(true);
+      }, DURATION + 60);
+    } else {
+      // 역방향: natural-minor Am폼 → major A폼
+      const slidNodes = [];
+      activeEls.forEach(el => {
+        const s    = parseInt(el.dataset.s);
+        const d    = el.dataset.degree;
+        const absf = parseInt(el.dataset.absf);
+        // fade: 정방향 spawn 역방향 — s=0(b7,sf+5), s=3(b6,sf+5), s=4(b3,sf+5), s=5(b7,sf+5)
+        if ((s===0 && d==='b7' && absf===sf+5) ||
+            (s===3 && d==='b6' && absf===sf+5) ||
+            (s===4 && d==='b3' && absf===sf+5) ||
+            (s===5 && d==='b7' && absf===sf+5)) {
+          el.style.opacity = '0';
+          el.style.transform = 'translate(-50%,-50%) scale(0)';
+        }
+        // slide s=0: sf+3(b6) → sf+4 → 6
+        if (s===0 && d==='b6' && absf===sf+3) {
+          el.style.left = ((sf+4+0.5)/TOTAL_FRETS*100)+'%';
+          el.dataset.absf = sf+4;
+          slidNodes.push({ el, finalDeg: '6' });
+        }
+        // slide s=1: sf+3(b3) → sf+4 → 3
+        if (s===1 && d==='b3' && absf===sf+3) {
+          el.style.left = ((sf+4+0.5)/TOTAL_FRETS*100)+'%';
+          el.dataset.absf = sf+4;
+          slidNodes.push({ el, finalDeg: '3' });
+        }
+        // slide s=2: sf+2(b7) → sf+3 → 7
+        if (s===2 && d==='b7' && absf===sf+2) {
+          el.style.left = ((sf+3+0.5)/TOTAL_FRETS*100)+'%';
+          el.dataset.absf = sf+3;
+          slidNodes.push({ el, finalDeg: '7' });
+        }
+        // slide s=5: sf+3(b6) → sf+4 → 6
+        if (s===5 && d==='b6' && absf===sf+3) {
+          el.style.left = ((sf+4+0.5)/TOTAL_FRETS*100)+'%';
+          el.dataset.absf = sf+4;
+          slidNodes.push({ el, finalDeg: '6' });
+        }
+      });
+      setTimeout(function() {
+        neckEl.querySelectorAll('.fb-note:not(.fb-note--ghost)').forEach(el => {
+          if (parseFloat(el.style.opacity) === 0) el.remove();
+        });
+        _applyDegMap(neckEl, {});
+        slidNodes.forEach(({ el, finalDeg }) => {
+          el.dataset.degree = finalDeg;
+          el.classList.toggle('fb-note--root', finalDeg === 1);
+        });
+        _spawnNote(neckEl, sf+1, 2, '6');  // 3번줄: sf+1
+        _spawnNote(neckEl, sf+1, 3, '3');  // 4번줄: sf+1
+        _spawnNote(neckEl, sf+1, 4, '7');  // 5번줄: sf+1
+        _finishTransition(false);
+      }, DURATION + 60);
+    }
+  }
+
+  // ── D폼(bi=3): major D폼 ↔ natural-minor Dm폼 ─────────────────
+  // Dm폼 startFret = major D폼 startFret + 1 (PAIR_STARTFRET_OFFSET_III[3]=1)
+  // major D폼(major-pos4): s0:sf+2=2,sf+4=3 / s1:sf+2=6,sf+4=7,sf+5=1
+  //   s2:sf+1=3,sf+2=4,sf+4=5 / s3:sf+1=7,sf+2=1,sf+4=2
+  //   s4:sf+2=5,sf+4=6 / s5:sf+2=2,sf+4=3,sf+5=4
+  if (bi === 3) {
+    if (!_pairTransitioned) {
+      // 정방향: major D폼 → natural-minor Dm폼
+      const slidNodes = [];
+      activeEls.forEach(el => {
+        const s    = parseInt(el.dataset.s);
+        const d    = el.dataset.degree;
+        const absf = parseInt(el.dataset.absf);
+        // fade: s=1의 6(sf+2), s=2의 3(sf+1), s=3의 7(sf+1)
+        if ((s===1 && d==='6'  && absf===sf+2) ||
+            (s===2 && d==='3'  && absf===sf+1) ||
+            (s===3 && d==='7'  && absf===sf+1)) {
+          el.style.opacity = '0';
+          el.style.transform = 'translate(-50%,-50%) scale(0)';
+        }
+        // slide s=0: sf+4(3) → sf+3 → b3
+        if (s===0 && d==='3' && absf===sf+4) {
+          el.style.left = ((sf+3+0.5)/TOTAL_FRETS*100)+'%';
+          el.dataset.absf = sf+3;
+          slidNodes.push({ el, finalDeg: 'b3' });
+        }
+        // slide s=1: sf+4(7) → sf+3 → b7
+        if (s===1 && d==='7' && absf===sf+4) {
+          el.style.left = ((sf+3+0.5)/TOTAL_FRETS*100)+'%';
+          el.dataset.absf = sf+3;
+          slidNodes.push({ el, finalDeg: 'b7' });
+        }
+        // slide s=4: sf+4(6) → sf+3 → b6
+        if (s===4 && d==='6' && absf===sf+4) {
+          el.style.left = ((sf+3+0.5)/TOTAL_FRETS*100)+'%';
+          el.dataset.absf = sf+3;
+          slidNodes.push({ el, finalDeg: 'b6' });
+        }
+        // slide s=5: sf+4(3) → sf+3 → b3
+        if (s===5 && d==='3' && absf===sf+4) {
+          el.style.left = ((sf+3+0.5)/TOTAL_FRETS*100)+'%';
+          el.dataset.absf = sf+3;
+          slidNodes.push({ el, finalDeg: 'b3' });
+        }
+      });
+      setTimeout(function() {
+        neckEl.querySelectorAll('.fb-note:not(.fb-note--ghost)').forEach(el => {
+          if (parseFloat(el.style.opacity) === 0) el.remove();
+        });
+        _applyDegMap(neckEl, {});
+        slidNodes.forEach(({ el, finalDeg }) => {
+          el.dataset.degree = finalDeg;
+          el.classList.toggle('fb-note--root', finalDeg === 1);
+        });
+        _spawnNote(neckEl, sf+5, 0, '4');   // 1번줄: 원래 3자리(sf+4)+1 = sf+5
+        _spawnNote(neckEl, sf+5, 2, 'b6');  // 3번줄: 5(sf+4)+1 = sf+5
+        _spawnNote(neckEl, sf+5, 3, 'b3');  // 4번줄: 2(sf+4)+1 = sf+5
+        _spawnNote(neckEl, sf+5, 4, 'b7');  // 5번줄: 원래 6자리(sf+4)+1 = sf+5
+        _finishTransition(true);
+      }, DURATION + 60);
+    } else {
+      // 역방향: natural-minor Dm폼 → major D폼
+      const slidNodes = [];
+      activeEls.forEach(el => {
+        const s    = parseInt(el.dataset.s);
+        const d    = el.dataset.degree;
+        const absf = parseInt(el.dataset.absf);
+        // fade: 정방향 spawn 역방향 — s=0(4,sf+5), s=2(b6,sf+5), s=3(b3,sf+5), s=4(b7,sf+5)
+        if ((s===0 && d==='4'  && absf===sf+5) ||
+            (s===2 && d==='b6' && absf===sf+5) ||
+            (s===3 && d==='b3' && absf===sf+5) ||
+            (s===4 && d==='b7' && absf===sf+5)) {
+          el.style.opacity = '0';
+          el.style.transform = 'translate(-50%,-50%) scale(0)';
+        }
+        // slide s=0: sf+3(b3) → sf+4 → 3
+        if (s===0 && d==='b3' && absf===sf+3) {
+          el.style.left = ((sf+4+0.5)/TOTAL_FRETS*100)+'%';
+          el.dataset.absf = sf+4;
+          slidNodes.push({ el, finalDeg: '3' });
+        }
+        // slide s=1: sf+3(b7) → sf+4 → 7
+        if (s===1 && d==='b7' && absf===sf+3) {
+          el.style.left = ((sf+4+0.5)/TOTAL_FRETS*100)+'%';
+          el.dataset.absf = sf+4;
+          slidNodes.push({ el, finalDeg: '7' });
+        }
+        // slide s=4: sf+3(b6) → sf+4 → 6
+        if (s===4 && d==='b6' && absf===sf+3) {
+          el.style.left = ((sf+4+0.5)/TOTAL_FRETS*100)+'%';
+          el.dataset.absf = sf+4;
+          slidNodes.push({ el, finalDeg: '6' });
+        }
+        // slide s=5: sf+3(b3) → sf+4 → 3
+        if (s===5 && d==='b3' && absf===sf+3) {
+          el.style.left = ((sf+4+0.5)/TOTAL_FRETS*100)+'%';
+          el.dataset.absf = sf+4;
+          slidNodes.push({ el, finalDeg: '3' });
+        }
+      });
+      setTimeout(function() {
+        neckEl.querySelectorAll('.fb-note:not(.fb-note--ghost)').forEach(el => {
+          if (parseFloat(el.style.opacity) === 0) el.remove();
+        });
+        _applyDegMap(neckEl, {});
+        slidNodes.forEach(({ el, finalDeg }) => {
+          el.dataset.degree = finalDeg;
+          el.classList.toggle('fb-note--root', finalDeg === 1);
+        });
+        _spawnNote(neckEl, sf+2, 1, '6');  // 2번줄: sf+2
+        _spawnNote(neckEl, sf+1, 2, '3');  // 3번줄: sf+1
+        _spawnNote(neckEl, sf+1, 3, '7');  // 4번줄: sf+1
+        _finishTransition(false);
+      }, DURATION + 60);
+    }
+  }
+
+  // ── G폼(bi=1): major G폼 ↔ natural-minor Gm폼 ─────────────────
+  // Gm폼 startFret = major G폼 startFret + 1 (PAIR_STARTFRET_OFFSET_III[1]=1)
+  // major G폼(major-pos2): s0:sf+2=6,sf+4=7,sf+5=1 / s1:sf+2=3,sf+3=4,sf+5=5
+  //   s2:sf+1=7,sf+2=1,sf+4=2 / s3:sf+2=5,sf+4=6
+  //   s4:sf+2=2,sf+4=3,sf+5=4 / s5:sf+2=6,sf+4=7,sf+5=1
+  if (bi === 1) {
+    if (!_pairTransitioned) {
+      // 정방향: major G폼 → natural-minor Gm폼
+      const slidNodes = [];
+      activeEls.forEach(el => {
+        const s    = parseInt(el.dataset.s);
+        const d    = el.dataset.degree;
+        const absf = parseInt(el.dataset.absf);
+        // fade: s=0의 6(sf+2), s=1의 3(sf+2), s=2의 7(sf+1), s=5의 6(sf+2)
+        if ((s===0 && d==='6'  && absf===sf+2) ||
+            (s===1 && d==='3'  && absf===sf+2) ||
+            (s===2 && d==='7'  && absf===sf+1) ||
+            (s===5 && d==='6'  && absf===sf+2)) {
+          el.style.opacity = '0';
+          el.style.transform = 'translate(-50%,-50%) scale(0)';
+        }
+        // slide s=0: sf+4(7) → sf+3 → b7
+        if (s===0 && d==='7' && absf===sf+4) {
+          el.style.left = ((sf+3+0.5)/TOTAL_FRETS*100)+'%';
+          el.dataset.absf = sf+3;
+          slidNodes.push({ el, finalDeg: 'b7' });
+        }
+        // slide s=3: sf+4(6) → sf+3 → b6
+        if (s===3 && d==='6' && absf===sf+4) {
+          el.style.left = ((sf+3+0.5)/TOTAL_FRETS*100)+'%';
+          el.dataset.absf = sf+3;
+          slidNodes.push({ el, finalDeg: 'b6' });
+        }
+        // slide s=4: sf+4(3) → sf+3 → b3
+        if (s===4 && d==='3' && absf===sf+4) {
+          el.style.left = ((sf+3+0.5)/TOTAL_FRETS*100)+'%';
+          el.dataset.absf = sf+3;
+          slidNodes.push({ el, finalDeg: 'b3' });
+        }
+        // slide s=5: sf+4(7) → sf+3 → b7
+        if (s===5 && d==='7' && absf===sf+4) {
+          el.style.left = ((sf+3+0.5)/TOTAL_FRETS*100)+'%';
+          el.dataset.absf = sf+3;
+          slidNodes.push({ el, finalDeg: 'b7' });
+        }
+      });
+      setTimeout(function() {
+        neckEl.querySelectorAll('.fb-note:not(.fb-note--ghost)').forEach(el => {
+          if (parseFloat(el.style.opacity) === 0) el.remove();
+        });
+        _applyDegMap(neckEl, {});
+        slidNodes.forEach(({ el, finalDeg }) => {
+          el.dataset.degree = finalDeg;
+          el.classList.toggle('fb-note--root', finalDeg === 1);
+        });
+        _spawnNote(neckEl, sf+6, 1, 'b6');  // 2번줄: 5(sf+5)+1 = sf+6
+        _spawnNote(neckEl, sf+5, 2, 'b3');  // 3번줄: 2(sf+4)+1 = sf+5
+        _spawnNote(neckEl, sf+5, 3, 'b7');  // 4번줄: 원래 6자리(sf+4)+1 = sf+5
+        _finishTransition(true);
+      }, DURATION + 60);
+    } else {
+      // 역방향: natural-minor Gm폼 → major G폼
+      const slidNodes = [];
+      activeEls.forEach(el => {
+        const s    = parseInt(el.dataset.s);
+        const d    = el.dataset.degree;
+        const absf = parseInt(el.dataset.absf);
+        // fade: 정방향 spawn 역방향 — s=1(b6,sf+6), s=2(b3,sf+5), s=3(b7,sf+5)
+        if ((s===1 && d==='b6' && absf===sf+6) ||
+            (s===2 && d==='b3' && absf===sf+5) ||
+            (s===3 && d==='b7' && absf===sf+5)) {
+          el.style.opacity = '0';
+          el.style.transform = 'translate(-50%,-50%) scale(0)';
+        }
+        // slide s=0: sf+3(b7) → sf+4 → 7
+        if (s===0 && d==='b7' && absf===sf+3) {
+          el.style.left = ((sf+4+0.5)/TOTAL_FRETS*100)+'%';
+          el.dataset.absf = sf+4;
+          slidNodes.push({ el, finalDeg: '7' });
+        }
+        // slide s=3: sf+3(b6) → sf+4 → 6
+        if (s===3 && d==='b6' && absf===sf+3) {
+          el.style.left = ((sf+4+0.5)/TOTAL_FRETS*100)+'%';
+          el.dataset.absf = sf+4;
+          slidNodes.push({ el, finalDeg: '6' });
+        }
+        // slide s=4: sf+3(b3) → sf+4 → 3
+        if (s===4 && d==='b3' && absf===sf+3) {
+          el.style.left = ((sf+4+0.5)/TOTAL_FRETS*100)+'%';
+          el.dataset.absf = sf+4;
+          slidNodes.push({ el, finalDeg: '3' });
+        }
+        // slide s=5: sf+3(b7) → sf+4 → 7
+        if (s===5 && d==='b7' && absf===sf+3) {
+          el.style.left = ((sf+4+0.5)/TOTAL_FRETS*100)+'%';
+          el.dataset.absf = sf+4;
+          slidNodes.push({ el, finalDeg: '7' });
+        }
+      });
+      setTimeout(function() {
+        neckEl.querySelectorAll('.fb-note:not(.fb-note--ghost)').forEach(el => {
+          if (parseFloat(el.style.opacity) === 0) el.remove();
+        });
+        _applyDegMap(neckEl, {});
+        slidNodes.forEach(({ el, finalDeg }) => {
+          el.dataset.degree = finalDeg;
+          el.classList.toggle('fb-note--root', finalDeg === 1);
+        });
+        _spawnNote(neckEl, sf+2, 0, '6');  // 1번줄: sf+2
+        _spawnNote(neckEl, sf+2, 1, '3');  // 2번줄: sf+2
+        _spawnNote(neckEl, sf+1, 2, '7');  // 3번줄: sf+1
+        _spawnNote(neckEl, sf+2, 5, '6');  // 6번줄: sf+2
+        _finishTransition(false);
+      }, DURATION + 60);
+    }
+  }
+
+  // ── E폼(bi=2): major E폼 ↔ natural-minor Em폼 ─────────────────
+  // 오프셋 없음: roots 동일 sf (PAIR_STARTFRET_OFFSET_III[2] 미설정)
+  // major E폼(major-pos3): s0:sf+1=7,sf+2=1,sf+4=2 / s1:sf+2=5,sf+4=6
+  //   s2:sf+1=2,sf+3=3,sf+4=4 / s3:sf+1=6,sf+3=7,sf+4=1
+  //   s4:sf+1=3,sf+2=4,sf+4=5 / s5:sf+1=7,sf+2=1,sf+4=2
+  if (bi === 2) {
+    if (!_pairTransitioned) {
+      // 정방향: major E폼 → natural-minor Em폼
+      const slidNodes = [];
+      activeEls.forEach(el => {
+        const s    = parseInt(el.dataset.s);
+        const d    = el.dataset.degree;
+        const absf = parseInt(el.dataset.absf);
+        // fade: s=0의 7(sf+1), s=3의 6(sf+1), s=4의 3(sf+1), s=5의 7(sf+1)
+        if ((s===0 && d==='7'  && absf===sf+1) ||
+            (s===3 && d==='6'  && absf===sf+1) ||
+            (s===4 && d==='3'  && absf===sf+1) ||
+            (s===5 && d==='7'  && absf===sf+1)) {
+          el.style.opacity = '0';
+          el.style.transform = 'translate(-50%,-50%) scale(0)';
+        }
+        // slide s=1: sf+4(6) → sf+3 → b6
+        if (s===1 && d==='6' && absf===sf+4) {
+          el.style.left = ((sf+3+0.5)/TOTAL_FRETS*100)+'%';
+          el.dataset.absf = sf+3;
+          slidNodes.push({ el, finalDeg: 'b6' });
+        }
+        // slide s=2: sf+3(3) → sf+2 → b3
+        if (s===2 && d==='3' && absf===sf+3) {
+          el.style.left = ((sf+2+0.5)/TOTAL_FRETS*100)+'%';
+          el.dataset.absf = sf+2;
+          slidNodes.push({ el, finalDeg: 'b3' });
+        }
+        // slide s=3: sf+3(7) → sf+2 → b7
+        if (s===3 && d==='7' && absf===sf+3) {
+          el.style.left = ((sf+2+0.5)/TOTAL_FRETS*100)+'%';
+          el.dataset.absf = sf+2;
+          slidNodes.push({ el, finalDeg: 'b7' });
+        }
+      });
+      setTimeout(function() {
+        neckEl.querySelectorAll('.fb-note:not(.fb-note--ghost)').forEach(el => {
+          if (parseFloat(el.style.opacity) === 0) el.remove();
+        });
+        _applyDegMap(neckEl, {});
+        slidNodes.forEach(({ el, finalDeg }) => {
+          el.dataset.degree = finalDeg;
+          el.classList.toggle('fb-note--root', finalDeg === 1);
+        });
+        _spawnNote(neckEl, sf+5, 0, 'b3');  // 1번줄: 2(sf+4)+1 = sf+5
+        _spawnNote(neckEl, sf+5, 1, 'b7');  // 2번줄: 원래 6자리(sf+4)+1 = sf+5
+        _spawnNote(neckEl, sf+5, 4, 'b6');  // 5번줄: 5(sf+4)+1 = sf+5
+        _spawnNote(neckEl, sf+5, 5, 'b3');  // 6번줄: 2(sf+4)+1 = sf+5
+        _finishTransition(true);
+      }, DURATION + 60);
+    } else {
+      // 역방향: natural-minor Em폼 → major E폼
+      const slidNodes = [];
+      activeEls.forEach(el => {
+        const s    = parseInt(el.dataset.s);
+        const d    = el.dataset.degree;
+        const absf = parseInt(el.dataset.absf);
+        // fade: 정방향 spawn 역방향 — s=0(b3,sf+5), s=1(b7,sf+5), s=4(b6,sf+5), s=5(b3,sf+5)
+        if ((s===0 && d==='b3' && absf===sf+5) ||
+            (s===1 && d==='b7' && absf===sf+5) ||
+            (s===4 && d==='b6' && absf===sf+5) ||
+            (s===5 && d==='b3' && absf===sf+5)) {
+          el.style.opacity = '0';
+          el.style.transform = 'translate(-50%,-50%) scale(0)';
+        }
+        // slide s=1: sf+3(b6) → sf+4 → 6
+        if (s===1 && d==='b6' && absf===sf+3) {
+          el.style.left = ((sf+4+0.5)/TOTAL_FRETS*100)+'%';
+          el.dataset.absf = sf+4;
+          slidNodes.push({ el, finalDeg: '6' });
+        }
+        // slide s=2: sf+2(b3) → sf+3 → 3
+        if (s===2 && d==='b3' && absf===sf+2) {
+          el.style.left = ((sf+3+0.5)/TOTAL_FRETS*100)+'%';
+          el.dataset.absf = sf+3;
+          slidNodes.push({ el, finalDeg: '3' });
+        }
+        // slide s=3: sf+2(b7) → sf+3 → 7
+        if (s===3 && d==='b7' && absf===sf+2) {
+          el.style.left = ((sf+3+0.5)/TOTAL_FRETS*100)+'%';
+          el.dataset.absf = sf+3;
+          slidNodes.push({ el, finalDeg: '7' });
+        }
+      });
+      setTimeout(function() {
+        neckEl.querySelectorAll('.fb-note:not(.fb-note--ghost)').forEach(el => {
+          if (parseFloat(el.style.opacity) === 0) el.remove();
+        });
+        _applyDegMap(neckEl, {});
+        slidNodes.forEach(({ el, finalDeg }) => {
+          el.dataset.degree = finalDeg;
+          el.classList.toggle('fb-note--root', finalDeg === 1);
+        });
+        _spawnNote(neckEl, sf+1, 0, '7');  // 1번줄: sf+1
+        _spawnNote(neckEl, sf+1, 3, '6');  // 4번줄: sf+1
+        _spawnNote(neckEl, sf+1, 4, '3');  // 5번줄: sf+1
+        _spawnNote(neckEl, sf+1, 5, '7');  // 6번줄: sf+1
+        _finishTransition(false);
+      }, DURATION + 60);
+    }
+  }
+}
+
 function updateFormLabel() {
   const el = document.getElementById('form-label');
   if (!el) return;
@@ -2397,12 +3016,24 @@ function updateFormLabel() {
     }
     return;
   }
+  // Ch.2 secondary-iii: 전환 전=메이저, 전환 후=내추럴 마이너 표시
+  if (_scaleKey === 'secondary-iii') {
+    const names = _useFlat ? KEY_NAMES_FLAT : KEY_NAMES;
+    const nmFormNames = ['Gm폼','Em폼','Dm폼','Cm폼','Am폼'];
+    if (_pairTransitioned) {
+      const partnerBi = PAIR_PARTNER_BI_III[bi];
+      el.textContent = `${names[_rootNote]} 내추럴 마이너 ${nmFormNames[partnerBi]}`;
+    } else {
+      el.textContent = `${names[_rootNote]}메이저 ${FORM_NAMES[bi]}`;
+    }
+    return;
+  }
 
   const title = SCALE_TITLES[_scaleKey] || _scaleKey;
   el.textContent = block.label || `${title} ${FORM_NAMES[bi] ?? (bi + 1 + '번폼')}`;
 }
 
-// ?? 釉붾윮 ?몃뵒耳?댄꽣 ?낅뜲?댄듃 ?????????????????????????????????
+// ── 블록 인디케이터 업데이트 ──────────────────────────────────
 function updateBlockIndicator() {
   const el = document.getElementById('block-indicator');
   if (!el) return;
@@ -2422,7 +3053,7 @@ function updateBlockIndicator() {
   });
 }
 
-// ?? ?붿궡??踰꾪듉 (?쒗???대룞) ????????????????????????????????
+// ── 이전/다음 버튼 (탐색 이동) ───────────────────────────────
 function initArrows() {
   document.getElementById('fb-arrow-prev')?.addEventListener('pointerup', () => {
     const seq = buildNavSequence();
@@ -2445,7 +3076,7 @@ function initArrows() {
   });
 }
 
-// ?? ??踰꾪듉 ?덉씠釉?媛깆떊 ??????????????????????????????????????
+// ── 키 버튼 레이블 갱신 ──────────────────────────────────────
 function updateKeyLabels() {
   const names = _useFlat ? KEY_NAMES_FLAT : KEY_NAMES;
   document.querySelectorAll('.key-btn').forEach((btn, i) => {
@@ -2453,7 +3084,7 @@ function updateKeyLabels() {
   });
 }
 
-// ?? ???뚮옯 ?좉? ?????????????????????????????????????????????
+// ── 임시/기록 관련 함수 ──────────────────────────────────────
 // ── 훈련 통계 ────────────────────────────────────────────────────
 const TRAINING_STATS_KEY = 'training_stats';
 
@@ -2555,7 +3186,7 @@ function initAccidentalToggle() {
   });
 }
 
-// ?? ???좏깮 UI ????????????????????????????????????????????????
+// ── 키 선택 UI ───────────────────────────────────────────────
 function initKeySelector() {
   const el = document.getElementById('key-selector');
   if (!el) return;
@@ -2566,7 +3197,7 @@ function initKeySelector() {
     btn.textContent = name;
     btn.addEventListener('pointerup', () => {
       _rootNote = semitone;
-      _navIdx   = 0;   // ??諛붽씀硫?泥?踰덉㎏ ?ъ??섏쑝濡?由ъ뀑
+      _navIdx   = 0;   // 키 변경 시 첫 블럭으로 이동
       el.querySelectorAll('.key-btn').forEach(b => b.classList.remove('key-btn--active'));
       btn.classList.add('key-btn--active');
       renderNotes();
@@ -2582,7 +3213,7 @@ function initKeySelector() {
   });
 }
 
-// ?? DOMContentLoaded ?????????????????????????????????????????
+// ── DOMContentLoaded ─────────────────────────────────────────
 document.addEventListener('DOMContentLoaded', () => {
   const shell = document.querySelector('.app-shell');
   if (shell) shell.classList.add('project-enter');
@@ -2593,7 +3224,7 @@ document.addEventListener('DOMContentLoaded', () => {
   _scaleKey = params.get('key') || 'major';
 
   // Ch.2: 전환 버튼 표시
-  if (_scaleKey === 'secondary-iv' || _scaleKey === 'secondary-v' || _scaleKey === 'secondary-ii' || _scaleKey === 'secondary-vi') {
+  if (_scaleKey === 'secondary-iv' || _scaleKey === 'secondary-v' || _scaleKey === 'secondary-ii' || _scaleKey === 'secondary-vi' || _scaleKey === 'secondary-iii') {
     const btn = document.getElementById('pair-transition-btn');
     if (btn) {
       btn.style.display = 'inline-flex';
@@ -2602,7 +3233,7 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
 renderFullNeck();
-  renderNotes(false);        // 珥덇린 ?뚮뜑???좊땲硫붿씠???놁씠 利됱떆 ?대룞
+  renderNotes(false);        // 초기 렌더 — 애니메이션 없이 즉시 표시
   updateFormLabel();
   updateBlockIndicator();
   initArrows();
@@ -2611,7 +3242,7 @@ renderFullNeck();
 
   initTestTap();
 
-  // ?뚯뒪???쒖옉 踰꾪듉
+  // 테스트 시작 버튼
   document.getElementById('start-test-btn')?.addEventListener('pointerup', () => {
     analytics.track('scale_test_started', {
       scale_key: _scaleKey,
@@ -2624,7 +3255,7 @@ renderFullNeck();
     startTest();
   });
 
-  // ?쒖텧?섍린 / ?ㅼ떆 ?湲?踰꾪듉
+  // 제출하기 / 다시 풀기 버튼
   document.getElementById('test-submit-btn')?.addEventListener('pointerup', (e) => {
     if (e.currentTarget.disabled) return;
     if (_testSubmitted) {
@@ -2644,7 +3275,7 @@ renderFullNeck();
     }
   });
 
-  // ?뚯뒪???ㅻ쾭?덉씠 ?リ린 (X 踰꾪듉 / ?뚯븘媛湲?踰꾪듉 怨듯넻)
+  // 테스트 오버레이 초기화 (X 버튼 / 뒤로가기 버튼 처리)
   const closeTestOverlay = () =>
     document.getElementById('scale-test-overlay')?.classList.remove('is-open');
 

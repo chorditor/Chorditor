@@ -51,9 +51,9 @@ let _timer              = null;  // 마스터 비트 타이머 (단일)
 let _masterBeat         = 0;     // 재생 시작 후 누적 비트 수
 // _prevCenterFret 제거됨 — cyclic DP로 대체
 
-// ── 캔버스 상수 (VOICING_CANVAS 위임) ───────────────────────
-const _BASE_W = VOICING_CANVAS.BASE_W;
-const _BASE_H = VOICING_CANVAS.BASE_H;
+// ── 캔버스 상수 (voicing-canvas.js 모듈 위임) ───────────────────────
+const _BASE_W = VoicingCanvas.BASE_W;
+const _BASE_H = VoicingCanvas.BASE_H;
 
 // ── 보이싱 사운드 재생 ───────────────────────────────────────
 // 캔버스 인덱스 순서: 0=1번줄(e4=64) … 5=6번줄(E2=40)
@@ -78,9 +78,9 @@ function _getCandidates(rootSemitone, quality, bass) {
   return ProgressionVoicings.getCandidates(rootSemitone, quality, _key, bass);
 }
 
-// 캔버스 드로잉 → shared.js VOICING_CANVAS 위임
+// 캔버스 드로잉 → voicing-canvas.js 모듈(VoicingCanvas) 위임
 function _drawVoicingCanvas(canvas, voicing, chordName, ratio) {
-  VOICING_CANVAS.draw(canvas, voicing, chordName, ratio);
+  VoicingCanvas.draw(canvas, voicing, { chordName, ratio, transparent: true });
 }
 
 // ── 메트로놈 클릭 ────────────────────────────────────────────
