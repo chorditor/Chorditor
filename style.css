@@ -8271,3 +8271,42 @@ canvas {
   border-color: #1a6fff;
   color: #ffffff;
 }
+
+/* ════════════════════════════════════════════════════════════
+   모바일 프레임 고정 — 데스크탑/태블릿(>400px)에서 앱을 400px로 제한·센터
+   (태블릿 전용 반응형은 추후 구현 예정)
+   ════════════════════════════════════════════════════════════ */
+@media (min-width: 401px) {
+  /* 메인 앱 화면 */
+  .app-shell {
+    max-width: 400px;
+    margin-inline: auto;
+  }
+
+  /* 센터 모달 (modal-overlay > 모달 박스) */
+  .modal-overlay > * {
+    max-width: 400px !important;
+  }
+
+  /* 바텀시트: 프로젝트 추가 / 온보딩 동의 */
+  .project-sheet-overlay,
+  .ob-consent-backdrop {
+    justify-content: center;
+  }
+  .project-sheet,
+  .ob-consent-sheet {
+    max-width: 400px;
+  }
+
+  /* 바텀시트: 요금제 (fixed left/right 기반) */
+  .plan-sheet {
+    max-width: 400px;
+    margin-inline: auto;
+  }
+
+  /* 튜토리얼 모달: display:block 전체화면 → flex 센터 */
+  #modal-tutorial {
+    display: flex;
+    justify-content: center;
+  }
+}
