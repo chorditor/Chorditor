@@ -8,6 +8,66 @@ function goToHome() {
   window.location.replace('home.html');
 }
 
+// ── 인앱 브라우저(임베디드 WebView) 감지 및 외부 브라우저 유도 ──
+// Google OAuth는 인앱 WebView를 차단(403 disallowed_useragent)하므로
+// 카카오톡/안드로이드 인앱은 외부 브라우저로 자동 전환, 나머지는 안내.
+function _isInAppBrowser() {
+  if (window.Capacitor?.isNativePlatform()) return false; // 우리 네이티브 앱은 GoogleAuth 플러그인 사용 → 제외
+  const ua = navigator.userAgent || '';
+  return /KAKAOTALK|NAVER|Instagram|FBAN|FBAV|FB_IAB|Line\/|Snapchat|Daum|; wv\)/i.test(ua);
+}
+
+function _fallbackCopy(text) {
+  try {
+    const ta = document.createElement('textarea');
+    ta.value = text;
+    ta.style.position = 'fixed';
+    ta.style.opacity = '0';
+    document.body.appendChild(ta);
+    ta.focus(); ta.select();
+    document.execCommand('copy');
+    document.body.removeChild(ta);
+  } catch (_) {}
+}
+
+function copyCurrentUrl() {
+  const url = location.href;
+  if (navigator.clipboard?.writeText) {
+    navigator.clipboard.writeText(url).catch(() => _fallbackCopy(url));
+  } else {
+    _fallbackCopy(url);
+  }
+  const btn = document.getElementById('inapp-copy-btn');
+  if (btn) btn.textContent = 'URL 복사됨!';
+}
+
+function openInExternalBrowser() {
+  const ua  = navigator.userAgent || '';
+  const url = location.href;
+  if (/KAKAOTALK/i.test(ua)) {
+    location.href = 'kakaotalk://web/openExternal?url=' + encodeURIComponent(url);
+    return;
+  }
+  if (/Android/i.test(ua)) {
+    // Chrome으로 강제 오픈 (intent scheme)
+    const noScheme = url.replace(/^https?:\/\//, '');
+    location.href = 'intent://' + noScheme + '#Intent;scheme=https;package=com.android.chrome;end';
+    return;
+  }
+  // iOS 등 자동 오픈 불가 → URL 복사 안내
+  copyCurrentUrl();
+}
+
+function _showInAppGuide() {
+  document.getElementById('onboarding-overlay')?.classList.add('hidden');
+  document.getElementById('inapp-guide-overlay')?.classList.remove('hidden');
+  // 카카오톡/안드로이드는 자동 외부 전환 시도 (실패 시 화면의 버튼으로 수동)
+  const ua = navigator.userAgent || '';
+  if (/KAKAOTALK/i.test(ua) || /Android/i.test(ua)) {
+    setTimeout(openInExternalBrowser, 120);
+  }
+}
+
 // ── 온보딩 정보수집 스텝 ──────────────────────────────────────
 let _obData = { persona: null, guitar_experience: null, gender: null, birth_year: null };
 
@@ -348,6 +408,12 @@ document.addEventListener('DOMContentLoaded', async () => {
   // ── DEV 빌드: 온보딩/로그인 건너뛰고 바로 홈으로 ────────────
   if (typeof APP_VERSION !== 'undefined' && APP_VERSION.includes('_dev')) {
     window.location.replace('home.html');
+    return;
+  }
+
+  // ── 인앱 브라우저(카카오톡 등): Google OAuth 차단(disallowed_useragent) → 외부 브라우저 유도 ──
+  if (_isInAppBrowser()) {
+    _showInAppGuide();
     return;
   }
 

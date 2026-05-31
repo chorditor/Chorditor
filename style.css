@@ -3259,6 +3259,22 @@ canvas {
 }
 .onboarding-overlay.hidden { display: none; }
 
+/* 인앱 브라우저 안내 */
+.inapp-guide-title {
+  font-size: 20px;
+  font-weight: 800;
+  color: var(--text-primary);
+  margin: 8px 0 4px;
+  text-align: center;
+}
+.inapp-guide-desc {
+  font-size: 14px;
+  line-height: 1.6;
+  color: var(--text-secondary, #666);
+  text-align: center;
+  margin: 0 0 20px;
+}
+
 
 .onboarding-card {
   display: flex;
@@ -8308,5 +8324,11 @@ canvas {
   #modal-tutorial {
     display: flex;
     justify-content: center;
+  }
+
+  /* 온보딩 전체화면(버튼 화면 + 페르소나/연도/성별 스텝) */
+  .onboarding-overlay {
+    max-width: 400px;
+    margin-inline: auto;
   }
 }
