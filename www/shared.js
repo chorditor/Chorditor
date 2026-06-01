@@ -135,6 +135,51 @@ function getPlanLimit(key) {
 function canCreateProject() { return loadProjects().length < getPlanLimit('maxProjects'); }
 function canUseScale(scale)  { return scale <= getPlanLimit('maxScale'); }
 
+// ── 사용 통계 (이미지 저장 / 공유 횟수) ───────────────────────
+// 로컬 카운터(localStorage) 기반 + subscriptions.stat_images/stat_shares 동기화
+const STATS_KEY = 'chorditor_stats';
+
+function getStats() {
+  try {
+    const raw = JSON.parse(localStorage.getItem(STATS_KEY) || 'null');
+    return { images: raw?.images || 0, shares: raw?.shares || 0 };
+  } catch (e) {
+    return { images: 0, shares: 0 };
+  }
+}
+
+function incrementStat(key) {
+  if (key !== 'images' && key !== 'shares') return;
+  try {
+    const s = getStats();
+    s[key] = (s[key] || 0) + 1;
+    localStorage.setItem(STATS_KEY, JSON.stringify(s));
+    syncStatsToDB();
+  } catch (e) {}
+}
+
+async function syncStatsToDB() {
+  try {
+    const stored = localStorage.getItem(SUPABASE_STORAGE_KEY);
+    if (!stored) return;
+    const session = JSON.parse(stored);
+    const token  = session?.access_token;
+    const userId = session?.user?.id;
+    if (!token || !userId) return;
+    const s = getStats();
+    await fetch(`${SUPABASE_URL}/rest/v1/subscriptions`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'apikey': SUPABASE_ANON,
+        'Authorization': `Bearer ${token}`,
+        'Prefer': 'resolution=merge-duplicates,return=minimal',
+      },
+      body: JSON.stringify({ user_id: userId, stat_images: s.images, stat_shares: s.shares }),
+    });
+  } catch (e) {}
+}
+
 let _lastPlanRefresh = 0;
 async function refreshPlanFromDB() {
   const stored = localStorage.getItem(SUPABASE_STORAGE_KEY);
