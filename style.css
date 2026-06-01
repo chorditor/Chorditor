@@ -4932,7 +4932,7 @@ canvas {
 .profile-persona-badge {
   font-size: 13px;
   font-weight: 600;
-  color: var(--blue);
+  color: var(--text-secondary);
 }
 .profile-badges [hidden] { display: none; }
 
