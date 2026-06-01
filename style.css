@@ -8399,6 +8399,20 @@ canvas {
     margin-inline: auto;
   }
 
+  /* 프레임 고정 폭(400px)에 맞춰 코드 그리드도 반응형 유지
+     (기본 140px 고정 컬럼은 >1400px 데스크탑에서 프레임 넘쳐 잘림) */
+  .chord-area.cols-4,
+  .chord-area.cols-8 {
+    grid-template-columns: repeat(4, 1fr);
+    justify-content: stretch;
+  }
+  .chord-area.cols-4 .chord-slot,
+  .chord-area.cols-8 .chord-slot {
+    width: 100%;
+    height: auto;
+    aspect-ratio: 5 / 4;
+  }
+
   /* 센터 모달 (modal-overlay > 모달 박스) */
   .modal-overlay > * {
     max-width: 400px !important;
