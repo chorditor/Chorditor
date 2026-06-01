@@ -328,6 +328,7 @@ body {
 #back-btn svg { width: 26px; height: 26px; }
 #back-btn:active { transform: scale(0.92); }
 #back-btn.hidden { display: none; }
+#settings-btn.hidden { display: none; }
 .top-bar-title.hidden { display: none; }
 
 /* ── 홈 화면 ── */
@@ -1486,13 +1487,42 @@ canvas {
 .modal-overlay.hidden { display: none; }
 
 #modal-create-project,
-#modal-rename-project {
+#modal-rename-project,
+#modal-settings {
   animation: modal-overlay-in 0.2s ease both;
 }
 #modal-create-project .modal,
-#modal-rename-project .modal {
+#modal-rename-project .modal,
+#modal-settings .modal {
   animation: modal-scale-in 0.25s cubic-bezier(0.34, 1.56, 0.64, 1) both;
 }
+
+/* ── 설정 모달: 항목 행 + 스위치 ── */
+.settings-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 6px 0;
+}
+.settings-row-text { display: flex; flex-direction: column; gap: 2px; }
+.settings-row-title { font-size: 15px; font-weight: 600; color: var(--text-primary); }
+.settings-row-desc { font-size: 12px; color: var(--text-secondary); }
+
+.settings-switch { position: relative; flex-shrink: 0; width: 46px; height: 28px; cursor: pointer; }
+.settings-switch input { position: absolute; opacity: 0; width: 0; height: 0; }
+.settings-switch-track {
+  position: absolute; inset: 0; border-radius: 999px;
+  background: #d6d1cc; transition: background .2s ease;
+}
+.settings-switch-track::after {
+  content: ''; position: absolute; top: 3px; left: 3px;
+  width: 22px; height: 22px; border-radius: 50%;
+  background: #fff; box-shadow: 0 1px 3px rgba(0,0,0,.25);
+  transition: transform .2s ease;
+}
+.settings-switch input:checked + .settings-switch-track { background: var(--blue); }
+.settings-switch input:checked + .settings-switch-track::after { transform: translateX(18px); }
 @keyframes modal-overlay-in {
   from { background: rgba(0,0,0,0); }
   to   { background: rgba(0,0,0,0.45); }
@@ -2021,6 +2051,56 @@ canvas {
 .chord-area.cols-4 { grid-template-columns: repeat(4, 140px); justify-content: space-between; }
 .chord-area.cols-8 { grid-template-columns: repeat(4, 140px); justify-content: space-between; }
 
+/* ── 코드슬롯 토글 버튼 (row2 좌측, metronome-btn과 통일) ── */
+.slot-toggle-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  margin-right: auto;
+  border-radius: 50%;
+  background: #ffffff;
+  color: var(--text-primary);
+  border: none;
+  cursor: pointer;
+  box-shadow: 0 0 0 1px rgba(0,0,0,0.08);
+  transition: background .15s, color .15s, box-shadow .15s;
+  flex-shrink: 0;
+}
+.slot-toggle-btn:hover { background: var(--bg); }
+.slot-toggle-btn.active {
+  background: var(--text-primary);
+  color: var(--surface);
+  box-shadow: 0 1px 4px rgba(0,0,0,0.15);
+}
+.slot-toggle-btn svg { width: 13px; height: 13px; }
+
+/* ── 코드슬롯 텍스트 모드 (slotsHidden) ── */
+.chord-area--text {
+  margin-bottom: 2px;
+}
+.chord-area--text .chord-name-cell {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  min-height: 28px;
+  font-size: 17px;
+  font-weight: 600;
+  color: var(--text);
+  white-space: nowrap;
+  overflow: visible;
+}
+.chord-area--text .chord-name-cell.filled { cursor: pointer; }
+.chord-area--text .chord-name-cell sup {
+  font-size: 0.6em;
+  font-weight: 600;
+  vertical-align: top;
+  position: relative;
+  top: -0.5em;
+}
+
 .chord-slot {
   position: relative;
   border: 1.5px dashed var(--border);
@@ -2483,7 +2563,8 @@ canvas {
 
   /* 아이콘 원형 버튼 — padding:0 복원, 정원형 유지 */
   .metronome-btn,
-  .play-all-btn {
+  .play-all-btn,
+  .slot-toggle-btn {
     padding: 0;
     width: 28px;
     height: 28px;
@@ -4836,6 +4917,24 @@ canvas {
   font-weight: 600;
   color: var(--text-secondary);
 }
+
+.profile-badges {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+.profile-badge-divider {
+  width: 1px;
+  height: 11px;
+  background: var(--text-muted);
+  opacity: .45;
+}
+.profile-persona-badge {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-secondary);
+}
+.profile-badges [hidden] { display: none; }
 
 .profile-joined {
   font-size: 12px;
@@ -8298,6 +8397,20 @@ canvas {
   .app-shell {
     max-width: 400px;
     margin-inline: auto;
+  }
+
+  /* 프레임 고정 폭(400px)에 맞춰 코드 그리드도 반응형 유지
+     (기본 140px 고정 컬럼은 >1400px 데스크탑에서 프레임 넘쳐 잘림) */
+  .chord-area.cols-4,
+  .chord-area.cols-8 {
+    grid-template-columns: repeat(4, 1fr);
+    justify-content: stretch;
+  }
+  .chord-area.cols-4 .chord-slot,
+  .chord-area.cols-8 .chord-slot {
+    width: 100%;
+    height: auto;
+    aspect-ratio: 5 / 4;
   }
 
   /* 센터 모달 (modal-overlay > 모달 박스) */

@@ -304,6 +304,22 @@ function buildLevelList() {
   });
 }
 
+/** 외부 진입(푸시 딥링크 등): 레벨 id로 휠 선택 + 상세 패널 오픈 (자동 시작 X) */
+function selectLevelById(levelId) {
+  const idx = LEVEL_CONFIGS.findIndex(c => String(c.id) === String(levelId));
+  if (idx < 0) return false;
+  const track = document.getElementById('level-wheel-track');
+  if (!track) return false;
+  const items = track.querySelectorAll('.lw-item');
+  if (!items[idx]) return false;
+  items.forEach(e => e.classList.remove('lw-item--selected'));
+  items[idx].classList.add('lw-item--selected');
+  _lwRealIdx = idx;
+  _lwUpdateDetail();
+  try { items[idx].scrollIntoView({ block: 'center', behavior: 'auto' }); } catch (_) {}
+  return true;
+}
+
 // ── 예습 모달 ─────────────────────────────────────────────────
 const ROOT_ORDER = ['A','B','C','D','E','F','G'];
 function _getRoot(name) { return name.match(/^([A-G][#b]?)/)?.[1] ?? name; }
@@ -2060,6 +2076,12 @@ document.addEventListener('DOMContentLoaded', () => {
   analytics.track('quiz_page_viewed', { from: 'training' });
   buildLevelList();
   initModeCarousel();
+
+  // 푸시 딥링크: ?level=<id> → 해당 레벨 선택 상태로 진입 (자동 시작 X)
+  try {
+    const lv = new URLSearchParams(location.search).get('level');
+    if (lv) requestAnimationFrame(() => selectLevelById(lv));
+  } catch (_) {}
   // initQuiz()는 startLevel()에서 호출
 
   // 화면 회전 등 크기 변경 시 재계산

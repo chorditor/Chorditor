@@ -1857,7 +1857,7 @@ async function loadProfileFromDB() {
     }
 
     const resp = await fetch(
-      `${SUPABASE_URL}/rest/v1/subscriptions?user_id=eq.${userId}&select=nickname,plan,created_at`,
+      `${SUPABASE_URL}/rest/v1/subscriptions?user_id=eq.${userId}&select=nickname,plan,created_at,persona`,
       { headers: { 'apikey': SUPABASE_ANON, 'Authorization': `Bearer ${token}` } }
     );
     if (!resp.ok) {
@@ -1886,6 +1886,24 @@ async function loadProfileFromDB() {
 
     const badge = document.getElementById('profile-plan-badge');
     if (badge) badge.dataset.plan = plan;
+
+    // 페르소나 뱃지 (있을 때만 구분자+라벨 표시)
+    const PERSONA_LABEL = {
+      unboxing: '언박싱 1일차',
+      beginner: '굳은살 비기너',
+      sheet_reader: '악보의존자',
+      home_master: '방구석 기타마스터',
+    };
+    const personaLabel = PERSONA_LABEL[row.persona];
+    const pBadge = document.getElementById('profile-persona-badge');
+    const pDiv = document.getElementById('profile-badge-divider');
+    if (personaLabel) {
+      if (pBadge) { pBadge.textContent = personaLabel; pBadge.hidden = false; }
+      if (pDiv) pDiv.hidden = false;
+    } else {
+      if (pBadge) pBadge.hidden = true;
+      if (pDiv) pDiv.hidden = true;
+    }
   } catch(e) {
     console.warn('[Profile] catch:', e);
   }
@@ -1961,6 +1979,9 @@ function switchTab(tab, noAnim = false) {
   });
 
   _updateBackBtn();
+
+  // 설정(톱니) 버튼: 프로필 탭에서만 노출
+  document.getElementById('settings-btn')?.classList.toggle('hidden', tab !== 'profile');
 
   if (tab === 'home') enterFromHome('home');
   if (tab === 'projects') renderProjectsList();
@@ -2844,6 +2865,27 @@ function openViewModal(chord, projectId) {
 
 function closeModal(id) {
   document.getElementById(id).classList.add('hidden');
+}
+
+// ─── 설정 모달 ───────────────────────────────────────────────
+function openSettings() {
+  const t = document.getElementById('setting-push-toggle');
+  if (t) t.checked = localStorage.getItem('push_enabled') !== '0'; // 미설정=ON
+  document.getElementById('modal-settings').classList.remove('hidden');
+  if (window.lucide) lucide.createIcons();
+}
+
+async function onPushToggle(el) {
+  localStorage.setItem('push_enabled', el.checked ? '1' : '0');
+  if (window.__pushApplyEnabled) {
+    const finalOn = await window.__pushApplyEnabled();
+    // 권한 거부 등으로 켜지지 못하면 토글 되돌림
+    if (el.checked && finalOn === false) {
+      el.checked = false;
+      localStorage.setItem('push_enabled', '0');
+      if (typeof showTextToast === 'function') showTextToast('알림 권한이 꺼져 있어요. 기기 설정에서 허용해 주세요.');
+    }
+  }
 }
 
 // ═══════════════════════════════════════════════════════════════

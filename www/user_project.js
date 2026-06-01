@@ -1281,9 +1281,24 @@ function renderProjectView(projectId) {
   headerRow1.appendChild(row1Right);
   header.appendChild(headerRow1);
 
-  // ── 2행: [Capo BPM 메트로놈 재생 오른쪽] ──
+  // ── 2행: [코드슬롯 토글 왼쪽] ... [Capo BPM 메트로놈 재생 오른쪽] ──
   const headerRow2 = document.createElement('div');
   headerRow2.className = 'project-header-row2';
+
+  // 코드슬롯 on/off 토글 (왼쪽 끝)
+  const slotsHidden = project.slotsHidden === true;
+  const slotToggleBtn = document.createElement('button');
+  slotToggleBtn.className = 'btn slot-toggle-btn' + (slotsHidden ? '' : ' active');
+  slotToggleBtn.title = slotsHidden ? '코드슬롯 표시' : '코드슬롯 숨기기';
+  slotToggleBtn.innerHTML = slotsHidden
+    ? '<i data-lucide="eye-off"></i>'
+    : '<i data-lucide="eye"></i>';
+  slotToggleBtn.onclick = () => {
+    const p = getProject(projectId);
+    if (p) { p.slotsHidden = !slotsHidden; updateProject(p); }
+    renderProjectView(projectId);
+  };
+  headerRow2.appendChild(slotToggleBtn);
 
   // 오른쪽 컨트롤 그룹
   const row2Controls = document.createElement('div');
@@ -1445,13 +1460,47 @@ function setLineText(lineDiv, text) {
 }
 
 function buildChordArea(line, project, editMode = true) {
+  const textMode = project.slotsHidden === true;
   const area = document.createElement('div');
-  area.className = `chord-area cols-${currentColCount}`;
+  area.className = `chord-area cols-${currentColCount}` + (textMode ? ' chord-area--text' : '');
   area.contentEditable = 'false';
   const base = line.slots || [];
   const dataIndices = currentColCount === 4 ? [0, 2, 4, 6] : [0, 1, 2, 3];
   dataIndices.forEach(dataIdx => {
     const chordId = base[dataIdx] ?? null;
+
+    // 텍스트 모드: 캔버스 슬롯 대신 코드 이름만 표기 (한 줄, 컬럼 정렬 유지)
+    if (textMode) {
+      const chord = (chordId && project.chords) ? project.chords.find(c => c.id === chordId) : null;
+      const cell = document.createElement('div');
+      cell.className = 'chord-name-cell' + (chord ? ' filled' : '');
+      cell.dataset.slotIdx = dataIdx;
+      cell.dataset.lineId = line.id;
+      if (chord) {
+        // 소괄호 부분 위첨자 처리
+        const pIdx = chord.name.indexOf('(');
+        if (pIdx !== -1) {
+          cell.appendChild(document.createTextNode(chord.name.slice(0, pIdx)));
+          const sup = document.createElement('sup');
+          sup.textContent = chord.name.slice(pIdx);
+          cell.appendChild(sup);
+        } else {
+          cell.textContent = chord.name;
+        }
+        cell.addEventListener('click', () => {
+          if (playbackActive) {
+            const p = getProject(project.id);
+            if (p) playAll(project.id, getGlobalSlotIndex(p, line.id, dataIdx));
+          } else {
+            playChord(chord);
+            analytics.track('project_chord_played', { chord_name: chord.name, project_id: project.id });
+          }
+        });
+      }
+      area.appendChild(cell);
+      return;
+    }
+
     const slot = document.createElement('div');
     slot.dataset.slotIdx = dataIdx;
     slot.dataset.lineId = line.id;
