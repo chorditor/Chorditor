@@ -2021,6 +2021,56 @@ canvas {
 .chord-area.cols-4 { grid-template-columns: repeat(4, 140px); justify-content: space-between; }
 .chord-area.cols-8 { grid-template-columns: repeat(4, 140px); justify-content: space-between; }
 
+/* ── 코드슬롯 토글 버튼 (row2 좌측, metronome-btn과 통일) ── */
+.slot-toggle-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  margin-right: auto;
+  border-radius: 50%;
+  background: #ffffff;
+  color: var(--text-primary);
+  border: none;
+  cursor: pointer;
+  box-shadow: 0 0 0 1px rgba(0,0,0,0.08);
+  transition: background .15s, color .15s, box-shadow .15s;
+  flex-shrink: 0;
+}
+.slot-toggle-btn:hover { background: var(--bg); }
+.slot-toggle-btn.active {
+  background: var(--text-primary);
+  color: var(--surface);
+  box-shadow: 0 1px 4px rgba(0,0,0,0.15);
+}
+.slot-toggle-btn svg { width: 13px; height: 13px; }
+
+/* ── 코드슬롯 텍스트 모드 (slotsHidden) ── */
+.chord-area--text {
+  margin-bottom: 2px;
+}
+.chord-area--text .chord-name-cell {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  min-height: 28px;
+  font-size: 17px;
+  font-weight: 600;
+  color: var(--text);
+  white-space: nowrap;
+  overflow: visible;
+}
+.chord-area--text .chord-name-cell.filled { cursor: pointer; }
+.chord-area--text .chord-name-cell sup {
+  font-size: 0.6em;
+  font-weight: 600;
+  vertical-align: top;
+  position: relative;
+  top: -0.5em;
+}
+
 .chord-slot {
   position: relative;
   border: 1.5px dashed var(--border);
@@ -2483,7 +2533,8 @@ canvas {
 
   /* 아이콘 원형 버튼 — padding:0 복원, 정원형 유지 */
   .metronome-btn,
-  .play-all-btn {
+  .play-all-btn,
+  .slot-toggle-btn {
     padding: 0;
     width: 28px;
     height: 28px;
