@@ -69,17 +69,12 @@ function _showInAppGuide() {
 }
 
 // ── 온보딩 정보수집 스텝 ──────────────────────────────────────
-let _obData = { persona: null, guitar_experience: null, gender: null, birth_year: null };
+let _obData = { persona: null, guitar_experience: null, gender: null, birth_year: null, nickname: null };
 
 async function _startOnboardingSteps() {
-  // 이미 온보딩 완료한 사용자는 페르소나 등 스텝을 다시 묻지 않고 home으로
-  if (localStorage.getItem('onboarding_done')) {
-    goToHome();
-    return;
-  }
-
-  // 앱 재설치/세션복원 등으로 localStorage가 비었지만 계정은 완료한 케이스:
-  // Supabase subscriptions에 onboarding_completed_at 있으면 플래그 복원 후 home 이동
+  // 페르소나 온보딩 노출 조건: DB subscriptions.persona 값이 존재하는지 여부.
+  // persona 있으면 완료 처리 → home / 없으면(기존·신규 무관, 계정 재생성 포함) 온보딩 표시.
+  // localStorage 플래그에 의존하지 않음(계정 삭제 후 재로그인 시 stale 플래그로 스킵되던 버그 방지).
   try {
     const stored = localStorage.getItem(SUPABASE_STORAGE_KEY);
     if (stored) {
@@ -88,12 +83,12 @@ async function _startOnboardingSteps() {
       const userId  = session?.user?.id;
       if (token && userId) {
         const resp = await fetch(
-          `${SUPABASE_URL}/rest/v1/subscriptions?user_id=eq.${userId}&select=onboarding_completed_at`,
+          `${SUPABASE_URL}/rest/v1/subscriptions?user_id=eq.${userId}&select=persona`,
           { headers: { 'apikey': SUPABASE_ANON, 'Authorization': `Bearer ${token}` } }
         );
         if (resp.ok) {
           const rows = await resp.json();
-          if (rows.length > 0 && rows[0].onboarding_completed_at) {
+          if (rows.length > 0 && rows[0].persona) {
             localStorage.setItem('onboarding_done', '1');
             goToHome();
             return;
@@ -103,7 +98,7 @@ async function _startOnboardingSteps() {
     }
   } catch (_) {}
 
-  // 미완료 사용자 → 온보딩 스텝 표시
+  // persona 미입력 사용자 → 온보딩 스텝 표시
   document.getElementById('onboarding-overlay')?.classList.add('hidden');
   _showStep('ob-step1');
 }
@@ -172,8 +167,6 @@ function obSelectChoice(el, field) {
     document.getElementById('ob-step2-next').disabled = false;
   } else if (field === 'gender') {
     document.getElementById('ob-step3-next').disabled = false;
-  } else if (field === 'age_group') {
-    document.getElementById('ob-step4-complete').disabled = false;
   }
 }
 
@@ -188,9 +181,36 @@ function obStep3Next() {
   _initYearPicker();
 }
 
-// Step 4: 완료 → Supabase 저장 → home 이동
-async function obStep4Complete() {
-  const btn = document.getElementById('ob-step4-complete');
+// Step 4: 년도 선택 → Step 5 이동
+function obStep4Next() {
+  _showStep('ob-step5', 'ob-step4');
+  // Google 이름 자동 채움
+  try {
+    const session = JSON.parse(localStorage.getItem(SUPABASE_STORAGE_KEY) || '{}');
+    const googleName = session?.user?.user_metadata?.full_name
+                    || session?.user?.user_metadata?.name
+                    || '';
+    const input = document.getElementById('ob-nickname-input');
+    if (input && googleName) {
+      input.value = googleName;
+      _obData.nickname = googleName;
+      document.getElementById('ob-nickname-len').textContent = googleName.length;
+      document.getElementById('ob-step5-complete').disabled = false;
+    }
+  } catch(e) {}
+}
+
+// Step 5: 닉네임 입력 처리
+function obOnNicknameInput(input) {
+  const val = input.value.trim();
+  _obData.nickname = val || null;
+  document.getElementById('ob-nickname-len').textContent = input.value.length;
+  document.getElementById('ob-step5-complete').disabled = val.length === 0;
+}
+
+// Step 5: 완료 → Supabase 저장 → home 이동
+async function obStep5Complete() {
+  const btn = document.getElementById('ob-step5-complete');
   if (btn) { btn.disabled = true; btn.textContent = '저장 중...'; }
   await _saveOnboardingData();
   localStorage.setItem('onboarding_done', '1');
@@ -245,7 +265,7 @@ async function _saveOnboardingData() {
     const token  = session?.access_token;
     const userId = session?.user?.id;
     if (!token || !userId) return;
-    await fetch(`${SUPABASE_URL}/rest/v1/subscriptions`, {
+    const resp = await fetch(`${SUPABASE_URL}/rest/v1/subscriptions`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -259,11 +279,16 @@ async function _saveOnboardingData() {
         guitar_experience:        _obData.guitar_experience,
         gender:                   _obData.gender,
         birth_year:               _obData.birth_year,
+        nickname:                 _obData.nickname,
         consent_agreed_at:        new Date().toISOString(),
         onboarding_completed_at:  new Date().toISOString(),
       }),
     });
-  } catch(e) {}
+    if (!resp.ok) {
+      const errBody = await resp.text();
+      console.error('[Onboarding] subscriptions 저장 실패:', resp.status, errBody);
+    }
+  } catch(e) { console.error('[Onboarding] subscriptions 저장 예외:', e); }
 }
 
 // ── 온보딩 버튼 표시 ─────────────────────────────────────────

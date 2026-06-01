@@ -265,7 +265,7 @@ async function _saveOnboardingData() {
     const token  = session?.access_token;
     const userId = session?.user?.id;
     if (!token || !userId) return;
-    await fetch(`${SUPABASE_URL}/rest/v1/subscriptions`, {
+    const resp = await fetch(`${SUPABASE_URL}/rest/v1/subscriptions`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -284,7 +284,11 @@ async function _saveOnboardingData() {
         onboarding_completed_at:  new Date().toISOString(),
       }),
     });
-  } catch(e) {}
+    if (!resp.ok) {
+      const errBody = await resp.text();
+      console.error('[Onboarding] subscriptions 저장 실패:', resp.status, errBody);
+    }
+  } catch(e) { console.error('[Onboarding] subscriptions 저장 예외:', e); }
 }
 
 // ── 온보딩 버튼 표시 ─────────────────────────────────────────
