@@ -69,7 +69,7 @@ function _showInAppGuide() {
 }
 
 // ── 온보딩 정보수집 스텝 ──────────────────────────────────────
-let _obData = { persona: null, guitar_experience: null, gender: null, birth_year: null };
+let _obData = { persona: null, guitar_experience: null, gender: null, birth_year: null, nickname: null };
 
 async function _startOnboardingSteps() {
   // 페르소나 온보딩 노출 조건: DB subscriptions.persona 값이 존재하는지 여부.
@@ -167,8 +167,6 @@ function obSelectChoice(el, field) {
     document.getElementById('ob-step2-next').disabled = false;
   } else if (field === 'gender') {
     document.getElementById('ob-step3-next').disabled = false;
-  } else if (field === 'age_group') {
-    document.getElementById('ob-step4-complete').disabled = false;
   }
 }
 
@@ -183,9 +181,36 @@ function obStep3Next() {
   _initYearPicker();
 }
 
-// Step 4: 완료 → Supabase 저장 → home 이동
-async function obStep4Complete() {
-  const btn = document.getElementById('ob-step4-complete');
+// Step 4: 년도 선택 → Step 5 이동
+function obStep4Next() {
+  _showStep('ob-step5', 'ob-step4');
+  // Google 이름 자동 채움
+  try {
+    const session = JSON.parse(localStorage.getItem(SUPABASE_STORAGE_KEY) || '{}');
+    const googleName = session?.user?.user_metadata?.full_name
+                    || session?.user?.user_metadata?.name
+                    || '';
+    const input = document.getElementById('ob-nickname-input');
+    if (input && googleName) {
+      input.value = googleName;
+      _obData.nickname = googleName;
+      document.getElementById('ob-nickname-len').textContent = googleName.length;
+      document.getElementById('ob-step5-complete').disabled = false;
+    }
+  } catch(e) {}
+}
+
+// Step 5: 닉네임 입력 처리
+function obOnNicknameInput(input) {
+  const val = input.value.trim();
+  _obData.nickname = val || null;
+  document.getElementById('ob-nickname-len').textContent = input.value.length;
+  document.getElementById('ob-step5-complete').disabled = val.length === 0;
+}
+
+// Step 5: 완료 → Supabase 저장 → home 이동
+async function obStep5Complete() {
+  const btn = document.getElementById('ob-step5-complete');
   if (btn) { btn.disabled = true; btn.textContent = '저장 중...'; }
   await _saveOnboardingData();
   localStorage.setItem('onboarding_done', '1');
@@ -254,6 +279,7 @@ async function _saveOnboardingData() {
         guitar_experience:        _obData.guitar_experience,
         gender:                   _obData.gender,
         birth_year:               _obData.birth_year,
+        nickname:                 _obData.nickname,
         consent_agreed_at:        new Date().toISOString(),
         onboarding_completed_at:  new Date().toISOString(),
       }),
