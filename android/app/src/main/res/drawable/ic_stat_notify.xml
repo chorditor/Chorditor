@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 상태바 알림 아이콘: 프렛보드 그리드 + 운지 점 3개 (모노크롬 흰색) -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="24"
+    android:viewportHeight="24">
+
+    <!-- 그리드 (현 4 + 프렛 5) -->
+    <path
+        android:strokeColor="#FFFFFFFF"
+        android:strokeWidth="1.1"
+        android:strokeLineCap="round"
+        android:pathData="M6,3 L6,21 M10,3 L10,21 M14,3 L14,21 M18,3 L18,21
+                          M6,3 L18,3 M6,7.5 L18,7.5 M6,12 L18,12 M6,16.5 L18,16.5 M6,21 L18,21" />
+
+    <!-- 운지 점 3개 (대각) -->
+    <path android:fillColor="#FFFFFFFF"
+        android:pathData="M13.4,9.75 a1.7,1.7 0 1,0 3.4,0 a1.7,1.7 0 1,0 -3.4,0 Z" />
+    <path android:fillColor="#FFFFFFFF"
+        android:pathData="M10.3,14.25 a1.7,1.7 0 1,0 3.4,0 a1.7,1.7 0 1,0 -3.4,0 Z" />
+    <path android:fillColor="#FFFFFFFF"
+        android:pathData="M7.2,18.75 a1.7,1.7 0 1,0 3.4,0 a1.7,1.7 0 1,0 -3.4,0 Z" />
+</vector>

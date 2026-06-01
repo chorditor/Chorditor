@@ -151,8 +151,28 @@ function obOnConsentCheck() {}
 function obConsentAgree() {
   const checkbox = document.getElementById('ob-consent-checkbox');
   if (checkbox) checkbox.checked = true;
+  // 푸시 알림 동의 시 권한 요청 (체크된 경우만)
+  const pushCheck = document.getElementById('ob-push-checkbox');
+  if (pushCheck && pushCheck.checked) _requestPushPermission();
   document.getElementById('ob-consent-backdrop')?.classList.add('hidden');
   _showStep('ob-step2', 'ob-step1');
+}
+
+// 로컬 알림 권한 요청 + 고중요도 채널 생성 (홈 자동예약이 권한 granted 시 동작)
+async function _requestPushPermission() {
+  try {
+    const LN = window.Capacitor?.Plugins?.LocalNotifications;
+    if (!LN) return;
+    let perm = await LN.checkPermissions();
+    if (perm.display !== 'granted') perm = await LN.requestPermissions();
+    if (perm.display === 'granted' && LN.createChannel) {
+      await LN.createChannel({
+        id: 'chorditor_push', name: 'Chorditor 알림',
+        description: '연습 리마인드·코드 진행·퀴즈 알림',
+        importance: 5, visibility: 1, vibration: true
+      });
+    }
+  } catch (_) {}
 }
 
 // Step 2: 기타 경력 / Step 3: 성별·나이 공통 선택 처리
@@ -312,7 +332,9 @@ async function _saveOnboardingData() {
       const errBody = await resp.text();
       console.error('[Onboarding] subscriptions 저장 실패:', resp.status, errBody);
     }
-  } catch(e) { console.error('[Onboarding] subscriptions 저장 예외:', e); }
+  } catch(e) {
+    console.error('[Onboarding] subscriptions 저장 예외:', e);
+  }
 }
 
 // ── 인증된 유저 라우팅 (persona 유무 분기) ───────────────────
