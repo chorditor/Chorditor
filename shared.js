@@ -167,7 +167,7 @@ async function syncStatsToDB() {
     const userId = session?.user?.id;
     if (!token || !userId) return;
     const s = getStats();
-    await fetch(`${SUPABASE_URL}/rest/v1/subscriptions`, {
+    await fetch(`${SUPABASE_URL}/rest/v1/subscriptions?on_conflict=user_id`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',

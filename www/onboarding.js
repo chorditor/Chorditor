@@ -289,7 +289,7 @@ async function _saveOnboardingData() {
     const token  = session?.access_token;
     const userId = session?.user?.id;
     if (!token || !userId) return;
-    const resp = await fetch(`${SUPABASE_URL}/rest/v1/subscriptions`, {
+    const resp = await fetch(`${SUPABASE_URL}/rest/v1/subscriptions?on_conflict=user_id`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
