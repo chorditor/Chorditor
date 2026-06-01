@@ -70,6 +70,11 @@ function _showInAppGuide() {
 
 // ── 온보딩 정보수집 스텝 ──────────────────────────────────────
 let _obData = { persona: null, guitar_experience: null, gender: null, birth_year: null, nickname: null };
+// 온보딩 진입 경로: 'signup'(신규 가입) | 'existing'(기존 유저·persona 미입력)
+// signup  → 마지막 닉네임 step 완료 후 바로 home
+// existing → 마지막 닉네임 step 완료 후 '시작하기' 화면 거쳐 home
+let _obFlow   = 'signup';
+let _obRouted = false; // 인증 유저 라우팅 1회 가드
 
 async function _startOnboardingSteps() {
   // 페르소나 온보딩 노출 조건: DB subscriptions.persona 값이 존재하는지 여부.
@@ -208,13 +213,32 @@ function obOnNicknameInput(input) {
   document.getElementById('ob-step5-complete').disabled = val.length === 0;
 }
 
-// Step 5: 완료 → Supabase 저장 → home 이동
+// Step 5: 완료 → Supabase 저장 → (신규)home / (기존)시작하기 화면
 async function obStep5Complete() {
   const btn = document.getElementById('ob-step5-complete');
   if (btn) { btn.disabled = true; btn.textContent = '저장 중...'; }
   await _saveOnboardingData();
   localStorage.setItem('onboarding_done', '1');
-  goToHome();
+  if (_obFlow === 'existing') {
+    // 기존 유저(persona 미입력) → '시작하기' 화면 거쳐 home
+    _showStartScreen();
+  } else {
+    // 신규 가입 → 바로 home
+    goToHome();
+  }
+}
+
+// 닉네임 완료 후 '시작하기' 화면 (기존 유저 경로)
+function _showStartScreen() {
+  document.querySelectorAll('.ob-overlay--step').forEach(el => el.classList.add('hidden'));
+  document.getElementById('ob-consent-backdrop')?.classList.add('hidden');
+  document.getElementById('onboarding-loading')?.classList.add('hidden');
+  document.getElementById('onboarding-signin-loading')?.classList.add('hidden');
+  document.getElementById('onboarding-google-btn')?.classList.add('hidden');
+  document.getElementById('onboarding-switch-btn')?.classList.add('hidden');
+  document.getElementById('onboarding-overlay')?.classList.remove('hidden');
+  const startBtn = document.getElementById('onboarding-start-btn');
+  if (startBtn) { startBtn.classList.remove('hidden'); startBtn.textContent = '시작하기'; }
 }
 
 // ── 년도 휠피커 ─────────────────────────────────────────────
@@ -291,6 +315,37 @@ async function _saveOnboardingData() {
   } catch(e) { console.error('[Onboarding] subscriptions 저장 예외:', e); }
 }
 
+// ── 인증된 유저 라우팅 (persona 유무 분기) ───────────────────
+//  persona 있음 → '시작하기' welcome 표시 (클릭 시 home)
+//  persona 없음 → 바로 persona step 진입 (_obFlow='existing')
+async function _routeAuthedUser() {
+  try {
+    const stored = localStorage.getItem(SUPABASE_STORAGE_KEY);
+    const session = JSON.parse(stored || '{}');
+    const token   = session?.access_token;
+    const userId  = session?.user?.id;
+    if (token && userId) {
+      const resp = await fetch(
+        `${SUPABASE_URL}/rest/v1/subscriptions?user_id=eq.${userId}&select=persona`,
+        { headers: { 'apikey': SUPABASE_ANON, 'Authorization': `Bearer ${token}` } }
+      );
+      if (resp.ok) {
+        const rows = await resp.json();
+        if (!(rows.length > 0 && rows[0].persona)) {
+          // 기존 유저 · persona 미입력 → 바로 persona step
+          _obFlow = 'existing';
+          document.getElementById('onboarding-loading')?.classList.add('hidden');
+          document.getElementById('onboarding-overlay')?.classList.add('hidden');
+          _showStep('ob-step1');
+          return;
+        }
+      }
+    }
+  } catch (e) {}
+  // persona 있음(또는 확인 실패) → 시작하기 welcome 표시
+  _showOnboardingButtons();
+}
+
 // ── 온보딩 버튼 표시 ─────────────────────────────────────────
 function _showOnboardingButtons() {
   document.getElementById('onboarding-loading')?.classList.add('hidden');
@@ -310,7 +365,10 @@ function renderAuthUI(user) {
   // 온보딩에서는 버튼 표시만 갱신
   if (user) {
     _authReady = true;
-    _showOnboardingButtons();
+    if (!_obRouted) {
+      _obRouted = true;
+      _routeAuthedUser();
+    }
   }
 }
 
@@ -372,6 +430,8 @@ async function onboardingSignIn() {
     if (session.user) {
       if (window._RC) await window._RC.logIn({ appUserID: session.user.id }).catch(() => {});
       await fetchPlanWithToken(session.access_token);
+      _obFlow   = 'signup'; // 신규 가입 → 닉네임 완료 후 바로 home
+      _obRouted = true;     // 이중 라우팅 방지
       _startOnboardingSteps();
     }
   } catch(e) {
@@ -406,7 +466,8 @@ async function checkForceUpdate() {
 async function tryAutoSignIn() {
   if (!window.Capacitor?.isNativePlatform()) {
     _authResolve();
-    _showOnboardingButtons();
+    // 웹: 세션 복원 시 renderAuthUI(onAuthStateChange)가 라우팅. 미인증이면 로그인 버튼.
+    if (!_obRouted) _showOnboardingButtons();
     return;
   }
 
@@ -440,7 +501,8 @@ async function tryAutoSignIn() {
           project_count: loadProjects().length,
         });
         _authResolve();
-        _showOnboardingButtons();
+        _obRouted = true;
+        _routeAuthedUser();
         _billingReady.then(async () => {
           if (window._RC) await window._RC.logIn({ appUserID: session.user.id }).catch(() => {});
           await syncPlanFromBilling();
