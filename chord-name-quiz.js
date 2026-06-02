@@ -97,10 +97,10 @@ const LEVEL_CONFIGS = [
   { id: '4',  poolReady: true,  premium: false, name: '필수 분수코드', info: '노래에서 자주 쓰이는 분수코드',     timePerQ: '5초', timeSec: 5, count: 10, locked: false },
   { id: '5',  poolReady: true,  premium: false, name: '필수 7th코드',  info: 'M7 / m7 / 7 코드 정복하기',       timePerQ: '5초', timeSec: 5, count: 10, locked: false },
   { id: 'c1', poolReady: true,  premium: true,  type: 'challenge', name: '기본코드 챌린지', info: 'LEVEL1~5까지의 모든 코드가 등장합니다!', timePerQ: '5초', timeSec: 5, count: 10, locked: false },
-  { id: '6',  poolReady: false, premium: true,  name: '프렛의 확장',         info: '다양한 프렛에서의 코드를 익혀보세요.',     timePerQ: '—', timeSec: null, count: null, locked: true },
-  { id: '7',  poolReady: false, premium: true,  name: '기능성 & 오픈코드',   info: '개방현을 활용하는 불규칙적인 코드',       timePerQ: '—', timeSec: null, count: null, locked: true },
-  { id: '8',  poolReady: false, premium: true,  name: '7th 코드 정복하기',   info: '모든 7음 코드를 정복해보세요.',           timePerQ: '—', timeSec: null, count: null, locked: true },
-  { id: 'c2', poolReady: false, premium: true,  type: 'challenge', name: '심화코드 챌린지',      info: '대부분의 코드가 수록되어 있습니다.',                              timePerQ: '—', timeSec: null, count: null, locked: true },
+  { id: '6',  poolReady: true,  premium: true,  name: '프렛의 확장',         info: '다양한 프렛에서의 코드를 익혀보세요.',     timePerQ: '5초', timeSec: 5, count: 10, locked: false },
+  { id: '7',  poolReady: true,  premium: true,  name: '기능성 & 오픈코드',   info: '개방현을 활용하는 불규칙적인 코드',       timePerQ: '5초', timeSec: 5, count: 10, locked: false },
+  { id: '8',  poolReady: true,  premium: true,  name: '7th 코드 정복하기',   info: '모든 7음 코드를 정복해보세요.',           timePerQ: '7초', timeSec: 7, count: 15, locked: false },
+  { id: 'c2', poolReady: true,  premium: true,  type: 'challenge', name: '심화코드 챌린지',      info: '대부분의 코드가 수록되어 있습니다.',                              timePerQ: '7초', timeSec: 7, count: 15, locked: false },
   { id: '9',  poolReady: false, premium: true,  name: '쉘 보이싱 & 드롭 보이싱', info: '다양한 보이싱을 익혀보세요.',          timePerQ: '—', timeSec: null, count: null, locked: true },
   { id: '10', poolReady: false, premium: true,  name: '텐션코드',             info: '텐션의 세계로 여러분을 초대합니다.',     timePerQ: '—', timeSec: null, count: null, locked: true },
   { id: '11', poolReady: false, premium: true,  name: '하이브리드 코드',      info: '코드 표기의 오묘한 세계',               timePerQ: '—', timeSec: null, count: null, locked: true },
@@ -195,7 +195,8 @@ function _lwBuildDetailShell() {
     e.stopPropagation();
     const cfg = LEVEL_CONFIGS[_lwRealIdx];
     // 프리미엄 체크 먼저 — locked여도 플랜 시트 노출
-    if (cfg.premium && getPlan() === 'free') {
+    // [임시] 프리미엄 게이트 비활성화 — 복구 시 아래 false 제거
+    if (false && cfg.premium && getPlan() === 'free') {
       analytics.track('paywall_viewed', { trigger_source: 'quiz_level', current_plan: 'free' });
       openPlanSheet('quiz_level');
       return;
@@ -419,10 +420,11 @@ function openPreviewModal(levelId) {
   _previewAccMode = 'sharp'; // 열 때마다 # 모드로 초기화
 
   const isChallenge = cfg.type === 'challenge';
+  const showAccBar  = isChallenge || levelId === '7' || _isNoSlashEnharm(levelId);
 
   // 토글 바 표시 제어
   const bar = document.getElementById('preview-accidental-bar');
-  if (bar) bar.style.display = isChallenge ? '' : 'none';
+  if (bar) bar.style.display = showAccBar ? '' : 'none';
   document.getElementById('preview-acc-sharp')?.classList.add('preview-acc-btn--active');
   document.getElementById('preview-acc-flat')?.classList.remove('preview-acc-btn--active');
 
@@ -439,19 +441,25 @@ function openPreviewModal(levelId) {
 
 function _renderPreviewGrid() {
   if (!_previewPool) return;
-  const isChallenge = _previewLevelId === 'c1';
+  // 보이싱 다수 렌더 중 끊김 가림 — 드로잉 완료 rAF에서 해제
+  document.getElementById('preview-loading')?.classList.add('preview-loading--show');
+  // 챌린지: #/b 변환 + 반대표기 숨김 / 레벨6: 비-슬래시 전체 플랫 변환 / 레벨7: 루트 12음 토글+슬래시 베이스 고정
+  const isChallenge = _previewLevelId === 'c1' || _previewLevelId === 'c2';
+  const isLevel6    = _isNoSlashEnharm(_previewLevelId); // 레벨6·8: 비-슬래시 토글
+  const isLevel7    = _previewLevelId === '7';
   const grid = document.getElementById('preview-modal-grid');
   grid.innerHTML = '';
 
-  // 표시 이름 적용 (챌린지만 #/b 변환)
+  // 표시 이름 적용
   let displayItems = _previewPool.map(item => ({
     entry:       item.entry,
-    displayName: isChallenge
-      ? _getPreviewDisplayName(item.name, _previewAccMode)
-      : item.name,
+    displayName: isChallenge ? _getPreviewDisplayName(item.name, _previewAccMode)
+               : isLevel6    ? enharmDisplayNoSlash(item.name, _previewAccMode)
+               : isLevel7    ? level7DisplayName(item.name, _previewAccMode)
+               : item.name,
   }));
 
-  // 챌린지 모드: 현재 모드와 반대 임시표를 가진 코드 숨김
+  // 챌린지 전용: 현재 모드와 반대 임시표를 가진 코드 숨김
   // → # 모드에서 b 포함 코드 숨김 / b 모드에서 # 포함 코드 숨김
   if (isChallenge) {
     displayItems = displayItems.filter(({ displayName }) => {
@@ -464,7 +472,9 @@ function _renderPreviewGrid() {
 
   // 크로매틱 피치 기준 정렬
   displayItems.sort((a, b) => {
-    const pd = _getRootPitch(a.displayName) - _getRootPitch(b.displayName);
+    const pd = isLevel6
+      ? enharmRootSortNoSlash(a.displayName) - enharmRootSortNoSlash(b.displayName)
+      : _getRootPitch(a.displayName) - _getRootPitch(b.displayName);
     if (pd !== 0) return pd;
     const qd = _getQualitySortKey(a.displayName) - _getQualitySortKey(b.displayName);
     if (qd !== 0) return qd;
@@ -506,6 +516,8 @@ function _renderPreviewGrid() {
       canvas.height = Math.round(h * dpr);
       drawLibEntryWithName(canvas, entry, name);
     });
+    // 드로잉 완료 → 로딩 오버레이 해제
+    document.getElementById('preview-loading')?.classList.remove('preview-loading--show');
   }));
 }
 
@@ -614,16 +626,25 @@ const LEVEL5_NAMES = [...new Set(LEVEL5_CHORD_SPECS.map(s => s[0]))];
 
 const QUIZ_COUNT = 5;
 
+// 정답 메시지 속도 구간 — timeSec≥7(레벨8+) 은 넓은 범위, 그 외(5초) 기존
+function _feedbackThresholds() {
+  const cfg = LEVEL_CONFIGS.find(c => c.id === _currentLevel);
+  return (cfg?.timeSec ?? 5) >= 7
+    ? [0.9, 1.7, 2.5, 5]    // 7초 레벨: ~0.9 / ~1.7 / ~2.5 / ~5 / 5~
+    : [0.9, 1.2, 2.0, 3.5]; // 5초 레벨: ~0.9 / ~1.2 / ~2.0 / ~3.5 / 3.5~
+}
+
 function pickFeedbackMsg(isCorrect, speedSec, isTimeout = false) {
   const pick = arr => arr[Math.floor(Math.random() * arr.length)];
   if (isTimeout)   return pick(FEEDBACK_MESSAGES.timeout);
   if (!isCorrect)  return pick(FEEDBACK_MESSAGES.wrong);
   const c = FEEDBACK_MESSAGES.correct;
-  if (speedSec < 0.9)  return pick(c.s0_9);      // 0 ~ 0.9s
-  if (speedSec < 1.2)  return pick(c.s0_9_1_2);  // 0.9 ~ 1.2s
-  if (speedSec < 2.0)  return pick(c.s1_2);       // 1.2 ~ 2.0s
-  if (speedSec < 3.5)  return pick(c.s2);         // 2.0 ~ 3.5s
-  return pick(c.s3_5);                             // 3.5s ~
+  const [t1, t2, t3, t4] = _feedbackThresholds();
+  if (speedSec < t1)  return pick(c.s0_9);
+  if (speedSec < t2)  return pick(c.s0_9_1_2);
+  if (speedSec < t3)  return pick(c.s1_2);
+  if (speedSec < t4)  return pick(c.s2);
+  return pick(c.s3_5);
 }
 
 function showFeedbackMsg(msg) {
@@ -946,6 +967,281 @@ function buildLevel5Pool() {
   return pool;
 }
 
+// ══════════════════════════════════════════════════════════════
+// 레벨6 — 프렛의 확장 (패턴 보이싱 직접 생성)
+// 6·5번줄 근음: r=0~12 / 4번줄 근음: r=0~9
+// 풀 이름은 샵 정규형(A# C# D# F# G#). 예습 flat 모드에서 전체 플랫 변환.
+// 분수코드 없음 → 12음 모두 샵/플랫 자유 토글 (챌린지와 별개 경로).
+// ══════════════════════════════════════════════════════════════
+const _L6_CANON      = ['A','A#','B','C','C#','D','D#','E','F','F#','G','G#']; // pitch(A=0) → 샵 표기
+const _L6_OPEN_PITCH = { 0: 7, 1: 0, 2: 5 };  // formIdx 0=6번줄(E) 1=5번줄(A) 2=4번줄(D)
+const _L6_FORM_IDX   = { 6: 0, 5: 1, 4: 2 };
+const _L6_ROOT_SLOT  = { 6: 5, 5: 4, 4: 3 };  // 라이브러리 슬롯(0=1번줄): 근음줄 위치 = 바레 max
+
+// 근음 음이름(샵 정규형) — formIdx 개방현 피치 + r 프렛
+function chordNoteName(formIdx, r, _flat) {
+  return _L6_CANON[(_L6_OPEN_PITCH[formIdx] + r) % 12];
+}
+
+// ──────────────────────────────────────────────────────────────
+// 샵/플랫 표기 변환 — [분수코드 없는 전용] 범용 헬퍼 (재사용)
+//   풀 이름은 샵 정규형. flat 모드에서 12음 전부 단순 치환.
+//   ⚠️ 분수코드(슬래시) 포함 레벨은 _getPreviewDisplayName(분수코드 전용) 사용.
+//   신규 비-슬래시 레벨: 호출처 isLevel6 자리에 레벨ID OR 추가하면 끝.
+// ──────────────────────────────────────────────────────────────
+const _ENHARM_SHARP_TO_FLAT = { 'A#':'Bb', 'C#':'Db', 'D#':'Eb', 'F#':'Gb', 'G#':'Ab' };
+
+// 코드명 루트를 모드에 맞게 변환 (sharp=그대로 / flat=플랫 치환)
+function enharmDisplayNoSlash(name, mode) {
+  if (mode === 'sharp') return name;
+  const m = name.match(/^([A-G][#b]?)(.*)$/);
+  if (!m) return name;
+  return (_ENHARM_SHARP_TO_FLAT[m[1]] || m[1]) + m[2];
+}
+
+// 예습 정렬 키 — 글자순(A~G), # 모드: 자연음→샵 / b 모드: 플랫→자연음
+//   # 모드 → A A# B C C# D ...   /   b 모드 → Ab A Bb B C Db D ...
+function enharmRootSortNoSlash(displayName) {
+  const m = displayName.match(/^([A-G])([#b]?)/);
+  if (!m) return 99;
+  const letter = m[1].charCodeAt(0) - 65; // A=0 .. G=6
+  const acc    = m[2];
+  const rank = _previewAccMode === 'flat'
+    ? (acc === 'b' ? 0 : 1)
+    : (acc === '#' ? 1 : 0);
+  return letter * 2 + rank;
+}
+
+// 패턴 보이싱 (토큰·핑거는 6번줄→1번줄 순서)
+const LEVEL6_PATTERNS = [
+  // Major
+  { rootStr: 6, tokens: 'r r+2 r+2 r+1 r r',   fingers: '1 3 4 2 1 1', barre: true, suffix: '' },
+  { rootStr: 5, tokens: 'x r r+2 r+2 r+2 r',   fingers: 'x 1 2 3 4 1', barre: true, suffix: '' },
+  { rootStr: 4, tokens: 'x x r r+2 r+3 r+2',   fingers: 'x x 1 2 4 3', barre: true, suffix: '' },
+  // minor
+  { rootStr: 6, tokens: 'r r+2 r+2 r r r',     fingers: '1 3 4 1 1 1', barre: true, suffix: 'm' },
+  { rootStr: 5, tokens: 'x r r+2 r+2 r+1 r',   fingers: 'x 1 2 4 3 1', barre: true, suffix: 'm' },
+  { rootStr: 4, tokens: 'x x r r+2 r+3 r+1',   fingers: 'x x 1 3 4 2', barre: true, suffix: 'm' },
+  // sus4
+  { rootStr: 6, tokens: 'r r+2 r+2 r+2 r r',   fingers: '1 2 3 4 1 1', barre: true, suffix: 'sus4' },
+  { rootStr: 5, tokens: 'x r r+2 r+2 r+3 r',   fingers: 'x 1 2 3 4 1', barre: true, suffix: 'sus4' },
+  { rootStr: 4, tokens: 'x x r r+2 r+3 r+3',   fingers: 'x x 1 2 3 4', barre: true, suffix: 'sus4' },
+  // sus2
+  { rootStr: 5, tokens: 'x r r+2 r+2 r r',     fingers: 'x 1 3 4 1 1', barre: true, suffix: 'sus2' },
+  { rootStr: 4, tokens: 'x x r r+2 r+3 r',     fingers: 'x x 1 3 4 1', barre: true, suffix: 'sus2' },
+  // dom.7
+  { rootStr: 6, tokens: 'r r+2 r r+1 r r',     fingers: '1 3 1 2 1 1', barre: true, suffix: '7' },
+  { rootStr: 5, tokens: 'x r r+2 r r+2 r',     fingers: 'x 1 3 1 4 1', barre: true, suffix: '7' },
+  { rootStr: 4, tokens: 'x x r r+2 r+1 r+2',   fingers: 'x x 1 3 2 4', barre: true, suffix: '7' },
+];
+
+function _l6Token(tok, r) {
+  if (tok === 'x') return null;
+  if (tok === 'r') return r;
+  const m = tok.match(/^r\+(\d+)$/);
+  return r + (m ? +m[1] : 0);
+}
+
+// rMaxByRoot: rootStr별 r 최대값 (생략 시 6·5→12, 4→9)
+function buildLevel6Pool(rMaxByRoot) {
+  const pool = [];
+  for (const p of LEVEL6_PATTERNS) {
+    const toks     = p.tokens.trim().split(/\s+/);   // 6→1
+    const fings    = p.fingers.trim().split(/\s+/);  // 6→1
+    const formIdx  = _L6_FORM_IDX[p.rootStr];
+    const rootSlot = _L6_ROOT_SLOT[p.rootStr];
+    const rMax     = rMaxByRoot ? rMaxByRoot[p.rootStr] : (p.rootStr === 4 ? 9 : 12);
+    for (let r = 0; r <= rMax; r++) {
+      const frets     = toks.map(t => _l6Token(t, r)).reverse();          // 라이브러리 순서(1→6)
+      const fingering = fings.map(f => f === 'x' ? null : +f).reverse();
+      const entry = {
+        frets,
+        fretNumber:  r,
+        source:      'pattern',
+        barres:      [ p.barre ? { [r]: true } : {} ],
+        barreRanges: [ p.barre ? { min: 0, max: rootSlot } : null ],
+        fingering,
+      };
+      pool.push({ name: chordNoteName(formIdx, r) + p.suffix, entry });
+    }
+  }
+  console.log(`[Quiz] L6 풀 크기: ${pool.length}개`);
+  return pool;
+}
+
+// ══════════════════════════════════════════════════════════════
+// 레벨7 — 기능성 & 오픈코드 (chordsLibrary STATIC 정적 보이싱 선별)
+// sus2/sus4/add9 꾸밈 코드 + 개방현 오픈 보이싱 + 슬래시/텐션.
+// 라이브러리(STATIC)에 작성된 항목을 frets(6→1) 일치로 선별. 이름은 entry.name 그대로.
+// 예습 토글 = 분수코드 전용(챌린지) 경로 재사용.
+// ══════════════════════════════════════════════════════════════
+const LEVEL7_FRETS = [
+  'x 3 2 0 1 3', 'x 3 1 0 1 x', 'x 3 3 0 1 1', 'x 3 x 0 3 3',
+  'x 3 2 0 3 0', 'x 3 2 0 3 3', 'x 0 2 2 3 0', 'x 0 2 2 0 0',
+  'x 0 2 4 2 0', 'x 4 2 2 0 0', 'x 4 x 2 0 0', '3 x 0 0 3 3',
+  '3 2 0 0 1 3', '3 x 0 2 0 3', '3 x 0 2 3 3', 'x 2 0 0 3 3',
+  'x 2 0 2 3 3', '0 2 4 1 0 0', 'x x 0 2 3 0', 'x x 0 2 3 3',
+  '2 x 0 2 3 0', 'x 1 x 0 3 0', '0 7 9 9 0 0', 'x 7 9 9 0 0',
+  '0 7 9 8 0 0', '0 7 9 7 0 0', '0 7 6 7 0 0', 'x 0 9 9 0 0',
+  'x 0 9 8 0 0', 'x 0 6 6 0 0', '5 7 7 6 0 0', 'x 5 4 0 3 0',
+  'x 5 7 7 0 0', 'x 3 5 5 0 0', '8 x 9 9 0 0', 'x 4 6 6 0 0',
+  '9 x 9 9 0 0', 'x 2 4 4 0 0', '7 x 7 7 0 0', '6 x 6 6 5 0',
+  '2 x 2 2 0 0', '4 x 4 4 0 0', 'x 2 x 2 3 0',
+];
+
+function _l7Frets(str) {
+  return str.trim().split(/\s+/).map(t => t === 'x' ? null : +t).reverse(); // 6→1 → 라이브러리(1→6)
+}
+
+// 레벨7 전용 표시명 — 루트 음이름은 12음 전부 토글(Bb↔A#, F#↔Gb 포함),
+// 슬래시 베이스음은 화성학상 고정(변환 안 함). 숨김필터 없음(모든 코드 양쪽 모드 등장).
+const _L7_TO_SHARP = { 'Bb':'A#', 'Db':'C#', 'Eb':'D#', 'Gb':'F#', 'Ab':'G#' };
+const _L7_TO_FLAT  = { 'A#':'Bb', 'C#':'Db', 'D#':'Eb', 'F#':'Gb', 'G#':'Ab' };
+function level7DisplayName(name, mode) {
+  const map  = mode === 'sharp' ? _L7_TO_SHARP : _L7_TO_FLAT;
+  const conv = n => map[n] || n;
+  const si = name.indexOf('/');
+  if (si > 0) {
+    const main = name.slice(0, si);
+    const bass = name.slice(si + 1);          // 베이스음 고정
+    const m = main.match(/^([A-G][#b]?)(.*)$/);
+    return (m ? conv(m[1]) + m[2] : main) + '/' + bass;
+  }
+  const m = name.match(/^([A-G][#b]?)(.*)$/);
+  return m ? conv(m[1]) + m[2] : name;
+}
+
+function buildLevel7Pool() {
+  const pool = [];
+  const lib  = window.chordsLibrary;
+  if (!lib) { console.warn('[Quiz] chordsLibrary 없음'); return pool; }
+
+  const all = [];
+  for (const k in lib) for (const e of lib[k]) all.push(e);
+
+  const seen = new Set();
+  for (const fs of LEVEL7_FRETS) {
+    const target  = _l7Frets(fs);
+    const matches = all.filter(e =>
+      e.source === 'static' &&
+      Array.isArray(e.frets) && e.frets.length === target.length &&
+      e.frets.every((f, i) => f === target[i])
+    );
+    if (!matches.length) { console.warn(`[Quiz] L7 보이싱 미발견: ${fs}`); continue; }
+    for (const e of matches) {
+      const key = e.name + '§' + fs;
+      if (seen.has(key)) continue;
+      seen.add(key);
+      pool.push({ name: e.name, entry: e });
+    }
+  }
+  console.log(`[Quiz] L7 풀 크기: ${pool.length}개`);
+  return pool;
+}
+
+// ══════════════════════════════════════════════════════════════
+// 레벨8 — 7th 코드 정복 (패턴 보이싱 직접 생성)
+// 7th 종류 × 6·5·4번줄 각 1보이싱, r=0~12. (aug7 미구현)
+// chords-library PATTERN 생성 로직(바레 Rule1/2/4, fretNumber=r) 포팅.
+// 루트 음이름은 r+rootOffset(쉘 보이싱 대응). 표시는 비-슬래시 토글(레벨6식).
+// ══════════════════════════════════════════════════════════════
+// { rootStr, tokens(6→1), fingers(6→1), barre, rootOffset, suffix }
+const LEVEL8_PATTERNS = [
+  // M7
+  { rootStr: 6, tokens: 'r r+2 r+1 r+1 r r',   fingers: '1 4 2 3 1 1', barre: true,  rootOffset: 0, suffix: 'M7' },
+  { rootStr: 5, tokens: 'x r r+2 r+1 r+2 r',   fingers: 'x 1 3 2 4 1', barre: true,  rootOffset: 0, suffix: 'M7' },
+  { rootStr: 4, tokens: 'x x r r+2 r+2 r+2',   fingers: 'x x 1 2 3 4', barre: true,  rootOffset: 0, suffix: 'M7' },
+  // 7
+  { rootStr: 6, tokens: 'r r+2 r r+1 r r',     fingers: '1 3 1 2 1 1', barre: true,  rootOffset: 0, suffix: '7' },
+  { rootStr: 5, tokens: 'x r r+2 r r+2 r',     fingers: 'x 1 3 1 4 1', barre: true,  rootOffset: 0, suffix: '7' },
+  { rootStr: 4, tokens: 'x x r r+2 r+1 r+2',   fingers: 'x x 1 3 2 4', barre: true,  rootOffset: 0, suffix: '7' },
+  { rootStr: 5, tokens: 'x r+2 r+1 r+2 r x',   fingers: 'x 3 2 4 1 x', barre: true,  rootOffset: 2, suffix: '7' },
+  // 7sus4
+  { rootStr: 6, tokens: 'r r+2 r r+2 r r',     fingers: '1 3 1 4 1 1', barre: true,  rootOffset: 0, suffix: '7sus4' },
+  { rootStr: 5, tokens: 'x r r+2 r r+3 r',     fingers: 'x 1 3 1 4 1', barre: true,  rootOffset: 0, suffix: '7sus4' },
+  { rootStr: 4, tokens: 'x x r r+2 r+1 r+3',   fingers: 'x x 1 3 2 4', barre: true,  rootOffset: 0, suffix: '7sus4' },
+  // mM7
+  { rootStr: 6, tokens: 'r r+2 r+1 r r r',     fingers: '1 3 2 1 1 1', barre: true,  rootOffset: 0, suffix: 'mM7' },
+  { rootStr: 5, tokens: 'x r r+2 r+1 r+1 r',   fingers: 'x 1 4 2 3 1', barre: true,  rootOffset: 0, suffix: 'mM7' },
+  { rootStr: 4, tokens: 'x x r r+2 r+2 r+1',   fingers: 'x x 1 3 4 2', barre: false, rootOffset: 0, suffix: 'mM7' },
+  // m7
+  { rootStr: 6, tokens: 'r r+2 r r r r',       fingers: '1 3 1 1 1 1', barre: true,  rootOffset: 0, suffix: 'm7' },
+  { rootStr: 5, tokens: 'x r r+2 r r+1 r',     fingers: 'x 1 3 1 2 1', barre: true,  rootOffset: 0, suffix: 'm7' },
+  { rootStr: 4, tokens: 'x x r r+2 r+1 r+1',   fingers: 'x x 1 4 2 3', barre: true,  rootOffset: 0, suffix: 'm7' },
+  { rootStr: 6, tokens: 'r+1 x r+1 r+1 r+1 x', fingers: '1 x 2 3 4 x', barre: false, rootOffset: 1, suffix: 'm7' },
+  // m6
+  { rootStr: 6, tokens: 'r+1 x r r+1 r+1 x',   fingers: '2 x 1 3 4 x', barre: false, rootOffset: 1, suffix: 'm6' },
+  { rootStr: 5, tokens: 'x r+1 x r r+2 r+1',   fingers: 'x 2 x 1 4 3', barre: false, rootOffset: 1, suffix: 'm6' },
+  { rootStr: 4, tokens: 'x x r r+2 r r+1',     fingers: 'x x 1 3 1 2', barre: true,  rootOffset: 0, suffix: 'm6' },
+  // m7(b5)
+  { rootStr: 6, tokens: 'r+1 x r+1 r+1 r x',   fingers: '2 x 3 4 1 x', barre: true,  rootOffset: 1, suffix: 'm7(b5)' },
+  { rootStr: 5, tokens: 'x r+1 r+2 r+1 r+2 x', fingers: 'x 1 3 2 4 x', barre: true,  rootOffset: 1, suffix: 'm7(b5)' },
+  { rootStr: 5, tokens: 'x r+1 x r+1 r+2 r',   fingers: 'x 2 x 3 4 1', barre: true,  rootOffset: 1, suffix: 'm7(b5)' },
+  { rootStr: 4, tokens: 'x x r+1 r+2 r+2 r+2', fingers: 'x x 1 2 3 4', barre: true,  rootOffset: 1, suffix: 'm7(b5)' },
+  // dim7
+  { rootStr: 6, tokens: 'r+2 x r+1 r+2 r+1 x', fingers: '2 x 1 3 1 x', barre: true,  rootOffset: 2, suffix: 'dim7' },
+  { rootStr: 5, tokens: 'x r+1 r+2 r r+2 x',   fingers: 'x 2 3 1 4 x', barre: true,  rootOffset: 1, suffix: 'dim7' },
+  { rootStr: 4, tokens: 'x x r+1 r+2 r+1 r+2', fingers: 'x x 1 3 2 4', barre: true,  rootOffset: 1, suffix: 'dim7' },
+  // 6
+  { rootStr: 6, tokens: 'r+1 x r r+2 r+1 x',   fingers: '2 x 1 4 3 x', barre: false, rootOffset: 1, suffix: '6' },
+  { rootStr: 5, tokens: 'x r+2 r+1 r+1 r x',   fingers: 'x 4 2 3 1 x', barre: false, rootOffset: 2, suffix: '6' },
+  { rootStr: 5, tokens: 'x r x r+2 r+2 r+2',   fingers: 'x 1 x 2 3 4', barre: false, rootOffset: 0, suffix: '6' },
+  { rootStr: 4, tokens: 'x x r r+2 r r+2',     fingers: 'x x 1 3 1 4', barre: true,  rootOffset: 0, suffix: '6' },
+];
+
+// 바레 Rule 4 — 바레 프렛보다 낮은 실제 프렛이 있는 현은 범위 끝에서 제외
+function _l8BarreRule4(range, frets, bf) {
+  if (!range) return null;
+  let { min, max } = range;
+  while (min <= max && frets[min] !== null && frets[min] < bf) min++;
+  while (max >= min && frets[max] !== null && frets[max] < bf) max--;
+  return min <= max ? { min, max } : null;
+}
+
+// chords-library PATTERN 바레 탐지 로직 포팅 (frets·fingers 라이브러리 순서 1→6)
+function _l8Barre(frets, fingers, r, hasBarre) {
+  if (!hasBarre) return { barre: {}, range: null };
+  const oneIdxs = fingers.reduce((a, f, i) => { if (f === 1) a.push(i); return a; }, []);
+  const barreFret = oneIdxs.length >= 2 ? (frets[oneIdxs[0]] ?? r) : r;
+  let range = null;
+  if (oneIdxs.length >= 2) {
+    let blockEnd = -1;
+    for (let i = 0; i < frets.length; i++) { if (frets[i] === null) break; blockEnd = i; }
+    const oneInBlock = oneIdxs.filter(i => i <= blockEnd);
+    range = (blockEnd >= 0 && oneInBlock.length >= 2)
+      ? { min: 0, max: Math.max(...oneIdxs) }
+      : { min: Math.min(...oneIdxs), max: Math.max(...oneIdxs) };
+    range = _l8BarreRule4(range, frets, barreFret);
+  }
+  return { barre: { [barreFret]: true }, range };
+}
+
+// rMaxByRoot: rootStr별 r 최대값 (생략 시 전부 12)
+function buildLevel8Pool(rMaxByRoot) {
+  const pool = [];
+  for (const p of LEVEL8_PATTERNS) {
+    const toks    = p.tokens.trim().split(/\s+/);
+    const fingArr = p.fingers.trim().split(/\s+/).map(f => f === 'x' ? null : +f).reverse(); // 라이브러리 순서
+    const formIdx = _L6_FORM_IDX[p.rootStr];
+    const rMax    = rMaxByRoot ? rMaxByRoot[p.rootStr] : 12;
+    for (let r = 0; r <= rMax; r++) {
+      const frets = toks.map(t => _l6Token(t, r)).reverse();  // 라이브러리 순서(1→6)
+      const { barre, range } = _l8Barre(frets, fingArr, r, p.barre);
+      const entry = {
+        frets,
+        fretNumber:  r,
+        source:      'pattern',
+        barres:      [barre],
+        barreRanges: [range],
+        fingering:   fingArr,
+      };
+      pool.push({ name: chordNoteName(formIdx, r + p.rootOffset) + p.suffix, entry });
+    }
+  }
+  console.log(`[Quiz] L8 풀 크기: ${pool.length}개`);
+  return pool;
+}
+
 // ── 챌린지 모드 코드명 표기 정규화 ─────────────────────────────
 // 풀은 항상 # 정규형으로 유지 (예습 모달 b 토글은 표시 시점에 변환)
 //   # only  : Gb  → F#
@@ -999,6 +1295,33 @@ function buildChallengePool() {
   return pool;
 }
 
+// 심화 챌린지(c2) — 레벨1~8 합본(중복제외). 패턴레벨(6·8) 프렛범위 완화.
+function buildC2Pool() {
+  const range = { 6: 12, 5: 9, 4: 7 };  // rootStr별 r 최대 (6번줄0~12 / 5번줄0~9 / 4번줄0~7)
+  const combined = [
+    ...buildLevel1Pool(),
+    ...buildLevel2Pool(),
+    ...buildLevel3Pool(),
+    ...buildLevel4Pool(),
+    ...buildLevel5Pool(),
+    ...buildLevel7Pool(),
+    ...buildLevel6Pool(range),
+    ...buildLevel8Pool(range),
+  ];
+
+  const seen = new Set();
+  const pool = [];
+  for (const item of combined) {
+    const key = item.name + '§' + item.entry.frets.join(',');
+    if (!seen.has(key)) {
+      seen.add(key);
+      pool.push(item);
+    }
+  }
+  console.log(`[Quiz] C2 풀 크기: ${pool.length}개`);
+  return pool;
+}
+
 /** 현재 레벨 ID에 맞는 풀·이름 목록 반환 */
 function buildLevelPool(levelId) {
   if (levelId === '1') return buildLevel1Pool();
@@ -1006,7 +1329,11 @@ function buildLevelPool(levelId) {
   if (levelId === '3') return buildLevel3Pool();
   if (levelId === '4') return buildLevel4Pool();
   if (levelId === '5') return buildLevel5Pool();
+  if (levelId === '6') return buildLevel6Pool();
+  if (levelId === '7') return buildLevel7Pool();
+  if (levelId === '8') return buildLevel8Pool();
   if (levelId === 'c1') return buildChallengePool();
+  if (levelId === 'c2') return buildC2Pool();
   return buildLevel1Pool();
 }
 function getLevelNames(levelId) {
@@ -1015,7 +1342,11 @@ function getLevelNames(levelId) {
   if (levelId === '3') return LEVEL3_NAMES;
   if (levelId === '4') return LEVEL4_NAMES;
   if (levelId === '5') return LEVEL5_NAMES;
+  if (levelId === '6') return [...new Set(buildLevel6Pool().map(p => p.name))];
+  if (levelId === '7') return [...new Set(buildLevel7Pool().map(p => p.name))];
+  if (levelId === '8') return [...new Set(buildLevel8Pool().map(p => p.name))];
   if (levelId === 'c1') return [...new Set(buildChallengePool().map(p => p.name))];
+  if (levelId === 'c2') return [...new Set(buildC2Pool().map(p => p.name))];
   return LEVEL1_NAMES;
 }
 
@@ -1036,6 +1367,8 @@ function generateDiagramChoices(correctItem, pool) {
 }
 
 function selectDiagramChoice(selectedName, correctName) {
+  if (_answered) return; // 타임아웃/중복 클릭 경쟁 방지
+  _answered = true;
   clearQuestionTimer();
   // 중복 탭 방지
   document.querySelectorAll('.quiz-diagram-choice').forEach(el => {
@@ -1089,6 +1422,7 @@ let _attendanceAchieved = false; // 이번 세션에서 오늘 1회 달성 여�
 let _newRecordSpeed     = null;  // 신기록 달성 시 기록값 (null이면 미달성)
 let _timerTimeout       = null;  // 문제 타임어택 타이머 ID
 let _countdownTimers    = [];    // 카운트다운 setTimeout ID 목록
+let _answered           = false; // 현재 문제 응답 처리 여부 — 타임아웃/클릭 경쟁 방지
 
 const TRAINING_STATS_KEY = 'training_stats';
 
@@ -1207,6 +1541,8 @@ function startQuestionTimer(timeSec) {
 /** 시간 초과 처리 */
 function handleTimeout() {
   _timerTimeout = null;
+  if (_answered) return; // 이미 응답됨 → 중복 처리 방지
+  _answered = true;
   const { name } = _questions[_current];
 
   // 제한시간 값 그대로 기록 (오답)
@@ -1365,8 +1701,45 @@ function generateChoices(correctName) {
   return shuffle([correctName, ...wrong]);
 }
 
+// 비-슬래시 12음 자유 토글 레벨 (레벨6·8) — 분수코드 없어 enharmDisplayNoSlash 경로
+function _isNoSlashEnharm(id) { return id === '6' || id === '8'; }
+
+// 코드이름 → HTML: 소괄호(텐션) 부분을 위첨자(상단) 표기
+function _chordNameToHtml(name) {
+  return name.replace(/(\([^)]*\))/g, '<sup class="quiz-cn-sup">$1</sup>');
+}
+
+// 1줄 폰트 자동 축소 — 컨테이너 폭 초과 시 minFs까지 단계 축소
+function _fitTextOneLine(el, startFs, minFs) {
+  let fs = startFs;
+  el.style.fontSize = fs + 'px';
+  while (el.scrollWidth > el.clientWidth && fs > minFs) {
+    fs -= 1;
+    el.style.fontSize = fs + 'px';
+  }
+}
+
+// 코드이름 표시 — 1줄에 맞게 폰트 자동 축소 (긴 이름은 매우 작아져도 허용)
+function _fitChordNameDisplay(el) {
+  let fs = 72;
+  el.style.fontSize = fs + 'px';
+  // 레이아웃 확정 후 오버플로면 단계적 축소
+  requestAnimationFrame(() => {
+    while (el.scrollWidth > el.clientWidth && fs > 8) {
+      fs -= 2;
+      el.style.fontSize = fs + 'px';
+    }
+  });
+}
+
 function renderQuestion() {
+  _answered = false; // 새 문제 — 응답 가드 초기화
   const { name, entry } = _questions[_current];
+
+  // 레벨6·8: 문제마다 샵/플랫 표기 단순 랜덤 (내부 비교는 canonical 유지, 표시만 변환)
+  const _isL6   = _isNoSlashEnharm(_currentLevel);
+  const _accM   = _isL6 ? (Math.random() < 0.5 ? 'flat' : 'sharp') : null;
+  const _disp   = n => _isL6 ? enharmDisplayNoSlash(n, _accM) : n;
 
   updateProgressDots();
 
@@ -1403,7 +1776,8 @@ function renderQuestion() {
     choices.forEach(choice => {
       const btn = document.createElement('button');
       btn.className   = 'quiz-choice-btn';
-      btn.textContent = choice;
+      btn.innerHTML   = _chordNameToHtml(_disp(choice));
+      btn.dataset.value = choice;  // canonical 값 — 정답 매칭용 (표시명과 분리)
       btn.addEventListener('pointerup', () => selectChoice(choice, name));
       container.appendChild(btn);
     });
@@ -1412,7 +1786,8 @@ function renderQuestion() {
     // ── 코드명 보여주기, 다이어그램 캔버스 숨기기 ─────────────
     canvasWrap.style.display  = 'none';
     nameDisplay.style.display = '';
-    nameDisplay.textContent   = name;
+    nameDisplay.innerHTML     = _chordNameToHtml(_disp(name));
+    _fitChordNameDisplay(nameDisplay);
 
     // 다이어그램 4지선다 — 같은 코드명은 오답에서 제외
     const pool    = buildLevelPool(_currentLevel);
@@ -1450,6 +1825,8 @@ function renderQuestion() {
 }
 
 function selectChoice(selected, correct) {
+  if (_answered) return; // 타임아웃/중복 클릭 경쟁 방지
+  _answered = true;
   clearQuestionTimer(); // 타임어택 타이머 중단
   // 중복 탭 방지
   document.querySelectorAll('.quiz-choice-btn').forEach(btn => {
@@ -1479,10 +1856,10 @@ function selectChoice(selected, correct) {
 
   // 피드백 색상 적용
   document.querySelectorAll('.quiz-choice-btn').forEach(btn => {
-    if (btn.textContent === selected && !isCorrect) {
+    if (btn.dataset.value === selected && !isCorrect) {
       btn.classList.add('quiz-choice-btn--wrong');
     }
-    if (btn.textContent === correct) {
+    if (btn.dataset.value === correct) {
       btn.classList.add('quiz-choice-btn--correct');
     }
   });
@@ -1821,7 +2198,7 @@ function showResultModal() {
     const item = document.createElement('div');
     item.className = 'result-item';
     item.innerHTML = `
-      <span class="result-item-name">${r.name}</span>
+      <span class="result-item-name">${_chordNameToHtml(r.name)}</span>
       <span class="result-item-ox ${r.isCorrect ? 'result-item-ox--correct' : 'result-item-ox--wrong'}">${r.isCorrect ? 'O' : 'X'}</span>
       <span class="result-item-speed">${r.isCorrect ? r.speedSec.toFixed(2) + 's' : '—'}</span>
     `;
@@ -1829,6 +2206,11 @@ function showResultModal() {
   });
 
   document.getElementById('result-modal-overlay').classList.add('result-modal-overlay--show');
+
+  // 결과 코드이름 1줄 자동맞춤 (레이아웃 확정 후)
+  requestAnimationFrame(() => requestAnimationFrame(() => {
+    container.querySelectorAll('.result-item-name').forEach(el => _fitTextOneLine(el, 13, 6));
+  }));
 
   // 신기록 달성 팝업
   if (_newRecordSpeed !== null) {

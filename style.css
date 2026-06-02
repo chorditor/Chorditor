@@ -5288,8 +5288,9 @@ canvas {
   display: flex;
   flex-direction: column;
   align-items: center;
+  justify-content: space-between; /* 피드백 상단 / 반응속도 하단 고정 */
   width: 100%;
-  gap: 2px;
+  height: 72px;                   /* feedback(42) + speed(28) + gap(2) 고정 → 기록 위치 일정 */
 }
 
 /* ② 문제 카드 — 높이 기준 5:4 (높이 부족 시 너비 자동 축소)
@@ -5386,6 +5387,23 @@ canvas {
   color: #1a1a1a;
   letter-spacing: -2px;
   font-family: 'Pretendard', sans-serif;
+  white-space: nowrap;   /* 1줄 강제 — 긴 이름은 JS로 폰트 축소 */
+  overflow: hidden;
+  padding: 0 16px;
+}
+
+/* 코드이름 텐션 소괄호 — 위첨자(상단) 표기 (result-item-name / quiz-choice-btn / quiz-chord-name-display 공통) */
+.quiz-cn-sup {
+  font-size: 0.5em;
+  vertical-align: super;
+  letter-spacing: 0;
+}
+
+/* quiz-chord-name-display 한정 — 위첨자 훨씬 위로 */
+.quiz-chord-name-display .quiz-cn-sup {
+  position: relative;
+  top: -0.7em;            /* sup 폰트(0.5em) 기준 — 훨씬 위로 */
+  vertical-align: baseline;
 }
 
 /* ── 다이어그램 선택지 ────────────────────────────────────────── */
@@ -5678,6 +5696,10 @@ canvas {
 
 .quiz-speed {
   min-height: 28px;
+  display: flex;
+  align-items: flex-end;     /* 반응속도 하단에 붙임 */
+  justify-content: center;
+  line-height: 1;
   font-size: 22px;
   font-weight: 800;
   text-align: center;
@@ -6332,6 +6354,7 @@ canvas {
 }
 
 .preview-modal {
+  position: relative;        /* 로딩 오버레이 기준 */
   width: 100%;
   max-width: 400px;
   max-height: 80vh;
@@ -6345,6 +6368,28 @@ canvas {
   transition: transform 0.3s cubic-bezier(0.34, 1.3, 0.64, 1),
               opacity   0.22s ease;
 }
+
+/* 예습 로딩 오버레이 — 보이싱 다수 렌더 중 끊김 가림 */
+.preview-loading {
+  position: absolute;
+  inset: 0;
+  background: #fff;
+  border-radius: 24px;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  z-index: 5;
+}
+.preview-loading.preview-loading--show { display: flex; }
+.preview-loading-spinner {
+  width: 36px;
+  height: 36px;
+  border: 4px solid #e5e5e5;
+  border-top-color: #888;
+  border-radius: 50%;
+  animation: preview-spin 0.7s linear infinite;
+}
+@keyframes preview-spin { to { transform: rotate(360deg); } }
 
 .preview-modal-overlay--show .preview-modal {
   transform: scale(1);
@@ -6590,7 +6635,7 @@ canvas {
 /* 문제별 결과 아이템 목록 */
 .result-items {
   display: grid;
-  grid-template-columns: repeat(5, 1fr);
+  grid-template-columns: repeat(5, minmax(0, 1fr)); /* 트랙 콘텐츠 팽창 방지 (화면 이탈 차단) */
   gap: 8px;
 }
 
@@ -6602,6 +6647,7 @@ canvas {
   background: #F7F7F7;
   border-radius: 12px;
   padding: 10px 4px 8px;
+  min-width: 0;          /* nowrap 자식이 트랙을 늘리지 못하도록 */
 }
 
 .result-item-name {
@@ -6609,7 +6655,10 @@ canvas {
   font-weight: 700;
   color: #1a1a1a;
   text-align: center;
-  word-break: break-all;
+  white-space: nowrap;   /* 1줄 강제 — 긴 이름은 JS로 폰트 축소 */
+  overflow: hidden;
+  width: 100%;
+  line-height: 1.3;
 }
 
 .result-item-ox {
