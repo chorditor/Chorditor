@@ -3882,8 +3882,8 @@ document.addEventListener('pointerdown', (e) => {
 
 document.addEventListener('DOMContentLoaded', async () => {
   // ── UI 초기화 ──────────────────────────────────────────────
-  // 배너 버전 표시 (프로덕션 버전: _dev 접미사 제거)
-  const _prodVer = 'v' + APP_VERSION.replace(/_dev\d*$/, '');
+  // 배너 버전 표시
+  const _prodVer = 'v' + APP_VERSION;
   const _bannerVer = document.getElementById('home-banner-version');
   if (_bannerVer) _bannerVer.textContent = _prodVer;
   const _updateTitle = document.getElementById('tutorial-update-title');
