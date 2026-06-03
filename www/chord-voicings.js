@@ -71,6 +71,7 @@ window.CHORD_STATIC = [
   ['0 x 2 2 1 0',  ['Am/E'],  'x x 2 3 1 x',  'slash', 2],
   ['x 4 2 2 2 0',  ['A/C#'],  'x 3 1 1 1 x',  'slash', 3, { flat: true }, { barre: true }],
   ['x 4 2 2 0 0',  ['Aadd9/C#'],  'x 4 2 1 x x',  'slash', 3, { flat: true }],
+  ['x 4 x 2 0 0',  ['Aadd9/C#'],  'x 3 x 1 x x',  'slash', 3, { flat: true }],
   
   // ── G 계열 ────────────────────────────────────────────────
   ['3 2 0 0 0 3',  ['G'],    '2 1 x x x 3',  'M',  2],
@@ -84,6 +85,9 @@ window.CHORD_STATIC = [
   ['3 2 0 0 0 0',  ['G6'],    '3 2 x x x x',  '6',  2],
   ['x 2 0 0 0 3',  ['G/B'],    'x 2 x x x 4',  'slash',  2],
   ['x 2 0 0 0 3',  ['G/B'],    'x 1 x x x 3',  'slash',  2],
+  ['x 2 0 0 3 3',  ['G/B'],    'x 1 x x 3 4',  'slash',  2],
+  ['x 2 0 2 0 3',  ['Gadd9/B'],    'x 1 x 2 x 4',  'slash',  2],
+  ['x 2 0 2 3 3',  ['Gadd9/B'],    'x 1 x 2 3 4',  'slash',  2],
   ['x x 0 0 0 3',  ['G/D'],    'x x x x x 3',  'slash',  2],
   ['2 x 0 0 0 3',  ['G/F#'],    '2 x x x x 4',  'slash',  2, { flat: true }],
   ['1 x 0 0 0 3',  ['G/F'],    '1 x x x x 4',  'slash',  2],
@@ -120,6 +124,7 @@ window.CHORD_STATIC = [
   ['x x 0 1 0 1',  ['Ddim7'],    'x x x 1 x 2',  'dim7',  2],
   ['2 x 0 2 3 2',  ['D/F#'],    'T x x 2 3 1',  'slash',  2, { flat: true }],
   ['2 x 0 2 3 2',  ['D/F#'],    'T x x 1 3 2',  'slash',  2, { flat: true }],
+  ['2 x 0 2 3 0',  ['Dsus2/F#'],    'T x x 2 3 x',  'slash',  2, { flat: true }],
   ['x 0 0 2 3 2',  ['D/A'],    'x x x 2 3 1',  'slash',  2],
   ['x 0 0 2 3 2',  ['D/A'],    'x x x 1 3 2',  'slash',  2],
 
@@ -129,28 +134,41 @@ window.CHORD_STATIC = [
   ['x x 3 2 1 0',  ['FM7'],    'x x 3 2 1 0',  'M7',  2],
 
   // ── B 계열 ────────────────────────────────────────────────
+  ['x 1 x 0 3 0',  ['Gm6/Bb'],  'x 1 x x 3 x',  'slash', 2, { flat: true }],
   ['x 2 1 2 0 2',  ['B7'],    'x 2 1 3 x 4',  '7',  2],
 
   // ── 어쿠스틱 보이싱 ────────────────────────────────────────────────
   ['0 7 9 9 0 0',  ['E'],    'x 1 3 4 x x',  'M',  8],
+  ['x 7 9 9 0 0',  ['E'],    'x 1 3 4 x x',  'M',  8],
   ['0 x 9 9 0 0',  ['E'],    'x x 3 4 x x',  'M',  9],
+  ['0 14 14 13 0 0',  ['E'],    'x 2 3 1 x x',  'M',  13],
   ['0 7 9 8 0 0',  ['EM7'],    'x 1 3 2 x x',  'M7',  8],
   ['0 7 9 7 0 0',  ['E7'],    'x 1 3 1 x x',  '7',  8, { barre: true }],
   ['0 7 6 7 0 0',  ['E7'],    'x 2 1 3 x x',  '7',  7],
+
+  ['4 x 2 4 0 0',  ['E/G#'],    '2 x 1 3 x x',  'slash',  3, { flat: true }],
 
   ['x 0 9 9 0 0',  ['Asus2'],    'x x 3 4 x x',  'sus2',  9],
   ['x 0 9 8 0 0',  ['AM7(9)'],    'x x 3 2 x x',  'tension',  9],
   ['x 0 6 6 0 0',  ['AM7'],    'x x 2 3 x x',  'M7',  6],
   ['5 7 7 6 0 0',  ['Aadd9'],    '1 3 4 2 x x',  'add9',  6],
+  ['5 x 7 6 0 0',  ['Aadd9'],    '1 x 3 2 x x',  'add9',  6],
 
   ['x 5 4 0 3 0',  ['Dadd9(11)'],    'x 3 2 x 1 x',  'tension',  4],
   ['x 5 7 7 0 0',  ['Dadd9'],    'x 1 3 4 x x',  'add9',  6],
 
   ['x 3 5 5 0 0',  ['CM7'],    'x 1 3 4 x x',  'M7',  4],
+  ['8 x 9 9 0 0',  ['CM7'],    '1 x 2 3 x x',  'M7',  8],
+
   ['x 4 6 6 0 0',  ['C#m7'],    'x 1 3 4 x x',  'm7',  5, { flat: true }],
+  ['9 x 9 9 0 0',  ['C#m7'],    '1 x 2 3 x x',  'm7',  9, { flat: true }],
 
   ['x 2 4 4 0 0',  ['Bsus4'],    'x 1 3 4 x x',  'sus4',  3],
   ['7 x 7 7 0 0',  ['Bm7(11)'],    '1 x 2 3 x x',  'tension',  7],
+  ['x 2 x 2 3 0',  ['Bm7(11)'],    'x 1 x 2 3 x',  'tension',  2],
+  
+
+  ['6 x 6 6 5 0',  ['Bbm7(b5)'],    '1 x 2 3 x x',  'm7(b5)',  6, { flat: true }],
 
   ['2 x 2 2 0 0',  ['F#m7(11)'],    '1 x 2 3 x x',  'tension',  2, { flat: true }],
   ['4 x 4 4 0 0',  ['Esus2/G#'],    '1 x 2 3 x x',  'slash',  4, { flat: true }],
@@ -202,16 +220,11 @@ window.CHORD_PATTERN = [
   { pattern: 'r r+2 r r+1 r r', rootStr: 6, fingers: '1 3 1 2 1 1', barre: true, quality: '7', name: (r, flat) => chordNoteName(0, r, flat) + '7'},
   { pattern: 'x r r+2 r r+2 r', rootStr: 5, fingers: 'x 1 3 1 4 1', barre: true, quality: '7', name: (r, flat) => chordNoteName(1, r, flat) + '7'},
   { pattern: 'x x r r+2 r+1 r+2', rootStr: 4, fingers: 'x x 1 3 2 4', barre: true, quality: '7', name: (r, flat) => chordNoteName(2, r, flat) + '7'},
+  
   // 쉘 보이싱
   { pattern: 'r x r r+1 r x', rootStr: 6, fingers: '1 x 1 2 1 x', barre: true, quality: '7', name: (r, flat) => chordNoteName(0, r, flat) + '7'},
   { pattern: 'r x r r+1 r x', rootStr: 6, fingers: 'T x 2 3 1 x', barre: false, quality: '7', name: (r, flat) => chordNoteName(0, r, flat) + '7'},
   { pattern: 'x r+2 r+1 r+2 r x', rootStr: 5, fingers: 'x 3 2 4 1 x', barre: true, quality: '7', name: (r, flat) => chordNoteName(1, r+2, flat) + '7'},
-
-  // 6 코드
-  { pattern: 'r+1 x r r+2 r+1 x', rootStr: 6, fingers: '2 x 1 4 3 x', barre: false, quality: '6', name: (r, flat) => chordNoteName(0, r+1, flat) + '6'},
-  { pattern: 'x r+2 r+1 r+1 r x', rootStr: 5, fingers: 'x 4 2 3 1 x', barre: false, quality: '6', name: (r, flat) => chordNoteName(1, r+2, flat) + '6'},
-  { pattern: 'x r x r+2 r+2 r+2', rootStr: 5, fingers: 'x 1 x 2 3 4', barre: false, quality: '6', name: (r, flat) => chordNoteName(1, r, flat) + '6'},
-  { pattern: 'x x r r+2 r r+2', rootStr: 4, fingers: 'x x 1 3 1 4', barre: true, quality: '6', name: (r, flat) => chordNoteName(2, r, flat) + '6'},
 
   // 7sus4 코드 (CAGED 시스템)
   { pattern: 'r r+2 r r+2 r r', rootStr: 6, fingers: '1 3 1 4 1 1', barre: true, quality: '7sus4', name: (r, flat) => chordNoteName(0, r, flat) + '7sus4'},
@@ -243,6 +256,7 @@ window.CHORD_PATTERN = [
   // m7(b5) 코드 쉘 보이싱
   { pattern: 'r+1 x r+1 r+1 r x', rootStr: 6, fingers: '2 x 3 4 1 x', barre: true, quality: 'm7(b5)', name: (r, flat) => chordNoteName(0, r+1, flat) + 'm7(b5)'},
   { pattern: 'x r+1 r+2 r+1 r+2 x', rootStr: 5, fingers: 'x 1 3 2 4 x', barre: true, quality: 'm7(b5)', name: (r, flat) => chordNoteName(1, r+1, flat) + 'm7(b5)'},
+  { pattern: 'x r+1 x r+1 r+2 r', rootStr: 5, fingers: 'x 2 x 3 4 1', barre: true, quality: 'm7(b5)', name: (r, flat) => chordNoteName(1, r+1, flat) + 'm7(b5)'},
   { pattern: 'x x r+1 r+2 r+2 r+2', rootStr: 4, fingers: 'x x 1 2 3 4', barre: true, quality: 'm7(b5)', name: (r, flat) => chordNoteName(2, r+1, flat) + 'm7(b5)'},
 
   // dim7 코드 쉘 보이싱
@@ -259,9 +273,17 @@ window.CHORD_PATTERN = [
   { pattern: 'x r r+3 r+2 r+1 x', rootStr: 5, fingers: 'x 1 4 3 2 x', barre: false, quality: 'slash', name: (r, flat) => chordNoteName(2, r+3, flat) + '/' + chordNoteName(1, r, flat)},
   { pattern: 'x x r+2 r r+1 r', rootStr: 4, fingers: 'x x 3 1 2 1', barre: true, quality: 'slash', name: (r, flat) => chordNoteName(4, r+1, flat) + '/' + chordNoteName(2, r+2, flat)},
   // 1전위 코드 (Cm/Eb)
-  { pattern: 'r+1 x r r+2 r+3 x', rootStr: 6, fingers: '2 x 1 3 4 x', barre: false, quality: 'slash', name: (r, flat) => chordNoteName(4, r+3, flat) + 'm' + '/' + chordNoteName(0, r+1, true)},
+  { pattern: 'r+1 x r r+2 r+3 x', rootStr: 6, fingers: '2 x 1 3 4 x', barre: false, quality: 'slash', name: (r, flat) => chordNoteName(4, r+3, flat) + 'm' + '/' + chordNoteName(0, r+1, flat)},
   { pattern: 'x r+2 r+1 r+1 r x', rootStr: 5, fingers: 'x 4 2 3 1 x', barre: false, quality: 'slash', name: (r, flat) => chordNoteName(3, r+1, flat) + 'm' + '/' + chordNoteName(1, r+2, flat)},
   { pattern: 'x x r+2 r+1 r+2 r', rootStr: 4, fingers: 'x x 3 2 4 1', barre: false, quality: 'slash', name: (r, flat) => chordNoteName(4, r+2, flat) + 'm' + '/' + chordNoteName(2, r+2, flat)},
+
+
+  // 6 코드 (보이싱 겹침 이슈로 뒤로 순서를 미룸)
+  { pattern: 'r+1 x r r+2 r+1 x', rootStr: 6, fingers: '2 x 1 4 3 x', barre: false, quality: '6', name: (r, flat) => chordNoteName(0, r+1, flat) + '6'},
+  { pattern: 'x r+2 r+1 r+1 r x', rootStr: 5, fingers: 'x 4 2 3 1 x', barre: false, quality: '6', name: (r, flat) => chordNoteName(1, r+2, flat) + '6'},
+  { pattern: 'x r x r+2 r+2 r+2', rootStr: 5, fingers: 'x 1 x 2 3 4', barre: false, quality: '6', name: (r, flat) => chordNoteName(1, r, flat) + '6'},
+  { pattern: 'x x r r+2 r r+2', rootStr: 4, fingers: 'x x 1 3 1 4', barre: true, quality: '6', name: (r, flat) => chordNoteName(2, r, flat) + '6'},
+
 
   // 2전위 코드 (C/G) 
   { pattern: 'r x r+2 r+2 r+2 r', rootStr: 6, fingers: '1 x 2 3 4 1', barre: true, quality: 'slash', name: (r, flat) => chordNoteName(3, r+2, flat) + '/' + chordNoteName(0, r, flat)},

@@ -42,6 +42,9 @@ const GuitarAudio = (() => {
   const midiToName = midi => NOTE_NAMES[midi % 12] + (Math.floor(midi / 12) - 1);
 
   let _sampler      = null;
+  let _ringGain     = null; // 메인 샘플러 전용 게인 (컷 시 즉시 0 → 울림 전부 차단)
+  let _cutSampler   = null; // 컷팅 전용 (highpass → 저역↓ 고역↑)
+  let _cutFilter    = null;
   let _masterGain   = null;
   let _ready        = false;
   let _pending      = [];   // ready 전 요청 큐
@@ -51,6 +54,7 @@ const GuitarAudio = (() => {
   const SUSTAIN_MS = 3500; // 어택 후 자동 release까지 ms — release envelope 포함 ~4초 이내 감쇄
   const STOP_FADE_SECONDS = 0.06;
   const STOP_SETTLE_MS    = 80;
+  const STRUM_RETRIGGER_CUT = 0.03; // 현별 모노 재타격 시 이전 음 damp release(초)
 
   const _sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
 
@@ -126,14 +130,31 @@ const GuitarAudio = (() => {
         _ready = true;
         _pending.forEach(fn => fn());
         _pending = [];
+        _flushReady();
       },
       onerror: e => console.error('[GuitarAudio] 샘플 로드 실패', e),
-    }).connect(_masterGain);
+    }).connect(_ringGain = new Tone.Gain(1).connect(_masterGain));
+
+    // 컷팅 전용 버스: highpass로 저역 제거·고역 강조
+    _cutFilter = new Tone.Filter({ type: 'highpass', frequency: 380, Q: 0.5 }).connect(_masterGain);
+    _cutSampler = new Tone.Sampler({
+      urls, baseUrl: '', attack: 0.002, release: 0.05,
+    }).connect(_cutFilter);
   }
 
   function _run(fn) {
     if (_ready) fn();
     else _pending.push(fn);
+  }
+
+  // 샘플러 로드 완료 대기 (재생 전 스케줄 유실 방지)
+  let _readyResolvers = [];
+  function ready() {
+    return _ready ? Promise.resolve() : new Promise(res => _readyResolvers.push(res));
+  }
+  function _flushReady() {
+    const rs = _readyResolvers; _readyResolvers = [];
+    rs.forEach(r => r());
   }
 
   // rootKey: 0~11 (C=0), semitones: 코드 루트 오프셋, quality: 'M'/'m'/'7' 등
@@ -168,6 +189,68 @@ const GuitarAudio = (() => {
     });
   }
 
+  // 절대시간 스트럼 스케줄러 — 이전 음을 release하지 않아 음이 끊기지 않고 울림
+  //   (주법 연습: 전체 비트가 하나의 연결된 아르페지오처럼 들리게 함)
+  //   midis: 스트럼할 MIDI 배열, interval: 현 간 딜레이(초),
+  //   absTime: Tone.now() 기준 절대 오디오 시각(초) — 드리프트 없는 정밀 스케줄용
+  //   dur: 각 노트 길이(초). 지정 시 그 시간 뒤 페이드아웃(triggerAttackRelease). 미지정 시 무한 어택.
+  //   releaseSec: release 엔벨로프 길이(초). 길게 주면 자연스러운 감쇄. 미지정 시 기본 유지.
+  function _doStrum(sampler, midis, interval, absTime, dur, releaseSec) {
+    if (!sampler) return;
+    const notes = midis.map(midiToName);
+    const base = interval ?? 0.015;
+    let acc = 0;
+    notes.forEach((note, i) => {
+      // humanize: 위상 comb 분산 위해 타이밍·간격·벨로시티·피치 전부 랜덤화
+      const gap    = i === 0 ? 0 : base * (0.5 + Math.random());   // 현 간격 ±50% 흔듦
+      acc += gap;
+      const jitter = (Math.random() - 0.5) * 0.012;                // ±6ms 지터
+      const vel    = 0.45 + Math.random() * 0.55;                  // 0.45~1.0
+      const detune = (Math.random() - 0.5) * 16;                   // ±8 cents 디튠
+      const t = absTime + acc + jitter;
+      // 현별 모노: 같은 현(음) 재타격 시 이전 울림 빠르게 damp → 폴리포니 스택 제거
+      sampler.release = STRUM_RETRIGGER_CUT;
+      sampler.triggerRelease(note, t);
+      if (sampler.detune) sampler.detune.setValueAtTime(detune, t);
+      // 새 음 감쇄
+      if (releaseSec != null) sampler.release = releaseSec;
+      if (dur != null) sampler.triggerAttackRelease(note, dur, t, vel);
+      else sampler.triggerAttack(note, t, vel);
+    });
+    return notes;
+  }
+
+  function strumAt(midis, interval, absTime, dur, releaseSec) {
+    _run(() => {
+      _restoreOutput();
+      if (_releaseTimer) { clearTimeout(_releaseTimer); _releaseTimer = null; }
+      // 컷으로 0이 된 ring gain을 이 음 시각에 복구
+      if (_ringGain) _ringGain.gain.setValueAtTime(1, absTime);
+      const notes = _doStrum(_sampler, midis, interval, absTime, dur, releaseSec);
+      if (notes) _lastNotes = _lastNotes.concat(notes);
+    });
+  }
+
+  // 컷팅 스트럼 (highpass 버스 → 저역↓ 고역↑). 6현 전부 짧게 긁음.
+  function strumAtCut(midis, interval, absTime, dur, releaseSec) {
+    _run(() => {
+      _restoreOutput();
+      _doStrum(_cutSampler, midis, interval, absTime, dur, releaseSec);
+    });
+  }
+
+  // 컷팅: 지정 시각에 메인 ring gain을 0으로 → 울리는 음·예약된 음 전부 즉시 차단
+  function cutAt(absTime, releaseSec) {
+    _run(() => {
+      if (_ringGain) {
+        const g = _ringGain.gain;
+        g.cancelScheduledValues(absTime);
+        g.setValueAtTime(0, absTime);
+      }
+      if (_sampler && _sampler.releaseAll) _sampler.releaseAll(absTime);
+    });
+  }
+
   // midi: MIDI 번호 (예: E2=40, A2=45, D3=50, G3=55, B3=59, E4=64)
   function playNote(midi, duration, delay) {
     _run(() => {
@@ -180,6 +263,23 @@ const GuitarAudio = (() => {
       _sampler.triggerAttack(note, Tone.now() + (delay ?? 0));
       _scheduleAutoRelease();
     });
+  }
+
+  // 즉시 전체 묵음 (잔향 없이 하드컷) — master gain 즉시 0 + 모든 보이스 release
+  function panic() {
+    if (_releaseTimer) { clearTimeout(_releaseTimer); _releaseTimer = null; }
+    _lastNotes = [];
+    _ready = false;
+    // 오디오 그래프 즉시 절단 → 출력중·예약 사운드 즉시 묵음, 후 dispose + 재초기화
+    try { if (_sampler)    _sampler.disconnect(); }    catch (e) {}
+    try { if (_cutSampler) _cutSampler.disconnect(); } catch (e) {}
+    try { if (_masterGain) _masterGain.disconnect(); } catch (e) {}
+    if (_cutSampler) { _cutSampler.dispose(); _cutSampler = null; }
+    if (_cutFilter)  { _cutFilter.dispose();  _cutFilter = null; }
+    if (_sampler)    { _sampler.dispose();    _sampler = null; }
+    if (_ringGain)   { _ringGain.dispose();   _ringGain = null; }
+    if (_masterGain) { _masterGain.dispose(); _masterGain = null; }
+    _init(); // 재초기화 (다음 재생 대비)
   }
 
   async function stop(options = {}) {
@@ -209,10 +309,13 @@ const GuitarAudio = (() => {
     await Tone.start();
     // 샘플러 재생성
     _ready = false;
+    if (_cutSampler) { _cutSampler.dispose(); _cutSampler = null; }
+    if (_cutFilter)  { _cutFilter.dispose();  _cutFilter = null; }
     if (_sampler) { _sampler.dispose(); _sampler = null; }
+    if (_ringGain) { _ringGain.dispose(); _ringGain = null; }
     if (_masterGain) { _masterGain.dispose(); _masterGain = null; }
     _init();
   }
 
-  return { playChord, strumNotes, playNote, stop, resume, syncContext };
+  return { playChord, strumNotes, strumAt, strumAtCut, cutAt, playNote, stop, panic, ready, resume, syncContext };
 })();

@@ -1,0 +1,54 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="color-scheme" content="light dark" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <title>Chorditor - 주법 리듬 훈련</title>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css" />
+  <link rel="stylesheet" href="style.css" />
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
+</head>
+<body class="strum-list-page">
+
+  <!-- 페이지 커버: 초기화 완료 전 화면 가림 -->
+  <div id="page-cover"></div>
+
+  <div class="app-shell">
+
+    <!-- ── 탑바 ── -->
+    <div class="top-bar">
+      <button id="back-btn" class="icon-btn" onpointerup="closeStrumming()">
+        <i data-lucide="chevron-left"></i>
+      </button>
+    </div>
+
+    <!-- ── 메인 콘텐츠 ── -->
+    <div class="main-content" id="main-content">
+      <div class="strum-scroll">
+
+        <!-- 스티키 헤더: 타이틀 + 필터 -->
+        <div class="strum-sticky-head">
+          <div class="strum-title-area">
+            <span class="strum-title">주법 리듬 훈련</span>
+            <span class="strum-subtitle">실전에 자주 사용되는 주법 모음</span>
+          </div>
+          <div class="strum-filter-bar"></div>
+        </div>
+
+        <!-- 주법 리스트 (strumming.js가 STRUMMING_LIST로 렌더) -->
+        <div id="strum-list" class="strum-list"></div>
+
+      </div><!-- /strum-scroll -->
+    </div>
+
+  </div><!-- /app-shell -->
+
+  <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.js"></script>
+  <script src="https://unpkg.com/@phosphor-icons/web"></script>
+  <script src="analytics-sdk.js"></script>
+  <script src="shared.js"></script>
+  <script src="strumming-list.js"></script>
+  <script src="strumming.js"></script>
+</body>
+</html>

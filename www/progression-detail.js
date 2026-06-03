@@ -47,8 +47,11 @@ let _useFlat            = false;
 let _bpm                = 80;
 let _playing            = false;
 let _currentDisplayStep = 0;
-let _timer              = null;  // 마스터 비트 타이머 (단일)
 let _masterBeat         = 0;     // 재생 시작 후 누적 비트 수
+let _schedTimer         = null;  // 오디오클럭 lookahead 스케줄러 (무드리프트)
+let _beatNextTime       = 0;     // 다음 비트의 절대 오디오 시각(초)
+const SCHED_LOOKAHEAD   = 0.1;
+const SCHED_TICK_MS     = 25;
 // _prevCenterFret 제거됨 — cyclic DP로 대체
 
 // ── 캔버스 상수 (voicing-canvas.js 모듈 위임) ───────────────────────
@@ -59,8 +62,8 @@ const _BASE_H = VoicingCanvas.BASE_H;
 // 캔버스 인덱스 순서: 0=1번줄(e4=64) … 5=6번줄(E2=40)
 const _OPEN_MIDI = [64, 59, 55, 50, 45, 40];
 
-function _strumVoicing(voicing) {
-  if (!voicing) return;
+function _voicingMidis(voicing) {
+  if (!voicing) return [];
   // chordsLibrary frets는 절대 프렛 → MIDI = 개방현 + 절대프렛 (offset 불필요)
   const midis = [];
   // 6번줄(s=5) → 1번줄(s=0) 순서로 스트럼
@@ -69,7 +72,13 @@ function _strumVoicing(voicing) {
     if (f === null) continue;
     midis.push(_OPEN_MIDI[s] + f);
   }
-  if (midis.length) GuitarAudio.strumNotes(midis, 0.008);
+  return midis;
+}
+
+// 절대 오디오 시각 t에 스트럼 (드리프트 없는 스케줄용). dur 동안 울린 뒤 감쇄.
+function _strumVoicingAt(voicing, t, dur) {
+  const midis = _voicingMidis(voicing);
+  if (midis.length) GuitarAudio.strumAt(midis, 0.008, t, dur, 0.3);
 }
 
 // 보이싱 후보 조회 (progression-voicings.js 기반)
@@ -83,29 +92,9 @@ function _drawVoicingCanvas(canvas, voicing, chordName, ratio) {
   VoicingCanvas.draw(canvas, voicing, { chordName, ratio, transparent: true });
 }
 
-// ── 메트로놈 클릭 ────────────────────────────────────────────
+// ── 오디오 컨텍스트 (Tone 동기화용) ──────────────────────────
 const _MetroCtx = window.AudioContext || window.webkitAudioContext;
 let   _metroCtx = null;
-
-function _playClick(isDownbeat) {
-  if (!_metroCtx) _metroCtx = new _MetroCtx();
-  const ctx  = _metroCtx;
-  const play = () => {
-    const now  = ctx.currentTime;
-    const freq = isDownbeat ? 1200 : 800;
-    const osc  = ctx.createOscillator();
-    const gain = ctx.createGain();
-    osc.connect(gain);
-    gain.connect(ctx.destination);
-    osc.frequency.value = freq;
-    osc.type = 'sine';
-    gain.gain.setValueAtTime(0.3, now);
-    gain.gain.exponentialRampToValueAtTime(0.001, now + 0.04);
-    osc.start(now);
-    osc.stop(now + 0.04);
-  };
-  if (ctx.state === 'suspended') { ctx.resume().then(play); } else { play(); }
-}
 
 // ── 재생 로직 ────────────────────────────────────────────────
 function _resetCountDots() {
@@ -115,7 +104,8 @@ function _resetCountDots() {
 }
 
 async function _stopPlay(options = {}) {
-  if (_timer) { clearTimeout(_timer); _timer = null; }
+  if (_schedTimer) { clearInterval(_schedTimer); _schedTimer = null; }
+  if (typeof DrumAudio !== 'undefined' && DrumAudio.stop) DrumAudio.stop();
   const stopPromise = GuitarAudio.stop({ wait: options.wait === true });
   _playing    = false;
   _masterBeat = 0;
@@ -125,63 +115,95 @@ async function _stopPlay(options = {}) {
   if (options.wait) await stopPromise;
 }
 
-// 마스터 비트 타이머 — 메트로놈·점·코드 모두 단일 체인으로 처리
-function _masterTick() {
-  if (!_playing || !_prog) return;
+// 한 박자(beatPhase) 분량의 드럼 step을 절대시각 t에 스케줄 (DRUM_SETS[1])
+function _drumBeatAt(beatPhase, t, beatSec) {
+  if (typeof DrumAudio === 'undefined' || !window.DRUM_SETS) return;
+  const set = window.DRUM_SETS[1];
+  if (!set) return;
+  const stepsPerBeat = set.steps / 4;          // 8 step / 4박 = 2
+  const stepSec = beatSec / stepsPerBeat;
+  for (let k = 0; k < stepsPerBeat; k++) {
+    const step = beatPhase * stepsPerBeat + k;
+    const tt = t + k * stepSec;
+    if ((set.kick  || []).includes(step)) DrumAudio.hit('kick',  tt);
+    if ((set.snare || []).includes(step)) DrumAudio.hit('snare', tt);
+    if ((set.hat   || []).includes(step)) DrumAudio.hit('hat',   tt);
+  }
+}
 
-  const beatMs    = (60 / _bpm) * 1000;
-  const beatPhase = _masterBeat % 4;          // 0~3 (마디 내 박자 위치)
+// 비트 1개 스케줄 (오디오=절대시각, 비주얼=시각 맞춰 setTimeout)
+function _scheduleBeat(beatIndex, t) {
+  const beatPhase = beatIndex % 4;
+  const beatSec   = 60 / _bpm;
   const count     = _prog.steps.length;
-  const dots      = document.querySelectorAll('#detail-count-dots .progd-count-dot');
+  const now       = Tone.now();
 
-  // 점 업데이트
-  dots.forEach((d, i) => d.classList.toggle('progd-count-dot--active', i === beatPhase));
+  // 드럼 (절대시각)
+  _drumBeatAt(beatPhase, t, beatSec);
 
-  // 메트로놈 클릭
-  _playClick(beatPhase === 0);
-
-  // 다운비트(1박): 코드 재생 — current 슬롯 voicing 그대로 사용
+  // 다운비트: 코드 스트럼 (절대시각, 한 마디 동안 울림)
   if (beatPhase === 0) {
     const currDomIdx = _slotRoles ? _slotRoles.indexOf(2) : -1;
     const voicing    = (currDomIdx >= 0 && _slotData) ? _slotData[currDomIdx]?.voicing : null;
-    _strumVoicing(voicing);
+    _strumVoicingAt(voicing, t, beatSec * 4);
   }
 
-  // 3박 직후 0.5비트: 다음 코드 슬라이드 애니메이션 (7/8마디 = 3.5비트)
+  // 점 업데이트 (비트 시각에 맞춰)
+  const dotDelay = Math.max(0, (t - now) * 1000);
+  setTimeout(() => {
+    if (!_playing) return;
+    const dots = document.querySelectorAll('#detail-count-dots .progd-count-dot');
+    dots.forEach((d, i) => d.classList.toggle('progd-count-dot--active', i === beatPhase));
+  }, dotDelay);
+
+  // 3.5비트(7/8마디)에 다음 코드 슬라이드
   if (beatPhase === 3) {
-    const nextChordIdx = (Math.floor(_masterBeat / 4) + 1) % count;
+    const nextChordIdx = (Math.floor(beatIndex / 4) + 1) % count;
+    const slideDelay = Math.max(0, (t + beatSec * 0.5 - now) * 1000);
     setTimeout(() => {
       if (!_playing) return;
       _updateActiveCard(nextChordIdx);
-    }, beatMs * 0.5);
+    }, slideDelay);
   }
-
-  _masterBeat++;
-  _timer = setTimeout(_masterTick, beatMs);
 }
 
-// 4비트 카운트인 후 마스터 타이머 시작
+// 오디오클럭 lookahead 스케줄러 — 절대시각 누적 → 무드리프트
+function _masterTick() {
+  if (!_playing || !_prog) return;
+  const now = Tone.now();
+  while (_beatNextTime < now + SCHED_LOOKAHEAD) {
+    _scheduleBeat(_masterBeat, _beatNextTime);
+    _masterBeat++;
+    _beatNextTime += 60 / _bpm; // 라이브 BPM
+  }
+}
+
+// 4비트 hat 카운트인 (오디오클럭) 후 onComplete(startTime) 호출
 function _runCountIn(onComplete) {
-  const wrap   = document.getElementById('detail-count-dots');
-  const dots   = wrap ? wrap.querySelectorAll('.progd-count-dot') : [];
-  const beatMs = (60 / _bpm) * 1000;
-  let beat = 0;
+  const wrap    = document.getElementById('detail-count-dots');
+  const dots    = wrap ? wrap.querySelectorAll('.progd-count-dot') : [];
+  const beatSec = 60 / _bpm;
+  const anchor  = Tone.now() + 0.12;
 
   dots.forEach(d => d.classList.remove('progd-count-dot--active'));
 
-  function tick() {
-    if (!_playing) return;
-    if (beat < 4) {
-      _playClick(beat === 0);
-      dots.forEach((d, i) => d.classList.toggle('progd-count-dot--active', i === beat));
-      beat++;
-      _timer = setTimeout(tick, beatMs);
-    } else {
-      _resetCountDots();
-      onComplete();
-    }
+  for (let i = 0; i < 4; i++) {
+    const t = anchor + i * beatSec;
+    if (typeof DrumAudio !== 'undefined') DrumAudio.hit('hat', t);
+    const delay = Math.max(0, (t - Tone.now()) * 1000);
+    setTimeout(() => {
+      if (!_playing) return;
+      dots.forEach((d, j) => d.classList.toggle('progd-count-dot--active', j === i));
+    }, delay);
   }
-  tick();
+
+  const startTime = anchor + 4 * beatSec;
+  const startDelay = Math.max(0, (startTime - Tone.now()) * 1000);
+  setTimeout(() => {
+    if (!_playing) return;
+    _resetCountDots();
+    onComplete(startTime);
+  }, startDelay);
 }
 
 async function togglePlay() {
@@ -192,12 +214,22 @@ async function togglePlay() {
     if (!_metroCtx) _metroCtx = new _MetroCtx();
     if (_metroCtx.state === 'suspended') await _metroCtx.resume();
     await GuitarAudio.syncContext(_metroCtx);
+    // 드럼도 동일 컨텍스트로 재생성 후 샘플 로드 대기
+    if (typeof DrumAudio !== 'undefined') {
+      DrumAudio.rebuild();
+      try { await DrumAudio.ready(); } catch (e) {}
+    }
 
     _playing    = true;
     _masterBeat = 0;
     analytics.track('progression_detail_played', { prog_id: _prog?.id, key: _getKeyDisplayName(_key), bpm: _bpm });
     _updatePlayBtn();
-    _runCountIn(() => _masterTick());
+    _runCountIn((startTime) => {
+      if (!_playing) return;
+      _masterBeat   = 0;
+      _beatNextTime = startTime;
+      _schedTimer   = setInterval(_masterTick, SCHED_TICK_MS);
+    });
   }
 }
 

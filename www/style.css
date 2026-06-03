@@ -5288,8 +5288,9 @@ canvas {
   display: flex;
   flex-direction: column;
   align-items: center;
+  justify-content: space-between; /* 피드백 상단 / 반응속도 하단 고정 */
   width: 100%;
-  gap: 2px;
+  height: 72px;                   /* feedback(42) + speed(28) + gap(2) 고정 → 기록 위치 일정 */
 }
 
 /* ② 문제 카드 — 높이 기준 5:4 (높이 부족 시 너비 자동 축소)
@@ -5386,6 +5387,23 @@ canvas {
   color: #1a1a1a;
   letter-spacing: -2px;
   font-family: 'Pretendard', sans-serif;
+  white-space: nowrap;   /* 1줄 강제 — 긴 이름은 JS로 폰트 축소 */
+  overflow: hidden;
+  padding: 0 16px;
+}
+
+/* 코드이름 텐션 소괄호 — 위첨자(상단) 표기 (result-item-name / quiz-choice-btn / quiz-chord-name-display 공통) */
+.quiz-cn-sup {
+  font-size: 0.5em;
+  vertical-align: super;
+  letter-spacing: 0;
+}
+
+/* quiz-chord-name-display 한정 — 위첨자 훨씬 위로 */
+.quiz-chord-name-display .quiz-cn-sup {
+  position: relative;
+  top: -0.7em;            /* sup 폰트(0.5em) 기준 — 훨씬 위로 */
+  vertical-align: baseline;
 }
 
 /* ── 다이어그램 선택지 ────────────────────────────────────────── */
@@ -5678,6 +5696,10 @@ canvas {
 
 .quiz-speed {
   min-height: 28px;
+  display: flex;
+  align-items: flex-end;     /* 반응속도 하단에 붙임 */
+  justify-content: center;
+  line-height: 1;
   font-size: 22px;
   font-weight: 800;
   text-align: center;
@@ -6332,6 +6354,7 @@ canvas {
 }
 
 .preview-modal {
+  position: relative;        /* 로딩 오버레이 기준 */
   width: 100%;
   max-width: 400px;
   max-height: 80vh;
@@ -6345,6 +6368,28 @@ canvas {
   transition: transform 0.3s cubic-bezier(0.34, 1.3, 0.64, 1),
               opacity   0.22s ease;
 }
+
+/* 예습 로딩 오버레이 — 보이싱 다수 렌더 중 끊김 가림 */
+.preview-loading {
+  position: absolute;
+  inset: 0;
+  background: #fff;
+  border-radius: 24px;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  z-index: 5;
+}
+.preview-loading.preview-loading--show { display: flex; }
+.preview-loading-spinner {
+  width: 36px;
+  height: 36px;
+  border: 4px solid #e5e5e5;
+  border-top-color: #888;
+  border-radius: 50%;
+  animation: preview-spin 0.7s linear infinite;
+}
+@keyframes preview-spin { to { transform: rotate(360deg); } }
 
 .preview-modal-overlay--show .preview-modal {
   transform: scale(1);
@@ -6590,7 +6635,7 @@ canvas {
 /* 문제별 결과 아이템 목록 */
 .result-items {
   display: grid;
-  grid-template-columns: repeat(5, 1fr);
+  grid-template-columns: repeat(5, minmax(0, 1fr)); /* 트랙 콘텐츠 팽창 방지 (화면 이탈 차단) */
   gap: 8px;
 }
 
@@ -6602,6 +6647,7 @@ canvas {
   background: #F7F7F7;
   border-radius: 12px;
   padding: 10px 4px 8px;
+  min-width: 0;          /* nowrap 자식이 트랙을 늘리지 못하도록 */
 }
 
 .result-item-name {
@@ -6609,7 +6655,10 @@ canvas {
   font-weight: 700;
   color: #1a1a1a;
   text-align: center;
-  word-break: break-all;
+  white-space: nowrap;   /* 1줄 강제 — 긴 이름은 JS로 폰트 축소 */
+  overflow: hidden;
+  width: 100%;
+  line-height: 1.3;
 }
 
 .result-item-ox {
@@ -8474,4 +8523,426 @@ canvas {
   }
   html  { background: #FAFAF8 !important; }
   body  { background: var(--bg) !important; color: var(--text-primary); }
+}
+
+/* ── 주법 리듬 훈련 페이지 ── */
+.strum-scroll {
+  height: 100%;
+  box-sizing: border-box;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding: 0 16px calc(32px + env(safe-area-inset-bottom, 0px));
+  display: flex;
+  flex-direction: column;
+  gap: 28px;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+.strum-scroll::-webkit-scrollbar {
+  display: none;
+}
+
+.strum-play-area {
+  height: 100%;
+  box-sizing: border-box;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding: 20px 16px calc(32px + env(safe-area-inset-bottom, 0px));
+  display: flex;
+  flex-direction: column;
+  gap: 28px;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+.strum-play-area::-webkit-scrollbar {
+  display: none;
+}
+
+.strum-play-title {
+  font-size: clamp(16px, 4.8vw, 18px);
+  font-weight: 700;
+}
+
+/* ① 코드 진행 (가로 휠피커) */
+.strum-prog {
+  height: 200px;
+  flex: none;
+}
+
+/* ② 비트 박스보더 (1줄) */
+.strum-play-grid {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 24px 0;
+}
+.strum-play-grid::before,
+.strum-play-grid::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  height: 1px;
+  background: var(--border, #e5e5e5);
+}
+.strum-play-grid::before {
+  top: 0;
+  box-shadow: 0 3px 5px rgba(0, 0, 0, 0.16);
+}
+.strum-play-grid::after {
+  bottom: 0;
+  box-shadow: 0 -3px 5px rgba(0, 0, 0, 0.16);
+}
+.strum-play-grid .strum-beat-cell {
+  width: 28px;
+  height: 28px;
+}
+.strum-play-grid .strum-beat-grid {
+  margin-top: 0;
+}
+.strum-play-grid .strum-beat-grid + .strum-beat-grid {
+  margin-top: 8px;
+}
+.strum-play-grid .strum-stroke:not(.strum-stroke--ghost) {
+  width: 12px;
+  height: 12px;
+}
+/* 재생 중 비트 위치 세로선(플레이헤드) */
+.strum-play-grid {
+  position: relative;
+}
+.strum-playhead {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 2px;
+  background: rgba(21, 101, 192, 0.4);
+  opacity: 0;
+  pointer-events: none;
+  z-index: 3;
+  transition: left 0.05s linear, top 0.05s linear, opacity 0.12s;
+}
+
+/* ③ 버튼 영역 */
+.strum-play-controls {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  margin-top: 32px;
+}
+.strum-play-page,
+.strum-play-page .app-shell,
+.strum-play-page .main-content,
+.strum-play-page .top-bar,
+.strum-list-page,
+.strum-list-page .app-shell,
+.strum-list-page .main-content,
+.strum-list-page .top-bar {
+  background: #FFFFFF;
+}
+
+.strum-bpm-label {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-secondary, #888);
+}
+.strum-bpm-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.strum-ramp-start .strum-bpm-label {
+  width: 80px;
+  align-self: flex-end;
+  text-align: center;
+}
+.strum-bpm-block:not(.strum-ramp-start) .strum-bpm-label {
+  width: 80px;
+  align-self: flex-start;
+  text-align: center;
+}
+.strum-bpm-arrows {
+  display: flex;
+  flex-direction: column;
+  gap: 28px;
+}
+.strum-bpm-arrows .strum-bpm-step {
+  width: 26px;
+  height: 22px;
+  border: none;
+  border-radius: 6px;
+}
+.strum-ramp-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-top: 4px;
+}
+.strum-ramp-label {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-secondary, #888);
+}
+.strum-bpm-pair {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 24px;
+}
+.strum-bpm-block {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+}
+.strum-bpm-prog-arrow {
+  font-size: 22px;
+  color: var(--text-secondary, #888);
+  align-self: flex-end;
+  margin-bottom: calc(45px - 0.5em);
+}
+.strum-bpm-step {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  border: 1px solid var(--border, #e0e0e0);
+  border-radius: 50%;
+  background: none;
+  cursor: pointer;
+  color: var(--text-primary, #1a1a1a);
+  touch-action: manipulation;
+}
+.strum-bpm-step i {
+  font-size: 15px;
+}
+
+.strum-play-foot {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.strum-play-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: none;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+  color: var(--text-primary, #1a1a1a);
+}
+.strum-play-btn i {
+  font-size: 40px;
+}
+
+.strum-title-area {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.strum-title {
+  font-size: clamp(18px, 5.5vw, 22px);
+  font-weight: 800;
+  color: var(--text-primary);
+}
+
+.strum-subtitle {
+  font-size: clamp(13px, 3.6vw, 15px);
+  font-weight: 500;
+  color: var(--text-secondary);
+}
+
+.strum-sticky-head {
+  position: sticky;
+  top: 0;
+  z-index: 5;
+  background: #fff;
+  display: flex;
+  flex-direction: column;
+  gap: 28px;
+  /* 좌우 16px 바깥까지 덮어 스크롤 항목이 옆/위로 안 비치게 */
+  margin: 0 -16px;
+  padding: 20px 16px 12px;
+}
+.strum-filter-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.strum-filter-tag {
+  font-family: inherit;
+  font-size: clamp(11px, 3.2vw, 12px);
+  font-weight: 600;
+  line-height: 1;
+  padding: 7px 12px;
+  border-radius: 999px;
+  border: 1px solid var(--border, #e0e0e0);
+  background: #fff;
+  color: var(--text-secondary, #888);
+  cursor: pointer;
+  touch-action: manipulation;
+}
+.strum-filter-tag.active {
+  border-color: transparent;
+  color: #fff;
+  background: var(--blue, #1565c0);
+}
+
+.strum-list {
+  display: flex;
+  flex-direction: column;
+}
+
+.strum-item {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: clamp(14px, 4vw, 18px) 4px;
+  border-bottom: 1px solid var(--border, rgba(0, 0, 0, 0.06));
+  box-shadow: 0 2px 4px -2px rgba(0, 0, 0, 0.12);
+}
+
+.strum-item-arrow {
+  position: absolute;
+  right: 4px;
+  bottom: clamp(14px, 4vw, 18px);
+  width: 22px;
+  height: 22px;
+  color: var(--text-secondary);
+}
+
+.strum-item-badges {
+  position: absolute;
+  top: clamp(14px, 4vw, 18px);
+  right: 4px;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+.strum-item-badge {
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 1;
+  letter-spacing: 0.02em;
+  color: var(--text-secondary);
+  background: #ececec;
+  padding: 3px 6px;
+  border-radius: 4px;
+}
+/* 추천 배지 — 노랑·주황 */
+.strum-item-badge--rec { color: #b25e00; background: #ffe3a3; }
+
+/* 레벨별 배지 색상 */
+.strum-item-badge--lv1 { color: #2e7d32; background: #e3f4e4; } /* 초록·연두 */
+.strum-item-badge--lv2 { color: #1565c0; background: #e3f0fb; } /* 파랑 */
+.strum-item-badge--lv3 { color: #6a3fb5; background: #efe7fa; } /* 보라 */
+.strum-item-badge--lv4 { color: #d2691e; background: #fceee0; } /* 주황 */
+.strum-item-badge--lv5 { color: #c62828; background: #fbe4e4; } /* 빨강 */
+
+.strum-item-title {
+  font-size: clamp(15px, 4.2vw, 17px);
+  font-weight: 700;
+  color: var(--text-primary);
+}
+
+.strum-item-desc {
+  font-size: clamp(12px, 3.4vw, 14px);
+  font-weight: 500;
+  color: var(--text-secondary);
+}
+
+.strum-beat-grid {
+  display: flex;
+  align-items: flex-start;
+  margin-top: 14px;
+  width: fit-content;
+  border: 2px solid #bcc2c9;
+}
+
+.strum-beat-grid + .strum-beat-grid {
+  margin-top: 2px;
+}
+
+.strum-beat-cell {
+  position: relative;
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  /* 16칸이 화면폭에 들어가도록 1칸 크기 고정 (가용폭/16, 최대 28px) */
+  width: min(28px, (100vw - 44px) / 16);
+  height: min(28px, (100vw - 44px) / 16);
+  flex: none;
+  border-right: 1px solid #bcc2c9;
+}
+
+/* 컷팅(뮤트 스트로크) — 셀 상단 X 아이콘 */
+.strum-cut {
+  position: absolute;
+  bottom: 100%;          /* 셀(박스보더) 바깥 상단 */
+  margin-bottom: 3px;
+  left: 0;
+  right: 0;
+  text-align: center;
+  font-size: 10px;
+  line-height: 1;
+  font-weight: 700;
+  color: #555;
+  pointer-events: none;
+}
+
+.strum-beat-cell:last-child {
+  border-right: none;
+}
+
+/* N셀마다 굵은 구분선 (박자·비트별 그룹 구분) */
+.strum-beat-grid--g2 .strum-beat-cell:nth-child(2n):not(:last-child),
+.strum-beat-grid--g3 .strum-beat-cell:nth-child(3n):not(:last-child),
+.strum-beat-grid--g4 .strum-beat-cell:nth-child(4n):not(:last-child),
+.strum-beat-grid--g6 .strum-beat-cell:nth-child(6n):not(:last-child) {
+  border-right-width: 2px;
+}
+
+.strum-beat-cell:nth-child(odd) {
+  background: #f0f2f4;
+}
+
+.strum-beat-cell:nth-child(even) {
+  background: #e3e6ea;
+}
+
+/* 스트로크 기호 (다운 ⊓ / 업 V) */
+.strum-stroke {
+  display: block;
+  color: #555555;
+}
+
+/* 헛스트로크: 모션은 하나 소리 안냄 → 흐리게 */
+.strum-stroke--ghost {
+  opacity: 0.3;
+  transform: scale(0.7);
+}
+
+/* 다운스트로크 ⊓ : 위·좌·우 변, 아래 열림 */
+.strum-stroke--down {
+  width: 10px;
+  height: 10px;
+  border: 2px solid currentColor;
+  border-top-width: 4px;
+  border-bottom: none;
+}
+
+/* 업스트로크 V : SVG polyline (⊓와 높이 일치) */
+.strum-stroke--up {
+  width: 10px;
+  height: 10px;
 }

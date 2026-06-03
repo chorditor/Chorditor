@@ -46,6 +46,16 @@ function onTrainingCardTap(key) {
     }
     return;
   }
+  if (key === 'strumming') {
+    const shell = document.querySelector('.app-shell');
+    if (shell) {
+      shell.classList.add('project-exit');
+      setTimeout(() => { location.href = 'strumming.html'; }, 260);
+    } else {
+      location.href = 'strumming.html';
+    }
+    return;
+  }
   console.log('training:', key);
 }
 

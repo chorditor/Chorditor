@@ -3850,6 +3850,26 @@ function onAuthSignedIn() {
   setTimeout(() => checkAndShowNotice(), 500);
 }
 
+// 웹: 로그인됐지만 persona 미입력이면 온보딩 필요 (true 반환)
+async function _webNeedsOnboarding() {
+  try {
+    let token = null, userId = null;
+    if (_supabase) {
+      const { data } = await _supabase.auth.getSession();
+      token  = data?.session?.access_token;
+      userId = data?.session?.user?.id;
+    }
+    if (!token || !userId) return false; // 비로그인 → 온보딩 강제 안 함
+    const resp = await fetch(
+      `${SUPABASE_URL}/rest/v1/subscriptions?user_id=eq.${userId}&select=persona`,
+      { headers: { 'apikey': SUPABASE_ANON, 'Authorization': `Bearer ${token}` } }
+    );
+    if (!resp.ok) return false;
+    const rows = await resp.json();
+    return !(rows.length > 0 && rows[0].persona);
+  } catch (_) { return false; }
+}
+
 // ═══════════════════════════════════════════════════════════════
 // 초기화 (home.html 전용)
 // ═══════════════════════════════════════════════════════════════
@@ -3862,8 +3882,8 @@ document.addEventListener('pointerdown', (e) => {
 
 document.addEventListener('DOMContentLoaded', async () => {
   // ── UI 초기화 ──────────────────────────────────────────────
-  // 배너 버전 표시 (프로덕션 버전: _dev 접미사 제거)
-  const _prodVer = 'v' + APP_VERSION.replace(/_dev\d*$/, '');
+  // 배너 버전 표시
+  const _prodVer = 'v' + APP_VERSION;
   const _bannerVer = document.getElementById('home-banner-version');
   if (_bannerVer) _bannerVer.textContent = _prodVer;
   const _updateTitle = document.getElementById('tutorial-update-title');
@@ -4072,6 +4092,9 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   // ── 웹: Supabase 세션 복원 ───────────────────────────────────
   await initSupabase();
+  // 신규 유저(persona 미입력)가 OAuth 후 home으로 직행한 경우 → 온보딩으로 유도
+  // (Supabase redirect 허용목록/Site URL 폴백으로 redirectTo가 무시될 수 있어 안전망)
+  if (await _webNeedsOnboarding()) { window.location.replace('onboarding.html'); return; }
   analytics.track('app_open', { platform: 'web', project_count: loadProjects().length });
   setTimeout(() => checkAndShowNotice(), 1000);
 });
