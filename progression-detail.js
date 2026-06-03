@@ -48,6 +48,7 @@ let _bpm                = 80;
 let _playing            = false;
 let _currentDisplayStep = 0;
 let _masterBeat         = 0;     // 재생 시작 후 누적 비트 수
+let _playStartMs        = 0;     // 재생 시작 시각 (훈련시간 측정)
 let _schedTimer         = null;  // 오디오클럭 lookahead 스케줄러 (무드리프트)
 let _beatNextTime       = 0;     // 다음 비트의 절대 오디오 시각(초)
 const SCHED_LOOKAHEAD   = 0.1;
@@ -105,6 +106,11 @@ function _resetCountDots() {
 
 async function _stopPlay(options = {}) {
   if (_schedTimer) { clearInterval(_schedTimer); _schedTimer = null; }
+  // 훈련시간 적립 (재생한 만큼)
+  if (_playStartMs && typeof recordTrainingTime === 'function') {
+    recordTrainingTime((Date.now() - _playStartMs) / 1000);
+  }
+  _playStartMs = 0;
   if (typeof DrumAudio !== 'undefined' && DrumAudio.stop) DrumAudio.stop();
   const stopPromise = GuitarAudio.stop({ wait: options.wait === true });
   _playing    = false;
@@ -222,6 +228,7 @@ async function togglePlay() {
 
     _playing    = true;
     _masterBeat = 0;
+    _playStartMs = Date.now(); // 훈련시간 측정 시작
     analytics.track('progression_detail_played', { prog_id: _prog?.id, key: _getKeyDisplayName(_key), bpm: _bpm });
     _updatePlayBtn();
     _runCountIn((startTime) => {
@@ -593,6 +600,9 @@ document.addEventListener('DOMContentLoaded', () => {
   // 페이지 진입 애니메이션
   const shell = document.querySelector('.app-shell');
   if (shell) shell.classList.add('project-enter');
+
+  // 페이지 이탈 중 재생이면 훈련시간 적립
+  window.addEventListener('pagehide', () => { if (_playing) _stopPlay(); });
 
   // 페이지 커버
   lucide.createIcons();

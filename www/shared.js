@@ -6,7 +6,7 @@
 // ── 상수 ─────────────────────────────────────────────────────
 const SUPABASE_URL  = 'https://jbvkygeksohlysyvaoab.supabase.co';
 const SUPABASE_ANON = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Impidmt5Z2Vrc29obHlzeXZhb2FiIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzYzOTk5NjgsImV4cCI6MjA5MTk3NTk2OH0.6RSgChy0Yq0H2TJpZPSoMKQ2V-OYfR0XzE1aJBBZkXI';
-const APP_VERSION   = '1.2.3_dev4';
+const APP_VERSION   = '1.2.3_dev5';
 const SUPABASE_STORAGE_KEY = 'sb-jbvkygeksohlysyvaoab-auth-token';
 
 // ── Analytics SDK ─────────────────────────────────────────────
@@ -753,16 +753,14 @@ async function restoreTrainingStatsFromDB() {
 
   try {
     const resp = await fetch(
-      `${SUPABASE_URL}/rest/v1/user_training_stats?user_id=eq.${userId}&select=stats`,
+      `${SUPABASE_URL}/rest/v1/subscriptions?user_id=eq.${userId}&select=streak,training_time_min,total_completed,streak_synced_date`,
       { headers: { 'apikey': SUPABASE_ANON, 'Authorization': `Bearer ${accessToken}` } }
     );
     if (!resp.ok) return;
     const rows = await resp.json();
     if (!rows.length) return;
 
-    const overview = rows[0]?.stats?.training_overview;
-    if (!overview) return;
-
+    const overview = rows[0];
     const local = JSON.parse(localStorage.getItem('training_stats') || '{}');
 
     // 서버 값이 더 크면 덮어씀 (되감기 방지)
@@ -774,16 +772,16 @@ async function restoreTrainingStatsFromDB() {
     if ((overview.training_time_min || 0) > (local.training_time_min || 0))
       merged.training_time_min = overview.training_time_min;
     // streak_last_counted_date: 서버 streak이 더 크면 함께 복원
-    if ((overview.streak || 0) > (local.streak || 0) && overview.synced_date)
-      merged.streak_last_counted_date = overview.synced_date;
+    if ((overview.streak || 0) > (local.streak || 0) && overview.streak_synced_date)
+      merged.streak_last_counted_date = overview.streak_synced_date;
 
     localStorage.setItem('training_stats', JSON.stringify(merged));
   } catch (_) {}
 }
 
-// ── 훈련 통계 DB 즉시 동기화 (upsert/merge) ─────────────────
-// training_stats localStorage → Supabase user_training_stats.stats.training_overview
-// 로그 추가 없이 덮어쓰기 방식. 비로그인 시 무시.
+// ── 훈련 통계 DB 즉시 동기화 ────────────────────────────────
+// training_stats localStorage → public.subscriptions (streak/training_time_min/total_completed)
+// 기존 구독 row가 있으면 PATCH(plan 보존), 없으면 free로 INSERT. 비로그인 시 무시.
 async function syncTrainingStatsToDB() {
   const stats = JSON.parse(localStorage.getItem('training_stats') || 'null');
   if (!stats) return;
@@ -799,43 +797,49 @@ async function syncTrainingStatsToDB() {
   } catch (_) {}
   if (!accessToken || !userId) return;
 
-  const today = new Date().toISOString().slice(0, 10);
-  const overview = {
-    streak:            stats.streak            || 0,
-    training_time_min: stats.training_time_min || 0,
-    total_completed:   stats.total_completed   || 0,
-    synced_date:       today,
+  const payload = {
+    streak:             stats.streak            || 0,
+    training_time_min:  stats.training_time_min || 0,
+    total_completed:    stats.total_completed   || 0,
+    streak_synced_date: new Date().toISOString().slice(0, 10),
+  };
+  const headers = {
+    'Content-Type':  'application/json',
+    'apikey':         SUPABASE_ANON,
+    'Authorization': `Bearer ${accessToken}`,
   };
 
   try {
-    // 기존 row 읽기 → training_overview 키만 덮어쓰고 upsert
-    const getResp = await fetch(
-      `${SUPABASE_URL}/rest/v1/user_training_stats?user_id=eq.${userId}&select=stats`,
-      { headers: { 'apikey': SUPABASE_ANON, 'Authorization': `Bearer ${accessToken}` } }
+    // 1) 기존 구독 row 갱신 (plan/status 보존)
+    const patch = await fetch(
+      `${SUPABASE_URL}/rest/v1/subscriptions?user_id=eq.${userId}`,
+      { method: 'PATCH', headers: { ...headers, 'Prefer': 'return=representation' },
+        body: JSON.stringify(payload) }
     );
-    let existingStats = {};
-    if (getResp.ok) {
-      const rows = await getResp.json();
-      if (rows.length > 0) existingStats = rows[0].stats || {};
+    let rows = [];
+    if (patch.ok) rows = await patch.json();
+    // 2) row 없으면 free로 신규 생성
+    if (rows.length === 0) {
+      await fetch(`${SUPABASE_URL}/rest/v1/subscriptions`, {
+        method:  'POST',
+        headers: { ...headers, 'Prefer': 'resolution=merge-duplicates,return=minimal' },
+        body: JSON.stringify({ user_id: userId, plan: 'free', status: 'active', ...payload }),
+      });
     }
-
-    const merged = { ...existingStats, training_overview: overview };
-    await fetch(`${SUPABASE_URL}/rest/v1/user_training_stats`, {
-      method:  'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'apikey':        SUPABASE_ANON,
-        'Authorization': `Bearer ${accessToken}`,
-        'Prefer':        'resolution=merge-duplicates',
-      },
-      body: JSON.stringify({
-        user_id:    userId,
-        stats:      merged,
-        updated_at: new Date().toISOString(),
-      }),
-    });
   } catch (_) {}
 }
+
+// ── 전역 훈련시간 적립 (측정 즉시 호출) ─────────────────────
+// seconds 누적 → localStorage training_time_min 갱신 + 즉시 DB 동기화.
+// 모든 훈련 페이지(스케일·퀴즈·주법·코드진행)에서 공용 사용.
+function recordTrainingTime(seconds) {
+  if (!seconds || seconds < 6) return; // 6초 미만 무시
+  const stats = JSON.parse(localStorage.getItem('training_stats') || '{}');
+  stats.training_time_min = Math.round(((stats.training_time_min || 0) + seconds / 60) * 10) / 10;
+  localStorage.setItem('training_stats', JSON.stringify(stats));
+  syncTrainingStatsToDB();
+}
+if (typeof window !== 'undefined') window.recordTrainingTime = recordTrainingTime;
 
 // ── 퀴즈 레벨 통계 DB 동기화 ────────────────────────────────────
 // quiz_stats_level{N} localStorage → Supabase quiz_level_stats
