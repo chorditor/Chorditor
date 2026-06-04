@@ -195,17 +195,19 @@ const GuitarAudio = (() => {
   //   absTime: Tone.now() 기준 절대 오디오 시각(초) — 드리프트 없는 정밀 스케줄용
   //   dur: 각 노트 길이(초). 지정 시 그 시간 뒤 페이드아웃(triggerAttackRelease). 미지정 시 무한 어택.
   //   releaseSec: release 엔벨로프 길이(초). 길게 주면 자연스러운 감쇄. 미지정 시 기본 유지.
-  function _doStrum(sampler, midis, interval, absTime, dur, releaseSec) {
+  function _doStrum(sampler, midis, interval, absTime, dur, releaseSec, velRange) {
     if (!sampler) return;
     const notes = midis.map(midiToName);
     const base = interval ?? 0.015;
+    const vMin = velRange ? velRange[0] : 0.45;
+    const vSpan = (velRange ? velRange[1] : 1.0) - vMin;
     let acc = 0;
     notes.forEach((note, i) => {
       // humanize: 위상 comb 분산 위해 타이밍·간격·벨로시티·피치 전부 랜덤화
       const gap    = i === 0 ? 0 : base * (0.5 + Math.random());   // 현 간격 ±50% 흔듦
       acc += gap;
       const jitter = (Math.random() - 0.5) * 0.012;                // ±6ms 지터
-      const vel    = 0.45 + Math.random() * 0.55;                  // 0.45~1.0
+      const vel    = vMin + Math.random() * vSpan;
       const detune = (Math.random() - 0.5) * 16;                   // ±8 cents 디튠
       const t = absTime + acc + jitter;
       // 현별 모노: 같은 현(음) 재타격 시 이전 울림 빠르게 damp → 폴리포니 스택 제거
@@ -220,13 +222,17 @@ const GuitarAudio = (() => {
     return notes;
   }
 
-  function strumAt(midis, interval, absTime, dur, releaseSec) {
+  function strumAt(midis, interval, absTime, dur, releaseSec, mode) {
     _run(() => {
       _restoreOutput();
       if (_releaseTimer) { clearTimeout(_releaseTimer); _releaseTimer = null; }
       // 컷으로 0이 된 ring gain을 이 음 시각에 복구
       if (_ringGain) _ringGain.gain.setValueAtTime(1, absTime);
-      const notes = _doStrum(_sampler, midis, interval, absTime, dur, releaseSec);
+      // 악센트='acc'(0.7~1.0) / 비악센트='weak'(0.4~0.72) / 그 외=원래(null=0.45~1.0)
+      const velRange = mode === 'acc' ? [0.7, 1.0]
+                     : mode === 'weak' ? [0.4, 0.72]
+                     : null;
+      const notes = _doStrum(_sampler, midis, interval, absTime, dur, releaseSec, velRange);
       if (notes) _lastNotes = _lastNotes.concat(notes);
     });
   }

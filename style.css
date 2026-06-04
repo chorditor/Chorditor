@@ -8718,11 +8718,13 @@ canvas {
 .strum-bpm-arrows {
   display: flex;
   flex-direction: column;
-  gap: 28px;
+  justify-content: space-between;
+  /* 휠 wrap과 동일 높이(3행) → caret 두 개가 위·아래 dim 행 중심에 정확히 정렬 */
+  height: calc(3 * 30px);
 }
 .strum-bpm-arrows .strum-bpm-step {
   width: 26px;
-  height: 22px;
+  height: 30px;       /* 휠 항목 높이와 동일 → 중심 = dim 행 중심(15·75) */
   border: none;
   border-radius: 6px;
 }

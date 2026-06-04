@@ -129,20 +129,25 @@ function strumStrokeString(item) {
   const n = item.count || 0;
   const alt = item.alt === true;
   const skip = item.skip || [];
+  const [cn, bd] = String(item.beat || '4/4').split('/').map(Number);
+  const triplet = bd === 8 && cn !== 6; // 분모8(12/8 등)=3연음 DDU / 6/8은 제외(DU 연속)
   let s = '';
   for (let i = 1; i <= n; i++) {
-    if (skip.includes(i)) s += '-';
+    if (skip.includes(i)) { s += '-'; continue; }
+    if (triplet) s += (i - 1) % 3 === 2 ? 'U' : 'D';
     else s += alt ? 'D' : (i % 2 ? 'D' : 'U');
   }
   return s;
 }
 
-function strumCellHtml(ch, pos, alt, isCut) {
+function strumCellHtml(ch, pos, alt, isCut, triplet) {
   let dir = ch;
   let ghost = false;
   if (ch === '-') {
     ghost = true;
-    dir = alt ? 'D' : (pos % 2 ? 'D' : 'U');
+    // 헛스트로크 방향: 3연음=DDU 패턴 / 그 외=alt·교차
+    dir = triplet ? ((pos - 1) % 3 === 2 ? 'U' : 'D')
+                  : (alt ? 'D' : (pos % 2 ? 'D' : 'U'));
   }
   const ghostCls = ghost ? ' strum-stroke--ghost' : '';
   let inner = '';
@@ -163,6 +168,8 @@ function renderStrumGrid() {
   const cells = strokes.length;
   const alt = STRUM_ITEM.alt === true;
   const cut = STRUM_ITEM.cut || [];
+  const [cn, bd] = String(STRUM_ITEM.beat || '4/4').split('/').map(Number);
+  const triplet = bd === 8 && cn !== 6;
   const group = strumGroupSize(STRUM_ITEM.beat, cells);
   const gClass = group ? ` strum-beat-grid--g${group}` : '';
   // 12칸 초과 → 2줄 분할
@@ -173,7 +180,7 @@ function renderStrumGrid() {
     let cellsHtml = '';
     for (let c = 0; c < rowSize; c++) {
       const pos = r * rowSize + c + 1;
-      cellsHtml += strumCellHtml(strokes[pos - 1], pos, alt, cut.includes(pos));
+      cellsHtml += strumCellHtml(strokes[pos - 1], pos, alt, cut.includes(pos), triplet);
     }
     gridsHtml += `<div class="strum-beat-grid${gClass}">${cellsHtml}</div>`;
   }
@@ -218,7 +225,7 @@ function strumClearHighlight() {
 
 // ── BPM 휠피커 (progression-detail 패턴 재사용) ──────────────
 let _strumBpm = 80;
-const STRUM_BPM_MIN = 40;
+const STRUM_BPM_MIN = 30;
 const STRUM_BPM_MAX = 200;
 const STRUM_BPM_ITEM_H = 30;
 
@@ -250,11 +257,22 @@ function strumInitBpmWheel() {
   }, { passive: true });
 }
 
+// 초기 위치 설정: scroll-snap mandatory가 로드 시 scrollTop을 무시(맨 위 스냅)하므로
+// 스냅을 잠시 끄고 대입 → reflow → 복원 (이미 스냅 지점이라 복원해도 유지)
+function _strumSetWheelTop(wheel, top) {
+  const prev = wheel.style.scrollSnapType;
+  wheel.style.scrollSnapType = 'none';
+  wheel.scrollTop = top;
+  void wheel.offsetHeight; // 강제 reflow
+  wheel.style.scrollSnapType = prev;
+}
+
 function strumScrollBpmWheel(bpm, smooth) {
   const wheel = document.getElementById('strum-bpm-wheel');
   if (!wheel) return;
-  const idx = bpm - STRUM_BPM_MIN;
-  wheel.scrollTo({ top: idx * STRUM_BPM_ITEM_H, behavior: smooth ? 'smooth' : 'instant' });
+  const top = (bpm - STRUM_BPM_MIN) * STRUM_BPM_ITEM_H;
+  if (smooth) wheel.scrollTo({ top, behavior: 'smooth' });
+  else _strumSetWheelTop(wheel, top);
   strumUpdateBpmActiveItem();
 }
 
@@ -288,6 +306,9 @@ function strumToggleRamp(on) {
   if (box) box.classList.toggle('hidden', !_strumRamp);
   const arrow = document.getElementById('strum-bpm-prog-arrow');
   if (arrow) arrow.classList.toggle('hidden', !_strumRamp);
+  // display:none 상태에서 init한 start 휠은 scrollTo가 적용 안 됨
+  // → 보여질 때 재스크롤해 선택값 중앙 정렬 보정
+  if (_strumRamp) requestAnimationFrame(() => strumScrollStartWheel(_strumStartBpm, false));
 }
 
 function strumInitStartWheel() {
@@ -318,8 +339,9 @@ function strumInitStartWheel() {
 function strumScrollStartWheel(bpm, smooth) {
   const wheel = document.getElementById('strum-start-wheel');
   if (!wheel) return;
-  const idx = bpm - STRUM_BPM_MIN;
-  wheel.scrollTo({ top: idx * STRUM_BPM_ITEM_H, behavior: smooth ? 'smooth' : 'instant' });
+  const top = (bpm - STRUM_BPM_MIN) * STRUM_BPM_ITEM_H;
+  if (smooth) wheel.scrollTo({ top, behavior: 'smooth' });
+  else _strumSetWheelTop(wheel, top);
   strumUpdateStartActive();
 }
 
@@ -355,18 +377,21 @@ const STRUM_CUT_DUR     = 0.05;
 const STRUM_CUT_RELEASE = 0.04;
 
 // D/U 현 순서 (캔버스 인덱스: 0=1번줄 … 5=6번줄)
-//   D(다운) = 전체 6현, 6번줄(5)→1번줄(0)
-//   U(업)   = 1~3번줄만(인덱스 0~2), 1번줄(0)→3번줄(2)
+//   mode 'orig' : 악센트 미지정 카드 — 원래대로 D=전체6현 / U=1~3현
+//   mode 'acc'  : 악센트 셀 — D=전체6현 / U=1~4현 (벨로시티 상향)
+//   mode 'weak' : 악센트 있는 카드의 비악센트 셀 — D=4·5·6현 / U=1·2현
 const STRUM_DIR_STRINGS = {
-  D: [5, 4, 3, 2, 1, 0],
-  U: [0, 1, 2],
+  orig: { D: [5, 4, 3, 2, 1, 0], U: [0, 1, 2] },
+  acc:  { D: [5, 4, 3, 2, 1, 0], U: [0, 1, 2, 3] },
+  weak: { D: [5, 4, 3],          U: [0, 1] },
 };
 
-// 코드+방향 → 스트럼할 MIDI 배열
-function strumChordMidis(chordName, dir) {
+// 코드+방향+모드 → 스트럼할 MIDI 배열
+function strumChordMidis(chordName, dir, mode) {
   const voicing = strumDefaultVoicing(chordName);
   if (!voicing || !voicing.frets) return [];
-  const order = STRUM_DIR_STRINGS[dir] || STRUM_DIR_STRINGS.D;
+  const set = STRUM_DIR_STRINGS[mode] || STRUM_DIR_STRINGS.orig;
+  const order = set[dir] || set.D;
   const midis = [];
   for (const s of order) {
     const f = voicing.frets[s];
@@ -445,14 +470,25 @@ async function strumPlayStart() {
   renderStrumProg(); // 코드 진행 휠 처음(bar0)으로 리셋
   strumUpdatePlayBtn();
 
-  // 4비트 hat 카운트인 후 패턴 시작
+  // hat 카운트인 후 패턴 시작 — 정확히 1마디 길이를 countBeats개로 분할
+  //   4/4=4박, 3/4=3박, 12/8=4박, 6/8=6박(요청)
   const anchor   = Tone.now() + 0.12;
   const countBpm = _strumRamp ? _strumStartBpm : _strumBpm;
-  const beatDur  = 60 / countBpm;
-  for (let i = 0; i < 4; i++) {
-    if (typeof DrumAudio !== 'undefined') DrumAudio.hit('hat', anchor + i * beatDur);
+  const beatStr  = String(STRUM_ITEM && STRUM_ITEM.beat || '4/4');
+  const [cn, cd] = beatStr.split('/').map(Number);
+  const mainBeats0  = cd === 8 ? cn / 3 : cn;
+  const barDur0     = (60 / countBpm) * mainBeats0;
+  const countBeats  = beatStr === '6/8' ? 6 : mainBeats0;
+  const hatDur      = barDur0 / countBeats;
+  const countSet    = window.DRUM_SETS && window.DRUM_SETS[_strumDrumSet];
+  for (let i = 0; i < countBeats; i++) {
+    // 강박/약박 세트(hatStrong)면 카운트도 동일하게 강박만 살림
+    const hv = (countSet && countSet.hatStrong)
+      ? (countSet.hatStrong.includes(i) ? 1 : (countSet.hatSoftVel != null ? countSet.hatSoftVel : 0.15))
+      : 1;
+    if (typeof DrumAudio !== 'undefined') DrumAudio.hit('hat', anchor + i * hatDur, hv);
   }
-  _strumNextTime = anchor + 4 * beatDur; // 카운트인 4박 뒤 첫 박
+  _strumNextTime = anchor + barDur0; // 카운트인 1마디 뒤 첫 박
   _strumDrumNextTime = _strumNextTime;   // 드럼도 같은 앵커에서 시작
   _strumDrumStepG = 0;
 
@@ -511,15 +547,19 @@ function strumSchedulerTick() {
 
     const ch = strokes[cellInBar];
     const isCut = (STRUM_ITEM.cut || []).includes(cellInBar + 1);
+    // 악센트 미지정 카드 → 'orig'(원래대로). 지정 카드 → 셀별 'acc'/'weak'
+    const hasAccent = Array.isArray(STRUM_ITEM.accent) && STRUM_ITEM.accent.length > 0;
+    const mode = !hasAccent ? 'orig'
+               : (STRUM_ITEM.accent.includes(cellInBar + 1) ? 'acc' : 'weak');
     if (ch !== '-') { // 헛스트로크는 소리 없음(타이밍만 소비)
-      const midis = strumChordMidis(chord, ch);
+      const midis = strumChordMidis(chord, ch, mode);
       if (midis.length) {
         if (isCut) {
-          // 컷팅: 울리던 음 차단 + 6현 전부 짧게 긁기 (highpass 버스로 저역↓ 고역↑)
+          // 컷팅: 울리던 음 차단 + 짧게 긁기 (highpass 버스로 저역↓ 고역↑)
           GuitarAudio.cutAt(_strumNextTime, STRUM_CUT_RELEASE);
           GuitarAudio.strumAtCut(midis, STRUM_STROKE_SEC, _strumNextTime, STRUM_CUT_DUR, STRUM_CUT_RELEASE);
         } else {
-          GuitarAudio.strumAt(midis, STRUM_STROKE_SEC, _strumNextTime, noteDur, STRUM_NOTE_RELEASE);
+          GuitarAudio.strumAt(midis, STRUM_STROKE_SEC, _strumNextTime, noteDur, STRUM_NOTE_RELEASE, mode);
         }
       }
     }
@@ -564,7 +604,13 @@ function strumSchedulerTick() {
         const stepDur = (60 / dbpm) * mainBeats / set.steps;
         if ((set.kick  || []).includes(sstep)) DrumAudio.hit('kick',  _strumDrumNextTime);
         if ((set.snare || []).includes(sstep)) DrumAudio.hit('snare', _strumDrumNextTime);
-        if ((set.hat   || []).includes(sstep)) DrumAudio.hit('hat',   _strumDrumNextTime);
+        if ((set.hat   || []).includes(sstep)) {
+          // hatStrong 지정 세트는 강박만 살리고 나머지는 hatSoftVel로 약하게
+          const hv = set.hatStrong
+            ? (set.hatStrong.includes(sstep) ? 1 : (set.hatSoftVel != null ? set.hatSoftVel : 0.15))
+            : 1;
+          DrumAudio.hit('hat', _strumDrumNextTime, hv);
+        }
         _strumDrumNextTime += stepDur;
         _strumDrumStepG++;
       }
@@ -600,10 +646,29 @@ document.addEventListener('DOMContentLoaded', () => {
   const titleEl = document.getElementById('strum-play-title');
   if (titleEl && STRUM_ITEM) titleEl.textContent = STRUM_ITEM.title;
 
+  // 박자에 맞는 드럼 세트 선택 (3/4→왈츠2, 12/8→셔플3, 6/8→4, 그 외→8비트1)
+  {
+    const _b = STRUM_ITEM && String(STRUM_ITEM.beat);
+    _strumDrumSet = _b === '3/4' ? 2 : _b === '12/8' ? 3 : _b === '6/8' ? 4 : 1;
+    // 기본 BPM: 카드 bpm 우선 → 6/8은 느린 곡 많아 목표 50·시작 30, 그 외 목표 80
+    const _defBpm = (STRUM_ITEM && STRUM_ITEM.bpm) || (_b === '6/8' ? 50 : 80);
+    _strumBpm = Math.max(STRUM_BPM_MIN, Math.min(STRUM_BPM_MAX, _defBpm));
+    if (_b === '6/8') _strumStartBpm = 30;
+    _strumStartBpm = Math.min(_strumStartBpm, _strumBpm); // 시작 BPM ≤ 목표
+  }
+
   renderStrumProg();
   renderStrumGrid();
   strumInitBpmWheel();
   strumInitStartWheel();
+  // 레이아웃·폰트·캔버스 로드 타이밍에 따라 초기 스크롤이 밀릴 수 있어 여러 시점 재보정
+  const _strumReposition = () => {
+    strumScrollBpmWheel(_strumBpm, false);
+    strumScrollStartWheel(_strumStartBpm, false);
+  };
+  requestAnimationFrame(_strumReposition);
+  setTimeout(_strumReposition, 80);
+  window.addEventListener('load', _strumReposition);
 
   lucide.createIcons();
 

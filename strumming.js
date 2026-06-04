@@ -33,9 +33,12 @@ function strumStrokeString(item) {
   const n = item.count || 0;
   const alt = item.alt === true;
   const skip = item.skip || [];
+  const [cn, bd] = String(item.beat || '4/4').split('/').map(Number);
+  const triplet = bd === 8 && cn !== 6; // 분모8(12/8 등)=3연음 DDU / 6/8은 제외(DU 연속)
   let s = '';
   for (let i = 1; i <= n; i++) {
-    if (skip.includes(i)) s += '-';
+    if (skip.includes(i)) { s += '-'; continue; }
+    if (triplet) s += (i - 1) % 3 === 2 ? 'U' : 'D';
     else s += alt ? 'D' : (i % 2 ? 'D' : 'U');
   }
   return s;
@@ -45,12 +48,13 @@ function strumStrokeString(item) {
 // ch: 'D'/'U'(소리냄) / '-'(헛스트로크=모션은 하나 소리 안냄)
 // pos: 1-based 위치, alt: 모션 종류 → 헛스트로크 방향 결정
 //   헛스트로크 방향 = 그 자리 모션 (alt=false면 DU 홀수D/짝수U, alt=true면 전부 D)
-function strumCellHtml(ch, pos, alt, isCut) {
+function strumCellHtml(ch, pos, alt, isCut, triplet) {
   let dir = ch; // 'D' | 'U'
   let ghost = false;
   if (ch === '-') {
     ghost = true;
-    dir = alt ? 'D' : (pos % 2 ? 'D' : 'U');
+    dir = triplet ? ((pos - 1) % 3 === 2 ? 'U' : 'D')
+                  : (alt ? 'D' : (pos % 2 ? 'D' : 'U'));
   }
   const ghostCls = ghost ? ' strum-stroke--ghost' : '';
   let inner = '';
@@ -70,6 +74,8 @@ function strumCardHtml(item) {
   const cells = strokes.length;
   const alt = item.alt === true;
   const cut = item.cut || [];
+  const [cn, bd] = String(item.beat || '4/4').split('/').map(Number);
+  const triplet = bd === 8 && cn !== 6;
   const group = strumGroupSize(item.beat, cells);
   const gClass = group ? ` strum-beat-grid--g${group}` : '';
 
@@ -83,7 +89,7 @@ function strumCardHtml(item) {
     let cellsHtml = '';
     for (let c = 0; c < slice.length; c++) {
       const pos = r * rowSize + c + 1; // 1-based 전체 위치
-      cellsHtml += strumCellHtml(slice[c], pos, alt, cut.includes(pos));
+      cellsHtml += strumCellHtml(slice[c], pos, alt, cut.includes(pos), triplet);
     }
     gridsHtml += `<div class="strum-beat-grid${gClass}">${cellsHtml}</div>`;
   }

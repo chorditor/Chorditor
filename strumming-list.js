@@ -7,7 +7,11 @@
 //   title    : 카드 제목
 //   desc     : 카드 설명
 //   recommend: true → '추천' 배지 (선택)
+//   bpm      : 기본 목표 BPM (선택) — 미지정 시 6/8=목표50·시작30, 그 외=목표80
 //   cut      : [1-based 위치] 컷팅(뮤트 스트로크) 셀 (선택)
+//   accent   : [1-based 위치] 악센트 셀 (선택) — 강조 스트로크.
+//              악센트 D=1~6현 전부 / 비악센트 D=4·5·6현만
+//              악센트 U=1~4현    / 비악센트 U=1·2현만 + 벨로시티 상향
 //   배치 지정 (둘 중 하나):
 //     A) strokes: 'DUDU...' 문자열 직접. D=다운/U=업/-=생략. (불규칙·생략 패턴)
 //     B) count + alt(+skip): count=칸수, alt=false(DU반복·기본)/true(DD반복·전부D),
@@ -92,6 +96,7 @@ window.STRUMMING_LIST = [
     desc: '리듬감 있는 16비트 주법',
     count: 16,
     skip: [2, 4, 6, 10, 12, 14],
+    accent: [5, 7, 8, 13, 15, 16]
   },
   {
     level: 1,
@@ -100,6 +105,7 @@ window.STRUMMING_LIST = [
     desc: '기본 슬로우 고고 리듬에 약간에 변형을!',
     count: 16,
     skip: [2, 4, 6, 12, 14],
+    accent: [5, 7, 8, 13, 15, 16]
   },
   {
     level: 1,
@@ -125,6 +131,47 @@ window.STRUMMING_LIST = [
     desc: '어쿠스틱, 인디 느낌이 나는 경쾌한 주법',
     count: 16,
     skip: [2, 3, 8, 9],
+  },
+  {
+    level: 1,
+    beat: '3/4',
+    title: '기본 왈츠',
+    desc: '쿵-짝-짝, 3박자의 기본! 첫 박을 묵직하게',
+    count: 3,
+    alt: true,
+    accent: [2, 3],
+  },
+  {
+    level: 1,
+    beat: '3/4',
+    title: '6비트 기본 왈츠',
+    desc: '다운-다운업-다운업, 부드러운 3박자 리듬',
+    strokes: 'D-DUDU',
+    accent: [3, 5],
+  },
+  {
+    level: 2,
+    beat: '12/8',
+    title: '기본 셔플',
+    desc: '롱-숏 튀는 3연음 셔플 리듬의 기본',
+    strokes: 'D-UD-UD-UD-U',
+  },
+  {
+    level: 1,
+    beat: '6/8',
+    title: '6/8박자 기본',
+    desc: '두 박이 흔들리는 6/8 박자의 기본 — 다운업 연속',
+    count: 12,
+    strokes: 'D--UDUD--UDU'
+  },
+  {
+    level: 2,
+    beat: '6/8',
+    title: '6/8 발라드 주법 ',
+    desc: '발라드계 최고 GOAT 주법! ',
+    count: 12,
+    strokes: 'D-DUDUD-DUDU',
+    recommend:true
   },
 ];
 
