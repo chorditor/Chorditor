@@ -1956,6 +1956,12 @@ function updateTrainingOverviewStats(durationMin) {
 
   localStorage.setItem(TRAINING_STATS_KEY, JSON.stringify(stats));
   syncTrainingStatsToDB(); // 즉시 DB 반영 (fire-and-forget)
+
+  // 리뷰 유도 조건: 코드 맞추기 1회 완료 / streak 3일+
+  if (typeof reviewQualify === 'function') {
+    reviewQualify('quiz_done');
+    if ((stats.streak || 0) >= 3) reviewQualify('streak_3');
+  }
 }
 
 // ── 세션 로컬 캐시 & DB 플러시 ───────────────────────────────

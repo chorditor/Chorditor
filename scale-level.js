@@ -3114,6 +3114,9 @@ function _recordScaleSubmit() {
 
   localStorage.setItem(TRAINING_STATS_KEY, JSON.stringify(stats));
   syncTrainingStatsToDB(); // 즉시 DB 반영 (fire-and-forget)
+
+  // 리뷰 유도 조건: streak 3일+
+  if (typeof reviewQualify === 'function' && (stats.streak || 0) >= 3) reviewQualify('streak_3');
 }
 
 /** 페이지 이탈 시 훈련 시간 누적 (문제 미완료여도 기록) */
@@ -3127,6 +3130,9 @@ function _recordScaleSessionTime() {
   ) / 10;
   localStorage.setItem(TRAINING_STATS_KEY, JSON.stringify(stats));
   _scaleSessionStart = 0; // 중복 기록 방지
+
+  // 리뷰 유도 조건: 스케일 연속 3분+ 연습 후 이탈
+  if (typeof reviewQualify === 'function' && durationMin >= 3) reviewQualify('scale_3min');
 }
 
 // ── Analytics 헬퍼 ──────────────────────────────────────────────

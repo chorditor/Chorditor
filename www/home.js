@@ -1673,7 +1673,8 @@ async function checkAndShowNotice() {
     }
     const noticesResp = await fetch(url, { headers });
     const notices = noticesResp.ok ? await noticesResp.json() : [];
-    if (!notices?.length) return;
+    // 노출할 공지 없으면 리뷰 유도 모달 시도 (안전 시점)
+    if (!notices?.length) { if (typeof reviewMaybeShow === 'function') reviewMaybeShow(); return; }
 
     const notice = notices[0];
     _currentNoticeId = notice.id;
@@ -3881,6 +3882,9 @@ document.addEventListener('pointerdown', (e) => {
 });
 
 document.addEventListener('DOMContentLoaded', async () => {
+  // 리뷰 유도: 앱 실행 카운트 (성숙도 측정)
+  if (typeof reviewRegisterLaunch === 'function') reviewRegisterLaunch();
+
   // ── UI 초기화 ──────────────────────────────────────────────
   // 배너 버전 표시
   const _prodVer = 'v' + APP_VERSION;

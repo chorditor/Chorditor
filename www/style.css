@@ -4763,6 +4763,57 @@ canvas {
 .notice-modal-btn:hover { opacity: 0.85; }
 .notice-modal-btn:active { transform: scale(0.98); }
 
+/* ── 리뷰/평점 유도 모달 (미니멀, 텍스트 버튼) ── */
+.review-modal {
+  background: var(--surface);
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--border);
+  width: calc(100% - 32px);
+  max-width: 320px;
+  padding: 30px 26px 14px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+}
+.review-modal-title {
+  font-family: 'Pretendard', sans-serif;
+  font-size: 17px;
+  font-weight: 600;
+  color: var(--text-primary);
+  line-height: 1.4;
+  margin-bottom: 10px;
+}
+.review-modal-message {
+  font-size: 13.5px;
+  color: var(--text-secondary);
+  line-height: 1.7;
+  margin-bottom: 22px;
+}
+.review-modal-btn {
+  width: 100%;
+  padding: 11px;
+  background: transparent;
+  border: none;
+  font-family: 'Pretendard', sans-serif;
+  font-size: 14.5px;
+  font-weight: 400;
+  color: var(--text-secondary);
+  cursor: pointer;
+  letter-spacing: 0.01em;
+  transition: opacity .15s;
+}
+.review-modal-btn:active { opacity: 0.6; }
+.review-modal-btn:hover { opacity: 0.75; }
+.review-modal-btn--primary {
+  color: var(--blue);
+  font-weight: 600;
+}
+.review-modal-btn--text {
+  font-size: 13px;
+  color: var(--text-tertiary, #9aa0a6);
+}
+
 /* 모달 내부 4열 그리드 (lib-cards와 동일 구조) */
 .lib-voicing-grid {
   display: grid;

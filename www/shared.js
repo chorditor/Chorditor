@@ -6,7 +6,7 @@
 // ── 상수 ─────────────────────────────────────────────────────
 const SUPABASE_URL  = 'https://jbvkygeksohlysyvaoab.supabase.co';
 const SUPABASE_ANON = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Impidmt5Z2Vrc29obHlzeXZhb2FiIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzYzOTk5NjgsImV4cCI6MjA5MTk3NTk2OH0.6RSgChy0Yq0H2TJpZPSoMKQ2V-OYfR0XzE1aJBBZkXI';
-const APP_VERSION   = '1.2.3_dev5';
+const APP_VERSION   = '1.2.3_dev6';
 const SUPABASE_STORAGE_KEY = 'sb-jbvkygeksohlysyvaoab-auth-token';
 
 // ── Analytics SDK ─────────────────────────────────────────────
@@ -753,7 +753,7 @@ async function restoreTrainingStatsFromDB() {
 
   try {
     const resp = await fetch(
-      `${SUPABASE_URL}/rest/v1/subscriptions?user_id=eq.${userId}&select=streak,training_time_min,total_completed,streak_synced_date`,
+      `${SUPABASE_URL}/rest/v1/subscriptions?user_id=eq.${userId}&select=streak,training_time_min,total_completed,streak_synced_date,review_rated`,
       { headers: { 'apikey': SUPABASE_ANON, 'Authorization': `Bearer ${accessToken}` } }
     );
     if (!resp.ok) return;
@@ -776,6 +776,12 @@ async function restoreTrainingStatsFromDB() {
       merged.streak_last_counted_date = overview.streak_synced_date;
 
     localStorage.setItem('training_stats', JSON.stringify(merged));
+
+    // 서버에서 이미 평가 완료한 유저면 재노출 방지
+    if (overview.review_rated) {
+      const rs = reviewGetState();
+      if (!rs.rated) { rs.rated = true; reviewSetState(rs); }
+    }
   } catch (_) {}
 }
 
@@ -838,8 +844,141 @@ function recordTrainingTime(seconds) {
   stats.training_time_min = Math.round(((stats.training_time_min || 0) + seconds / 60) * 10) / 10;
   localStorage.setItem('training_stats', JSON.stringify(stats));
   syncTrainingStatsToDB();
+  if (typeof reviewQualify === 'function' && stats.training_time_min >= 10) reviewQualify('time_10');
 }
 if (typeof window !== 'undefined') window.recordTrainingTime = recordTrainingTime;
+
+// ── 리뷰/평점 유도 시스템 ───────────────────────────────────
+// 조건 충족(qualify)과 노출(show) 분리. 조건은 훈련 흐름 중 채워지고,
+// 팝업은 안전한 경계(메인홈 복귀/다음 실행)에서만 reviewMaybeShow()로 노출.
+const REVIEW_KEY        = 'review_state';
+const REVIEW_STORE_URL  = 'https://play.google.com/store/apps/details?id=com.chorditor.app';
+const REVIEW_MATURITY_DAYS     = 2;     // 설치 후 최소 경과일
+const REVIEW_MATURITY_LAUNCHES = 3;     // 최소 앱 실행 횟수
+const REVIEW_COOLDOWN_DAYS      = 14;   // 노출 간 최소 간격
+const REVIEW_MAX_PROMPTS        = 3;    // 누적 노출 상한
+
+function reviewGetState() {
+  try { return JSON.parse(localStorage.getItem(REVIEW_KEY) || '{}'); }
+  catch (_) { return {}; }
+}
+function reviewSetState(s) {
+  try { localStorage.setItem(REVIEW_KEY, JSON.stringify(s)); } catch (_) {}
+}
+
+// 앱 실행마다 1회 호출 (성숙도 측정용)
+function reviewRegisterLaunch() {
+  const s = reviewGetState();
+  if (!s.firstSeenMs) s.firstSeenMs = Date.now();
+  s.launchCount = (s.launchCount || 0) + 1;
+  reviewSetState(s);
+}
+
+// 조건 충족 시 호출. 성숙도 가드 통과하면 pending=true (즉시 노출 X)
+function reviewQualify(reason) {
+  const s = reviewGetState();
+  if (s.rated) return;
+  if (!s.firstSeenMs) s.firstSeenMs = Date.now();
+  const matureDays    = (Date.now() - s.firstSeenMs) >= REVIEW_MATURITY_DAYS * 86400000;
+  const matureLaunch  = (s.launchCount || 0) >= REVIEW_MATURITY_LAUNCHES;
+  if (matureDays && matureLaunch) {
+    s.pending     = true;
+    s.lastReason  = reason || '';
+    reviewSetState(s);
+  }
+}
+
+// 안전 시점에서 호출. 게이트 통과 시에만 모달 오픈
+function reviewMaybeShow() {
+  const s = reviewGetState();
+  if (s.rated || !s.pending) return;
+  if ((s.promptCount || 0) >= REVIEW_MAX_PROMPTS) return;
+  if (Date.now() - (s.lastPromptMs || 0) < REVIEW_COOLDOWN_DAYS * 86400000) return;
+  const overlay = document.getElementById('review-modal-overlay');
+  if (!overlay) return;
+  // 노출 소비
+  s.pending     = false;
+  s.lastPromptMs = Date.now();
+  s.promptCount  = (s.promptCount || 0) + 1;
+  reviewSetState(s);
+  overlay.classList.remove('hidden');
+}
+
+// 모달 응답: 'like' | 'later' | 'dislike'
+function reviewRespond(kind) {
+  const overlay = document.getElementById('review-modal-overlay');
+  if (overlay) overlay.classList.add('hidden');
+  const s = reviewGetState();
+  if (kind === 'like') {
+    s.rated = true;
+    reviewSetState(s);
+    syncReviewRatedToDB();
+    reviewOpenStore();
+  } else if (kind === 'dislike') {
+    // 다시 조르지 않음 (부정 평가 → 스토어 1점 테러 방지)
+    s.rated = true;
+    reviewSetState(s);
+    syncReviewRatedToDB();
+  } else { // later
+    s.declinedCount = (s.declinedCount || 0) + 1;
+    reviewSetState(s);
+  }
+}
+
+function reviewOpenStore() {
+  try {
+    if (window.Capacitor?.Plugins?.Browser) {
+      window.Capacitor.Plugins.Browser.open({ url: REVIEW_STORE_URL });
+    } else {
+      window.open(REVIEW_STORE_URL, '_blank');
+    }
+  } catch (_) {
+    try { window.open(REVIEW_STORE_URL, '_blank'); } catch (__) {}
+  }
+}
+
+// review_rated → subscriptions 동기화 (재설치 후 재노출 방지)
+async function syncReviewRatedToDB() {
+  let accessToken = null, userId = null;
+  try {
+    const stored = localStorage.getItem(SUPABASE_STORAGE_KEY);
+    if (stored) {
+      const parsed = JSON.parse(stored);
+      accessToken  = parsed?.access_token ?? null;
+      userId       = parsed?.user?.id     ?? null;
+    }
+  } catch (_) {}
+  if (!accessToken || !userId) return;
+
+  const headers = {
+    'Content-Type':  'application/json',
+    'apikey':         SUPABASE_ANON,
+    'Authorization': `Bearer ${accessToken}`,
+  };
+  try {
+    const patch = await fetch(
+      `${SUPABASE_URL}/rest/v1/subscriptions?user_id=eq.${userId}`,
+      { method: 'PATCH', headers: { ...headers, 'Prefer': 'return=representation' },
+        body: JSON.stringify({ review_rated: true }) }
+    );
+    let rows = [];
+    if (patch.ok) rows = await patch.json();
+    if (rows.length === 0) {
+      await fetch(`${SUPABASE_URL}/rest/v1/subscriptions`, {
+        method:  'POST',
+        headers: { ...headers, 'Prefer': 'resolution=merge-duplicates,return=minimal' },
+        body: JSON.stringify({ user_id: userId, plan: 'free', status: 'active', review_rated: true }),
+      });
+    }
+  } catch (_) {}
+}
+
+if (typeof window !== 'undefined') {
+  window.reviewRegisterLaunch = reviewRegisterLaunch;
+  window.reviewQualify        = reviewQualify;
+  window.reviewMaybeShow      = reviewMaybeShow;
+  window.reviewRespond        = reviewRespond;
+}
 
 // ── 퀴즈 레벨 통계 DB 동기화 ────────────────────────────────────
 // quiz_stats_level{N} localStorage → Supabase quiz_level_stats
