@@ -44,6 +44,7 @@ function _getChordName(rootKey, semitones, quality, bass) {
 let _prog               = null;
 let _key                = 0;
 let _useFlat            = false;
+let _showFingers        = false; // 운지 손가락 번호 표시 on/off
 let _bpm                = 80;
 let _playing            = false;
 let _starting           = false; // 시작 비동기 구간 재진입 가드
@@ -92,7 +93,17 @@ function _getCandidates(rootSemitone, quality, bass) {
 
 // 캔버스 드로잉 → voicing-canvas.js 모듈(VoicingCanvas) 위임
 function _drawVoicingCanvas(canvas, voicing, chordName, ratio) {
-  VoicingCanvas.draw(canvas, voicing, { chordName, ratio, transparent: true });
+  VoicingCanvas.draw(canvas, voicing, { chordName, ratio, transparent: true, fingerNumMode: _showFingers });
+}
+
+// 현재 표시 중인 슬롯 4개를 재드로우 (재생 정지 없이 손가락번호 토글용)
+function _redrawAllSlots() {
+  if (!_slotDoms || !_slotData) return;
+  _slotDoms.forEach((dom, i) => {
+    const canvas = dom.querySelector('canvas');
+    const d = _slotData[i];
+    if (canvas && d) requestAnimationFrame(() => _redrawCanvas(canvas, dom, d.voicing, d.chordName));
+  });
 }
 
 // ── 오디오 컨텍스트 (Tone 동기화용) ──────────────────────────
@@ -238,6 +249,13 @@ async function togglePlay() {
   _starting   = false;
   _playing    = true;
   _masterBeat = 0;
+  // 재생 시작 = 첫 코드로 복귀 (애니메이션). 짧은 방향으로 슬라이드
+  if (_currentDisplayStep !== 0) {
+    const count = _prog.steps.length;
+    const fwd   = (count - _currentDisplayStep) % count; // 0이 next쪽
+    const back  = _currentDisplayStep;                    // 0이 prev쪽
+    _animateToStep(0, back > fwd); // back 많으면 오른쪽에서, 아니면 왼쪽에서
+  }
   _playStartMs = Date.now(); // 훈련시간 측정 시작
   analytics.track('progression_detail_played', { prog_id: _prog?.id, key: _getKeyDisplayName(_key), bpm: _bpm });
   _updatePlayBtn();
@@ -609,6 +627,51 @@ function _advanceStage(newCurrent) {
   _slotRoles[domNext] = 2; // current
 }
 
+// 역방향(이전 코드) 애니 — 스와이프 우→좌 반대용 (_advanceStage 미러)
+// far-left 슬롯엔 이미 (cur-2) 콘텐츠가 있어 그대로 prev로 들어옴
+function _advanceStageBack(newCurrent) {
+  if (!_slotDoms) { _renderStage(); return; }
+  const count   = _prog.steps.length;
+  const domFL   = _getSlotByRole(0);
+  const domPrev = _getSlotByRole(1);
+  const domCurr = _getSlotByRole(2);
+  const domNext = _getSlotByRole(3);
+
+  // 슬라이드: far-left→prev, prev→current, current→next, next→far-right(퇴장)
+  _slotDoms[domFL].className   = 'progd-slot progd-slot--prev';
+  _slotDoms[domPrev].className = 'progd-slot progd-slot--current';
+  _slotDoms[domCurr].className = 'progd-slot progd-slot--next';
+  _slotDoms[domNext].className = 'progd-slot progd-slot--far-right';
+
+  _slotRoles[domFL]   = 1; // prev
+  _slotRoles[domPrev] = 2; // current
+  _slotRoles[domCurr] = 3; // next
+  _slotRoles[domNext] = 0; // far-left (숨김)
+
+  // 퇴장 슬롯 → far-left 위치 스냅 복귀 + 새 far-left 콘텐츠(newCurrent-2)
+  const exited = domNext;
+  setTimeout(() => {
+    _slotDoms[exited].className = 'progd-slot progd-slot--far-left progd-no-transition';
+    void _slotDoms[exited].getBoundingClientRect();
+    _drawSlot(exited, ((newCurrent - 2) % count + count) % count);
+  }, 440);
+}
+
+// 임의 스텝을 한 번의 슬라이드로 들여보내며 이동 (재생 시작 시 첫 코드 복귀 애니)
+//   fromRight=true: 오른쪽(next)에서 등장 / false: 왼쪽(prev)에서 등장
+function _animateToStep(target, fromRight) {
+  if (!_slotDoms) { _currentDisplayStep = target; _renderStage(); return; }
+  if (fromRight) {
+    _drawSlot(_getSlotByRole(3), target); // next 슬롯을 target으로 그린 뒤 슬라이드 인
+    _currentDisplayStep = target;
+    _advanceStage(target);
+  } else {
+    _drawSlot(_getSlotByRole(1), target); // prev 슬롯을 target으로
+    _currentDisplayStep = target;
+    _advanceStageBack(target);
+  }
+}
+
 // ── DOMContentLoaded ────────────────────────────────────────
 document.addEventListener('DOMContentLoaded', () => {
   // URL 파라미터 파싱
@@ -655,6 +718,47 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   if (_useFlat) _setAccidental(true);
+
+  // 손가락 번호 on/off 토글 (재생 정지 없이 슬롯만 재드로우)
+  const fingerBtn = document.getElementById('detail-finger-toggle');
+  if (fingerBtn) {
+    fingerBtn.addEventListener('pointerup', () => {
+      _showFingers = !_showFingers;
+      fingerBtn.classList.toggle('active', _showFingers);
+      _redrawAllSlots();
+    });
+  }
+
+  // 코드 캐러셀 스와이프 (정지 중에만) — 좌:다음 / 우:이전 (한 칸 애니)
+  const stageInner = document.getElementById('detail-chord-row');
+  if (stageInner) {
+    let _sx = 0, _swiping = false, _busy = false;
+    stageInner.addEventListener('pointerdown', (e) => {
+      if (_playing) return;
+      _sx = e.clientX; _swiping = true;
+      try { stageInner.setPointerCapture(e.pointerId); } catch (_) {}
+    });
+    const _endSwipe = (e) => {
+      if (!_swiping || _playing) { _swiping = false; return; }
+      _swiping = false;
+      if (_busy || !_prog) return;
+      const count = _prog.steps.length;
+      if (count < 2) return;
+      const dx = e.clientX - _sx;
+      if (Math.abs(dx) < 40) return;     // 드래그(스와이프)만
+      _busy = true;
+      setTimeout(() => { _busy = false; }, 460);
+      if (dx < 0) { // 좌 → 다음
+        _currentDisplayStep = (_currentDisplayStep + 1) % count;
+        _advanceStage(_currentDisplayStep);
+      } else {      // 우 → 이전
+        _currentDisplayStep = (_currentDisplayStep - 1 + count) % count;
+        _advanceStageBack(_currentDisplayStep);
+      }
+    };
+    stageInner.addEventListener('pointerup', _endSwipe);
+    stageInner.addEventListener('pointercancel', () => { _swiping = false; });
+  }
 
   // 초기 렌더
   _initBpmWheel();

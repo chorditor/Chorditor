@@ -1121,6 +1121,8 @@ body {
   align-items: center;
   justify-content: center;
 }
+#btn-finger-num i { font-size: 20px; }
+#lib-finger-btn i { font-size: 18px; }
 .finger-btn:hover { border-color: var(--text-secondary); color: var(--text-primary); }
 .finger-btn.selected,
 .finger-btn.active {
@@ -7442,6 +7444,26 @@ canvas {
   margin-bottom: 4px;
 }
 
+/* 손가락 번호 on/off 토글 (코드진행 디테일) */
+.finger-toggle {
+  height: 32px;
+  width: 38px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  border-radius: 999px;
+  background: #f0f0f0;
+  color: #999;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+.finger-toggle i { font-size: 18px; }
+.finger-toggle.active {
+  background: #1a6fff;
+  color: #ffffff;
+}
+
 /* ── 짝궁 전환 버튼 (Ch.2) ── */
 .pair-transition-btn {
   display: inline-flex;
@@ -8330,6 +8352,9 @@ canvas {
   width: 100%;
   flex: 1 1 auto;          /* 기본: 남는 공간 채움 / 부족하면 min-height까지 축소 */
   min-height: 180px;       /* 바닥값 = 캔버스 높이 보장 (이 아래로만 전체 스크롤) */
+  touch-action: pan-y;     /* 세로 스크롤 허용, 가로 드래그는 스와이프로 */
+  user-select: none;       /* 드래그 시 텍스트/이미지 선택 방지 */
+  -webkit-user-select: none;
 }
 
 /* 모든 슬롯 동일 기준: 너비 54%, 좌측 23% → 가운데 정렬 */
