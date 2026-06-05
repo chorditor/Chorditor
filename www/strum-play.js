@@ -463,6 +463,7 @@ async function strumPlayStart() {
   _strumStarting = false;
   if (typeof Tone !== 'undefined') { try { Tone.getDestination().mute = false; } catch (e) {} }
   _strumPlaying  = true;
+  analytics.track('strum_play_started', { id: STRUM_ITEM ? STRUM_ITEM.id : null, title: STRUM_ITEM ? STRUM_ITEM.title : null });
   _strumCellG    = 0;
   _strumDispBpm  = _strumRamp ? _strumStartBpm : _strumBpm;
   _strumPlayStartMs = Date.now(); // 훈련시간 측정 시작
@@ -681,7 +682,7 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   }
 
-  analytics.track('strum_play_viewed', { id });
+  analytics.track('strum_play_viewed', { id, title: STRUM_ITEM ? STRUM_ITEM.title : null });
 
   // 페이지 이탈 중 재생이면 훈련시간 적립
   window.addEventListener('pagehide', () => { if (_strumPlaying) strumPlayStop(); });
