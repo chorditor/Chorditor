@@ -1808,10 +1808,13 @@ function renderQuestion() {
       const divs = container.querySelectorAll('.quiz-diagram-choice');
       choices.forEach((item, i) => {
         const cv = divs[i].querySelector('canvas');
+        const dpr = window.devicePixelRatio || 1;
         const w  = cv.offsetWidth;
         const h  = Math.round(w * VoicingCanvas.BASE_H / VoicingCanvas.BASE_W);
-        cv.width  = w;
-        cv.height = h;
+        cv.style.width  = w + 'px';
+        cv.style.height = h + 'px';
+        cv.width  = Math.round(w * dpr);
+        cv.height = Math.round(h * dpr);
         drawLibEntry(cv, item.entry);
       });
       fitQuizToScreen();
