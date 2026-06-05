@@ -1364,41 +1364,137 @@ canvas {
 
 /* 이미지 저장 배율 드롭다운 */
 #export-scale { display: none; }  /* 구 select 숨김 */
-.scale-dropdown {
+/* ── 이미지 저장 모달 (에디터/라이브러리 공용) ── */
+.img-save-backdrop {
   position: fixed;
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  box-shadow: 0 6px 20px rgba(0,0,0,.22);
-  z-index: 9999;
-  width: 120px;
-  overflow: hidden;
+  inset: 0;
+  background: rgba(0,0,0,.45);
+  z-index: 9998;
   opacity: 0;
   pointer-events: none;
-  transform: translateY(6px);
-  transition: opacity .18s ease, transform .18s ease;
+  transition: opacity .22s ease;
 }
-.scale-dropdown.open {
-  opacity: 1;
-  pointer-events: auto;
-  transform: translateY(0);
+.img-save-backdrop.open { opacity: 1; pointer-events: auto; }
+
+.img-save-modal {
+  position: fixed;
+  left: 0; right: 0; bottom: 0;
+  z-index: 9999;
+  background: var(--surface);
+  border-radius: 24px 24px 0 0;
+  box-shadow: 0 -6px 24px rgba(0,0,0,.18);
+  padding: 10px 20px calc(20px + env(safe-area-inset-bottom));
+  transform: translateY(100%);
+  transition: transform .28s cubic-bezier(.22,.61,.36,1);
+  max-width: 440px;
+  margin: 0 auto;
 }
-.scale-dropdown-item {
+.img-save-modal.open { transform: translateY(0); }
+
+.ism-handle {
+  width: 40px; height: 4px;
+  border-radius: 2px;
+  background: var(--border);
+  margin: 0 auto 14px;
+}
+
+.ism-preview {
+  display: flex;
+  justify-content: center;
+  margin-bottom: 18px;
+}
+#img-preview-canvas {
+  width: 70%;
+  max-width: 240px;
+  border-radius: 10px;
+  background: #ffffff;
+  box-shadow: 0 0 0 1px rgba(0,0,0,.08);
+}
+/* 투명 저장 시 체커보드 배경으로 투명도 표시 */
+#img-preview-canvas.transparent-bg {
+  background-color: #fff;
+  background-image:
+    linear-gradient(45deg, #d8d8d8 25%, transparent 25%),
+    linear-gradient(-45deg, #d8d8d8 25%, transparent 25%),
+    linear-gradient(45deg, transparent 75%, #d8d8d8 75%),
+    linear-gradient(-45deg, transparent 75%, #d8d8d8 75%);
+  background-size: 14px 14px;
+  background-position: 0 0, 0 7px, 7px -7px, -7px 0;
+}
+
+.ism-scale { margin-bottom: 20px; }
+.ism-scale-row {
   display: flex;
   justify-content: space-between;
-  padding: 11px 12px;
-  font-size: 13px;
+  align-items: baseline;
+  margin-bottom: 10px;
+}
+.ism-scale-label { font-size: 14px; font-weight: 600; color: var(--text-primary); }
+.ism-scale-val   { font-size: 13px; color: var(--text-muted); font-variant-numeric: tabular-nums; }
+
+.ism-slider {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 100%;
+  height: 4px;
+  border-radius: 2px;
+  background: var(--border);
+  outline: none;
+}
+.ism-slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 22px; height: 22px;
+  border-radius: 50%;
+  background: var(--text-primary);
   cursor: pointer;
+  box-shadow: 0 1px 4px rgba(0,0,0,.25);
+}
+.ism-slider::-moz-range-thumb {
+  width: 22px; height: 22px;
+  border: none;
+  border-radius: 50%;
+  background: var(--text-primary);
+  cursor: pointer;
+}
+
+.ism-bottom {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+}
+.ism-transparent {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 14px;
   color: var(--text-primary);
-  white-space: nowrap;
-  transition: background .1s;
+  cursor: pointer;
+  user-select: none;
 }
-.scale-dropdown-item:hover { background: var(--bg); }
-.scale-dropdown-item.locked {
-  color: var(--text-muted);
-  cursor: default;
+.ism-transparent input { width: 18px; height: 18px; accent-color: var(--text-primary); }
+.ism-premium-crown { display: none; color: #b8860b; font-size: 15px; }
+.ism-transparent.locked .ism-premium-crown { display: inline; }
+
+.ism-save-btn {
+  flex-shrink: 0;
+  padding: 12px 28px;
+  border: none;
+  border-radius: 12px;
+  background: var(--text-primary);
+  color: var(--surface);
+  font-size: 15px;
+  font-weight: 700;
+  cursor: pointer;
 }
-.scale-dropdown-item.locked:hover { background: transparent; }
+.ism-save-btn.locked {
+  background: var(--blue);
+  color: #fff;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
 .ab-btn-primary {
   background: var(--text-primary);
   color: var(--bg);
