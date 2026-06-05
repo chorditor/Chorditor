@@ -7216,6 +7216,26 @@ canvas {
   pointer-events: none;
 }
 
+/* 도수 번호 라벨 — .degrees-on 일 때만 표시.
+   위치는 잉크박스 실측(measureText) 기반으로 JS가 transform 인라인 주입 →
+   원 정중앙 정렬. left/top 50% 기준점에서 글리프별 오프셋 적용. */
+.fb-note-deg {
+  display: none;
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  white-space: nowrap;
+  font-family: 'Pretendard', sans-serif;
+  font-size: 11px;
+  font-weight: 700;
+  color: #ffffff;
+  pointer-events: none;
+  z-index: 4;
+  transform: translate(-50%, -50%);   /* 측정 전 폴백 */
+}
+.degrees-on .fb-note-deg { display: block; }
+.fb-note--open .fb-note-deg { color: #1a1a1a; }
+
 /* 터치 타겟 확장 — 시각 크기 유지, 터치 영역만 확대 */
 .fb-note::before {
   content: '';
@@ -7241,6 +7261,14 @@ canvas {
 }
 
 .fb-note--ghost.fb-note--nat7 {
+  background: #a0b4cc;
+}
+
+.fb-note--char {
+  background: #2e4a6e;
+}
+
+.fb-note--ghost.fb-note--char {
   background: #a0b4cc;
 }
 

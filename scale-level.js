@@ -9,6 +9,12 @@ const SCALE_TITLES = {
   'natural-minor':  '내추럴 마이너 스케일',
   'harmonic-minor': '하모닉 마이너 스케일',
   'mixolydian':     '믹솔리디안 스케일',
+  'ionian':         '아이오니안 스케일',
+  'dorian':         '도리안 스케일',
+  'phrygian':       '프리지안 스케일',
+  'lydian':         '리디안 스케일',
+  'aeolian':        '에올리안 스케일',
+  'locrian':        '로크리안 스케일',
 };
 
 const SCALE_SHORT_NAMES = {
@@ -18,6 +24,12 @@ const SCALE_SHORT_NAMES = {
   'natural-minor':  '내추럴 마이너',
   'harmonic-minor': '하모닉 마이너',
   'mixolydian':     '믹솔리디안',
+  'ionian':         '아이오니안',
+  'dorian':         '도리안',
+  'phrygian':       '프리지안',
+  'lydian':         '리디안',
+  'aeolian':        '에올리안',
+  'locrian':        '로크리안',
 };
 
 const FORM_NAMES       = ['A폼', 'G폼', 'E폼', 'D폼', 'C폼'];
@@ -57,6 +69,7 @@ let _scaleKey  = 'major';
 let _rootNote  = 0;
 let _navIdx    = 0;
 let _useFlat   = false;
+let _showDegrees = false;
 let _testItem    = null;        // 테스트 현재 아이템 { block, bi, startFret }
 let _testHint      = null;        // 힌트 위치 { s, col } — 미리 찍어두는 dot 표시
 let _placedNotes   = new Set();   // 플레이어가 찍은 dot: "s,col" 문자열의 Set
@@ -140,9 +153,30 @@ function _refreshSecondaryGhost() {
 // 전환 완료 공통 마무리 — 상태 저장 + 버튼 라벨 + 폼 라벨 + ghost 갱신 + 뷰포트 + 잠금 해제
 function _finishTransition(forward) {
   _pairTransitioned = forward;
+  // 전환 후 도수 라벨 전체 재작성 — 슬라이드로 dataset.degree만 바뀐 노트까지 포함
+  const neckEl = document.getElementById('fb-full-neck');
+  if (neckEl) {
+    neckEl.querySelectorAll('.fb-note:not(.fb-note--ghost)').forEach(el => {
+      _setNoteDegreeLabel(el, el.dataset.degree);
+    });
+  }
   updateFormLabel();
   _refreshSecondaryGhost();
   _transitioning = false;
+}
+
+// 노트 el의 도수 라벨 span 재작성 (근음=라벨 없음)
+// degVal: 숫자 1 또는 라벨 문자열('2','b3','4'...)
+function _setNoteDegreeLabel(el, degVal) {
+  el.querySelectorAll('.fb-note-deg').forEach(d => d.remove());
+  const lbl = String(degVal);
+  if (lbl === '1') return;   // 근음은 표시 생략
+  const deg = document.createElement('span');
+  deg.className = 'fb-note-deg';
+  deg.textContent = lbl;
+  deg.dataset.deg = lbl;
+  applyDegOffset(deg, lbl);
+  el.appendChild(deg);
 }
 
 function _applyDegMap(neckEl, degMap) {
@@ -1144,6 +1178,47 @@ function scrollToFret(startFret, animate = true, viewportId = 'fb-viewport') {
   requestAnimationFrame(step);
 }
 
+// 도수 번호 라벨 문자열 (음수=플랫, 리디안 -5는 #4 표기)
+function degreeLabel(degree, scaleKey) {
+  if (degree === -5 && scaleKey === 'lydian') return '#4';
+  return degree < 0 ? 'b' + (-degree) : '' + degree;
+}
+
+// ── 도수 라벨 잉크박스 실측 → 원 정중앙 정렬 오프셋 계산 ──────
+// canvas measureText 의 actualBoundingBox(잉크 윤곽)로 글리프별 무게중심을
+// 구해, left/top 50% 기준점에서 잉크 중심이 정확히 dot 중앙에 오도록 translate.
+// b/# 처럼 폭·비대칭이 다른 라벨도 자동 보정됨.
+const _DEG_OFFSETS = {};
+function measureDegreeOffsets() {
+  const cv  = document.createElement('canvas');
+  const ctx = cv.getContext('2d');
+  ctx.font         = '700 11px Pretendard, sans-serif';
+  ctx.textAlign    = 'left';
+  ctx.textBaseline = 'alphabetic';
+  const labels = ['1','2','3','4','5','6','7','b2','b3','b5','b6','b7','#4'];
+  labels.forEach(lbl => {
+    const m = ctx.measureText(lbl);
+    const abbL = m.actualBoundingBoxLeft;
+    const abbR = m.actualBoundingBoxRight;
+    const abbA = m.actualBoundingBoxAscent;
+    const abbD = m.actualBoundingBoxDescent;
+    const fA   = m.fontBoundingBoxAscent;
+    const fD   = m.fontBoundingBoxDescent;
+    // 잉크 가로 중심을 기준점(pen=box left=중앙)에 맞춤
+    const tx = -((abbR - abbL) / 2);
+    // box top=중앙 → baseline=top+fA, 잉크 세로 중심=baseline+(abbD-abbA)/2
+    const ty = -(fA + (abbD - abbA) / 2);
+    _DEG_OFFSETS[lbl] = { tx, ty, lh: fA + fD };
+  });
+}
+
+function applyDegOffset(deg, lbl) {
+  const o = _DEG_OFFSETS[lbl];
+  if (!o) return;   // 미측정 시 CSS 폴백(translate(-50%,-50%)) 유지
+  deg.style.transform  = `translate(${o.tx.toFixed(2)}px, ${o.ty.toFixed(2)}px)`;
+  deg.style.lineHeight = o.lh.toFixed(2) + 'px';
+}
+
 // ── 노트 DOM 생성 함수 ───────────────────────────────────────
 function createNoteEl(absF, s, degree, ghost = false) {
   const leftPct = (absF + 0.5) / TOTAL_FRETS * 100;
@@ -1151,6 +1226,11 @@ function createNoteEl(absF, s, degree, ghost = false) {
   const isRoot  = degree === 1;
   const isBlue5 = degree === -5;
   const isNat7  = degree === 7 && _scaleKey === 'harmonic-minor';
+  const isChar  = (degree === 4 && _scaleKey === 'ionian')
+               || (degree === 6 && _scaleKey === 'dorian')
+               || (degree === -2 && _scaleKey === 'phrygian')
+               || (degree === -7 && _scaleKey === 'mixolydian')
+               || (degree === -6 && _scaleKey === 'aeolian');
   const isOpen  = absF === 0;
 
   const el = document.createElement('div');
@@ -1158,12 +1238,24 @@ function createNoteEl(absF, s, degree, ghost = false) {
     + (isRoot  ? ' fb-note--root'   : '')
     + (isBlue5 ? ' fb-note--blue5'  : '')
     + (isNat7  ? ' fb-note--nat7'   : '')
+    + (isChar  ? ' fb-note--char'   : '')
     + (isOpen  ? ' fb-note--open'   : '')
     + (ghost   ? ' fb-note--ghost'  : '');
   el.style.cssText = `left:${leftPct}%; top:${topPct}%;`;
   el.dataset.s      = s;
   el.dataset.degree = degree;
   el.dataset.absf   = absF;
+
+  // 도수 번호 라벨 (ghost·근음 제외) — .degrees-on 일 때만 표시
+  if (!ghost && String(degree) !== '1') {
+    const deg = document.createElement('span');
+    deg.className = 'fb-note-deg';
+    const _lbl = degreeLabel(degree, _scaleKey);
+    deg.textContent = _lbl;
+    deg.dataset.deg = _lbl;
+    applyDegOffset(deg, _lbl);   // 잉크박스 실측 기반 정중앙 정렬
+    el.appendChild(deg);
+  }
 
   if (!ghost) {
     el.style.pointerEvents = 'auto';
@@ -3192,6 +3284,20 @@ function initAccidentalToggle() {
   });
 }
 
+function initDegreeToggle() {
+  const btn = document.getElementById('degree-toggle-btn');
+  if (!btn) return;
+  btn.addEventListener('pointerup', () => {
+    _showDegrees = !_showDegrees;
+    btn.classList.toggle('active', _showDegrees);
+    document.body.classList.toggle('degrees-on', _showDegrees);
+    analytics.track('scale_degree_toggled', {
+      scale_key: _scaleKey,
+      to: _showDegrees ? 'on' : 'off',
+    });
+  });
+}
+
 // ── 키 선택 UI ───────────────────────────────────────────────
 function initKeySelector() {
   const el = document.getElementById('key-selector');
@@ -3238,12 +3344,22 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   }
 
+  measureDegreeOffsets();    // 도수 라벨 정렬 오프셋 1차 측정
 renderFullNeck();
   renderNotes(false);        // 초기 렌더 — 애니메이션 없이 즉시 표시
+
+  // 웹폰트(Pretendard) 로드 완료 후 재측정 → 정확한 메트릭으로 재렌더
+  if (document.fonts && document.fonts.ready) {
+    document.fonts.ready.then(() => {
+      measureDegreeOffsets();
+      renderNotes(false);
+    });
+  }
   updateFormLabel();
   updateBlockIndicator();
   initArrows();
   initAccidentalToggle();
+  initDegreeToggle();
   initKeySelector();
 
   initTestTap();

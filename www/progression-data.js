@@ -5,13 +5,26 @@
 // 코드명 표기 규칙 (C키 기준):
 //   root:    C C# Db D D# Eb E F F# Gb G G# Ab A A# Bb B
 //   quality: (없음)=장3화음  m=단3화음  7=도미넌트7  M7=장7
-//            m7=단7  dim=감3  dim7=감7  aug=증3
+//            m7=단7  dim=감3  dim7=감7  aug=증3  sus4=서스4  sus2=서스2
+//            7sus4  6  m6  m7(b5)  (정확한 표기로 입력 — 예: 'Bm7(b5)', 'C7sus4', 'Am6', 'F6')
 //   예시:    'C'=C장, 'Am'=A단, 'G7'=G도미넌트7, 'FM7'=F장7
 //            'Dm7'=D단7, 'Bdim'=B감, 'Bdim7'=B감7
 //
 // 로마숫자 표기 규칙: id값으로 식별 (예: 'I-V-VIm-IV')
 // steps 각 항목: { chord: 'C키 코드명' }
+//
+// no 그룹 라벨: 아래 PROGRESSION_NO_LABELS에서 관리.
+//   새 no를 steps에 추가하면 그룹은 자동 인식되고, 라벨만 여기 추가하면 됨.
+//   라벨 미지정 시 "목록 N"으로 표시.
 // ═══════════════════════════════════════════════════════════════
+const PROGRESSION_NO_LABELS = {
+  1: '초보자용 코드진행',
+  2: '7th 코드',
+  3: '실전형 코드진행',
+  4: '고급 코드진행',
+  
+};
+
 const PROGRESSION_DATA = [
 
   // Tier 0: 3개짜리 코드
@@ -577,65 +590,7 @@ const PROGRESSION_DATA = [
       { chord: 'Am7' },
     ],
   },
-  {
-    id: 'I-bVII-IV-I',
-    no: 3,
-    roots: ['C'],
-    steps: [
-      { chord: 'C'   },
-      { chord: 'Bb'   },
-      { chord: 'F' },
-      { chord: 'C' },
-    ],
-  },
-  {
-    id: 'bVIM7-bVII7-I-I',
-    no: 3,
-    roots: ['C'],
-    steps: [
-      { chord: 'AbM7'   },
-      { chord: 'Bb7'   },
-      { chord: 'C' },
-      { chord: 'C' },
-    ],
-  },
-  {
-    id: 'VIm7-II7-VIM7-CM7',
-    no: 3,
-    roots: ['C'],
-    steps: [
-      { chord: 'Am7'   },
-      { chord: 'D7'   },
-      { chord: 'FM7' },
-      { chord: 'CM7' },
-    ],
-  },
-  {
-    id: 'IV-V-I-bVII',
-    no: 3,
-    roots: ['C'],
-    steps: [
-      { chord: 'F'   },
-      { chord: 'G'   },
-      { chord: 'C' },
-      { chord: 'Bb' },
-    ],
-  },
-  {
-    id: 'Im7-bIII-bVII-IV',
-    no: 3,
-    mode: 'Dorian',
-    key: 'Bb',        // 부모 장조 (C Dorian)
-    roots: ['D', 'E', 'G', 'A', 'B'],
-    steps: [
-      { chord: 'Cm7'   },
-      { chord: 'Eb'   },
-      { chord: 'Bb' },
-      { chord: 'F' },
-    ],
-  },
-
-  // 8코드 진행 (테스트)
+  // 8코드 진행
   {
     id: 'I-V/3-VIm7-IIIm7-IV-I-IIm7-V7',
     no: 2,
@@ -650,5 +605,104 @@ const PROGRESSION_DATA = [
       { chord: 'Dm7' },
       { chord: 'G7'  },
     ],
+    recommended: true
   },
+
+  /// 3. 실전형 코드진행
+
+
+  /// 4. 고급 코드진행
+
+  {
+    id: 'I-bVII-IV-I',
+    no: 4,
+    roots: ['C'],
+    steps: [
+      { chord: 'C'   },
+      { chord: 'Bb'   },
+      { chord: 'F' },
+      { chord: 'C' },
+    ],
+  },
+  {
+    id: 'bVIM7-bVII7-I-I',
+    no: 4,
+    roots: ['C'],
+    steps: [
+      { chord: 'AbM7'   },
+      { chord: 'Bb7'   },
+      { chord: 'C' },
+      { chord: 'C' },
+    ],
+  },
+  {
+    id: 'VIm7-II7-VIM7-CM7',
+    no: 4,
+    roots: ['C'],
+    steps: [
+      { chord: 'Am7'   },
+      { chord: 'D7'   },
+      { chord: 'FM7' },
+      { chord: 'CM7' },
+    ],
+  },
+  {
+    id: 'IV-V-I-bVII',
+    no: 4,
+    roots: ['C'],
+    steps: [
+      { chord: 'F'   },
+      { chord: 'G'   },
+      { chord: 'C' },
+      { chord: 'Bb' },
+    ],
+  },
+  {
+    id: 'Im7-bIII-bVII-IV',
+    no: 4,
+    mode: 'Dorian',
+    key: 'Bb',        // 부모 장조 (C Dorian)
+    roots: ['D', 'E', 'G', 'A', 'B'],
+    steps: [
+      { chord: 'Cm7'   },
+      { chord: 'Eb'   },
+      { chord: 'Bb' },
+      { chord: 'F' },
+    ],
+  },
+
+  //8코드 진행
+  {
+    id: 'I-I-VIIdim-III7-VIm7-VIm7-Vm7-I7',
+    no: 4,
+    roots: ['C'],
+    steps: [
+      { chord: 'C'   },
+      { chord: 'C' },
+      { chord: 'Bm7(b5)' },
+      { chord: 'E7' },
+      { chord: 'Am7'   },
+      { chord: 'Am7'   },
+      { chord: 'Gm7' },
+      { chord: 'C7'  },
+    ],
+    recommended: true
+  },
+  {
+    id: 'IV-IV-IIIm-VI7-IIm-IIm-V-V',
+    no: 4,
+    roots: ['C'],
+    steps: [
+      { chord: 'F'   },
+      { chord: 'F' },
+      { chord: 'Em7' },
+      { chord: 'A7' },
+      { chord: 'Dm7'   },
+      { chord: 'Dm7'   },
+      { chord: 'G7sus4' },
+      { chord: 'G7sus4'  },
+    ],
+    recommended: true
+  },
+ 
 ];

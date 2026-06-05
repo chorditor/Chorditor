@@ -20,7 +20,7 @@ const _SEMITONE_TO_BASS_NUM = { 0:'1', 1:'b2', 2:'2', 3:'b3', 4:'3', 5:'4', 6:'#
 function _getRomanNumeral(semitones, quality, bass) {
   const norm   = ((semitones % 12) + 12) % 12;
   const roman  = _SEMITONE_TO_DEGREE[norm] || '?';
-  const sfx    = { M:'', m:'m', '7':'7', M7:'M7', m7:'m7', dim:'dim', dim7:'dim7', aug:'aug' };
+  const sfx    = { M:'', m:'m', '7':'7', M7:'M7', m7:'m7', dim:'dim', dim7:'dim7', aug:'aug', sus4:'sus4', sus2:'sus2', '7sus4':'7sus4', m6:'m6', '6':'6', 'm7(b5)':'m7(b5)' };
   const suffix = sfx[quality] ?? '';
   let result   = roman + (suffix ? `<span class="prog-chord-sfx">${suffix}</span>` : '');
   if (bass != null) {
@@ -35,7 +35,7 @@ function _getChordName(rootKey, semitones, quality, bass) {
   const names = _useFlat ? KEY_NAMES_FLAT : KEY_NAMES_SHARP;
   const noteIdx = (rootKey + semitones + 12) % 12;
   const note    = names[noteIdx];
-  const sfx     = { M: '', m: 'm', '7': '7', M7: 'M7', m7: 'm7', dim: 'dim', dim7: 'dim7', aug: 'aug' };
+  const sfx     = { M: '', m: 'm', '7': '7', M7: 'M7', m7: 'm7', dim: 'dim', dim7: 'dim7', aug: 'aug', sus4: 'sus4', sus2: 'sus2', '7sus4': '7sus4', m6: 'm6', '6': '6', 'm7(b5)': 'm7(b5)' };
   let result    = note + (sfx[quality] ?? '');
   if (bass != null) {
     const bassIdx = (noteIdx + bass) % 12;
@@ -45,11 +45,8 @@ function _getChordName(rootKey, semitones, quality, bass) {
 }
 
 // ── no 라벨 맵 ───────────────────────────────────────────────
-const _NO_LABELS = {
-  1: '초보자용 코드진행',
-  2: '7th 코드',
-  3: '고급 코드진행',
-};
+// 실제 라벨은 progression-data.js의 PROGRESSION_NO_LABELS에서 관리 (no 추가 시 거기만 편집)
+const _NO_LABELS = (typeof PROGRESSION_NO_LABELS !== 'undefined') ? PROGRESSION_NO_LABELS : {};
 const _NO_CHIP_LABELS = {
   0: '목록 별',
   1: '초보자',

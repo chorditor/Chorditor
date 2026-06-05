@@ -10,7 +10,7 @@
     'E':4,'F':5,'F#':6,'Gb':6,'G':7,'G#':8,
     'Ab':8,'A':9,'A#':10,'Bb':10,'B':11,
   };
-  const QUALITY_SUFFIXES = ['dim7','dim','aug','M7','m7','7','m','M',''];
+  const QUALITY_SUFFIXES = ['dim7','dim','aug','M7','m7(b5)','m7','7sus4','7','sus4','sus2','m6','6','m','M',''];
   const QUALITY_FALLBACK = { '': 'M', 'M': 'M' };
 
   function _parseChordSimple(str) {

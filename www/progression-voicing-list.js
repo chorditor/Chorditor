@@ -163,6 +163,16 @@ const _ALLOWED_PATTERN_SHAPES = [
   [null, 0, 1, 0, null, 1],   // dim7 rootStr:6
   [null, 2, 0, 2, 1, null],   // dim7 rootStr:5
   [1, 0, 1, 0, null, null],   // dim7 rootStr:4
+  [0, 0, 2, 0, 2, 0],         // 7sus4 rootStr:6
+  [0, 3, 0, 2, 0, null],      // 7sus4 rootStr:5
+  [3, 1, 2, 0, null, null],   // 7sus4 rootStr:4
+  [null, 1, 1, 0, null, 1],   // m6 rootStr:6
+  [1, 2, 0, null, 1, null],   // m6 rootStr:5
+  [1, 0, 2, 0, null, null],   // m6 rootStr:4
+  [null, 1, 2, 0, null, 1],   // 6 rootStr:6
+  [null, 0, 1, 1, 2, null],   // 6 rootStr:5
+  [2, 2, 2, null, 0, null],   // 6 rootStr:5 (alt)
+  [2, 0, 2, 0, null, null],   // 6 rootStr:4
 ];
 
 function isAllowedPatternVoicing(v) {

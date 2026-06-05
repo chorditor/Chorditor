@@ -73,6 +73,15 @@ window.STRUMMING_LIST = [
     count: 8,
     cut: [3, 7],
   },
+   {
+    level: 2,
+    beat: '4/4',
+    title: '8비트 컷팅 응용',
+    desc: '리듬감을 살리면서 연주해보세요!',
+    count: 8,
+    strokes: 'DUDU-UDU',
+    cut: [3],
+  },
   {
     level: 1,
     beat: '4/4',
@@ -83,7 +92,7 @@ window.STRUMMING_LIST = [
   {
     level: 1,
     beat: '4/4',
-    title: '16비트 다운업 연습',
+    title: '16비트 약박 연습',
     desc: '너에게 난 나에게 넌 인트로 주법',
     count: 16,
     skip: [2, 3, 6, 10, 11, 14],
@@ -95,7 +104,7 @@ window.STRUMMING_LIST = [
     title: '슬로우 고고',
     desc: '리듬감 있는 16비트 주법',
     count: 16,
-    skip: [2, 4, 6, 10, 12, 14],
+    strokes: 'D-D-D-DUD-D-D-DU',
     accent: [5, 7, 8, 13, 15, 16]
   },
   {
@@ -110,7 +119,7 @@ window.STRUMMING_LIST = [
   {
     level: 1,
     beat: '4/4',
-    title: '16비트 주법 응용',
+    title: '16비트 주법1',
     desc: '싸운날 주법',
     count: 16,
     skip: [2, 4, 6, 7, 10, 12, 14, 15],
@@ -125,9 +134,17 @@ window.STRUMMING_LIST = [
     recommend: true,
   },
   {
+    level: 2,
+    beat: '4/4',
+    title: '16비트 주법2',
+    desc: '어쿠스틱, 인디 느낌이 나는 경쾌한 주법',
+    count: 16,
+    strokes:'D---D--UDUD-D-DU',
+  },
+  {
     level: 3,
     beat: '4/4',
-    title: '16비트 주법 응용1',
+    title: '16비트 주법3',
     desc: '어쿠스틱, 인디 느낌이 나는 경쾌한 주법',
     count: 16,
     skip: [2, 3, 8, 9],
@@ -172,6 +189,23 @@ window.STRUMMING_LIST = [
     count: 12,
     strokes: 'D-DUDUD-DUDU',
     recommend:true
+  },
+  {
+    level: 3,
+    beat: '4/4',
+    title: '16비트 심화1',
+    desc: '16비트의 무궁무진한 세계. 색다른 리듬으로!',
+    count: 16,
+    strokes:'D--UDUD--UDUD-DU',
+  },
+  {
+    level: 3,
+    beat: '4/4',
+    title: '16비트 심화2',
+    desc: '빠른 리듬의 컨트리 주법. 아마...손목 근육이 펌핑 될걸요?',
+    count: 16,
+    strokes:'D-D--UDUD-D--UDU',
+    accent:[3,5,6,7,8,11,13,14,15,16]
   },
 ];
 

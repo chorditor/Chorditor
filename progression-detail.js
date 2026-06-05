@@ -16,7 +16,7 @@ const _SEMITONE_TO_BASS_NUM = { 0:'1', 1:'b2', 2:'2', 3:'b3', 4:'3', 5:'4', 6:'#
 function _getRomanNumeral(semitones, quality, bass) {
   const norm  = ((semitones % 12) + 12) % 12;
   const roman = _SEMITONE_TO_DEGREE[norm] || '?';
-  const sfx   = { M:'', m:'m', '7':'7', M7:'M7', m7:'m7', dim:'dim', dim7:'dim7', aug:'aug' };
+  const sfx   = { M:'', m:'m', '7':'7', M7:'M7', m7:'m7', dim:'dim', dim7:'dim7', aug:'aug', sus4:'sus4', sus2:'sus2', '7sus4':'7sus4', m6:'m6', '6':'6', 'm7(b5)':'m7(b5)' };
   const suffix = sfx[quality] ?? '';
   let result  = roman + (suffix ? `<span class="progd-prog-sfx">${suffix}</span>` : '');
   if (bass != null) {
@@ -31,7 +31,7 @@ function _getChordName(rootKey, semitones, quality, bass) {
   const names   = _useFlat ? KEY_NAMES_FLAT : KEY_NAMES_SHARP;
   const noteIdx = (rootKey + semitones + 12) % 12;
   const note    = names[noteIdx];
-  const sfx     = { M: '', m: 'm', '7': '7', M7: 'M7', m7: 'm7', dim: 'dim', dim7: 'dim7', aug: 'aug' };
+  const sfx     = { M: '', m: 'm', '7': '7', M7: 'M7', m7: 'm7', dim: 'dim', dim7: 'dim7', aug: 'aug', sus4: 'sus4', sus2: 'sus2', '7sus4': '7sus4', m6: 'm6', '6': '6', 'm7(b5)': 'm7(b5)' };
   let result    = note + (sfx[quality] ?? '');
   if (bass != null) {
     const bassIdx = (noteIdx + bass) % 12;
@@ -158,15 +158,18 @@ function _scheduleBeat(beatIndex, t) {
   const beatSec   = 60 / _bpm;
   const count     = _prog.steps.length;
   const now       = Tone.now();
+  // 코드당 박수: 8코드 진행은 1/2마디(2박)마다, 그 외 1마디(4박)마다 코드 전환
+  const bpc        = (count === 8) ? 2 : 4;
+  const chordPhase = beatIndex % bpc;
 
   // 드럼 (절대시각)
   _drumBeatAt(beatPhase, t, beatSec);
 
-  // 다운비트: 코드 스트럼 (절대시각, 한 마디 동안 울림)
-  if (beatPhase === 0) {
+  // 코드 경계: 스트럼 (절대시각, 코드 지속만큼 울림)
+  if (chordPhase === 0) {
     const currDomIdx = _slotRoles ? _slotRoles.indexOf(2) : -1;
     const voicing    = (currDomIdx >= 0 && _slotData) ? _slotData[currDomIdx]?.voicing : null;
-    _strumVoicingAt(voicing, t, beatSec * 4);
+    _strumVoicingAt(voicing, t, beatSec * bpc);
   }
 
   // 점 업데이트 (비트 시각에 맞춰)
@@ -177,9 +180,9 @@ function _scheduleBeat(beatIndex, t) {
     dots.forEach((d, i) => d.classList.toggle('progd-count-dot--active', i === beatPhase));
   }, dotDelay);
 
-  // 3.5비트(7/8마디)에 다음 코드 슬라이드
-  if (beatPhase === 3) {
-    const nextChordIdx = (Math.floor(beatIndex / 4) + 1) % count;
+  // 코드 마지막 박 + 0.5박에 다음 코드 슬라이드
+  if (chordPhase === bpc - 1) {
+    const nextChordIdx = (Math.floor(beatIndex / bpc) + 1) % count;
     const slideDelay = Math.max(0, (t + beatSec * 0.5 - now) * 1000);
     setTimeout(() => {
       if (!_playing) return;
