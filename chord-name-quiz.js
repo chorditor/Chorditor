@@ -195,8 +195,7 @@ function _lwBuildDetailShell() {
     e.stopPropagation();
     const cfg = LEVEL_CONFIGS[_lwRealIdx];
     // 프리미엄 체크 먼저 — locked여도 플랜 시트 노출
-    // [임시] 프리미엄 게이트 비활성화 — 복구 시 아래 false 제거
-    if (false && cfg.premium && getPlan() === 'free') {
+    if (cfg.premium && getPlan() === 'free') {
       analytics.track('paywall_viewed', { trigger_source: 'quiz_level', current_plan: 'free' });
       openPlanSheet('quiz_level');
       return;

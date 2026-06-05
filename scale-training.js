@@ -3,7 +3,7 @@
 // ═══════════════════════════════════════════════════════════════
 
 // ── 프리미엄 전역 스위치 (출시 직전 true로 변경) ─────────────
-const PREMIUM_ENABLED = false;
+const PREMIUM_ENABLED = true;
 
 // ── 페이지 닫기 (훈련소로 복귀) ─────────────────────────────
 function closeScaleTraining() {
