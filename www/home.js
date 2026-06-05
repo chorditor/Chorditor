@@ -3947,6 +3947,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   const _prodVer = 'v' + APP_VERSION;
   const _bannerVer = document.getElementById('home-banner-version');
   if (_bannerVer) _bannerVer.textContent = _prodVer;
+  if (typeof renderTutorialBody === 'function') renderTutorialBody();
   const _updateTitle = document.getElementById('tutorial-update-title');
   if (_updateTitle) _updateTitle.textContent = '최신 업데이트 소식';
   renderRootBtns();
