@@ -10,8 +10,8 @@ function _getKeyDisplayName(k) {
   return _useFlat ? KEY_NAMES_FLAT[k] : KEY_NAMES_SHARP[k];
 }
 
-const _SEMITONE_TO_DEGREE   = { 0:'I', 2:'II', 4:'III', 5:'IV', 7:'V', 9:'VI', 11:'VII' };
-const _SEMITONE_TO_BASS_NUM = { 0:1, 2:2, 4:3, 5:4, 7:5, 9:6, 11:7 };
+const _SEMITONE_TO_DEGREE   = { 0:'I', 1:'bII', 2:'II', 3:'bIII', 4:'III', 5:'IV', 6:'#IV', 7:'V', 8:'bVI', 9:'VI', 10:'bVII', 11:'VII' };
+const _SEMITONE_TO_BASS_NUM = { 0:'1', 1:'b2', 2:'2', 3:'b3', 4:'3', 5:'4', 6:'#4', 7:'5', 8:'b6', 9:'6', 10:'b7', 11:'7' };
 
 function _getRomanNumeral(semitones, quality, bass) {
   const norm  = ((semitones % 12) + 12) % 12;
@@ -46,6 +46,8 @@ let _key                = 0;
 let _useFlat            = false;
 let _bpm                = 80;
 let _playing            = false;
+let _starting           = false; // 시작 비동기 구간 재진입 가드
+let _playSession        = 0;     // 재생 세션 토큰 (정지/재시작 시 예약 콜백 무효화)
 let _currentDisplayStep = 0;
 let _masterBeat         = 0;     // 재생 시작 후 누적 비트 수
 let _playStartMs        = 0;     // 재생 시작 시각 (훈련시간 측정)
@@ -105,6 +107,8 @@ function _resetCountDots() {
 }
 
 async function _stopPlay(options = {}) {
+  _playSession++;   // 예약된 setTimeout/countin 콜백 전부 무효화
+  _starting = false;
   if (_schedTimer) { clearInterval(_schedTimer); _schedTimer = null; }
   // 훈련시간 적립 (재생한 만큼)
   if (_playStartMs && typeof recordTrainingTime === 'function') {
@@ -213,31 +217,37 @@ function _runCountIn(onComplete) {
 }
 
 async function togglePlay() {
-  if (_playing) {
+  if (_playing || _starting) {
     await _stopPlay();
-  } else {
-    // _metroCtx와 Tone.js 동기화 (첫 재생 시)
-    if (!_metroCtx) _metroCtx = new _MetroCtx();
-    if (_metroCtx.state === 'suspended') await _metroCtx.resume();
-    await GuitarAudio.syncContext(_metroCtx);
-    // 드럼도 동일 컨텍스트로 재생성 후 샘플 로드 대기
-    if (typeof DrumAudio !== 'undefined') {
-      DrumAudio.rebuild();
-      try { await DrumAudio.ready(); } catch (e) {}
-    }
-
-    _playing    = true;
-    _masterBeat = 0;
-    _playStartMs = Date.now(); // 훈련시간 측정 시작
-    analytics.track('progression_detail_played', { prog_id: _prog?.id, key: _getKeyDisplayName(_key), bpm: _bpm });
-    _updatePlayBtn();
-    _runCountIn((startTime) => {
-      if (!_playing) return;
-      _masterBeat   = 0;
-      _beatNextTime = startTime;
-      _schedTimer   = setInterval(_masterTick, SCHED_TICK_MS);
-    });
+    return;
   }
+  _starting = true;
+  const sess = _playSession; // 이 시작 시도의 세션. 중간에 정지/키변경되면 폐기
+  // _metroCtx와 Tone.js 동기화 (첫 재생 시)
+  if (!_metroCtx) _metroCtx = new _MetroCtx();
+  if (_metroCtx.state === 'suspended') await _metroCtx.resume();
+  await GuitarAudio.syncContext(_metroCtx);
+  // 드럼도 동일 컨텍스트로 재생성 후 샘플 로드 대기
+  if (typeof DrumAudio !== 'undefined') {
+    DrumAudio.rebuild();
+    try { await DrumAudio.ready(); } catch (e) {}
+  }
+  // await 동안 정지/재시작/키변경됐으면 이 시도 폐기
+  if (sess !== _playSession || !_starting) { _starting = false; return; }
+
+  _starting   = false;
+  _playing    = true;
+  _masterBeat = 0;
+  _playStartMs = Date.now(); // 훈련시간 측정 시작
+  analytics.track('progression_detail_played', { prog_id: _prog?.id, key: _getKeyDisplayName(_key), bpm: _bpm });
+  _updatePlayBtn();
+  const playSess = _playSession;
+  _runCountIn((startTime) => {
+    if (!_playing || playSess !== _playSession) return;
+    _masterBeat   = 0;
+    _beatNextTime = startTime;
+    _schedTimer   = setInterval(_masterTick, SCHED_TICK_MS);
+  });
 }
 
 const BPM_MIN = 40;
@@ -334,9 +344,9 @@ function _renderKeyStrip() {
     const btn = document.createElement('button');
     btn.className = 'key-btn' + (k === _key ? ' key-btn--active' : '');
     btn.textContent = _getKeyDisplayName(k);
-    btn.addEventListener('pointerup', () => {
+    btn.addEventListener('pointerup', async () => {
       if (k === _key) return;
-      _stopPlay();
+      await _stopPlay({ wait: true }); // 재생/예약 완전 정지 후 키 적용 (레이스 방지)
       _key = k;
       _renderKeyStrip();
       _renderStage();
@@ -491,10 +501,22 @@ function _buildStepCache() {
 }
 
 // 코드 진행 바 렌더링
+// 조성/모드 헤더 — root 선택(_key) 따라 전조. 형식: "{tonic} {mode} / {key} key"
+function _renderKeyHeader() {
+  const el = document.getElementById('detail-key-header');
+  if (!el || !_prog) return;
+  const names    = _useFlat ? KEY_NAMES_FLAT : KEY_NAMES_SHARP;
+  const tonic    = _getKeyDisplayName(_key);                              // root 선택 = C기준 으뜸음
+  const keyName  = names[(( _prog.keySemitone + _key) % 12 + 12) % 12];   // 부모 조 음명 전조
+  el.textContent = `${tonic} ${_prog.mode} / ${keyName} key`;
+}
+
 function _renderProgBar() {
+  _renderKeyHeader();
   const bar = document.getElementById('detail-prog-bar');
   if (!bar || !_prog) return;
   bar.innerHTML = '';
+  // 4열 grid 직접 배치 → 위·아랫줄 컬럼 정렬 (8코드 → 2줄)
   _prog.steps.forEach((step, i) => {
     const prev   = _prog.steps[i - 1];
     const isSame = prev && prev.semitones === step.semitones && prev.quality === step.quality && (prev.bass ?? null) === (step.bass ?? null);
@@ -593,7 +615,7 @@ document.addEventListener('DOMContentLoaded', () => {
   const params = new URLSearchParams(location.search);
   const progId = params.get('id');
   _key     = parseInt(params.get('key')  || '0', 10);
-  _useFlat = params.get('flat') === '1';
+  _useFlat = params.get('flat') !== '0'; // 기본 플랫 (명시적 0만 샵)
 
   _prog = PROGRESSIONS.find(p => p.id === progId) || null;
 

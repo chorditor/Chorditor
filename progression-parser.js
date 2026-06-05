@@ -62,7 +62,11 @@
     id:          prog.id,
     no:          prog.no ?? 1,
     recommended: prog.recommended ?? false,
-    keys:  Array.isArray(prog.keys) ? prog.keys : (prog.keys ? [prog.keys] : []),
+    // 조성/모드 (C기준 작성). key=부모 장조 음명, mode=조성명. 미지정 시 C Major
+    mode:        prog.mode ?? 'Major',
+    key:         prog.key  ?? 'C',
+    keySemitone: ROOT_MAP[prog.key ?? 'C'] ?? 0,
+    roots: Array.isArray(prog.roots) ? prog.roots : (prog.roots ? [prog.roots] : []),
     steps: prog.steps.map(s => {
       const { semitones, quality, bass } = parseChord(s.chord);
       return { semitones, quality, bass };

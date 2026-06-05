@@ -51,7 +51,12 @@ const DrumAudio = (() => {
   // 재생중/예약된 모든 드럼 즉시 정지
   function stop() {
     const list = _active; _active = [];
-    list.forEach((src) => { try { src.stop(); src.dispose(); } catch (e) {} });
+    list.forEach((src) => {
+      // 미래 예약 source는 stop() 시 stopTime<startTime로 throw → dispose가 건너뛰어지면
+      // 예약대로 발화해 다음 재생에 끼어듦. stop/dispose 분리해 dispose는 항상 실행(노드 절단).
+      try { src.stop(); } catch (e) {}
+      try { src.dispose(); } catch (e) {}
+    });
   }
 
   // Tone 컨텍스트 교체(syncContext) 후 새 컨텍스트로 노드 재생성

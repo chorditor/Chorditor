@@ -28,6 +28,8 @@
 
       <!-- ① 코드 뷰 -->
       <div class="progd-chord-view">
+        <!-- 조성/모드 헤더 (root 선택 따라 전조) -->
+        <div class="progd-key-header" id="detail-key-header"></div>
         <!-- 코드 진행 나열 -->
         <div class="progd-prog-bar" id="detail-prog-bar"></div>
         <!-- 메트로놈 인디케이터 -->
@@ -58,11 +60,11 @@
       <div class="key-selector-section">
         <div class="accidental-toggle-row">
           <div class="accidental-toggle" id="detail-accidental-toggle">
-            <span class="acc-btn active" id="detail-acc-sharp">&#9839;</span>
-            <span class="acc-btn" id="detail-acc-flat">b</span>
+            <span class="acc-btn" id="detail-acc-sharp">&#9839;</span>
+            <span class="acc-btn active" id="detail-acc-flat">b</span>
           </div>
         </div>
-        <span class="key-selector-label">KEY</span>
+        <span class="key-selector-label">Root</span>
         <div class="key-selector" id="detail-key-strip"></div>
       </div>
 

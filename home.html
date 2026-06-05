@@ -1007,7 +1007,7 @@
     }
     function collectPoolKeys(pool){
       var set = {};
-      pool.forEach(function(p){ (p.keys||[]).forEach(function(k){ set[k]=1; }); });
+      pool.forEach(function(p){ (p.roots||[]).forEach(function(k){ set[k]=1; }); });
       return Object.keys(set);
     }
     // 범용 셔플백: items 전부 1회씩 소진 후 재셔플. 항목 변경(sig) 시 재생성.
@@ -1122,7 +1122,7 @@
       var pool = PROGRESSIONS.filter(function(p){ return p.no === targetNo; });
       if (!pool.length) return null;
       var keyName = drawKeyFromBag('no' + targetNo, pool);
-      var candidates = pool.filter(function(p){ return (p.keys||[]).indexOf(keyName) >= 0; });
+      var candidates = pool.filter(function(p){ return (p.roots||[]).indexOf(keyName) >= 0; });
       if (!candidates.length) candidates = pool;
       var prog = candidates[Math.floor(Math.random() * candidates.length)];
       var keyIdx = NAME2IDX[keyName] != null ? NAME2IDX[keyName] : 0;
