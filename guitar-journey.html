@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="color-scheme" content="light dark" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <title>Chorditor - 나의 기타 여정</title>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css" />
+  <link rel="stylesheet" href="style.css" />
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
+</head>
+<body>
+
+  <!-- 페이지 커버: 초기화 완료 전 화면 가림 -->
+  <div id="page-cover"></div>
+
+  <div class="app-shell">
+
+    <!-- ── 탑바 (인트로 중엔 숨김) ── -->
+    <div class="top-bar gj-topbar" id="gj-topbar">
+      <button id="back-btn" class="icon-btn" onpointerup="closeJourneyPage()">
+        <i data-lucide="x"></i>
+      </button>
+    </div>
+
+    <!-- ── 메인 콘텐츠 ── -->
+    <div class="main-content" id="main-content">
+
+      <!-- ① 인트로 시퀀스 (첫 접속만) -->
+      <div id="gj-intro" class="gj-intro">
+        <div class="gj-intro-line" id="gj-intro-line1">나의 기타 여정을<br>시작하세요.</div>
+        <div class="gj-intro-line gj-intro-line2" id="gj-intro-line2"></div>
+      </div>
+
+      <!-- ② 에피소드 선택 (책 캐러셀) -->
+      <div id="gj-episodes" class="gj-episodes">
+        <span class="gj-page-title">나의 기타 여정</span>
+
+        <!-- 좌우 스와이프 캐러셀: 중앙 큰 카드 + 양옆 살짝 노출 -->
+        <div class="gj-carousel" id="gj-carousel">
+
+          <article class="gj-ep-card" data-ep="1" onpointerup="onEpisodeTap(1)">
+            <div class="gj-ep-cover">
+              <span class="gj-ep-num">EP.1</span>
+              <i class="gj-ep-cover-icon ph-fill ph-guitar"></i>
+            </div>
+            <div class="gj-ep-content">
+              <span class="gj-ep-title">첫 소리 내보기</span>
+              <p class="gj-ep-desc">8가지 기초 코드를 배웁니다.</p>
+            </div>
+            <span class="gj-ep-cta">시작하기 <i class="ph-bold ph-caret-right"></i></span>
+          </article>
+
+          <article class="gj-ep-card" data-ep="2" onpointerup="onEpisodeTap(2)">
+            <div class="gj-ep-cover">
+              <span class="gj-ep-num">EP.2</span>
+              <i class="gj-ep-cover-icon ph-fill ph-music-note"></i>
+            </div>
+            <div class="gj-ep-content">
+              <span class="gj-ep-title">에피소드 2</span>
+              <p class="gj-ep-desc">TBD</p>
+            </div>
+            <span class="gj-ep-cta">시작하기 <i class="ph-bold ph-caret-right"></i></span>
+          </article>
+
+          <article class="gj-ep-card" data-ep="3" onpointerup="onEpisodeTap(3)">
+            <div class="gj-ep-cover">
+              <span class="gj-ep-num">EP.3</span>
+              <i class="gj-ep-cover-icon ph-fill ph-music-notes"></i>
+            </div>
+            <div class="gj-ep-content">
+              <span class="gj-ep-title">에피소드 3</span>
+              <p class="gj-ep-desc">TBD</p>
+            </div>
+            <span class="gj-ep-cta">시작하기 <i class="ph-bold ph-caret-right"></i></span>
+          </article>
+
+          <article class="gj-ep-card" data-ep="4" onpointerup="onEpisodeTap(4)">
+            <div class="gj-ep-cover">
+              <span class="gj-ep-num">EP.4</span>
+              <i class="gj-ep-cover-icon ph-fill ph-metronome"></i>
+            </div>
+            <div class="gj-ep-content">
+              <span class="gj-ep-title">에피소드 4</span>
+              <p class="gj-ep-desc">TBD</p>
+            </div>
+            <span class="gj-ep-cta">시작하기 <i class="ph-bold ph-caret-right"></i></span>
+          </article>
+
+          <article class="gj-ep-card gj-ep-card--goal" data-ep="5" onpointerup="onEpisodeTap(5)">
+            <div class="gj-ep-cover">
+              <span class="gj-ep-num">EP.5</span>
+              <i class="gj-ep-cover-icon ph-fill ph-flag-banner"></i>
+            </div>
+            <div class="gj-ep-content">
+              <span class="gj-ep-title">에피소드 5</span>
+              <p class="gj-ep-desc">TBD</p>
+            </div>
+            <span class="gj-ep-cta">시작하기 <i class="ph-bold ph-caret-right"></i></span>
+          </article>
+
+        </div><!-- /gj-carousel -->
+
+        <!-- 페이지 인디케이터 -->
+        <div class="gj-dots" id="gj-dots"></div>
+      </div><!-- /gj-episodes -->
+
+    </div><!-- /main-content -->
+
+  </div><!-- /app-shell -->
+
+  <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.js"></script>
+  <script src="https://unpkg.com/@phosphor-icons/web"></script>
+  <script src="analytics-sdk.js"></script>
+  <script src="shared.js"></script>
+  <script src="guitar-journey.js"></script>
+</body>
+</html>

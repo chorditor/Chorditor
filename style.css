@@ -9196,3 +9196,437 @@ canvas {
   width: 10px;
   height: 10px;
 }
+
+/* ═══════════════════════════════════════════════════════════════ */
+/* 나의 기타 여정 (guitar-journey.html)                              */
+/* ═══════════════════════════════════════════════════════════════ */
+
+/* 탑바: 인트로 중 숨김 → 에피소드 진입 시 페이드인 */
+.gj-topbar {
+  opacity: 0;
+  transition: opacity 0.5s ease-out;
+  pointer-events: none;
+}
+.gj-topbar.show {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+/* ── ① 인트로 시퀀스 ── */
+.gj-intro {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  padding: 0 32px;
+  transition: opacity 0.5s ease-out;
+}
+.gj-intro.gj-intro-out {
+  opacity: 0;
+}
+
+.gj-intro-line {
+  position: absolute;
+  font-size: 26px;
+  font-weight: 700;
+  line-height: 1.5;
+  color: var(--text-primary);
+  letter-spacing: -0.02em;
+  opacity: 0;
+  transform: translateY(42px);
+  /* 여유로운 등장: 느린 ease-out */
+  transition: opacity 0.9s cubic-bezier(0.22, 0.61, 0.36, 1),
+              transform 0.9s cubic-bezier(0.22, 0.61, 0.36, 1);
+}
+.gj-intro-line.show {
+  opacity: 1;
+  transform: translateY(0);
+}
+.gj-intro-line.hide {
+  opacity: 0;
+  transform: translateY(-30px);
+  transition: opacity 0.5s ease-in, transform 0.5s ease-in;
+}
+.gj-intro-line2 {
+  font-size: 22px;
+  font-weight: 600;
+  color: var(--text-secondary);
+}
+.gj-intro-line2 b {
+  color: var(--text-primary);
+  font-weight: 800;
+}
+
+/* ── ② 에피소드 선택 (책 캐러셀) ── */
+.gj-episodes {
+  /* main-content 전체 높이 채움 → 카드 세로 크게 */
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  padding: 24px 0 24px;
+  opacity: 0;
+  transform: translateY(24px);
+  transition: opacity 0.6s cubic-bezier(0.22, 0.61, 0.36, 1),
+              transform 0.6s cubic-bezier(0.22, 0.61, 0.36, 1);
+}
+.gj-episodes.show {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+.gj-page-title {
+  display: block;
+  flex-shrink: 0;
+  font-size: 26px;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  color: var(--text-primary);
+  margin: 0 20px 20px;
+}
+
+/* ── 캐러셀 스크롤러: scroll-snap 중앙 정렬 ── */
+/* PEEK(8) + GAP(12) = padding-inline(20), 카드폭 = 100% - 40 */
+.gj-carousel {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  align-items: stretch;
+  gap: 12px;
+  padding: 4px 20px;
+  overflow-x: auto;
+  overflow-y: hidden;
+  scroll-snap-type: x mandatory;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+}
+.gj-carousel::-webkit-scrollbar { display: none; }
+
+.gj-ep-card {
+  flex: 0 0 calc(100% - 40px);
+  scroll-snap-align: center;
+  display: flex;
+  flex-direction: column;
+  background: var(--surface);
+  border-radius: 20px;
+  box-shadow: 0 6px 24px rgba(0,0,0,0.08);
+  overflow: hidden;
+  cursor: pointer;
+  /* 비활성(양옆) 카드: 살짝 어둡게 + 축소 */
+  transform: scale(0.94);
+  filter: brightness(0.9);
+  transition: transform 0.3s cubic-bezier(0.22,0.61,0.36,1),
+              filter 0.3s ease;
+}
+.gj-ep-card.gj-ep-card--active {
+  transform: scale(1);
+  filter: none;
+}
+
+/* 커버: 상단 차콜블랙 존 + 큰 EP 넘버 */
+.gj-ep-cover {
+  position: relative;
+  flex: 0 0 40%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(135deg, #e8e5e0 0%, #d8d4ce 100%);
+  overflow: hidden;
+}
+.gj-ep-num {
+  position: relative;
+  z-index: 1;
+  font-size: 40px;
+  font-weight: 900;
+  letter-spacing: -0.02em;
+  color: #242729;
+}
+/* 배경 워터마크 아이콘 (은은하게) */
+.gj-ep-cover-icon {
+  position: absolute;
+  right: -10px;
+  bottom: -14px;
+  font-size: 120px;
+  color: rgba(0,0,0,0.07);
+  line-height: 1;
+}
+
+/* 본문 */
+.gj-ep-content {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 20px 22px 0;
+}
+.gj-ep-title {
+  font-size: 22px;
+  font-weight: 800;
+  color: var(--text-primary);
+}
+.gj-ep-desc {
+  margin: 0;
+  font-size: 14px;
+  line-height: 1.6;
+  color: var(--text-secondary);
+}
+
+/* CTA */
+.gj-ep-cta {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  margin: 16px 22px 22px;
+  padding: 13px;
+  background: #242729;
+  color: #fff;
+  font-size: 15px;
+  font-weight: 700;
+  border-radius: 12px;
+}
+
+/* ── 페이지 인디케이터 ── */
+.gj-dots {
+  flex-shrink: 0;
+  display: flex;
+  justify-content: center;
+  gap: 7px;
+  margin-top: 18px;
+}
+.gj-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--border);
+  transition: width 0.25s ease, background 0.25s ease;
+}
+.gj-dot.gj-dot--active {
+  background: #242729;
+}
+
+/* ═══════════════════════════════════════════════════════════════ */
+/* 에피소드 상세 (episode.html) — 노선도 + 정보 카드                  */
+/* ═══════════════════════════════════════════════════════════════ */
+
+.ep-detail {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+/* ── ① 상단 노선도 ── */
+.ep-line-scroll {
+  flex-shrink: 0;
+  overflow-x: auto;
+  overflow-y: hidden;
+  padding: 52px 28px 60px;   /* 카드와의 여백 널널하게 (좌우는 JS가 뷰포트 절반으로 덮어씀) */
+  scrollbar-width: none;
+  -webkit-overflow-scrolling: touch;
+  scroll-snap-type: x mandatory;   /* 각 원이 정확히 중앙 스냅 */
+}
+.ep-line-scroll::-webkit-scrollbar { display: none; }
+
+/* 정류장들이 가로로 이어진 노선 */
+.ep-line {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 22px;
+  width: max-content;
+  min-width: 100%;
+  /* 활성 stop 크기 변동(52↔60, 14↔26)과 무관하게 행 높이 고정
+     → 하단 카드 크기 불변. 가장 큰 활성 챕터 원(60)+halo 수용 */
+  height: 76px;
+}
+/* 전체를 관통하는 노선 선 (정류장 중심을 지남) */
+.ep-line::before {
+  content: '';
+  position: absolute;
+  left: 14px;
+  right: 14px;
+  top: 50%;
+  height: 3px;
+  transform: translateY(-50%);
+  background: var(--border);
+  z-index: 0;
+}
+
+.ep-stop {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  scroll-snap-align: center;   /* 원 중심이 뷰포트 중앙에 스냅 */
+}
+
+/* 점 공통: 크기/색 전환 (선택 시 부드럽게 커짐) */
+.ep-stop-dot {
+  transition: width 0.28s cubic-bezier(0.22,0.61,0.36,1),
+              height 0.28s cubic-bezier(0.22,0.61,0.36,1),
+              background 0.2s ease, box-shadow 0.2s ease;
+}
+
+/* 세부 단계 = 작은 점 */
+.ep-stop--step .ep-stop-dot {
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: var(--surface);
+  box-shadow: inset 0 0 0 2px var(--border);
+}
+.ep-stop--step.ep-stop--done .ep-stop-dot {
+  background: #242729;
+  box-shadow: none;
+}
+/* 선택된 세부 단계 = 커지고 차콜 halo */
+.ep-stop--step.ep-stop--active .ep-stop-dot {
+  width: 34px;
+  height: 34px;
+  background: #242729;
+  box-shadow: 0 0 0 4px var(--surface),
+              0 0 0 6px rgba(36,39,41,0.22),
+              0 3px 8px rgba(36,39,41,0.22);
+}
+
+/* 챕터 시작 = 큰 원 (다중 원/halo) */
+.ep-stop--chapter .ep-stop-dot {
+  width: 52px;
+  height: 52px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--surface);
+  /* 흰 간격 + 외곽 얇은 링 = 정류장 마커 느낌 */
+  box-shadow: inset 0 0 0 2px var(--border),
+              0 0 0 5px var(--surface),
+              0 0 0 7px var(--border);
+  color: var(--text-muted);
+  font-size: 22px;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+}
+.ep-stop--chapter.ep-stop--active .ep-stop-dot {
+  width: 60px;
+  height: 60px;
+  background: #242729;
+  color: #fff;
+  /* 채운 원 + 흰 간격 + 차콜 halo 링 */
+  box-shadow: 0 0 0 5px var(--surface),
+              0 0 0 8px rgba(36,39,41,0.22),
+              0 4px 12px rgba(36,39,41,0.25);
+}
+
+/* 챕터 라벨 (원 아래) */
+.ep-stop-label {
+  position: absolute;
+  top: calc(100% + 15px);
+  left: 50%;
+  transform: translateX(-50%);
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+.ep-stop--active .ep-stop-label {
+  color: var(--text-primary);
+}
+
+/* ── ② 하단 정보 카드 ── */
+.ep-info-card {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  margin: 8px 20px 20px;
+  padding: 22px;
+  background: var(--surface);
+  border-radius: 20px;
+  box-shadow: 0 6px 24px rgba(0,0,0,0.08);
+  display: flex;
+  flex-direction: column;
+}
+
+.ep-info-kicker {
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  color: var(--text-muted);
+}
+.ep-info-title {
+  margin: 4px 0 0;
+  font-size: 24px;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  color: var(--text-primary);
+}
+/* 선택된 세부 단계 (보조) */
+.ep-info-step {
+  display: block;
+  margin-top: 6px;
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--text-secondary);
+}
+
+.ep-info-section {
+  margin-top: 22px;
+}
+.ep-info-label {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--text-secondary);
+}
+
+/* 통계 */
+.ep-info-stats {
+  display: flex;
+  gap: 10px;
+  margin-top: auto;   /* 카드 하단으로 밀착 */
+}
+.ep-stat {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  padding: 14px 8px;
+  background: #f7f5f2;
+  border-radius: 14px;
+}
+.ep-stat-val {
+  font-size: 22px;
+  font-weight: 800;
+  color: var(--text-primary);
+  font-variant-numeric: tabular-nums;
+}
+.ep-stat-unit {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--text-secondary);
+  margin-left: 1px;
+}
+.ep-stat-label {
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+
+/* CTA */
+.ep-info-cta {
+  margin-top: 16px;
+  padding: 15px;
+  border: none;
+  border-radius: 14px;
+  background: #242729;
+  color: #fff;
+  font-size: 16px;
+  font-weight: 700;
+  font-family: 'Pretendard', sans-serif;
+  cursor: pointer;
+}

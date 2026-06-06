@@ -6,7 +6,7 @@
 // ── 상수 ─────────────────────────────────────────────────────
 const SUPABASE_URL  = 'https://jbvkygeksohlysyvaoab.supabase.co';
 const SUPABASE_ANON = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Impidmt5Z2Vrc29obHlzeXZhb2FiIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzYzOTk5NjgsImV4cCI6MjA5MTk3NTk2OH0.6RSgChy0Yq0H2TJpZPSoMKQ2V-OYfR0XzE1aJBBZkXI';
-const APP_VERSION   = '1.3.0_dev1';
+const APP_VERSION   = '1.3.0_dev2';
 const SUPABASE_STORAGE_KEY = 'sb-jbvkygeksohlysyvaoab-auth-token';
 
 // ── Analytics SDK ─────────────────────────────────────────────
@@ -120,7 +120,16 @@ const PLAN_LIMITS = {
 };
 
 function getPlan() {
+  if (APP_VERSION.includes('_dev')) return 'pro'; // dev 빌드: 프리미엄 잠금 해제
   return localStorage.getItem('chorditor_plan') || 'free';
+}
+
+// 페르소나 캐시 — 앱 접속 시 DB fetch 결과를 즉시 저장해 전 페이지에서 동기 접근
+function setCachedPersona(p) {
+  if (p) localStorage.setItem('chorditor_persona', p);
+}
+function getCachedPersona() {
+  return localStorage.getItem('chorditor_persona') || null;
 }
 
 function setPlan(plan) {

@@ -2,8 +2,8 @@
 // scale-training.js — 스케일 훈련 페이지
 // ═══════════════════════════════════════════════════════════════
 
-// ── 프리미엄 전역 스위치 (출시 직전 true로 변경) ─────────────
-const PREMIUM_ENABLED = true;
+// ── 프리미엄 전역 스위치 (dev 빌드에서 자동 해제) ─────────────
+const PREMIUM_ENABLED = !(typeof APP_VERSION !== 'undefined' && APP_VERSION.includes('_dev'));
 
 // ── 페이지 닫기 (훈련소로 복귀) ─────────────────────────────
 function closeScaleTraining() {

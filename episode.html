@@ -1,0 +1,126 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="color-scheme" content="light dark" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <title>Chorditor - 에피소드</title>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css" />
+  <link rel="stylesheet" href="style.css" />
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
+</head>
+<body>
+
+  <!-- 페이지 커버 -->
+  <div id="page-cover"></div>
+
+  <div class="app-shell">
+
+    <!-- ── 탑바 ── -->
+    <div class="top-bar">
+      <button id="back-btn" class="icon-btn" onpointerup="closeEpisode()">
+        <i data-lucide="arrow-left"></i>
+      </button>
+    </div>
+
+    <!-- ── 메인 ── -->
+    <div class="main-content" id="main-content">
+      <div class="ep-detail">
+
+        <!-- ① 상단 노선도 -->
+        <div class="ep-line-scroll" id="ep-line-scroll">
+          <div class="ep-line">
+
+            <!-- Ch.1 : 큰 원 = 세부 1번 -->
+            <div class="ep-stop ep-stop--chapter ep-stop--active"
+                 data-kicker="CHAPTER 1" data-chapter="첫 코드 연주해보기" data-title="기타 코드 소개"
+                 onpointerup="selectStop(this)">
+              <div class="ep-stop-dot">1</div>
+              <span class="ep-stop-label">Ch.1</span>
+            </div>
+            <div class="ep-stop ep-stop--step ep-stop--done"
+                 data-kicker="CHAPTER 1" data-chapter="첫 코드 연주해보기" data-title="코드 다이어그램"
+                 onpointerup="selectStop(this)"><div class="ep-stop-dot"></div></div>
+            <div class="ep-stop ep-stop--step"
+                 data-kicker="CHAPTER 1" data-chapter="첫 코드 연주해보기" data-title="손가락 번호"
+                 onpointerup="selectStop(this)"><div class="ep-stop-dot"></div></div>
+            <div class="ep-stop ep-stop--step"
+                 data-kicker="CHAPTER 1" data-chapter="첫 코드 연주해보기" data-title="A코드 잡아보기"
+                 onpointerup="selectStop(this)"><div class="ep-stop-dot"></div></div>
+            <div class="ep-stop ep-stop--step"
+                 data-kicker="CHAPTER 1" data-chapter="첫 코드 연주해보기" data-title="E코드 잡아보기"
+                 onpointerup="selectStop(this)"><div class="ep-stop-dot"></div></div>
+
+            <!-- Ch.2 -->
+            <div class="ep-stop ep-stop--chapter"
+                 data-kicker="CHAPTER 2" data-chapter="두 번째 챕터" data-title="준비 중"
+                 onpointerup="selectStop(this)">
+              <div class="ep-stop-dot">2</div>
+              <span class="ep-stop-label">Ch.2</span>
+            </div>
+            <div class="ep-stop ep-stop--step"
+                 data-kicker="CHAPTER 2" data-chapter="두 번째 챕터" data-title="준비 중"
+                 onpointerup="selectStop(this)"><div class="ep-stop-dot"></div></div>
+            <div class="ep-stop ep-stop--step"
+                 data-kicker="CHAPTER 2" data-chapter="두 번째 챕터" data-title="준비 중"
+                 onpointerup="selectStop(this)"><div class="ep-stop-dot"></div></div>
+            <div class="ep-stop ep-stop--step"
+                 data-kicker="CHAPTER 2" data-chapter="두 번째 챕터" data-title="준비 중"
+                 onpointerup="selectStop(this)"><div class="ep-stop-dot"></div></div>
+
+            <!-- Ch.3 -->
+            <div class="ep-stop ep-stop--chapter"
+                 data-kicker="CHAPTER 3" data-chapter="세 번째 챕터" data-title="준비 중"
+                 onpointerup="selectStop(this)">
+              <div class="ep-stop-dot">3</div>
+              <span class="ep-stop-label">Ch.3</span>
+            </div>
+            <div class="ep-stop ep-stop--step"
+                 data-kicker="CHAPTER 3" data-chapter="세 번째 챕터" data-title="준비 중"
+                 onpointerup="selectStop(this)"><div class="ep-stop-dot"></div></div>
+            <div class="ep-stop ep-stop--step"
+                 data-kicker="CHAPTER 3" data-chapter="세 번째 챕터" data-title="준비 중"
+                 onpointerup="selectStop(this)"><div class="ep-stop-dot"></div></div>
+
+          </div>
+        </div>
+
+        <!-- ② 하단 정보 카드 (stop 선택 → 제목만 변경) -->
+        <div class="ep-info-card">
+
+          <span class="ep-info-kicker" id="ep-info-kicker">CHAPTER 1</span>
+          <h2 class="ep-info-title" id="ep-info-title">첫 코드 연주해보기</h2>
+          <span class="ep-info-step" id="ep-info-step">기타 코드 소개</span>
+
+          <!-- 통계 -->
+          <div class="ep-info-stats">
+            <div class="ep-stat">
+              <span class="ep-stat-val">2<span class="ep-stat-unit">/ 4</span></span>
+              <span class="ep-stat-label">챕터 진행도</span>
+            </div>
+            <div class="ep-stat">
+              <span class="ep-stat-val">86<span class="ep-stat-unit">%</span></span>
+              <span class="ep-stat-label">정답률</span>
+            </div>
+            <div class="ep-stat">
+              <span class="ep-stat-val">5<span class="ep-stat-unit">일</span></span>
+              <span class="ep-stat-label">연속 학습</span>
+            </div>
+          </div>
+
+          <button class="ep-info-cta">이어서 학습하기</button>
+
+        </div><!-- /ep-info-card -->
+
+      </div><!-- /ep-detail -->
+    </div><!-- /main-content -->
+
+  </div><!-- /app-shell -->
+
+  <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.js"></script>
+  <script src="https://unpkg.com/@phosphor-icons/web"></script>
+  <script src="analytics-sdk.js"></script>
+  <script src="shared.js"></script>
+  <script src="episode.js"></script>
+</body>
+</html>

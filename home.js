@@ -1952,6 +1952,7 @@ async function loadProfileFromDB() {
       sheet_reader: '악보의존자',
       home_master: '방구석 기타마스터',
     };
+    setCachedPersona(row.persona);
     const personaLabel = PERSONA_LABEL[row.persona];
     const pBadge = document.getElementById('profile-persona-badge');
     const pDiv = document.getElementById('profile-badge-divider');
@@ -2074,6 +2075,7 @@ function enterFromBlock(e, el, view) {
     if (elapsed < 300 && moveY < 10) {
       analytics.track('home_block_tapped', { block: view });
       if (view === 'training') { location.href = 'training.html'; return; }
+      if (view === 'journey')  { location.href = 'guitar-journey.html'; return; }
       enterFromHome(view);
     }
   }
@@ -3924,6 +3926,7 @@ async function _webNeedsOnboarding() {
     );
     if (!resp.ok) return false;
     const rows = await resp.json();
+    if (rows.length > 0) setCachedPersona(rows[0].persona);
     return !(rows.length > 0 && rows[0].persona);
   } catch (_) { return false; }
 }
