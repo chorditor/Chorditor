@@ -421,7 +421,7 @@ async function onboardingSignIn() {
     if (!_supabase) return;
     await _supabase.auth.signInWithOAuth({
       provider: 'google',
-      options: { redirectTo: location.origin + location.pathname.replace(/[^/]*$/, '') + 'home.html' }
+      options: { redirectTo: location.origin + location.pathname.replace(/[^/]*$/, '') + 'onboarding.html' }
     });
     return;
   }

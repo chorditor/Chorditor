@@ -5,20 +5,33 @@
 // 코드명 표기 규칙 (C키 기준):
 //   root:    C C# Db D D# Eb E F F# Gb G G# Ab A A# Bb B
 //   quality: (없음)=장3화음  m=단3화음  7=도미넌트7  M7=장7
-//            m7=단7  dim=감3  dim7=감7  aug=증3
+//            m7=단7  dim=감3  dim7=감7  aug=증3  sus4=서스4  sus2=서스2
+//            7sus4  6  m6  m7(b5)  (정확한 표기로 입력 — 예: 'Bm7(b5)', 'C7sus4', 'Am6', 'F6')
 //   예시:    'C'=C장, 'Am'=A단, 'G7'=G도미넌트7, 'FM7'=F장7
 //            'Dm7'=D단7, 'Bdim'=B감, 'Bdim7'=B감7
 //
 // 로마숫자 표기 규칙: id값으로 식별 (예: 'I-V-VIm-IV')
 // steps 각 항목: { chord: 'C키 코드명' }
+//
+// no 그룹 라벨: 아래 PROGRESSION_NO_LABELS에서 관리.
+//   새 no를 steps에 추가하면 그룹은 자동 인식되고, 라벨만 여기 추가하면 됨.
+//   라벨 미지정 시 "목록 N"으로 표시.
 // ═══════════════════════════════════════════════════════════════
+const PROGRESSION_NO_LABELS = {
+  1: '초보자용 코드진행',
+  2: '7th 코드',
+  3: '실전형 코드진행',
+  4: '고급 코드진행',
+  
+};
+
 const PROGRESSION_DATA = [
 
   // Tier 0: 3개짜리 코드
   {
     id: 'IV-V-I-I',
     no: 1,
-    keys: ['C', 'D', 'G', 'A'],
+    roots: ['C', 'D', 'G', 'A'],
     recommended: true,
     steps: [
       { chord: 'F' },
@@ -30,7 +43,7 @@ const PROGRESSION_DATA = [
   {
     id: 'IIm-V-I-I',
     no: 1,
-    keys: ['C', 'D', 'G'],
+    roots: ['C', 'D', 'G'],
     steps: [
       { chord: 'Dm' },
       { chord: 'G'  },
@@ -41,7 +54,7 @@ const PROGRESSION_DATA = [
   {
     id: 'IV-V-VIm-VIm',
     no: 1,
-    keys: ['C', 'D', 'G', 'A'],
+    roots: ['C', 'D', 'G', 'A'],
     steps: [
       { chord: 'F'  },
       { chord: 'G'  },
@@ -54,7 +67,7 @@ const PROGRESSION_DATA = [
   {
     id: 'I-IV-V-I',
     no: 1,
-    keys: ['C', 'D', 'G', 'A'],
+    roots: ['C', 'D', 'G', 'A'],
     steps: [
       { chord: 'C' },
       { chord: 'F' },
@@ -65,7 +78,7 @@ const PROGRESSION_DATA = [
   {
     id: 'I-V-VIm-IV',
     no: 1,
-    keys: ['C', 'G', 'A'],
+    roots: ['C', 'G', 'A'],
     recommended: true,
     steps: [
       { chord: 'C'  },
@@ -77,7 +90,7 @@ const PROGRESSION_DATA = [
   {
     id: 'I-VIm-IV-V',
     no: 1,
-    keys: ['C', 'G'],
+    roots: ['C', 'G'],
     recommended: true,
     steps: [
       { chord: 'C'  },
@@ -89,7 +102,7 @@ const PROGRESSION_DATA = [
   {
     id: 'I-VIm-IV-IVm',
     no: 1,
-    keys: ['C', 'G'],
+    roots: ['C', 'G'],
     recommended: true,
     steps: [
       { chord: 'C'  },
@@ -101,7 +114,7 @@ const PROGRESSION_DATA = [
   {
     id: 'I-VIm-IIm-V',
     no: 1,
-    keys: ['C', 'D', 'G'],
+    roots: ['C', 'D', 'G'],
     steps: [
       { chord: 'C'  },
       { chord: 'Am' },
@@ -112,7 +125,7 @@ const PROGRESSION_DATA = [
   {
     id: 'I-I/3-IV-V',
     no: 1,
-    keys: ['C', 'D', 'G'],
+    roots: ['C', 'D', 'G'],
     recommended: true,
     steps: [
       { chord: 'C'   },
@@ -125,7 +138,7 @@ const PROGRESSION_DATA = [
   {
     id: 'IV-V-I-VIm',
     no: 1,
-    keys: ['C', 'G'],
+    roots: ['C', 'G'],
     steps: [
       { chord: 'F'  },
       { chord: 'G'  },
@@ -136,7 +149,7 @@ const PROGRESSION_DATA = [
   {
     id: 'IV-V-VIm-I',
     no: 1,
-    keys: ['C', 'G'],
+    roots: ['C', 'G'],
     recommended: true,
     steps: [
       { chord: 'F'  },
@@ -148,7 +161,7 @@ const PROGRESSION_DATA = [
   {
     id: 'IV-V-VIm-I/3',
     no: 1,
-    keys: ['C', 'D', 'G'],
+    roots: ['C', 'D', 'G'],
     recommended: true,
     steps: [
       { chord: 'F'  },
@@ -160,7 +173,7 @@ const PROGRESSION_DATA = [
   {
     id: 'IV-V-IIIm-VIm',
     no: 1,
-    keys: ['C', 'G'],
+    roots: ['C', 'G'],
     recommended: true,
     steps: [
       { chord: 'F'  },
@@ -173,7 +186,7 @@ const PROGRESSION_DATA = [
     id: 'IV-I-VIm-V',
     no: 1,
     recommended: true,
-    keys: ['C', 'G'],
+    roots: ['C', 'G'],
     steps: [
       { chord: 'F'  },
       { chord: 'C'  },
@@ -185,7 +198,7 @@ const PROGRESSION_DATA = [
   {
     id: 'VIm-I-IV-V',
     no: 1,
-    keys: ['C', 'G'],
+    roots: ['C', 'G'],
     steps: [
       { chord: 'Am' },
       { chord: 'C'  },
@@ -196,7 +209,7 @@ const PROGRESSION_DATA = [
   {
     id: 'VIm-I-IIm-V',
     no: 1,
-    keys: ['C', 'G'],
+    roots: ['C', 'G'],
     steps: [
       { chord: 'Am' },
       { chord: 'C'  },
@@ -207,7 +220,7 @@ const PROGRESSION_DATA = [
   {
     id: 'VIm-V-IV-V',
     no: 1,
-    keys: ['C', 'G'],
+    roots: ['C', 'G'],
     steps: [
       { chord: 'Am' },
       { chord: 'G'  },
@@ -218,7 +231,7 @@ const PROGRESSION_DATA = [
   {
     id: 'VIm-IIIm-IV-V',
     no: 1,
-    keys: ['C', 'G'],
+    roots: ['C', 'G'],
     recommended: true,
     steps: [
       { chord: 'Am' },
@@ -230,7 +243,7 @@ const PROGRESSION_DATA = [
   {
     id: 'VIm-IIIm-IV-IVm',
     no: 1,
-    keys: ['C', 'G'],
+    roots: ['C', 'G'],
     recommended: true,
     steps: [
       { chord: 'Am' },
@@ -242,7 +255,7 @@ const PROGRESSION_DATA = [
   {
     id: 'VIm-IV-I-V',
     no: 1,
-    keys: ['C', 'G'],
+    roots: ['C', 'G'],
     steps: [
       { chord: 'Am' },
       { chord: 'F'  },
@@ -254,7 +267,7 @@ const PROGRESSION_DATA = [
   {
     id: 'IIm-V-I-VIm',
     no: 1,
-    keys: ['C', 'G'],
+    roots: ['C', 'G'],
     steps: [
       { chord: 'Dm' },
       { chord: 'G'  },
@@ -265,7 +278,7 @@ const PROGRESSION_DATA = [
   {
     id: 'IIm-V-VIm-I',
     no: 1,
-    keys: ['C', 'G'],
+    roots: ['C', 'G'],
     steps: [
       { chord: 'Dm' },
       { chord: 'G'  },
@@ -276,7 +289,7 @@ const PROGRESSION_DATA = [
   {
     id: 'IIm-V-IIIm-VIm',
     no: 1,
-    keys: ['C'],
+    roots: ['C'],
     steps: [
       { chord: 'Dm' },
       { chord: 'G'  },
@@ -288,7 +301,7 @@ const PROGRESSION_DATA = [
   {
     id: 'IIIm-VIm-IV-V',
     no: 1,
-    keys: ['C'],
+    roots: ['C'],
     steps: [
       { chord: 'Em' },
       { chord: 'Am' },
@@ -299,7 +312,7 @@ const PROGRESSION_DATA = [
   {
     id: 'IIIm-VIm-IIm-V',
     no: 1,
-    keys: ['C'],
+    roots: ['C'],
     recommended: true,
     steps: [
       { chord: 'Em' },
@@ -314,7 +327,7 @@ const PROGRESSION_DATA = [
   {
     id: 'I-V-VIm7-IV',
     no: 2,
-    keys: ['C', 'G'],
+    roots: ['C', 'G'],
     recommended: true,
     steps: [
       { chord: 'C'   },
@@ -326,7 +339,7 @@ const PROGRESSION_DATA = [
   {
     id: 'I-V/3-VIm7-IV',
     no: 2,
-    keys: ['C', 'G'],
+    roots: ['C', 'G'],
     steps: [
       { chord: 'C'   },
       { chord: 'G/B' },
@@ -337,7 +350,7 @@ const PROGRESSION_DATA = [
   {
     id: 'I-V/3-VIm7-IIIm7',
     no: 2,
-    keys: ['C', 'G'],
+    roots: ['C', 'G'],
     steps: [
       { chord: 'C'   },
       { chord: 'G/B' },
@@ -348,7 +361,7 @@ const PROGRESSION_DATA = [
   {
     id: 'I-VIm7-IV-V7',
     no: 2,
-    keys: ['C', 'G'],
+    roots: ['C', 'G'],
     steps: [
       { chord: 'C'   },
       { chord: 'Am7' },
@@ -359,7 +372,7 @@ const PROGRESSION_DATA = [
   {
     id: 'I/3-IV-V-VIm7',
     no: 2,
-    keys: ['D', 'G', 'A'],
+    roots: ['D', 'G', 'A'],
     recommended: true,
     steps: [
       { chord: 'C/E'   },
@@ -371,7 +384,7 @@ const PROGRESSION_DATA = [
   {
     id: 'I-III7-VIm7-IV',
     no: 2,
-    keys: ['C', 'G', 'A'],
+    roots: ['C', 'G', 'A'],
     recommended: true,
     steps: [
       { chord: 'C'   },
@@ -383,7 +396,7 @@ const PROGRESSION_DATA = [
   {
     id: 'I-VI7-IIm7-V7',
     no: 2,
-    keys: ['C', 'D', 'E', 'G', 'A'],
+    roots: ['C', 'D', 'E', 'G', 'A'],
     steps: [
       { chord: 'C'   },
       { chord: 'A7'  },
@@ -395,7 +408,7 @@ const PROGRESSION_DATA = [
   {
     id: 'IIm7-V7-IM7-VIm7',
     no: 2,
-    keys: ['C', 'D', 'E', 'F', 'G', 'A'],
+    roots: ['C', 'D', 'E', 'F', 'G', 'A'],
     recommended: true,
     steps: [
       { chord: 'Dm7' },
@@ -407,7 +420,7 @@ const PROGRESSION_DATA = [
   {
     id: 'IIm7-V7-I-I7',
     no: 2,
-    keys: ['C', 'D', 'E', 'G', 'A'],
+    roots: ['C', 'D', 'E', 'G', 'A'],
     steps: [
       { chord: 'Dm7' },
       { chord: 'G7'  },
@@ -418,7 +431,7 @@ const PROGRESSION_DATA = [
   {
     id: 'IIm7-V7-III7-VIm7',
     no: 2,
-    keys: ['C', 'D', 'E', 'G', 'A'],
+    roots: ['C', 'D', 'E', 'G', 'A'],
     recommended: true,
     steps: [
       { chord: 'Dm7' },
@@ -431,7 +444,7 @@ const PROGRESSION_DATA = [
   {
     id: 'IV-I-V-VIm7',
     no: 2,
-    keys: ['C', 'D', 'E', 'G', 'A'],
+    roots: ['C', 'D', 'E', 'G', 'A'],
     steps: [
       { chord: 'F'   },
       { chord: 'C'   },
@@ -442,7 +455,7 @@ const PROGRESSION_DATA = [
   {
     id: 'IV-V-I-I7',
     no: 2,
-    keys: ['C', 'D', 'E', 'G', 'A'],
+    roots: ['C', 'D', 'E', 'G', 'A'],
     steps: [
       { chord: 'F'   },
       { chord: 'G'   },
@@ -453,7 +466,7 @@ const PROGRESSION_DATA = [
   {
     id: 'IV-V-VIm7-IIIm7',
     no: 2,
-    keys: ['C', 'D', 'E', 'G', 'A'],
+    roots: ['C', 'D', 'E', 'G', 'A'],
     recommended: true,
     steps: [
       { chord: 'F'   },
@@ -465,7 +478,7 @@ const PROGRESSION_DATA = [
   {
     id: 'IV-V-VIm7-I/3',
     no: 2,
-    keys: ['C', 'D', 'E', 'G', 'A'],
+    roots: ['C', 'D', 'E', 'G', 'A'],
     steps: [
       { chord: 'F'   },
       { chord: 'G'   },
@@ -476,7 +489,7 @@ const PROGRESSION_DATA = [
   {
     id: 'IV-V-IIIm7-VIm7',
     no: 2,
-    keys: ['C', 'D', 'E', 'G', 'A'],
+    roots: ['C', 'D', 'E', 'G', 'A'],
     recommended: true,
     steps: [
       { chord: 'F'   },
@@ -488,7 +501,7 @@ const PROGRESSION_DATA = [
   {
     id: 'IV-III7-VIm7-I',
     no: 2,
-    keys: ['C', 'D', 'E', 'G', 'A'],
+    roots: ['C', 'D', 'E', 'G', 'A'],
     recommended: true,
     steps: [
       { chord: 'F'   },
@@ -500,7 +513,7 @@ const PROGRESSION_DATA = [
   {
     id: 'IV/3-V/3-I-I/3',
     no: 2,
-    keys: ['C', 'D', 'E', 'G', 'A'],
+    roots: ['C', 'D', 'E', 'G', 'A'],
     steps: [
       { chord: 'F/A'   },
       { chord: 'G/B'   },
@@ -512,7 +525,7 @@ const PROGRESSION_DATA = [
   {
     id: 'VIm7-IIIm7-IV-I',
     no: 2,
-    keys: ['C', 'D', 'E', 'G', 'A'],
+    roots: ['C', 'D', 'E', 'G', 'A'],
     steps: [
       { chord: 'Am7'   },
       { chord: 'Em7'   },
@@ -523,7 +536,7 @@ const PROGRESSION_DATA = [
   {
     id: 'VIm7-IIIm7-IV-V',
     no: 2,
-    keys: ['C', 'D', 'E', 'G', 'A'],
+    roots: ['C', 'D', 'E', 'G', 'A'],
     steps: [
       { chord: 'Am7'   },
       { chord: 'Em7'   },
@@ -534,7 +547,7 @@ const PROGRESSION_DATA = [
   {
     id: 'VIm7-IV-V-I',
     no: 2,
-    keys: ['D', 'G', 'A'],
+    roots: ['D', 'G', 'A'],
     steps: [
       { chord: 'Am7'   },
       { chord: 'F'   },
@@ -542,4 +555,154 @@ const PROGRESSION_DATA = [
       { chord: 'C' },
     ],
   },
+  {
+    id: 'Im7-IVm7-bVII7-bIIIM7',
+    no: 2,
+    mode: 'Minor',   // C단조 (Aeolian) — 부모 장조 Eb
+    key: 'Eb',
+    roots: ['D', 'E', 'G', 'A', 'B'],
+    steps: [
+      { chord: 'Cm7'   },
+      { chord: 'Fm7'   },
+      { chord: 'Bb7' },
+      { chord: 'EbM7' },
+    ],
+  },
+  {
+    id: 'I-IM7-I7-F',
+    no: 2,
+    roots: ['C', 'D', 'G', 'A'],
+    steps: [
+      { chord: 'C'   },
+      { chord: 'CM7'   },
+      { chord: 'C7' },
+      { chord: 'F' },
+    ],
+  },
+  {
+    id: 'VI-V-IIIm7-VIm7',
+    no: 2,
+    roots: ['C'],
+    steps: [
+      { chord: 'F'   },
+      { chord: 'G/F'   },
+      { chord: 'Em7' },
+      { chord: 'Am7' },
+    ],
+  },
+  // 8코드 진행
+  {
+    id: 'I-V/3-VIm7-IIIm7-IV-I-IIm7-V7',
+    no: 2,
+    roots: ['C'],
+    steps: [
+      { chord: 'C'   },
+      { chord: 'G/B' },
+      { chord: 'Am7' },
+      { chord: 'Em7' },
+      { chord: 'F'   },
+      { chord: 'C'   },
+      { chord: 'Dm7' },
+      { chord: 'G7'  },
+    ],
+    recommended: true
+  },
+
+  /// 3. 실전형 코드진행
+
+
+  /// 4. 고급 코드진행
+
+  {
+    id: 'I-bVII-IV-I',
+    no: 4,
+    roots: ['C'],
+    steps: [
+      { chord: 'C'   },
+      { chord: 'Bb'   },
+      { chord: 'F' },
+      { chord: 'C' },
+    ],
+  },
+  {
+    id: 'bVIM7-bVII7-I-I',
+    no: 4,
+    roots: ['C'],
+    steps: [
+      { chord: 'AbM7'   },
+      { chord: 'Bb7'   },
+      { chord: 'C' },
+      { chord: 'C' },
+    ],
+  },
+  {
+    id: 'VIm7-II7-VIM7-CM7',
+    no: 4,
+    roots: ['C'],
+    steps: [
+      { chord: 'Am7'   },
+      { chord: 'D7'   },
+      { chord: 'FM7' },
+      { chord: 'CM7' },
+    ],
+  },
+  {
+    id: 'IV-V-I-bVII',
+    no: 4,
+    roots: ['C'],
+    steps: [
+      { chord: 'F'   },
+      { chord: 'G'   },
+      { chord: 'C' },
+      { chord: 'Bb' },
+    ],
+  },
+  {
+    id: 'Im7-bIII-bVII-IV',
+    no: 4,
+    mode: 'Dorian',
+    key: 'Bb',        // 부모 장조 (C Dorian)
+    roots: ['D', 'E', 'G', 'A', 'B'],
+    steps: [
+      { chord: 'Cm7'   },
+      { chord: 'Eb'   },
+      { chord: 'Bb' },
+      { chord: 'F' },
+    ],
+  },
+
+  //8코드 진행
+  {
+    id: 'I-I-VIIdim-III7-VIm7-VIm7-Vm7-I7',
+    no: 4,
+    roots: ['C'],
+    steps: [
+      { chord: 'C'   },
+      { chord: 'C' },
+      { chord: 'Bm7(b5)' },
+      { chord: 'E7' },
+      { chord: 'Am7'   },
+      { chord: 'Am7'   },
+      { chord: 'Gm7' },
+      { chord: 'C7'  },
+    ],
+    recommended: true
+  },
+  {
+    id: 'IV-IV-IIIm-VI7-IIm-IIm-V-V',
+    no: 4,
+    roots: ['C'],
+    steps: [
+      { chord: 'F'   },
+      { chord: 'F' },
+      { chord: 'Em7' },
+      { chord: 'A7' },
+      { chord: 'Dm7'   },
+      { chord: 'Dm7'   },
+      { chord: 'G7sus4' },
+      { chord: 'G7sus4'  },
+    ],
+    recommended: true
+  },
+ 
 ];

@@ -10,7 +10,7 @@
     'E':4,'F':5,'F#':6,'Gb':6,'G':7,'G#':8,
     'Ab':8,'A':9,'A#':10,'Bb':10,'B':11,
   };
-  const QUALITY_SUFFIXES = ['dim7','dim','aug','M7','m7','7','m','M',''];
+  const QUALITY_SUFFIXES = ['dim7','dim','aug','M7','m7(b5)','m7','7sus4','7','sus4','sus2','m6','6','m','M',''];
   const QUALITY_FALLBACK = { '': 'M', 'M': 'M' };
 
   function _parseChordSimple(str) {
@@ -62,7 +62,11 @@
     id:          prog.id,
     no:          prog.no ?? 1,
     recommended: prog.recommended ?? false,
-    keys:  Array.isArray(prog.keys) ? prog.keys : (prog.keys ? [prog.keys] : []),
+    // 조성/모드 (C기준 작성). key=부모 장조 음명, mode=조성명. 미지정 시 C Major
+    mode:        prog.mode ?? 'Major',
+    key:         prog.key  ?? 'C',
+    keySemitone: ROOT_MAP[prog.key ?? 'C'] ?? 0,
+    roots: Array.isArray(prog.roots) ? prog.roots : (prog.roots ? [prog.roots] : []),
     steps: prog.steps.map(s => {
       const { semitones, quality, bass } = parseChord(s.chord);
       return { semitones, quality, bass };

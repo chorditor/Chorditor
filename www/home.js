@@ -1002,7 +1002,7 @@ function resetAll() {
 
 // 캔버스 사이드 버튼 — 바텀바 기능 위임
 function resetChord()     { resetAll(); }
-function saveChordImage() { showScaleDropdown(document.getElementById('btn-save-image'), 'editor'); }
+function saveChordImage() { openImgSaveModal('editor'); }
 
 function getBarreFrets() {
   const count = {};
@@ -1018,7 +1018,7 @@ function getDotImgKey(n, isRoot) {
 // ═══════════════════════════════════════════════════════════════
 // 렌더링: drawCanvas (data 파라미터 지원)
 // ═══════════════════════════════════════════════════════════════
-function drawCanvas(c, ratio, data = null) {
+function drawCanvas(c, ratio, data = null, transparent = false) {
   const _root     = data ? data.root     : selectedRoot;
   const _triad    = data ? data.triad    : selectedTriad;
   const _seventh  = data ? data.seventh  : selectedSeventh;
@@ -1048,8 +1048,10 @@ function drawCanvas(c, ratio, data = null) {
   const sc  = w / BASE_W;
 
   c.clearRect(0, 0, w, ch);
-  c.fillStyle = '#ffffff';
-  c.fillRect(0, 0, w, ch);
+  if (!transparent) {
+    c.fillStyle = '#ffffff';
+    c.fillRect(0, 0, w, ch);
+  }
 
   // 너트 (우측 끝이 tl에 정렬, 줄선 stroke 블리드에 맞춰 상/하 높이 정렬)
   const nutW  = Math.max(1, Math.round(9 * sc));
@@ -1171,8 +1173,10 @@ function drawCanvas(c, ratio, data = null) {
 
   // 코드명
   c.save();
-  c.fillStyle = '#ffffff';
-  c.fillRect(tl, 0, w - tl, tt - ds/2);  // nut 좌측 개방현 영역은 제외
+  if (!transparent) {
+    c.fillStyle = '#ffffff';
+    c.fillRect(tl, 0, w - tl, tt - ds/2);  // nut 좌측 개방현 영역은 제외
+  }
   c.fillStyle = '#242729';
   c.textBaseline = 'alphabetic';
 
@@ -1398,62 +1402,115 @@ canvas.addEventListener('click', e => {
 // PNG 저장
 // ═══════════════════════════════════════════════════════════════
 
-// 이미지 저장 배율 드롭다운 (에디터/라이브러리 공용)
-let _scaleDropdownMode = 'editor'; // 'editor' | 'library'
-let _scaleDropdownClose = null;
+// ── 이미지 저장 모달 (에디터/라이브러리 공용) ──────────────────
+// 상단 미리보기 / 중앙 배율 슬라이더 / 하단 투명옵션·저장버튼
+let _imgMode        = 'editor'; // 'editor' | 'library'
+let _imgScale       = 1;
+let _imgTransparent = false;
 
-function showScaleDropdown(anchorEl, mode) {
-  const dd = document.getElementById('scale-dropdown');
-  if (!dd) return;
-  _scaleDropdownMode = mode;
+function openImgSaveModal(mode) {
+  _imgMode = mode;
+  const modal    = document.getElementById('img-save-modal');
+  const backdrop = document.getElementById('img-save-backdrop');
+  if (!modal) return;
 
-  // 잠금 상태 갱신
-  const max = getPlanLimit('maxScale');
-  dd.querySelectorAll('.scale-dropdown-item').forEach(item => {
-    const v = parseFloat(item.dataset.scale);
-    item.classList.toggle('locked', v > max);
-  });
+  const slider = document.getElementById('img-scale-slider');
+  const chk    = document.getElementById('img-transparent-chk');
+  if (slider) slider.value = _imgScale;
+  // 투명배경은 프리미엄 — free는 항상 해제 상태로 시작
+  if (getPlan() === 'free') _imgTransparent = false;
+  if (chk)    chk.checked  = _imgTransparent;
+  _updateImgTransparentUI();
 
-  // 위치: 버튼 우측 끝 기준 정렬, 버튼 위쪽에 표시
-  const rect = anchorEl.getBoundingClientRect();
-  dd.style.left   = '';
-  dd.style.right  = (window.innerWidth - rect.right) + 'px';
-  dd.style.bottom = (window.innerHeight - rect.top + 6) + 'px';
-  dd.style.top    = '';
-  dd.classList.add('open');
+  _updateImgScaleUI();
+  _renderImgPreview();
 
-  // 외부 클릭 시 닫기
-  if (_scaleDropdownClose) document.removeEventListener('pointerdown', _scaleDropdownClose);
-  _scaleDropdownClose = (e) => {
-    if (!dd.contains(e.target) && e.target !== anchorEl) closeScaleDropdown();
-  };
-  setTimeout(() => document.addEventListener('pointerdown', _scaleDropdownClose), 0);
+  if (backdrop) backdrop.classList.add('open');
+  modal.classList.add('open');
 }
 
-function closeScaleDropdown() {
-  const dd = document.getElementById('scale-dropdown');
-  if (dd) dd.classList.remove('open');
-  if (_scaleDropdownClose) {
-    document.removeEventListener('pointerdown', _scaleDropdownClose);
-    _scaleDropdownClose = null;
+function closeImgSaveModal() {
+  document.getElementById('img-save-modal')?.classList.remove('open');
+  document.getElementById('img-save-backdrop')?.classList.remove('open');
+}
+
+function onImgScaleInput(v) {
+  _imgScale = parseFloat(v) || 1;
+  _updateImgScaleUI();
+}
+
+function onImgTransparentToggle(checked) {
+  // 투명배경 = 프리미엄. free가 체크 시도하면 되돌리고 업그레이드 유도
+  if (checked && getPlan() === 'free') {
+    const chk = document.getElementById('img-transparent-chk');
+    if (chk) chk.checked = false;
+    _imgTransparent = false;
+    closeImgSaveModal();
+    openPlanSheet('image_transparent');
+    return;
+  }
+  _imgTransparent = !!checked;
+  _renderImgPreview();
+}
+
+// 투명 옵션 라벨 프리미엄 표시 (free일 때 왕관)
+function _updateImgTransparentUI() {
+  const label = document.getElementById('img-transparent-label');
+  if (label) label.classList.toggle('locked', getPlan() === 'free');
+}
+
+// 배율 라벨·픽셀크기·잠금상태 갱신
+function _updateImgScaleUI() {
+  const valEl = document.getElementById('img-scale-val');
+  const w = Math.round(EXPORT_BASE_W * _imgScale);
+  const h = Math.round(EXPORT_BASE_H * _imgScale);
+  const locked = _imgScale > getPlanLimit('maxScale');
+  if (valEl) valEl.textContent = `${_imgScale}배 · ${w}×${h} px`;
+
+  const saveBtn = document.getElementById('img-save-btn');
+  if (saveBtn) {
+    saveBtn.classList.toggle('locked', locked);
+    saveBtn.innerHTML = locked
+      ? '<i class="ph-fill ph-crown-simple"></i> 업그레이드'
+      : '저장';
   }
 }
 
-async function onScaleSelect(el) {
-  const scale = parseFloat(el.dataset.scale);
-  if (isNaN(scale)) return;
-  closeScaleDropdown();
-  if (el.classList.contains('locked')) { showUpgradeModal('scale_limit'); return; }
-  if (_scaleDropdownMode === 'library') {
-    await _doExportLibChordImage(scale);
+// 미리보기 캔버스 드로잉 (현재 편집/선택 코드 + 투명 반영)
+function _renderImgPreview() {
+  const cv = document.getElementById('img-preview-canvas');
+  if (!cv) return;
+  const dpr  = window.devicePixelRatio || 1;
+  const cssW = cv.offsetWidth;
+  if (!cssW) { requestAnimationFrame(_renderImgPreview); return; }
+  const cssH = Math.round(cssW * BASE_H / BASE_W);
+  cv.style.height = cssH + 'px';
+  cv.width  = Math.round(cssW * dpr);
+  cv.height = Math.round(cssH * dpr);
+  cv.classList.toggle('transparent-bg', _imgTransparent);
+
+  if (_imgMode === 'library') {
+    if (!_libEntry) return;
+    const useFlat  = accidental === 'flat';
+    const dispName = useFlat ? _libEntry.flatName : _libEntry.name;
+    _drawLibCanvas(cv, (cssW * dpr) / BASE_W, _libEntry, dispName, _libFingeringIdx || 0, _imgTransparent);
   } else {
-    await _doSavePNG(scale);
+    const ctx = cv.getContext('2d');
+    drawCanvas(ctx, (cssW * dpr) / BASE_W, null, _imgTransparent);
   }
 }
 
-async function _doSavePNG(scale) {
+async function onImgSave() {
+  if (_imgScale > getPlanLimit('maxScale')) { closeImgSaveModal(); openPlanSheet('image_scale'); return; }
+  if (_imgTransparent && getPlan() === 'free') { closeImgSaveModal(); openPlanSheet('image_transparent'); return; }
+  closeImgSaveModal();
+  if (_imgMode === 'library') await _doExportLibChordImage(_imgScale, _imgTransparent);
+  else                        await _doSavePNG(_imgScale, _imgTransparent);
+}
+
+async function _doSavePNG(scale, transparent = false) {
   await refreshPlanFromDB();
-  if (!canUseScale(scale)) { showUpgradeModal('scale_limit'); return; }
+  if (!canUseScale(scale)) { closeImgSaveModal(); openPlanSheet('image_scale'); return; }
 
   const exp = document.createElement('canvas');
   exp.width  = Math.round(EXPORT_BASE_W * scale);
@@ -1461,7 +1518,7 @@ async function _doSavePNG(scale) {
   const ec = exp.getContext('2d');
   const _es = EXPORT_BASE_W / BASE_W * scale;
   ec.scale(_es, _es);
-  drawCanvas(ec, 1);
+  drawCanvas(ec, 1, null, transparent);
 
   const base64   = exp.toDataURL('image/png').split(',')[1];
   const fileName = buildChordName() + '_chord.png';
@@ -1673,7 +1730,8 @@ async function checkAndShowNotice() {
     }
     const noticesResp = await fetch(url, { headers });
     const notices = noticesResp.ok ? await noticesResp.json() : [];
-    if (!notices?.length) return;
+    // 노출할 공지 없으면 리뷰 유도 모달 시도 (안전 시점)
+    if (!notices?.length) { if (typeof reviewMaybeShow === 'function') reviewMaybeShow(); return; }
 
     const notice = notices[0];
     _currentNoticeId = notice.id;
@@ -3850,6 +3908,26 @@ function onAuthSignedIn() {
   setTimeout(() => checkAndShowNotice(), 500);
 }
 
+// 웹: 로그인됐지만 persona 미입력이면 온보딩 필요 (true 반환)
+async function _webNeedsOnboarding() {
+  try {
+    let token = null, userId = null;
+    if (_supabase) {
+      const { data } = await _supabase.auth.getSession();
+      token  = data?.session?.access_token;
+      userId = data?.session?.user?.id;
+    }
+    if (!token || !userId) return false; // 비로그인 → 온보딩 강제 안 함
+    const resp = await fetch(
+      `${SUPABASE_URL}/rest/v1/subscriptions?user_id=eq.${userId}&select=persona`,
+      { headers: { 'apikey': SUPABASE_ANON, 'Authorization': `Bearer ${token}` } }
+    );
+    if (!resp.ok) return false;
+    const rows = await resp.json();
+    return !(rows.length > 0 && rows[0].persona);
+  } catch (_) { return false; }
+}
+
 // ═══════════════════════════════════════════════════════════════
 // 초기화 (home.html 전용)
 // ═══════════════════════════════════════════════════════════════
@@ -3861,11 +3939,15 @@ document.addEventListener('pointerdown', (e) => {
 });
 
 document.addEventListener('DOMContentLoaded', async () => {
+  // 리뷰 유도: 앱 실행 카운트 (성숙도 측정)
+  if (typeof reviewRegisterLaunch === 'function') reviewRegisterLaunch();
+
   // ── UI 초기화 ──────────────────────────────────────────────
-  // 배너 버전 표시 (프로덕션 버전: _dev 접미사 제거)
-  const _prodVer = 'v' + APP_VERSION.replace(/_dev\d*$/, '');
+  // 배너 버전 표시
+  const _prodVer = 'v' + APP_VERSION;
   const _bannerVer = document.getElementById('home-banner-version');
   if (_bannerVer) _bannerVer.textContent = _prodVer;
+  if (typeof renderTutorialBody === 'function') renderTutorialBody();
   const _updateTitle = document.getElementById('tutorial-update-title');
   if (_updateTitle) _updateTitle.textContent = '최신 업데이트 소식';
   renderRootBtns();
@@ -4072,6 +4154,9 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   // ── 웹: Supabase 세션 복원 ───────────────────────────────────
   await initSupabase();
+  // 신규 유저(persona 미입력)가 OAuth 후 home으로 직행한 경우 → 온보딩으로 유도
+  // (Supabase redirect 허용목록/Site URL 폴백으로 redirectTo가 무시될 수 있어 안전망)
+  if (await _webNeedsOnboarding()) { window.location.replace('onboarding.html'); return; }
   analytics.track('app_open', { platform: 'web', project_count: loadProjects().length });
   setTimeout(() => checkAndShowNotice(), 1000);
 });
@@ -4209,7 +4294,7 @@ function drawLibViewerCanvas() {
 
 // 공통 캔버스 렌더 (viewer / mini card 공용)
 // fingeringIdx: 사용할 운지 인덱스 (미지정 시 0 = 대표 운지)
-function _drawLibCanvas(canvas, ratio, entry, nameOverride, fingeringIdx = 0) {
+function _drawLibCanvas(canvas, ratio, entry, nameOverride, fingeringIdx = 0, transparent = false) {
   // 코드 캔버스 드로잉은 voicing-canvas.js 모듈(VoicingCanvas)로 일원화.
   // 프렛 정규화·바레·도트·프렛번호·손가락번호·코드명 모두 모듈이 처리.
   VoicingCanvas.draw(canvas, {
@@ -4224,6 +4309,7 @@ function _drawLibCanvas(canvas, ratio, entry, nameOverride, fingeringIdx = 0) {
     chordName:     nameOverride,
     fingerNumMode: _libFingerMode,
     ratio,
+    transparent,
   });
 }
 
@@ -4382,8 +4468,8 @@ function libPlayChord() {
 }
 
 function libSaveImage() {
-  const btn = document.querySelector('#view-library .lib-canvas-side-btns .canvas-side-btn');
-  showScaleDropdown(btn, 'library');
+  if (!_libEntry) return;
+  openImgSaveModal('library');
 }
 
 // 검색 매칭: 근음은 대소문자 무시, quality는 대소문자 구분
@@ -4485,11 +4571,11 @@ function selectLibSearchResult(idx) {
 }
 
 // 라이브러리 저장 버튼 → showScaleDropdown 으로 진입
-async function _doExportLibChordImage(scale) {
+async function _doExportLibChordImage(scale, transparent = false) {
   if (!_libEntry) return;
 
   await refreshPlanFromDB();
-  if (!canUseScale(scale)) { showUpgradeModal('scale_limit'); return; }
+  if (!canUseScale(scale)) { closeImgSaveModal(); openPlanSheet('image_scale'); return; }
 
   const useFlat  = accidental === 'flat';
   const dispName = useFlat ? _libEntry.flatName : _libEntry.name;
@@ -4498,7 +4584,7 @@ async function _doExportLibChordImage(scale) {
   const exp = document.createElement('canvas');
   exp.width  = Math.round(EXPORT_BASE_W * scale);
   exp.height = Math.round(EXPORT_BASE_H * scale);
-  _drawLibCanvas(exp, EXPORT_BASE_W / BASE_W * scale, _libEntry, dispName);
+  _drawLibCanvas(exp, EXPORT_BASE_W / BASE_W * scale, _libEntry, dispName, 0, transparent);
 
   const base64 = exp.toDataURL('image/png').split(',')[1];
 

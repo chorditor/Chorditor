@@ -1,0 +1,123 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="color-scheme" content="light dark" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <title>Chorditor - 주법 연습</title>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css" />
+  <link rel="stylesheet" href="style.css?v=2" />
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
+</head>
+<body class="strum-play-page">
+
+  <!-- 페이지 커버: 초기화 완료 전 화면 가림 -->
+  <div id="page-cover"></div>
+
+  <div class="app-shell">
+
+    <!-- ── 탑바 ── -->
+    <div class="top-bar">
+      <button id="back-btn" class="icon-btn" onpointerup="closeStrumPlay()">
+        <i data-lucide="chevron-left"></i>
+      </button>
+    </div>
+
+    <!-- ── 메인 콘텐츠 ── -->
+    <div class="main-content" id="main-content">
+      <div class="strum-play-area">
+
+        <!-- 타이틀 -->
+        <div class="strum-play-title" id="strum-play-title"></div>
+
+        <!-- ① 코드 진행 (가로 휠피커, progression-detail 방식) -->
+        <div class="strum-prog progd-chord-view-inner" id="strum-prog"></div>
+
+        <!-- ② 비트 박스보더 (1줄) -->
+        <div class="strum-play-grid" id="strum-play-grid"></div>
+
+        <!-- ③ 버튼 영역 -->
+        <div class="strum-play-controls" id="strum-play-controls">
+
+          <!-- BPM 설정 (시작 → 목표 가로 배치) -->
+          <div class="strum-bpm-pair">
+
+            <!-- 시작 BPM (램프 ON일 때만) -->
+            <div class="strum-bpm-block strum-ramp-start hidden" id="strum-ramp-start">
+              <span class="strum-bpm-label">시작 BPM</span>
+              <div class="strum-bpm-row">
+                <div class="strum-bpm-arrows">
+                  <button class="strum-bpm-step" onpointerup="strumChangeStart(1)">
+                    <i class="ph-bold ph-caret-up"></i>
+                  </button>
+                  <button class="strum-bpm-step" onpointerup="strumChangeStart(-1)">
+                    <i class="ph-bold ph-caret-down"></i>
+                  </button>
+                </div>
+                <div class="progd-bpm-wheel-wrap">
+                  <div class="progd-bpm-wheel" id="strum-start-wheel"></div>
+                </div>
+              </div>
+            </div>
+
+            <!-- 진행 화살표 (램프 ON일 때만) -->
+            <i class="ph-bold ph-caret-double-right strum-bpm-prog-arrow hidden" id="strum-bpm-prog-arrow"></i>
+
+            <!-- 목표 BPM -->
+            <div class="strum-bpm-block">
+              <span class="strum-bpm-label">목표 BPM</span>
+              <div class="strum-bpm-row">
+                <div class="progd-bpm-wheel-wrap">
+                  <div class="progd-bpm-wheel" id="strum-bpm-wheel"></div>
+                </div>
+                <div class="strum-bpm-arrows">
+                  <button class="strum-bpm-step" onpointerup="strumChangeBpm(1)">
+                    <i class="ph-bold ph-caret-up"></i>
+                  </button>
+                  <button class="strum-bpm-step" onpointerup="strumChangeBpm(-1)">
+                    <i class="ph-bold ph-caret-down"></i>
+                  </button>
+                </div>
+              </div>
+            </div>
+
+          </div>
+
+          <!-- 점진 가속 토글 -->
+          <div class="strum-ramp-row">
+            <span class="strum-ramp-label">느린 BPM부터 연습하기</span>
+            <label class="settings-switch">
+              <input type="checkbox" id="strum-ramp-toggle" onchange="strumToggleRamp(this.checked)" />
+              <span class="settings-switch-track"></span>
+            </label>
+          </div>
+
+        </div><!-- /strum-play-controls -->
+
+        <div class="strum-play-foot">
+          <button class="strum-play-btn" id="strum-play-btn" onpointerup="strumTogglePlay()">
+            <i class="ph-fill ph-play"></i>
+          </button>
+        </div>
+
+      </div><!-- /strum-play-area -->
+    </div>
+
+  </div><!-- /app-shell -->
+
+  <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.js"></script>
+  <script src="https://unpkg.com/@phosphor-icons/web"></script>
+  <script src="analytics-sdk.js"></script>
+  <script src="shared.js"></script>
+  <script src="voicing-canvas.js"></script>
+  <script src="chord-voicings.js"></script>
+  <script src="chords-library.js"></script>
+  <script src="guitar-samples.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/tone/14.8.49/Tone.js"></script>
+  <script src="guitar-audio.js?v=3"></script>
+  <script src="drum-audio.js"></script>
+  <script src="drum-sets.js"></script>
+  <script src="strumming-list.js"></script>
+  <script src="strum-play.js?v=2"></script>
+</body>
+</html>

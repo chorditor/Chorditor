@@ -14,13 +14,13 @@ function _getKeyDisplayName(k) {
   return _useFlat ? KEY_NAMES_FLAT[k] : KEY_NAMES_SHARP[k];
 }
 
-const _SEMITONE_TO_DEGREE   = { 0:'I', 2:'II', 4:'III', 5:'IV', 7:'V', 9:'VI', 11:'VII' };
-const _SEMITONE_TO_BASS_NUM = { 0:1, 2:2, 4:3, 5:4, 7:5, 9:6, 11:7 };
+const _SEMITONE_TO_DEGREE   = { 0:'I', 1:'bII', 2:'II', 3:'bIII', 4:'III', 5:'IV', 6:'#IV', 7:'V', 8:'bVI', 9:'VI', 10:'bVII', 11:'VII' };
+const _SEMITONE_TO_BASS_NUM = { 0:'1', 1:'b2', 2:'2', 3:'b3', 4:'3', 5:'4', 6:'#4', 7:'5', 8:'b6', 9:'6', 10:'b7', 11:'7' };
 
 function _getRomanNumeral(semitones, quality, bass) {
   const norm   = ((semitones % 12) + 12) % 12;
   const roman  = _SEMITONE_TO_DEGREE[norm] || '?';
-  const sfx    = { M:'', m:'m', '7':'7', M7:'M7', m7:'m7', dim:'dim', dim7:'dim7', aug:'aug' };
+  const sfx    = { M:'', m:'m', '7':'7', M7:'M7', m7:'m7', dim:'dim', dim7:'dim7', aug:'aug', sus4:'sus4', sus2:'sus2', '7sus4':'7sus4', m6:'m6', '6':'6', 'm7(b5)':'m7(b5)' };
   const suffix = sfx[quality] ?? '';
   let result   = roman + (suffix ? `<span class="prog-chord-sfx">${suffix}</span>` : '');
   if (bass != null) {
@@ -35,7 +35,7 @@ function _getChordName(rootKey, semitones, quality, bass) {
   const names = _useFlat ? KEY_NAMES_FLAT : KEY_NAMES_SHARP;
   const noteIdx = (rootKey + semitones + 12) % 12;
   const note    = names[noteIdx];
-  const sfx     = { M: '', m: 'm', '7': '7', M7: 'M7', m7: 'm7', dim: 'dim', dim7: 'dim7', aug: 'aug' };
+  const sfx     = { M: '', m: 'm', '7': '7', M7: 'M7', m7: 'm7', dim: 'dim', dim7: 'dim7', aug: 'aug', sus4: 'sus4', sus2: 'sus2', '7sus4': '7sus4', m6: 'm6', '6': '6', 'm7(b5)': 'm7(b5)' };
   let result    = note + (sfx[quality] ?? '');
   if (bass != null) {
     const bassIdx = (noteIdx + bass) % 12;
@@ -45,11 +45,8 @@ function _getChordName(rootKey, semitones, quality, bass) {
 }
 
 // ── no 라벨 맵 ───────────────────────────────────────────────
-const _NO_LABELS = {
-  1: '초보자용 코드진행',
-  2: '7th 코드',
-  3: '고급 코드진행',
-};
+// 실제 라벨은 progression-data.js의 PROGRESSION_NO_LABELS에서 관리 (no 추가 시 거기만 편집)
+const _NO_LABELS = (typeof PROGRESSION_NO_LABELS !== 'undefined') ? PROGRESSION_NO_LABELS : {};
 const _NO_CHIP_LABELS = {
   0: '목록 별',
   1: '초보자',
@@ -59,7 +56,7 @@ const _NO_CHIP_LABELS = {
 
 // ── 상태 ────────────────────────────────────────────────────
 let _currentKey   = 0;
-let _useFlat      = false;
+let _useFlat      = true; // 기본 플랫
 let _playingId    = null;
 let _playStep     = 0;
 let _playTimer    = null;
@@ -182,29 +179,30 @@ function _renderProgList() {
     card.className = 'prog-card';
     card.dataset.id = prog.id;
 
-    const chordCells = prog.steps.map((step, i) => {
+    // 셀을 4열 grid에 직접 배치 → 위·아랫줄 컬럼 정렬
+    const chordRows = prog.steps.map((step, i) => {
       const prev   = prog.steps[i - 1];
       const isSame = prev && prev.semitones === step.semitones && prev.quality === step.quality && (prev.bass ?? null) === (step.bass ?? null);
       const name   = isSame ? '-' : _getChordName(_currentKey, step.semitones, step.quality, step.bass);
-      return `<div class="prog-chord-cell">
-        <span class="prog-chord-name">${name}</span>
-      </div>`;
+      return `<div class="prog-chord-cell"><span class="prog-chord-name">${name}</span></div>`;
     }).join('');
 
-    const romanName = prog.steps.map((step, i) => {
+    // 로마숫자도 코드셀과 동일하게 4열 grid 정렬
+    const romanRows = prog.steps.map((step, i) => {
       const prev   = prog.steps[i - 1];
       const isSame = prev && prev.semitones === step.semitones && prev.quality === step.quality && (prev.bass ?? null) === (step.bass ?? null);
-      return isSame ? '-' : _getRomanNumeral(step.semitones, step.quality, step.bass);
-    }).join('<span class="prog-card-name-sep"></span>');
+      const name   = isSame ? '-' : _getRomanNumeral(step.semitones, step.quality, step.bass);
+      return `<span class="prog-roman-cell">${name}</span>`;
+    }).join('');
 
     card.innerHTML = `
       <div class="prog-card-header">
-        <span class="prog-card-name">${romanName}</span>
+        <span class="prog-card-name">${romanRows}</span>
         ${prog.recommended ? '<i class="ph-fill ph-star prog-recommended-star"></i>' : ''}
-        ${prog.keys?.length ? `<span class="prog-key-label">추천 key</span><span class="prog-key-tag">${prog.keys.join('&nbsp; ')}</span>` : ''}
+        ${prog.roots?.length ? `<span class="prog-key-label">추천 Root</span><span class="prog-key-tag">${prog.roots.join('&nbsp; ')}</span>` : ''}
       </div>
       <div class="prog-card-body">
-        <div class="prog-chord-row">${chordCells}</div>
+        <div class="prog-chord-rows">${chordRows}</div>
         <button class="prog-play-btn"><i data-lucide="chevron-right"></i></button>
       </div>`;
 

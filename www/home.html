@@ -175,7 +175,7 @@
           <div class="toolbar">
             <div class="finger-num-group">
                 <button class="finger-btn" id="btn-finger-num" onclick="toggleFingerNum()" title="손가락 번호">
-                  <i data-lucide="hand"></i>
+                  <i class="ph-bold ph-hand"></i>
                 </button>
                 <div class="finger-num-divider"></div>
                 <div class="finger-group" id="finger-group">
@@ -284,10 +284,7 @@
               </div>
               <button class="mode-btn active" id="lib-finger-btn"
                       onclick="toggleLibFingerNum()" title="손가락 번호">
-                <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.5" xmlns="http://www.w3.org/2000/svg">
-                  <circle cx="12" cy="12" r="10"/>
-                  <text x="12" y="16.5" text-anchor="middle" font-size="11" font-family="serif" fill="currentColor" stroke="none" font-weight="bold">T</text>
-                </svg>
+                <i class="ph-bold ph-hand"></i>
               </button>
               <span class="ab-spacer"></span>
               <button class="ab-btn" onclick="libSaveToProject()">프로젝트에 저장</button>
@@ -657,6 +654,17 @@
     </div>
   </div>
 
+  <!-- ── 리뷰/평점 유도 모달 ── -->
+  <div class="modal-overlay hidden" id="review-modal-overlay" onclick="reviewRespond('later')">
+    <div class="review-modal" onclick="event.stopPropagation()">
+      <h3 class="review-modal-title">Chorditor, 어떠세요?</h3>
+      <p class="review-modal-message">연습에 도움이 되고 있다면<br>짧은 평가로 응원해 주세요.</p>
+      <button class="review-modal-btn review-modal-btn--primary" onclick="reviewRespond('like')">평가하러 가기</button>
+      <button class="review-modal-btn" onclick="reviewRespond('later')">나중에 할게요</button>
+      <button class="review-modal-btn review-modal-btn--text" onclick="reviewRespond('dislike')">다시 보지 않기</button>
+    </div>
+  </div>
+
   <!-- ── 저장 공간 경고 토스트 ── -->
   <div class="storage-warning hidden" id="storage-warning">
     저장 공간이 부족합니다. 일부 내용이 저장되지 않을 수 있어요.
@@ -678,80 +686,8 @@
           <i data-lucide="x"></i>
         </button>
       </div>
-      <div class="tutorial-body">
-
-        <!-- 업데이트 섹션 -->
-        <div class="tutorial-section-block">
-          <div class="tutorial-section-header open" onclick="toggleUpdateSection(this)">
-            <h3 class="tutorial-section-title" id="tutorial-update-title"></h3>
-            <i data-lucide="chevron-down" class="tutorial-section-arrow"></i>
-          </div>
-          <div class="tutorial-update-body">
-            <div class="tutorial-update-content">
-              <p class="tutorial-update-text">&nbsp;코디터가 '누구나 언제 어디서나 기타를 즐기는 세상'이라는 슬로건으로 완전히 새롭게 돌아왔습니다!<br><br>&nbsp;다양한 도구, 훈련 기능, 레슨 등의 콘텐츠로 방구석이든 공원이든 언제 어디서나 친근한 기타 앱으로서의 성장을 목표로 나아가고 있습니다.앞으로의 코디터 기대해 주세요!</p>
-              <ul class="tutorial-update-list">
-                <li>페이지 구조 전면 리빌딩. UI 디자인 전면 개편.</li>
-                <li>개인 프로젝트 하단 탭으로 이동 및 프로필 페이지 추가.</li>
-                <li>프로젝트에 텍스트를 붙여넣을 때 줄 생성이 제대로 동작하지 않는 버그 안정화.</li>
-                <li>근음을 빨간색으로 표시하는 토글 기능 삭제.</li>
-              </ul>
-            </div>
-          </div>
-        </div>
-
-        <div class="tutorial-divider"></div>
-
-        <!-- 개발자의 한 마디 섹션 -->
-        <div class="tutorial-section-block">
-          <div class="tutorial-section-header open" onclick="toggleUpdateSection(this)">
-            <h3 class="tutorial-section-title">개발자의 한 마디</h3>
-            <i data-lucide="chevron-down" class="tutorial-section-arrow"></i>
-          </div>
-          <div class="tutorial-update-body">
-            <div class="tutorial-update-content">
-              <p class="tutorial-update-text">&nbsp;코디터에 오신 걸 진심으로 환영합니다! 누구나 기타를 쉽게 배우고, 배움이 부담스러워서 포기하시는 분들에게도 기타의 즐거움을 알려주고 싶어서 코디터 개발을 기획하게 되었습니다.<br><br>&nbsp;아직은 기능적으로, 디자인적으로 부족하지만 여러분께 최고의 기타 앱으로 기억되도록 노력하겠습니다.</p>
-            </div>
-          </div>
-        </div>
-
-        <div class="tutorial-divider"></div>
-
-        <!-- 코디터 간단 설명서 섹션 -->
-        <div class="tutorial-section-block">
-          <div class="tutorial-section-header open" onclick="toggleUpdateSection(this)">
-            <h3 class="tutorial-section-title">코디터 간단 설명서</h3>
-            <i data-lucide="chevron-down" class="tutorial-section-arrow"></i>
-          </div>
-          <div class="tutorial-update-body">
-            <div class="tutorial-update-content">
-
-              <h4 class="tutorial-section">코드 에디터</h4>
-              <p class="tutorial-update-text">&nbsp;이제 프랫보드의 운지를 변경하면 즉시 가장 알맞은 코드명으로 변경됩니다! 상단에는 해당 코드의 추천명이 뜰 텐데, 보통 1~2개만 뜰 때는 직접 입력해 둔 코드이기 때문에 안심하셔도 됩니다. 하지만 추천명이 여러 개가 뜬다면 그 코드명은 정확하지 않을 가능성이 높습니다. 앞으로 세상의 모든 코드 이름이 정확하게 표기될 수 있도록 개선할 것입니다.</p>
-              <p class="tutorial-update-text">&nbsp;휠피커는 이론적으로 코드가 만들어지는 순서라고 생각하셔도 됩니다. 각 기능에 어떤 법칙이 숨어 있는지는 앞으로의 레슨을 기대해 주세요!</p>
-              <p class="tutorial-update-text">&nbsp;만들어진 코드는 재생해서 들어볼 수 있고, 이미지로 저장해서 여러 가지 용도로 활용하실 수 있습니다. 손바닥 아이콘으로 손가락 번호를 지정해 연습에 활용하실 수도 있습니다. 영상 제작에 활용하셔도 되고 개인 자료로 활용하셔도 좋습니다. 마음껏 사용해 주세요!</p>
-              <p class="tutorial-update-text">&nbsp;프로젝트를 만드셨다면 (혹은 만드실 때) 에디터에서 작성한 코드를 그대로 프로젝트로 가져올 수 있습니다. 프로젝트에서도 편집 시 언제든지 에디터로 수정할 수 있습니다.</p>
-
-              <h4 class="tutorial-section">코드 사전</h4>
-              <p class="tutorial-update-text">&nbsp;거의 모든 코드가 담겨 있는 코드 사전입니다. 화성학 이론과 경험을 바탕으로 기타에서 잡을 수 있는 거의 모든 코드를 탑재할 것입니다. 이미 충분한 양의 코드를 탑재하였기 때문에 코드가 문제 되는 일은 없을 것입니다!</p>
-
-              <h4 class="tutorial-section">프로젝트</h4>
-              <p class="tutorial-update-text">&nbsp;만든 코드를 팔레트에 모아두세요. 그리고 나만의 연습장을 만드세요. 매번 프랫보드에 한 땀 한 땀 점을 찍는 일은 안 하셔도 됩니다. 4칸/8칸 모드, 카포, BPM을 설정한 후 재생하면서 연습하실 수 있습니다!</p>
-              <ul class="tutorial-update-list">
-                <li>4칸 모드 : 한 슬롯 당 1마디</li>
-                <li>8칸 모드 : 한 슬롯 당 1/2마디</li>
-              </ul>
-              <p class="tutorial-update-text">&nbsp;텍스트에 노래 가사 또는 코드 설명을 작성해서 자유롭게 활용하시면 됩니다. 이렇게 만든 프로젝트는 공유 코드로 지인들과 공유할 수 있습니다. <br><br>&nbsp;단, 제목이나 텍스트 내용은 공유되지 않습니다. 노래 저작권 문제로 해당 내용은 공유에서 제외됩니다. (앞으로 코디터가 성장해서 저작권을 취득하고 더욱 풍성한 콘텐츠를 제공할 수 있도록 여러분의 많은 관심 부탁드립니다!)</p>
-
-              <h4 class="tutorial-section">훈련소 / 나의 기타 여정</h4>
-              <p class="tutorial-update-text">&nbsp;'훈련소'에서는 지루한 반복 학습을 재미있게 할 수 있는 여러 가지 훈련 콘텐츠가 제공됩니다.</p>
-              <p class="tutorial-update-text">&nbsp;'나의 기타 여정'에서는 코디터만의 커리큘럼으로 여러분이 자연스럽게 기타 실력을 향상해 가는 레슨 콘텐츠를 기획하고 있습니다. 자연스럽게 따라만 하면 나도 모르게 중·고급 화성학을 연주할 수 있는 여정이 될 것입니다. 기대해 주세요!</p>
-
-            </div>
-          </div>
-        </div>
-
-
-      </div>
+      <!-- 본문은 tutorial-content.js 에서 주입 (renderTutorialBody) -->
+      <div class="tutorial-body" id="tutorial-body"></div>
     </div>
   </div>
 
@@ -771,13 +707,35 @@
   <!-- 푸시 넛지(오늘의 코드 진행)용 진행 데이터/파서 — PROGRESSIONS 전역 제공 -->
   <script src="progression-data.js"></script>
   <script src="progression-parser.js"></script>
+  <!-- 푸시 넛지(주법 리듬 훈련)용 리스트 데이터 — STRUMMING_LIST 전역 제공 -->
+  <script src="strumming-list.js"></script>
+  <!-- 튜토리얼 모달 본문 (문구 관리 전용) -->
+  <script src="tutorial-content.js"></script>
 
-  <!-- 이미지 저장 배율 드롭다운 (에디터/라이브러리 공용) -->
-  <div class="scale-dropdown" id="scale-dropdown">
-    <div class="scale-dropdown-item" data-scale="0.5" onclick="onScaleSelect(this)"><span>0.5배</span><span>50×40 px</span></div>
-    <div class="scale-dropdown-item" data-scale="1"   onclick="onScaleSelect(this)"><span>1배</span><span>100×80 px</span></div>
-    <div class="scale-dropdown-item" data-scale="2"   onclick="onScaleSelect(this)"><span>2배</span><span>200×160 px</span></div>
-    <div class="scale-dropdown-item" data-scale="3"   onclick="onScaleSelect(this)"><span>3배</span><span>300×240 px</span></div>
+  <!-- 이미지 저장 모달 (에디터/라이브러리 공용) -->
+  <div class="img-save-backdrop" id="img-save-backdrop" onclick="closeImgSaveModal()"></div>
+  <div class="img-save-modal" id="img-save-modal">
+    <div class="ism-handle"></div>
+    <div class="ism-preview">
+      <canvas id="img-preview-canvas"></canvas>
+    </div>
+    <div class="ism-scale">
+      <div class="ism-scale-row">
+        <span class="ism-scale-label">배율</span>
+        <span class="ism-scale-val" id="img-scale-val">1배 · 100×80 px</span>
+      </div>
+      <input type="range" id="img-scale-slider" class="ism-slider"
+             min="0.5" max="3" step="0.5" value="1"
+             oninput="onImgScaleInput(this.value)">
+    </div>
+    <div class="ism-bottom">
+      <label class="ism-transparent" id="img-transparent-label">
+        <input type="checkbox" id="img-transparent-chk" onchange="onImgTransparentToggle(this.checked)">
+        <span>투명 배경으로 저장</span>
+        <i class="ph-fill ph-crown-simple ism-premium-crown"></i>
+      </label>
+      <button class="ism-save-btn" id="img-save-btn" onclick="onImgSave()">저장</button>
+    </div>
   </div>
 
   <div id="exit-toast"></div>
@@ -864,6 +822,25 @@
       '스케일 하나만 익혀도 솔로가 트여요',
       '운지가 손에 붙는 그 느낌, 오늘 만들어봐요',
       '막막한 솔로… 스케일로 풀어볼까요?'
+    ];
+
+    // ── 주법 리듬 훈련 푸시. persona별 레벨 풀, 단문 셔플백. home_master 제외. ──
+    // 딥링크는 해당 레벨 카드 중 랜덤(id는 STRUMMING_LIST 런타임 부여 → level로 필터).
+    var STRUM_PERSONA_LV = {
+      unboxing:    [1],     // 언박싱 1일차 → lv1 주법만
+      beginner:    [1],     // 굳은살 비기너 → lv1 주법만
+      sheet_reader:[2, 3]   // 악보의존자 → lv2~3 주법
+      // home_master(방구석 기타마스터) → 미발송
+    };
+    var STRUM_BODY = [
+      '오늘은 리듬 주법을 연습해볼까요? 🎸',
+      '코드는 잡는데 리듬이 어색하다면, 주법 연습이 답이에요',
+      '스트로크가 손에 붙으면 한 곡이 술술 나와요',
+      '같은 코드도 리듬이 달라지면 곡이 살아나요',
+      '손목 스냅, 오늘 한 번 다듬어볼까요?',
+      '다운·업 한 번씩, 가볍게 리듬 잡아봐요',
+      '박자 위에 손이 올라타는 그 느낌, 만들어봐요',
+      '주법 하나만 익혀도 연주가 확 달라져요 🔥'
     ];
 
     // ── 윈백(리텐션) 4단계. 공통·단문·홈 진입. 단계별 본문 셔플백. ──
@@ -996,7 +973,7 @@
     }
     function collectPoolKeys(pool){
       var set = {};
-      pool.forEach(function(p){ (p.keys||[]).forEach(function(k){ set[k]=1; }); });
+      pool.forEach(function(p){ (p.roots||[]).forEach(function(k){ set[k]=1; }); });
       return Object.keys(set);
     }
     // 범용 셔플백: items 전부 1회씩 소진 후 재셔플. 항목 변경(sig) 시 재생성.
@@ -1091,6 +1068,8 @@
           location.href = 'chord-name-quiz.html?level=' + encodeURIComponent(ex.quizLevel);
         } else if (ex && ex.scaleKey != null) {
           location.href = 'scale-level.html?key=' + encodeURIComponent(ex.scaleKey);
+        } else if (ex && ex.strumId != null) {
+          location.href = 'strum-play.html?id=' + encodeURIComponent(ex.strumId);
         }
         // winback → 홈(현재 페이지). 별도 라우팅 불필요.
       });
@@ -1111,7 +1090,7 @@
       var pool = PROGRESSIONS.filter(function(p){ return p.no === targetNo; });
       if (!pool.length) return null;
       var keyName = drawKeyFromBag('no' + targetNo, pool);
-      var candidates = pool.filter(function(p){ return (p.keys||[]).indexOf(keyName) >= 0; });
+      var candidates = pool.filter(function(p){ return (p.roots||[]).indexOf(keyName) >= 0; });
       if (!candidates.length) candidates = pool;
       var prog = candidates[Math.floor(Math.random() * candidates.length)];
       var keyIdx = NAME2IDX[keyName] != null ? NAME2IDX[keyName] : 0;
@@ -1141,6 +1120,18 @@
       var body = drawBag('scale_body', SCALE_BODY) || SCALE_BODY[0];
       return { title:' ', body:body, extra:{ scaleKey: scaleKey } };
     }
+    function buildStrumNotif(persona){
+      var lvs = STRUM_PERSONA_LV[persona];
+      if (!lvs || !lvs.length) return null;
+      if (!window.STRUMMING_LIST || !window.STRUMMING_LIST.length) return null;
+      var pool = window.STRUMMING_LIST.filter(function(it){ return lvs.indexOf(it.level) >= 0; });
+      if (!pool.length) return null;
+      var item = pool[Math.floor(Math.random() * pool.length)];
+      var row1 = drawBag('strum_body', STRUM_BODY) || STRUM_BODY[0];
+      var body = row1 + '\n' + item.title;
+      return { title:'주법 리듬 훈련', body:body, extra:{ strumId: item.id } };
+    }
+
 
     // 넛지 가능 종류 (페르소나별)
     function nudgeTypesFor(persona){
@@ -1148,6 +1139,7 @@
       if (typeof PROGRESSIONS !== 'undefined' && PROGRESSIONS.length) t.push('progression');
       if (QUIZ_LEVELS[persona] && QUIZ_LEVELS[persona].length) t.push('quiz');
       if (SCALE_PERSONA[persona] && SCALE_PERSONA[persona].length) t.push('scale');
+      if (STRUM_PERSONA_LV[persona] && STRUM_PERSONA_LV[persona].length) t.push('strum');
       return t;
     }
     // 넛지 발사시각: +1일 17시 (03시 경계)
@@ -1173,7 +1165,7 @@
     }
 
     var NUDGE_ID = 2010, CHALLENGE_ID = 2005;
-    var BUILDERS = { progression: buildProgressionNotif, quiz: buildQuizNotif, scale: buildScaleNotif };
+    var BUILDERS = { progression: buildProgressionNotif, quiz: buildQuizNotif, scale: buildScaleNotif, strum: buildStrumNotif };
 
     // 일상 넛지 예약 (+1일 17시). 종류 = 가능종류 셔플백.
     async function scheduleNudge(LN, persona){

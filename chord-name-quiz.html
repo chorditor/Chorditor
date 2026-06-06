@@ -119,6 +119,7 @@
                 <div class="quiz-canvas-inner">
                   <canvas id="quiz-canvas"></canvas>
                   <div id="quiz-countdown" class="quiz-countdown"></div>
+                  <div id="quiz-loading" class="quiz-loading" style="display:none"><div class="quiz-loading-spinner"></div></div>
                 </div>
               </div>
               <div id="quiz-chord-name-display" class="quiz-chord-name-display" style="display:none"></div>
@@ -166,6 +167,10 @@
         </div>
       </div>
       <div id="preview-modal-grid" class="preview-modal-grid"></div>
+      <!-- 로딩 오버레이 (보이싱 다수 렌더 중 끊김 가림) -->
+      <div id="preview-loading" class="preview-loading">
+        <div class="preview-loading-spinner"></div>
+      </div>
     </div>
   </div>
 
