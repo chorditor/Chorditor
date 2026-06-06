@@ -5509,6 +5509,26 @@ canvas {
   animation: countdown-pop 1s ease forwards;
 }
 
+/* 퀴즈 풀 로딩 스피너 (카운트다운 전 코드 불러오는 동안) */
+.quiz-loading {
+  position: absolute;
+  inset: 0;
+  background: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 2;
+}
+.quiz-loading-spinner {
+  width: 44px;
+  height: 44px;
+  border: 4px solid #e5e7eb;
+  border-top-color: #3B82F6;
+  border-radius: 50%;
+  animation: quiz-spin 0.8s linear infinite;
+}
+@keyframes quiz-spin { to { transform: rotate(360deg); } }
+
 .quiz-canvas-inner {
   position: relative;
   width: 100%;
