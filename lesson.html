@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="color-scheme" content="light dark" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <title>Chorditor - 레슨</title>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css" />
+  <link rel="stylesheet" href="style.css" />
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
+</head>
+<body>
+
+  <div id="page-cover"></div>
+
+  <div class="app-shell">
+
+    <!-- ── 탑바 + 레슨 진행바 ── -->
+    <div class="top-bar">
+      <button id="back-btn" class="icon-btn" onpointerup="closeLesson()">
+        <i data-lucide="x"></i>
+      </button>
+    </div>
+
+    <!-- ── 본문 (탭하면 다음) ── -->
+    <div class="main-content" id="main-content">
+      <div class="lesson-stage" id="lesson-stage">
+
+        <!-- 대사 -->
+        <p class="lesson-text" id="lesson-text"></p>
+
+        <!-- 코드 다이어그램 (A, E 순차 등장) -->
+        <div class="lesson-diagrams" id="lesson-diagrams">
+          <div class="lesson-diagram" id="lesson-diagram-a">
+            <canvas id="lesson-canvas-a"></canvas>
+          </div>
+          <div class="lesson-diagram" id="lesson-diagram-e">
+            <canvas id="lesson-canvas-e"></canvas>
+          </div>
+        </div>
+
+      </div>
+    </div>
+
+    <!-- ── 하단 버튼 ── -->
+    <div class="lesson-bottom">
+      <button class="lesson-prev" id="lesson-prev" onpointerup="lessonPrev()">이전</button>
+      <button class="lesson-next" id="lesson-next" disabled onpointerup="lessonNext()">다음</button>
+    </div>
+
+  </div><!-- /app-shell -->
+
+  <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.js"></script>
+  <script src="analytics-sdk.js"></script>
+  <script src="shared.js"></script>
+  <script src="voicing-canvas.js"></script>
+  <script src="guitar-samples.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/tone/14.8.49/Tone.js"></script>
+  <script src="guitar-audio.js?v=3"></script>
+  <script src="lesson.js"></script>
+</body>
+</html>

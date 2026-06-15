@@ -61,6 +61,17 @@ function _epNearestStop() {
   return best;
 }
 
+// 레슨 열기 (현재 Ch.1 세부1만 구현)
+function openLesson() {
+  const shell = document.querySelector('.app-shell');
+  if (shell) {
+    shell.classList.add('project-exit');
+    setTimeout(() => { location.href = 'lesson.html'; }, 260);
+  } else {
+    location.href = 'lesson.html';
+  }
+}
+
 function closeEpisode() {
   const shell = document.querySelector('.app-shell');
   if (shell) {

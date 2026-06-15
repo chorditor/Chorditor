@@ -9630,3 +9630,129 @@ canvas {
   font-family: 'Pretendard', sans-serif;
   cursor: pointer;
 }
+
+/* ═══════════════════════════════════════════════════════════════ */
+/* 레슨 (lesson.html) — 한 화면씩 진행하는 강의                       */
+/* ═══════════════════════════════════════════════════════════════ */
+
+/* 탑바 레슨 진행바 */
+.lesson-progress {
+  flex: 1;
+  height: 5px;
+  margin: 0 16px 0 4px;
+  border-radius: 999px;
+  background: #ece9e5;
+  overflow: hidden;
+}
+.lesson-progress-fill {
+  height: 100%;
+  width: 0;
+  border-radius: 999px;
+  background: #242729;
+  transition: width 0.4s cubic-bezier(0.22,0.61,0.36,1);
+}
+
+/* 본문 무대 */
+.lesson-stage {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 36px;
+  padding: 24px 28px;
+  padding-bottom: 88px;   /* 시각 보정: 콘텐츠를 정중앙보다 약간 위로 */
+  text-align: center;
+}
+
+/* 대사 */
+.lesson-text {
+  margin: 0;
+  font-size: 23px;
+  font-weight: 700;
+  line-height: 1.55;
+  letter-spacing: -0.01em;
+  color: var(--text-primary);
+  opacity: 0;
+  transform: translateY(14px);
+  /* 높이 고정(최대 3줄): 줄 수 변해도 하단 다이어그램이 밀리지 않음 */
+  height: calc(1.55em * 3);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+.lesson-text--in {
+  animation: lesson-text-in 1.5s cubic-bezier(0.65,0,0.35,1) forwards;
+}
+@keyframes lesson-text-in {
+  to { opacity: 1; transform: translateY(0); }
+}
+
+/* 다이어그램 영역 */
+.lesson-diagrams {
+  display: flex;
+  gap: 0;
+  justify-content: center;
+}
+.lesson-diagram {
+  width: 165px;
+  opacity: 0;
+  transform: translateY(16px) scale(0.96);
+  transition: opacity 0.9s ease, transform 0.9s cubic-bezier(0.22,0.61,0.36,1);
+}
+.lesson-diagram--in {
+  opacity: 1;
+  transform: translateY(0) scale(1);
+}
+.lesson-diagram canvas {
+  width: 100%;
+  height: auto;
+  display: block;
+  cursor: pointer;
+  transition: transform 0.18s cubic-bezier(0.34,1.56,0.64,1), filter 0.18s ease;
+}
+.lesson-diagram--press canvas {
+  transform: scale(0.9);
+  filter: brightness(0.92);
+}
+
+/* 하단 버튼 */
+.lesson-bottom {
+  flex-shrink: 0;
+  display: flex;
+  justify-content: center;
+  gap: 10px;
+  padding: 16px 20px calc(16px + env(safe-area-inset-bottom));
+}
+.lesson-prev,
+.lesson-next {
+  min-width: 140px;
+  padding: 16px 40px;
+  border: none;
+  border-radius: 14px;
+  font-size: 16px;
+  font-weight: 700;
+  font-family: 'Pretendard', sans-serif;
+  transition: background 0.25s ease, color 0.25s ease, opacity 0.2s ease;
+}
+.lesson-prev {
+  background: #e5e2dd;
+  color: #8a847c;
+  cursor: pointer;
+}
+.lesson-prev:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+.lesson-next {
+  background: #e5e2dd;          /* 기본 비활성: 회색 */
+  color: #b0aaa2;
+  cursor: default;
+}
+.lesson-next--active {
+  background: var(--blue);       /* 활성: 블루 */
+  color: #fff;
+  cursor: pointer;
+}

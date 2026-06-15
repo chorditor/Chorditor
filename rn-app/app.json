@@ -1,0 +1,33 @@
+{
+  "expo": {
+    "name": "Chorditor",
+    "slug": "chorditor",
+    "version": "1.1.4",
+    "orientation": "default",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "automatic",
+    "newArchEnabled": true,
+    "splash": {
+      "image": "./assets/splash-icon.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#ffffff"
+    },
+    "ios": {
+      "bundleIdentifier": "com.chorditor.app",
+      "supportsTablet": true
+    },
+    "android": {
+      "package": "com.chorditor.app",
+      "versionCode": 80,
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/adaptive-icon.png",
+        "backgroundColor": "#ffffff"
+      },
+      "edgeToEdgeEnabled": true
+    },
+    "web": {
+      "favicon": "./assets/favicon.png"
+    },
+    "plugins": []
+  }
+}
