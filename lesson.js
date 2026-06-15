@@ -11,7 +11,7 @@ const LESSON_BEATS = [
   { text: '역시 직접 소리를 내보는 것이겠죠?' },
   { text: '이번 챕터에서는 아래의\n두 가지 코드를 연주해 볼 거예요!', diagrams: true, diagramsFirst: true },
   { text: '직접 터치해서\n어떤 소리가 나는지 들어볼까요?', diagrams: true },
-  { text: 'A, E 코드는 앞으로 가장 중요한 코드가 될 거예요.\n꼭 기억해 주세요!', diagrams: true },
+  { text: 'A, E 코드는 앞으로\n가장 중요한 코드가 될 거예요.\n꼭 기억해 주세요!', diagrams: true },
   { text: '그런데... 이걸 어떻게\n잡아야 하는 걸까요?', diagrams: true },
   { text: '다음엔 이 그림을\n해석하는 방법을 알려드릴게요!', diagrams: true, btn: '레슨 완료', last: true },
 ];
