@@ -638,10 +638,17 @@ document.addEventListener('DOMContentLoaded', () => {
   const shell = document.querySelector('.app-shell');
   if (shell) shell.classList.add('project-enter');
 
-  // ?id= 로 카드 데이터 조회
-  const id = Number(new URLSearchParams(location.search).get('id'));
+  // ?id= 로 카드 데이터 조회 (없으면 ?lv= 넛지: 해당 레벨 카드 중 랜덤)
+  const _params = new URLSearchParams(location.search);
+  const id = Number(_params.get('id'));
+  const lv = _params.get('lv');
   if (window.STRUMMING_LIST) {
-    STRUM_ITEM = window.STRUMMING_LIST.find((it) => it.id === id) || null;
+    if (_params.get('id') != null) {
+      STRUM_ITEM = window.STRUMMING_LIST.find((it) => it.id === id) || null;
+    } else if (lv != null) {
+      const pool = window.STRUMMING_LIST.filter((it) => String(it.level) === String(lv));
+      STRUM_ITEM = pool.length ? pool[Math.floor(Math.random() * pool.length)] : null;
+    }
   }
 
   const titleEl = document.getElementById('strum-play-title');
@@ -682,7 +689,8 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   }
 
-  analytics.track('strum_play_viewed', { id, title: STRUM_ITEM ? STRUM_ITEM.title : null });
+  var _pushEntry = null; try { _pushEntry = localStorage.getItem('_push_entry'); if (_pushEntry) localStorage.removeItem('_push_entry'); } catch(_) {}
+  analytics.track('strum_play_viewed', { id, title: STRUM_ITEM ? STRUM_ITEM.title : null, entry: _pushEntry || 'direct' });
 
   // 페이지 이탈 중 재생이면 훈련시간 적립
   window.addEventListener('pagehide', () => { if (_strumPlaying) strumPlayStop(); });

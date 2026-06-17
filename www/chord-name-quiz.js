@@ -1675,22 +1675,39 @@ function startCountdown(callback) {
 
 function initQuiz() {
   clearQuestionTimer();
-  const pool     = buildLevelPool(_currentLevel);
-  const cfg      = LEVEL_CONFIGS.find(c => c.id === _currentLevel);
-  const quizCount = cfg?.count ?? QUIZ_COUNT;
-  // 셔플 후 이름 중복 제거 — 동일 코드명은 한 세션에 하나만 출제
-  const seen = new Set();
-  const deduped = shuffle(pool).filter(item => {
-    if (seen.has(item.name)) return false;
-    seen.add(item.name);
-    return true;
-  });
-  console.log(`[Quiz] LEVEL ${_currentLevel} 풀 크기: ${pool.length}개 → 이름 중복제거: ${deduped.length}개`);
-  _questions        = deduped.slice(0, quizCount);
-  _current          = 0;
-  _results          = [];
-  _sessionStartTime = Date.now(); // 훈련 시간 측정 시작
-  startCountdown(() => renderQuestion());
+  // 풀 생성(buildLevelPool)은 대형 레벨에서 무거워 동기 실행 시 뷰 페인트를 막아
+  // 카운트다운이 늦게 뜸. 로딩 표시 → 다음 프레임에 풀 생성 → 완료 후 카운트다운.
+  _showQuizLoading();
+  requestAnimationFrame(() => requestAnimationFrame(() => {
+    const pool      = buildLevelPool(_currentLevel);
+    const cfg       = LEVEL_CONFIGS.find(c => c.id === _currentLevel);
+    const quizCount = cfg?.count ?? QUIZ_COUNT;
+    // 셔플 후 이름 중복 제거 — 동일 코드명은 한 세션에 하나만 출제
+    const seen = new Set();
+    const deduped = shuffle(pool).filter(item => {
+      if (seen.has(item.name)) return false;
+      seen.add(item.name);
+      return true;
+    });
+    console.log(`[Quiz] LEVEL ${_currentLevel} 풀 크기: ${pool.length}개 → 이름 중복제거: ${deduped.length}개`);
+    _questions        = deduped.slice(0, quizCount);
+    _current          = 0;
+    _results          = [];
+    _sessionStartTime = Date.now(); // 훈련 시간 측정 시작
+    _hideQuizLoading();
+    startCountdown(() => renderQuestion());
+  }));
+}
+
+function _showQuizLoading() {
+  const el = document.getElementById('quiz-loading');
+  if (el) el.style.display = '';
+  const cd = document.getElementById('quiz-countdown');
+  if (cd) cd.style.display = 'none';
+}
+function _hideQuizLoading() {
+  const el = document.getElementById('quiz-loading');
+  if (el) el.style.display = 'none';
 }
 
 // 정답 1개 + 오답 3개 랜덤 선택 후 셔플
@@ -2463,7 +2480,11 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   }
 
-  analytics.track('quiz_page_viewed', { from: 'training' });
+  var _pushEntry = null; try { _pushEntry = localStorage.getItem('_push_entry'); if (_pushEntry) localStorage.removeItem('_push_entry'); } catch(_) {}
+  analytics.track('quiz_page_viewed', { from: _pushEntry ? 'push' : 'training', entry: _pushEntry || 'direct' });
+  // 푸시 딥링크 콜드 스타트: home을 안 거치면 getPlan()이 기본 'free' → 프리미엄 게이트 오작동.
+  // Supabase 플랜(get_my_plan)을 동기화해 localStorage(chorditor_plan) 갱신.
+  if (typeof fetchWebPlan === 'function') fetchWebPlan().catch(() => {});
   buildLevelList();
   initModeCarousel();
 

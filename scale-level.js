@@ -169,8 +169,9 @@ function _finishTransition(forward) {
 // degVal: 숫자 1 또는 라벨 문자열('2','b3','4'...)
 function _setNoteDegreeLabel(el, degVal) {
   el.querySelectorAll('.fb-note-deg').forEach(d => d.remove());
-  const lbl = String(degVal);
-  if (lbl === '1') return;   // 근음은 표시 생략
+  if (String(degVal) === '1') return;   // 근음은 표시 생략
+  // raw degree(음수=플랫) → 표시 라벨('b3','#4'...)로 변환해야 잉크박스 오프셋 키가 맞음
+  const lbl = degreeLabel(Number(degVal), _scaleKey);
   const deg = document.createElement('span');
   deg.className = 'fb-note-deg';
   deg.textContent = lbl;
@@ -3418,7 +3419,8 @@ renderFullNeck();
     });
   }
 
-  analytics.track('scale_level_viewed', { key: _scaleKey });
+  var _pushEntry = null; try { _pushEntry = localStorage.getItem('_push_entry'); if (_pushEntry) localStorage.removeItem('_push_entry'); } catch(_) {}
+  analytics.track('scale_level_viewed', { key: _scaleKey, entry: _pushEntry || 'direct' });
 
   // 훈련 시간 측정 시작
   _scaleSessionStart = Date.now();

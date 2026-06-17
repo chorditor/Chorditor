@@ -1062,14 +1062,20 @@
       LN0.addListener('localNotificationActionPerformed', function(ev){
         var ex = ev && ev.notification && ev.notification.extra;
         if (ex && ex.progId != null) {
+          try { localStorage.setItem('_push_entry', 'progression'); } catch(_) {}
           location.href = 'progression-detail.html?id=' + encodeURIComponent(ex.progId)
             + '&key=' + ex.key + '&flat=' + (ex.flat ? 1 : 0);
         } else if (ex && ex.quizLevel != null) {
+          try { localStorage.setItem('_push_entry', 'quiz'); } catch(_) {}
           location.href = 'chord-name-quiz.html?level=' + encodeURIComponent(ex.quizLevel);
         } else if (ex && ex.scaleKey != null) {
+          try { localStorage.setItem('_push_entry', 'scale'); } catch(_) {}
           location.href = 'scale-level.html?key=' + encodeURIComponent(ex.scaleKey);
         } else if (ex && ex.strumId != null) {
+          try { localStorage.setItem('_push_entry', 'strum'); } catch(_) {}
           location.href = 'strum-play.html?id=' + encodeURIComponent(ex.strumId);
+        } else if (ex && ex.winback) {
+          try { localStorage.setItem('_push_entry', 'winback'); } catch(_) {}
         }
         // winback → 홈(현재 페이지). 별도 라우팅 불필요.
       });

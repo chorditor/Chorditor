@@ -6,7 +6,7 @@
 // ── 상수 ─────────────────────────────────────────────────────
 const SUPABASE_URL  = 'https://jbvkygeksohlysyvaoab.supabase.co';
 const SUPABASE_ANON = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Impidmt5Z2Vrc29obHlzeXZhb2FiIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzYzOTk5NjgsImV4cCI6MjA5MTk3NTk2OH0.6RSgChy0Yq0H2TJpZPSoMKQ2V-OYfR0XzE1aJBBZkXI';
-const APP_VERSION   = '1.2.3';
+const APP_VERSION   = '1.2.4';
 const SUPABASE_STORAGE_KEY = 'sb-jbvkygeksohlysyvaoab-auth-token';
 
 // ── Analytics SDK ─────────────────────────────────────────────
@@ -736,6 +736,19 @@ async function initAppVersion() {
   } catch(e) {}
 }
 
+// ── 유효 streak (조회 시점 만료 판정) ───────────────────────
+// 저장된 streak은 streak_last_counted_date 기준 연속수.
+// 마지막 적립일이 오늘/어제가 아니면(=하루 이상 공백) 끊긴 것 → 0.
+// (저장값은 그대로 두고 표시·집계 시 파생 계산. 다음 훈련 시 증분 로직이 자동 정정.)
+function effectiveStreak(stats) {
+  if (!stats || !stats.streak) return 0;
+  const last = stats.streak_last_counted_date;
+  if (!last) return 0;
+  const today     = new Date().toISOString().slice(0, 10);
+  const yesterday = new Date(Date.now() - 86400000).toISOString().slice(0, 10);
+  return (last === today || last === yesterday) ? stats.streak : 0;
+}
+
 // ── 훈련 통계 DB → localStorage 복원 ────────────────────────
 // 앱 재설치 후 localStorage가 비어있어도 DB 데이터로 복원.
 // streak/total/time은 max(local, server) — 되감기 방지.
@@ -847,6 +860,116 @@ function recordTrainingTime(seconds) {
   if (typeof reviewQualify === 'function' && stats.training_time_min >= 10) reviewQualify('time_10');
 }
 if (typeof window !== 'undefined') window.recordTrainingTime = recordTrainingTime;
+
+// ── FCM 푸시 토큰 등록 ──────────────────────────────────────
+// 네이티브 앱에서만 동작. FCM 토큰 발급 → public.push_tokens 에 upsert.
+// 비로그인 시엔 저장 보류, 토큰은 localStorage 캐시 후 로그인 시 재시도.
+const FCM_TOKEN_CACHE = '_fcm_token';
+
+async function _savePushToken(token) {
+  if (!token) return;
+  try { localStorage.setItem(FCM_TOKEN_CACHE, token); } catch (_) {}
+
+  let accessToken = null, userId = null;
+  try {
+    const stored = localStorage.getItem(SUPABASE_STORAGE_KEY);
+    if (stored) {
+      const p = JSON.parse(stored);
+      accessToken = p?.access_token ?? null;
+      userId      = p?.user?.id     ?? null;
+    }
+  } catch (_) {}
+  if (!accessToken || !userId) return; // 로그인 후 재시도
+
+  const platform = window.Capacitor?.getPlatform?.() || 'web';
+  try {
+    // token UNIQUE → on_conflict merge (같은 기기 재등록 시 user/platform 갱신)
+    await fetch(`${SUPABASE_URL}/rest/v1/push_tokens?on_conflict=token`, {
+      method: 'POST',
+      headers: {
+        'Content-Type':  'application/json',
+        'apikey':         SUPABASE_ANON,
+        'Authorization': `Bearer ${accessToken}`,
+        'Prefer':        'resolution=merge-duplicates,return=minimal',
+      },
+      body: JSON.stringify({
+        user_id: userId, token, platform,
+        updated_at: new Date().toISOString(),
+      }),
+    });
+  } catch (_) {}
+}
+
+function initPushNotifications() {
+  const PN = window.Capacitor?.Plugins?.PushNotifications;
+  if (!PN) return; // 브라우저 등 = FCM 없음
+
+  // Android 알림 채널 생성 (없으면 FCM 알림 무시됨)
+  try {
+    PN.createChannel({
+      id: 'chorditor_push',
+      name: 'Chorditor 알림',
+      importance: 4,
+      visibility: 1,
+      vibration: true,
+    });
+  } catch (_) {}
+
+  // 이미 캐시된 토큰 있으면(이전 실행) 로그인 상태에서 저장 재시도
+  try {
+    const cached = localStorage.getItem(FCM_TOKEN_CACHE);
+    if (cached) _savePushToken(cached);
+  } catch (_) {}
+
+  PN.addListener('registration', (t) => { _savePushToken(t && t.value); });
+  PN.addListener('registrationError', () => {});
+
+  // 알림 탭 → 딥링크 라우팅 + 진입 마커(analytics entry 귀속)
+  PN.addListener('pushNotificationActionPerformed', (action) => {
+    const data = (action && action.notification && action.notification.data) || {};
+    const setEntry = (v) => { try { localStorage.setItem('_push_entry', v); } catch (_) {} };
+    if (data.progId != null) {
+      setEntry('progression');
+      location.href = 'progression-detail.html?id=' + encodeURIComponent(data.progId)
+        + '&key=' + (data.key || 0) + '&flat=' + (data.flat ? 1 : 0);
+    } else if (data.progNo != null) {
+      // 넛지: no 그룹만 지정 → progression-detail 이 해당 no 중 랜덤 진행 선택
+      setEntry('progression');
+      location.href = 'progression-detail.html?no=' + encodeURIComponent(data.progNo);
+    } else if (data.quizLevel != null) {
+      setEntry('quiz');
+      location.href = 'chord-name-quiz.html?level=' + encodeURIComponent(data.quizLevel);
+    } else if (data.scaleKey != null) {
+      setEntry('scale');
+      location.href = 'scale-level.html?key=' + encodeURIComponent(data.scaleKey);
+    } else if (data.strumId != null) {
+      setEntry('strum');
+      location.href = 'strum-play.html?id=' + encodeURIComponent(data.strumId);
+    } else if (data.strumLv != null) {
+      // 넛지: lv 만 지정 → strum-play 가 해당 lv 카드 중 랜덤 선택
+      setEntry('strum');
+      location.href = 'strum-play.html?lv=' + encodeURIComponent(data.strumLv);
+    } else if (data.winback != null) {
+      setEntry('winback');
+      if (!/home\.html/.test(location.pathname)) location.href = 'home.html';
+    }
+  });
+
+  (async () => {
+    try {
+      let perm = await PN.checkPermissions();
+      if (perm.receive !== 'granted') perm = await PN.requestPermissions();
+      if (perm.receive !== 'granted') return;
+      await PN.register(); // 성공 시 'registration' 리스너로 토큰 도착
+    } catch (_) {}
+  })();
+}
+
+if (typeof window !== 'undefined') {
+  window.initPushNotifications = initPushNotifications;
+  window._savePushToken = _savePushToken;
+  document.addEventListener('DOMContentLoaded', () => { initPushNotifications(); });
+}
 
 // ── 리뷰/평점 유도 시스템 ───────────────────────────────────
 // 조건 충족(qualify)과 노출(show) 분리. 조건은 훈련 흐름 중 채워지고,

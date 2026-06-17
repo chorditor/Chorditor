@@ -2480,7 +2480,11 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   }
 
-  analytics.track('quiz_page_viewed', { from: 'training' });
+  var _pushEntry = null; try { _pushEntry = localStorage.getItem('_push_entry'); if (_pushEntry) localStorage.removeItem('_push_entry'); } catch(_) {}
+  analytics.track('quiz_page_viewed', { from: _pushEntry ? 'push' : 'training', entry: _pushEntry || 'direct' });
+  // 푸시 딥링크 콜드 스타트: home을 안 거치면 getPlan()이 기본 'free' → 프리미엄 게이트 오작동.
+  // Supabase 플랜(get_my_plan)을 동기화해 localStorage(chorditor_plan) 갱신.
+  if (typeof fetchWebPlan === 'function') fetchWebPlan().catch(() => {});
   buildLevelList();
   initModeCarousel();
 

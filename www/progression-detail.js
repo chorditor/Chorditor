@@ -252,12 +252,11 @@ async function togglePlay() {
   _starting   = false;
   _playing    = true;
   _masterBeat = 0;
-  // 재생 시작 = 첫 코드로 복귀 (애니메이션). 짧은 방향으로 슬라이드
+  // 재생 시작 = 첫 코드로 복귀. 멀티스텝 슬라이드는 슬롯 스택 정합성이 깨져
+  // (연속 동일코드 시 2번째를 첫 코드로 오인) → 클린 리빌드로 정확히 step0 리셋.
   if (_currentDisplayStep !== 0) {
-    const count = _prog.steps.length;
-    const fwd   = (count - _currentDisplayStep) % count; // 0이 next쪽
-    const back  = _currentDisplayStep;                    // 0이 prev쪽
-    _animateToStep(0, back > fwd); // back 많으면 오른쪽에서, 아니면 왼쪽에서
+    _currentDisplayStep = 0;
+    _renderStage();
   }
   _playStartMs = Date.now(); // 훈련시간 측정 시작
   analytics.track('progression_detail_played', { prog_id: _prog?.id, key: _getKeyDisplayName(_key), bpm: _bpm });
@@ -680,10 +679,18 @@ document.addEventListener('DOMContentLoaded', () => {
   // URL 파라미터 파싱
   const params = new URLSearchParams(location.search);
   const progId = params.get('id');
+  const progNo = params.get('no'); // 넛지: no 그룹만 지정 → 랜덤 진행
   _key     = parseInt(params.get('key')  || '0', 10);
   _useFlat = params.get('flat') !== '0'; // 기본 플랫 (명시적 0만 샵)
 
-  _prog = PROGRESSIONS.find(p => p.id === progId) || null;
+  if (progId) {
+    _prog = PROGRESSIONS.find(p => p.id === progId) || null;
+  } else if (progNo != null) {
+    const group = PROGRESSIONS.filter(p => String(p.no) === String(progNo));
+    _prog = group.length ? group[Math.floor(Math.random() * group.length)] : null;
+  } else {
+    _prog = null;
+  }
 
   // 페이지 진입 애니메이션
   const shell = document.querySelector('.app-shell');
@@ -768,5 +775,6 @@ document.addEventListener('DOMContentLoaded', () => {
   _renderKeyStrip();
   _renderStage();
 
-  analytics.track('progression_detail_viewed', { prog_id: progId });
+  var _pushEntry = null; try { _pushEntry = localStorage.getItem('_push_entry'); if (_pushEntry) localStorage.removeItem('_push_entry'); } catch(_) {}
+  analytics.track('progression_detail_viewed', { prog_id: progId, entry: _pushEntry || 'direct' });
 });

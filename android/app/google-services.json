@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "165777454179",
+    "project_id": "chorditor-50f9f",
+    "storage_bucket": "chorditor-50f9f.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:165777454179:android:c26f655673980ef4427456",
+        "android_client_info": {
+          "package_name": "com.chorditor.app"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyAVp5TbVy5RKdtu8ybpQ1wZyjl-XcZox3o"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

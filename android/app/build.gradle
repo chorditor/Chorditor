@@ -7,8 +7,8 @@ android {
         applicationId "com.chorditor.app"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
-        versionCode 117
-        versionName "1.2.3"
+        versionCode 125
+        versionName "1.2.4"
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
         aaptOptions {
              // Files and dirs to omit from the packaged assets dir, modified to accommodate modern web apps.
@@ -40,6 +40,14 @@ dependencies {
     androidTestImplementation "androidx.test.ext:junit:$androidxJunitVersion"
     androidTestImplementation "androidx.test.espresso:espresso-core:$androidxEspressoCoreVersion"
     implementation project(':capacitor-cordova-android-plugins')
+
+    // Firebase BoM — 버전 호환 자동 관리
+    implementation platform('com.google.firebase:firebase-bom:34.14.1')
+    // GA4 자동수집 분석
+    implementation 'com.google.firebase:firebase-analytics'
 }
 
 apply from: 'capacitor.build.gradle'
+
+// Firebase google-services 플러그인 (google-services.json 읽기). 파일 맨 끝에 적용.
+apply plugin: 'com.google.gms.google-services'

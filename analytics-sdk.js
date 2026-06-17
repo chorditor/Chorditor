@@ -113,6 +113,7 @@ class AnalyticsSDK {
     this._isFlushing   = false;
     this._userId       = null;
     this._lastActiveAt = Date.now(); // 마지막 활동 시각
+    this._platform     = (window.Capacitor?.getPlatform?.() || 'web'); // 'android'|'ios'|'web'
 
     this._setupLifecycleListeners();
     this._startFlushInterval();
@@ -147,6 +148,7 @@ class AnalyticsSDK {
         screen:         this._screen,
         plan:           this._getCurrentPlan(),
         app_version:    this._appVersion,
+        platform:       this._platform,
         created_at:     new Date().toISOString(),
       };
 

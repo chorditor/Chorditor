@@ -79,7 +79,7 @@ function loadTrainingStats() {
     if (totalEl)  totalEl.textContent  = '0';
     return;
   }
-  if (streakEl) streakEl.textContent = stats.streak            ?? 0;
+  if (streakEl) streakEl.textContent = effectiveStreak(stats);
   if (timeEl)   timeEl.innerHTML     = formatTrainingTime(stats.training_time_min);
   if (totalEl)  totalEl.textContent  = stats.total_completed   ?? 0;
 }
@@ -116,7 +116,7 @@ document.addEventListener('DOMContentLoaded', () => {
   // 훈련소 진입 이벤트
   const _stats = JSON.parse(localStorage.getItem('training_stats') || 'null');
   analytics.track('training_page_viewed', {
-    streak:            _stats?.streak            ?? 0,
+    streak:            effectiveStreak(_stats),
     total_completed:   _stats?.total_completed   ?? 0,
     training_time_min: _stats?.training_time_min ?? 0,
   });
