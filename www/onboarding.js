@@ -54,7 +54,14 @@ function openInExternalBrowser() {
     location.href = 'intent://' + noScheme + '#Intent;scheme=https;package=com.android.chrome;end';
     return;
   }
-  // iOS 등 자동 오픈 불가 → URL 복사 안내
+  if (/iPhone|iPad|iPod/i.test(ua)) {
+    // iOS 인앱(비카카오): Safari 강제 오픈 공식 API 없음 → x-safari 스킴 best-effort.
+    // 지원 앱은 사파리로 열림, 미지원이면 유도페이지의 'URL 복사하기'로 수동 진행.
+    const noScheme = url.replace(/^https?:\/\//, '');
+    location.href = 'x-safari-https://' + noScheme;
+    return;
+  }
+  // 그 외 자동 오픈 불가 → URL 복사 안내
   copyCurrentUrl();
 }
 
