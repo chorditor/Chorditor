@@ -4157,6 +4157,14 @@ document.addEventListener('DOMContentLoaded', async () => {
   // 신규 유저(persona 미입력)가 OAuth 후 home으로 직행한 경우 → 온보딩으로 유도
   // (Supabase redirect 허용목록/Site URL 폴백으로 redirectTo가 무시될 수 있어 안전망)
   if (await _webNeedsOnboarding()) { window.location.replace('onboarding.html'); return; }
+  // 비로그인 첫 방문자 → 온보딩(로그인+페르소나)으로 유도. 카카오톡 등 인앱브라우저
+  // 외부전환 로직도 onboarding.html에만 있으므로 여기서 보내야 함.
+  // 단 OAuth 콜백(토큰이 URL에 옴)·공유링크(?share=)는 home에서 처리해야 하므로 제외.
+  if (!_authReady) {
+    // shareParam은 위에서 replaceState로 이미 URL에서 제거되므로 캡처된 변수로 판정
+    const _hasOAuth = /access_token|[?&]code=/.test(location.hash + location.search);
+    if (!_hasOAuth && !shareParam) { window.location.replace('onboarding.html'); return; }
+  }
   analytics.track('app_open', { platform: 'web', project_count: loadProjects().length });
   setTimeout(() => checkAndShowNotice(), 1000);
 });
