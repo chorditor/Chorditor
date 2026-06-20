@@ -405,10 +405,22 @@ function handleStart() {
 }
 
 // ── 다른 계정으로 변경 ────────────────────────────────────────
-function onboardingSwitchAccount() {
+let _forceSelectAccount = false; // switch 후 재로그인 시 구글 계정 선택창 강제
+async function onboardingSwitchAccount() {
+  // 실제 세션 해제: 앱 수동키만 지우면 web은 supabase-js 자체 세션(sb-*-auth-token),
+  // android는 GoogleAuth 캐시가 남아 같은 계정으로 조용히 재로그인됨.
+  try {
+    if (!window.Capacitor?.isNativePlatform()) {
+      if (_supabase) await _supabase.auth.signOut();
+    } else {
+      const GoogleAuth = window.Capacitor?.Plugins?.GoogleAuth;
+      if (GoogleAuth) await GoogleAuth.signOut().catch(() => {});
+    }
+  } catch (_) {}
   localStorage.removeItem(SUPABASE_STORAGE_KEY);
   setPlan('free');
   _authReady = false;
+  _forceSelectAccount = true;
   document.getElementById('onboarding-start-btn')?.classList.add('hidden');
   document.getElementById('onboarding-switch-btn')?.classList.add('hidden');
   document.getElementById('onboarding-google-btn')?.classList.remove('hidden');
@@ -419,10 +431,10 @@ async function onboardingSignIn() {
   // 웹: Supabase OAuth 리다이렉트 방식
   if (!window.Capacitor?.isNativePlatform()) {
     if (!_supabase) return;
-    await _supabase.auth.signInWithOAuth({
-      provider: 'google',
-      options: { redirectTo: location.origin + location.pathname.replace(/[^/]*$/, '') + 'onboarding.html' }
-    });
+    const _opts = { redirectTo: location.origin + location.pathname.replace(/[^/]*$/, '') + 'onboarding.html' };
+    // 계정 변경 직후엔 구글 계정 선택창 강제(안 그러면 같은 계정 조용히 재로그인)
+    if (_forceSelectAccount) _opts.queryParams = { prompt: 'select_account' };
+    await _supabase.auth.signInWithOAuth({ provider: 'google', options: _opts });
     return;
   }
 
