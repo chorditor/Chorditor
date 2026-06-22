@@ -891,29 +891,36 @@ function recordTrainingAttendance() {
   return firstToday;
 }
 
+// 출석 모달 등장 딜레이(ms) — 코드맞추기와 통일(결과/완료 화면 뜬 뒤 등장).
+const ATTENDANCE_MODAL_DELAY_MS = 650;
+
 // 출석 모달 표시. 모달 DOM 이 없는 페이지(스케일/진행/주법)에서는 동적 생성.
-function showTrainingAttendanceModal(streak) {
-  if (typeof analytics !== 'undefined') analytics.track('training_attendance_achieved', { streak });
-  let overlay = document.getElementById('attendance-modal-overlay');
-  if (!overlay) {
-    overlay = document.createElement('div');
-    overlay.id = 'attendance-modal-overlay';
-    overlay.className = 'attendance-modal-overlay';
-    overlay.innerHTML =
-      '<div class="attendance-modal">' +
-        '<div class="attendance-modal-icon"><i data-lucide="award"></i></div>' +
-        '<div class="attendance-modal-title">출석 완료!</div>' +
-        '<div class="attendance-modal-desc">오늘 훈련 1회를 달성했어요</div>' +
-        '<div id="attendance-modal-streak" class="attendance-modal-streak">1일 연속</div>' +
-        '<button class="attendance-modal-btn" onpointerup="closeTrainingAttendanceModal()">확인</button>' +
-      '</div>';
-    document.body.appendChild(overlay);
-    void overlay.offsetWidth; // 강제 reflow: 초기 상태(opacity:0/scale) 확정 → --show 전환 시 애니메이션 발동
-  }
-  const streakEl = document.getElementById('attendance-modal-streak');
-  if (streakEl) streakEl.textContent = streak === 1 ? '오늘부터 시작 · 1일 연속' : streak + '일 연속 달성';
-  overlay.classList.add('attendance-modal-overlay--show');
-  if (typeof lucide !== 'undefined') lucide.createIcons();
+// 딜레이·애니메이션·이징은 4개 훈련 전부 동일(이 함수 + style.css 의 .attendance-modal).
+function showTrainingAttendanceModal(streak, delayMs) {
+  if (delayMs == null) delayMs = ATTENDANCE_MODAL_DELAY_MS;
+  setTimeout(function () {
+    if (typeof analytics !== 'undefined') analytics.track('training_attendance_achieved', { streak });
+    let overlay = document.getElementById('attendance-modal-overlay');
+    if (!overlay) {
+      overlay = document.createElement('div');
+      overlay.id = 'attendance-modal-overlay';
+      overlay.className = 'attendance-modal-overlay';
+      overlay.innerHTML =
+        '<div class="attendance-modal">' +
+          '<div class="attendance-modal-icon"><i data-lucide="award"></i></div>' +
+          '<div class="attendance-modal-title">출석 완료!</div>' +
+          '<div class="attendance-modal-desc">오늘 훈련 1회를 달성했어요</div>' +
+          '<div id="attendance-modal-streak" class="attendance-modal-streak">1일 연속</div>' +
+          '<button class="attendance-modal-btn" onpointerup="closeTrainingAttendanceModal()">확인</button>' +
+        '</div>';
+      document.body.appendChild(overlay);
+      void overlay.offsetWidth; // 강제 reflow: 초기 상태(opacity:0/scale) 확정 → --show 전환 시 애니메이션 발동
+    }
+    const streakEl = document.getElementById('attendance-modal-streak');
+    if (streakEl) streakEl.textContent = streak === 1 ? '오늘부터 시작 · 1일 연속' : streak + '일 연속 달성';
+    overlay.classList.add('attendance-modal-overlay--show');
+    if (typeof lucide !== 'undefined') lucide.createIcons();
+  }, delayMs);
 }
 
 function closeTrainingAttendanceModal() {
