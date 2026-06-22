@@ -52,6 +52,7 @@ let _playSession        = 0;     // 재생 세션 토큰 (정지/재시작 시 �
 let _currentDisplayStep = 0;
 let _masterBeat         = 0;     // 재생 시작 후 누적 비트 수
 let _playStartMs        = 0;     // 재생 시작 시각 (훈련시간 측정)
+let _attendanceCountedThisVisit = false; // 이번 방문 내 출석 카운트 1회 제한 (재생-정지 반복 방지)
 let _schedTimer         = null;  // 오디오클럭 lookahead 스케줄러 (무드리프트)
 let _beatNextTime       = 0;     // 다음 비트의 절대 오디오 시각(초)
 const SCHED_LOOKAHEAD   = 0.1;
@@ -121,9 +122,14 @@ async function _stopPlay(options = {}) {
   _playSession++;   // 예약된 setTimeout/countin 콜백 전부 무효화
   _starting = false;
   if (_schedTimer) { clearInterval(_schedTimer); _schedTimer = null; }
-  // 훈련시간 적립 (재생한 만큼)
-  if (_playStartMs && typeof recordTrainingTime === 'function') {
-    recordTrainingTime((Date.now() - _playStartMs) / 1000);
+  // 훈련시간 적립 (재생한 만큼) + 10초 이상 재생 후 정지 시 출석 인정
+  if (_playStartMs) {
+    const _elapsedSec = (Date.now() - _playStartMs) / 1000;
+    if (typeof recordTrainingTime === 'function') recordTrainingTime(_elapsedSec);
+    if (_elapsedSec >= 10 && !_attendanceCountedThisVisit && typeof recordTrainingAttendance === 'function') {
+      _attendanceCountedThisVisit = true;
+      recordTrainingAttendance();
+    }
   }
   _playStartMs = 0;
   if (typeof DrumAudio !== 'undefined' && DrumAudio.stop) DrumAudio.stop();

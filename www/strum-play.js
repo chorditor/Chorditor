@@ -427,6 +427,7 @@ let _strumDrumStepG    = 0;
 let _strumDispBpm  = null; // 재생 중 시작 휠에 표시할 현재(상승) BPM
 let _strumSession  = 0;       // 재생 세션 토큰 (정지/재시작 시 예약된 애니 무효화)
 let _strumPlayStartMs = 0;    // 재생 시작 시각 (훈련시간 측정)
+let _strumAttendanceCountedThisVisit = false; // 이번 방문 내 출석 카운트 1회 제한 (재생-정지 반복 방지)
 let _strumDrumSet  = 1;       // 백킹 드럼 세트 (drum-sets.js)
 
 function strumUpdatePlayBtn() {
@@ -497,9 +498,14 @@ async function strumPlayStart() {
 }
 
 function strumPlayStop() {
-  // 훈련시간 적립 (재생한 만큼)
-  if (_strumPlayStartMs && typeof recordTrainingTime === 'function') {
-    recordTrainingTime((Date.now() - _strumPlayStartMs) / 1000);
+  // 훈련시간 적립 (재생한 만큼) + 10초 이상 재생 후 정지 시 출석 인정
+  if (_strumPlayStartMs) {
+    const _elapsedSec = (Date.now() - _strumPlayStartMs) / 1000;
+    if (typeof recordTrainingTime === 'function') recordTrainingTime(_elapsedSec);
+    if (_elapsedSec >= 10 && !_strumAttendanceCountedThisVisit && typeof recordTrainingAttendance === 'function') {
+      _strumAttendanceCountedThisVisit = true;
+      recordTrainingAttendance();
+    }
   }
   _strumPlayStartMs = 0;
   _strumPlaying = false;

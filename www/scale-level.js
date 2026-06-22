@@ -3196,6 +3196,7 @@ function _recordScaleSubmit() {
   stats.total_completed = (stats.total_completed || 0) + 1;
 
   // 하루 1회 완료 시 스트릭 갱신 (quiz와 공유 카운터)
+  let _firstToday = false;
   if (stats.today_sessions === 1) {
     if (stats.streak_last_counted_date === yesterday) {
       stats.streak = (stats.streak || 0) + 1;
@@ -3203,10 +3204,16 @@ function _recordScaleSubmit() {
       stats.streak = 1;
     }
     stats.streak_last_counted_date = today;
+    _firstToday = true;
   }
 
   localStorage.setItem(TRAINING_STATS_KEY, JSON.stringify(stats));
   syncTrainingStatsToDB(); // 즉시 DB 반영 (fire-and-forget)
+
+  // 그날 첫 훈련 완료 시 출석 모달 (공통 함수, shared.js)
+  if (_firstToday && typeof showTrainingAttendanceModal === 'function') {
+    showTrainingAttendanceModal(stats.streak);
+  }
 
   // 리뷰 유도 조건: streak 3일+
   if (typeof reviewQualify === 'function' && (stats.streak || 0) >= 3) reviewQualify('streak_3');

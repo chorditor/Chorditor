@@ -72,6 +72,7 @@ class AnalyticsSDK {
     // training
     training_page_viewed:  'training',
     training_card_tapped:  'training',
+    training_attendance_achieved: 'training',
     // strumming
     strumming_training_viewed: 'strumming',
     strum_play_viewed:         'strumming',

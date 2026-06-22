@@ -861,6 +861,70 @@ function recordTrainingTime(seconds) {
 }
 if (typeof window !== 'undefined') window.recordTrainingTime = recordTrainingTime;
 
+// ── 출석(연속 훈련) 공통 처리 ────────────────────────────────
+// 4개 훈련(코드맞추기/스케일/코드진행/주법리듬) 공유. 그날 어느 하나라도
+// 첫 완료 시 출석 1회 인정 + 모달 1회 표시. training_stats / today_sessions 공유.
+// 단, 코드맞추기·스케일은 자체적으로 today_sessions 를 갱신하므로(이중 카운트 방지)
+// recordTrainingAttendance() 는 자체 갱신이 없는 코드진행·주법리듬에서만 호출하고,
+// 스케일은 자체 갱신 후 showTrainingAttendanceModal() 만 호출한다.
+function recordTrainingAttendance() {
+  const KEY = 'training_stats';
+  const today     = new Date().toISOString().slice(0, 10);
+  const yesterday = new Date(Date.now() - 86400000).toISOString().slice(0, 10);
+  const stats = JSON.parse(localStorage.getItem(KEY) || '{}');
+  if (stats.today_date !== today) {
+    stats.today_sessions = 0;
+    stats.today_date     = today;
+  }
+  stats.today_sessions  = (stats.today_sessions  || 0) + 1;
+  stats.total_completed = (stats.total_completed || 0) + 1;
+  let firstToday = false;
+  if (stats.today_sessions === 1) {
+    if (stats.streak_last_counted_date === yesterday) stats.streak = (stats.streak || 0) + 1;
+    else stats.streak = 1;
+    stats.streak_last_counted_date = today;
+    firstToday = true;
+  }
+  localStorage.setItem(KEY, JSON.stringify(stats));
+  if (typeof syncTrainingStatsToDB === 'function') syncTrainingStatsToDB();
+  if (firstToday) showTrainingAttendanceModal(stats.streak);
+  return firstToday;
+}
+
+// 출석 모달 표시. 모달 DOM 이 없는 페이지(스케일/진행/주법)에서는 동적 생성.
+function showTrainingAttendanceModal(streak) {
+  if (typeof analytics !== 'undefined') analytics.track('training_attendance_achieved', { streak });
+  let overlay = document.getElementById('attendance-modal-overlay');
+  if (!overlay) {
+    overlay = document.createElement('div');
+    overlay.id = 'attendance-modal-overlay';
+    overlay.className = 'attendance-modal-overlay';
+    overlay.innerHTML =
+      '<div class="attendance-modal">' +
+        '<div class="attendance-modal-icon"><i data-lucide="award"></i></div>' +
+        '<div class="attendance-modal-title">출석 완료!</div>' +
+        '<div class="attendance-modal-desc">오늘 훈련 1회를 달성했어요</div>' +
+        '<div id="attendance-modal-streak" class="attendance-modal-streak">1일 연속</div>' +
+        '<button class="attendance-modal-btn" onpointerup="closeTrainingAttendanceModal()">확인</button>' +
+      '</div>';
+    document.body.appendChild(overlay);
+  }
+  const streakEl = document.getElementById('attendance-modal-streak');
+  if (streakEl) streakEl.textContent = streak === 1 ? '오늘부터 시작 · 1일 연속' : streak + '일 연속 달성';
+  overlay.classList.add('attendance-modal-overlay--show');
+  if (typeof lucide !== 'undefined') lucide.createIcons();
+}
+
+function closeTrainingAttendanceModal() {
+  const o = document.getElementById('attendance-modal-overlay');
+  if (o) o.classList.remove('attendance-modal-overlay--show');
+}
+if (typeof window !== 'undefined') {
+  window.recordTrainingAttendance     = recordTrainingAttendance;
+  window.showTrainingAttendanceModal  = showTrainingAttendanceModal;
+  window.closeTrainingAttendanceModal = closeTrainingAttendanceModal;
+}
+
 // ── FCM 푸시 토큰 등록 ──────────────────────────────────────
 // 네이티브 앱에서만 동작. FCM 토큰 발급 → public.push_tokens 에 upsert.
 // 비로그인 시엔 저장 보류, 토큰은 localStorage 캐시 후 로그인 시 재시도.
