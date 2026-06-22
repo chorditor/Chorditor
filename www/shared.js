@@ -908,6 +908,7 @@ function showTrainingAttendanceModal(streak) {
         '<button class="attendance-modal-btn" onpointerup="closeTrainingAttendanceModal()">확인</button>' +
       '</div>';
     document.body.appendChild(overlay);
+    void overlay.offsetWidth; // 강제 reflow: 초기 상태(opacity:0/scale) 확정 → --show 전환 시 애니메이션 발동
   }
   const streakEl = document.getElementById('attendance-modal-streak');
   if (streakEl) streakEl.textContent = streak === 1 ? '오늘부터 시작 · 1일 연속' : streak + '일 연속 달성';
