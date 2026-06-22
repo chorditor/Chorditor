@@ -4689,13 +4689,10 @@ canvas {
 }
 .lib-cards {
   display: grid;
-  grid-template-columns: repeat(4, 1fr);
+  grid-template-columns: repeat(3, 1fr);
   gap: 6px;
   padding: 8px 8px 48px;
   align-content: start;
-}
-@media (max-width: 359px) {
-  .lib-cards { grid-template-columns: repeat(3, 1fr); }
 }
 
 /* 카드 */
