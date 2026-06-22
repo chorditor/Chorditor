@@ -897,6 +897,14 @@ async function _savePushToken(token) {
         updated_at: new Date().toISOString(),
       }),
     });
+    // 같은 user_id의 구 토큰 삭제 (토큰 갱신 시 중복 방지)
+    await fetch(`${SUPABASE_URL}/rest/v1/push_tokens?user_id=eq.${userId}&token=neq.${encodeURIComponent(token)}`, {
+      method: 'DELETE',
+      headers: {
+        'apikey':         SUPABASE_ANON,
+        'Authorization': `Bearer ${accessToken}`,
+      },
+    });
   } catch (_) {}
 }
 

@@ -106,13 +106,14 @@ class AnalyticsSDK {
     this._debug      = debug;
 
     this._anonId       = this._getOrCreateAnonId();
-    this._sessionId    = this._uuidv4();
+    const _sess        = this._restoreOrCreateSession();
+    this._sessionId    = _sess.sessionId;
     this._screen       = null;
     this._queue        = [];
     this._abCache      = {};
     this._isFlushing   = false;
     this._userId       = null;
-    this._lastActiveAt = Date.now(); // 마지막 활동 시각
+    this._lastActiveAt = _sess.lastActiveAt; // 마지막 활동 시각 (세션 복원값)
     this._platform     = (window.Capacitor?.getPlatform?.() || 'web'); // 'android'|'ios'|'web'
 
     this._setupLifecycleListeners();
@@ -137,6 +138,7 @@ class AnalyticsSDK {
         if (this._debug) console.log('[Analytics] 세션 만료 → 새 세션:', this._sessionId);
       }
       this._lastActiveAt = now;
+      this._persistSession(); // 페이지 이동 후에도 session_id 유지
 
       const event = {
         anon_id:        this._anonId,
@@ -251,6 +253,35 @@ class AnalyticsSDK {
       localStorage.setItem(KEY, id);
     }
     return id;
+  }
+
+  // 세션 복원: 30분 내 활동 기록이 있으면 같은 session_id 재사용,
+  // 없으면 새 세션 발급. 페이지 이동(home/training/quiz.html) 시 SDK가
+  // 재생성돼도 session_id가 유지되도록 localStorage에 영속화.
+  _restoreOrCreateSession() {
+    const SID = 'chorditor_session_id';
+    const ACT = 'chorditor_session_active';
+    try {
+      const sid = localStorage.getItem(SID);
+      const act = parseInt(localStorage.getItem(ACT) || '0', 10);
+      if (sid && act && (Date.now() - act) < AnalyticsSDK.SESSION_TIMEOUT_MS) {
+        return { sessionId: sid, lastActiveAt: act };
+      }
+    } catch (_) {}
+    const sid = this._uuidv4();
+    const now = Date.now();
+    try {
+      localStorage.setItem(SID, sid);
+      localStorage.setItem(ACT, String(now));
+    } catch (_) {}
+    return { sessionId: sid, lastActiveAt: now };
+  }
+
+  _persistSession() {
+    try {
+      localStorage.setItem('chorditor_session_id', this._sessionId);
+      localStorage.setItem('chorditor_session_active', String(this._lastActiveAt));
+    } catch (_) {}
   }
 
   _uuidv4() {

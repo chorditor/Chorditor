@@ -814,13 +814,16 @@ let _editorNameOverride = null; // null=휠피커 상태 렌더, '-'=추천 없�
 let _chordNameLocked    = false; // true 동안 chord-display 갱신 차단 (애니메이션 중 재덮어쓰기 방지)
 let _chordNameLockTimer = null;
 
-function updateChordDisplay() {
+function updateChordDisplay(trackBuild = true) {
   _editorNameOverride = null;
   if (!_chordNameLocked) {
     const el = document.getElementById('chord-display');
     if (el) el.innerHTML = buildChordHTML();
   }
   draw();
+  // chord_build 는 유저가 직접 코드를 조작했을 때만 수집.
+  // init/reset/프로젝트 코드 적용 등 프로그래밍적 렌더는 trackBuild=false 로 제외.
+  if (!trackBuild) return;
   // 500ms 디바운스: 휠피커 연속 조작 후 최종 상태만 수집
   if (_chordBuildTimer) clearTimeout(_chordBuildTimer);
   _chordBuildTimer = setTimeout(() => {
@@ -992,7 +995,7 @@ function resetAll() {
   currentFretNumber = 2;
   const fretDisplay = document.getElementById('fret-number-display');
   if (fretDisplay) fretDisplay.textContent = '2';
-  updateChordDisplay();
+  updateChordDisplay(false); // 리셋 = 비유저 렌더, chord_build 제외
   draw();
 
   // 프로젝트 선택값 복원
@@ -2704,7 +2707,7 @@ function loadChordStateToEditor(chord) {
   selectBass(chord.bass      || '');
 
   draw();
-  updateChordDisplay();
+  updateChordDisplay(false); // 코드 적용 = 비유저 렌더, chord_build 제외
 }
 
 function getCurrentChordState() {
@@ -3953,7 +3956,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   renderRootBtns();
   renderBassBtns();
   initStaticWheelPickers();
-  updateChordDisplay();
+  updateChordDisplay(false); // 초기 렌더 = 비유저, chord_build 제외
   const _fnGroup = document.getElementById('finger-group');
   if (_fnGroup) _fnGroup.style.opacity = fingerNumMode ? '1' : '0.35';
   const _fd = document.getElementById('fret-number-display');
@@ -4140,6 +4143,8 @@ document.addEventListener('DOMContentLoaded', async () => {
       _authReady = true;
       analytics.setUserId(session.user.id);
       analytics.track('app_open', { platform: 'android', project_count: loadProjects().length });
+      analytics.setScreen('home');
+      analytics.track('screen_view', { view: 'home' }); // 홈 화면 진입 명시 기록
       loadProfileFromDB();
       _billingReady.then(async () => {
         if (window._RC) await window._RC.logIn({ appUserID: session.user.id }).catch(() => {});
@@ -4166,6 +4171,8 @@ document.addEventListener('DOMContentLoaded', async () => {
     if (!_hasOAuth && !shareParam) { window.location.replace('onboarding.html'); return; }
   }
   analytics.track('app_open', { platform: 'web', project_count: loadProjects().length });
+  analytics.setScreen('home');
+  analytics.track('screen_view', { view: 'home' }); // 홈 화면 진입 명시 기록
   setTimeout(() => checkAndShowNotice(), 1000);
 });
 
