@@ -2793,10 +2793,44 @@ function onLibCardClick(event, sharpName) {
   setTimeout(() => cardEl.classList.remove('lib-card-clicked'), 300);
 
   if (idxList.length === 1) {
+    _pdFlyToPalette(cardEl);
     _pdAddEntryToProject(entries[idxList[0]]);
     return;
   }
   openVoicingModal(sharpName, cardEl);
+}
+
+// 선택한 코드 다이어그램이 팔레트로 날아가는 애니메이션 (추가 인식 피드백)
+function _pdFlyToPalette(sourceEl) {
+  const target = document.getElementById('palette-section-' + _pdProjectId)
+              || document.getElementById('chord-palette-' + _pdProjectId);
+  const canvas = sourceEl?.querySelector('canvas');
+  if (!sourceEl || !target || !canvas) return;
+
+  const sr = sourceEl.getBoundingClientRect();
+  const tr = target.getBoundingClientRect();
+
+  const ghost = document.createElement('div');
+  ghost.className = 'pd-fly-ghost';
+  const img = document.createElement('img');
+  img.src = canvas.toDataURL('image/png');
+  ghost.appendChild(img);
+  ghost.style.left   = sr.left + 'px';
+  ghost.style.top    = sr.top  + 'px';
+  ghost.style.width  = sr.width  + 'px';
+  ghost.style.height = sr.height + 'px';
+  document.body.appendChild(ghost);
+
+  const dx = (tr.left + tr.width / 2) - (sr.left + sr.width / 2);
+  const dy = (tr.top  + tr.height / 2) - (sr.top  + sr.height / 2);
+
+  const anim = ghost.animate([
+    { transform: 'translate(0,0) scale(1)', opacity: 1 },
+    { transform: `translate(${dx * 0.5}px, ${dy * 0.5 - 40}px) scale(0.72)`, opacity: 0.95, offset: 0.45 },
+    { transform: `translate(${dx}px, ${dy}px) scale(0.2)`, opacity: 0 }
+  ], { duration: 620, easing: 'cubic-bezier(0.5, 0, 0.75, 0)' });
+  anim.onfinish   = () => ghost.remove();
+  anim.oncancel   = () => ghost.remove();
 }
 
 // 캔버스 렌더 (미니 카드 공용) — voicing-canvas.js 모듈로 일원화
@@ -2880,6 +2914,7 @@ function onVoicingPick(event, idx) {
   const cardEl = event.currentTarget;
   cardEl.classList.add('lib-card-clicked');
   setTimeout(() => cardEl.classList.remove('lib-card-clicked'), 300);
+  _pdFlyToPalette(cardEl);
   _pdAddEntryToProject(entry);
 }
 
