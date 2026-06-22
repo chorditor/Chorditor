@@ -2323,16 +2323,7 @@ function buildChordPalette(project, editMode = true) {
     addBtn.className = 'chord-palette-add';
     addBtn.title = '코드 추가';
     addBtn.innerHTML = '+';
-    addBtn.onclick = async () => {
-      await stopPlayAll(false, { wait: true });
-      const _shell = document.querySelector('.app-shell');
-      if (_shell) {
-        _shell.classList.add('project-exit');
-        setTimeout(() => { location.href = 'home.html?view=editor&from_project=' + project.id; }, 260);
-      } else {
-        location.href = 'home.html?view=editor&from_project=' + project.id;
-      }
-    };
+    addBtn.onclick = () => openPaletteDictionary(project.id);
     chordPalette.appendChild(addBtn);
   }
 
@@ -2675,6 +2666,335 @@ function reRenderThumbList(projectId) {
   if (!old) return;
   old.replaceWith(buildChordPalette(p, isEditMode));
   lucide.createIcons();
+}
+
+// ═══════════════════════════════════════════════════════════════
+// 코드사전 추가 모달 (코드 팔레트 + 버튼)
+//   코드사전(home.html lib-bottom-area)의 root탭·카드그리드·보이싱모달을
+//   user_project로 이식. 카드/보이싱 탭 시 현재 프로젝트 팔레트에 즉시 추가.
+//   캔버스 드로잉·코드데이터는 home.js / chords-library.js 와 동일 로직.
+// ═══════════════════════════════════════════════════════════════
+let _pdProjectId     = null;
+let _libRoot         = 'C';
+let _libFingerMode   = false;
+let _voicingModalChord = null;
+
+const _LIB_DPR       = Math.min(window.devicePixelRatio || 1, 3);
+const LIB_MINI_W     = Math.ceil(56 * _LIB_DPR);            // CSS 56px × DPR
+const LIB_MINI_RATIO = LIB_MINI_W / VoicingCanvas.BASE_W;
+
+function openPaletteDictionary(projectId) {
+  _pdProjectId = projectId;
+  _voicingModalChord = null;
+  // 샵/플랫 버튼을 전역 accidental 상태에 동기화
+  document.getElementById('lib-acc-sharp')?.classList.toggle('active', accidental === 'sharp');
+  document.getElementById('lib-acc-flat')?.classList.toggle('active', accidental === 'flat');
+  renderLibRootTabs();
+  renderLibCards(_libRoot);
+  closeVoicingModal();
+  document.getElementById('palette-dict-modal').classList.remove('hidden');
+  lucide.createIcons();
+  analytics.track('palette_dict_opened', { project_id: projectId });
+}
+
+function closePaletteDictionary() {
+  closeVoicingModal();
+  document.getElementById('palette-dict-modal').classList.add('hidden');
+}
+
+// "에디터로" — 기존 + 버튼의 에디터 이동 로직 이식
+async function paletteDictToEditor() {
+  const projectId = _pdProjectId;
+  closePaletteDictionary();
+  await stopPlayAll(false, { wait: true });
+  const _shell = document.querySelector('.app-shell');
+  if (_shell) {
+    _shell.classList.add('project-exit');
+    setTimeout(() => { location.href = 'home.html?view=editor&from_project=' + projectId; }, 260);
+  } else {
+    location.href = 'home.html?view=editor&from_project=' + projectId;
+  }
+}
+
+// ── root 세로 탭 ──
+function renderLibRootTabs() {
+  const roots    = ['C','C#','D','D#','E','F','F#','G','G#','A','A#','B'];
+  const flatMap  = { 'C#':'Db','D#':'Eb','F#':'Gb','G#':'Ab','A#':'Bb' };
+  const useFlat  = accidental === 'flat';
+  const container = document.getElementById('lib-root-tabs');
+  if (!container) return;
+  container.innerHTML = roots.map(r => {
+    const label = useFlat ? (flatMap[r] || r) : r;
+    return `<button class="lib-root-item${r === _libRoot ? ' active' : ''}"
+                    onclick="selectLibRoot('${r}')">${label}</button>`;
+  }).join('');
+}
+
+function selectLibRoot(root) {
+  closeVoicingModal();
+  _libRoot = root;
+  analytics.track('lib_tab_changed', { root_tab: root });
+  renderLibRootTabs();
+  renderLibCards(root);
+}
+
+// ── 코드 카드 그리드 (코드명 기준 그룹화) ──
+function renderLibCards(root) {
+  const entries   = (window.chordsLibrary || {})[root] || [];
+  const container = document.getElementById('lib-cards');
+  if (!container) return;
+
+  if (!entries.length) {
+    container.innerHTML = '<div class="lib-empty">등록된 코드 없음</div>';
+    return;
+  }
+
+  const useFlat = accidental === 'flat';
+  const groups  = new Map(); // sharpName → [idx, ...]
+  entries.forEach((e, i) => {
+    if (!groups.has(e.name)) groups.set(e.name, []);
+    groups.get(e.name).push(i);
+  });
+
+  const reps = [];
+  let html   = '';
+  let gi     = 0;
+  for (const [sharpName, idxList] of groups) {
+    const rep      = entries[idxList[0]];
+    const dispName = useFlat ? rep.flatName : rep.name;
+    const multi    = idxList.length > 1;
+    html += `<div class="lib-card${multi ? ' lib-card-multi' : ''}"
+                  onclick="onLibCardClick(event,'${sharpName.replace(/\\/g,'\\\\').replace(/'/g,"\\'")}')">
+               <canvas class="lib-card-canvas" data-gidx="${gi}"
+                       width="${LIB_MINI_W}"
+                       height="${Math.round(VoicingCanvas.BASE_H * LIB_MINI_RATIO)}"></canvas>
+               <div class="lib-card-name">${dispName}</div>
+               ${multi ? `<div class="lib-card-badge">${idxList.length}</div>` : ''}
+             </div>`;
+    reps.push(rep);
+    gi++;
+  }
+  container.innerHTML = html;
+
+  reps.forEach((rep, i) => {
+    const c = container.querySelectorAll('.lib-card-canvas')[i];
+    if (c) _drawLibCanvas(c, LIB_MINI_RATIO, rep);
+  });
+}
+
+// 카드 클릭: 보이싱 1개 → 직접 추가 / 복수 → 보이싱 모달
+function onLibCardClick(event, sharpName) {
+  const entries = (window.chordsLibrary || {})[_libRoot] || [];
+  const idxList = entries.reduce((acc, e, i) => (e.name === sharpName ? [...acc, i] : acc), []);
+  if (!idxList.length) return;
+
+  const cardEl = event.currentTarget;
+  cardEl.classList.add('lib-card-clicked');
+  setTimeout(() => cardEl.classList.remove('lib-card-clicked'), 300);
+
+  if (idxList.length === 1) {
+    _pdAddEntryToProject(entries[idxList[0]]);
+    return;
+  }
+  openVoicingModal(sharpName, cardEl);
+}
+
+// 캔버스 렌더 (미니 카드 공용) — voicing-canvas.js 모듈로 일원화
+function _drawLibCanvas(canvas, ratio, entry, nameOverride = '') {
+  VoicingCanvas.draw(canvas, {
+    frets:      entry.frets,
+    openMute:   entry.openMute,
+    barre:      entry.barres?.[0] ?? entry.barre ?? {},
+    barreRange: entry.barreRanges?.[0] ?? entry.barreRange ?? null,
+    fretNumber: entry.fretNumber,
+    source:     entry.source,   // ★ 누락 시 모듈이 static 취급 → offset/라벨 어긋남
+    fingering:  entry.fingerings?.[0] ?? entry.fingering,
+  }, {
+    chordName:     nameOverride,
+    fingerNumMode: _libFingerMode,
+    ratio,
+  });
+}
+
+// ── 보이싱 피커 모달 ──
+function openVoicingModal(sharpName, cardEl) {
+  const modal   = document.getElementById('lib-voicing-modal');
+  const overlay = document.getElementById('lib-voicing-overlay');
+  if (!modal) return;
+
+  const bottomEl = document.querySelector('#palette-dict-modal .lib-bottom');
+  if (bottomEl && cardEl) {
+    const br = bottomEl.getBoundingClientRect();
+    const cr = cardEl.getBoundingClientRect();
+    const ox = cr.left + cr.width  / 2 - br.left;
+    const oy = cr.top  + cr.height / 2 - br.top;
+    modal.style.transformOrigin = `${ox}px ${oy}px`;
+  }
+
+  _voicingModalChord = sharpName;
+  _renderVoicingGrid(sharpName);
+
+  overlay?.classList.add('open');
+  requestAnimationFrame(() => requestAnimationFrame(() => {
+    modal.classList.add('open');
+  }));
+}
+
+function closeVoicingModal() {
+  document.getElementById('lib-voicing-modal')?.classList.remove('open');
+  document.getElementById('lib-voicing-overlay')?.classList.remove('open');
+  _voicingModalChord = null;
+}
+
+function _renderVoicingGrid(sharpName) {
+  const grid = document.getElementById('lib-voicing-grid');
+  if (!grid) return;
+  const allEntries = (window.chordsLibrary || {})[_libRoot] || [];
+  const useFlat    = accidental === 'flat';
+  const filtered   = allEntries
+    .map((e, i) => ({ e, i }))
+    .filter(({ e }) => e.name === sharpName);
+
+  grid.innerHTML = filtered.map(({ e, i }) => {
+    const dispName = useFlat ? e.flatName : e.name;
+    return `<div class="lib-card"
+                 onclick="event.stopPropagation(); onVoicingPick(event, ${i});">
+               <canvas class="lib-card-canvas" data-vidx="${i}"
+                       width="${LIB_MINI_W}"
+                       height="${Math.round(VoicingCanvas.BASE_H * LIB_MINI_RATIO)}"></canvas>
+               <div class="lib-card-name">${dispName}</div>
+             </div>`;
+  }).join('');
+
+  filtered.forEach(({ e, i }) => {
+    const c = grid.querySelector(`[data-vidx="${i}"]`);
+    if (c) _drawLibCanvas(c, LIB_MINI_RATIO, e);
+  });
+}
+
+// 보이싱 카드 탭 → 해당 보이싱을 프로젝트에 추가 (모달 유지)
+function onVoicingPick(event, idx) {
+  const entries = (window.chordsLibrary || {})[_libRoot] || [];
+  const entry = entries[idx];
+  if (!entry) return;
+  const cardEl = event.currentTarget;
+  cardEl.classList.add('lib-card-clicked');
+  setTimeout(() => cardEl.classList.remove('lib-card-clicked'), 300);
+  _pdAddEntryToProject(entry);
+}
+
+// ── 샵/플랫 토글 ──
+function toggleLibAccidental() {
+  const current = document.getElementById('lib-acc-sharp')?.classList.contains('active') ? 'sharp' : 'flat';
+  accidental = current === 'sharp' ? 'flat' : 'sharp';
+  document.getElementById('lib-acc-sharp')?.classList.toggle('active', accidental === 'sharp');
+  document.getElementById('lib-acc-flat')?.classList.toggle('active', accidental === 'flat');
+  renderLibRootTabs();
+  renderLibCards(_libRoot);
+  if (_voicingModalChord) _renderVoicingGrid(_voicingModalChord);
+}
+
+// 라이브러리 엔트리 → 프로젝트 코드 객체 변환 후 추가 (home.js libSaveToProject 미러)
+function _pdAddEntryToProject(entry) {
+  const useFlat    = accidental === 'flat';
+  const dispName   = useFlat ? entry.flatName : entry.name;
+  const fretOffset = entry.fretNumber >= 2 ? entry.fretNumber - 2 : 0;
+  const activeFingering = entry.fingerings?.[0] ?? entry.fingering;
+
+  const libDots = entry.frets
+    .map((f, s) => (f !== null && f > 0)
+      ? { s, f: f - fretOffset, n: _libFingerMode ? (typeof activeFingering?.[s] === 'number' ? activeFingering[s] : 0) : 0 }
+      : null)
+    .filter(Boolean);
+  const libOpenMute = entry.frets.map((f, s) =>
+    (f === null || entry.openMute[s] === 'mute') ? 'mute' : 'open');
+  const libBarre = {};
+  const importBarre = entry.barres?.[0] ?? entry.barre ?? {};
+  Object.entries(importBarre).forEach(([f, v]) => { libBarre[parseInt(f) - fretOffset] = v; });
+
+  const comp = parseChordNameToComponents(dispName)
+    || { root: 'C', bass: '', triad: '', seventh: '', func: '', tension: '' };
+
+  const chordData = {
+    id: genId(),
+    name: dispName,
+    root: comp.root,
+    triad: comp.triad  || '',
+    seventh: comp.seventh || '',
+    func: comp.func    || '',
+    tensions: comp.tension ? [comp.tension] : [],
+    bass: comp.bass    || '',
+    dots: libDots,
+    openMute: libOpenMute,
+    barre: libBarre,
+    fretNumber: entry.fretNumber >= 2 ? entry.fretNumber : 2,
+    fingerNumMode: _libFingerMode,
+    accidental: accidental
+  };
+
+  const p = getProject(_pdProjectId);
+  if (!p) return;
+  p.chords.push(chordData);
+  p.updatedAt = Date.now();
+  updateProject(p);
+  reRenderThumbList(_pdProjectId);
+  analytics.track('chord_added', { chord_name: chordData.name, project_id: _pdProjectId, source: 'palette_dict' });
+}
+
+// 코드명 → 구성요소 파싱 (home.js parseChordNameToComponents verbatim 복제 — 수정 금지)
+function parseChordNameToComponents(name) {
+  const rootMatch = name.match(/^([A-G][#b]?)/);
+  if (!rootMatch) return null;
+  const root = rootMatch[1];
+  let rest = name.slice(root.length);
+
+  let bass = '';
+  const slashIdx = rest.lastIndexOf('/');
+  if (slashIdx >= 0) {
+    bass = rest.slice(slashIdx + 1);
+    rest = rest.slice(0, slashIdx);
+  }
+
+  const MAP = [
+    ['mM7',    { triad: 'm',   seventh: 'M7', func: '' }],
+    ['m7(b5)', { triad: 'm',   seventh: '7',  func: 'b5' }],
+    ['m7',     { triad: 'm',   seventh: '7',  func: '' }],
+    ['m6',     { triad: 'm',   seventh: '6',  func: '' }],
+    ['M7',     { triad: '',    seventh: 'M7', func: '' }],
+    ['7sus4',  { triad: '',    seventh: '7',  func: 'sus4' }],
+    ['7',      { triad: '',    seventh: '7',  func: '' }],
+    ['6',      { triad: '',    seventh: '6',  func: '' }],
+    ['dim7',   { triad: 'dim', seventh: '7',  func: '' }],
+    ['dim',    { triad: 'dim', seventh: '',   func: '' }],
+    ['aug7',   { triad: 'aug', seventh: '7',  func: '' }],
+    ['aug',    { triad: 'aug', seventh: '',   func: '' }],
+    ['sus4',   { triad: '',    seventh: '',   func: 'sus4' }],
+    ['sus2',   { triad: '',    seventh: '',   func: 'sus2' }],
+    ['add9',   { triad: '',    seventh: '',   func: 'add9' }],
+    ['m',      { triad: 'm',   seventh: '',   func: '' }],
+    ['',       { triad: '',    seventh: '',   func: '' }],
+  ];
+
+  for (const [suffix, comp] of MAP) {
+    if (rest === suffix) {
+      return { root, bass, tension: '', ...comp };
+    }
+  }
+
+  let tension = '';
+  const tensionMatch = rest.match(/\(([^)]+)\)/);
+  if (tensionMatch) {
+    tension = tensionMatch[1].split(',')[0].trim();
+    rest = rest.replace(tensionMatch[0], '');
+  }
+
+  for (const [suffix, comp] of MAP) {
+    if (rest === suffix) {
+      return { root, bass, tension, ...comp };
+    }
+  }
+
+  return { root, bass, tension, triad: '', seventh: '', func: '' };
 }
 
 function deleteChordFromProject(projectId, chordId) {

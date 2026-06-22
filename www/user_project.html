@@ -181,6 +181,44 @@
     </div>
   </div>
 
+  <!-- ── 코드사전 추가 모달 (코드 팔레트 + 버튼) ── -->
+  <div class="modal-overlay hidden" id="palette-dict-modal"
+       onclick="if(event.target===this) closePaletteDictionary()">
+    <div class="modal palette-dict-card" onclick="event.stopPropagation()">
+      <div class="modal-header">
+        <span class="modal-title">코드 추가</span>
+        <button class="icon-btn" onclick="closePaletteDictionary()"><i data-lucide="x"></i></button>
+      </div>
+      <div class="modal-body palette-dict-body">
+        <div class="lib-bottom-area">
+          <div class="lib-action-section">
+            <div class="lib-action-bar">
+              <div class="accidental-toggle" onclick="toggleLibAccidental()">
+                <button class="acc-btn active" id="lib-acc-sharp">#</button>
+                <button class="acc-btn" id="lib-acc-flat">b</button>
+              </div>
+              <span class="ab-spacer"></span>
+              <button class="ab-btn ab-btn-primary" onclick="paletteDictToEditor()">에디터로</button>
+            </div>
+          </div><!-- /lib-action-section -->
+
+          <div class="lib-bottom">
+            <div class="lib-root-list" id="lib-root-tabs"></div>
+            <div class="lib-cards-area">
+              <div class="lib-cards" id="lib-cards"></div>
+            </div>
+            <div class="lib-voicing-overlay" id="lib-voicing-overlay"
+                 onclick="closeVoicingModal()"></div>
+            <div class="lib-voicing-modal" id="lib-voicing-modal"
+                 onclick="closeVoicingModal()">
+              <div class="lib-voicing-grid" id="lib-voicing-grid"></div>
+            </div>
+          </div>
+        </div><!-- /lib-bottom-area -->
+      </div>
+    </div>
+  </div>
+
   <!-- ── 저장 공간 경고 토스트 ── -->
   <div class="storage-warning hidden" id="storage-warning">
     저장 공간이 부족합니다. 일부 내용이 저장되지 않을 수 있어요.
@@ -203,6 +241,9 @@
   <script src="analytics-sdk.js"></script>
   <script src="shared.js"></script>
   <script src="voicing-canvas.js"></script>
+  <!-- 코드사전 추가 모달용 코드 데이터 (window.chordsLibrary 제공) -->
+  <script src="chord-voicings.js"></script>
+  <script src="chords-library.js"></script>
   <script src="user_project.js"></script>
 
   <!-- 이미지 저장 배율 드롭다운 (에디터/라이브러리 공용) -->
