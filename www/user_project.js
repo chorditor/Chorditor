@@ -3198,7 +3198,7 @@ async function generateShareCode(project) {
   return await toBase64urlZ(buildSharePayload(project));
 }
 async function generateShareUrl(project) {
-  return 'https://chorditor.github.io/chord_editor/share/?share=' + await toBase64urlZ(buildSharePayload(project));
+  return 'https://chorditor.github.io/Chorditor/share/?share=' + await toBase64urlZ(buildSharePayload(project));
 }
 
 async function parseShareCode(raw) {
