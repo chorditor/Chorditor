@@ -980,6 +980,28 @@ async function _savePushToken(token) {
   } catch (_) {}
 }
 
+// 알림 OFF 시 이 기기 토큰 삭제 → 서버 디스패치 대상에서 제외.
+async function _deletePushToken() {
+  let accessToken = null, userId = null;
+  try {
+    const stored = localStorage.getItem(SUPABASE_STORAGE_KEY);
+    if (stored) {
+      const p = JSON.parse(stored);
+      accessToken = p?.access_token ?? null;
+      userId      = p?.user?.id     ?? null;
+    }
+  } catch (_) {}
+  let token = null;
+  try { token = localStorage.getItem(FCM_TOKEN_CACHE); } catch (_) {}
+  if (!accessToken || !userId || !token) return;
+  try {
+    await fetch(`${SUPABASE_URL}/rest/v1/push_tokens?user_id=eq.${userId}&token=eq.${encodeURIComponent(token)}`, {
+      method: 'DELETE',
+      headers: { 'apikey': SUPABASE_ANON, 'Authorization': `Bearer ${accessToken}` },
+    });
+  } catch (_) {}
+}
+
 function initPushNotifications() {
   const PN = window.Capacitor?.Plugins?.PushNotifications;
   if (!PN) return; // 브라우저 등 = FCM 없음
@@ -1037,6 +1059,7 @@ function initPushNotifications() {
 
   (async () => {
     try {
+      if (localStorage.getItem('push_enabled') === '0') return; // 알림 OFF → 등록 안 함
       let perm = await PN.checkPermissions();
       if (perm.receive !== 'granted') perm = await PN.requestPermissions();
       if (perm.receive !== 'granted') return;
@@ -1045,9 +1068,25 @@ function initPushNotifications() {
   })();
 }
 
+// 설정 알림 토글: ON=권한확인+FCM 등록 / OFF=토큰 삭제. 최종 ON/OFF 반환.
+async function __pushApplyEnabled() {
+  const PN = window.Capacitor?.Plugins?.PushNotifications;
+  const wantOn = localStorage.getItem('push_enabled') !== '0';
+  if (!PN) return wantOn; // 브라우저 등 = FCM 없음, 상태만 유지
+  if (!wantOn) { await _deletePushToken(); return false; }
+  try {
+    let perm = await PN.checkPermissions();
+    if (perm.receive !== 'granted') perm = await PN.requestPermissions();
+    if (perm.receive !== 'granted') { localStorage.setItem('push_enabled', '0'); return false; }
+    await PN.register(); // 'registration' → _savePushToken upsert
+    return true;
+  } catch (_) { localStorage.setItem('push_enabled', '0'); return false; }
+}
+
 if (typeof window !== 'undefined') {
   window.initPushNotifications = initPushNotifications;
   window._savePushToken = _savePushToken;
+  window.__pushApplyEnabled = __pushApplyEnabled;
   document.addEventListener('DOMContentLoaded', () => { initPushNotifications(); });
 }
 

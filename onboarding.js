@@ -165,20 +165,14 @@ function obConsentAgree() {
   _showStep('ob-step2', 'ob-step1');
 }
 
-// 로컬 알림 권한 요청 + 고중요도 채널 생성 (홈 자동예약이 권한 granted 시 동작)
+// FCM 푸시 권한 요청 + 토큰 등록 (채널 생성은 shared.js initPushNotifications 담당)
 async function _requestPushPermission() {
   try {
-    const LN = window.Capacitor?.Plugins?.LocalNotifications;
-    if (!LN) return;
-    let perm = await LN.checkPermissions();
-    if (perm.display !== 'granted') perm = await LN.requestPermissions();
-    if (perm.display === 'granted' && LN.createChannel) {
-      await LN.createChannel({
-        id: 'chorditor_push', name: 'Chorditor 알림',
-        description: '연습 리마인드·코드 진행·퀴즈 알림',
-        importance: 5, visibility: 1, vibration: true
-      });
-    }
+    const PN = window.Capacitor?.Plugins?.PushNotifications;
+    if (!PN) return;
+    let perm = await PN.checkPermissions();
+    if (perm.receive !== 'granted') perm = await PN.requestPermissions();
+    if (perm.receive === 'granted') await PN.register();
   } catch (_) {}
 }
 
