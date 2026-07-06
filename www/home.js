@@ -517,6 +517,8 @@ function initWheelPicker(scrollEl, getIdx, onPick) {
   const _abort = new AbortController();
   scrollEl._pickerAbort = _abort;
 
+  enableMouseDragScroll(scrollEl); // 웹 브라우저 마우스 드래그 지원 (내부 중복 방지)
+
   let timer, programmatic = false, _rafId = null;
 
   function updateItemStyles() {

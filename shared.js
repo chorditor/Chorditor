@@ -6,7 +6,7 @@
 // ── 상수 ─────────────────────────────────────────────────────
 const SUPABASE_URL  = 'https://jbvkygeksohlysyvaoab.supabase.co';
 const SUPABASE_ANON = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Impidmt5Z2Vrc29obHlzeXZhb2FiIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzYzOTk5NjgsImV4cCI6MjA5MTk3NTk2OH0.6RSgChy0Yq0H2TJpZPSoMKQ2V-OYfR0XzE1aJBBZkXI';
-const APP_VERSION   = '1.2.5';
+const APP_VERSION   = '1.2.6_dev1';
 const SUPABASE_STORAGE_KEY = 'sb-jbvkygeksohlysyvaoab-auth-token';
 
 // ── Analytics SDK ─────────────────────────────────────────────
@@ -57,6 +57,50 @@ const analytics = (typeof AnalyticsSDK !== 'undefined')
 
   window.isScrolling = () => _movelock || _velolock;
 })();
+
+// ── 데스크탑 마우스 드래그 스크롤 ─────────────────────────────
+// 웹 브라우저에서는 마우스 드래그로 overflow 스크롤이 안 됨 → 휠피커류에 드래그 지원.
+// 터치(모바일)는 네이티브 스크롤 그대로 사용 (pointerType 'mouse'만 처리).
+function enableMouseDragScroll(el) {
+  if (!el || el._mouseDragScroll) return;
+  el._mouseDragScroll = true;
+  let dragging = false, moved = false, startY = 0, startTop = 0, savedSnap = '';
+  let suppressClickUntil = 0;
+
+  el.addEventListener('pointerdown', (e) => {
+    if (e.pointerType !== 'mouse' || e.button !== 0) return;
+    dragging = true; moved = false;
+    startY = e.clientY; startTop = el.scrollTop;
+  });
+
+  el.addEventListener('pointermove', (e) => {
+    if (!dragging || e.pointerType !== 'mouse') return;
+    const dy = e.clientY - startY;
+    if (!moved && Math.abs(dy) > 3) {
+      moved = true;
+      savedSnap = el.style.scrollSnapType;
+      el.style.scrollSnapType = 'none'; // 드래그 중 snap 간섭 방지
+      try { el.setPointerCapture(e.pointerId); } catch (_) {}
+    }
+    if (moved) { el.scrollTop = startTop - dy; e.preventDefault(); }
+  });
+
+  const _endDrag = (e) => {
+    if (!dragging || e.pointerType !== 'mouse') return;
+    dragging = false;
+    if (moved) {
+      el.style.scrollSnapType = savedSnap; // snap 복원 → 가까운 항목으로 스냅
+      suppressClickUntil = performance.now() + 80; // 드래그 직후 click 오작동 차단
+    }
+  };
+  el.addEventListener('pointerup', _endDrag);
+  el.addEventListener('pointercancel', _endDrag);
+
+  el.addEventListener('click', (ce) => {
+    if (performance.now() < suppressClickUntil) { ce.stopPropagation(); ce.preventDefault(); }
+  }, { capture: true });
+}
+window.enableMouseDragScroll = enableMouseDragScroll;
 
 // ── 네트워크 오프라인 오버레이 ────────────────────────────────
 (function() {

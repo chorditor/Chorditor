@@ -302,6 +302,8 @@ function _initBpmWheel() {
       _updateBpmActiveItem();
     }
   }, { passive: true });
+
+  enableMouseDragScroll(wheel); // 웹 브라우저 마우스 드래그 지원
 }
 
 function _scrollBpmWheel(bpm, smooth) {

@@ -300,6 +300,8 @@ function _initYearPicker() {
     const idx = Math.round(scroll.scrollTop / ITEM_H);
     _obData.birth_year = START + Math.max(0, Math.min(idx, END - START));
   });
+
+  enableMouseDragScroll(scroll); // 웹 브라우저 마우스 드래그 지원
 }
 
 async function _saveOnboardingData() {
