@@ -1695,14 +1695,14 @@ canvas {
   flex-shrink: 0;
   background: #ffffff;
   z-index: 20;
-  padding: 12px 40px 0;
+  padding: 8px 40px 0;
   box-sizing: border-box;
   overflow: visible;
 }
 
 .project-title-bar {
   width: 100%;
-  height: 56px;
+  height: 44px;
   flex-shrink: 0;
   display: flex;
   align-items: center;
@@ -1710,18 +1710,18 @@ canvas {
 }
 
 .project-title-bar .project-name-input {
-  font-size: 24px;
+  font-size: 20px;
   font-weight: 700;
   width: 100%;
   height: 100%;
-  line-height: 56px;
+  line-height: 44px;
 }
 
 .project-header {
   display: flex;
   flex-direction: column;
-  gap: 14px;
-  margin-bottom: 14px;
+  gap: 10px;
+  margin-bottom: 10px;
   width: 100%;
   min-width: 0;
   box-sizing: border-box;
@@ -1735,7 +1735,7 @@ canvas {
   width: 100%;
   min-width: 0;
   overflow: hidden;
-  padding: 4px 2px;
+  padding: 2px 2px;
 }
 
 .project-header-row1-right {
@@ -1743,6 +1743,22 @@ canvas {
   align-items: center;
   gap: 6px;
   flex-shrink: 0;
+}
+
+/* 가로모드: col-toggle · slot-toggle · row2-controls · row1-right 한 줄 배치 */
+.project-header-landrow {
+  justify-content: flex-start;
+  gap: 8px;
+}
+.project-header-landrow .btn.slot-toggle-btn {
+  margin-right: 0; /* 세로모드의 margin-right:auto 해제 */
+}
+.project-header-landrow .project-header-row2-controls {
+  margin-left: auto; /* 남는 공간 전부 흡수 → row1-right 바로 왼쪽에 밀착 */
+  margin-right: 16px; /* landrow gap(8px)과 합쳐 재생↔공유 버튼 간 24px */
+}
+.project-header-landrow .project-header-row1-right {
+  margin-left: 0; /* 중복 auto 규칙 제거 — 이게 이전에 여백 안 줄던 원인 */
 }
 
 .project-header-btn {
@@ -1759,8 +1775,8 @@ canvas {
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 32px;
-  height: 32px;
+  width: 28px;
+  height: 28px;
   background: #ffffff;
   border: none;
   border-radius: 50%;
@@ -1771,7 +1787,7 @@ canvas {
   transition: color .15s, box-shadow .15s;
 }
 .project-icon-btn:active { box-shadow: 0 0 1px rgba(0,0,0,0.08); }
-.project-icon-btn svg { width: 18px; height: 18px; }
+.project-icon-btn svg { width: 16px; height: 16px; }
 .project-icon-btn--danger { color: var(--accent); }
 .project-icon-btn--danger:active { box-shadow: 0 1px 2px rgba(0,0,0,0.08); }
 
@@ -1782,7 +1798,7 @@ canvas {
   gap: 6px;
   flex-wrap: nowrap;
   width: 100%;
-  padding: 4px 0;
+  padding: 2px 0;
   min-width: 0;
   overflow: hidden;
 }
@@ -1797,7 +1813,7 @@ canvas {
 
 .project-name-input {
   font-family: 'Pretendard', sans-serif;
-  font-size: 18px;
+  font-size: 16px;
   font-weight: 600;
   border: none;
   border-bottom: 1px solid transparent;
@@ -1842,8 +1858,8 @@ canvas {
 }
 .col-toggle-btn {
   font-size: 11px;
-  padding: 4px 12px;
-  height: 28px;
+  padding: 3px 10px;
+  height: 24px;
   box-sizing: border-box;
   border: none;
   background: transparent;
@@ -1856,6 +1872,14 @@ canvas {
   background: var(--text-primary);
   color: #fff;
 }
+/* 세로/가로 전환 버튼: 아이콘 + 라벨 */
+.orient-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+.orient-btn svg { width: 14px; height: 14px; }
+.orient-btn.orient-land svg { transform: rotate(90deg); } /* 가로 = 폰 아이콘 눕힘 */
 
 /* ── 카포 컨트롤 ── */
 .capo-control {
@@ -1865,7 +1889,7 @@ canvas {
   border: none;
   border-radius: var(--radius);
   padding: 0 8px;
-  height: 32px;
+  height: 28px;
   background: #ffffff;
   box-shadow: 0 0 0 1px rgba(0,0,0,0.08);
 }
@@ -1915,7 +1939,7 @@ canvas {
   border: none;
   border-radius: var(--radius);
   padding: 0 8px;
-  height: 32px;
+  height: 28px;
   background: #ffffff;
   box-shadow: 0 0 0 1px rgba(0,0,0,0.08);
 }
@@ -1943,8 +1967,8 @@ canvas {
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 32px;
-  height: 32px;
+  width: 28px;
+  height: 28px;
   padding: 0;
   border-radius: 50%;
   background: #ffffff;
@@ -1960,15 +1984,15 @@ canvas {
   color: var(--surface);
   box-shadow: 0 1px 4px rgba(0,0,0,0.15);
 }
-.metronome-btn svg { width: 13px; height: 13px; }
+.metronome-btn svg { width: 12px; height: 12px; }
 
 /* 전체재생 버튼 */
 .play-all-btn {
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 32px;
-  height: 32px;
+  width: 28px;
+  height: 28px;
   padding: 0;
   border-radius: 50%;
   background: var(--text-primary);
@@ -1979,14 +2003,25 @@ canvas {
   transition: opacity .15s;
 }
 .play-all-btn:hover { opacity: .75; }
-.play-all-btn svg { width: 13px; height: 13px; }
+.play-all-btn svg { width: 12px; height: 12px; }
 
 /* 전체재생 중 현재 슬롯 강조 */
-.chord-slot--playing {
-  outline: 2.5px solid #242729;
-  outline-offset: -2px;
-  border-radius: var(--radius);
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.35);
+/* 재생 강조: 좌→우 스윕하는 파란 막대 (지속시간은 JS가 --sweep-dur로 주입) */
+.chord-slot--playing::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  width: 2px;
+  background: rgba(21, 101, 192, 0.4);
+  z-index: 5;
+  pointer-events: none;
+  animation: slot-sweep var(--sweep-dur, 2000ms) linear forwards;
+}
+@keyframes slot-sweep {
+  from { left: 0; }
+  to   { left: calc(100% - 2px); }
 }
 
 /* ── 코드 썸네일 리스트 ── */
@@ -2060,6 +2095,10 @@ canvas {
   width: calc((100% - 4 * 8px) / 5);
   height: auto;
   aspect-ratio: 5 / 4;
+}
+/* 가로모드: 팔레트 10개/행 (크기 절반) */
+.chord-palette.pal-land .chord-palette-item {
+  width: calc((100% - 9 * 8px) / 10);
 }
 
 .chord-palette-item canvas,
@@ -2148,14 +2187,24 @@ canvas {
 }
 .chord-area.cols-4 { grid-template-columns: repeat(4, 140px); justify-content: space-between; }
 .chord-area.cols-8 { grid-template-columns: repeat(4, 140px); justify-content: space-between; }
+/* 세로(간편)=4슬롯 / 가로(고급)=8슬롯 1행 */
+.chord-area.orient-port { grid-template-columns: repeat(4, 1fr); justify-content: stretch; }
+.chord-area.orient-land { grid-template-columns: repeat(8, 1fr); justify-content: stretch; }
+.chord-area.orient-port .chord-slot { width: 100%; height: auto; aspect-ratio: 5 / 4; }
+.chord-area.orient-land .chord-slot {
+  width: 75%; /* 비율 유지, 현재 크기의 75% */
+  height: auto;
+  aspect-ratio: 5 / 4;
+  margin: 0 auto; /* 그리드 셀 중앙 정렬 */
+}
 
 /* ── 코드슬롯 토글 버튼 (row2 좌측, metronome-btn과 통일) ── */
 .slot-toggle-btn {
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 32px;
-  height: 32px;
+  width: 28px;
+  height: 28px;
   padding: 0;
   margin-right: auto;
   border-radius: 50%;
@@ -2173,13 +2222,14 @@ canvas {
   color: var(--surface);
   box-shadow: 0 1px 4px rgba(0,0,0,0.15);
 }
-.slot-toggle-btn svg { width: 13px; height: 13px; }
+.slot-toggle-btn svg { width: 12px; height: 12px; }
 
 /* ── 코드슬롯 텍스트 모드 (slotsHidden) ── */
 .chord-area--text {
   margin-bottom: 2px;
 }
 .chord-area--text .chord-name-cell {
+  position: relative; /* 재생 강조 막대(::after)를 셀 내부로 가둠 — 없으면 페이지 전체로 퍼짐 */
   display: flex;
   align-items: center;
   justify-content: flex-start;
@@ -2359,9 +2409,26 @@ canvas {
 }
 
 .project-line {
+  position: relative;
   font-size: 22px;
   min-height: 1.6em;
   margin-bottom: 19px;
+}
+/* 줄 병합 무장 상태: 한 번 더 Backspace 시 이전 줄과 합쳐짐을 알리는 아이콘 큐 */
+/* 텍스트란 바깥(좌측 여백)에 배치 — 텍스트는 밀지 않음 */
+.line-merge-icon {
+  position: fixed; /* body에 렌더 → wrapper overflow 클립 회피 (좌표는 JS가 주입) */
+  z-index: 9999;
+  color: #b3b3b3;
+  pointer-events: none;
+  display: flex;
+  align-items: center;
+  animation: mergeIconIn .14s ease-out;
+}
+.line-merge-icon svg { width: 18px; height: 18px; }
+@keyframes mergeIconIn {
+  from { opacity: 0; transform: translateX(4px); }
+  to   { opacity: 1; transform: translateX(0); }
 }
 .project-line:last-of-type {
   margin-bottom: 0;
@@ -8776,6 +8843,17 @@ canvas {
   /* 온보딩 전체화면(버튼 화면 + 페르소나/연도/성별 스텝) */
   .onboarding-overlay {
     max-width: 400px;
+    margin-inline: auto;
+  }
+}
+
+/* ════════════════════════════════════════════════════════════
+   가로(고급) 모드 — 480px 이상에서 프레임을 812px까지 확장
+   (세로 400px 프레임 캡을 가로모드에서만 해제)
+   ════════════════════════════════════════════════════════════ */
+@media (min-width: 480px) {
+  .app-shell.app-land {
+    max-width: 812px;
     margin-inline: auto;
   }
 }

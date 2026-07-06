@@ -223,7 +223,7 @@
 
           <!-- 프로젝트에 추가 -->
           <div class="add-to-project-row">
-            <button id="btn-add-to-project" class="btn btn-ghost" onclick="openProjectSheet()">프로젝트 추가</button>
+            <button id="btn-add-to-project" class="btn btn-ghost" onclick="openProjectSheet()">노트 추가</button>
           </div>
 
           </div><!-- /editor-inner -->
@@ -287,7 +287,7 @@
                 <i class="ph-bold ph-hand"></i>
               </button>
               <span class="ab-spacer"></span>
-              <button class="ab-btn" onclick="libSaveToProject()">프로젝트에 저장</button>
+              <button class="ab-btn" onclick="libSaveToProject()">노트에 저장</button>
               <button class="ab-btn ab-btn-primary" onclick="importLibChordToProject()">에디터로</button>
             </div>
           </div><!-- /lib-action-section -->
@@ -329,12 +329,12 @@
         <div class="view" id="view-projects-list">
           <div class="projects-list-container">
             <div class="projects-list-header">
-              <span class="projects-list-title">프로젝트</span>
+              <span class="projects-list-title">노트</span>
               <div class="projects-list-header-actions">
                 <button class="icon-btn" onclick="openPasteShareModal()" title="불러오기">
                   <i data-lucide="clipboard-paste"></i>
                 </button>
-                <button class="icon-btn" onclick="promptCreateProject()" title="새 프로젝트">
+                <button class="icon-btn" onclick="promptCreateProject()" title="새 노트">
                   <i data-lucide="circle-plus"></i>
                 </button>
               </div>
@@ -387,7 +387,7 @@
               <div class="profile-stat-card">
                 <i data-lucide="folder" class="psc-icon"></i>
                 <span class="psc-value" id="stat-projects">0</span>
-                <span class="psc-label">프로젝트</span>
+                <span class="psc-label">노트</span>
               </div>
               <div class="profile-stat-card">
                 <i data-lucide="music" class="psc-icon"></i>
@@ -420,7 +420,7 @@
       </button>
       <button class="bottom-nav-item" id="nav-projects" onpointerdown="tapSwitchTab(this,'projects')">
         <i data-lucide="book-open"></i>
-        <span>프로젝트</span>
+        <span>노트</span>
       </button>
       <button class="bottom-nav-item" id="nav-profile" onpointerdown="tapSwitchTab(this,'profile')">
         <i data-lucide="user"></i>
@@ -433,7 +433,7 @@
       <div class="project-sheet" id="project-sheet">
         <div class="project-sheet-handle"></div>
         <div class="project-sheet-header">
-          <span class="project-sheet-title">프로젝트에 추가</span>
+          <span class="project-sheet-title">노트에 추가</span>
           <button class="project-sheet-close" onclick="closeProjectSheet()">✕</button>
         </div>
         <div class="project-sheet-list" id="project-sheet-list"></div>
@@ -524,16 +524,16 @@
       <div class="modal-body" style="gap:16px;">
         <p class="hint" id="import-meta"></p>
         <div class="share-field-group">
-          <span class="share-label">기존 프로젝트에 추가</span>
+          <span class="share-label">기존 노트에 추가</span>
           <div class="share-row">
             <select id="import-project-select" class="export-select" style="flex:1"></select>
             <button class="btn btn-primary" onclick="confirmImport('existing')">가져오기</button>
           </div>
         </div>
         <div class="share-field-group">
-          <span class="share-label">새 프로젝트로 가져오기</span>
+          <span class="share-label">새 노트로 가져오기</span>
           <div class="share-row">
-            <input type="text" id="import-new-name" class="share-code-input" placeholder="새 프로젝트 이름" style="font-family:inherit;" />
+            <input type="text" id="import-new-name" class="share-code-input" placeholder="새 노트 이름" style="font-family:inherit;" />
             <button class="btn btn-primary" onclick="confirmImport('new')">만들기</button>
           </div>
         </div>
@@ -557,7 +557,7 @@
         <button class="icon-btn" onclick="closeModal('modal-paste-share')"><i data-lucide="x"></i></button>
       </div>
       <div class="modal-body" style="gap:14px;">
-        <p class="hint">공유 코드를 입력하면 코드 배열을 프로젝트로 가져올 수 있습니다.</p>
+        <p class="hint">공유 코드를 입력하면 코드 배열을 노트로 가져올 수 있습니다.</p>
         <input type="text" id="paste-share-input" class="share-code-input"
                placeholder="공유 코드 붙여넣기"
                style="border:none;box-shadow:0 0 0 1.5px rgba(0,0,0,0.09),0 2px 8px rgba(0,0,0,0.07);font-family:inherit;"
@@ -579,7 +579,7 @@
       </div>
       <div class="modal-body" style="gap:12px;">
         <input type="text" id="rename-project-input" class="share-code-input"
-               placeholder="프로젝트 이름" style="font-size:14px;font-family:inherit;border:none;outline:none;" />
+               placeholder="노트 이름" style="font-size:14px;font-family:inherit;border:none;outline:none;" />
       </div>
       <div class="modal-footer">
         <button class="btn btn-ghost" onclick="closeModal('modal-rename-project')">취소</button>
@@ -614,12 +614,12 @@
   <div class="modal-overlay hidden" id="modal-create-project">
     <div class="modal" style="max-width:360px;">
       <div class="modal-header">
-        <span class="modal-title" style="font-family:'Pretendard',sans-serif;">새 프로젝트</span>
+        <span class="modal-title" style="font-family:'Pretendard',sans-serif;">새 노트</span>
         <button class="icon-btn" onclick="closeModal('modal-create-project')"><i data-lucide="x"></i></button>
       </div>
       <div class="modal-body" style="gap:12px;">
         <input type="text" id="create-project-name-input" class="share-code-input"
-               placeholder="프로젝트 이름" style="font-size:14px;font-family:inherit;" />
+               placeholder="노트 이름" style="font-size:14px;font-family:inherit;" />
       </div>
       <div class="modal-footer">
         <button class="btn btn-ghost" onclick="closeModal('modal-create-project')">취소</button>

@@ -1839,9 +1839,9 @@ function openPlanModal() {
 // ── 업그레이드 유도 모달 ───────────────────────────────────────
 const UPGRADE_MESSAGES = {
   project_limit: {
-    title: '프로젝트 한도에 도달했습니다',
+    title: '노트 한도에 도달했습니다',
     desc: {
-      free:     '무료 플랜은 프로젝트를 3개까지 만들 수 있습니다. Pro로 업그레이드하면 무제한으로 사용할 수 있습니다.',
+      free:     '무료 플랜은 노트를 3개까지 만들 수 있습니다. Pro로 업그레이드하면 무제한으로 사용할 수 있습니다.',
       pro:      '',
     },
   },
@@ -1871,9 +1871,9 @@ function closeUpgradeModal() {
 // ── 사이드바 플랜 배지 ─────────────────────────────────────────
 async function loadProfileFromDB() {
   const PLAN_DESC = {
-    free:     '프로젝트 3개 · 이미지 x1',
-    standard: '프로젝트 10개 · 이미지 x3',
-    pro:      '프로젝트 무제한 · 이미지 x5',
+    free:     '노트 3개 · 이미지 x1',
+    standard: '노트 10개 · 이미지 x3',
+    pro:      '노트 무제한 · 이미지 x5',
   };
 
   // 통계 (로컬)
@@ -2350,7 +2350,7 @@ function renderProjectsList() {
   if (projects.length === 0) {
     const hint = document.createElement('p');
     hint.style.cssText = 'padding:8px 20px 0;color:var(--text-muted);font-size:13px;';
-    hint.textContent = '+ 버튼으로 새 프로젝트를 만들어보세요.';
+    hint.textContent = '+ 버튼으로 새 노트를 만들어보세요.';
     container.appendChild(hint);
   }
 
@@ -2665,7 +2665,7 @@ function populateProjectSelect() {
     select._changeTracked = true;
   }
   const projects = loadProjects();
-  select.innerHTML = '<option value="">프로젝트 선택</option>';
+  select.innerHTML = '<option value="">노트 선택</option>';
   projects.forEach(p => {
     const opt = document.createElement('option');
     opt.value = p.id;
@@ -2816,7 +2816,7 @@ function openProjectSheet() {
   card.className = 'project-sheet-new-card';
   card.innerHTML =
     `<i data-lucide="plus-circle" class="project-sheet-new-icon"></i>` +
-    `<span class="project-sheet-new-label">새 프로젝트 만들기</span>`;
+    `<span class="project-sheet-new-label">새 노트 만들기</span>`;
   card.addEventListener('pointerdown', () => {
     closeProjectSheet();
     setTimeout(() => promptCreateProject(), 350);
@@ -3815,7 +3815,7 @@ function openImportModal(payload) {
   document.getElementById('import-meta').textContent =
     `BPM ${payload.bpm} · Capo ${payload.capo} · ${payload.col}칸 · 코드 ${payload.chords.length}개 · ${payload.arr.length}줄`;
   const sel = document.getElementById('import-project-select');
-  sel.innerHTML = '<option value="">프로젝트 선택…</option>';
+  sel.innerHTML = '<option value="">노트 선택…</option>';
   loadProjects().forEach(p => {
     sel.appendChild(Object.assign(document.createElement('option'), { value: p.id, textContent: p.name }));
   });
@@ -3834,13 +3834,13 @@ function confirmImport(mode) {
   let targetId;
   if (mode === 'new') {
     const name = document.getElementById('import-new-name').value.trim();
-    if (!name) { alert('프로젝트 이름을 입력하세요.'); return; }
+    if (!name) { alert('노트 이름을 입력하세요.'); return; }
     const p = { id: genId(), name, pinned: false, pinnedOrder: 0, important: false, importantOrder: 0, capo: 0, bpm: 120,
                 colCount: 4, createdAt: Date.now(), updatedAt: Date.now(), chords: [], arrangement: [] };
     const list = loadProjects(); list.push(p); saveProjects(list); targetId = p.id;
   } else {
     targetId = document.getElementById('import-project-select').value;
-    if (!targetId) { alert('프로젝트를 선택하세요.'); return; }
+    if (!targetId) { alert('노트를 선택하세요.'); return; }
   }
   applyImportPayload(targetId, payload, opts);
   closeModal('modal-import');

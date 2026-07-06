@@ -99,16 +99,16 @@
       <div class="modal-body" style="gap:16px;">
         <p class="hint" id="import-meta"></p>
         <div class="share-field-group">
-          <span class="share-label">기존 프로젝트에 추가</span>
+          <span class="share-label">기존 노트에 추가</span>
           <div class="share-row">
             <select id="import-project-select" class="export-select" style="flex:1"></select>
             <button class="btn btn-primary" onclick="confirmImport('existing')">가져오기</button>
           </div>
         </div>
         <div class="share-field-group">
-          <span class="share-label">새 프로젝트로 가져오기</span>
+          <span class="share-label">새 노트로 가져오기</span>
           <div class="share-row">
-            <input type="text" id="import-new-name" class="share-code-input" placeholder="새 프로젝트 이름" />
+            <input type="text" id="import-new-name" class="share-code-input" placeholder="새 노트 이름" />
             <button class="btn btn-primary" onclick="confirmImport('new')">만들기</button>
           </div>
         </div>
@@ -128,12 +128,12 @@
   <div class="modal-overlay hidden" id="modal-create-project">
     <div class="modal" style="max-width:360px;">
       <div class="modal-header">
-        <span class="modal-title">새 프로젝트</span>
+        <span class="modal-title">새 노트</span>
         <button class="icon-btn" onclick="closeModal('modal-create-project')"><i data-lucide="x"></i></button>
       </div>
       <div class="modal-body" style="gap:12px;">
         <input type="text" id="create-project-name-input" class="share-code-input"
-               placeholder="프로젝트 이름" style="font-size:14px;font-family:inherit;" />
+               placeholder="노트 이름" style="font-size:14px;font-family:inherit;" />
       </div>
       <div class="modal-footer">
         <button class="btn btn-ghost" onclick="closeModal('modal-create-project')">취소</button>
@@ -145,8 +145,8 @@
   <!-- ── 모달: 프로젝트 삭제 확인 ── -->
   <div class="modal-overlay hidden" id="delete-confirm-overlay" onclick="closeDeleteConfirm()">
     <div class="delete-confirm-modal" onclick="event.stopPropagation()">
-      <h3 class="delete-confirm-title">프로젝트 삭제</h3>
-      <p class="delete-confirm-desc">삭제된 프로젝트는 복구할 수 없어요.<br>정말 삭제하시겠어요?</p>
+      <h3 class="delete-confirm-title">노트 삭제</h3>
+      <p class="delete-confirm-desc">삭제된 노트는 복구할 수 없어요.<br>정말 삭제하시겠어요?</p>
       <p class="delete-confirm-tip">삭제 전 공유하기로 코드 배열을 백업해두세요.</p>
       <div class="delete-confirm-actions">
         <button class="btn btn-ghost" onclick="closeDeleteConfirm()">취소</button>
@@ -245,14 +245,6 @@
   <script src="chord-voicings.js"></script>
   <script src="chords-library.js"></script>
   <script src="user_project.js"></script>
-
-  <!-- 이미지 저장 배율 드롭다운 (에디터/라이브러리 공용) -->
-  <div class="scale-dropdown" id="scale-dropdown">
-    <div class="scale-dropdown-item" data-scale="0.5" onclick="onScaleSelect(this)"><span>0.5배</span><span>50×40 px</span></div>
-    <div class="scale-dropdown-item" data-scale="1"   onclick="onScaleSelect(this)"><span>1배</span><span>100×80 px</span></div>
-    <div class="scale-dropdown-item" data-scale="2"   onclick="onScaleSelect(this)"><span>2배</span><span>200×160 px</span></div>
-    <div class="scale-dropdown-item" data-scale="3"   onclick="onScaleSelect(this)"><span>3배</span><span>300×240 px</span></div>
-  </div>
 
   <div id="exit-toast"></div>
 </body>
