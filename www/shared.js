@@ -102,6 +102,18 @@ function enableMouseDragScroll(el) {
 }
 window.enableMouseDragScroll = enableMouseDragScroll;
 
+// ── 화면 회전 잠금 ────────────────────────────────────────────
+// user_project.html(노트 편집)만 가로 회전 허용, 나머지 전 페이지 세로 고정.
+// 실제 잠금/해제는 페이지별 진입 시점(각 페이지 DOMContentLoaded)에 걸어야
+// 이전 페이지의 잠금 상태가 새 페이지로 새지 않는다.
+(function() {
+  const SO = window.Capacitor?.Plugins?.ScreenOrientation;
+  if (!SO) return; // 웹 브라우저: 네이티브 회전 제어 불가, 무시
+  if (!location.pathname.includes('user_project.html')) {
+    SO.lock({ orientation: 'portrait' }).catch(() => {});
+  }
+})();
+
 // ── 네트워크 오프라인 오버레이 ────────────────────────────────
 (function() {
   function _showOffline() {

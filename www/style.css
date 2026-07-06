@@ -300,6 +300,18 @@ body {
   padding-right: 0;
   padding-bottom: 0;
 }
+.top-bar.hidden { display: none; }
+
+/* 가로모드: 제목 좌측 뒤로가기 화살표 */
+.title-back-btn {
+  margin-right: 8px;
+  flex-shrink: 0;
+}
+/* .project-icon-btn과 클래스 결합 selector로 특정도 확보 (파일 순서상 project-icon-btn이 뒤에 있어 단일클래스로는 밀림) */
+.project-icon-btn.title-back-btn {
+  box-shadow: none;
+  background: transparent;
+}
 
 .top-bar--white {
   background: #ffffff;
@@ -2042,7 +2054,7 @@ canvas {
 .chord-palette.edit-mode { overflow-x: hidden; }
 .chord-palette:not(.edit-mode) {
   border-bottom: 1px solid #ECECEA;
-  margin-bottom: 20px;
+  margin-bottom: 0;
 }
 
 /* ── 팔레트 스크롤바 (에딧모드) ── */
@@ -2052,7 +2064,7 @@ canvas {
   align-items: center;
   padding: 0 2px;
   height: 28px;
-  margin-bottom: 20px;
+  margin-bottom: 0;
 }
 .palette-scrollbar-track {
   position: relative;
@@ -2097,7 +2109,8 @@ canvas {
   aspect-ratio: 5 / 4;
 }
 /* 가로모드: 팔레트 10개/행 (크기 절반) */
-.chord-palette.pal-land .chord-palette-item {
+.chord-palette.pal-land .chord-palette-item,
+.chord-palette.pal-land .chord-palette-add {
   width: calc((100% - 9 * 8px) / 10);
 }
 

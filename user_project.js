@@ -1177,6 +1177,13 @@ async function playAll(projectId, startIndex = 0) {
   next();
 }
 
+// 기기 화면 실제 회전 잠금 (네이티브 앱 전용, 웹은 무시)
+function _applyOrientLock(orient) {
+  const SO = window.Capacitor?.Plugins?.ScreenOrientation;
+  if (!SO) return;
+  SO.lock({ orientation: orient === 'landscape' ? 'landscape' : 'portrait' }).catch(() => {});
+}
+
 // 세로/가로 모드 전환 (확인창 + 안내)
 function switchOrient(projectId, mode) {
   if (mode === currentOrient) return;
@@ -1241,6 +1248,7 @@ function renderProjectView(projectId) {
   currentOrient = project.orient === 'landscape' ? 'landscape' : 'portrait';
   // 가로모드: 프레임을 812px까지 확장 (CSS .app-shell.app-land)
   document.querySelector('.app-shell')?.classList.toggle('app-land', currentOrient === 'landscape');
+  _applyOrientLock(currentOrient); // 기기 화면 실제 회전
 
   const viewEl = document.getElementById('view-project');
   viewEl.innerHTML = '';
@@ -1419,6 +1427,20 @@ function renderProjectView(projectId) {
   // ── 타이틀 컨테이너 ──
   const titleBar = document.createElement('div');
   titleBar.className = 'project-title-bar';
+
+  // 가로모드: top-bar 공간 낭비 방지 → X버튼을 좌측화살표로 바꿔 제목 좌측에 배치, top-bar는 숨김
+  const topBarEl = document.querySelector('.top-bar');
+  if (currentOrient === 'landscape') {
+    if (topBarEl) topBarEl.classList.add('hidden');
+    const backArrow = document.createElement('button');
+    backArrow.className = 'project-icon-btn title-back-btn';
+    backArrow.innerHTML = '<i data-lucide="x"></i>';
+    backArrow.onclick = () => closeProjectPage();
+    titleBar.appendChild(backArrow);
+  } else if (topBarEl) {
+    topBarEl.classList.remove('hidden');
+  }
+
   titleBar.appendChild(nameInput);
 
   // ── 고정 헤더 영역 ──
