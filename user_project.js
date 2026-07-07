@@ -1090,17 +1090,15 @@ function toggleMetronome() {
   }
 }
 
-async function stopPlayAll(autoStop = false, options = {}) {
+async function stopPlayAll(options = {}) {
   playbackActive = false;
   playbackEndAudioTime = 0;
   _stopMetronomeAudio();
   if (currentPlayTimeout) { clearTimeout(currentPlayTimeout); currentPlayTimeout = null; }
   const stopPromise = GuitarAudio.stop({ wait: options.wait === true });
-  document.querySelectorAll('.chord-slot--playing').forEach(el => el.classList.remove('chord-slot--playing'));
+  document.querySelectorAll('.row-playhead').forEach(el => el.remove());
   const btn = document.getElementById('play-all-btn');
   if (btn) { btn.innerHTML = '<i data-lucide="play"></i>'; lucide.createIcons(); }
-  // 코드슬롯 자동 종료 시 메트로놈 off
-  if (autoStop) stopMetronome();
   if (options.wait) await stopPromise;
 }
 
@@ -1141,19 +1139,34 @@ async function playAll(projectId, startIndex = 0) {
 
   // 드리프트 방지: startIndex 슬롯이 재생됐어야 할 절대 기준 시각
   const refWallTime = performance.now() - startIndex * slotMs;
+  const rowLen = playDataIndices.length; // 줄 하나당 슬롯 수
   let i = startIndex;
+  let _playheadEl = null;
+  let _playheadLineId = null;
   async function next() {
     if (!playbackActive) { stopPlayAll(); return; }
-    if (i >= orderedSlots.length) { stopPlayAll(true); return; }
+    if (i >= orderedSlots.length) { stopPlayAll(); return; }
     const item = orderedSlots[i++];
+    const posInRow = (i - 1) % rowLen;
 
-    // 이전 강조 제거 후 현재 슬롯 강조
-    document.querySelectorAll('.chord-slot--playing').forEach(el => el.classList.remove('chord-slot--playing'));
     const slotEl = document.querySelector(`[data-line-id="${item.lineId}"][data-slot-idx="${item.slotIdx}"]`);
     if (slotEl) {
-      slotEl.style.setProperty('--sweep-dur', slotMs + 'ms'); // 파란 막대 스윕 = 슬롯 지속시간
-      slotEl.classList.add('chord-slot--playing');
       const lineEl = slotEl.closest('.project-line');
+      // 줄이 바뀌었을 때만 재생 막대를 새로 배치 — 같은 줄 안에서는 슬롯을 넘어가도
+      // 애니메이션을 리셋하지 않고 계속 이어가서 끊김 없이 부드럽게 스윕
+      if (lineEl && item.lineId !== _playheadLineId) {
+        const areaEl = lineEl.querySelector('.chord-area');
+        if (areaEl) {
+          if (!_playheadEl) { _playheadEl = document.createElement('div'); _playheadEl.className = 'row-playhead'; }
+          _playheadEl.remove(); // 재삽입해야 CSS 애니메이션이 다시 시작됨
+          const startPct = (posInRow / rowLen) * 100;
+          const remaining = rowLen - posInRow;
+          _playheadEl.style.setProperty('--sweep-start', startPct + '%');
+          _playheadEl.style.setProperty('--sweep-dur', (remaining * slotMs) + 'ms');
+          areaEl.appendChild(_playheadEl);
+        }
+        _playheadLineId = item.lineId;
+      }
       if (lineEl) {
         const scrollEl = document.getElementById('project-lines-' + projectId);
         if (scrollEl) {
@@ -1180,21 +1193,85 @@ async function playAll(projectId, startIndex = 0) {
 // 기기 화면 실제 회전 잠금 (네이티브 앱 전용, 웹은 무시)
 function _applyOrientLock(orient) {
   const SO = window.Capacitor?.Plugins?.ScreenOrientation;
-  if (!SO) return;
-  SO.lock({ orientation: orient === 'landscape' ? 'landscape' : 'portrait' }).catch(() => {});
+  if (!SO) return Promise.resolve();
+  return SO.lock({ orientation: orient === 'landscape' ? 'landscape' : 'portrait' }).catch(() => {});
 }
 
-// 세로/가로 모드 전환 (확인창 + 안내)
-function switchOrient(projectId, mode) {
+// ── 세로/가로 전환 확인 모달 (confirm() 대체) ──────────────────
+let _orientConfirmResolve = null;
+
+function openOrientConfirm(mode) {
+  const title = mode === 'landscape' ? '가로 모드로 전환할까요?' : '세로 모드로 전환할까요?';
+  const beatLine = mode === 'landscape' ? '슬롯 당 1박' : '슬롯 당 2박';
+  document.getElementById('orient-confirm-title').textContent = title;
+  document.getElementById('orient-confirm-box1-line1').textContent = '1줄 2마디';
+  document.getElementById('orient-confirm-box2-line1').textContent = beatLine;
+  document.getElementById('orient-confirm-overlay').classList.remove('hidden');
+  document.getElementById('orient-confirm-btn').onclick = confirmOrientSwitch;
+  return new Promise(resolve => { _orientConfirmResolve = resolve; });
+}
+
+function closeOrientConfirm() {
+  document.getElementById('orient-confirm-overlay').classList.add('hidden');
+  if (_orientConfirmResolve) { _orientConfirmResolve(false); _orientConfirmResolve = null; }
+}
+
+function confirmOrientSwitch() {
+  document.getElementById('orient-confirm-overlay').classList.add('hidden');
+  const resolve = _orientConfirmResolve;
+  _orientConfirmResolve = null;
+  if (resolve) resolve(true);
+}
+
+// 세로/가로 모드 전환 (확인 모달 + 안내)
+// 전환 중 실제 회전 애니메이션 + 레이아웃 재빌드로 화면이 잠깐 깨지므로
+// page-cover로 가리고 스피너를 띄운 뒤, 여유시간 확보 후 서서히 걷어낸다.
+async function switchOrient(projectId, mode) {
   if (mode === currentOrient) return;
-  const msg = mode === 'landscape'
-    ? '가로 모드로 전환할까요?\n\n· 1줄 = 2마디\n· 코드슬롯 8개 (슬롯당 1박)\n· 촘촘한 코드 배치에 적합'
-    : '세로 모드로 전환할까요?\n\n· 1줄 = 2마디\n· 코드슬롯 4개 (슬롯당 ½마디 = 2박)\n· 간편하게 편집';
-  if (!confirm(msg)) return;
-  const p = getProject(projectId);
-  if (p) { p.orient = mode; updateProject(p); }
-  currentOrient = mode;
-  renderProjectView(projectId);
+  const ok = await openOrientConfirm(mode);
+  if (!ok) return;
+
+  if (playbackActive) await stopPlayAll({ wait: true }); // 재생 중 전환 시 재생 중단
+
+  const cover = document.getElementById('page-cover');
+  let spinnerEl = null;
+  if (cover) {
+    cover.style.transition = 'none';
+    cover.style.display = '';
+    cover.style.opacity = '1';
+    cover.classList.remove('cover-out');
+    cover.classList.add('page-cover--spin');
+    spinnerEl = document.createElement('div');
+    spinnerEl.className = 'page-cover-spinner';
+    cover.appendChild(spinnerEl);
+    cover.offsetHeight; // reflow — 가림막 즉시 페인트
+  }
+
+  // 가림막 제거 — renderProjectView 등에서 예외가 나도 반드시 실행되도록 finally에 배치
+  // (그렇지 않으면 흰 스피너 화면에 영구 고정되어 새로고침 전엔 안 사라지는 버그 발생)
+  const hideCover = () => {
+    if (!cover) return;
+    spinnerEl?.remove();
+    cover.classList.remove('page-cover--spin');
+    cover.style.transition = 'opacity 0.18s ease-out';
+    // 인라인 opacity:1 을 직접 0으로 내림 — 인라인이 .cover-out 클래스(opacity:0)를 이겨서
+    // 클래스만 추가하면 흰 화면이 안 걷히는 버그가 있었음
+    cover.style.opacity = '0';
+    cover.classList.add('cover-out');
+    setTimeout(() => { cover.style.display = 'none'; }, 200);
+  };
+
+  try {
+    const p = getProject(projectId);
+    if (p) { p.orient = mode; updateProject(p); }
+    currentOrient = mode;
+
+    await _applyOrientLock(mode); // 기기 실제 회전 요청이 반영될 시간 확보
+    renderProjectView(projectId); // 레이아웃 재빌드는 가림막 뒤에서 진행
+  } finally {
+    // 회전 애니메이션이 실제로 끝날 여유시간 확보 후 가림막 제거
+    setTimeout(hideCover, 450);
+  }
 }
 
 function getGlobalSlotIndex(project, lineId, dataIdx) {
@@ -1299,7 +1376,7 @@ function renderProjectView(projectId) {
     colToggle.appendChild(btn);
   });
 
-  // ── 1행: [좌] 1마디/½마디 | [우] 공유하기 · 완료/편집 · [삭제] ──
+  // ── 1행: [좌] 1마디/½마디 | [우, 편집모드] 삭제 · 공유하기 · 완료/편집 ──
   const headerRow1 = document.createElement('div');
   headerRow1.className = 'project-header-row1';
 
@@ -1310,15 +1387,15 @@ function renderProjectView(projectId) {
 
   const row1Right = document.createElement('div');
   row1Right.className = 'project-header-row1-right';
-  row1Right.appendChild(shareBtn);
-  row1Right.appendChild(modeBtn);
   if (isEditMode) {
     const deleteProjectBtn = document.createElement('button');
     deleteProjectBtn.className = 'project-icon-btn project-icon-btn--danger';
-    deleteProjectBtn.innerHTML = '<i data-lucide="x"></i>';
+    deleteProjectBtn.innerHTML = '<i data-lucide="trash-2"></i>';
     deleteProjectBtn.onclick = () => openDeleteConfirm(projectId);
     row1Right.appendChild(deleteProjectBtn);
   }
+  row1Right.appendChild(shareBtn);
+  row1Right.appendChild(modeBtn);
 
   // ── 2행: [코드슬롯 토글 왼쪽] ... [Capo BPM 메트로놈 재생 오른쪽] ──
   const headerRow2 = document.createElement('div');
@@ -1443,14 +1520,13 @@ function renderProjectView(projectId) {
 
   titleBar.appendChild(nameInput);
 
-  // ── 고정 헤더 영역 ──
-  const chordPalette = buildChordPalette(project, isEditMode);
+  // ── 고정 헤더 영역 ── (팔레트는 편집 모드에서만 필요)
   const stickyBar = document.createElement('header');
   stickyBar.className = 'project-sticky-bar';
   stickyBar.style.maxWidth = maxW;
   stickyBar.appendChild(titleBar);
   stickyBar.appendChild(header);
-  stickyBar.appendChild(chordPalette);
+  if (isEditMode) stickyBar.appendChild(buildChordPalette(project, isEditMode));
 
   // ── 스크롤 콘텐츠 영역 ──
   const linesEl = buildLinesSection(project, isEditMode);
@@ -2624,7 +2700,7 @@ function createPaletteItem(chord, idx, projectId, editMode = true) {
     if (mouseDragged) return;
     if (editMode) {
       _saveEditReturnState(projectId);
-      await stopPlayAll(false, { wait: true });
+      await stopPlayAll({ wait: true });
       const _shell = document.querySelector('.app-shell');
       if (_shell) {
         _shell.classList.add('project-exit');
@@ -2851,7 +2927,7 @@ async function paletteDictToEditor() {
   const projectId = _pdProjectId;
   _saveEditReturnState(projectId);
   closePaletteDictionary();
-  await stopPlayAll(false, { wait: true });
+  await stopPlayAll({ wait: true });
   const _shell = document.querySelector('.app-shell');
   if (_shell) {
     _shell.classList.add('project-exit');
@@ -3222,7 +3298,7 @@ async function deleteProject(projectId) {
   projects = projects.filter(p => p.id !== projectId);
   saveProjects(projects);
   renderSidebar();
-  await stopPlayAll(false, { wait: true });
+  await stopPlayAll({ wait: true });
   location.href = 'home.html?tab=projects';
 }
 
@@ -3518,7 +3594,7 @@ function onAuthSignedIn() {
 // ═══════════════════════════════════════════════════════════════
 // ─── 프로젝트 페이지 닫기 (슬라이드다운 애니메이션) ──────────────
 async function closeProjectPage() {
-  await stopPlayAll(false, { wait: true });
+  await stopPlayAll({ wait: true });
   const shell = document.querySelector('.app-shell');
   if (shell) {
     shell.classList.add('project-exit');
@@ -3543,17 +3619,6 @@ document.addEventListener('DOMContentLoaded', async () => {
   renderPlanBadge();
   lucide.createIcons();
   initAppVersion();
-
-  // ── 페이지 커버 제거 (project-enter 슬라이드와 동시에 fade-out) ──
-  {
-    const _cover = document.getElementById('page-cover');
-    if (_cover) {
-      requestAnimationFrame(() => {
-        _cover.classList.add('cover-out');
-        setTimeout(() => { _cover.style.display = 'none'; }, 200);
-      });
-    }
-  }
 
   // 뒤로가기 버튼 항상 표시 (프로젝트 목록으로 이동)
   const _backBtn = document.getElementById('back-btn');
@@ -3581,7 +3646,19 @@ document.addEventListener('DOMContentLoaded', async () => {
     sessionStorage.removeItem('np_edit_return');
     const _vp = document.getElementById('view-project');
     if (_vp) _vp.innerHTML = '<div class="project-loading-spinner"></div>';
-    setTimeout(() => renderProjectView(projectIdParam), 200);
+
+    // 가로모드로 저장된 노트는 renderProjectView 안에서 실제 기기 회전이 걸리므로
+    // 그 회전이 끝날 때까지 page-cover를 유지 — 그 전에 걷으면 회전 과정이 노출됨
+    const _needsRotate = getProject(projectIdParam)?.orient === 'landscape';
+    const _cover = document.getElementById('page-cover');
+    setTimeout(() => {
+      renderProjectView(projectIdParam);
+      setTimeout(() => {
+        if (!_cover) return;
+        _cover.classList.add('cover-out');
+        setTimeout(() => { _cover.style.display = 'none'; }, 200);
+      }, _needsRotate ? 450 : 0);
+    }, 200);
   } else {
     // id 없이 접근한 경우 홈으로 리다이렉트
     location.href = 'home.html';

@@ -131,6 +131,21 @@ body {
 #page-cover.cover-out {
   opacity: 0;
 }
+/* 세로/가로 전환 중: 조작 차단 + 스피너 표시 (회전·재렌더로 화면 깨지는 구간을 가림) */
+#page-cover.page-cover--spin {
+  pointer-events: auto;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.page-cover-spinner {
+  width: 32px;
+  height: 32px;
+  border: 3px solid rgba(44,44,44,0.12);
+  border-top-color: #2C2C2C;
+  border-radius: 50%;
+  animation: project-spin 0.7s linear infinite;
+}
 
 /* ── 사이드바 ── */
 .sidebar {
@@ -1718,8 +1733,13 @@ canvas {
   flex-shrink: 0;
   display: flex;
   align-items: center;
-  padding: 0;
+  padding: 20px 0 0;
 }
+/* 가로모드: 타이틀바 상단 패딩 대신 project-inner 상단에 패딩 */
+.app-shell.app-land .project-title-bar { padding-top: 0; }
+.app-shell.app-land .project-inner { padding-top: 0; }
+/* 가로모드: 흰색 라운드 컨테이너(#view-project) 상단이 떠 보이도록 여백 */
+.app-shell.app-land #view-project { margin-top: 20px; }
 
 .project-title-bar .project-name-input {
   font-size: 20px;
@@ -2019,20 +2039,19 @@ canvas {
 
 /* 전체재생 중 현재 슬롯 강조 */
 /* 재생 강조: 좌→우 스윕하는 파란 막대 (지속시간은 JS가 --sweep-dur로 주입) */
-.chord-slot--playing::after {
-  content: '';
+/* 재생 막대: 슬롯 단위가 아니라 줄(chord-area) 전체를 가로질러 한 번에 스윕 → 슬롯 경계에서 끊기지 않음 */
+.row-playhead {
   position: absolute;
   top: 0;
   bottom: 0;
-  left: 0;
   width: 2px;
   background: rgba(21, 101, 192, 0.4);
   z-index: 5;
   pointer-events: none;
-  animation: slot-sweep var(--sweep-dur, 2000ms) linear forwards;
+  animation: row-sweep var(--sweep-dur, 2000ms) linear forwards;
 }
-@keyframes slot-sweep {
-  from { left: 0; }
+@keyframes row-sweep {
+  from { left: var(--sweep-start, 0%); }
   to   { left: calc(100% - 2px); }
 }
 
@@ -2052,6 +2071,7 @@ canvas {
 }
 .chord-palette::-webkit-scrollbar { display: none; }
 .chord-palette.edit-mode { overflow-x: hidden; }
+.chord-palette.edit-mode.pal-land { padding-bottom: 4px; }
 .chord-palette:not(.edit-mode) {
   border-bottom: 1px solid #ECECEA;
   margin-bottom: 0;
@@ -2193,6 +2213,7 @@ canvas {
 
 /* ── 코드 영역 ── */
 .chord-area {
+  position: relative; /* 재생 막대(.row-playhead) 기준 레이어 */
   display: grid;
   gap: 4px;
   margin-bottom: 6px;
@@ -2367,6 +2388,7 @@ canvas {
 
 .line-text {
   outline: none;
+  font-size: 14px;
   min-height: 1.4em;
   white-space: pre-wrap;
   word-break: break-word;
@@ -3345,6 +3367,80 @@ canvas {
   margin-top: 6px;
   width: 100%;
   justify-content: center;
+}
+
+/* 세로/가로 전환 확인 모달 */
+.orient-confirm-modal {
+  background: #ffffff;
+  border-radius: var(--radius);
+  width: 260px;
+  max-width: 90vw;
+  padding: 24px 20px;
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 16px;
+}
+.orient-confirm-title {
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--text-primary);
+}
+.orient-confirm-actions {
+  display: flex;
+  gap: 8px;
+  width: 100%;
+  justify-content: center;
+}
+.orient-confirm-preview {
+  display: flex;
+  justify-content: center;
+  gap: 10px;
+  width: 100%;
+}
+.orient-confirm-box {
+  flex: 1;
+  aspect-ratio: 1 / 1;
+  background: var(--bg);
+  border-radius: 12px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  padding: 8px;
+  box-sizing: border-box;
+  text-align: center;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+.orient-confirm-box-icon {
+  width: 28px;
+  height: 28px;
+  color: var(--text-secondary);
+}
+.orient-confirm-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.orient-confirm-list li {
+  font-size: 13px;
+  color: var(--text-secondary);
+  line-height: 1.5;
+  padding-left: 14px;
+  position: relative;
+}
+.orient-confirm-list li::before {
+  content: '·';
+  position: absolute;
+  left: 2px;
 }
 
 .upgrade-modal { max-width: 320px; }

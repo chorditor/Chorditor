@@ -155,6 +155,27 @@
     </div>
   </div>
 
+  <!-- ── 모달: 세로/가로 전환 확인 ── -->
+  <div class="modal-overlay hidden" id="orient-confirm-overlay" onclick="closeOrientConfirm()">
+    <div class="orient-confirm-modal" onclick="event.stopPropagation()">
+      <h3 class="orient-confirm-title" id="orient-confirm-title"></h3>
+      <div class="orient-confirm-preview">
+        <div class="orient-confirm-box">
+          <i data-lucide="layout-grid" class="orient-confirm-box-icon"></i>
+          <span id="orient-confirm-box1-line1"></span>
+        </div>
+        <div class="orient-confirm-box">
+          <i data-lucide="metronome" class="orient-confirm-box-icon"></i>
+          <span id="orient-confirm-box2-line1"></span>
+        </div>
+      </div>
+      <div class="orient-confirm-actions">
+        <button class="btn btn-ghost" onclick="closeOrientConfirm()">취소</button>
+        <button class="btn btn-primary" id="orient-confirm-btn">전환</button>
+      </div>
+    </div>
+  </div>
+
   <!-- ── 모달: 업그레이드 유도 ── -->
   <div class="modal-overlay hidden" id="upgrade-modal-overlay" onclick="closeUpgradeModal()">
     <div class="modal upgrade-modal" onclick="event.stopPropagation()">
