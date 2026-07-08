@@ -166,7 +166,155 @@ function loadProjects() {
 }
 
 function saveProjects(projects) {
+  const prevIds = loadProjects().map(p => p.id); // 덮어쓰기 전에 캡처 — 삭제분 DB 반영용
   safeSave('chorditor_projects', JSON.stringify(projects));
+  _syncProjectsToDB(projects, prevIds).catch(() => {}); // 비동기 백그라운드, 로컬 흐름은 그대로 동기
+}
+
+// ── 프로젝트 DB 백업 미러 + 공유 코드 ───────────────────────────
+// 로컬(localStorage)이 계속 source of truth. 저장될 때마다 조용히 DB에 따라가서,
+// 앱을 지워도 로그인만 하면 프로젝트(가사 포함)가 복구되게 함.
+// 읽기 경로(loadProjects 등)는 그대로 로컬 — 앱 흐름/기존 호출부 수정 없음.
+function _authSessionSync() {
+  try {
+    const stored = localStorage.getItem(SUPABASE_STORAGE_KEY);
+    if (!stored) return null;
+    const s = JSON.parse(stored);
+    return (s?.access_token && s?.user?.id) ? s : null;
+  } catch (e) { return null; }
+}
+
+async function _syncProjectsToDB(projects, prevIds) {
+  const session = _authSessionSync();
+  if (!session) return; // 비로그인 — 로컬 전용으로 계속 동작
+  const headers = {
+    'Content-Type': 'application/json',
+    apikey: SUPABASE_ANON,
+    Authorization: 'Bearer ' + session.access_token,
+  };
+  const newIds = new Set(projects.map(p => p.id));
+  const removedIds = (prevIds || []).filter(id => !newIds.has(id));
+  try {
+    if (removedIds.length) {
+      await fetch(`${SUPABASE_URL}/rest/v1/projects?project_id=in.(${removedIds.join(',')})`, {
+        method: 'DELETE', headers,
+      });
+    }
+    if (projects.length) {
+      // code/payload는 여기서 안 보냄 — "공유하기"에서만 채움. 미포함 컬럼은 업서트 시 그대로 유지됨.
+      const rows = projects.map(p => ({
+        project_id: p.id,
+        user_id: session.user.id,
+        title: p.name || '',
+        content: p,
+        pinned: !!p.pinned,
+        important: !!p.important,
+        updated_at: new Date().toISOString(),
+      }));
+      await fetch(`${SUPABASE_URL}/rest/v1/projects?on_conflict=project_id`, {
+        method: 'POST',
+        headers: { ...headers, Prefer: 'resolution=merge-duplicates,return=minimal' },
+        body: JSON.stringify(rows),
+      });
+    }
+  } catch (e) { /* 오프라인 등 — 다음 저장 때 다시 시도됨 */ }
+}
+
+const SHARE_CODE_CHARS = '0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz';
+const SHARE_CODE16_RE  = /^[0-9A-Za-z]{16}$/;
+function _genShareCode16() {
+  const bytes = new Uint8Array(16);
+  crypto.getRandomValues(bytes);
+  return Array.from(bytes, b => SHARE_CODE_CHARS[b % 62]).join('');
+}
+
+// 프로젝트당 공유 코드 1개 고정 — project.shareCode 있으면 재사용(payload만 최신화),
+// 없으면 새로 발급. payloadStr은 호출측 buildSharePayload(project) 결과를 그대로 전달.
+async function getOrCreateShareCode(project, payloadStr) {
+  const session = _authSessionSync();
+  if (!session) return null; // 공유 DB는 소유자 upsert라 로그인 필요 — 없으면 호출측에서 폴백
+  const headers = {
+    'Content-Type': 'application/json',
+    apikey: SUPABASE_ANON,
+    Authorization: 'Bearer ' + session.access_token,
+  };
+  const payload = JSON.parse(payloadStr);
+  const upsertWithCode = async code => {
+    const body = [{
+      project_id: project.id,
+      user_id: session.user.id,
+      title: project.name || '',
+      content: project,
+      code,
+      payload,
+      pinned: !!project.pinned,
+      important: !!project.important,
+      updated_at: new Date().toISOString(),
+    }];
+    const res = await fetch(`${SUPABASE_URL}/rest/v1/projects?on_conflict=project_id`, {
+      method: 'POST',
+      headers: { ...headers, Prefer: 'resolution=merge-duplicates,return=minimal' },
+      body: JSON.stringify(body),
+    });
+    return res.ok;
+  };
+  try {
+    if (project.shareCode) {
+      return (await upsertWithCode(project.shareCode)) ? project.shareCode : null;
+    }
+    for (let i = 0; i < 5; i++) { // code unique 충돌 시 재시도(사실상 발생 거의 안 함)
+      const code = _genShareCode16();
+      if (await upsertWithCode(code)) return code;
+    }
+    return null;
+  } catch (e) { return null; }
+}
+
+// code로 공유 payload만 조회 (RLS 우회 RPC — 로그인 여부 무관하게 실행 가능)
+async function _fetchSharedPayload(code) {
+  try {
+    const res = await fetch(`${SUPABASE_URL}/rest/v1/rpc/get_shared_payload`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', apikey: SUPABASE_ANON, Authorization: 'Bearer ' + SUPABASE_ANON },
+      body: JSON.stringify({ p_code: code }),
+    });
+    if (!res.ok) return null;
+    const payload = await res.json();
+    if (!payload) return null;
+    return (payload.v === 1 || payload.v === 2) ? payload : null;
+  } catch (e) { return null; }
+}
+
+// 로그인 시 로컬↔DB 병합: DB에만 있는 프로젝트(재설치/새 기기)는 로컬로 복구,
+// 로컬에만 있는 프로젝트(아직 한 번도 동기화 안 됨)는 DB로 업로드.
+async function syncProjectsOnLogin() {
+  const session = _authSessionSync();
+  if (!session) return;
+  const headers = { apikey: SUPABASE_ANON, Authorization: 'Bearer ' + session.access_token };
+  try {
+    const res = await fetch(
+      `${SUPABASE_URL}/rest/v1/projects?user_id=eq.${session.user.id}&select=project_id,content`,
+      { headers }
+    );
+    if (!res.ok) return;
+    const rows = await res.json();
+    const local = loadProjects();
+    const localIds = new Set(local.map(p => p.id));
+    const dbIds = new Set(rows.map(r => r.project_id));
+
+    let changed = false;
+    rows.forEach(r => {
+      if (!localIds.has(r.project_id) && r.content) { local.push(r.content); changed = true; }
+    });
+    if (changed) {
+      safeSave('chorditor_projects', JSON.stringify(local));
+      // 재설치 등으로 DB에서 새로 복구된 프로젝트가 있으면 목록 화면 갱신
+      if (typeof renderSidebar === 'function') renderSidebar();
+    }
+
+    const missingInDb = local.filter(p => !dbIds.has(p.id));
+    if (missingInDb.length) await _syncProjectsToDB(missingInDb, []);
+  } catch (e) { /* 무시 — 다음 로그인 때 재시도 */ }
 }
 
 // ── 플랜 관리 ─────────────────────────────────────────────────
@@ -484,6 +632,24 @@ function openPlayStore() {
   } else {
     window.open(url, '_blank');
   }
+}
+
+// ── 앱 자체 공유(초대) ──────────────────────────────────────────
+async function shareApp() {
+  const url = 'https://play.google.com/store/apps/details?id=com.chorditor.app';
+  const text = 'Chorditor로 코드 진행을 만들고 연습해보세요!';
+  const Share = window.Capacitor?.Plugins?.Share;
+  try {
+    if (Share) {
+      await Share.share({ title: 'Chorditor', text, url });
+    } else if (navigator.share) {
+      await navigator.share({ title: 'Chorditor', text, url });
+    } else if (navigator.clipboard) {
+      await navigator.clipboard.writeText(text + ' ' + url);
+      if (typeof showTextToast === 'function') showTextToast('링크 복사됨!');
+    }
+    analytics.track('share_initiated', { type: 'app' });
+  } catch (e) { /* 사용자가 공유 취소한 경우 등 — 무시 */ }
 }
 
 // ── RevenueCat (인앱 결제) ─────────────────────────────────────

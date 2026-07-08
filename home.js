@@ -3716,6 +3716,10 @@ async function fromBase64urlZ(b64url) {
   }
 }
 
+// ── DB 기반 공유(신규): 프로젝트당 코드 1개 고정, payload는 projects 테이블에 저장.
+// 공용 로직(코드 생성/조회, DB 미러링)은 shared.js에 있음(getOrCreateShareCode, _fetchSharedPayload).
+// 오프라인 base64 URL 방식(구)은 하위호환으로 계속 지원 — DB 접근 실패 시에만 폴백.
+
 function buildSharePayload(project) {
   const idToIdx = {};
   project.chords.forEach((c, i) => idToIdx[c.id] = i);
@@ -3735,11 +3739,20 @@ function buildSharePayload(project) {
 async function generateShareCode(project) {
   return await toBase64urlZ(buildSharePayload(project));
 }
-async function generateShareUrl(project) {
-  return 'https://chorditor.github.io/Chorditor/share/?share=' + await toBase64urlZ(buildSharePayload(project));
-}
-
 async function parseShareCode(raw) {
+  raw = raw.trim();
+  // 신규 DB 방식: URL의 ?c= 파라미터
+  if (raw.includes('?c=')) {
+    try {
+      const code = new URL(raw).searchParams.get('c');
+      if (code) { const p = await _fetchSharedPayload(code); if (p) return p; }
+    } catch (e) {}
+  }
+  // 신규 DB 방식: 16자 코드 그대로 붙여넣기 (DB에 없으면 아래 legacy 경로로 계속 시도)
+  if (SHARE_CODE16_RE.test(raw)) {
+    const p = await _fetchSharedPayload(raw);
+    if (p) return p;
+  }
   let b64;
   // legacy prefix 지원 (이전에 생성된 공유 코드 호환)
   if (raw.startsWith('chorditor:v2:')) b64 = raw.slice(13).trim();
@@ -3763,35 +3776,27 @@ async function parseShareCode(raw) {
 async function openShareModal(projectId) {
   const project = getProject(projectId);
   if (!project) return;
-  const code    = await generateShareCode(project);
-  const fullUrl = await generateShareUrl(project);
-  const codeEl     = document.getElementById('share-code-input');
-  const urlEl      = document.getElementById('share-url-input');
-  const urlCopyBtn = document.getElementById('share-url-copy-btn');
-  // 공유 코드: 앞 20자 + … + 뒤 6자 (복사용 전체값은 data-full에 보관)
+  const codeEl = document.getElementById('share-code-input');
+  codeEl.value        = '코드 생성 중…';
+  codeEl.dataset.full = '';
+  document.getElementById('modal-share').classList.remove('hidden');
+  lucide.createIcons();
+
+  // DB 방식(신규): 프로젝트당 코드 1개 고정 — 있으면 재사용(payload만 최신화), 없으면 새로 발급
+  const payloadStr = buildSharePayload(project);
+  const dbCode = await getOrCreateShareCode(project, payloadStr);
+  if (dbCode) {
+    if (project.shareCode !== dbCode) { project.shareCode = dbCode; updateProject(project); }
+    codeEl.value = dbCode;
+    codeEl.dataset.full = dbCode;
+    return;
+  }
+
+  // DB 저장 실패(오프라인 등) 시에만 기존 base64 payload 코드로 폴백 (길 수 있어 표시만 축약)
+  const code = await generateShareCode(project);
   const shorten = s => s.length > 30 ? s.slice(0, 20) + '…' + s.slice(-6) : s;
   codeEl.value        = shorten(code);
   codeEl.dataset.full = code;
-  // URL 필드: 로딩 중 표시 후 is.gd 단축 URL로 교체
-  urlEl.value         = '단축 링크 생성 중…';
-  urlEl.dataset.full  = fullUrl;   // fallback용 미리 저장
-  urlCopyBtn.disabled = true;
-  document.getElementById('modal-share').classList.remove('hidden');
-  lucide.createIcons();
-  // is.gd API 호출
-  try {
-    const res  = await fetch('https://is.gd/create.php?format=simple&url=' + encodeURIComponent(fullUrl));
-    const text = (await res.text()).trim();
-    if (text.startsWith('ERROR') || !text.startsWith('http')) throw new Error(text);
-    urlEl.value        = text;   // 예: https://is.gd/aBcDeF (~21자)
-    urlEl.dataset.full = text;   // 단축 URL 자체를 복사 대상으로
-  } catch (e) {
-    // API 실패 시 전체 URL 단축 표시로 fallback
-    urlEl.value        = shorten(fullUrl);
-    urlEl.dataset.full = fullUrl;
-  } finally {
-    urlCopyBtn.disabled = false;
-  }
 }
 function _fallbackCopy(text) {
   const ta = Object.assign(document.createElement('textarea'), { value: text });
@@ -3809,15 +3814,6 @@ async function copyShareCode() {
   _flashBtn('share-code-copy-btn', '복사됨!');
   incrementStat('shares');
   analytics.track('share_initiated', { type: 'code' });
-}
-async function copyShareUrl() {
-  const el = document.getElementById('share-url-input');
-  const val = el.dataset.full || el.value;
-  if (navigator.clipboard) await navigator.clipboard.writeText(val).catch(() => _fallbackCopy(val));
-  else _fallbackCopy(val);
-  _flashBtn('share-url-copy-btn', '복사됨!');
-  incrementStat('shares');
-  analytics.track('share_initiated', { type: 'url' });
 }
 
 let _pendingImportPayload = null;
@@ -4124,8 +4120,9 @@ document.addEventListener('DOMContentLoaded', async () => {
   document.getElementById('create-project-name-input')
     ?.addEventListener('keydown', e => { if (e.key === 'Enter') confirmCreateProject(); });
 
-  // URL share 파라미터 처리
-  const shareParam = new URLSearchParams(location.search).get('share');
+  // URL share 파라미터 처리 (구: ?share=<base64 payload>, 신: ?c=<DB 16자 코드>)
+  const _shareUrlParams = new URLSearchParams(location.search);
+  const shareParam = _shareUrlParams.get('share') || _shareUrlParams.get('c');
   if (shareParam) {
     history.replaceState(null, '', location.pathname);
     parseShareCode(shareParam).then(payload => {
@@ -4159,6 +4156,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       analytics.track('app_open', { platform: 'android', project_count: loadProjects().length });
       analytics.setScreen('home');
       analytics.track('screen_view', { view: 'home' }); // 홈 화면 진입 명시 기록
+      syncProjectsOnLogin().catch(() => {}); // 재설치 등 DB 백업 복구 + 로컬 전용 업로드
       loadProfileFromDB();
       _billingReady.then(async () => {
         if (window._RC) await window._RC.logIn({ appUserID: session.user.id }).catch(() => {});
@@ -4187,6 +4185,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   analytics.track('app_open', { platform: 'web', project_count: loadProjects().length });
   analytics.setScreen('home');
   analytics.track('screen_view', { view: 'home' }); // 홈 화면 진입 명시 기록
+  syncProjectsOnLogin().catch(() => {}); // 재설치 등 DB 백업 복구 + 로컬 전용 업로드
   setTimeout(() => checkAndShowNotice(), 1000);
 });
 

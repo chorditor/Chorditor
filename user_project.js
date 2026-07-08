@@ -1037,17 +1037,32 @@ function scheduleMetronome() {
   metronomeSchedulerTimeout = setTimeout(scheduleMetronome, 50);
 }
 
+// metronomeBeats 누적시간(ms)을 targetMs와 대조해 그 시점에 해당하는 박 인덱스를 찾음.
+// (줄마다 박 길이·박자가 다를 수 있어 고정 나눗셈이 아니라 누적합으로 계산)
+// targetMs가 박 중간(이미 진행 중인 박)이면 그 박은 건너뛰고 아직 시작 안 한 다음 박(미래 경계)을 반환
+// — 그대로 두면 이미 지난 시각으로 스케줄돼 늦게/어긋나게 울림.
+function _metronomeIndexAtMs(targetMs) {
+  let accMs = 0, idx = 0;
+  while (idx < metronomeBeats.length && accMs + metronomeBeats[idx].ms <= targetMs) {
+    accMs += metronomeBeats[idx].ms;
+    idx++;
+  }
+  if (idx < metronomeBeats.length && targetMs > accMs) {
+    accMs += metronomeBeats[idx].ms;
+    idx++;
+  }
+  return { idx, accMs };
+}
+
 function syncMetronomeToPlayback() {
-  // 재생 중이면 playbackStartAudioTime 기준 경과시간을 metronomeBeats 누적시간과 대조해 현재 박 위치를 찾음
-  // (줄마다 박 길이가 다를 수 있어 고정 나눗셈이 아니라 누적합으로 계산)
+  // 재생 중이면 playbackStartAudioTime 기준 경과시간을 조회해 현재 박 위치를 찾음.
+  // (메트로놈 on/off처럼 "지금 이 순간"에 재합류하는 경우 전용 — audioCtx.currentTime을 다시
+  //  읽어 경과시간을 역산하므로, 정확한 목표 지점을 이미 알고 있는 경우(줄 점프)엔 그 사이
+  //  await로 시간이 흘러 역산이 어긋날 수 있어 쓰지 않음 → playAll은 syncMetronomeToMs 사용)
   if (playbackActive && playbackStartAudioTime > 0) {
     const now = audioCtx.currentTime;
     const elapsedMs = Math.max(0, (now - playbackStartAudioTime) * 1000);
-    let accMs = 0, idx = 0;
-    while (idx < metronomeBeats.length && accMs + metronomeBeats[idx].ms <= elapsedMs) {
-      accMs += metronomeBeats[idx].ms;
-      idx++;
-    }
+    const { idx, accMs } = _metronomeIndexAtMs(elapsedMs);
     metronomeBeatCount = idx;
     metronomeNextBeatTime = playbackStartAudioTime + accMs / 1000;
   } else {
@@ -1056,11 +1071,23 @@ function syncMetronomeToPlayback() {
   }
 }
 
-async function startMetronome(synced = false) {
+// 줄 점프(playAll) 전용 재동기화 — audioCtx.currentTime을 다시 읽는 대신, 이미 정확히 계산된
+// targetMs(elapsedMsAtStart)를 그대로 써서 목표 줄의 박자/펄스로 확실히 전환되게 함.
+// (시계 재역산 방식은 그 사이 await로 시간이 흘러버리면 이전 줄의 박에 걸려 새 박자(예: 6/8)로
+//  안 바뀌고 이전 박자(4/4) 그대로 재생되는 버그가 있었음)
+function syncMetronomeToMs(targetMs) {
+  const { idx, accMs } = _metronomeIndexAtMs(targetMs);
+  metronomeBeatCount = idx;
+  metronomeNextBeatTime = playbackStartAudioTime + accMs / 1000;
+}
+
+async function startMetronome(synced = false, targetMs = null) {
   if (!audioCtx) audioCtx = new AudioCtx();
   if (audioCtx.state === 'suspended') await audioCtx.resume();
   if (metronomeSchedulerTimeout) { clearTimeout(metronomeSchedulerTimeout); metronomeSchedulerTimeout = null; }
-  if (synced) {
+  if (targetMs !== null) {
+    syncMetronomeToMs(targetMs);
+  } else if (synced) {
     syncMetronomeToPlayback();
   } else {
     metronomeBeatCount = 0;
@@ -1166,8 +1193,10 @@ async function playAll(projectId, startIndex = 0) {
   const btn = document.getElementById('play-all-btn');
   if (btn) { btn.innerHTML = '<i data-lucide="square"></i>'; lucide.createIcons(); }
 
-  // 메트로놈이 켜져 있으면 재생 기준으로 재동기화 (메트로놈은 노트 전역 BPM 기준 — 줄별 BPM/박자는 미반영)
-  if (metronomeActive) await startMetronome(true);
+  // 메트로놈이 켜져 있으면 이번 재생 시작 지점(elapsedMsAtStart)에 맞춰 재동기화.
+  // 줄마다 박자/BPM이 달라도 metronomeBeats가 줄별로 이미 반영돼 있으므로,
+  // 시계 재역산 대신 elapsedMsAtStart를 그대로 넘겨 목표 줄의 박자로 확실히 전환되게 함.
+  if (metronomeActive) await startMetronome(false, elapsedMsAtStart);
 
   // 드리프트 방지: startIndex 슬롯이 재생됐어야 할 절대 기준 시각
   const refWallTime = performance.now() - elapsedMsAtStart;
@@ -3787,6 +3816,10 @@ async function fromBase64urlZ(b64url) {
   }
 }
 
+// ── DB 기반 공유(신규): 프로젝트당 코드 1개 고정, payload는 projects 테이블에 저장.
+// 공용 로직(코드 생성/조회, DB 미러링)은 shared.js에 있음(getOrCreateShareCode, _fetchSharedPayload).
+// 오프라인 base64 URL 방식(구)은 하위호환으로 계속 지원 — DB 접근 실패 시에만 폴백.
+
 function buildSharePayload(project) {
   const idToIdx = {};
   project.chords.forEach((c, i) => idToIdx[c.id] = i);
@@ -3806,11 +3839,21 @@ function buildSharePayload(project) {
 async function generateShareCode(project) {
   return await toBase64urlZ(buildSharePayload(project));
 }
-async function generateShareUrl(project) {
-  return 'https://chorditor.github.io/Chorditor/share/?share=' + await toBase64urlZ(buildSharePayload(project));
-}
 
 async function parseShareCode(raw) {
+  raw = raw.trim();
+  // 신규 DB 방식: URL의 ?c= 파라미터
+  if (raw.includes('?c=')) {
+    try {
+      const code = new URL(raw).searchParams.get('c');
+      if (code) { const p = await _fetchSharedPayload(code); if (p) return p; }
+    } catch (e) {}
+  }
+  // 신규 DB 방식: 16자 코드 그대로 붙여넣기 (DB에 없으면 아래 legacy 경로로 계속 시도)
+  if (SHARE_CODE16_RE.test(raw)) {
+    const p = await _fetchSharedPayload(raw);
+    if (p) return p;
+  }
   let b64;
   // legacy prefix 지원 (이전에 생성된 공유 코드 호환)
   if (raw.startsWith('chorditor:v2:')) b64 = raw.slice(13).trim();
@@ -3834,35 +3877,27 @@ async function parseShareCode(raw) {
 async function openShareModal(projectId) {
   const project = getProject(projectId);
   if (!project) return;
-  const code    = await generateShareCode(project);
-  const fullUrl = await generateShareUrl(project);
-  const codeEl     = document.getElementById('share-code-input');
-  const urlEl      = document.getElementById('share-url-input');
-  const urlCopyBtn = document.getElementById('share-url-copy-btn');
-  // 공유 코드: 앞 20자 + … + 뒤 6자 (복사용 전체값은 data-full에 보관)
+  const codeEl = document.getElementById('share-code-input');
+  codeEl.value        = '코드 생성 중…';
+  codeEl.dataset.full = '';
+  document.getElementById('modal-share').classList.remove('hidden');
+  lucide.createIcons();
+
+  // DB 방식(신규): 프로젝트당 코드 1개 고정 — 있으면 재사용(payload만 최신화), 없으면 새로 발급
+  const payloadStr = buildSharePayload(project);
+  const dbCode = await getOrCreateShareCode(project, payloadStr);
+  if (dbCode) {
+    if (project.shareCode !== dbCode) { project.shareCode = dbCode; updateProject(project); }
+    codeEl.value = dbCode;
+    codeEl.dataset.full = dbCode;
+    return;
+  }
+
+  // DB 저장 실패(오프라인 등) 시에만 기존 base64 payload 코드로 폴백 (길 수 있어 표시만 축약)
+  const code = await generateShareCode(project);
   const shorten = s => s.length > 30 ? s.slice(0, 20) + '…' + s.slice(-6) : s;
   codeEl.value        = shorten(code);
   codeEl.dataset.full = code;
-  // URL 필드: 로딩 중 표시 후 is.gd 단축 URL로 교체
-  urlEl.value         = '단축 링크 생성 중…';
-  urlEl.dataset.full  = fullUrl;   // fallback용 미리 저장
-  urlCopyBtn.disabled = true;
-  document.getElementById('modal-share').classList.remove('hidden');
-  lucide.createIcons();
-  // is.gd API 호출
-  try {
-    const res  = await fetch('https://is.gd/create.php?format=simple&url=' + encodeURIComponent(fullUrl));
-    const text = (await res.text()).trim();
-    if (text.startsWith('ERROR') || !text.startsWith('http')) throw new Error(text);
-    urlEl.value        = text;   // 예: https://is.gd/aBcDeF (~21자)
-    urlEl.dataset.full = text;   // 단축 URL 자체를 복사 대상으로
-  } catch (e) {
-    // API 실패 시 전체 URL 단축 표시로 fallback
-    urlEl.value        = shorten(fullUrl);
-    urlEl.dataset.full = fullUrl;
-  } finally {
-    urlCopyBtn.disabled = false;
-  }
 }
 function _fallbackCopy(text) {
   const ta = Object.assign(document.createElement('textarea'), { value: text });
@@ -3880,15 +3915,6 @@ async function copyShareCode() {
   _flashBtn('share-code-copy-btn', '복사됨!');
   incrementStat('shares');
   analytics.track('share_initiated', { type: 'code' });
-}
-async function copyShareUrl() {
-  const el = document.getElementById('share-url-input');
-  const val = el.dataset.full || el.value;
-  if (navigator.clipboard) await navigator.clipboard.writeText(val).catch(() => _fallbackCopy(val));
-  else _fallbackCopy(val);
-  _flashBtn('share-url-copy-btn', '복사됨!');
-  incrementStat('shares');
-  analytics.track('share_initiated', { type: 'url' });
 }
 
 let _pendingImportPayload = null;
@@ -4053,8 +4079,8 @@ document.addEventListener('DOMContentLoaded', async () => {
     return;
   }
 
-  // URL share 파라미터 처리
-  const shareParam = params.get('share');
+  // URL share 파라미터 처리 (구: ?share=<base64 payload>, 신: ?c=<DB 16자 코드>)
+  const shareParam = params.get('share') || params.get('c');
   if (shareParam) {
     history.replaceState(null, '', location.pathname);
     parseShareCode(shareParam).then(payload => {
