@@ -2789,7 +2789,7 @@ function _rowMenuAction(action) {
     saveAllLines(projectId, linesEl);
     lucide.createIcons();
     requestAnimationFrame(() => _syncLineTextWidths(linesEl));
-    newDiv.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+    // 복제된 줄은 맨 아래 추가되지만 편집 중이던 자리 유지 위해 자동 스크롤 안 함
 
   } else if (action === 'clear') {
     const line = p.arrangement.find(l => l.id === lineId);
@@ -2917,11 +2917,23 @@ function confirmRowMeterSave() {
   renderProjectView(projectId); // 슬롯 수·그리드·재생 타이밍이 전부 바뀌므로 전체 재렌더
 }
 
+// 아코디언 접기/펼치기 — 전체 리렌더 없이 body만 접어서 부드럽게 처리
+function togglePaletteCollapse(projectId) {
+  const p = getProject(projectId);
+  const nowHidden = !(p?.paletteHidden === true);
+  if (p) { p.paletteHidden = nowHidden; updateProject(p); }
+  const wrap = document.getElementById('palette-section-' + projectId);
+  if (wrap) wrap.classList.toggle('collapsed', nowHidden);
+}
+
 function buildChordPalette(project, editMode = true) {
-  // ── 섹션 래퍼 (팔레트 + 스크롤바) ──
-  const section = document.createElement('div');
-  section.className = 'palette-section';
-  section.id = 'palette-section-' + project.id;
+  // ── 섹션 래퍼: 항상 보이는 바깥 wrap(핸들 포함) + 접히는 안쪽 body(팔레트+스크롤바) ──
+  const wrap = document.createElement('div');
+  wrap.className = 'palette-section' + (project.paletteHidden === true ? ' collapsed' : '');
+  wrap.id = 'palette-section-' + project.id;
+
+  const body = document.createElement('div');
+  body.className = 'palette-collapse-body';
 
   // ── 팔레트 ──
   const chordPalette = document.createElement('div');
@@ -2950,7 +2962,7 @@ function buildChordPalette(project, editMode = true) {
     }
   }, { passive: false });
 
-  section.appendChild(chordPalette);
+  body.appendChild(chordPalette);
 
   // ── 스크롤바 (에딧모드에서만) ──
   if (editMode) {
@@ -2962,11 +2974,23 @@ function buildChordPalette(project, editMode = true) {
     dot.className = 'palette-scrollbar-dot';
     track.appendChild(dot);
     scrollbar.appendChild(track);
-    section.appendChild(scrollbar);
+    body.appendChild(scrollbar);
     requestAnimationFrame(() => initPaletteScrollbar(chordPalette, track, dot));
   }
 
-  return section;
+  // ── 아코디언 화살표 핸들 (편집 모드에서만) — body보다 먼저 붙여서 항상 팔레트 위쪽에 고정 ──
+  if (editMode) {
+    const handle = document.createElement('button');
+    handle.className = 'palette-collapse-handle';
+    handle.title = '코드 팔레트 접기/펼치기';
+    handle.innerHTML = '<i data-lucide="chevron-up"></i>';
+    handle.onclick = () => togglePaletteCollapse(project.id);
+    wrap.appendChild(handle);
+  }
+
+  wrap.appendChild(body);
+
+  return wrap;
 }
 
 function initPaletteScrollbar(palette, track, dot) {
@@ -3921,51 +3945,6 @@ async function copyShareCode() {
   analytics.track('share_initiated', { type: 'code' });
 }
 
-let _pendingImportPayload = null;
-
-function openImportModal(payload) {
-  _pendingImportPayload = payload;
-  document.getElementById('import-meta').textContent =
-    `BPM ${payload.bpm} · Capo ${payload.capo} · ${payload.col}칸 · 코드 ${payload.chords.length}개 · ${payload.arr.length}줄`;
-  const sel = document.getElementById('import-project-select');
-  sel.innerHTML = '<option value="">노트 선택…</option>';
-  loadProjects().forEach(p => {
-    sel.appendChild(Object.assign(document.createElement('option'), { value: p.id, textContent: p.name }));
-  });
-  document.getElementById('import-new-name').value = '';
-  document.getElementById('modal-import').classList.remove('hidden');
-  lucide.createIcons();
-}
-
-function confirmImport(mode) {
-  const payload = _pendingImportPayload; if (!payload) return;
-  const opts = {
-    applyBpm:  document.getElementById('import-apply-bpm').checked,
-    applyCapo: document.getElementById('import-apply-capo').checked,
-    applyCol:  document.getElementById('import-apply-col').checked,
-  };
-  let targetId;
-  if (mode === 'new') {
-    const name = document.getElementById('import-new-name').value.trim();
-    if (!name) { alert('노트 이름을 입력하세요.'); return; }
-    const p = { id: genId(), name, pinned: false, pinnedOrder: 0, important: false, importantOrder: 0, capo: 0, bpm: 120,
-                colCount: 4, createdAt: Date.now(), updatedAt: Date.now(), chords: [], arrangement: [] };
-    const list = loadProjects(); list.push(p); saveProjects(list); targetId = p.id;
-  } else {
-    targetId = document.getElementById('import-project-select').value;
-    if (!targetId) { alert('노트를 선택하세요.'); return; }
-  }
-  applyImportPayload(targetId, payload, opts);
-  closeModal('modal-import');
-  analytics.track('import_completed', {
-    chord_count: payload.chords?.length || 0,
-    target: mode === 'new' ? 'new_project' : 'existing_project',
-  });
-  _pendingImportPayload = null;
-  renderSidebar();
-  navigateTo('project', targetId);
-}
-
 function applyImportPayload(projectId, payload, opts) {
   const p = getProject(projectId); if (!p) return;
   if (opts.applyBpm)  p.bpm      = payload.bpm;
@@ -3995,12 +3974,23 @@ function applyImportPayload(projectId, payload, opts) {
 }
 
 
-// Android Activity → WebView 진입점
-window._handleShareImport = async function(rawCode) {
-  const payload = await parseShareCode(rawCode);
-  if (payload) openImportModal(payload);
-  else alert('공유 코드가 올바르지 않습니다.');
-};
+// 공유 링크로 들어온 코드 처리 — 모달 없이 바로 새 노트 생성 후 그 페이지로 이동.
+// shared.js의 window._handleShareImport(Android 딥링크)와 아래 ?share=/?c= URL 파라미터
+// 처리 둘 다 세션스토리지에 저장만 해두고 여기서 소비함(로그인 전 도착해도 로그인 후 자동 처리).
+async function _consumePendingShareCode() {
+  const raw = sessionStorage.getItem(PENDING_SHARE_CODE_KEY);
+  if (!raw) return;
+  sessionStorage.removeItem(PENDING_SHARE_CODE_KEY);
+  const payload = await parseShareCode(raw);
+  if (!payload) { alert('공유 코드가 올바르지 않습니다.'); return; }
+  const p = {
+    id: genId(), name: '공유받은 노트', pinned: false, pinnedOrder: 0, important: false, importantOrder: 0,
+    capo: 0, bpm: 120, colCount: 4, createdAt: Date.now(), updatedAt: Date.now(), chords: [], arrangement: [],
+  };
+  const list = loadProjects(); list.push(p); saveProjects(list);
+  applyImportPayload(p.id, payload, { applyBpm: true, applyCapo: true, applyCol: true });
+  location.href = 'user_project.html?id=' + p.id;
+}
 
 // ── OAuth 리다이렉트 후 처리 (웹 전용, shared.js에서 typeof 가드로 호출) ──
 function onAuthSignedIn() {
@@ -4084,13 +4074,12 @@ document.addEventListener('DOMContentLoaded', async () => {
   }
 
   // URL share 파라미터 처리 (구: ?share=<base64 payload>, 신: ?c=<DB 16자 코드>)
+  // 여기서 바로 파싱하지 않고 저장만 함 — 로그인 안 된 상태면 곧 onboarding.html로
+  // 리다이렉트될 수 있어서, 그 전에 파싱해봤자 결과가 버려짐. _consumePendingShareCode가 나중에 처리.
   const shareParam = params.get('share') || params.get('c');
   if (shareParam) {
     history.replaceState(null, '', location.pathname);
-    parseShareCode(shareParam).then(payload => {
-      if (payload) openImportModal(payload);
-      else alert('공유 코드가 올바르지 않습니다.');
-    });
+    sessionStorage.setItem(PENDING_SHARE_CODE_KEY, shareParam);
   }
 
   await initBilling();
@@ -4098,6 +4087,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   // ── DEV 빌드: 인증 체크 없이 바로 진입 ──────────────────────
   if (APP_VERSION.includes('_dev')) {
     initSupabase().catch(() => {});
+    _consumePendingShareCode();
     setTimeout(() => checkAndShowNotice(), 800);
     return;
   }
@@ -4116,6 +4106,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       _authReady = true;
       analytics.setUserId(session.user.id);
       analytics.track('app_open', { platform: 'android', project_count: loadProjects().length });
+      _consumePendingShareCode();
       _billingReady.then(async () => {
         if (window._RC) await window._RC.logIn({ appUserID: session.user.id }).catch(() => {});
         await syncPlanFromBilling();
@@ -4130,6 +4121,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   // ── 웹: Supabase 세션 복원 ───────────────────────────────────
   await initSupabase();
   analytics.track('app_open', { platform: 'web', project_count: loadProjects().length });
+  _consumePendingShareCode();
   setTimeout(() => checkAndShowNotice(), 1000);
 });
 

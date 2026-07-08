@@ -3913,12 +3913,23 @@ async function triggerManualImport() {
   openImportModal(payload);
 }
 
-// Android Activity → WebView 진입점
-window._handleShareImport = async function(rawCode) {
-  const payload = await parseShareCode(rawCode);
-  if (payload) openImportModal(payload);
-  else alert('공유 코드가 올바르지 않습니다.');
-};
+// 공유 링크로 들어온 코드 처리 — 모달 없이 바로 새 노트 생성 후 그 페이지로 이동.
+// shared.js의 window._handleShareImport(Android 딥링크)와 아래 ?share=/?c= URL 파라미터
+// 처리 둘 다 세션스토리지에 저장만 해두고 여기서 소비함(로그인 전 도착해도 로그인 후 자동 처리).
+async function _consumePendingShareCode() {
+  const raw = sessionStorage.getItem(PENDING_SHARE_CODE_KEY);
+  if (!raw) return;
+  sessionStorage.removeItem(PENDING_SHARE_CODE_KEY);
+  const payload = await parseShareCode(raw);
+  if (!payload) { alert('공유 코드가 올바르지 않습니다.'); return; }
+  const p = {
+    id: genId(), name: '공유받은 노트', pinned: false, pinnedOrder: 0, important: false, importantOrder: 0,
+    capo: 0, bpm: 120, colCount: 4, createdAt: Date.now(), updatedAt: Date.now(), chords: [], arrangement: [],
+  };
+  const list = loadProjects(); list.push(p); saveProjects(list);
+  applyImportPayload(p.id, payload, { applyBpm: true, applyCapo: true, applyCol: true });
+  location.href = 'user_project.html?id=' + p.id;
+}
 
 // ── OAuth 리다이렉트 후 처리 (웹 전용, shared.js에서 typeof 가드로 호출) ──
 function onAuthSignedIn() {
@@ -4125,14 +4136,13 @@ document.addEventListener('DOMContentLoaded', async () => {
     ?.addEventListener('keydown', e => { if (e.key === 'Enter') confirmCreateProject(); });
 
   // URL share 파라미터 처리 (구: ?share=<base64 payload>, 신: ?c=<DB 16자 코드>)
+  // 여기서 바로 파싱하지 않고 저장만 함 — 로그인 안 된 상태면 곧 onboarding.html로
+  // 리다이렉트될 수 있어서, 그 전에 파싱해봤자 결과가 버려짐. _consumePendingShareCode가 나중에 처리.
   const _shareUrlParams = new URLSearchParams(location.search);
   const shareParam = _shareUrlParams.get('share') || _shareUrlParams.get('c');
   if (shareParam) {
     history.replaceState(null, '', location.pathname);
-    parseShareCode(shareParam).then(payload => {
-      if (payload) openImportModal(payload);
-      else alert('공유 코드가 올바르지 않습니다.');
-    });
+    sessionStorage.setItem(PENDING_SHARE_CODE_KEY, shareParam);
   }
 
   await initBilling();
@@ -4140,6 +4150,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   // ── DEV 빌드: 인증 체크 없이 바로 진입 ──────────────────────
   if (APP_VERSION.includes('_dev')) {
     initSupabase().catch(() => {});
+    _consumePendingShareCode();
     setTimeout(() => checkAndShowNotice(), 800);
     return;
   }
@@ -4161,6 +4172,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       analytics.setScreen('home');
       analytics.track('screen_view', { view: 'home' }); // 홈 화면 진입 명시 기록
       syncProjectsOnLogin().catch(() => {}); // 재설치 등 DB 백업 복구 + 로컬 전용 업로드
+      _consumePendingShareCode();
       loadProfileFromDB();
       _billingReady.then(async () => {
         if (window._RC) await window._RC.logIn({ appUserID: session.user.id }).catch(() => {});
@@ -4190,6 +4202,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   analytics.setScreen('home');
   analytics.track('screen_view', { view: 'home' }); // 홈 화면 진입 명시 기록
   syncProjectsOnLogin().catch(() => {}); // 재설치 등 DB 백업 복구 + 로컬 전용 업로드
+  _consumePendingShareCode();
   setTimeout(() => checkAndShowNotice(), 1000);
 });
 

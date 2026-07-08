@@ -86,41 +86,6 @@
     </div>
   </div>
 
-  <!-- ── 모달: 가져오기 ── -->
-  <div class="modal-overlay hidden" id="modal-import">
-    <div class="modal">
-      <div class="modal-header">
-        <span class="modal-title">코드 배열 가져오기</span>
-        <button class="icon-btn" onclick="closeModal('modal-import')"><i data-lucide="x"></i></button>
-      </div>
-      <div class="modal-body" style="gap:16px;">
-        <p class="hint" id="import-meta"></p>
-        <div class="share-field-group">
-          <span class="share-label">기존 노트에 추가</span>
-          <div class="share-row">
-            <select id="import-project-select" class="export-select" style="flex:1"></select>
-            <button class="btn btn-primary" onclick="confirmImport('existing')">가져오기</button>
-          </div>
-        </div>
-        <div class="share-field-group">
-          <span class="share-label">새 노트로 가져오기</span>
-          <div class="share-row">
-            <input type="text" id="import-new-name" class="share-code-input" placeholder="새 노트 이름" />
-            <button class="btn btn-primary" onclick="confirmImport('new')">만들기</button>
-          </div>
-        </div>
-        <div class="share-field-group">
-          <span class="share-label">함께 적용할 설정</span>
-          <div class="import-settings-row">
-            <label><input type="checkbox" id="import-apply-bpm" checked /> BPM</label>
-            <label><input type="checkbox" id="import-apply-capo" checked /> Capo</label>
-            <label><input type="checkbox" id="import-apply-col" checked /> 칸 수</label>
-          </div>
-        </div>
-      </div>
-    </div>
-  </div>
-
   <!-- ── 모달: 새 프로젝트 ── -->
   <div class="modal-overlay hidden" id="modal-create-project">
     <div class="modal" style="max-width:360px;">

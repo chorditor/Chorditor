@@ -240,11 +240,12 @@ async function obStep5Complete() {
   if (btn) { btn.disabled = true; btn.textContent = '저장 중...'; }
   await _saveOnboardingData();
   localStorage.setItem('onboarding_done', '1');
-  if (_obFlow === 'existing') {
+  // 공유 링크로 들어온 경우엔 '시작하기' 탭 없이 바로 home(→ 공유 노트로 이동)
+  if (_obFlow === 'existing' && !sessionStorage.getItem(PENDING_SHARE_CODE_KEY)) {
     // 기존 유저(persona 미입력) → '시작하기' 화면 거쳐 home
     _showStartScreen();
   } else {
-    // 신규 가입 → 바로 home
+    // 신규 가입 (또는 공유 링크로 들어온 기존 유저) → 바로 home
     goToHome();
   }
 }
@@ -368,6 +369,8 @@ async function _routeAuthedUser() {
     }
   } catch (e) {}
   // persona 있음(또는 확인 실패) → 시작하기 welcome 표시
+  // 단, 공유 링크로 들어온 경우엔 탭 기다리지 않고 바로 진입(home.js가 pending code를 이어서 처리)
+  if (sessionStorage.getItem(PENDING_SHARE_CODE_KEY)) { goToHome(); return; }
   _showOnboardingButtons();
 }
 

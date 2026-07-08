@@ -6,7 +6,7 @@
 // ── 상수 ─────────────────────────────────────────────────────
 const SUPABASE_URL  = 'https://jbvkygeksohlysyvaoab.supabase.co';
 const SUPABASE_ANON = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Impidmt5Z2Vrc29obHlzeXZhb2FiIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzYzOTk5NjgsImV4cCI6MjA5MTk3NTk2OH0.6RSgChy0Yq0H2TJpZPSoMKQ2V-OYfR0XzE1aJBBZkXI';
-const APP_VERSION   = '1.2.6_pre2';
+const APP_VERSION   = '1.2.6_pre6';
 const SUPABASE_STORAGE_KEY = 'sb-jbvkygeksohlysyvaoab-auth-token';
 
 // ── Analytics SDK ─────────────────────────────────────────────
@@ -196,8 +196,10 @@ async function _syncProjectsToDB(projects, prevIds) {
   const removedIds = (prevIds || []).filter(id => !newIds.has(id));
   try {
     if (removedIds.length) {
+      // keepalive: 삭제 직후 location.href로 페이지 이동하는 흐름(deleteProject 등)이 있어서,
+      // 이게 없으면 네비게이션이 이 요청을 끊어버려 DB row가 안 지워지는 문제가 있었음.
       await fetch(`${SUPABASE_URL}/rest/v1/projects?project_id=in.(${removedIds.join(',')})`, {
-        method: 'DELETE', headers,
+        method: 'DELETE', headers, keepalive: true,
       });
     }
     if (projects.length) {
@@ -211,6 +213,8 @@ async function _syncProjectsToDB(projects, prevIds) {
         important: !!p.important,
         updated_at: new Date().toISOString(),
       }));
+      // (업서트는 keepalive 안 씀 — 크롬은 keepalive 요청 바디를 64KB로 제한해서
+      // content 전체를 보내는 이 요청엔 안 맞음. delete만 페이로드가 작아서 안전하게 적용)
       await fetch(`${SUPABASE_URL}/rest/v1/projects?on_conflict=project_id`, {
         method: 'POST',
         headers: { ...headers, Prefer: 'resolution=merge-duplicates,return=minimal' },
@@ -703,6 +707,17 @@ async function shareProjectViaOS() {
     analytics.track('share_initiated', { type: 'native' });
   } catch (e) { /* 사용자가 공유 취소한 경우 등 — 무시 */ }
 }
+
+// ── 공유 링크/코드로 앱 진입 (Android Activity → WebView, 또는 ?share=/?c= URL) ──
+// 어느 페이지(onboarding/home/user_project)에서 도착하든 일단 세션스토리지에 저장만 해두고,
+// 실제 처리(코드 파싱 → 새 프로젝트 생성 → 그 프로젝트로 즉시 이동)는 home.js/user_project.js의
+// _consumePendingShareCode()가 담당 — 로그인 전(onboarding)에 도착해도 로그인 완료 후
+// home.html에서 자동으로 이어서 처리됨(모달로 "기존/새 노트" 선택 안 시킴, 무조건 새 노트로 생성).
+const PENDING_SHARE_CODE_KEY = 'np_pending_share_code';
+window._handleShareImport = function(rawCode) {
+  sessionStorage.setItem(PENDING_SHARE_CODE_KEY, rawCode);
+  if (typeof _consumePendingShareCode === 'function') _consumePendingShareCode();
+};
 
 // ── RevenueCat (인앱 결제) ─────────────────────────────────────
 const REVENUECAT_ANDROID_KEY = 'goog_KNGCSoBxhHnHfZuTVgJoNKglKhM';
