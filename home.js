@@ -2772,9 +2772,21 @@ function libSaveToProject() {
     dots: libDots,
     openMute: libOpenMute,
     barre: libBarre,
+    barreRange: _libEntry.barreRanges?.[_libFingeringIdx] ?? _libEntry.barreRanges?.[0] ?? _libEntry.barreRange ?? null, // 바레 현 범위 보존(선택 보이싱과 동일 인덱스)
+    source: _libEntry.source, // pattern/static — dot 세로 offset 결정, 누락 시 어긋남
     fretNumber: _libEntry.fretNumber >= 2 ? _libEntry.fretNumber : 2,
     fingerNumMode: _libFingerMode,
-    accidental: accidental
+    accidental: accidental,
+    // 원본 보이싱 스냅샷 — 라이브러리 카드와 동일 렌더 계약. chordToVoicing이 이걸 우선 사용.
+    voicing: {
+      frets:      _libEntry.frets,
+      openMute:   _libEntry.openMute,
+      barre:      _libEntry.barres?.[_libFingeringIdx] ?? _libEntry.barres?.[0] ?? _libEntry.barre ?? {},
+      barreRange: _libEntry.barreRanges?.[_libFingeringIdx] ?? _libEntry.barreRanges?.[0] ?? _libEntry.barreRange ?? null,
+      fretNumber: _libEntry.fretNumber,
+      source:     _libEntry.source,
+      fingering:  _libFingerMode ? ((_libEntry.fingerings?.[_libFingeringIdx]) ?? _libEntry.fingerings?.[0] ?? _libEntry.fingering) : null,
+    },
   };
   openProjectSheet();
 }

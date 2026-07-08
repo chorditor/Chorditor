@@ -11,6 +11,10 @@
       "scopes": ["profile", "email"],
       "serverClientId": "495859421223-rkjalna3ckhslfrk12gvbehn69o9j4qe.apps.googleusercontent.com",
       "forceCodeForRefreshToken": true
+    },
+    "LocalNotifications": {
+      "smallIcon": "ic_stat_notify",
+      "iconColor": "#2E323B"
     }
   }
 }

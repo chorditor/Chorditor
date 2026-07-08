@@ -1,5 +1,5 @@
 :root {
-  color-scheme: light dark; /* dark를 '지원'으로 선언해야 삼성인터넷 등이 강제 자동반전을 안 함. 실제 색은 아래 prefers-color-scheme:dark 블록에서 라이트로 고정 */
+  color-scheme: light dark; /* dark�?'지???�로 ?�언?�야 ?�성?�터???�이 강제 ?�동반전?????? ?�제 ?��? ?�래 prefers-color-scheme:dark 블록?�서 ?�이?�로 고정 */
   --bg: #F5F5F5; /* hook test */
   --surface: #ffffff;
   --border: #d9d4cc;
@@ -13,9 +13,10 @@
   --radius: 16px;
   --radius-lg: 16px;
   --sidebar-w: 240px;
-  --picker-item-h: 30px; /* JS PICKER_ITEM_H 상수와 반드시 일치 */
+  --picker-item-h: 30px; /* JS PICKER_ITEM_H ?�수?� 반드???�치 */
+  --project-slot-size: 58px; /* .line-text 보조선 ?�비 계산?�도 공유 */
 
-  /* ── 아이콘 보조 색상 팔레트 ── */
+  /* ?�?� ?�이�?보조 ?�상 ?�레???�?� */
   --icon-purple: #7B52CC;
   --icon-green:  #2E9E72;
   --icon-coral:  #E0332A;
@@ -26,7 +27,7 @@
 
 * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; user-select: none; -webkit-user-select: none; }
 
-/* 페이지 전환 중 흰 배경 플리커 방지 */
+/* ?�이지 ?�환 �???배경 ?�리�?방�? */
 html { background: #FAFAF8; }
 
 body {
@@ -36,7 +37,7 @@ body {
   overflow: hidden;
 }
 
-/* ── 앱 쉘 ── */
+/* ?�?� ?????�?� */
 .app-shell {
   display: flex;
   flex-direction: column;
@@ -61,7 +62,7 @@ body {
 }
 .tab-view.hidden { display: none; }
 
-/* ── 화면 전환 슬라이드 애니메이션 ── */
+/* ?�?� ?�면 ?�환 ?�라?�드 ?�니메이???�?� */
 #tab-view-home .view {
   position: absolute;
   inset: 0;
@@ -81,7 +82,7 @@ body {
 .slide-out-left  { animation: slide-out-left  250ms cubic-bezier(0.25, 1, 0.5, 1) forwards; pointer-events: none; }
 .slide-out-right { animation: slide-out-right 250ms cubic-bezier(0.25, 1, 0.5, 1) forwards; pointer-events: none; }
 
-/* ── 페이지 전환 (프로젝트 열기/닫기) ── */
+/* ?�?� ?�이지 ?�환 (?�로?�트 ?�기/?�기) ?�?� */
 @keyframes project-page-enter {
   from { transform: translateY(100%); }
   to   { transform: translateY(0); }
@@ -95,21 +96,21 @@ body {
   to   { opacity: 0.6; transform: scale(0.95); }
 }
 
-/* user_project.html 진입 애니메이션 */
+/* user_project.html 진입 ?�니메이??*/
 .app-shell.project-enter {
   animation: project-page-enter 0.36s cubic-bezier(0.32, 0.72, 0, 1) forwards;
 }
-/* user_project.html 닫기 애니메이션 */
+/* user_project.html ?�기 ?�니메이??*/
 .app-shell.project-exit {
   animation: project-page-exit 0.28s cubic-bezier(0.4, 0, 1, 1) forwards;
   pointer-events: none;
 }
-/* home.html 뒤로 물러나는 애니메이션 */
+/* home.html ?�로 물러?�는 ?�니메이??*/
 .app-shell.home-recede {
   animation: home-page-recede 0.22s ease-in forwards;
   pointer-events: none;
 }
-/* home.html 프로젝트에서 복귀 시 페이드인 */
+/* home.html ?�로?�트?�서 복�? ???�이?�인 */
 @keyframes home-return-enter {
   from { opacity: 0; }
   to   { opacity: 1; }
@@ -118,7 +119,7 @@ body {
   animation: home-return-enter 0.22s ease-out forwards;
 }
 
-/* ── 페이지 커버 (초기화 완료 전 화면 가림) ── */
+/* ?�?� ?�이지 커버 (초기???�료 ???�면 가�? ?�?� */
 #page-cover {
   position: fixed;
   inset: 0;
@@ -131,7 +132,7 @@ body {
 #page-cover.cover-out {
   opacity: 0;
 }
-/* 세로/가로 전환 중: 조작 차단 + 스피너 표시 (회전·재렌더로 화면 깨지는 구간을 가림) */
+/* ?�로/가�??�환 �? 조작 차단 + ?�피???�시 (?�전·?�렌?�로 ?�면 깨�???구간??가�? */
 #page-cover.page-cover--spin {
   pointer-events: auto;
   display: flex;
@@ -147,7 +148,7 @@ body {
   animation: project-spin 0.7s linear infinite;
 }
 
-/* ── 사이드바 ── */
+/* ?�?� ?�이?�바 ?�?� */
 .sidebar {
   width: var(--sidebar-w);
   min-width: var(--sidebar-w);
@@ -274,7 +275,7 @@ body {
 .sidebar-item-actions button.pinned { color: var(--accent); }
 .sidebar-item-actions button.important { color: #f59e0b; }
 
-/* ── 하단 탭바 ── */
+/* ?�?� ?�단 ??�� ?�?� */
 .bottom-nav {
   flex-shrink: 0;
   display: flex;
@@ -304,7 +305,7 @@ body {
 .bottom-nav-item.active { color: var(--text-primary); }
 .bottom-nav-item:active { transform: none; }
 
-/* ── 탑바 ── */
+/* ?�?� ?�바 ?�?� */
 .top-bar {
   height: calc(54px + env(safe-area-inset-top));
   padding-top: env(safe-area-inset-top);
@@ -317,12 +318,12 @@ body {
 }
 .top-bar.hidden { display: none; }
 
-/* 가로모드: 제목 좌측 뒤로가기 화살표 */
+/* 가로모?? ?�목 좌측 ?�로가�??�살??*/
 .title-back-btn {
   margin-right: 8px;
   flex-shrink: 0;
 }
-/* .project-icon-btn과 클래스 결합 selector로 특정도 확보 (파일 순서상 project-icon-btn이 뒤에 있어 단일클래스로는 밀림) */
+/* .project-icon-btn�??�래??결합 selector�??�정???�보 (?�일 ?�서??project-icon-btn???�에 ?�어 ?�일?�래?�로??밀�? */
 .project-icon-btn.title-back-btn {
   box-shadow: none;
   background: transparent;
@@ -358,7 +359,7 @@ body {
 #settings-btn.hidden { display: none; }
 .top-bar-title.hidden { display: none; }
 
-/* ── 홈 화면 ── */
+/* ?�?� ???�면 ?�?� */
 #view-home {
   position: absolute;
   inset: 0;
@@ -435,7 +436,7 @@ body {
   color: var(--text-primary);
 }
 
-/* ── 홈 배너 컨테이너 쿼리 (폰트 단계 스냅) ──
+/* ?�?� ??배너 컨테?�너 쿼리 (?�트 ?�계 ?�냅) ?�?�
 @container home-banner-cq (min-width: 280px) {
   .home-banner-block    { padding: 0 20px; }
   .home-banner-title    { font-size: 12px; }
@@ -541,8 +542,8 @@ body {
 
 .home-block-icon {
   color: var(--charcoal-blue);
-  margin-bottom: auto; /* 텍스트를 하단으로 밀어냄 */
-  align-self: flex-start; /* 아이콘 좌상단 고정 */
+  margin-bottom: auto; /* ?�스?��? ?�단?�로 밀?�냄 */
+  align-self: flex-start; /* ?�이�?좌상??고정 */
 }
 
 .home-block-icon i {
@@ -563,7 +564,7 @@ body {
   letter-spacing: -0.05em;
 }
 
-/* ── 프로젝트 목록 ── */
+/* ?�?� ?�로?�트 목록 ?�?� */
 #view-projects-list {
   position: absolute;
   inset: 0;
@@ -577,7 +578,7 @@ body {
   box-sizing: border-box;
 }
 
-/* ── 홈 블록 컨테이너 쿼리 (폰트 단계 스냅) ── 
+/* ?�?� ??블록 컨테?�너 쿼리 (?�트 ?�계 ?�냅) ?�?� 
 @container home-block-card (min-width: 150px) {
   .home-block       { padding: 16px; }
   .home-block-icon i { font-size: 32px; }
@@ -630,13 +631,13 @@ body {
   padding: 0 0 32px;
 }
 
-/* ── 프로필 뷰 ── */
+/* ?�?� ?�로??�??�?� */
 #view-profile {
   padding: 48px 24px;
   align-items: flex-start;
 }
 
-/* ── 메인 영역 (하위 호환) ── */
+/* ?�?� 메인 ?�역 (?�위 ?�환) ?�?� */
 .main-area {
   flex: 1;
   min-width: 0;
@@ -646,7 +647,7 @@ body {
 }
 .main-area.hidden { display: none; }
 
-/* ── 뷰 ── */
+/* ?�?� �??�?� */
 .view {
   flex: 1;
   display: flex;
@@ -670,6 +671,17 @@ body {
   border: none;
   box-shadow: 0 2px 20px rgba(0,0,0,0.10);
   border-radius: var(--radius);
+  /* 세로모드: .view(align-items:center)의 shrink-to-fit 자식이라 콘텐츠(편집/보기 모드별로 다름)에
+     따라 카드 자체 폭이 흔들리던 문제 → 카드 폭 자체를 고정해 편집/보기 전환 시 절대 안 변하게 함.
+     브레이크포인트 480px: 화면이 그 이상 넓어져도 카드가 계속 커지지 않고 480px에서 고정
+     (안 그러면 코드슬롯 4등분 간격이 화면 폭에 비례해 한없이 벌어져 보임)
+     100vw 대신 100%: 100vw는 브라우저 뷰포트 전체 기준이라 #main-content가 화면 전체 폭을
+     안 쓰는 레이아웃(사이드바 등)에서 실제 사용 가능 폭보다 카드가 더 커져 옆으로 튀어나감.
+     %는 진짜 부모(.view) 폭 기준이라 항상 실제 여유 폭 안에서만 커짐. */
+  width: min(480px, calc(100% - 24px));
+  /* #view-project는 class="view"도 같이 달고 있어 .view의 align-items:center가 상속됨
+     → project-inner가 고정폭(width) 대신 콘텐츠 크기로 shrink-to-fit 되던 진짜 원인. stretch로 강제. */
+  align-items: stretch;
 }
 
 .project-loading-spinner {
@@ -702,7 +714,7 @@ body {
 
 .view.hidden { display: none !important; }
 
-/* ── 에디터 페이지 ── */
+/* ?�?� ?�디???�이지 ?�?� */
 .editor-page-title {
   font-size: 20px;
   font-weight: 800;
@@ -761,7 +773,7 @@ body {
   background: var(--surface);
 }
 
-/* ── 헤더 ── */
+/* ?�?� ?�더 ?�?� */
 .header {
   width: 100%;
   max-width: 740px;
@@ -783,7 +795,7 @@ body {
   letter-spacing: 0.08em;
 }
 
-/* ── 카드 ── */
+/* ?�?� 카드 ?�?� */
 .card {
   background: var(--surface);
   border: 1px solid var(--border);
@@ -796,7 +808,7 @@ body {
   gap: 24px;
 }
 
-/* ── 코드 빌더 ── */
+/* ?�?� 코드 빌더 ?�?� */
 .chord-builder {
   display: flex;
   flex-direction: column;
@@ -804,7 +816,7 @@ body {
 }
 
 
-/* 수평 컬럼 피커 */
+/* ?�평 컬럼 ?�커 */
 .wheel-picker {
   display: flex;
   gap: 6px;
@@ -830,13 +842,13 @@ body {
   letter-spacing: 0.05em;
   flex-shrink: 0;
 }
-/* 휠 피커 래퍼: 3항목 높이 창 + 상하 그라데이션 */
+/* ???�커 ?�퍼: 3??�� ?�이 �?+ ?�하 그라?�이??*/
 .col-wheel-wrap {
   position: relative;
   height: calc(3 * var(--picker-item-h));
   overflow: hidden;
 }
-/* 상단 그라데이션 */
+/* ?�단 그라?�이??*/
 .col-wheel-wrap::before {
   content: '';
   position: absolute;
@@ -846,7 +858,7 @@ body {
   z-index: 2;
   pointer-events: none;
 }
-/* 하단 그라데이션 */
+/* ?�단 그라?�이??*/
 .col-wheel-wrap::after {
   content: '';
   position: absolute;
@@ -857,7 +869,7 @@ body {
   pointer-events: none;
 }
 
-/* 스크롤 영역: 스냅 피커 */
+/* ?�크�??�역: ?�냅 ?�커 */
 .col-scroll {
   height: 100%;
   overflow-y: scroll;
@@ -871,12 +883,12 @@ body {
 }
 .col-scroll::-webkit-scrollbar { display: none; }
 
-/* 각 항목마다 강제 스냅 — 저항감·빨려드는 느낌 */
+/* �???��마다 강제 ?�냅 ???�??��·빨려?�는 ?�낌 */
 .builder-col .sel-btn {
   scroll-snap-stop: always;
 }
 
-/* 텐션 (다중선택): 스냅 없이 일반 스크롤 */
+/* ?�션 (?�중?�택): ?�냅 ?�이 ?�반 ?�크�?*/
 .col-scroll--multi {
   scroll-snap-type: none;
   padding-top: 4px;
@@ -885,7 +897,132 @@ body {
 
 .col-divider { display: none; }
 
-/* 컬럼 내 sel-btn: 휠 스타일 */
+/* ── 마디정보 수정 모달 ── */
+.meter-modal-body { gap: 16px; }
+.meter-top-row {
+  display: flex;
+  gap: 12px;
+  align-items: stretch;
+}
+.meter-box {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  border-radius: 14px;
+  background: var(--bg);
+  padding: 8px 6px 10px;
+}
+.meter-bpm-input {
+  flex: 1;
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  background: transparent;
+  color: var(--text-primary);
+  font-size: 40px;
+  font-weight: 700;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+  min-width: 0;
+  padding: 0;
+}
+.meter-bpm-input::placeholder { color: var(--text-muted); font-size: 40px; font-weight: 700; }
+.meter-bpm-input:focus { outline: none; }
+.meter-bpm-input::-webkit-outer-spin-button,
+.meter-bpm-input::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+.meter-bpm-input[type="number"] { -moz-appearance: textfield; }
+.meter-box-label {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-muted);
+  letter-spacing: 0.06em;
+  margin-bottom: 4px;
+}
+.meter-box .col-wheel-wrap { width: 100%; }
+
+/* 박자: 분수 표기 + 대형 숫자 스테퍼 */
+.meter-sig {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  gap: 6px;
+}
+.meter-sig-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.meter-big-tap { cursor: pointer; user-select: none; }
+.meter-num-input {
+  border: none;
+  background: transparent;
+  padding: 0;
+  -moz-appearance: textfield;
+}
+.meter-num-input::-webkit-outer-spin-button,
+.meter-num-input::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+.meter-num-input:focus { outline: none; }
+.meter-sig-bar {
+  width: 32px;
+  height: 3px;
+  border-radius: 2px;
+  background: var(--text-primary);
+}
+.meter-bars-toggle {
+  display: flex;
+  gap: 16px;
+}
+.meter-bars-check {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 8px;
+  height: 40px;
+  color: var(--text-secondary);
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+}
+.meter-bars-check input[type="checkbox"] {
+  width: 16px;
+  height: 16px;
+  accent-color: var(--text-primary);
+  cursor: pointer;
+}
+.meter-big {
+  font-size: 40px;
+  font-weight: 700;
+  line-height: 1;
+  color: var(--text-primary);
+  min-width: 46px;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+}
+.meter-step {
+  width: 28px;
+  height: 28px;
+  flex-shrink: 0;
+  border: none;
+  border-radius: 8px;
+  background: var(--surface);
+  color: var(--text-secondary);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: background .12s, color .12s;
+}
+.meter-step:hover { background: var(--border); color: var(--text-primary); }
+.meter-step:active { transform: scale(0.92); }
+.meter-step i { width: 16px; height: 16px; }
+
+/* 컬럼 ??sel-btn: ???��???*/
 .builder-col .sel-btn {
   height: var(--picker-item-h);
   width: 100%;
@@ -913,11 +1050,11 @@ body {
   background: transparent;
   border: none;
 }
-/* 텐션 다중선택 (레거시 — 현재 미사용) */
+/* ?�션 ?�중?�택 (?�거?????�재 미사?? */
 .col-scroll--multi { scroll-snap-type: none; padding-top: 4px; padding-bottom: 4px; }
 .col-scroll--multi .sel-btn { scroll-snap-align: none; }
 
-/* me-editor 호환: builder-row / builder-group 유지 */
+/* me-editor ?�환: builder-row / builder-group ?��? */
 .builder-row {
   display: flex;
   align-items: center;
@@ -936,7 +1073,7 @@ body {
   flex-wrap: wrap;
 }
 
-/* #/b 토글 — 슬라이드 스위치 */
+/* #/b ?��? ???�라?�드 ?�위�?*/
 .accidental-toggle {
   display: flex;
   background: #f0f0f0;
@@ -990,7 +1127,7 @@ body {
   color: #1a1a1a;
 }
 
-/* 선택 버튼 공통 */
+/* ?�택 버튼 공통 */
 .sel-btn {
   font-family: 'Pretendard', sans-serif;
   font-size: 12px;
@@ -1015,7 +1152,7 @@ body {
   border-color: var(--accent);
 }
 
-/* 코드명 미리보기 */
+/* 코드�?미리보기 */
 .chord-preview {
   display: flex;
   align-items: flex-end;
@@ -1052,7 +1189,7 @@ body {
 }
 .chord-suggest-item:hover { color: var(--text-primary); }
 
-/* ── 구분선 ── */
+/* ?�?� 구분???�?� */
 .divider {
   width: 1px;
   height: 24px;
@@ -1065,7 +1202,7 @@ body {
   background: var(--border);
 }
 
-/* ── 툴바 ── */
+/* ?�?� ?�바 ?�?� */
 .toolbar {
   display: flex;
   align-items: center;
@@ -1158,7 +1295,7 @@ body {
   color: #fff;
 }
 
-/* ── 캔버스 ── */
+/* ?�?� 캔버???�?� */
 .canvas-wrap {
   display: flex;
   justify-content: center;
@@ -1192,7 +1329,7 @@ body {
   align-items: center;
   flex-shrink: 0;
   position: absolute;
-  right: 8px; /* JS resizeCanvas()가 동적으로 덮어씀 */
+  right: 8px; /* JS resizeCanvas()가 ?�적?�로 ??��?� */
   top: 0;
 }
 .canvas-side-btn {
@@ -1295,7 +1432,7 @@ canvas {
   height: auto;
 }
 
-/* ── 액션 ── */
+/* ?�?� ?�션 ?�?� */
 .actions {
   display: flex;
   justify-content: space-between;
@@ -1344,7 +1481,7 @@ canvas {
 }
 .btn-danger:hover { opacity: 0.85; }
 
-/* ── 내보내기 셀렉트 ── */
+/* ?�?� ?�보?�기 ?�?�트 ?�?� */
 .export-select {
   font-family: 'Pretendard', sans-serif;
   font-size: 12px;
@@ -1359,7 +1496,7 @@ canvas {
 }
 .export-select:focus { border-color: var(--text-primary); }
 
-/* ── 액션 바 (초기화·재생·배율·저장) ── */
+/* ?�?� ?�션 �?(초기?�·재?�·배?�·�??? ?�?� */
 .action-bar {
   display: flex;
   align-items: center;
@@ -1389,9 +1526,9 @@ canvas {
   -webkit-appearance: auto;
 }
 
-/* 이미지 저장 배율 드롭다운 */
-#export-scale { display: none; }  /* 구 select 숨김 */
-/* ── 이미지 저장 모달 (에디터/라이브러리 공용) ── */
+/* ?��?지 ?�??배율 ?�롭?�운 */
+#export-scale { display: none; }  /* �?select ?��? */
+/* ?�?� ?��?지 ?�??모달 (?�디???�이브러�?공용) ?�?� */
 .img-save-backdrop {
   position: fixed;
   inset: 0;
@@ -1437,7 +1574,7 @@ canvas {
   background: #ffffff;
   box-shadow: 0 0 0 1px rgba(0,0,0,.08);
 }
-/* 투명 저장 시 체커보드 배경으로 투명도 표시 */
+/* ?�명 ?�????체커보드 배경?�로 ?�명???�시 */
 #img-preview-canvas.transparent-bg {
   background-color: #fff;
   background-image:
@@ -1531,7 +1668,7 @@ canvas {
 .ab-btn-primary:hover { background: var(--text-primary); color: var(--bg); opacity: 0.85; }
 .ab-btn-primary:active { transform: scale(0.97); }
 
-/* ── 프로젝트 코드 수정 바 ── */
+/* ?�?� ?�로?�트 코드 ?�정 �??�?� */
 .project-edit-bar.hidden { display: none; }
 .project-edit-bar {
   display: flex;
@@ -1558,7 +1695,7 @@ canvas {
   flex-shrink: 0;
 }
 
-/* ── 프로젝트에 추가 행 ── */
+/* ?�?� ?�로?�트??추�? ???�?� */
 .add-to-project-row {
   display: flex;
   justify-content: flex-end;
@@ -1568,7 +1705,7 @@ canvas {
 }
 
 
-/* ── 햄버거 버튼 (모바일) ── */
+/* ?�?� ?�버�?버튼 (모바?? ?�?� */
 .hamburger.hidden { display: none !important; }
 .hamburger {
   display: none;
@@ -1588,7 +1725,7 @@ canvas {
 }
 .hamburger svg { width: 20px; height: 20px; }
 
-/* ── 사이드바 백드롭 ── */
+/* ?�?� ?�이?�바 백드�??�?� */
 .sidebar-backdrop {
   display: none;
   position: fixed;
@@ -1598,7 +1735,7 @@ canvas {
 }
 .sidebar-backdrop.visible { display: block; }
 
-/* ── 모달 ── */
+/* ?�?� 모달 ?�?� */
 .modal-overlay {
   position: fixed;
   inset: 0;
@@ -1622,7 +1759,7 @@ canvas {
   animation: modal-scale-in 0.25s cubic-bezier(0.34, 1.56, 0.64, 1) both;
 }
 
-/* ── 설정 모달: 항목 행 + 스위치 ── */
+/* ?�?� ?�정 모달: ??�� ??+ ?�위�??�?� */
 .settings-row {
   display: flex;
   align-items: center;
@@ -1710,7 +1847,7 @@ canvas {
   gap: 8px;
 }
 
-/* ── 프로젝트 뷰 ── */
+/* ?�?� ?�로?�트 �??�?� */
 .project-view {
   width: 100%;
   max-width: 600px;
@@ -1735,11 +1872,18 @@ canvas {
   align-items: center;
   padding: 20px 0 0;
 }
-/* 가로모드: 타이틀바 상단 패딩 대신 project-inner 상단에 패딩 */
+/* 가로모?? ?�?��?�??�단 ?�딩 ?�??project-inner ?�단???�딩 */
 .app-shell.app-land .project-title-bar { padding-top: 0; }
 .app-shell.app-land .project-inner { padding-top: 0; }
-/* 가로모드: 흰색 라운드 컨테이너(#view-project) 상단이 떠 보이도록 여백 */
-.app-shell.app-land #view-project { margin-top: 20px; }
+/* 가로모?? ?�색 ?�운??컨테?�너(#view-project) ?�단????보이?�록 ?�백 */
+.app-shell.app-land #view-project { margin-top: calc(8px + env(safe-area-inset-top, 0px)); }
+/* 가로모?? ?�색 카드 ?�비�??�집모드 기�??�로 고정(?�/?�집 ?��? ?��?) + ?�우 중앙 */
+.app-shell.app-land #view-project {
+  width: min(648px, calc(100vw - 24px));
+  max-width: 648px;
+  margin-left: auto;
+  margin-right: auto;
+}
 
 .project-title-bar .project-name-input {
   font-size: 20px;
@@ -1777,20 +1921,20 @@ canvas {
   flex-shrink: 0;
 }
 
-/* 가로모드: col-toggle · slot-toggle · row2-controls · row1-right 한 줄 배치 */
+/* 가로모?? col-toggle · slot-toggle · row2-controls · row1-right ??�?배치 */
 .project-header-landrow {
   justify-content: flex-start;
   gap: 8px;
 }
 .project-header-landrow .btn.slot-toggle-btn {
-  margin-right: 0; /* 세로모드의 margin-right:auto 해제 */
+  margin-right: 0; /* ?�로모드??margin-right:auto ?�제 */
 }
 .project-header-landrow .project-header-row2-controls {
-  margin-left: auto; /* 남는 공간 전부 흡수 → row1-right 바로 왼쪽에 밀착 */
-  margin-right: 16px; /* landrow gap(8px)과 합쳐 재생↔공유 버튼 간 24px */
+  margin-left: auto; /* ?�는 공간 ?��? ?�수 ??row1-right 바로 ?�쪽??밀�?*/
+  margin-right: 16px; /* landrow gap(8px)�??�쳐 ?�생?�공??버튼 �?24px */
 }
 .project-header-landrow .project-header-row1-right {
-  margin-left: 0; /* 중복 auto 규칙 제거 — 이게 이전에 여백 안 줄던 원인 */
+  margin-left: 0; /* 중복 auto 규칙 ?�거 ???�게 ?�전???�백 ??줄던 ?�인 */
 }
 
 .project-header-btn {
@@ -1904,16 +2048,16 @@ canvas {
   background: var(--text-primary);
   color: #fff;
 }
-/* 세로/가로 전환 버튼: 아이콘 + 라벨 */
+/* ?�로/가�??�환 버튼: ?�이�?+ ?�벨 */
 .orient-btn {
   display: inline-flex;
   align-items: center;
   gap: 4px;
 }
 .orient-btn svg { width: 14px; height: 14px; }
-.orient-btn.orient-land svg { transform: rotate(90deg); } /* 가로 = 폰 아이콘 눕힘 */
+.orient-btn.orient-land svg { transform: rotate(90deg); } /* 가�?= ???�이�??�힘 */
 
-/* ── 카포 컨트롤 ── */
+/* ?�?� 카포 컨트�??�?� */
 .capo-control {
   display: flex;
   align-items: center;
@@ -1963,7 +2107,7 @@ canvas {
   padding: 3px 10px;
 }
 
-/* BPM 컨트롤 */
+/* BPM 컨트�?*/
 .bpm-control {
   display: flex;
   align-items: center;
@@ -2018,7 +2162,7 @@ canvas {
 }
 .metronome-btn svg { width: 12px; height: 12px; }
 
-/* 전체재생 버튼 */
+/* ?�체?�생 버튼 */
 .play-all-btn {
   display: flex;
   align-items: center;
@@ -2037,9 +2181,9 @@ canvas {
 .play-all-btn:hover { opacity: .75; }
 .play-all-btn svg { width: 12px; height: 12px; }
 
-/* 전체재생 중 현재 슬롯 강조 */
-/* 재생 강조: 좌→우 스윕하는 파란 막대 (지속시간은 JS가 --sweep-dur로 주입) */
-/* 재생 막대: 슬롯 단위가 아니라 줄(chord-area) 전체를 가로질러 한 번에 스윕 → 슬롯 경계에서 끊기지 않음 */
+/* ?�체?�생 �??�재 ?�롯 강조 */
+/* ?�생 강조: 좌→???�윕?�는 ?��? 막�? (지?�시간�? JS가 --sweep-dur�?주입) */
+/* ?�생 막�?: ?�롯 ?�위가 ?�니??�?chord-area) ?�체�?가로질????번에 ?�윕 ???�롯 경계?�서 ?�기지 ?�음 */
 .row-playhead {
   position: absolute;
   top: 0;
@@ -2052,10 +2196,10 @@ canvas {
 }
 @keyframes row-sweep {
   from { left: var(--sweep-start, 0%); }
-  to   { left: calc(100% - 2px); }
+  to   { left: var(--sweep-end, 100%); }
 }
 
-/* ── 코드 썸네일 리스트 ── */
+/* ?�?� 코드 ?�네??리스???�?� */
 .chord-palette {
   display: flex;
   align-items: center;
@@ -2071,13 +2215,14 @@ canvas {
 }
 .chord-palette::-webkit-scrollbar { display: none; }
 .chord-palette.edit-mode { overflow-x: hidden; }
-.chord-palette.edit-mode.pal-land { padding-bottom: 4px; }
+/* 가로모?? ?�레??좌우 ?�셋???�롯??(.project-lines padding 12px)�?맞춰 보기/?�집 ??�?고정 */
+.chord-palette.edit-mode.pal-land { padding-bottom: 4px; padding-left: 14px; padding-right: 14px; }
 .chord-palette:not(.edit-mode) {
   border-bottom: 1px solid #ECECEA;
   margin-bottom: 0;
 }
 
-/* ── 팔레트 스크롤바 (에딧모드) ── */
+/* ?�?� ?�레???�크롤바 (?�딧모드) ?�?� */
 .palette-section { width: 100%; }
 .palette-scrollbar {
   display: flex;
@@ -2128,10 +2273,10 @@ canvas {
   height: auto;
   aspect-ratio: 5 / 4;
 }
-/* 가로모드: 팔레트 10개/행 (크기 절반) */
+/* 가로모?? ?�레??8�???(?�기 ?�반) */
 .chord-palette.pal-land .chord-palette-item,
 .chord-palette.pal-land .chord-palette-add {
-  width: calc((100% - 9 * 8px) / 10);
+  width: calc((100% - 7 * 8px) / 8);
 }
 
 .chord-palette-item canvas,
@@ -2172,12 +2317,12 @@ canvas {
   line-height: 1;
   z-index: 5;
 }
-/* 모바일(터치): 편집모드에서 항상 삭제 아이콘 표시 */
+/* 모바???�치): ?�집모드?�서 ??�� ??�� ?�이�??�시 */
 @media (pointer: coarse) {
   .chord-palette-item .chord-palette-delete { display: flex; }
 }
 
-/* 데스크톱: 호버 시 삭제 아이콘 */
+/* ?�스?�톱: ?�버 ????�� ?�이�?*/
 @media (hover: hover) and (pointer: fine) {
   .chord-palette-item:hover .chord-palette-delete { display: flex; }
 }
@@ -2199,7 +2344,7 @@ canvas {
 }
 .chord-palette-add:hover { border-color: var(--text-secondary); color: var(--text-secondary); background: var(--surface); }
 
-/* ── 행 ── */
+/* ?�?� ???�?� */
 .project-rows {
   display: flex;
   flex-direction: column;
@@ -2211,9 +2356,9 @@ canvas {
   cursor: text;
 }
 
-/* ── 코드 영역 ── */
+/* ?�?� 코드 ?�역 ?�?� */
 .chord-area {
-  position: relative; /* 재생 막대(.row-playhead) 기준 레이어 */
+  position: relative; /* ?�생 막�?(.row-playhead) 기�? ?�이??*/
   display: grid;
   gap: 4px;
   margin-bottom: 6px;
@@ -2221,18 +2366,20 @@ canvas {
 }
 .chord-area.cols-4 { grid-template-columns: repeat(4, 140px); justify-content: space-between; }
 .chord-area.cols-8 { grid-template-columns: repeat(4, 140px); justify-content: space-between; }
-/* 세로(간편)=4슬롯 / 가로(고급)=8슬롯 1행 */
-.chord-area.orient-port { grid-template-columns: repeat(4, 1fr); justify-content: stretch; }
-.chord-area.orient-land { grid-template-columns: repeat(8, 1fr); justify-content: stretch; }
-.chord-area.orient-port .chord-slot { width: 100%; height: auto; aspect-ratio: 5 / 4; }
+/* ?�로(간편)=4?�롯 / 가�?고급)=8?�롯 1??*/
+/* orient-port: 보조선 최대 길이를 4등분(1fr×4)하고, 각 슬롯은 고정 크기 그대로 그 칸의 왼쪽에 붙임
+   → 슬롯 왼쪽선 = 해당 박(beat) 시작 위치 (박자 타임라인 정합) */
+.chord-area.orient-port { grid-template-columns: repeat(4, 1fr); justify-items: start; }
+/* orient-land: 보조선 최대 길이를 8등분(1fr×8) */
+.chord-area.orient-land { grid-template-columns: repeat(8, 1fr); justify-items: start; }
+.chord-area.orient-port .chord-slot { width: var(--project-slot-size); height: auto; aspect-ratio: 5 / 4; }
 .chord-area.orient-land .chord-slot {
-  width: 75%; /* 비율 유지, 현재 크기의 75% */
+  width: var(--project-slot-size);
   height: auto;
   aspect-ratio: 5 / 4;
-  margin: 0 auto; /* 그리드 셀 중앙 정렬 */
 }
 
-/* ── 코드슬롯 토글 버튼 (row2 좌측, metronome-btn과 통일) ── */
+/* ?�?� 코드?�롯 ?��? 버튼 (row2 좌측, metronome-btn�??�일) ?�?� */
 .slot-toggle-btn {
   display: flex;
   align-items: center;
@@ -2258,12 +2405,12 @@ canvas {
 }
 .slot-toggle-btn svg { width: 12px; height: 12px; }
 
-/* ── 코드슬롯 텍스트 모드 (slotsHidden) ── */
+/* ?�?� 코드?�롯 ?�스??모드 (slotsHidden) ?�?� */
 .chord-area--text {
   margin-bottom: 2px;
 }
 .chord-area--text .chord-name-cell {
-  position: relative; /* 재생 강조 막대(::after)를 셀 내부로 가둠 — 없으면 페이지 전체로 퍼짐 */
+  position: relative; /* ?�생 강조 막�?(::after)�??� ?��?�?가?????�으�??�이지 ?�체�??�짐 */
   display: flex;
   align-items: center;
   justify-content: flex-start;
@@ -2300,9 +2447,10 @@ canvas {
 .chord-slot.drag-over { border-color: var(--accent); background: rgba(224,60,49,0.06); }
 .chord-slot.dragging { opacity: 0.35; }
 .chord-slot.slot-empty { border: none; background: transparent; pointer-events: none; }
-/* 뷰모드: 채워진 슬롯 → 테두리 제거 + 링 쉐도우 */
+/* 뷰모?? 채워�??�롯 ???�두�??�거 + �??�도??*/
+#view-project.view-mode .chord-area { gap: 4px; }
 #view-project.view-mode .chord-slot { border: none; box-shadow: 0 0 0 1px rgba(0,0,0,0.08); }
-/* 뷰모드: 빈 슬롯 → 완전 투명 */
+/* 뷰모?? �??�롯 ???�전 ?�명 */
 #view-project.view-mode .chord-slot.slot-empty { background: transparent; box-shadow: none; }
 .chord-palette-item.reorder-over { outline: 2px solid var(--accent); outline-offset: 2px; }
 
@@ -2333,7 +2481,7 @@ canvas {
   line-height: 1;
   z-index: 5;
 }
-/* 모바일(터치): 편집모드에서 항상 삭제 아이콘 표시 */
+/* 모바???�치): ?�집모드?�서 ??�� ??�� ?�이�??�시 */
 @media (pointer: coarse) {
   .chord-slot .chord-slot-delete { display: flex; }
 }
@@ -2360,6 +2508,7 @@ canvas {
 
 .project-view-wrapper {
   width: 100%;
+  max-width: 100%;
   flex: 1;
   min-height: 0;
   overflow: hidden;
@@ -2381,12 +2530,17 @@ canvas {
   line-height: 1.6;
   color: var(--text-primary);
   caret-color: var(--text-primary);
-  padding: 8px 12px 160px; /* 하단 160px: 마지막 행 3-dot 드롭다운 잘림 방지 */
+  padding: 8px 0 160px; /* ?�단 160px: 마�?�???3-dot ?�롭?�운 ?�림 방�? */
   word-break: break-word;
 }
 .project-lines::-webkit-scrollbar { display: none; }
 
+/* 보조선 너비는 JS(_syncLineTextWidths)가 실제 렌더된 chord-area 폭으로 이 래퍼에 인라인 지정 */
+.line-text-wrap {
+  position: relative;
+}
 .line-text {
+  position: relative;
   outline: none;
   font-size: 14px;
   min-height: 1.4em;
@@ -2396,6 +2550,32 @@ canvas {
   padding-bottom: 5px;
   user-select: text !important;
   -webkit-user-select: text !important;
+}
+/* 보조선 좌우 끝 짧은 세로선 (같은 두께·색) */
+.line-text::before,
+.line-text::after {
+  content: '';
+  position: absolute;
+  bottom: -5px;
+  width: 1px;
+  height: 10px;
+  background: #ECECEA;
+  pointer-events: none;
+}
+.line-text::before { left: 0; }
+.line-text::after { right: 0; }
+
+/* 보조선 가운데 세로선: ::before/::after 슬롯이 이미 좌우로 차서 실제 sibling 엘리먼트로 추가
+   (line-text는 contentEditable이라 배경/가상요소는 border-box에 클립되어 위아래로 못 튀어나옴) */
+.line-mid-tick {
+  position: absolute;
+  left: 50%;
+  bottom: -5px;
+  width: 1px;
+  height: 10px;
+  background: #ECECEA;
+  transform: translateX(-50%);
+  pointer-events: none;
 }
 
 .add-line-btn {
@@ -2449,10 +2629,52 @@ canvas {
   min-height: 1.6em;
   margin-bottom: 19px;
 }
-/* 줄 병합 무장 상태: 한 번 더 Backspace 시 이전 줄과 합쳐짐을 알리는 아이콘 큐 */
-/* 텍스트란 바깥(좌측 여백)에 배치 — 텍스트는 밀지 않음 */
+/* project-line 전체(BPM 배지·코드슬롯·텍스트 보조선)를 아우르는 왼쪽 박자 레일 + 나머지 콘텐츠 */
+.project-line-body {
+  display: flex;
+  align-items: stretch;
+  width: 100%;
+}
+.project-line-content { flex: 1; min-width: 0; }
+.project-line-text-row {
+  display: flex;
+  align-items: flex-start;
+  /* 폭은 JS(_syncLineTextWidths)가 chord-area 실측폭으로 line-text-wrap에 인라인 지정 */
+}
+.row-meter-rail {
+  flex-shrink: 0;
+  width: 14px;
+  padding-right: 4px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-end;
+  line-height: 1;
+}
+.row-meter-rail-num,
+.row-meter-rail-den {
+  font-size: 10px;
+  font-weight: 700;
+  color: var(--text-primary);
+}
+.row-meter-rail-bar {
+  width: 8px;
+  height: 1px;
+  background: var(--text-primary);
+  margin: 1px 0;
+}
+
+/* 이 줄에 개별 BPM이 설정된 경우에만 표시되는 배지 */
+.row-meta-badge {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-primary);
+  margin-bottom: 4px;
+}
+/* �?병합 무장 ?�태: ??�???Backspace ???�전 줄과 ?�쳐짐을 ?�리???�이�???*/
+/* ?�스?��? 바깥(좌측 ?�백)??배치 ???�스?�는 밀지 ?�음 */
 .line-merge-icon {
-  position: fixed; /* body에 렌더 → wrapper overflow 클립 회피 (좌표는 JS가 주입) */
+  position: fixed; /* body???�더 ??wrapper overflow ?�립 ?�피 (좌표??JS가 주입) */
   z-index: 9999;
   color: #b3b3b3;
   pointer-events: none;
@@ -2488,7 +2710,7 @@ canvas {
 }
 .add-row-btn:hover { border-color: var(--text-secondary); color: var(--text-secondary); background: var(--surface); }
 
-/* ── 저장 공간 경고 ── */
+/* ?�?� ?�??공간 경고 ?�?� */
 .storage-warning {
   position: fixed;
   bottom: 24px;
@@ -2506,7 +2728,7 @@ canvas {
 }
 .storage-warning.hidden { display: none; }
 
-/* ── 드롭 애니메이션 ── */
+/* ?�?� ?�롭 ?�니메이???�?� */
 @keyframes slot-drop {
   0%   { transform: scale(0.67); opacity: 0.5; }
   60%  { transform: scale(1.08); opacity: 1; }
@@ -2516,7 +2738,7 @@ canvas {
   animation: slot-drop 0.28s cubic-bezier(0.34, 1.56, 0.64, 1) both;
 }
 
-/* ── 드래그 고스트 (터치) ── */
+/* ?�?� ?�래�?고스??(?�치) ?�?� */
 .drag-ghost {
   position: fixed;
   pointer-events: none;
@@ -2528,7 +2750,7 @@ canvas {
   overflow: hidden;
 }
 
-/* ── 편집 모달 내부 에디터 ── */
+/* ?�?� ?�집 모달 ?��? ?�디???�?� */
 .me-editor {
   display: flex;
   flex-direction: column;
@@ -2557,7 +2779,7 @@ canvas {
   position: relative;
 }
 
-/* ── 반응형: 모바일 ── */
+/* ?�?� 반응?? 모바???�?� */
 @media (max-width: 1400px) {
   .hamburger {
     display: flex;
@@ -2589,7 +2811,7 @@ canvas {
     padding: 20px 16px 40px;
   }
 
-  /* 라이브러리: 탭 바 아래부터 시작 */
+  /* ?�이브러�? ??�??�래부???�작 */
   #view-library {
     padding-top: 0;
   }
@@ -2654,7 +2876,7 @@ canvas {
     justify-content: stretch;
   }
 
-  /* 8칸 모드: 세로모드 기본값 = 4+4 (2행×4열) */
+  /* 8�?모드: ?�로모드 기본�?= 4+4 (2?��??? */
   .chord-area.cols-8 {
     grid-template-columns: repeat(4, 1fr);
     justify-content: stretch;
@@ -2675,7 +2897,7 @@ canvas {
     padding: 5px 10px;
   }
 
-  /* 코드 목록 썸네일: 세로모드 4개 */
+  /* 코드 목록 ?�네?? ?�로모드 4�?*/
   .project-sticky-bar {
     padding: 12px 10px 0;
     position: sticky;
@@ -2707,12 +2929,12 @@ canvas {
     margin: 0 8px;
   }
 
-  /* ════════════════════════════════════════════════════════
-     모바일 전체 반응형 — viewport 상대 단위 (clamp / min)
-     기준: 375px (일반 모바일) ↔ 320px (소형) ↔ 480px (대형)
-     ════════════════════════════════════════════════════════ */
+  /* ?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═
+     모바???�체 반응????viewport ?��? ?�위 (clamp / min)
+     기�?: 375px (?�반 모바?? ??320px (?�형) ??480px (?�??
+     ?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═ */
 
-  /* ── 1. 탭 (줄바꿈 완전 방지) ── */
+  /* ?�?� 1. ??(줄바�??�전 방�?) ?�?� */
   .main-tab {
     font-size: clamp(12px, 4.4vw, 18px);
     padding: clamp(12px, 2.5vh, 20px) clamp(4px, 2vw, 16px);
@@ -2721,7 +2943,7 @@ canvas {
     text-overflow: ellipsis;
   }
 
-  /* ── 2. 헤더 타이틀 ── */
+  /* ?�?� 2. ?�더 ?�?��? ?�?� */
   .main-header .header {
     padding: clamp(12px, 3vw, 18px);
   }
@@ -2729,39 +2951,39 @@ canvas {
     font-size: clamp(18px, 6vw, 24px);
   }
 
-  /* ── 3. 카드 컨테이너 ── */
+  /* ?�?� 3. 카드 컨테?�너 ?�?� */
   .card {
     padding: clamp(14px, 4vw, 20px) clamp(12px, 4vw, 18px);
     gap: clamp(16px, 4vw, 24px);
   }
 
-  /* ── 4. 코드명 표시 ── */
+  /* ?�?� 4. 코드�??�시 ?�?� */
   .chord-display sup {
     font-size: clamp(12px, 0.5em, 0.9em);
   }
 
-  /* ── 5. 샵/플랫 토글 버튼 ── */
+  /* ?�?� 5. ???�랫 ?��? 버튼 ?�?� */
   .acc-btn {
     font-size: clamp(11px, 3.2vw, 13px);
     padding: 5px clamp(8px, 3.5vw, 14px);
   }
 
-  /* ── 6. 범용 버튼 ── */
+  /* ?�?� 6. 범용 버튼 ?�?� */
   .btn {
     font-size: clamp(11px, 3.2vw, 13px);
     padding: clamp(7px, 2.5vw, 9px) clamp(14px, 4.5vw, 22px);
   }
-  /* Bug Fix: .btn 미디어쿼리가 하위 클래스를 cascade override하는 문제 수정
-     compact/icon 버튼들을 .btn 이후에 재선언해서 우선순위 회복 */
+  /* Bug Fix: .btn 미디?�쿼리�? ?�위 ?�래?��? cascade override?�는 문제 ?�정
+     compact/icon 버튼?�을 .btn ?�후???�선?�해???�선?�위 ?�복 */
 
-  /* 프로젝트 헤더 텍스트 버튼 */
+  /* ?�로?�트 ?�더 ?�스??버튼 */
   .project-header-btn {
     font-size: 11px;
     padding: 5px clamp(6px, 1.8vw, 10px);
     white-space: nowrap;
   }
 
-  /* 아이콘 원형 버튼 — padding:0 복원, 정원형 유지 */
+  /* ?�이�??�형 버튼 ??padding:0 복원, ?�원???��? */
   .metronome-btn,
   .play-all-btn,
   .slot-toggle-btn {
@@ -2775,14 +2997,14 @@ canvas {
     padding: 6px clamp(8px, 3vw, 14px);
   }
 
-  /* ── 7. 핑거 버튼 ── */
+  /* ?�?� 7. ?�거 버튼 ?�?� */
   .finger-btn {
     width: clamp(35px, 10.5vw, 43px);
     height: clamp(35px, 10.5vw, 43px);
     font-size: clamp(13px, 4vw, 16px);
   }
 
-  /* ── 8. 코드 빌더 피커 ── */
+  /* ?�?� 8. 코드 빌더 ?�커 ?�?� */
   .builder-col .sel-btn {
     font-size: clamp(14px, 4.5vw, 18px);
   }
@@ -2791,14 +3013,14 @@ canvas {
     padding: clamp(5px, 1.5vw, 8px) 2px clamp(3px, 1vw, 4px);
   }
 
-  /* ── 9. 에디터 액션바 버튼 ── */
+  /* ?�?� 9. ?�디???�션�?버튼 ?�?� */
   .ab-btn,
   .ab-select {
     font-size: clamp(11px, 3.2vw, 13px);
     padding: 8px clamp(8px, 3.2vw, 16px);
   }
 
-  /* ── 10. 라이브러리 검색바 ── */
+  /* ?�?� 10. ?�이브러�?검?�바 ?�?� */
   .lib-search-bar {
     width: min(320px, calc(100vw - 24px));
     margin-top: clamp(10px, 3vw, 16px);
@@ -2807,7 +3029,7 @@ canvas {
     font-size: clamp(12px, 3.5vw, 14px);
   }
 
-  /* ── 11. 라이브러리 캔버스 & 플레이 버튼 ── */
+  /* ?�?� 11. ?�이브러�?캔버??& ?�레??버튼 ?�?� */
   .lib-viewer {
     padding: clamp(20px, 5vw, 40px) clamp(12px, 4vw, 20px) 10px;
   }
@@ -2822,7 +3044,7 @@ canvas {
     height: clamp(18px, 5.5vw, 22px);
   }
 
-  /* ── 12. 라이브러리 카드 ── */
+  /* ?�?� 12. ?�이브러�?카드 ?�?� */
   .lib-card-canvas {
     width: 100%;
     min-width: 0;
@@ -2841,7 +3063,7 @@ canvas {
     padding: clamp(6px, 1.5vw, 8px) clamp(6px, 1.5vw, 8px) 24px;
   }
 
-  /* ── 13. 라이브러리 액션바 ── */
+  /* ?�?� 13. ?�이브러�??�션�??�?� */
   .lib-action-bar {
     padding: 8px clamp(8px, 3vw, 20px) 10px;
     gap: clamp(4px, 1.5vw, 8px);
@@ -2854,7 +3076,7 @@ canvas {
     padding-right: clamp(8px, 3vw, 14px);
   }
 
-  /* ── 14. 근음 목록 (폭·높이 연동) ── */
+  /* ?�?� 14. 근음 목록 (??�높???�동) ?�?� */
   .lib-root-list {
     width: clamp(36px, 10vw, 45px);
     flex-shrink: 0;
@@ -2863,13 +3085,13 @@ canvas {
     height: clamp(36px, 10vw, 45px);
     font-size: clamp(11px, 3.2vw, 14px);
   }
-  /* 보이싱 오버레이/모달 — 근음 목록 폭과 연동 */
+  /* 보이???�버?�이/모달 ??근음 목록 ??�� ?�동 */
   .lib-voicing-overlay,
   .lib-voicing-modal {
     left: calc(clamp(36px, 10vw, 45px) + 1px);
   }
 
-  /* ── 15. 모달 ── */
+  /* ?�?� 15. 모달 ?�?� */
   .modal-title {
     font-size: clamp(16px, 5vw, 20px);
   }
@@ -2877,14 +3099,14 @@ canvas {
     padding: clamp(14px, 4vw, 20px);
   }
 
-  /* ── 16. 프로젝트 헤더 row2 컨트롤 높이 통일 ── */
-  /* capo-control과 bpm-control을 원형 버튼(28px)과 동일한 높이로 고정 */
+  /* ?�?� 16. ?�로?�트 ?�더 row2 컨트�??�이 ?�일 ?�?� */
+  /* capo-control�?bpm-control???�형 버튼(28px)�??�일???�이�?고정 */
   .capo-control,
   .bpm-control {
     height: 28px;
     box-sizing: border-box;
   }
-  /* bpm-input: 브라우저 기본 padding/height 초기화 */
+  /* bpm-input: 브라?��? 기본 padding/height 초기??*/
   .bpm-input {
     height: 16px;
     padding: 0;
@@ -2892,16 +3114,16 @@ canvas {
     box-sizing: border-box;
   }
 
-  /* ── 18. 에디터 캔버스 — canvas-unit이 카드 내 중앙 정렬됨 (기본값 유지) ── */
+  /* ?�?� 18. ?�디??캔버????canvas-unit??카드 ??중앙 ?�렬??(기본�??��?) ?�?� */
 
-  /* ── 19. 프로젝트 헤더 뒤로 버튼 줄바꿈 방지 ── */
+  /* ?�?� 19. ?�로?�트 ?�더 ?�로 버튼 줄바�?방�? ?�?� */
   .back-btn {
     white-space: nowrap;
     flex-shrink: 0;
   }
 }
 
-/* 모바일/태블릿 가로모드: cols-8도 4열 고정 */
+/* 모바???�블�?가로모?? cols-8??4??고정 */
 @media (max-width: 1400px) and (orientation: landscape) {
   .chord-area.cols-8 {
     grid-template-columns: repeat(4, 1fr);
@@ -2910,7 +3132,7 @@ canvas {
 }
 
 @media (max-height: 600px) and (orientation: landscape) {
-  /* 모바일 가로모드: 사이드바 항상 숨김 */
+  /* 모바??가로모?? ?�이?�바 ??�� ?��? */
   .hamburger {
     display: flex;
   }
@@ -2937,7 +3159,7 @@ canvas {
     width: 100%;
   }
 
-  /* 프로젝트 뷰 세로모드와 동일하게 꽉 채움 */
+  /* ?�로?�트 �??�로모드?� ?�일?�게 �?채�? */
   .view {
     padding: 20px 0 40px;
   }
@@ -2966,7 +3188,7 @@ canvas {
     flex-wrap: wrap;
   }
 
-  /* 코드 목록 썸네일: 한 행에 8개 */
+  /* 코드 목록 ?�네?? ???�에 8�?*/
   .project-sticky-bar {
     padding: 12px 10px 0;
     position: sticky;
@@ -3010,7 +3232,7 @@ canvas {
     aspect-ratio: 5 / 4;
   }
 
-  /* 가로모드 탭 반응형 */
+  /* 가로모????반응??*/
   .main-tab {
     font-size: clamp(12px, 2.2vw, 18px);
     padding: clamp(10px, 1.8vh, 20px) clamp(6px, 1.5vw, 16px);
@@ -3024,7 +3246,7 @@ canvas {
   }
 }
 
-/* ── Share / Import ── */
+/* ?�?� Share / Import ?�?� */
 .share-field-group { display: flex; flex-direction: column; gap: 6px; }
 .share-label { font-size: 12px; color: var(--text-secondary); font-weight: 500; }
 .share-row { display: flex; gap: 8px; align-items: center; }
@@ -3036,17 +3258,18 @@ canvas {
 }
 .import-settings-row { display: flex; gap: 16px; flex-wrap: wrap; font-size: 14px; }
 .import-settings-row label { display: flex; align-items: center; gap: 6px; cursor: pointer; }
-/* ── 행 메뉴 (3-dot) ── */
+/* ?�?� ??메뉴 (3-dot) ?�?� */
 .chord-row-wrapper {
   display: flex;
   align-items: center;
   width: 100%;
 }
+/* chord-area는 flex:1로 케밥 메뉴(row-menu-btn) 좌측 끝까지 전부 사용, space-between으로 그 폭 안에 균등 배치 */
 .chord-row-wrapper .chord-area { flex: 1; min-width: 0; }
 .row-menu-btn {
   flex-shrink: 0;
   width: auto; height: auto;
-  margin: 0; padding: 0;
+  margin: 0 0 0 auto; padding: 0;
   background: transparent;
   border: none;
   color: var(--text-secondary);
@@ -3088,7 +3311,7 @@ canvas {
 .row-menu-dropdown button:disabled { opacity: .4; cursor: default; }
 .row-menu-dropdown hr { border: none; border-top: 1px solid var(--border); margin: 4px 0; }
 
-/* ── 사이드바 플랜 푸터 ──────────────────────────────── */
+/* ?�?� ?�이?�바 ?�랜 ?�터 ?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?� */
 .sidebar-plan-footer {
   display: flex;
   align-items: center;
@@ -3116,7 +3339,7 @@ canvas {
   margin-left: auto;
 }
 
-/* ── 사이드바 인증 푸터 ──────────────────────────────── */
+/* ?�?� ?�이?�바 ?�증 ?�터 ?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?� */
 .sidebar-auth-footer {
   padding: 8px 12px;
   border-top: 1px solid var(--border);
@@ -3152,9 +3375,9 @@ canvas {
   margin-bottom: 2px;
 }
 
-/* ── 요금제 페이지 ──────────────────────────────────── */
+/* ?�?� ?�금???�이지 ?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?� */
 
-/* 출시 할인 배너 */
+/* 출시 ?�인 배너 */
 .plan-launch-banner {
   background: #fff;
   border-radius: var(--radius);
@@ -3166,7 +3389,7 @@ canvas {
   box-shadow: 0 2px 8px rgba(0,0,0,0.06);
 }
 
-/* 카드 목록 — 단일 컬럼 */
+/* 카드 목록 ???�일 컬럼 */
 .plan-cards {
   display: flex;
   flex-direction: column;
@@ -3175,7 +3398,7 @@ canvas {
   justify-content: flex-start;
 }
 
-/* 카드 베이스 */
+/* 카드 베이??*/
 .plan-card {
   position: relative;
   background: #fff;
@@ -3194,7 +3417,7 @@ canvas {
   box-shadow: 0 2px 8px rgba(0,0,0,0.08), inset 0 0 0 2px var(--blue);
 }
 
-/* "추천" 뱃지 — 카드 우상단 인라인 */
+/* "추천" 뱃�? ??카드 ?�상???�라??*/
 .plan-card-badge {
   position: absolute;
   top: 16px;
@@ -3208,7 +3431,7 @@ canvas {
   letter-spacing: 0.04em;
 }
 
-/* 플랜 이름 */
+/* ?�랜 ?�름 */
 .plan-card-name {
   font-size: 20px;
   font-weight: 800;
@@ -3226,7 +3449,7 @@ canvas {
   border-radius: 99px;
 }
 
-/* 가격 영역 */
+/* 가�??�역 */
 .plan-card-price {
   display: flex;
   flex-direction: column;
@@ -3273,7 +3496,7 @@ canvas {
   color: var(--text-secondary);
 }
 .plan-card-features li::before {
-  content: '✓ ';
+  content: '??';
   color: #16a34a;
   font-weight: 700;
 }
@@ -3281,7 +3504,7 @@ canvas {
 /* CTA 버튼 */
 .plan-card-btn { width: 100%; }
 
-/* 푸터 */
+/* ?�터 */
 .plan-modal-footer {
   display: flex;
   align-items: center;
@@ -3302,7 +3525,7 @@ canvas {
 }
 
 
-/* ── 결제 FAQ 모달 ─────────────────────────────────── */
+/* ?�?� 결제 FAQ 모달 ?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?� */
 .billing-faq-modal { max-width: 480px; }
 
 .billing-faq-body {
@@ -3333,8 +3556,8 @@ canvas {
   line-height: 1.65;
 }
 
-/* ── 업그레이드 유도 모달 ──────────────────────────── */
-/* ── 프로젝트 삭제 확인 모달 ── */
+/* ?�?� ?�그?�이???�도 모달 ?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?� */
+/* ?�?� ?�로?�트 ??�� ?�인 모달 ?�?� */
 @keyframes deleteConfirmIn {
   from { opacity: 0; transform: scale(0.85); }
   to   { opacity: 1; transform: scale(1); }
@@ -3369,7 +3592,7 @@ canvas {
   justify-content: center;
 }
 
-/* 세로/가로 전환 확인 모달 */
+/* ?�로/가�??�환 ?�인 모달 */
 .orient-confirm-modal {
   background: #ffffff;
   border-radius: var(--radius);
@@ -3459,7 +3682,7 @@ canvas {
   justify-content: flex-end;
 }
 
-/* ── 결제 계정 확인 모달 ──────────────────────────── */
+/* ?�?� 결제 계정 ?�인 모달 ?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?� */
 .purchase-confirm-modal { max-width: 360px; font-family: 'Pretendard', -apple-system, BlinkMacSystemFont, sans-serif; }
 .purchase-confirm-body {
   padding: 16px 20px;
@@ -3500,7 +3723,7 @@ canvas {
   justify-content: flex-end;
 }
 
-/* ── 프로젝트 목록 항목 ── */
+/* ?�?� ?�로?�트 목록 ??�� ?�?� */
 .projects-section { margin-bottom: 8px; }
 
 .projects-section-label {
@@ -3595,7 +3818,7 @@ canvas {
   margin: 8px 0;
 }
 
-/* ── 온보딩 오버레이 ──────────────────────────────── */
+/* ?�?� ?�보???�버?�이 ?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?� */
 @keyframes onboarding-card-in {
   from { opacity: 0; transform: translateY(24px) scale(0.95); }
   to   { opacity: 1; transform: translateY(0) scale(1); }
@@ -3615,7 +3838,7 @@ canvas {
 }
 .onboarding-overlay.hidden { display: none; }
 
-/* 인앱 브라우저 안내 */
+/* ?�앱 브라?��? ?�내 */
 .inapp-guide-title {
   font-size: 20px;
   font-weight: 800;
@@ -3672,7 +3895,7 @@ canvas {
 .onboarding-btn:hover { background: var(--surface); }
 .onboarding-btn:active { transform: scale(0.92); }
 
-/* ── 저장 완료 체크 애니메이션 ── */
+/* ?�?� ?�???�료 체크 ?�니메이???�?� */
 @keyframes check-circle-draw {
   from { stroke-dashoffset: 145; }
   to   { stroke-dashoffset: 0; }
@@ -3687,9 +3910,9 @@ canvas {
   100% { opacity: 0; }
 }
 
-/* ═══════════════════════════════════════
-   프로젝트 선택 바텀시트
-═══════════════════════════════════════ */
+/* ?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═??
+   ?�로?�트 ?�택 바�??�트
+?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═??*/
 .project-sheet-overlay {
   position: fixed;
   inset: 0;
@@ -3753,7 +3976,7 @@ canvas {
 .project-sheet-list {
   overflow-y: auto;
   padding: 4px 16px 16px;
-  max-height: calc((52px + 8px) * 3 + 8px); /* 아이템 3개 + 여백 */
+  max-height: calc((52px + 8px) * 3 + 8px); /* ?�이??3�?+ ?�백 */
 }
 
 .project-sheet-new-card {
@@ -3807,9 +4030,9 @@ canvas {
   color: var(--text-secondary);
 }
 
-/* ═══════════════════════════════════════
-   일반 텍스트 토스트
-═══════════════════════════════════════ */
+/* ?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═??
+   ?�반 ?�스???�스??
+?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═??*/
 .text-toast {
   position: fixed;
   bottom: 80px;
@@ -3871,7 +4094,7 @@ canvas {
   animation: check-mark-draw .3s cubic-bezier(.4,0,.2,1) .4s forwards;
 }
 
-/* ── 온보딩 로딩 점 ── */
+/* ?�?� ?�보??로딩 ???�?� */
 @keyframes onboarding-dot-blink {
   0%, 80%, 100% { opacity: 0.2; transform: scale(0.85); }
   40%           { opacity: 1;   transform: scale(1); }
@@ -3892,7 +4115,7 @@ canvas {
 .onboarding-loading-dot:nth-child(2) { animation-delay: 0.2s; }
 .onboarding-loading-dot:nth-child(3) { animation-delay: 0.4s; }
 
-/* ── 로그인 중 스피너 ── */
+/* ?�?� 로그??�??�피???�?� */
 .onboarding-signin-loading {
   display: flex;
   align-items: center;
@@ -3916,7 +4139,7 @@ canvas {
   color: var(--text-muted);
 }
 
-/* ── 시작하기 버튼 ── */
+/* ?�?� ?�작?�기 버튼 ?�?� */
 .onboarding-start-btn {
   padding: 13px 44px;
   background: var(--text-primary);
@@ -3946,7 +4169,7 @@ canvas {
 .onboarding-switch-account:hover { color: var(--text-secondary); }
 .onboarding-switch-account.hidden { display: none; }
 
-/* ── 온보딩 저작권 푸터 ── */
+/* ?�?� ?�보???�?�권 ?�터 ?�?� */
 .onboarding-footer {
   position: absolute;
   bottom: 28px;
@@ -3958,14 +4181,14 @@ canvas {
   letter-spacing: 0.04em;
 }
 
-/* ── 온보딩 스텝 (정보수집) ── */
+/* ?�?� ?�보???�텝 (?�보?�집) ?�?� */
 .ob-overlay--step {
   flex-direction: column;
   align-items: stretch;
   justify-content: flex-start;
 }
 
-/* 스텝 전환 애니메이션 */
+/* ?�텝 ?�환 ?�니메이??*/
 @keyframes ob-step-in {
   from { opacity: 0; transform: translateX(28px); }
   to   { opacity: 1; transform: translateX(0); }
@@ -4022,7 +4245,7 @@ canvas {
   margin: 0 0 24px;
 }
 
-/* 페르소나 세로 리스트 */
+/* ?�르?�나 ?�로 리스??*/
 .ob-persona-list {
   display: flex;
   flex-direction: column;
@@ -4053,7 +4276,7 @@ canvas {
 .ob-persona-label { font-size: 20px; font-weight: 700; color: var(--text-primary); line-height: 1.3; }
 .ob-persona-sub   { font-size: 12px; color: var(--text-muted); line-height: 1.4; }
 
-/* 기타 경력 선택 목록 */
+/* 기�? 경력 ?�택 목록 */
 .ob-choice-list {
   display: flex;
   flex-direction: column;
@@ -4083,7 +4306,7 @@ canvas {
   font-weight: 700;
 }
 
-/* 성별·나이 큰 카드 */
+/* ?�별·?�이 ??카드 */
 .ob-big-card-list {
   display: flex;
   flex-direction: column;
@@ -4114,11 +4337,11 @@ canvas {
 .ob-big-card-list--row { flex-direction: row; }
 .ob-big-card-list--row .ob-big-card { flex: 1; }
 
-/* 년도 휠피커 */
+/* ?�도 ?�피�?*/
 .ob-year-picker {
   position: relative;
   width: 100%;
-  height: 210px; /* 5개 × 42px */
+  height: 210px; /* 5�?× 42px */
   overflow: hidden;
 }
 .ob-year-scroll {
@@ -4166,7 +4389,7 @@ canvas {
 .ob-year-fade--top    { top: 0;    background: linear-gradient(to bottom, #fff 20%, transparent); }
 .ob-year-fade--bottom { bottom: 0; background: linear-gradient(to top,   #fff 20%, transparent); }
 
-/* 닉네임 입력 */
+/* ?�네???�력 */
 .ob-nickname-wrap {
   position: relative;
   width: 100%;
@@ -4194,7 +4417,7 @@ canvas {
   color: #aaa;
 }
 
-/* 섹션 레이블 + 칩 (성별/나이) */
+/* ?�션 ?�이�?+ �?(?�별/?�이) */
 .ob-section-label {
   font-size: 12px;
   font-weight: 700;
@@ -4230,11 +4453,11 @@ canvas {
   font-weight: 700;
 }
 
-/* 다음/완료 버튼 */
+/* ?�음/?�료 버튼 */
 .ob-next-btn { width: 100%; }
 .ob-next-btn:disabled { opacity: 0.35; cursor: not-allowed; transform: none !important; }
 
-/* 개인정보 동의 바텀시트 */
+/* 개인?�보 ?�의 바�??�트 */
 .ob-consent-backdrop {
   position: fixed;
   inset: 0;
@@ -4336,7 +4559,7 @@ canvas {
   color: var(--text-primary);
 }
 
-/* ── 안내 모달 공통 애니메이션 ── */
+/* ?�?� ?�내 모달 공통 ?�니메이???�?� */
 @keyframes notice-overlay-in {
   from { opacity: 0; }
   to   { opacity: 1; }
@@ -4372,7 +4595,7 @@ canvas {
   animation: notice-modal-out 0.18s ease forwards;
 }
 
-/* ── 튜토리얼 모달 ── */
+/* ?�?� ?�토리얼 모달 ?�?� */
 #modal-tutorial {
   padding: 0;
   display: block;
@@ -4514,9 +4737,9 @@ canvas {
 }
 
 
-/* ═══════════════════════════════════════════════════════════════
-   메인 탭 바
-   ═══════════════════════════════════════════════════════════════ */
+/* ?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═??
+   메인 ??�?
+   ?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═??*/
 .main-tabs {
   display: flex;
   align-items: stretch;
@@ -4551,7 +4774,7 @@ canvas {
   cursor: not-allowed;
 }
 
-/* 통합 헤더 */
+/* ?�합 ?�더 */
 .main-header {
   flex-shrink: 0;
   display: flex;
@@ -4559,7 +4782,7 @@ canvas {
 }
 .main-header.hidden { display: none; }
 
-/* 통합 헤더 안의 .header */
+/* ?�합 ?�더 ?�의 .header */
 .main-header .header {
   padding: 18px;
   margin-bottom: 0;
@@ -4570,11 +4793,11 @@ canvas {
   text-align: center;
 }
 
-/* ═══════════════════════════════════════════════════════════════
-   코드 라이브러리
-   ═══════════════════════════════════════════════════════════════ */
+/* ?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═??
+   코드 ?�이브러�?
+   ?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═??*/
 
-/* 라이브러리 컨테이너 구조 */
+/* ?�이브러�?컨테?�너 구조 */
 .lib-title {
   flex-shrink: 0;
   height: fit-content;
@@ -4598,7 +4821,7 @@ canvas {
   flex-shrink: 0;
 }
 
-/* 라이브러리 페이지 제목 */
+/* ?�이브러�??�이지 ?�목 */
 .lib-page-title {
   font-size: clamp(18px, 5.5vw, 20px);
   font-weight: 800;
@@ -4607,7 +4830,7 @@ canvas {
   flex-shrink: 0;
 }
 
-/* 라이브러리 뷰 레이아웃 — .view 공통 스타일 재정의 */
+/* ?�이브러�?�??�이?�웃 ??.view 공통 ?��????�정??*/
 #view-library {
   display: flex;
   flex-direction: column;
@@ -4626,7 +4849,7 @@ canvas {
 }
 #view-library.hidden { display: none; }
 
-/* 1. 검색 바 */
+/* 1. 검??�?*/
 .lib-search-bar {
   display: flex;
   align-items: center;
@@ -4667,14 +4890,14 @@ canvas {
 }
 .lib-canvas-row {
   position: relative;
-  display: inline-block; /* 캔버스 크기에 딱 맞게 축소 — lib-viewer의 align-items:center로 중앙 정렬 */
+  display: inline-block; /* 캔버???�기????맞게 축소 ??lib-viewer??align-items:center�?중앙 ?�렬 */
 }
 #lib-canvas {
   display: block;
-  width: min(76vw, 320px);   /* CSS 표시 크기 고정 */
+  width: min(76vw, 320px);   /* CSS ?�시 ?�기 고정 */
   height: auto;
   aspect-ratio: 5 / 4;
-  background: var(--border);  /* 선택 전 회색 플레이스홀더 */
+  background: var(--border);  /* ?�택 ???�색 ?�레?�스?�??*/
 }
 .lib-canvas-side-btns {
   position: absolute;
@@ -4686,7 +4909,7 @@ canvas {
   align-items: center;
   justify-content: center;
   gap: 14px;
-  /* BASE_PAD_R(110) / BASE_W(440) = 25% — 캔버스 너비 비율 고정 */
+  /* BASE_PAD_R(110) / BASE_W(440) = 25% ??캔버???�비 비율 고정 */
   width: 25%;
 }
 .lib-canvas-side-btns .canvas-side-btn {
@@ -4713,7 +4936,7 @@ canvas {
 .lib-play-btn:hover { color: var(--text-primary); }
 .lib-play-btn svg { width: 22px; height: 22px; }
 
-/* 운지 내비게이션 (다중 운지 시에만 표시) */
+/* ?��? ?�비게이??(?�중 ?��? ?�에�??�시) */
 .lib-fingering-nav {
   display: flex;
   align-items: center;
@@ -4743,7 +4966,7 @@ canvas {
   text-align: center;
 }
 
-/* 검색 결과 모달 — lib-action-bar + lib-bottom 위로 슬라이드 업 */
+/* 검??결과 모달 ??lib-action-bar + lib-bottom ?�로 ?�라?�드 ??*/
 .lib-search-modal {
   position: fixed;
   left: 0; right: 0; bottom: 0;
@@ -4752,7 +4975,7 @@ canvas {
   display: flex;
   flex-direction: column;
   transform: translateY(100%);
-  /* 열기/닫기 동일한 속도감 — 애니메이션 표준값 */
+  /* ?�기/?�기 ?�일???�도�????�니메이???��?�?*/
   transition: transform .55s cubic-bezier(0.22, 1, 0.36, 1);
   pointer-events: none;
   z-index: 10;
@@ -4779,7 +5002,7 @@ canvas {
   padding: 8px;
 }
 
-/* 3. 액션 바: 샵/플랫 + 손가락번호 + 저장 + 가져오기 */
+/* 3. ?�션 �? ???�랫 + ?��??�번??+ ?�??+ 가?�오�?*/
 .lib-action-bar {
   display: flex;
   align-items: center;
@@ -4789,7 +5012,7 @@ canvas {
   border-top: 1px solid var(--border);
   border-bottom: 1px solid var(--border);
 }
-/* 액션바 내 모든 버튼 높이 통일 */
+/* ?�션�???모든 버튼 ?�이 ?�일 */
 .lib-action-bar .acc-btn,
 .lib-action-bar .mode-btn,
 .lib-action-bar .ab-btn {
@@ -4801,7 +5024,7 @@ canvas {
   padding-top: 0;
   padding-bottom: 0;
 }
-/* 저장/가져오기 버튼: 테두리 제거 + 그림자 */
+/* ?�??가?�오�?버튼: ?�두�??�거 + 그림??*/
 .lib-action-bar .ab-btn {
   border: none;
   box-shadow: 0 1px 3px rgba(0,0,0,0.10);
@@ -4812,17 +5035,17 @@ canvas {
   box-shadow: 0 1px 3px rgba(0,0,0,0.15);
 }
 
-/* 4. 하단 목록: 근음(좌) + 카드(우) — 남은 공간 전부 채움 */
+/* 4. ?�단 목록: 근음(�? + 카드(?? ???��? 공간 ?��? 채�? */
 .lib-bottom {
   display: flex;
   flex: 1;
   min-height: 200px;
   overflow: hidden;
-  position: relative;   /* 보이싱 overlay absolute 기준점 */
+  position: relative;   /* 보이??overlay absolute 기�???*/
   background: #ffffff;
 }
 
-/* 근음 세로 목록 — 27px 고정 폭, 샵/플랫 모드에 따라 텍스트 변경 (JS 처리) */
+/* 근음 ?�로 목록 ??27px 고정 ?? ???�랫 모드???�라 ?�스??변�?(JS 처리) */
 .lib-root-list {
   width: clamp(36px, 12vw, 45px);
   flex-shrink: 0;
@@ -4855,7 +5078,7 @@ canvas {
   color: var(--bg);
 }
 
-/* 카드 그리드 (우측) — 남은 높이 채우고 내용 스크롤 */
+/* 카드 그리??(?�측) ???��? ?�이 채우�??�용 ?�크�?*/
 .lib-cards-area {
   flex: 1;
   min-height: 0;
@@ -4882,11 +5105,11 @@ canvas {
   cursor: pointer;
   padding: 6px 4px 5px;
   border-radius: 8px;
-  position: relative;   /* 배지 absolute 기준 */
+  position: relative;   /* 배�? absolute 기�? */
   transition: box-shadow .12s;
 }
 
-/* 복수 보이싱 뱃지 */
+/* 복수 보이??뱃�? */
 .lib-card-badge {
   position: absolute;
   top: 3px;
@@ -4904,7 +5127,7 @@ canvas {
   pointer-events: none;
 }
 
-/* 카드 클릭 탭 피드백 */
+/* 카드 ?�릭 ???�드�?*/
 @keyframes lib-card-tap {
   0%   { transform: scale(1);    }
   40%  { transform: scale(0.88); }
@@ -4940,10 +5163,10 @@ canvas {
   grid-column: 1 / -1;
 }
 
-/* ── 보이싱 피커 모달 ──────────────────────────────────── */
+/* ?�?� 보이???�커 모달 ?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?� */
 
-/* lib-bottom 영역 투명 오버레이 — 터치하면 모달 닫힘
-   (action-bar 등 상위 영역은 덮지 않으므로 버튼 정상 동작) */
+/* lib-bottom ?�역 ?�명 ?�버?�이 ???�치?�면 모달 ?�힘
+   (action-bar ???�위 ?�역?� ??? ?�으므�?버튼 ?�상 ?�작) */
 .lib-voicing-overlay {
   position: absolute;
   top: 0; bottom: 0; right: 0;
@@ -4955,7 +5178,7 @@ canvas {
   pointer-events: all;
 }
 
-/* 카드 에어리어를 덮는 모달 */
+/* 카드 ?�어리어�???�� 모달 */
 .lib-voicing-modal {
   position: absolute;
   top: 0; bottom: 0; right: 0;
@@ -4968,7 +5191,7 @@ canvas {
   overscroll-behavior: contain;
   scrollbar-width: none;
   transform: scale(0);
-  /* transform-origin: JS에서 클릭 카드 중심으로 동적 설정 */
+  /* transform-origin: JS?�서 ?�릭 카드 중심?�로 ?�적 ?�정 */
   transition: transform .55s cubic-bezier(0.22, 1, 0.36, 1);
   pointer-events: none;
 }
@@ -4978,7 +5201,7 @@ canvas {
   pointer-events: all;
 }
 
-/* ── 코드사전 추가 모달 (코드 팔레트 + 버튼) ── */
+/* ?�?� 코드?�전 추�? 모달 (코드 ?�레??+ 버튼) ?�?� */
 #palette-dict-modal { animation: modal-overlay-in 0.2s ease both; }
 #palette-dict-modal .modal {
   animation: modal-scale-in 0.25s cubic-bezier(0.34, 1.56, 0.64, 1) both;
@@ -5004,7 +5227,7 @@ canvas {
 }
 .palette-dict-body .lib-bottom-area { min-height: 0; }
 
-/* ── 공지 팝업 모달 ──────────────────────────────── */
+/* ?�?� 공�? ?�업 모달 ?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?� */
 .notice-modal {
   background: var(--surface);
   border-radius: var(--radius-lg);
@@ -5060,7 +5283,7 @@ canvas {
 .notice-modal-btn:hover { opacity: 0.85; }
 .notice-modal-btn:active { transform: scale(0.98); }
 
-/* ── 리뷰/평점 유도 모달 (미니멀, 텍스트 버튼) ── */
+/* ?�?� 리뷰/?�점 ?�도 모달 (미니멀, ?�스??버튼) ?�?� */
 .review-modal {
   background: var(--surface);
   border-radius: var(--radius-lg);
@@ -5111,7 +5334,7 @@ canvas {
   color: var(--text-tertiary, #9aa0a6);
 }
 
-/* 모달 내부 4열 그리드 (lib-cards와 동일 구조) */
+/* 모달 ?��? 4??그리??(lib-cards?� ?�일 구조) */
 .lib-voicing-grid {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
@@ -5120,7 +5343,7 @@ canvas {
   align-content: start;
 }
 
-/* 코드 추가 시 다이어그램이 팔레트로 날아가는 고스트 */
+/* 코드 추�? ???�이?�그?�이 ?�레?�로 ?�아가??고스??*/
 .pd-fly-ghost {
   position: fixed;
   z-index: 9999;
@@ -5149,7 +5372,7 @@ canvas {
   transition: opacity 0.2s, transform 0.2s;
   z-index: 9999;
 }
-/* ── 플랜 페이지 ── */
+/* ?�?� ?�랜 ?�이지 ?�?� */
 .plan-page-body {
   flex: 1;
   overflow-y: hidden;
@@ -5167,7 +5390,7 @@ canvas {
   padding-top: 8px;
 }
 
-/* ── 플랜 바텀시트 ── */
+/* ?�?� ?�랜 바�??�트 ?�?� */
 .plan-sheet-overlay {
   position: fixed;
   inset: 0;
@@ -5224,7 +5447,7 @@ canvas {
   gap: 12px;
 }
 
-/* ── 프로필 페이지 ── */
+/* ?�?� ?�로???�이지 ?�?� */
 .profile-container {
   display: flex;
   flex-direction: column;
@@ -5403,11 +5626,11 @@ canvas {
   transform: translateX(-50%) translateY(0);
 }
 
-/* ══════════════════════════════════════════════════════════════
-   훈련소 (training.html)
-══════════════════════════════════════════════════════════════ */
+/* ?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═
+   ?�련??(training.html)
+?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═ */
 
-/* 페이지 타이틀 */
+/* ?�이지 ?�?��? */
 .training-page-title {
   font-size: 20px;
   font-weight: 800;
@@ -5416,7 +5639,7 @@ canvas {
   margin-bottom: 24px;
 }
 
-/* 스크롤 컨테이너 */
+/* ?�크�?컨테?�너 */
 .training-scroll {
   height: 100%;
   box-sizing: border-box;
@@ -5429,7 +5652,7 @@ canvas {
 }
 .training-scroll::-webkit-scrollbar { display: none; }
 
-/* ── 통계 래퍼 카드 ── */
+/* ?�?� ?�계 ?�퍼 카드 ?�?� */
 .training-stats-wrap {
   background: #fff;
   border-radius: 20px;
@@ -5466,7 +5689,7 @@ canvas {
   line-height: 1;
   color: var(--text-primary);
 }
-.training-stats-icon i          { color: #2563EB; } /* 쿨 블루 — 차트 */
+.training-stats-icon i          { color: #2563EB; } /* �?블루 ??차트 */
 .training-card--chord-name    .training-card-icon i,
 .training-card--chord-diagram .training-card-icon i,
 .training-card--fretboard     .training-card-icon i,
@@ -5504,7 +5727,7 @@ canvas {
   white-space: nowrap;
 }
 
-/* ── 섹션 레이블 ── */
+/* ?�?� ?�션 ?�이�??�?� */
 .training-section-label {
   font-size: 16px;
   font-weight: 800;
@@ -5512,7 +5735,7 @@ canvas {
   margin-bottom: -20px;
 }
 
-/* ── 훈련 카드 그리드 ── */
+/* ?�?� ?�련 카드 그리???�?� */
 .training-grid {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
@@ -5539,7 +5762,7 @@ canvas {
   box-shadow: 0 1px 4px rgba(0,0,0,0.05);
 }
 
-/* 아이콘 */
+/* ?�이�?*/
 .training-card-icon {
   align-self: flex-start;
   display: flex;
@@ -5568,7 +5791,7 @@ canvas {
   margin-bottom: 2px;
 }
 
-/* 이름 (하단) */
+/* ?�름 (?�단) */
 .training-card-bottom {
   align-self: flex-start;
 }
@@ -5579,17 +5802,17 @@ canvas {
   color: var(--text-primary);
 }
 
-/* main-content에서 flex 사용 */
+/* main-content?�서 flex ?�용 */
 .training-scroll {
   width: 100%;
   box-sizing: border-box;
 }
 
-/* ═══════════════════════════════════════════════════════════════
-   코드 이름 맞추기 — 퀴즈 페이지 (chord-name-quiz.html)
-═══════════════════════════════════════════════════════════════ */
+/* ?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═??
+   코드 ?�름 맞추�????�즈 ?�이지 (chord-name-quiz.html)
+?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═??*/
 
-/* 탑바 진행 표시 */
+/* ?�바 진행 ?�시 */
 .quiz-progress-dots {
   display: flex;
   align-items: center;
@@ -5609,32 +5832,32 @@ canvas {
   transform: scale(1.5);
 }
 
-/* 전체 래퍼: 패딩 담당 + 9:20에서 inner 수직 중앙 정렬 */
+/* ?�체 ?�퍼: ?�딩 ?�당 + 9:20?�서 inner ?�직 중앙 ?�렬 */
 .quiz-wrap {
   height: 100%;
   padding: clamp(16px, 3.5vh, 36px) 10% calc(clamp(16px, 3.5vh, 36px) + env(safe-area-inset-bottom, 0px));
   box-sizing: border-box;
   display: flex;
   flex-direction: column;
-  justify-content: center;   /* max-height 초과 시 남은 공간 위아래 균등 */
+  justify-content: center;   /* max-height 초과 ???��? 공간 ?�아??균등 */
 }
 
-/* 콘텐츠 컨테이너: zoom 대상 */
+/* 콘텐�?컨테?�너: zoom ?�??*/
 .quiz-inner {
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: space-between;
-  flex: 1;                           /* height:100% 대체 (flex child) */
-  max-height: calc(128vw + 163px);   /* 9:20 gap 과다 성장 방지
-     128vw = 카드2장 높이(너비캡시) = 80vw × 0.8 × 2
-     163px = overhead(123) + gap예산(40) */
+  flex: 1;                           /* height:100% ?��?(flex child) */
+  max-height: calc(128vw + 163px);   /* 9:20 gap 과다 ?�장 방�?
+     128vw = 카드2???�이(?�비캡시) = 80vw × 0.8 × 2
+     163px = overhead(123) + gap?�산(40) */
   overflow: hidden;
   min-height: 0;
   gap: 6px;
 }
 
-/* 상단 그룹: info + question + timer — 촘촘하게 묶음 */
+/* ?�단 그룹: info + question + timer ??촘촘?�게 묶음 */
 .quiz-upper-group {
   display: flex;
   flex-direction: column;
@@ -5643,22 +5866,22 @@ canvas {
   gap: 6px;
 }
 
-/* ① 피드백 + 반응속도 — 자연 크기 */
+/* ???�드�?+ 반응?�도 ???�연 ?�기 */
 .quiz-info-area {
   flex-shrink: 0;
   display: flex;
   flex-direction: column;
   align-items: center;
-  justify-content: space-between; /* 피드백 상단 / 반응속도 하단 고정 */
+  justify-content: space-between; /* ?�드�??�단 / 반응?�도 ?�단 고정 */
   width: 100%;
-  height: 72px;                   /* feedback(42) + speed(28) + gap(2) 고정 → 기록 위치 일정 */
+  height: 72px;                   /* feedback(42) + speed(28) + gap(2) 고정 ??기록 ?�치 ?�정 */
 }
 
-/* ② 문제 카드 — 높이 기준 5:4 (높이 부족 시 너비 자동 축소)
-   공식: (quiz-inner 가용 높이 - 고정 오버헤드) × 0.625
-   93dvh ≈ dvh - topbar(54px) - wrap_v_pad(7dvh)
-   env(safe-area-inset-top) 별도 차감 (topbar가 safe-area만큼 더 높아지므로)
-   200px = topbar(54) + feedback×2줄(42) + speed(28) + gap(2) +
+/* ??문제 카드 ???�이 기�? 5:4 (?�이 부�????�비 ?�동 축소)
+   공식: (quiz-inner 가???�이 - 고정 ?�버?�드) × 0.625
+   93dvh ??dvh - topbar(54px) - wrap_v_pad(7dvh)
+   env(safe-area-inset-top) 별도 차감 (topbar가 safe-area만큼 ???�아지므�?
+   200px = topbar(54) + feedback×2�?42) + speed(28) + gap(2) +
            upper-group-gap×2(12) + timer(6) + btn(33) + buffer(23) */
 .quiz-question-area {
   flex-shrink: 0;
@@ -5671,7 +5894,7 @@ canvas {
   border-radius: 20px;
 }
 
-/* ④ 선택지 영역 — 높이 기준 5:4 (높이 부족 시 너비 자동 축소) */
+/* ???�택지 ?�역 ???�이 기�? 5:4 (?�이 부�????�비 ?�동 축소) */
 .quiz-choices-area {
   flex-shrink: 0;
   width: min(100%, calc((93dvh - env(safe-area-inset-top) - 200px) * 0.625));
@@ -5679,9 +5902,9 @@ canvas {
   overflow: hidden;
 }
 
-/* 캔버스 카드 — quiz-question-area(5:4)를 가득 채움 */
+/* 캔버??카드 ??quiz-question-area(5:4)�?가??채�? */
 .quiz-canvas-wrap {
-  flex: 1;               /* quiz-question-area 전체 채움 */
+  flex: 1;               /* quiz-question-area ?�체 채�? */
   width: 100%;
   position: relative;
   background: #fff;
@@ -5695,7 +5918,7 @@ canvas {
   box-sizing: border-box;
 }
 
-/* 카운트다운 오버레이 */
+/* 카운?�다???�버?�이 */
 @keyframes countdown-pop {
   0%   { transform: scale(1.6); opacity: 0; }
   25%  { transform: scale(1);   opacity: 1; }
@@ -5721,7 +5944,7 @@ canvas {
   animation: countdown-pop 1s ease forwards;
 }
 
-/* 퀴즈 풀 로딩 스피너 (카운트다운 전 코드 불러오는 동안) */
+/* ?�즈 ?� 로딩 ?�피??(카운?�다????코드 불러?�는 ?�안) */
 .quiz-loading {
   position: absolute;
   inset: 0;
@@ -5753,7 +5976,7 @@ canvas {
   aspect-ratio: 440 / 352;
 }
 
-/* ── 코드명 표시 (이름→운지 모드) — quiz-question-area 전체 채움 */
+/* ?�?� 코드�??�시 (?�름?�운지 모드) ??quiz-question-area ?�체 채�? */
 .quiz-chord-name-display {
   flex: 1;
   width: 100%;
@@ -5768,26 +5991,26 @@ canvas {
   color: #1a1a1a;
   letter-spacing: -2px;
   font-family: 'Pretendard', sans-serif;
-  white-space: nowrap;   /* 1줄 강제 — 긴 이름은 JS로 폰트 축소 */
+  white-space: nowrap;   /* 1�?강제 ??�??�름?� JS�??�트 축소 */
   overflow: hidden;
   padding: 0 16px;
 }
 
-/* 코드이름 텐션 소괄호 — 위첨자(상단) 표기 (result-item-name / quiz-choice-btn / quiz-chord-name-display 공통) */
+/* 코드?�름 ?�션 ?�괄?????�첨???�단) ?�기 (result-item-name / quiz-choice-btn / quiz-chord-name-display 공통) */
 .quiz-cn-sup {
   font-size: 0.5em;
   vertical-align: super;
   letter-spacing: 0;
 }
 
-/* quiz-chord-name-display 한정 — 위첨자 훨씬 위로 */
+/* quiz-chord-name-display ?�정 ???�첨???�씬 ?�로 */
 .quiz-chord-name-display .quiz-cn-sup {
   position: relative;
-  top: -0.7em;            /* sup 폰트(0.5em) 기준 — 훨씬 위로 */
+  top: -0.7em;            /* sup ?�트(0.5em) 기�? ???�씬 ?�로 */
   vertical-align: baseline;
 }
 
-/* ── 다이어그램 선택지 ────────────────────────────────────────── */
+/* ?�?� ?�이?�그???�택지 ?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?� */
 .quiz-diagram-choice {
   width: 100%;
   height: 100%;
@@ -5824,12 +6047,12 @@ canvas {
   background: #fef2f2;
 }
 
-/* ── 타임어택 바 ─────────────────────────────────────────────── */
+/* ?�?� ?�?�어??�??�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?� */
 .quiz-timer-track {
   flex-shrink: 0;
   width: min(100%, calc((93dvh - env(safe-area-inset-top) - 200px) * 0.625));
   height: 6px;
-  background: #e5e7eb;   /* 회색 트랙 */
+  background: #e5e7eb;   /* ?�색 ?�랙 */
   border-radius: 999px;
   overflow: hidden;
 }
@@ -5837,12 +6060,12 @@ canvas {
 .quiz-timer-bar {
   height: 100%;
   width: 100%;
-  background: #3B82F6;   /* 대표색 채움 — 우측으로 줄어들며 회색 노출 */
+  background: #3B82F6;   /* ?�?�색 채�? ???�측?�로 줄어?�며 ?�색 ?�출 */
   border-radius: 999px;
   transform-origin: left;
 }
 
-/* ── 모드 선택 화면 ─────────────────────────────────────────── */
+/* ?�?� 모드 ?�택 ?�면 ?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?� */
 .mode-select-scroll {
   display: flex;
   flex-direction: column;
@@ -5852,7 +6075,7 @@ canvas {
   justify-content: center;
 }
 
-/* ── 튜토리얼 캐러셀 ─────────────────────────────────────────── */
+/* ?�?� ?�토리얼 캐러?� ?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?� */
 .mode-carousel {
   display: flex;
   flex-direction: column;
@@ -5923,7 +6146,7 @@ canvas {
 }
 
 .mode-carousel-card-list li::before {
-  content: '•';
+  content: '??;
   position: absolute;
   left: 0;
   color: #3B82F6;
@@ -6059,13 +6282,13 @@ canvas {
   display: none;
 }
 
-/* 피드백 메시지 — 1줄↔2줄 전환에도 레이아웃 고정
-   14px × line-height 1.5 × 2줄 = 42px 확정 */
+/* ?�드�?메시지 ??1줄↔2�??�환?�도 ?�이?�웃 고정
+   14px × line-height 1.5 × 2�?= 42px ?�정 */
 .quiz-feedback-msg {
-  height: 42px;          /* 2줄 분량 완전 고정 — min-height 아님 */
+  height: 42px;          /* 2�?분량 ?�전 고정 ??min-height ?�님 */
   overflow: hidden;
   display: flex;
-  align-items: center;   /* 1줄일 때 수직 중앙 */
+  align-items: center;   /* 1줄일 ???�직 중앙 */
   justify-content: center;
   font-size: 14px;
   font-weight: 500;
@@ -6078,7 +6301,7 @@ canvas {
 .quiz-speed {
   min-height: 28px;
   display: flex;
-  align-items: flex-end;     /* 반응속도 하단에 붙임 */
+  align-items: flex-end;     /* 반응?�도 ?�단??붙임 */
   justify-content: center;
   line-height: 1;
   font-size: 22px;
@@ -6088,7 +6311,7 @@ canvas {
   letter-spacing: -0.5px;
 }
 
-/* 다음 문제 버튼 — 고정 높이 (28~38px 범위) */
+/* ?�음 문제 버튼 ??고정 ?�이 (28~38px 범위) */
 .quiz-next-btn {
   flex-shrink: 0;
   opacity: 0.3;
@@ -6120,7 +6343,7 @@ canvas {
   transform: scale(0.96);
 }
 
-/* 4지선다 보기 — choices-area(5:4) 전체 채우는 2×2 그리드 */
+/* 4지?�다 보기 ??choices-area(5:4) ?�체 채우??2×2 그리??*/
 .quiz-choices {
   display: grid;
   grid-template-columns: 1fr 1fr;
@@ -6130,7 +6353,7 @@ canvas {
   height: 100%;
 }
 
-/* 카운트다운 중 회색 플레이스홀더 */
+/* 카운?�다??�??�색 ?�레?�스?�??*/
 .quiz-choice-ghost {
   width: 100%;
   height: 100%;
@@ -6170,7 +6393,7 @@ canvas {
   color: #dc2626;
 }
 
-/* ── 퀴즈 뷰 전환 (레벨 선택 ↔ 퀴즈) ───────────────────────── */
+/* ?�?� ?�즈 �??�환 (?�벨 ?�택 ???�즈) ?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?� */
 .quiz-view {
   position: absolute;
   inset: 0;
@@ -6194,7 +6417,7 @@ canvas {
   pointer-events: none;
 }
 
-/* ── 탑바 센터 슬롯 ─────────────────────────────────────────── */
+/* ?�?� ?�바 ?�터 ?�롯 ?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?� */
 .quiz-topbar-center {
   position: absolute;
   left: 50%;
@@ -6211,7 +6434,7 @@ canvas {
   white-space: nowrap;
 }
 
-/* ── 레벨 선택 화면 (레거시, 미사용) ─────────────────────────── */
+/* ?�?� ?�벨 ?�택 ?�면 (?�거?? 미사?? ?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?� */
 .level-select-scroll {
   display: flex;
   flex-direction: column;
@@ -6220,7 +6443,7 @@ canvas {
   box-sizing: border-box;
 }
 
-/* ── 레벨 선택 새 레이아웃 ──────────────────────────────────── */
+/* ?�?� ?�벨 ?�택 ???�이?�웃 ?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?� */
 .level-select-layout {
   display: flex;
   flex-direction: column;
@@ -6232,7 +6455,7 @@ canvas {
   background: #F5F5F5;
 }
 
-/* ── 상단 상세 패널 ─────────────────────────────────────────── */
+/* ?�?� ?�단 ?�세 ?�널 ?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?� */
 .level-detail-panel {
   flex-shrink: 0;
   background: #fff;
@@ -6243,8 +6466,8 @@ canvas {
   padding: 16px;
   display: flex;
   flex-direction: column;
-  gap: 10px; /* 내부 요소 간격: flex gap으로 통일 (개별 margin 금지) */
-  overflow: hidden; /* min-height 고정 후 locked 콘텐츠 넘침 방지 */
+  gap: 10px; /* ?��? ?�소 간격: flex gap?�로 ?�일 (개별 margin 금�?) */
+  overflow: hidden; /* min-height 고정 ??locked 콘텐�??�침 방�? */
 }
 
 .ldp-header-row {
@@ -6325,7 +6548,7 @@ canvas {
 }
 
 .ldp-sg-empty {
-  /* 좌상단 빈 셀 */
+  /* 좌상??�??� */
 }
 
 .ldp-sg-header {
@@ -6376,7 +6599,7 @@ canvas {
   gap: 8px;
 }
 
-/* ── 레벨 스크롤 리스트 ──────────────────────────────────────── */
+/* ?�?� ?�벨 ?�크�?리스???�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?� */
 .level-wheel-track {
   flex: 1;
   min-height: 0;
@@ -6441,7 +6664,7 @@ canvas {
 .lw-item--locked .lw-name { color: #1a1a1a; }
 .lw-item--coming-soon .lw-name { color: var(--text-muted); }
 
-/* ── 브론즈 챌린지 (c1) ── */
+/* ?�?� 브론�?챌린지 (c1) ?�?� */
 .lw-item--challenge-bronze {
   background: linear-gradient(135deg, #fff8f0 0%, #fff 60%);
   border: 1.5px solid rgba(184, 115, 51, 0.45);
@@ -6459,7 +6682,7 @@ canvas {
   border-color: rgba(184, 115, 51, 0.7);
 }
 
-/* ── 실버 챌린지 (c2) ── */
+/* ?�?� ?�버 챌린지 (c2) ?�?� */
 .lw-item--challenge-silver {
   background: linear-gradient(135deg, #f7f8fa 0%, #fff 60%);
   border: 1.5px solid rgba(148, 163, 184, 0.55);
@@ -6477,7 +6700,7 @@ canvas {
   border-color: rgba(148, 163, 184, 0.8);
 }
 
-/* ── 골드 챌린지 (c3) ── */
+/* ?�?� 골드 챌린지 (c3) ?�?� */
 .lw-item--challenge-gold {
   background: linear-gradient(135deg, #fffbeb 0%, #fff 60%);
   border: 1.5px solid rgba(234, 179, 8, 0.5);
@@ -6530,7 +6753,7 @@ canvas {
   gap: 8px;
 }
 
-/* 레벨 카드 */
+/* ?�벨 카드 */
 .level-card {
   background: #fff;
   border-radius: 14px;
@@ -6551,7 +6774,7 @@ canvas {
   box-shadow: 0 3px 14px rgba(0, 0, 0, 0.1);
 }
 
-/* 항상 보이는 메인 영역 */
+/* ??�� 보이??메인 ?�역 */
 .level-card-main {
   display: flex;
   flex-direction: column;
@@ -6585,7 +6808,7 @@ canvas {
 }
 
 .level-card-name {
-  font-size: clamp(20px, 5.5vw, 24px); /* 9:16(360px)→19.8px≈20px, 436px+→24px */
+  font-size: clamp(20px, 5.5vw, 24px); /* 9:16(360px)??9.8px??0px, 436px+??4px */
   font-weight: 800;
   color: #1a1a1a;
   line-height: 1.2;
@@ -6599,7 +6822,7 @@ canvas {
   white-space: nowrap;
 }
 
-/* 확장 영역 */
+/* ?�장 ?�역 */
 .level-card-body {
   max-height: 0;
   overflow: hidden;
@@ -6630,7 +6853,7 @@ canvas {
   color: #555;
 }
 
-/* ── 모드별 통계 그리드 ────────────────────────────────────── */
+/* ?�?� 모드�??�계 그리???�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?� */
 .level-card-stats-grid {
   display: grid;
   grid-template-columns: 1fr 1fr;
@@ -6668,13 +6891,13 @@ canvas {
 }
 
 .level-card-stat-value {
-  font-size: clamp(10px, 2.8vw, 12px); /* 9:16(360px)→10px, 430px+→12px */
+  font-size: clamp(10px, 2.8vw, 12px); /* 9:16(360px)??0px, 430px+??2px */
   font-weight: 700;
   color: #1a1a1a;
-  white-space: nowrap; /* 폰트 축소 후에도 줄바꿈 방지 */
+  white-space: nowrap; /* ?�트 축소 ?�에??줄바�?방�? */
 }
 
-/* 액션 버튼 */
+/* ?�션 버튼 */
 .level-card-actions {
   display: flex;
   gap: 10px;
@@ -6713,7 +6936,7 @@ canvas {
   cursor: default;
 }
 
-/* ── 예습 모달 ────────────────────────────────────────────────── */
+/* ?�?� ?�습 모달 ?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?� */
 .preview-modal-overlay {
   position: fixed;
   inset: 0;
@@ -6735,7 +6958,7 @@ canvas {
 }
 
 .preview-modal {
-  position: relative;        /* 로딩 오버레이 기준 */
+  position: relative;        /* 로딩 ?�버?�이 기�? */
   width: 100%;
   max-width: 400px;
   max-height: 80vh;
@@ -6750,7 +6973,7 @@ canvas {
               opacity   0.22s ease;
 }
 
-/* 예습 로딩 오버레이 — 보이싱 다수 렌더 중 끊김 가림 */
+/* ?�습 로딩 ?�버?�이 ??보이???�수 ?�더 �??��? 가�?*/
 .preview-loading {
   position: absolute;
   inset: 0;
@@ -6820,7 +7043,7 @@ canvas {
   box-shadow: 0 1px 6px rgba(0, 0, 0, 0.08);
 }
 
-/* ── 예습 모달 #/b 토글 ──────────────────────────────────────── */
+/* ?�?� ?�습 모달 #/b ?��? ?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?� */
 .preview-accidental-bar {
   display: flex;
   justify-content: center;
@@ -6854,8 +7077,8 @@ canvas {
   box-shadow: 0 1px 5px rgba(0, 0, 0, 0.13);
 }
 
-/* ── 결과 모달 ────────────────────────────────────────────────── */
-/* ── 차트 모달 ───────────────────────────────────────────────── */
+/* ?�?� 결과 모달 ?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?� */
+/* ?�?� 차트 모달 ?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?� */
 .chart-modal-overlay {
   position: fixed;
   inset: 0;
@@ -6940,7 +7163,7 @@ canvas {
   color: #bbb;
 }
 
-/* stat-col 탭 인터랙션 */
+/* stat-col ???�터?�션 */
 .level-card-stat-col[data-mode] {
   cursor: pointer;
   transition: background 0.15s;
@@ -6991,12 +7214,12 @@ canvas {
   opacity: 1;
 }
 
-/* 핸들 바 (팝업에서 숨김) */
+/* ?�들 �?(?�업?�서 ?��?) */
 .result-modal-handle {
   display: none;
 }
 
-/* 점수 표시 */
+/* ?�수 ?�시 */
 .result-modal-score {
   font-size: 24px;
   font-weight: 800;
@@ -7013,10 +7236,10 @@ canvas {
   letter-spacing: -0.3px;
 }
 
-/* 문제별 결과 아이템 목록 */
+/* 문제�?결과 ?�이??목록 */
 .result-items {
   display: grid;
-  grid-template-columns: repeat(5, minmax(0, 1fr)); /* 트랙 콘텐츠 팽창 방지 (화면 이탈 차단) */
+  grid-template-columns: repeat(5, minmax(0, 1fr)); /* ?�랙 콘텐�??�창 방�? (?�면 ?�탈 차단) */
   gap: 8px;
 }
 
@@ -7028,7 +7251,7 @@ canvas {
   background: #F7F7F7;
   border-radius: 12px;
   padding: 10px 4px 8px;
-  min-width: 0;          /* nowrap 자식이 트랙을 늘리지 못하도록 */
+  min-width: 0;          /* nowrap ?�식???�랙???�리지 못하?�록 */
 }
 
 .result-item-name {
@@ -7036,7 +7259,7 @@ canvas {
   font-weight: 700;
   color: #1a1a1a;
   text-align: center;
-  white-space: nowrap;   /* 1줄 강제 — 긴 이름은 JS로 폰트 축소 */
+  white-space: nowrap;   /* 1�?강제 ??�??�름?� JS�??�트 축소 */
   overflow: hidden;
   width: 100%;
   line-height: 1.3;
@@ -7057,7 +7280,7 @@ canvas {
   color: #999;
 }
 
-/* 액션 버튼 */
+/* ?�션 버튼 */
 .result-modal-actions {
   display: flex;
   gap: 10px;
@@ -7088,8 +7311,8 @@ canvas {
   color: #fff;
 }
 
-/* ── 출석 완료 모달 ───────────────────────────────────────────── */
-/* ── 신기록 모달 ─────────────────────────────────────────────── */
+/* ?�?� 출석 ?�료 모달 ?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?� */
+/* ?�?� ?�기�?모달 ?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?� */
 .newrecord-modal-overlay {
   position: fixed;
   inset: 0;
@@ -7183,7 +7406,7 @@ canvas {
   position: fixed;
   inset: 0;
   background: rgba(0, 0, 0, 0.5);
-  z-index: 300; /* 결과 모달(200) 위 */
+  z-index: 300; /* 결과 모달(200) ??*/
   display: flex;
   align-items: center;
   justify-content: center;
@@ -7282,9 +7505,9 @@ canvas {
   transform: scale(0.97);
 }
 
-/* ═══════════════════════════════════════════════════════════════
-   스케일 훈련 (scale-training.html)
-═══════════════════════════════════════════════════════════════ */
+/* ?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═??
+   ?��????�련 (scale-training.html)
+?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═??*/
 
 .scale-scroll {
   height: 100%;
@@ -7413,11 +7636,11 @@ canvas {
   height: 18px;
 }
 
-/* ════════════════════════════════════════════════════════
-   스케일 레벨 페이지 & 프랫보드
-   ════════════════════════════════════════════════════════ */
+/* ?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═
+   ?��????�벨 ?�이지 & ?�랫보드
+   ?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═ */
 
-/* ── 상단/하단 반반 레이아웃 ── */
+/* ?�?� ?�단/?�단 반반 ?�이?�웃 ?�?� */
 .scale-level-layout {
   display: flex;
   flex-direction: column;
@@ -7442,7 +7665,7 @@ canvas {
   overflow-y: auto;
 }
 
-/* ── 프랫보드 래퍼 ── */
+/* ?�?� ?�랫보드 ?�퍼 ?�?� */
 .fretboard-wrap {
   position: relative;
   width: 100%;
@@ -7450,7 +7673,7 @@ canvas {
   box-sizing: border-box;
 }
 
-/* ── 프랫 번호 행 ── */
+/* ?�?� ?�랫 번호 ???�?� */
 .fretboard-nums {
   display: flex;
   width: 100%;
@@ -7466,7 +7689,7 @@ canvas {
   letter-spacing: 0;
 }
 
-/* ── 기타 넥 ── */
+/* ?�?� 기�? ???�?� */
 .fretboard-neck {
   position: relative;
   width: 100%;
@@ -7476,7 +7699,7 @@ canvas {
   overflow: visible;
 }
 
-/* ── 줄 선 ── */
+/* ?�?� �????�?� */
 .fb-string {
   position: absolute;
   left: 0;
@@ -7488,7 +7711,7 @@ canvas {
   z-index: 2;
 }
 
-/* ── 프랫 선 ── */
+/* ?�?� ?�랫 ???�?� */
 .fb-fret-line {
   position: absolute;
   top: calc(100% / 12);      /* 1번줄 중심 = 8.33% */
@@ -7500,7 +7723,7 @@ canvas {
   z-index: 1;
 }
 
-/* ── 도트 마커 ── */
+/* ?�?� ?�트 마커 ?�?� */
 .fb-dot {
   position: absolute;
   width: 12px;
@@ -7511,7 +7734,7 @@ canvas {
   pointer-events: none;
 }
 
-/* ── 좌/우 그라데이션 페이드 ── */
+/* ?�?� �???그라?�이???�이???�?� */
 .fretboard-fade-left,
 .fretboard-fade-right {
   position: absolute;
@@ -7532,7 +7755,7 @@ canvas {
   background: linear-gradient(to left, #ffffff 15%, transparent);
 }
 
-/* ── 스케일 음표 ── */
+/* ?�?� ?��????�표 ?�?� */
 .fb-note {
   position: absolute;
   width: 22px;
@@ -7544,9 +7767,9 @@ canvas {
   pointer-events: none;
 }
 
-/* 도수 번호 라벨 — .degrees-on 일 때만 표시.
-   위치는 잉크박스 실측(measureText) 기반으로 JS가 transform 인라인 주입 →
-   원 정중앙 정렬. left/top 50% 기준점에서 글리프별 오프셋 적용. */
+/* ?�수 번호 ?�벨 ??.degrees-on ???�만 ?�시.
+   ?�치???�크박스 ?�측(measureText) 기반?�로 JS가 transform ?�라??주입 ??
+   ???�중???�렬. left/top 50% 기�??�에??글리프�??�프???�용. */
 .fb-note-deg {
   display: none;
   position: absolute;
@@ -7559,12 +7782,12 @@ canvas {
   color: #ffffff;
   pointer-events: none;
   z-index: 4;
-  transform: translate(-50%, -50%);   /* 측정 전 폴백 */
+  transform: translate(-50%, -50%);   /* 측정 ???�백 */
 }
 .degrees-on .fb-note-deg { display: block; }
 .fb-note--open .fb-note-deg { color: #1a1a1a; }
 
-/* 터치 타겟 확장 — 시각 크기 유지, 터치 영역만 확대 */
+/* ?�치 ?��??�장 ???�각 ?�기 ?��?, ?�치 ?�역�??��? */
 .fb-note::before {
   content: '';
   position: absolute;
@@ -7622,7 +7845,7 @@ canvas {
   animation: root-dot-pop 0.38s cubic-bezier(0.34, 1.56, 0.64, 1) both;
 }
 
-/* ── 음표 터치 애니메이션 ── */
+/* ?�?� ?�표 ?�치 ?�니메이???�?� */
 .fb-note--pressed {
   transform: translate(-50%, -50%) scale(0.82) !important;
   transition: transform 0.08s ease-out;
@@ -7643,7 +7866,7 @@ canvas {
 }
 
 
-/* ── 고스트 dot (다른 포지션) ── */
+/* ?�?� 고스??dot (?�른 ?��??? ?�?� */
 .fb-note--ghost {
   background: #d8d8d8;
   z-index: 2;
@@ -7663,7 +7886,7 @@ canvas {
   border-color: #d8d8d8;
 }
 
-/* ── 개방현 (fret 0) — 빈 원 ── */
+/* ?�?� 개방??(fret 0) ??�????�?� */
 .fb-note--open {
   background: transparent;
   border: 2px solid #444;
@@ -7682,7 +7905,7 @@ canvas {
   display: none;
 }
 
-/* ── 슬라이딩 뷰포트 ── */
+/* ?�?� ?�라?�딩 뷰포???�?� */
 .fb-viewport {
   flex: 1;
   overflow: hidden;
@@ -7691,10 +7914,10 @@ canvas {
 }
 
 .fb-full-wrapper {
-  /* width는 JS에서 설정 */
+  /* width??JS?�서 ?�정 */
 }
 
-/* ── 풀 넥 ── */
+/* ?�?� ?� ???�?� */
 .fb-full-neck {
   position: relative;
   height: 160px;
@@ -7702,7 +7925,7 @@ canvas {
   touch-action: none;
 }
 
-/* ── 넛 선 ── */
+/* ?�?� ?????�?� */
 .fb-nut-line {
   position: absolute;
   top: calc(100% / 12);
@@ -7715,7 +7938,7 @@ canvas {
   z-index: 2;
 }
 
-/* ── 프랫 번호 행 ── */
+/* ?�?� ?�랫 번호 ???�?� */
 .fb-full-nums {
   position: relative;
   height: 22px;
@@ -7733,7 +7956,7 @@ canvas {
   white-space: nowrap;
 }
 
-/* ── 폼 레이블 ── */
+/* ?�?� ???�이�??�?� */
 .form-label {
   position: absolute;
   top: 16px;
@@ -7744,7 +7967,7 @@ canvas {
   letter-spacing: -0.3px;
 }
 
-/* ── 프랫보드 화살표 행 ── */
+/* ?�?� ?�랫보드 ?�살?????�?� */
 .fretboard-row {
   display: flex;
   align-items: center;
@@ -7756,7 +7979,7 @@ canvas {
   width: 36px;
   height: 36px;
   align-self: flex-start;
-  margin-top: calc((160px - 36px) / 2); /* 넥 높이 160px 기준 중앙 */
+  margin-top: calc((160px - 36px) / 2); /* ???�이 160px 기�? 중앙 */
   display: flex;
   align-items: center;
   justify-content: center;
@@ -7772,7 +7995,7 @@ canvas {
   height: 22px;
 }
 
-/* ── 블럭 인디케이터 ── */
+/* ?�?� 블럭 ?�디케?�터 ?�?� */
 .block-indicator {
   display: flex;
   gap: 6px;
@@ -7791,7 +8014,7 @@ canvas {
   background: #1a1a1a;
 }
 
-/* ── 샵/플랫 토글 ── */
+/* ?�?� ???�랫 ?��? ?�?� */
 .accidental-toggle-row {
   display: flex;
   justify-content: center;
@@ -7800,7 +8023,7 @@ canvas {
   margin-bottom: 4px;
 }
 
-/* 손가락 번호 on/off 토글 (코드진행 디테일) */
+/* ?��???번호 on/off ?��? (코드진행 ?�테?? */
 .finger-toggle {
   height: 32px;
   width: 38px;
@@ -7820,7 +8043,7 @@ canvas {
   color: #ffffff;
 }
 
-/* ── 짝궁 전환 버튼 (Ch.2) ── */
+/* ?�?� 짝궁 ?�환 버튼 (Ch.2) ?�?� */
 .pair-transition-btn {
   display: inline-flex;
   align-items: center;
@@ -7874,7 +8097,7 @@ canvas {
   box-shadow: 0 1px 3px rgba(0,0,0,0.12);
 }
 
-/* ── 키 선택 ── */
+/* ?�?� ???�택 ?�?� */
 .key-selector-section {
   display: flex;
   flex-direction: column;
@@ -7916,7 +8139,7 @@ canvas {
   color: #ffffff;
 }
 
-/* ── 짝궁 전환 버튼 (Ch.2) — accidental-toggle과 동일 높이 ── */
+/* ?�?� 짝궁 ?�환 버튼 (Ch.2) ??accidental-toggle�??�일 ?�이 ?�?� */
 .pair-transition-btn {
   display: inline-flex;
   align-items: center;
@@ -7943,7 +8166,7 @@ canvas {
   flex-shrink: 0;
 }
 
-/* ── 테스트 시작 버튼 ── */
+/* ?�?� ?�스???�작 버튼 ?�?� */
 .start-test-btn {
   display: inline-block;
   align-self: center;
@@ -7966,7 +8189,7 @@ canvas {
   opacity: 0.7;
 }
 
-/* ── 스케일 테스트 오버레이 ── */
+/* ?�?� ?��????�스???�버?�이 ?�?� */
 .scale-test-overlay {
   position: fixed;
   inset: 0;
@@ -7977,7 +8200,7 @@ canvas {
   padding-top: env(safe-area-inset-top);
   transform: translateY(100%);
   transition: transform 0.32s cubic-bezier(0.4, 0, 0.2, 1);
-  pointer-events: none; /* 닫혀있을 때 탭 차단 */
+  pointer-events: none; /* ?��??�을 ????차단 */
 }
 
 .scale-test-overlay.is-open {
@@ -7985,7 +8208,7 @@ canvas {
   pointer-events: auto;
 }
 
-/* ── 테스트 질문 텍스트 ── */
+/* ?�?� ?�스??질문 ?�스???�?� */
 .test-question-text {
   width: 100%;
   padding: 0 20px;
@@ -7997,7 +8220,7 @@ canvas {
   line-height: 1.5;
   text-align: center;
   margin: 0 0 20px;
-  min-height: 90px;  /* 3줄 고정 (20px × 1.5 × 3) — 출제↔결과 프랫보드 위치 고정 */
+  min-height: 90px;  /* 3�?고정 (20px × 1.5 × 3) ??출제?�결�??�랫보드 ?�치 고정 */
   display: flex;
   align-items: center;
   justify-content: center;
@@ -8013,7 +8236,7 @@ canvas {
   to   { opacity: 1; transform: translateY(0); }
 }
 
-/* ── 개방현 비활성 힌트 원 (독립 클래스 — .fb-note 상속 없음) ── */
+/* ?�?� 개방??비활???�트 ??(?�립 ?�래????.fb-note ?�속 ?�음) ?�?� */
 .fb-open-hint {
   position: absolute;
   width: 22px;
@@ -8023,10 +8246,10 @@ canvas {
   border: 2px solid rgba(0, 0, 0, 0.18);
   transform: translate(-50%, -50%);
   z-index: 2;
-  pointer-events: none; /* 이벤트는 neck 핸들러에 위임 */
+  pointer-events: none; /* ?�벤?�는 neck ?�들?�에 ?�임 */
 }
 
-/* ── 플레이어가 찍은 dot ── */
+/* ?�?� ?�레?�어가 찍�? dot ?�?� */
 .fb-note--placed {
   background: #444;
   cursor: pointer;
@@ -8039,7 +8262,7 @@ canvas {
   100% { transform: translate(-50%, -50%) scale(1); }
 }
 
-/* ── 채점 결과 dot ── */
+/* ?�?� 채점 결과 dot ?�?� */
 .fb-note--correct {
   background: #34C759;
 }
@@ -8053,14 +8276,14 @@ canvas {
   border: 2px dashed #aaa;
 }
 
-/* ── 결과 영역 ── */
+/* ?�?� 결과 ?�역 ?�?� */
 .test-result-row {
   display: flex;
   flex-direction: column;
   align-items: center;
   gap: 4px;
   margin-top: 24px;
-  min-height: 65px;   /* score(~38px) + gap(4px) + detail(~16px) — 항상 공간 예약 */
+  min-height: 65px;   /* score(~38px) + gap(4px) + detail(~16px) ????�� 공간 ?�약 */
   visibility: hidden;
 }
 
@@ -8082,14 +8305,14 @@ canvas {
   letter-spacing: 0.2px;
 }
 
-/* ── 테스트 버튼 행 ── */
+/* ?�?� ?�스??버튼 ???�?� */
 .test-btn-row {
   display: flex;
   gap: 10px;
   margin-top: 20px;
 }
 
-/* ── 테스트 제출/다시풀기 버튼 ── */
+/* ?�?� ?�스???�출/?�시?��?버튼 ?�?� */
 .test-submit-btn {
   flex: 1;
   padding: 13px 20px;
@@ -8111,7 +8334,7 @@ canvas {
   opacity: 0.7;
 }
 
-/* ── 돌아가기 버튼 ── */
+/* ?�?� ?�아가�?버튼 ?�?� */
 .test-back-btn {
   display: none;
 }
@@ -8151,7 +8374,7 @@ canvas {
   font-size: 15px;
   font-weight: 700;
   color: #1a1a1a;
-  margin-right: 40px; /* close 버튼 너비만큼 오프셋 */
+  margin-right: 40px; /* close 버튼 ?�비만큼 ?�프??*/
 }
 
 .scale-test-body {
@@ -8170,7 +8393,7 @@ canvas {
   box-sizing: border-box;
 }
 
-/* ── 네트워크 오프라인 오버레이 ── */
+/* ?�?� ?�트?�크 ?�프?�인 ?�버?�이 ?�?� */
 #network-offline-overlay {
   position: fixed;
   inset: 0;
@@ -8216,9 +8439,9 @@ canvas {
   padding: 8px 16px;
 }
 
-/* ═══════════════════════════════════════════════════════════════
-   코드 진행 리스트 (progression.html)
-═══════════════════════════════════════════════════════════════ */
+/* ?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═??
+   코드 진행 리스??(progression.html)
+?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═??*/
 
 .prog-scroll {
   position: absolute;
@@ -8233,8 +8456,8 @@ canvas {
 }
 .prog-scroll::-webkit-scrollbar { display: none; }
 
-/* 키 선택 스트립 */
-/* 스티키 헤더 */
+/* ???�택 ?�트�?*/
+/* ?�티???�더 */
 .prog-sticky-header {
   position: sticky;
   top: 0;
@@ -8249,7 +8472,7 @@ canvas {
   overflow: visible;
 }
 
-/* 액션바 */
+/* ?�션�?*/
 .prog-action-bar {
   display: flex;
   align-items: center;
@@ -8286,7 +8509,7 @@ canvas {
   padding: 0 10px;
 }
 
-/* No(목록 별) 드롭다운 — 오버레이 */
+/* No(목록 �? ?�롭?�운 ???�버?�이 */
 @keyframes prog-dropdown-in {
   from { opacity: 0; transform: translateY(-6px); }
   to   { opacity: 1; transform: translateY(0); }
@@ -8358,7 +8581,7 @@ canvas {
   fill: none;
 }
 
-/* Key 드롭다운 — 오버레이 */
+/* Key ?�롭?�운 ???�버?�이 */
 .prog-key-dropdown {
   position: absolute;
   top: 100%;
@@ -8399,7 +8622,7 @@ canvas {
   border-color: #111;
 }
 
-/* 샵/플랫 토글 */
+/* ???�랫 ?��? */
 .prog-acc-row {
   display: flex;
   gap: 8px;
@@ -8508,7 +8731,7 @@ canvas {
   scrollbar-width: none;
 }
 .prog-chord-row::-webkit-scrollbar { display: none; }
-/* 코드 행 묶음: 4개씩 끊은 행을 세로로 쌓음 (각 행은 4코드 row와 동일 간격) */
+/* 코드 ??묶음: 4개씩 ?��? ?�을 ?�로�??�음 (�??��? 4코드 row?� ?�일 간격) */
 .prog-chord-rows {
   display: grid;
   grid-template-columns: repeat(4, max-content);
@@ -8563,9 +8786,9 @@ canvas {
   height: 22px;
 }
 
-/* ═══════════════════════════════════════════════════════════════
-   코드 진행 리스트 목록 (progression.html)
-═══════════════════════════════════════════════════════════════ */
+/* ?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═??
+   코드 진행 리스??목록 (progression.html)
+?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═??*/
 
 .proglist-scroll {
   height: 100%;
@@ -8638,22 +8861,22 @@ canvas {
   flex-shrink: 0;
 }
 
-/* ═══════════════════════════════════════════════════════════════
-   코드 진행 세부 연습 (progression-detail.html)
-═══════════════════════════════════════════════════════════════ */
+/* ?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═??
+   코드 진행 ?��? ?�습 (progression-detail.html)
+?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═??*/
 
-/* 전체 레이아웃: 3행 고정 분할 */
+/* ?�체 ?�이?�웃: 3??고정 분할 */
 .progd-layout {
   display: flex;
   flex-direction: column;
   height: 100%;
-  /* 높이 부족 시 압축하지 말고 전체가 넘쳐서 세로 스크롤 (앱 공통 규칙) */
+  /* ?�이 부�????�축?��? 말고 ?�체가 ?�쳐???�로 ?�크�?(??공통 규칙) */
   overflow-y: auto;
   overflow-x: hidden;
   background: #ffffff;
 }
 
-/* ① 액션바: 키 + 샵/플랫 */
+/* ???�션�? ??+ ???�랫 */
 .progd-action-bar {
   display: flex;
   flex-direction: column;
@@ -8662,14 +8885,14 @@ canvas {
   flex-shrink: 0;
 }
 
-/* ② 코드 뷰: 남은 공간 채움 */
+/* ??코드 �? ?��? 공간 채�? */
 .progd-chord-view {
-  flex: 1 1 auto;   /* 자식 합(고정요소 + inner 180바닥) 아래로는 안 줄어듦 → 넘치면 스크롤 */
+  flex: 1 1 auto;   /* ?�식 ??고정?�소 + inner 180바닥) ?�래로는 ??줄어?????�치�??�크�?*/
   display: flex;
   flex-direction: column;
 }
 
-/* 코드 진행 나열 바 */
+/* 코드 진행 ?�열 �?*/
 .progd-key-header {
   padding: 12px 16px 0;
   font-size: 14px;
@@ -8688,7 +8911,7 @@ canvas {
   padding: 14px 16px;
   flex-shrink: 0;
   background: #ffffff;
-  box-shadow: 0 4px 6px -2px rgba(0,0,0,0.1); /* 하단만 (상단 번짐 제거: 음수 spread) */
+  box-shadow: 0 4px 6px -2px rgba(0,0,0,0.1); /* ?�단�?(?�단 번짐 ?�거: ?�수 spread) */
 }
 
 .progd-prog-chip {
@@ -8702,18 +8925,18 @@ canvas {
   font-size: 0.75em;
 }
 
-/* 슬롯 절대 위치 기준 컨테이너 */
+/* ?�롯 ?��? ?�치 기�? 컨테?�너 */
 .progd-chord-view-inner {
   position: relative;
   width: 100%;
-  flex: 1 1 auto;          /* 기본: 남는 공간 채움 / 부족하면 min-height까지 축소 */
-  min-height: 180px;       /* 바닥값 = 캔버스 높이 보장 (이 아래로만 전체 스크롤) */
-  touch-action: pan-y;     /* 세로 스크롤 허용, 가로 드래그는 스와이프로 */
-  user-select: none;       /* 드래그 시 텍스트/이미지 선택 방지 */
+  flex: 1 1 auto;          /* 기본: ?�는 공간 채�? / 부족하�?min-height까�? 축소 */
+  min-height: 180px;       /* 바닥�?= 캔버???�이 보장 (???�래로만 ?�체 ?�크�? */
+  touch-action: pan-y;     /* ?�로 ?�크�??�용, 가�??�래그는 ?��??�프�?*/
+  user-select: none;       /* ?�래�????�스???��?지 ?�택 방�? */
   -webkit-user-select: none;
 }
 
-/* 모든 슬롯 동일 기준: 너비 54%, 좌측 23% → 가운데 정렬 */
+/* 모든 ?�롯 ?�일 기�?: ?�비 54%, 좌측 23% ??가?�데 ?�렬 */
 .progd-slot {
   position: absolute;
   width: 54%;
@@ -8731,8 +8954,8 @@ canvas {
   transition: none !important;
 }
 
-/* translateX % = 슬롯 자신의 너비(60%) 기준
-   ±75% → ±45% of container → prev/next가 가장자리에서 peek */
+/* translateX % = ?�롯 ?�신???�비(60%) 기�?
+   ±75% ??±45% of container ??prev/next가 가?�자리에??peek */
 .progd-slot--far-left {
   transform: translateX(-160%) scale(0.5);
   z-index: 1;
@@ -8770,7 +8993,7 @@ canvas {
   width: 100%;
 }
 
-/* 카운트인 점 */
+/* 카운?�인 ??*/
 .progd-count-dots {
   display: flex;
   justify-content: center;
@@ -8792,7 +9015,7 @@ canvas {
   background: #242729;
 }
 
-/* ③ 재생바 */
+/* ???�생�?*/
 .progd-playbar {
   display: flex;
   flex-direction: column;
@@ -8823,7 +9046,7 @@ canvas {
   touch-action: manipulation;
 }
 
-/* BPM 휠피커 */
+/* BPM ?�피�?*/
 .progd-bpm-wheel-wrap {
   position: relative;
   width: 80px;
@@ -8897,19 +9120,19 @@ canvas {
   color: #ffffff;
 }
 
-/* ════════════════════════════════════════════════════════════
-   모바일 프레임 고정 — 데스크탑/태블릿(>400px)에서 앱을 400px로 제한·센터
-   (태블릿 전용 반응형은 추후 구현 예정)
-   ════════════════════════════════════════════════════════════ */
+/* ?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═
+   모바???�레??고정 ???�스?�탑/?�블�?>400px)?�서 ?�을 400px�??�한·?�터
+   (?�블�??�용 반응?��? 추후 구현 ?�정)
+   ?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═ */
 @media (min-width: 401px) {
-  /* 메인 앱 화면 */
+  /* 메인 ???�면 */
   .app-shell {
     max-width: 400px;
     margin-inline: auto;
   }
 
-  /* 프레임 고정 폭(400px)에 맞춰 코드 그리드도 반응형 유지
-     (기본 140px 고정 컬럼은 >1400px 데스크탑에서 프레임 넘쳐 잘림) */
+  /* ?�레??고정 ??400px)??맞춰 코드 그리?�도 반응???��?
+     (기본 140px 고정 컬럼?� >1400px ?�스?�탑?�서 ?�레???�쳐 ?�림) */
   .chord-area.cols-4,
   .chord-area.cols-8 {
     grid-template-columns: repeat(4, 1fr);
@@ -8922,12 +9145,12 @@ canvas {
     aspect-ratio: 5 / 4;
   }
 
-  /* 센터 모달 (modal-overlay > 모달 박스) */
+  /* ?�터 모달 (modal-overlay > 모달 박스) */
   .modal-overlay > * {
     max-width: 400px !important;
   }
 
-  /* 바텀시트: 프로젝트 추가 / 온보딩 동의 */
+  /* 바�??�트: ?�로?�트 추�? / ?�보???�의 */
   .project-sheet-overlay,
   .ob-consent-backdrop {
     justify-content: center;
@@ -8937,29 +9160,29 @@ canvas {
     max-width: 400px;
   }
 
-  /* 바텀시트: 요금제 (fixed left/right 기반) */
+  /* 바�??�트: ?�금??(fixed left/right 기반) */
   .plan-sheet {
     max-width: 400px;
     margin-inline: auto;
   }
 
-  /* 튜토리얼 모달: display:block 전체화면 → flex 센터 */
+  /* ?�토리얼 모달: display:block ?�체?�면 ??flex ?�터 */
   #modal-tutorial {
     display: flex;
     justify-content: center;
   }
 
-  /* 온보딩 전체화면(버튼 화면 + 페르소나/연도/성별 스텝) */
+  /* ?�보???�체?�면(버튼 ?�면 + ?�르?�나/?�도/?�별 ?�텝) */
   .onboarding-overlay {
     max-width: 400px;
     margin-inline: auto;
   }
 }
 
-/* ════════════════════════════════════════════════════════════
-   가로(고급) 모드 — 480px 이상에서 프레임을 812px까지 확장
-   (세로 400px 프레임 캡을 가로모드에서만 해제)
-   ════════════════════════════════════════════════════════════ */
+/* ?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═
+   가�?고급) 모드 ??480px ?�상?�서 ?�레?�을 812px까�? ?�장
+   (?�로 400px ?�레??캡을 가로모?�에?�만 ?�제)
+   ?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═ */
 @media (min-width: 480px) {
   .app-shell.app-land {
     max-width: 812px;
@@ -8967,11 +9190,11 @@ canvas {
   }
 }
 
-/* ════════════════════════════════════════════════════════════
-   강제 다크모드 차단 — 삼성인터넷 등 자동 다크 엔진 대응
-   prefers-color-scheme: dark 에서 라이트값 재명시 → "다크 대응함" 신호로
-   자동반전을 멈추게 하고, 실제 색은 라이트 유지
-   ════════════════════════════════════════════════════════════ */
+/* ?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═
+   강제 ?�크모드 차단 ???�성?�터?????�동 ?�크 ?�진 ?�??
+   prefers-color-scheme: dark ?�서 ?�이?�값 ?�명????"?�크 ?�?�함" ?�호�?
+   ?�동반전??멈추�??�고, ?�제 ?��? ?�이???��?
+   ?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═ */
 @media (prefers-color-scheme: dark) {
   :root {
     color-scheme: light;
@@ -8996,7 +9219,7 @@ canvas {
   body  { background: var(--bg) !important; color: var(--text-primary); }
 }
 
-/* ── 주법 리듬 훈련 페이지 ── */
+/* ?�?� 주법 리듬 ?�련 ?�이지 ?�?� */
 .strum-scroll {
   height: 100%;
   box-sizing: border-box;
@@ -9034,13 +9257,13 @@ canvas {
   font-weight: 700;
 }
 
-/* ① 코드 진행 (가로 휠피커) */
+/* ??코드 진행 (가�??�피�? */
 .strum-prog {
   height: 200px;
   flex: none;
 }
 
-/* ② 비트 박스보더 (1줄) */
+/* ??비트 박스보더 (1�? */
 .strum-play-grid {
   position: relative;
   display: flex;
@@ -9080,7 +9303,7 @@ canvas {
   width: 12px;
   height: 12px;
 }
-/* 재생 중 비트 위치 세로선(플레이헤드) */
+/* ?�생 �?비트 ?�치 ?�로???�레?�헤?? */
 .strum-play-grid {
   position: relative;
 }
@@ -9096,7 +9319,7 @@ canvas {
   transition: left 0.05s linear, top 0.05s linear, opacity 0.12s;
 }
 
-/* ③ 버튼 영역 */
+/* ??버튼 ?�역 */
 .strum-play-controls {
   display: flex;
   flex-direction: column;
@@ -9139,12 +9362,12 @@ canvas {
   display: flex;
   flex-direction: column;
   justify-content: space-between;
-  /* 휠 wrap과 동일 높이(3행) → caret 두 개가 위·아래 dim 행 중심에 정확히 정렬 */
+  /* ??wrap�??�일 ?�이(3?? ??caret ??개�? ?�·아??dim ??중심???�확???�렬 */
   height: calc(3 * 30px);
 }
 .strum-bpm-arrows .strum-bpm-step {
   width: 26px;
-  height: 30px;       /* 휠 항목 높이와 동일 → 중심 = dim 행 중심(15·75) */
+  height: 30px;       /* ????�� ?�이?� ?�일 ??중심 = dim ??중심(15·75) */
   border: none;
   border-radius: 6px;
 }
@@ -9240,7 +9463,7 @@ canvas {
   display: flex;
   flex-direction: column;
   gap: 28px;
-  /* 좌우 16px 바깥까지 덮어 스크롤 항목이 옆/위로 안 비치게 */
+  /* 좌우 16px 바깥까�? ??�� ?�크�???��?????�로 ??비치�?*/
   margin: 0 -16px;
   padding: 20px 16px 12px;
 }
@@ -9311,12 +9534,12 @@ canvas {
   padding: 3px 6px;
   border-radius: 4px;
 }
-/* 추천 배지 — 노랑·주황 */
+/* 추천 배�? ???�랑·주황 */
 .strum-item-badge--rec { color: #b25e00; background: #ffe3a3; }
 
-/* 레벨별 배지 색상 */
-.strum-item-badge--lv1 { color: #2e7d32; background: #e3f4e4; } /* 초록·연두 */
-.strum-item-badge--lv2 { color: #1565c0; background: #e3f0fb; } /* 파랑 */
+/* ?�벨�?배�? ?�상 */
+.strum-item-badge--lv1 { color: #2e7d32; background: #e3f4e4; } /* 초록·?�두 */
+.strum-item-badge--lv2 { color: #1565c0; background: #e3f0fb; } /* ?�랑 */
 .strum-item-badge--lv3 { color: #6a3fb5; background: #efe7fa; } /* 보라 */
 .strum-item-badge--lv4 { color: #d2691e; background: #fceee0; } /* 주황 */
 .strum-item-badge--lv5 { color: #c62828; background: #fbe4e4; } /* 빨강 */
@@ -9351,17 +9574,17 @@ canvas {
   display: flex;
   align-items: center;
   justify-content: center;
-  /* 16칸이 화면폭에 들어가도록 1칸 크기 고정 (가용폭/16, 최대 28px) */
+  /* 16칸이 ?�면??�� ?�어가?�록 1�??�기 고정 (가?�폭/16, 최�? 28px) */
   width: min(28px, (100vw - 44px) / 16);
   height: min(28px, (100vw - 44px) / 16);
   flex: none;
   border-right: 1px solid #bcc2c9;
 }
 
-/* 컷팅(뮤트 스트로크) — 셀 상단 X 아이콘 */
+/* 컷팅(뮤트 ?�트로크) ???� ?�단 X ?�이�?*/
 .strum-cut {
   position: absolute;
-  bottom: 100%;          /* 셀(박스보더) 바깥 상단 */
+  bottom: 100%;          /* ?�(박스보더) 바깥 ?�단 */
   margin-bottom: 3px;
   left: 0;
   right: 0;
@@ -9377,7 +9600,7 @@ canvas {
   border-right: none;
 }
 
-/* N셀마다 굵은 구분선 (박자·비트별 그룹 구분) */
+/* N?�마다 굵�? 구분??(박자·비트�?그룹 구분) */
 .strum-beat-grid--g2 .strum-beat-cell:nth-child(2n):not(:last-child),
 .strum-beat-grid--g3 .strum-beat-cell:nth-child(3n):not(:last-child),
 .strum-beat-grid--g4 .strum-beat-cell:nth-child(4n):not(:last-child),
@@ -9393,19 +9616,19 @@ canvas {
   background: #e3e6ea;
 }
 
-/* 스트로크 기호 (다운 ⊓ / 업 V) */
+/* ?�트로크 기호 (?�운 ??/ ??V) */
 .strum-stroke {
   display: block;
   color: #555555;
 }
 
-/* 헛스트로크: 모션은 하나 소리 안냄 → 흐리게 */
+/* ?�스?�로?? 모션?� ?�나 ?�리 ?�냄 ???�리�?*/
 .strum-stroke--ghost {
   opacity: 0.3;
   transform: scale(0.7);
 }
 
-/* 다운스트로크 ⊓ : 위·좌·우 변, 아래 열림 */
+/* ?�운?�트로크 ??: ?�·좌·??변, ?�래 ?�림 */
 .strum-stroke--down {
   width: 10px;
   height: 10px;
@@ -9414,8 +9637,9 @@ canvas {
   border-bottom: none;
 }
 
-/* 업스트로크 V : SVG polyline (⊓와 높이 일치) */
+/* ?�스?�로??V : SVG polyline (?��? ?�이 ?�치) */
 .strum-stroke--up {
   width: 10px;
   height: 10px;
 }
+

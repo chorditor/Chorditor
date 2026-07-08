@@ -145,6 +145,19 @@ async function logSent(userId: string, stage: number): Promise<void> {
   });
 }
 
+async function logNudgeSent(userId: string, nudgeType: string, deeplinkVal: string): Promise<void> {
+  await fetch(`${SUPABASE_URL}/rest/v1/push_nudge_log`, {
+    method: 'POST',
+    headers: {
+      'apikey': SERVICE_ROLE,
+      'Authorization': `Bearer ${SERVICE_ROLE}`,
+      'Content-Type': 'application/json',
+      'Prefer': 'return=minimal',
+    },
+    body: JSON.stringify({ user_id: userId, nudge_type: nudgeType, deeplink_val: deeplinkVal }),
+  });
+}
+
 // 토큰 무효(UNREGISTERED/INVALID) 시 정리
 async function deleteToken(token: string): Promise<void> {
   await fetch(`${SUPABASE_URL}/rest/v1/push_tokens?token=eq.${encodeURIComponent(token)}`, {
@@ -192,6 +205,7 @@ Deno.serve(async (_req) => {
       const data = nudgeData(t.nudge_type, t.deeplink_val);
       const r = await fcmSend(sa, accessToken, t.token, t.title, t.body, data);
       if (r.ok) {
+        await logNudgeSent(t.user_id, t.nudge_type, t.deeplink_val);
         nSent++;
       } else {
         nFailed++;

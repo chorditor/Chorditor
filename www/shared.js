@@ -6,7 +6,7 @@
 // ── 상수 ─────────────────────────────────────────────────────
 const SUPABASE_URL  = 'https://jbvkygeksohlysyvaoab.supabase.co';
 const SUPABASE_ANON = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Impidmt5Z2Vrc29obHlzeXZhb2FiIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzYzOTk5NjgsImV4cCI6MjA5MTk3NTk2OH0.6RSgChy0Yq0H2TJpZPSoMKQ2V-OYfR0XzE1aJBBZkXI';
-const APP_VERSION   = '1.2.6_dev2';
+const APP_VERSION   = '1.2.6_dev3';
 const SUPABASE_STORAGE_KEY = 'sb-jbvkygeksohlysyvaoab-auth-token';
 
 // ── Analytics SDK ─────────────────────────────────────────────
@@ -1573,6 +1573,9 @@ const VOICING_CANVAS = (() => {
 //   → VoicingCanvas.draw(canvas, chordToVoicing(chord), { chordName, fingerNumMode, ratio })
 // ═══════════════════════════════════════════════════════════════
 function chordToVoicing(chord) {
+  // 사전/에디터에서 가져온 코드는 원본 보이싱 스냅샷을 그대로 보관 → 재계산 없이 그대로 렌더.
+  // (컴포넌트 모델(dots+fretNumber)로 되돌리면 pattern 보이싱의 source별 offset을 표현 못 해 dot이 어긋남)
+  if (chord.voicing) return chord.voicing;
   const fn   = (chord.fretNumber >= 2) ? chord.fretNumber : 2;
   const base = fn - 2;  // 슬롯 → 절대프렛
   const frets     = [null, null, null, null, null, null];
@@ -1586,8 +1589,11 @@ function chordToVoicing(chord) {
   const barre = {};
   Object.entries(chord.barre || {}).forEach(([k, v]) => { if (v) barre[Number(k) + base] = true; });
   return {
-    frets, openMute: chord.openMute, barre, barreRange: null,
-    fretNumber: fn, source: 'static', fingering,
+    // barreRange(바레가 덮는 현 범위)는 프렛과 무관한 현 인덱스라 offset 불필요 — 저장값 그대로 전달.
+    // null이면 VoicingCanvas가 바레 프렛에 dot 있는 현으로만 범위 추정 → 바레 위 손가락 있는 코드(F·B 등)에서 어긋남.
+    // source(pattern/static)는 VoicingCanvas의 dot 세로 offset을 좌우함 — 누락 시 pattern 코드가 어긋남.
+    frets, openMute: chord.openMute, barre, barreRange: chord.barreRange ?? null,
+    fretNumber: fn, source: chord.source || 'static', fingering,
   };
 }
 if (typeof window !== 'undefined') window.chordToVoicing = chordToVoicing;

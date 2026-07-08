@@ -991,6 +991,7 @@ let playbackActive = false;
 let currentPlayTimeout = null;
 let metronomeActive = false;
 let metronomeSchedulerTimeout = null;
+let metronomeBeats = []; // [{ ms, isDownbeat }] 재생 전 구간의 박 스케줄 — 줄마다 다른 BPM/박자를 반영
 let metronomeNextBeatTime = 0;
 let metronomeBeatCount = 0;
 let playbackStartAudioTime = 0;
@@ -1023,29 +1024,32 @@ function metronomeClick(time, isDownbeat) {
 
 function scheduleMetronome() {
   if (!metronomeActive || !playbackActive || !audioCtx) return;
-  const bpm = getProject(currentProjectId)?.bpm ?? 120;
-  const beatDuration = 60 / bpm;
   const now = audioCtx.currentTime;
 
   while (metronomeNextBeatTime < now + 0.12) {
     if (playbackEndAudioTime > 0 && metronomeNextBeatTime >= playbackEndAudioTime) break;
-    metronomeClick(metronomeNextBeatTime, metronomeBeatCount % 4 === 0);
-    metronomeNextBeatTime += beatDuration;
+    if (metronomeBeatCount >= metronomeBeats.length) break; // 스케줄 끝(곡 종료)
+    const beat = metronomeBeats[metronomeBeatCount];
+    metronomeClick(metronomeNextBeatTime, beat.isDownbeat);
+    metronomeNextBeatTime += beat.ms / 1000;
     metronomeBeatCount++;
   }
   metronomeSchedulerTimeout = setTimeout(scheduleMetronome, 50);
 }
 
 function syncMetronomeToPlayback() {
-  // 재생 중이면 playbackStartAudioTime 기준으로 다음 박자 경계에 맞춤
+  // 재생 중이면 playbackStartAudioTime 기준 경과시간을 metronomeBeats 누적시간과 대조해 현재 박 위치를 찾음
+  // (줄마다 박 길이가 다를 수 있어 고정 나눗셈이 아니라 누적합으로 계산)
   if (playbackActive && playbackStartAudioTime > 0) {
-    const bpm = getProject(currentProjectId)?.bpm ?? 120;
-    const beatDuration = 60 / bpm;
     const now = audioCtx.currentTime;
-    const elapsed = now - playbackStartAudioTime;
-    const beatsPassed = Math.max(0, Math.floor(elapsed / beatDuration));
-    metronomeBeatCount = beatsPassed;
-    metronomeNextBeatTime = playbackStartAudioTime + metronomeBeatCount * beatDuration;
+    const elapsedMs = Math.max(0, (now - playbackStartAudioTime) * 1000);
+    let accMs = 0, idx = 0;
+    while (idx < metronomeBeats.length && accMs + metronomeBeats[idx].ms <= elapsedMs) {
+      accMs += metronomeBeats[idx].ms;
+      idx++;
+    }
+    metronomeBeatCount = idx;
+    metronomeNextBeatTime = playbackStartAudioTime + accMs / 1000;
   } else {
     metronomeBeatCount = 0;
     metronomeNextBeatTime = audioCtx.currentTime + 0.05;
@@ -1114,55 +1118,90 @@ async function playAll(projectId, startIndex = 0) {
   if (isFirstInit) await GuitarAudio.syncContext(audioCtx); // Tone.js 동기화
   else await GuitarAudio.resume();
 
-  const bpm = project.bpm ?? 120;
-  const beatMs = 60000 / bpm;
   const land = currentOrient === 'landscape';
-  const slotMs = land ? beatMs : beatMs * 2; // 가로 슬롯=1박, 세로 슬롯=½마디(2박)
-  // startIndex 슬롯의 박자 오프셋만큼 역산해서 기준 시각 계산
-  const beatsPerSlot = land ? 1 : 2;
-  playbackStartAudioTime = audioCtx.currentTime + 0.05 - startIndex * beatsPerSlot * (60 / bpm);
 
-  const playDataIndices = land ? [0, 1, 2, 3, 4, 5, 6, 7] : [0, 2, 4, 6];
-  const orderedSlots = project.arrangement.flatMap(row =>
-    playDataIndices.map(dataIdx => ({ chordId: row.slots[dataIdx] ?? null, lineId: row.id, slotIdx: dataIdx }))
-  );
+  // 줄마다 박자·BPM·마디 수가 다를 수 있으므로 슬롯 하나하나의 재생 시간을 개별 계산해서 순서대로 나열.
+  // 슬롯 수는 박자(분자)와 무관(마디 수 기준)이므로, 그 줄의 총 연주 시간(마디 수×분자×펄스)을
+  // 슬롯 수만큼 균등 분할한다 — 분자가 슬롯 수와 안 맞아도(홀수 박자 등) 항상 정확히 나뉨.
+  const orderedSlots = [];
+  metronomeBeats = []; // 메트로놈도 줄마다 다른 BPM·박자를 따라가도록 같은 자리에서 스케줄 재생성
+  project.arrangement.forEach(row => {
+    const meter  = getRowMeter(row);
+    const rowBpm = getRowBpm(project, row);
+    const bars   = getRowBars(row);
+    const layout = computeRowLayout(bars) || computeRowLayout(2);
+    const pulseMs = getPulseMs(rowBpm, meter.den);
+    const slotCount = land ? layout.landscapeSlots : layout.portraitSlots;
+    const step = land ? 1 : 2;
+    const totalBeats = bars * meter.num;
+    const totalMsForRow = totalBeats * pulseMs;
+    const slotMs = totalMsForRow / slotCount;
+    for (let k = 0; k < slotCount; k++) {
+      const dataIdx = k * step;
+      orderedSlots.push({
+        chordId: row.slots?.[dataIdx] ?? null,
+        lineId: row.id,
+        slotIdx: dataIdx,
+        slotMs,
+        rowSlotCount: slotCount,
+        posInRow: k,
+      });
+    }
+    // 박(pulse) 단위 스케줄 — 마디 첫 박(다운비트)마다 강세, 분자 그대로 반영
+    for (let b = 0; b < totalBeats; b++) {
+      metronomeBeats.push({ ms: pulseMs, isDownbeat: (b % meter.num) === 0 });
+    }
+  });
   if (!orderedSlots.length) return;
 
-  playbackEndAudioTime = playbackStartAudioTime + orderedSlots.length * (slotMs / 1000);
+  // startIndex 이전 슬롯들의 누적 시간(슬롯마다 길이가 다를 수 있어 합산 필요)
+  let elapsedMsAtStart = 0;
+  for (let k = 0; k < startIndex && k < orderedSlots.length; k++) elapsedMsAtStart += orderedSlots[k].slotMs;
+  playbackStartAudioTime = audioCtx.currentTime + 0.05 - elapsedMsAtStart / 1000;
+
+  const totalMs = orderedSlots.reduce((s, o) => s + o.slotMs, 0);
+  playbackEndAudioTime = playbackStartAudioTime + totalMs / 1000;
   playbackActive = true;
-  analytics.track('playall_started', { project_id: projectId, bpm, start_index: startIndex });
+  analytics.track('playall_started', { project_id: projectId, bpm: project.bpm ?? 120, start_index: startIndex });
   const btn = document.getElementById('play-all-btn');
   if (btn) { btn.innerHTML = '<i data-lucide="square"></i>'; lucide.createIcons(); }
 
-  // 메트로놈이 켜져 있으면 재생 기준으로 재동기화
+  // 메트로놈이 켜져 있으면 재생 기준으로 재동기화 (메트로놈은 노트 전역 BPM 기준 — 줄별 BPM/박자는 미반영)
   if (metronomeActive) await startMetronome(true);
 
   // 드리프트 방지: startIndex 슬롯이 재생됐어야 할 절대 기준 시각
-  const refWallTime = performance.now() - startIndex * slotMs;
-  const rowLen = playDataIndices.length; // 줄 하나당 슬롯 수
+  const refWallTime = performance.now() - elapsedMsAtStart;
   let i = startIndex;
+  let _accMs = elapsedMsAtStart;
   let _playheadEl = null;
   let _playheadLineId = null;
   async function next() {
     if (!playbackActive) { stopPlayAll(); return; }
     if (i >= orderedSlots.length) { stopPlayAll(); return; }
     const item = orderedSlots[i++];
-    const posInRow = (i - 1) % rowLen;
 
     const slotEl = document.querySelector(`[data-line-id="${item.lineId}"][data-slot-idx="${item.slotIdx}"]`);
     if (slotEl) {
       const lineEl = slotEl.closest('.project-line');
       // 줄이 바뀌었을 때만 재생 막대를 새로 배치 — 같은 줄 안에서는 슬롯을 넘어가도
-      // 애니메이션을 리셋하지 않고 계속 이어가서 끊김 없이 부드럽게 스윕
-      if (lineEl && item.lineId !== _playheadLineId) {
+      // 애니메이션을 리셋하지 않고 계속 이어가서 끊김 없이 부드럽게 스윕.
+      // (단, 코드슬롯 숨기기/보기 전환 등으로 chord-area가 재렌더되면 기존 막대가 DOM에서
+      //  떨어져나가므로 lineId가 그대로여도 재삽입 — isConnected로 감지)
+      if (lineEl && (item.lineId !== _playheadLineId || !_playheadEl?.isConnected)) {
         const areaEl = lineEl.querySelector('.chord-area');
         if (areaEl) {
           if (!_playheadEl) { _playheadEl = document.createElement('div'); _playheadEl.className = 'row-playhead'; }
           _playheadEl.remove(); // 재삽입해야 CSS 애니메이션이 다시 시작됨
-          const startPct = (posInRow / rowLen) * 100;
-          const remaining = rowLen - posInRow;
+          // 그리드는 항상 4/8칸 고정이지만 마디 수가 적은 줄(1마디)은 그중 절반만 사용
+          // → 재생 막대도 텍스트 보조선 길이(=사용 중인 칸 비율)만큼만 스윕
+          const maxSlots = land ? ROW_SLOT_CAP.landscape : ROW_SLOT_CAP.portrait;
+          const usedFrac = item.rowSlotCount / maxSlots;
+          const startPct = (item.posInRow / item.rowSlotCount) * usedFrac * 100;
+          const endPct = usedFrac * 100;
+          const remainingMs = (item.rowSlotCount - item.posInRow) * item.slotMs;
           _playheadEl.style.setProperty('--sweep-start', startPct + '%');
-          _playheadEl.style.setProperty('--sweep-dur', (remaining * slotMs) + 'ms');
+          _playheadEl.style.setProperty('--sweep-end', endPct + '%');
+          _playheadEl.style.setProperty('--sweep-dur', remainingMs + 'ms');
           areaEl.appendChild(_playheadEl);
         }
         _playheadLineId = item.lineId;
@@ -1183,7 +1222,8 @@ async function playAll(projectId, startIndex = 0) {
       if (chord) await playChord(chord);
     }
     // playChord 소요 시간을 빼고 정확한 다음 슬롯 시각까지만 대기
-    const nextExpected = refWallTime + i * slotMs;
+    _accMs += item.slotMs;
+    const nextExpected = refWallTime + _accMs;
     const delay = Math.max(0, nextExpected - performance.now());
     currentPlayTimeout = setTimeout(next, delay);
   }
@@ -1274,15 +1314,54 @@ async function switchOrient(projectId, mode) {
   }
 }
 
+// ═══════════════════════════════════════════════════════════════
+// 줄(row) 단위 박자(meter)·마디 수 지원
+// 코드슬롯 수는 박자(분자)와 무관 — "마디 수 × 오리엔테이션별 고정 분할수"로만 결정됨.
+// (홀수 박자 곡도 코드 진행은 결국 마디를 짝수로 쪼개 배치하는 경우가 대부분이라,
+//  분자를 슬롯 수 계산에 끌어들이면 오히려 부자연스러움 — 분자/분모는 재생 시간 계산에만 사용)
+// ═══════════════════════════════════════════════════════════════
+const ROW_SLOT_CAP    = { portrait: 4, landscape: 8 }; // 코드슬롯 그리드 최대 칸 수(고정 크기 기준)
+const SLOTS_PER_BAR   = { portrait: 2, landscape: 4 };  // 마디 1개당 슬롯 수(오리엔테이션별 고정)
+
+function getRowMeter(row) {
+  return row?.meter || { num: 4, den: 4 };
+}
+function getRowBpm(project, row) {
+  return row?.bpm ?? project?.bpm ?? 120;
+}
+// 줄의 마디 수 설정 (기본 2마디/줄 — 기존 동작과 동일하게 유지). 1마디 · 반마디 선택 가능.
+function getRowBars(row) {
+  return row?.barsPerRow ?? 2;
+}
+// BPM은 4분음표 기준 — 분모가 4가 아니면 박(pulse) 하나의 실제 길이 보정 필요
+function getPulseMs(bpm, den) {
+  return (60000 / bpm) * (4 / (den || 4));
+}
+// 마디 수로부터 줄 레이아웃(세로/가로 슬롯 수) 계산. 박자 분자는 관여하지 않음.
+function computeRowLayout(bars = 2) {
+  const portraitSlots = bars * SLOTS_PER_BAR.portrait;
+  const landscapeSlots = bars * SLOTS_PER_BAR.landscape;
+  if (!Number.isInteger(portraitSlots) || !Number.isInteger(landscapeSlots)) return null;
+  if (portraitSlots > ROW_SLOT_CAP.portrait || landscapeSlots > ROW_SLOT_CAP.landscape) return null;
+  return { bars, portraitSlots, landscapeSlots };
+}
+// 줄의 슬롯 배열을 새 길이에 맞춰 리사이즈 (같은 인덱스=같은 박 순번이므로 앞부분은 그대로 보존)
+function _resizeRowSlots(oldSlots, newLen) {
+  const ns = new Array(newLen).fill(null);
+  const src = oldSlots || [];
+  for (let i = 0; i < Math.min(src.length, newLen); i++) ns[i] = src[i] ?? null;
+  return ns;
+}
+
 function getGlobalSlotIndex(project, lineId, dataIdx) {
   const land = currentOrient === 'landscape';
-  const perLine = land ? 8 : 4; // 재생 순회 단위: 가로 8박, 세로 4슬롯
   let globalIdx = 0;
   for (const row of project.arrangement) {
+    const layout = computeRowLayout(getRowBars(row)) || computeRowLayout(2);
     if (row.id === lineId) {
       return globalIdx + (land ? dataIdx : dataIdx / 2);
     }
-    globalIdx += perLine;
+    globalIdx += land ? layout.landscapeSlots : layout.portraitSlots;
   }
   return 0;
 }
@@ -1331,7 +1410,10 @@ function renderProjectView(projectId) {
   viewEl.innerHTML = '';
   viewEl.classList.toggle('view-mode', !isEditMode);
 
-  const maxW = '850px';
+  const maxW = currentOrient === 'landscape' ? '600px' : '480px';
+  // #view-project 카드 자체 폭이 이제 양쪽 모드 모두 CSS로 고정됨(가로: app-land 규칙 / 세로: 기본 규칙)
+  // → 자식(sticky-bar·wrapper)도 100%로 고정하면 편집/보기 전환 시 콘텐츠 차이와 무관하게 절대 안 변함
+  const fixedW = currentOrient === 'landscape' ? '600px' : '100%';
 
   // ── 헤더 (<header> 로 분리) ──
   const header = document.createElement('div');
@@ -1387,13 +1469,16 @@ function renderProjectView(projectId) {
 
   const row1Right = document.createElement('div');
   row1Right.className = 'project-header-row1-right';
-  if (isEditMode) {
-    const deleteProjectBtn = document.createElement('button');
-    deleteProjectBtn.className = 'project-icon-btn project-icon-btn--danger';
-    deleteProjectBtn.innerHTML = '<i data-lucide="trash-2"></i>';
-    deleteProjectBtn.onclick = () => openDeleteConfirm(projectId);
-    row1Right.appendChild(deleteProjectBtn);
+  // 삭제(휴지통) 버튼은 항상 DOM에 두고, 보기모드에선 visibility만 숨김 → 편집/보기 전환 시 나머지 요소 위치 고정
+  const deleteProjectBtn = document.createElement('button');
+  deleteProjectBtn.className = 'project-icon-btn project-icon-btn--danger';
+  deleteProjectBtn.innerHTML = '<i data-lucide="trash-2"></i>';
+  deleteProjectBtn.onclick = () => openDeleteConfirm(projectId);
+  if (!isEditMode) {
+    deleteProjectBtn.style.visibility = 'hidden';
+    deleteProjectBtn.style.pointerEvents = 'none';
   }
+  row1Right.appendChild(deleteProjectBtn);
   row1Right.appendChild(shareBtn);
   row1Right.appendChild(modeBtn);
 
@@ -1524,6 +1609,7 @@ function renderProjectView(projectId) {
   const stickyBar = document.createElement('header');
   stickyBar.className = 'project-sticky-bar';
   stickyBar.style.maxWidth = maxW;
+  if (fixedW) stickyBar.style.width = fixedW;
   stickyBar.appendChild(titleBar);
   stickyBar.appendChild(header);
   if (isEditMode) stickyBar.appendChild(buildChordPalette(project, isEditMode));
@@ -1533,6 +1619,7 @@ function renderProjectView(projectId) {
   const wrapper = document.createElement('div');
   wrapper.className = 'project-view-wrapper';
   wrapper.style.maxWidth = maxW;
+  if (fixedW) wrapper.style.width = fixedW;
   wrapper.appendChild(linesEl);
 
   const inner = document.createElement('div');
@@ -1542,6 +1629,7 @@ function renderProjectView(projectId) {
   viewEl.appendChild(inner);
 
   lucide.createIcons();
+  requestAnimationFrame(() => _syncLineTextWidths(linesEl));
 
   // 에디터 복귀 시 스크롤 위치 복원, 그 외엔 맨 위
   if (_pendingEditRestore) {
@@ -1563,8 +1651,8 @@ function getLineText(lineDiv) {
     if (node.nodeType === Node.TEXT_NODE) text += node.textContent;
     else if (node.nodeName === 'BR') text += '\n';
   }
-  // 브라우저 placeholder <br> 로 인한 trailing \n 제거
-  return text.replace(/\n$/, '');
+  // 브라우저 placeholder <br> 로 인한 trailing \n 제거 + 엔터 커서 이동용 zero-width space 제거
+  return text.replace(/​/g, '').replace(/\n$/, '');
 }
 
 // 커서 이전 문자 오프셋 계산 (line-text 기준, <br>='\n' 포함)
@@ -1598,7 +1686,7 @@ function setLineText(lineDiv, text) {
   const lineTextEl = lineDiv.querySelector('.line-text');
   if (!lineTextEl) return;
   while (lineTextEl.firstChild) lineTextEl.removeChild(lineTextEl.firstChild);
-  if (!text) { lineTextEl.appendChild(document.createElement('br')); return; }
+  if (!text) return;
   const parts = text.split('\n');
   parts.forEach((part, i) => {
     if (part) lineTextEl.appendChild(document.createTextNode(part));
@@ -1609,11 +1697,16 @@ function setLineText(lineDiv, text) {
 function buildChordArea(line, project, editMode = true) {
   const textMode = project.slotsHidden === true;
   const land = currentOrient === 'landscape';
+  const layout = computeRowLayout(getRowBars(line)) || computeRowLayout(2); // 안전망(정상 데이터라면 항상 존재)
+  const slotCount = land ? layout.landscapeSlots : layout.portraitSlots;
+  const step = land ? 1 : 2; // 세로는 2칸씩 건너뛰며 표시(슬롯당 2칸)
   const area = document.createElement('div');
+  // 컬럼 수는 항상 CSS 고정(세로4/가로8) — 슬롯 개수와 무관하게 각 슬롯은 자신의 데이터 인덱스가
+  // 속한 고정 칸(=박자 위치)의 왼쪽에 붙어야 하므로 인라인 오버라이드 안 함.
   area.className = `chord-area ${land ? 'orient-land' : 'orient-port'}` + (textMode ? ' chord-area--text' : '');
   area.contentEditable = 'false';
   const base = line.slots || [];
-  const dataIndices = land ? [0, 1, 2, 3, 4, 5, 6, 7] : [0, 2, 4, 6]; // 세로 4슬롯(½마디) / 가로 8슬롯(1박)
+  const dataIndices = Array.from({ length: slotCount }, (_, i) => i * step);
   dataIndices.forEach(dataIdx => {
     const chordId = base[dataIdx] ?? null;
 
@@ -1776,13 +1869,70 @@ function buildChordArea(line, project, editMode = true) {
   return wrapper;
 }
 
-function buildProjectLine(line, project, editMode) {
+// 텍스트 보조선(.line-text) 너비를 실제 렌더된 코드슬롯 영역(.chord-area) 너비에 맞춤
+// (chord-area는 케밥 메뉴 유무·오리엔테이션에 따라 실제 폭이 달라지므로 CSS 고정값 대신 매 렌더 후 측정)
+function _syncLineTextWidths(root) {
+  root.querySelectorAll('.project-line').forEach(lineEl => {
+    const areaEl = lineEl.querySelector('.chord-area');
+    const wrapEl = lineEl.querySelector('.line-text-wrap');
+    if (!areaEl || !wrapEl) return;
+    const bars = parseFloat(lineEl.dataset.rowBars) || 2;
+    // 1마디: 보조선이 전체 폭의 절반만 사용 — 가운데 선은 이제 필요 없음(끝선이 그 자리)
+    // chord-area는 이미 박자 레일 반영 후 실측폭이므로 그대로 사용
+    const fullWidth = areaEl.offsetWidth;
+    wrapEl.style.width = (bars <= 1 ? fullWidth / 2 : fullWidth) + 'px';
+    const midTick = wrapEl.querySelector('.line-mid-tick');
+    if (midTick) midTick.style.display = bars <= 1 ? 'none' : '';
+  });
+}
+
+function buildProjectLine(line, project, editMode, prevLine = null, isFirstLine = false) {
   if (!line.slots) line.slots = new Array(8).fill(null);
   const div = document.createElement('div');
   div.className = 'project-line';
   div.dataset.lineId = line.id;
+  // 줄 메타(BPM·박자·마디수)를 DOM에 심어둠 → saveAllLines가 어떤 경로(복제·붙여넣기 등)로
+  // 만들어진 줄이든 arrangement에 아직 없어도 여기서 복원 (없으면 기본값)
+  if (line.meter) { div.dataset.meterNum = line.meter.num; div.dataset.meterDen = line.meter.den; }
+  if (line.bpm != null) div.dataset.rowBpm = line.bpm;
+  if (line.barsPerRow != null) div.dataset.rowBars = line.barsPerRow;
 
-  div.appendChild(buildChordArea(line, project, editMode));
+  // 박자 레일: row-meta-badge·chord-row-wrapper·project-line-text-row(보조선) 전체를 아우르는
+  // 왼쪽 박스로 항상 자리를 예약(그만큼 나머지 콘텐츠 폭이 줄어듦)
+  // → 박자가 커스텀일 때만 그 안에 세로 분수(분자/분모)를 표시, 아닐 땐 빈 채로 자리만 유지
+  const rowMeter = getRowMeter(line);
+  const meterCustom = !!line.meter && (rowMeter.num !== 4 || rowMeter.den !== 4);
+  const prevMeter = prevLine ? getRowMeter(prevLine) : null;
+  // 첫 줄은 커스텀 여부와 무관하게 항상 기본세팅값(4/4 등) 박자를 표기
+  // 이후 줄은 앞줄의 실효 박자(기본값 포함)와 같으면 생략
+  const showMeter = isFirstLine || (meterCustom && !(prevMeter && prevMeter.num === rowMeter.num && prevMeter.den === rowMeter.den));
+  const meterRail = document.createElement('div');
+  meterRail.className = 'row-meter-rail';
+  if (showMeter) {
+    meterRail.innerHTML = `
+      <span class="row-meter-rail-num">${rowMeter.num}</span>
+      <span class="row-meter-rail-bar"></span>
+      <span class="row-meter-rail-den">${rowMeter.den}</span>`;
+  }
+
+  const bodyContent = document.createElement('div');
+  bodyContent.className = 'project-line-content';
+
+  // BPM이 노트 기본값과 다르게 이 줄에서 개별 설정된 경우에만 표시 (마디 수는 보조선 길이로 이미 표현됨)
+  // 단, 바로 앞 줄과 값이 같으면 반복 표기하지 않고 값이 바뀐 첫 줄에서만 표시
+  const bpmCustom = line.bpm != null;
+  const prevBpm = prevLine ? getRowBpm(project, prevLine) : null;
+  // 첫 줄은 커스텀 여부와 무관하게 항상 기본세팅값(노트 전역 BPM) 표기
+  // 이후 줄은 앞줄의 실효 BPM(기본값 포함)과 같으면 생략
+  const showBpm = isFirstLine || (bpmCustom && !(prevLine && prevBpm === getRowBpm(project, line)));
+  if (showBpm) {
+    const badge = document.createElement('div');
+    badge.className = 'row-meta-badge';
+    badge.textContent = `♩=${getRowBpm(project, line)}`;
+    bodyContent.appendChild(badge);
+  }
+
+  bodyContent.appendChild(buildChordArea(line, project, editMode));
 
   const lineText = document.createElement('div');
   lineText.className = 'line-text';
@@ -1796,8 +1946,28 @@ function buildProjectLine(line, project, editMode) {
     if (part) lineText.appendChild(document.createTextNode(part));
     if (i < textParts.length - 1) lineText.appendChild(document.createElement('br'));
   });
-  if (!lineText.childNodes.length) lineText.appendChild(document.createElement('br'));
-  div.appendChild(lineText);
+  // 빈 줄에 placeholder <br>를 넣으면 white-space:pre-wrap에서 trailing linebreak로
+  // 인식돼 2줄 높이로 렌더됨(입력 시 br 제거되며 1줄로 복귀) → 진짜 빈 상태는 그대로 둠
+
+  // line-text 자체는 contentEditable이라 배경/가상요소가 border-box에 클립됨 →
+  // 가운데 세로선(.line-mid-tick)은 실측 너비를 공유하는 래퍼에 별도 엘리먼트로 붙임
+  const lineTextWrap = document.createElement('div');
+  lineTextWrap.className = 'line-text-wrap';
+  lineTextWrap.appendChild(lineText);
+  const midTick = document.createElement('span');
+  midTick.className = 'line-mid-tick';
+  lineTextWrap.appendChild(midTick);
+
+  const textRow = document.createElement('div');
+  textRow.className = 'project-line-text-row';
+  textRow.appendChild(lineTextWrap);
+  bodyContent.appendChild(textRow);
+
+  const bodyRow = document.createElement('div');
+  bodyRow.className = 'project-line-body';
+  bodyRow.appendChild(meterRail);
+  bodyRow.appendChild(bodyContent);
+  div.appendChild(bodyRow);
 
   return div;
 }
@@ -1812,8 +1982,8 @@ function buildLinesSection(project, editMode = true) {
   linesEl.id = 'project-lines-' + project.id;
   // linesEl은 contenteditable 아님 — 각 line-text가 개별 contenteditable
 
-  project.arrangement.forEach(line => {
-    linesEl.appendChild(buildProjectLine(line, project, editMode));
+  project.arrangement.forEach((line, i) => {
+    linesEl.appendChild(buildProjectLine(line, project, editMode, project.arrangement[i - 1] ?? null, i === 0));
   });
 
   if (editMode) {
@@ -1833,12 +2003,27 @@ function buildLinesSection(project, editMode = true) {
       linesEl.insertBefore(newDiv, addLineBtn);
       saveAllLines(project.id, linesEl);
       lucide.createIcons();
+      requestAnimationFrame(() => _syncLineTextWidths(linesEl));
     });
     linesEl.appendChild(addLineBtn);
 
     let saveDebounce = null;
 
     let _isComposing = false;
+
+    // 빈 줄일 때 브라우저가 caret 앵커용으로 남기는 placeholder <br>가 2줄 높이로 보이는 문제 방지
+    // → 별도 CSS 클래스 없이, line-text가 실제로 비면 그 <br>까지 통째로 제거해서 진짜 빈 엘리먼트로 유지
+    new MutationObserver(muts => {
+      const touched = new Set();
+      for (const m of muts) {
+        const node = m.target.nodeType === 1 ? m.target : m.target.parentElement;
+        const lineText = node?.closest?.('.line-text');
+        if (lineText) touched.add(lineText);
+      }
+      touched.forEach(el => {
+        if (!el.textContent && el.innerHTML) el.innerHTML = '';
+      });
+    }).observe(linesEl, { childList: true, subtree: true, characterData: true });
 
     // 줄 병합 실수 방지: 줄 맨 앞 Backspace는 2회 눌러야 이전 줄과 합쳐짐
     let _mergeArmedLine  = null;
@@ -1918,10 +2103,17 @@ function buildLinesSection(project, editMode = true) {
         range.deleteContents();
         const br = document.createElement('br');
         range.insertNode(br);
-        // br이 마지막 자식이면 커서가 다음 줄에 보이도록 추가 br 삽입
-        if (!br.nextSibling) br.after(document.createElement('br'));
+        // Range.insertNode가 텍스트노드 끝(splitText)에서 빈 텍스트노드를 br 뒤에 남기는 경우가 있어
+        // "br.nextSibling 없으면 줄 끝"으로 판단하면 항상 빗나감 → 빈 텍스트노드도 같은 취급으로 감지.
+        // 캐럿은 반드시 "텍스트노드 안"(offset)에 둬야 크롬이 새 줄에 확실히 그려줌(엘리먼트+child-offset 경계는 불안정).
+        let after = br.nextSibling;
+        if (!after || (after.nodeType === Node.TEXT_NODE && after.textContent === '')) {
+          if (after) after.remove();
+          after = document.createTextNode('​');
+          br.after(after);
+        }
         const newRange = document.createRange();
-        newRange.setStartAfter(br);
+        newRange.setStart(after, after.textContent === '​' ? 1 : 0);
         newRange.collapse(true);
         sel.removeAllRanges();
         sel.addRange(newRange);
@@ -1936,6 +2128,43 @@ function buildLinesSection(project, editMode = true) {
 
         const sel = window.getSelection();
         if (!sel?.rangeCount || !sel.isCollapsed) return;
+
+        // 소프트 줄바꿈(엔터로 만든 br) 하위줄의 "마지막 한 글자" 삭제 케이스를 직접 처리.
+        // 크롬 기본 동작에 맡기면 하위줄이 빈 상태가 되는 순간 placeholder <br>를 중복 삽입해
+        // 줄이 하나 늘어나고 이후 입력 불가능한 고아 줄이 남는 버그가 있음.
+        {
+          const range0 = sel.getRangeAt(0);
+          const container = range0.startContainer;
+          const startOffset = range0.startOffset;
+          if (container.nodeType === Node.TEXT_NODE && startOffset === 1 &&
+              container.textContent.length === 1 && container.previousSibling?.nodeName === 'BR') {
+            e.preventDefault();
+            const br = container.previousSibling;
+            if (container.textContent === '​') {
+              // 이미 빈 하위줄(placeholder) 상태에서 또 지움 → br까지 제거하고 이전 줄과 병합
+              const prevText = br.previousSibling;
+              container.remove();
+              br.remove();
+              const newRange = document.createRange();
+              if (prevText?.nodeType === Node.TEXT_NODE) newRange.setStart(prevText, prevText.textContent.length);
+              else newRange.setStart(e.target, 0);
+              newRange.collapse(true);
+              sel.removeAllRanges();
+              sel.addRange(newRange);
+            } else {
+              // 하위줄의 마지막 실제 글자 삭제 → 직접 지우고 zwsp placeholder로 교체(네이티브 동작 회피)
+              container.textContent = '​';
+              const newRange = document.createRange();
+              newRange.setStart(container, 1);
+              newRange.collapse(true);
+              sel.removeAllRanges();
+              sel.addRange(newRange);
+            }
+            clearTimeout(saveDebounce);
+            saveDebounce = setTimeout(() => saveAllLines(project.id, linesEl), 300);
+            return;
+          }
+        }
 
         const isAtStart = getCursorOffsetInLine(lineEl, sel.getRangeAt(0)) === 0;
 
@@ -2127,13 +2356,22 @@ function buildLinesSection(project, editMode = true) {
       setLineText(currentLine, before + segments[0]);
       for (let i = 1; i < segments.length; i++) {
         const text = i === segments.length - 1 ? segments[i] + after : segments[i];
-        const newLineId = genId();
-        const newLine = { id: newLineId, text, slots: new Array(8).fill(null) };
-        const newDiv = buildProjectLine(newLine, p || project, true);
-        lastLine.insertAdjacentElement('afterend', newDiv);
-        lastLine = newDiv;
+        // 이미 코드슬롯이 채워진 다음 줄이 있으면 새 줄을 만들지 않고 그 줄의 가사만 채운다
+        // (공유받은 코드 진행에 가사만 붙여넣을 때 줄 구조가 깨지지 않도록)
+        const existingNext = lastLine.nextElementSibling;
+        if (existingNext && existingNext.classList?.contains('project-line')) {
+          setLineText(existingNext, text);
+          lastLine = existingNext;
+        } else {
+          const newLineId = genId();
+          const newLine = { id: newLineId, text, slots: new Array(8).fill(null) };
+          const newDiv = buildProjectLine(newLine, p || project, true);
+          lastLine.insertAdjacentElement('afterend', newDiv);
+          lastLine = newDiv;
+        }
       }
       lucide.createIcons();
+      requestAnimationFrame(() => _syncLineTextWidths(linesEl));
     }
 
     const endLineText = lastLine.querySelector('.line-text') || lastLine;
@@ -2224,11 +2462,18 @@ function buildLinesSection(project, editMode = true) {
     const p = getProject(project.id);
     let lastInsertedLine = lineDiv;
     for (let i = 1; i < segments.length; i++) {
+      const existingNext = lastInsertedLine.nextElementSibling;
+      if (existingNext && existingNext.classList?.contains('project-line')) {
+        setLineText(existingNext, segments[i]);
+        lastInsertedLine = existingNext;
+        continue;
+      }
       const newLineId = genId();
       const newDiv = buildProjectLine({ id: newLineId, text: segments[i], slots: new Array(8).fill(null) }, p || project, true);
       lastInsertedLine.insertAdjacentElement('afterend', newDiv);
       lastInsertedLine = newDiv;
     }
+    requestAnimationFrame(() => _syncLineTextWidths(linesEl));
     const endLineText = lastInsertedLine.querySelector('.line-text') || lastInsertedLine;
     const sel = window.getSelection();
     const endRange = document.createRange();
@@ -2260,10 +2505,23 @@ function saveAllLines(projectId, linesEl) {
         if (!isNaN(idx) && cid) slots[idx] = cid;
       });
     }
+    // 줄 메타: arrangement에 있으면 그걸, 없으면(복제·붙여넣기 등 새 div) DOM data 속성에서 복원
+    let meter = existing?.meter;
+    if (!meter && div.dataset.meterNum != null) {
+      meter = { num: parseInt(div.dataset.meterNum, 10), den: parseInt(div.dataset.meterDen, 10) };
+    }
+    let bpm = existing?.bpm;
+    if (bpm == null && div.dataset.rowBpm != null) bpm = parseInt(div.dataset.rowBpm, 10);
+    let barsPerRow = existing?.barsPerRow;
+    if (barsPerRow == null && div.dataset.rowBars != null) barsPerRow = parseFloat(div.dataset.rowBars);
+
     return {
       id: div.dataset.lineId,
       text: getLineText(div),
-      slots
+      slots,
+      meter,
+      bpm,
+      barsPerRow,
     };
   });
   p.updatedAt = Date.now();
@@ -2399,6 +2657,7 @@ function _ensureRowMenuEl() {
     <button data-action="below">아래에 줄 추가</button>
     <button data-action="duplicate">현재 줄 복사</button>
     <button data-action="clear">코드 슬롯 초기화</button>
+    <button data-action="meter">마디 정보 수정</button>
     <hr />
     <button data-action="delete" class="danger">이 줄 삭제</button>`;
   d.addEventListener('click', e => {
@@ -2418,7 +2677,7 @@ function openRowMenu(e, lineId, projectId) {
 
   // position: fixed → 뷰포트 기준 좌표 (내부 스크롤 무관)
   const rect   = e.currentTarget.getBoundingClientRect();
-  const MENU_H = 216; // 드롭다운 예상 높이
+  const MENU_H = 256; // 드롭다운 예상 높이
   const viewH  = window.innerHeight;
   if (rect.bottom + MENU_H > viewH) {
     // 아래 공간 부족 → 버튼 위쪽으로 뒤집어 표시
@@ -2468,11 +2727,19 @@ function _rowMenuAction(action) {
     const newId  = genId();
     const newObj = { id: newId, text: '', slots: new Array(8).fill(null) };
     const newDiv = buildProjectLine(newObj, p, true);
-    newDiv.classList.add('project-line-enter');
-    newDiv.addEventListener('animationend', () => newDiv.classList.remove('project-line-enter'), { once: true });
     lineDiv.insertAdjacentElement(action === 'above' ? 'beforebegin' : 'afterend', newDiv);
     saveAllLines(projectId, linesEl);
+    // 줄 삽입으로 앞뒤 줄의 실효 BPM·박자 비교 기준이 바뀌므로 전체 재빌드해서 뱃지 재계산
+    // linesEl 자체(이벤트 리스너 부착 대상)는 유지하고 내부 컨텐츠만 교체
+    const fresh = getProject(projectId);
+    const newLinesEl = buildLinesSection(fresh, true);
+    while (linesEl.firstChild) linesEl.removeChild(linesEl.firstChild);
+    while (newLinesEl.firstChild) linesEl.appendChild(newLinesEl.firstChild);
+    const insertedDiv = linesEl.querySelector(`.project-line[data-line-id="${newId}"]`);
+    insertedDiv?.classList.add('project-line-enter');
+    insertedDiv?.addEventListener('animationend', () => insertedDiv.classList.remove('project-line-enter'), { once: true });
     lucide.createIcons();
+    requestAnimationFrame(() => _syncLineTextWidths(linesEl));
 
   } else if (action === 'duplicate') {
     // 현재 줄(텍스트+슬롯)을 맨 아래에 복제
@@ -2480,7 +2747,10 @@ function _rowMenuAction(action) {
     const fresh = getProject(projectId);
     const src   = fresh?.arrangement.find(l => l.id === lineId);
     if (!src) return;
-    const newObj = { id: genId(), text: src.text ?? '', slots: (src.slots || new Array(8).fill(null)).slice() };
+    const newObj = {
+      id: genId(), text: src.text ?? '', slots: (src.slots || new Array(8).fill(null)).slice(),
+      meter: src.meter, bpm: src.bpm, barsPerRow: src.barsPerRow,
+    };
     const newDiv = buildProjectLine(newObj, fresh, true);
     newDiv.classList.add('project-line-enter');
     newDiv.addEventListener('animationend', () => newDiv.classList.remove('project-line-enter'), { once: true });
@@ -2489,27 +2759,133 @@ function _rowMenuAction(action) {
     else        linesEl.appendChild(newDiv);
     saveAllLines(projectId, linesEl);
     lucide.createIcons();
+    requestAnimationFrame(() => _syncLineTextWidths(linesEl));
     newDiv.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
 
   } else if (action === 'clear') {
     const line = p.arrangement.find(l => l.id === lineId);
     if (!line) return;
-    line.slots    = new Array(8).fill(null);
+    const layout = computeRowLayout(getRowBars(line)) || computeRowLayout(2);
+    line.slots    = new Array(layout.landscapeSlots).fill(null); // 저장 길이 = 이 줄 마디 수 기준 canonical 길이
     p.updatedAt   = Date.now();
     updateProject(p);
     // 코드 영역(wrapper) 재빌드
     const oldWrapper = lineDiv.querySelector('.chord-row-wrapper') ?? lineDiv.querySelector('.chord-area');
     if (oldWrapper) {
-      const newWrapper = buildChordArea({ id: lineId, text: line.text, slots: line.slots }, p, true);
+      const newWrapper = buildChordArea({ id: lineId, text: line.text, slots: line.slots, meter: line.meter, bpm: line.bpm, barsPerRow: line.barsPerRow }, p, true);
       oldWrapper.replaceWith(newWrapper);
       lucide.createIcons();
     }
+
+  } else if (action === 'meter') {
+    openRowMeterModal(projectId, lineId);
 
   } else if (action === 'delete') {
     if (linesEl.querySelectorAll('.project-line').length <= 1) return;
     lineDiv.remove();
     saveAllLines(projectId, linesEl);
   }
+}
+
+// ── 줄 BPM·박자 설정 모달 ────────────────────────────────────
+let _rowMeterProjId = null;
+let _rowMeterLineId = null;
+let _rowMeterNum = 4;
+let _rowMeterDen = 4;
+let _rowMeterBars = 2;
+
+const ROW_METER_DEN_VALS = [2, 4, 8];
+
+function setRowMeterBars(bars) {
+  _rowMeterBars = bars;
+  document.querySelectorAll('#row-meter-bars-toggle input[type="checkbox"]').forEach(cb => {
+    cb.checked = Number(cb.dataset.bars) === bars;
+  });
+}
+
+function _rowMeterRenderSig() {
+  document.getElementById('row-meter-num-val').value = String(_rowMeterNum);
+  document.getElementById('row-meter-den-val').textContent = String(_rowMeterDen);
+}
+
+// 박자 스테퍼: 분모는 [2,4,8] 사이클 (분자는 직접 입력)
+function rowMeterStep(which, dir) {
+  const i = ROW_METER_DEN_VALS.indexOf(_rowMeterDen);
+  const n = (i + dir + ROW_METER_DEN_VALS.length) % ROW_METER_DEN_VALS.length;
+  _rowMeterDen = ROW_METER_DEN_VALS[n];
+  _rowMeterRenderSig();
+}
+
+function openRowMeterModal(projectId, lineId) {
+  const p = getProject(projectId);
+  const line = p?.arrangement.find(l => l.id === lineId);
+  if (!p || !line) return;
+  _rowMeterProjId = projectId;
+  _rowMeterLineId = lineId;
+  const meter = getRowMeter(line);
+  _rowMeterNum = meter.num;
+  _rowMeterDen = meter.den;
+
+  const bpmInputEl = document.getElementById('row-meter-bpm-input');
+  bpmInputEl.value = line.bpm ?? '';
+  const bpmDefaultLabel = String(getRowBpm(p, line));
+  bpmInputEl.placeholder = bpmDefaultLabel;
+  bpmInputEl.onfocus = () => { bpmInputEl.placeholder = ''; };
+  bpmInputEl.onblur = () => { bpmInputEl.placeholder = bpmDefaultLabel; };
+  _rowMeterRenderSig();
+
+  const numInputEl = document.getElementById('row-meter-num-val');
+  numInputEl.oninput = () => { _rowMeterNum = parseInt(numInputEl.value, 10) || 1; };
+  numInputEl.onblur = () => {
+    _rowMeterNum = Math.max(1, Math.min(16, _rowMeterNum));
+    numInputEl.value = String(_rowMeterNum);
+  };
+
+  setRowMeterBars(getRowBars(line) >= 1.5 ? 2 : 1);
+  const errEl = document.getElementById('row-meter-error');
+  errEl.style.display = 'none';
+  errEl.textContent = '';
+  document.getElementById('row-meter-overlay').classList.remove('hidden');
+  document.getElementById('row-meter-save-btn').onclick = confirmRowMeterSave;
+}
+
+function closeRowMeterModal() {
+  document.getElementById('row-meter-overlay').classList.add('hidden');
+  _rowMeterProjId = null;
+  _rowMeterLineId = null;
+}
+
+function confirmRowMeterSave() {
+  const projectId = _rowMeterProjId;
+  const lineId    = _rowMeterLineId;
+  if (!projectId || !lineId) return;
+  const p = getProject(projectId);
+  const line = p?.arrangement.find(l => l.id === lineId);
+  if (!p || !line) return;
+
+  const errEl = document.getElementById('row-meter-error');
+  const num = Math.max(1, Math.min(16, parseInt(document.getElementById('row-meter-num-val').value, 10) || 1));
+  const den = _rowMeterDen;
+  const bars = _rowMeterBars;
+
+  const layout = computeRowLayout(bars);
+  if (!layout || !Number.isInteger(num) || num < 1) {
+    errEl.textContent = '지원하지 않는 마디 수입니다.';
+    errEl.style.display = 'block';
+    return;
+  }
+
+  const bpmRaw = document.getElementById('row-meter-bpm-input').value.trim();
+  const bpm = bpmRaw === '' ? undefined : Math.min(240, Math.max(40, parseInt(bpmRaw, 10) || 120));
+  line.meter = { num, den };
+  line.bpm = bpm;
+  line.barsPerRow = bars;
+  line.slots = _resizeRowSlots(line.slots, layout.landscapeSlots); // 같은 박 순번은 보존, 넘치는 자리만 잘림
+  p.updatedAt = Date.now();
+  updateProject(p);
+
+  closeRowMeterModal();
+  renderProjectView(projectId); // 슬롯 수·그리드·재생 타이밍이 전부 바뀌므로 전체 재렌더
 }
 
 function buildChordPalette(project, editMode = true) {
@@ -3183,9 +3559,21 @@ function _pdAddEntryToProject(entry) {
     dots: libDots,
     openMute: libOpenMute,
     barre: libBarre,
+    barreRange: entry.barreRanges?.[0] ?? entry.barreRange ?? null, // 바레 현 범위 보존(카드 렌더 index 0과 일치)
+    source: entry.source, // pattern/static — dot 세로 offset 결정, 누락 시 어긋남
     fretNumber: entry.fretNumber >= 2 ? entry.fretNumber : 2,
     fingerNumMode: _libFingerMode,
-    accidental: accidental
+    accidental: accidental,
+    // 원본 보이싱 스냅샷 — 사전 카드(_drawLibCanvas)와 동일한 렌더 계약. chordToVoicing이 이걸 우선 사용.
+    voicing: {
+      frets:      entry.frets,
+      openMute:   entry.openMute,
+      barre:      entry.barres?.[0] ?? entry.barre ?? {},
+      barreRange: entry.barreRanges?.[0] ?? entry.barreRange ?? null,
+      fretNumber: entry.fretNumber,
+      source:     entry.source,
+      fingering:  _libFingerMode ? (entry.fingerings?.[0] ?? entry.fingering) : null,
+    },
   };
 
   const p = getProject(_pdProjectId);
