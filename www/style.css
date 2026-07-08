@@ -3256,6 +3256,31 @@ canvas {
   background: var(--bg); color: var(--text-primary);
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
+/* 공유 모달: 코드 아래 공유 채널 아이콘 줄 — 좌측부터 순서대로 붙이고 우측은 비워둠(향후 카톡 등 추가용) */
+.share-icon-row { display: flex; gap: 12px; justify-content: flex-start; }
+.share-icon-btn {
+  display: flex; align-items: center; justify-content: center;
+  width: 40px; height: 40px; border-radius: 50%;
+  border: 1px solid var(--border); background: var(--bg);
+  color: var(--text-primary); cursor: pointer;
+  transition: background 0.15s ease, transform 0.1s ease;
+}
+/* hover: hover 가드 — 터치 기기는 클릭 후에도 :hover가 안 풀려서 계속 눌린 것처럼 보임 */
+@media (hover: hover) {
+  .share-icon-btn:hover { background: var(--border); }
+}
+.share-icon-btn:focus { outline: none; }
+.share-icon-btn:active { transform: scale(0.88); }
+.share-icon-btn svg { width: 18px; height: 18px; }
+
+/* 복사 완료 → 체크 아이콘 팝 애니메이션 */
+@keyframes share-copy-pop {
+  0%   { transform: scale(0.4); opacity: 0; }
+  60%  { transform: scale(1.15); opacity: 1; }
+  100% { transform: scale(1); opacity: 1; }
+}
+.share-icon-btn.copied svg { animation: share-copy-pop 0.3s ease; }
+
 .import-settings-row { display: flex; gap: 16px; flex-wrap: wrap; font-size: 14px; }
 .import-settings-row label { display: flex; align-items: center; gap: 6px; cursor: pointer; }
 /* ?�?� ??메뉴 (3-dot) ?�?� */

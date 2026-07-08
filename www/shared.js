@@ -6,7 +6,7 @@
 // ── 상수 ─────────────────────────────────────────────────────
 const SUPABASE_URL  = 'https://jbvkygeksohlysyvaoab.supabase.co';
 const SUPABASE_ANON = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Impidmt5Z2Vrc29obHlzeXZhb2FiIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzYzOTk5NjgsImV4cCI6MjA5MTk3NTk2OH0.6RSgChy0Yq0H2TJpZPSoMKQ2V-OYfR0XzE1aJBBZkXI';
-const APP_VERSION   = '1.2.6_pre1';
+const APP_VERSION   = '1.2.6_pre2';
 const SUPABASE_STORAGE_KEY = 'sb-jbvkygeksohlysyvaoab-auth-token';
 
 // ── Analytics SDK ─────────────────────────────────────────────
@@ -649,6 +649,58 @@ async function shareApp() {
       if (typeof showTextToast === 'function') showTextToast('링크 복사됨!');
     }
     analytics.track('share_initiated', { type: 'app' });
+  } catch (e) { /* 사용자가 공유 취소한 경우 등 — 무시 */ }
+}
+
+// ── 공유 모달: 코드 아래 아이콘 줄 (링크 복사 / OS 공유) ──────────
+// home.js·user_project.js 양쪽 모두 openShareModal()이 share-code-input의
+// dataset.shareUrl/projectName을 채워두면 이 두 함수가 그걸 그대로 씀 — 페이지별 중복 불필요.
+async function copyShareUrl() {
+  document.activeElement?.blur(); // 터치 후 :focus/:hover 눌림 상태로 고정되는 것 방지
+  const el = document.getElementById('share-code-input');
+  const url = el?.dataset.shareUrl || '';
+  if (!url) return;
+  if (navigator.clipboard) await navigator.clipboard.writeText(url).catch(() => _fallbackCopy(url));
+  else _fallbackCopy(url);
+  if (typeof showTextToast === 'function') showTextToast('링크 복사됨!');
+  incrementStat('shares');
+  analytics.track('share_initiated', { type: 'url' });
+
+  // 복사 아이콘 → 체크 아이콘으로 잠깐 전환해서 복사 완료 피드백(팝 애니메이션은 CSS .copied)
+  const btn = document.getElementById('share-copy-url-btn');
+  if (btn && !btn.dataset.checking) {
+    btn.dataset.checking = '1';
+    btn.innerHTML = '<i data-lucide="check"></i>';
+    btn.classList.add('copied');
+    lucide.createIcons();
+    setTimeout(() => {
+      btn.innerHTML = '<i data-lucide="copy"></i>';
+      btn.classList.remove('copied');
+      lucide.createIcons();
+      delete btn.dataset.checking;
+    }, 1500);
+  }
+}
+
+async function shareProjectViaOS() {
+  document.activeElement?.blur(); // 터치 후 :focus/:hover 눌림 상태로 고정되는 것 방지
+  const el = document.getElementById('share-code-input');
+  const url = el?.dataset.shareUrl || '';
+  if (!url) return;
+  const title = el.dataset.projectName || 'Chorditor';
+  const text = `${title} 코드 진행을 확인해보세요!`;
+  const Share = window.Capacitor?.Plugins?.Share;
+  try {
+    if (Share) {
+      await Share.share({ title, text, url });
+    } else if (navigator.share) {
+      await navigator.share({ title, text, url });
+    } else if (navigator.clipboard) {
+      await navigator.clipboard.writeText(url);
+      if (typeof showTextToast === 'function') showTextToast('링크 복사됨!');
+    }
+    incrementStat('shares');
+    analytics.track('share_initiated', { type: 'native' });
   } catch (e) { /* 사용자가 공유 취소한 경우 등 — 무시 */ }
 }
 

@@ -3777,8 +3777,10 @@ async function openShareModal(projectId) {
   const project = getProject(projectId);
   if (!project) return;
   const codeEl = document.getElementById('share-code-input');
-  codeEl.value        = '코드 생성 중…';
-  codeEl.dataset.full = '';
+  codeEl.value            = '코드 생성 중…';
+  codeEl.dataset.full     = '';
+  codeEl.dataset.shareUrl = '';
+  codeEl.dataset.projectName = project.name || 'Chorditor';
   document.getElementById('modal-share').classList.remove('hidden');
   lucide.createIcons();
 
@@ -3789,6 +3791,7 @@ async function openShareModal(projectId) {
     if (project.shareCode !== dbCode) { project.shareCode = dbCode; updateProject(project); }
     codeEl.value = dbCode;
     codeEl.dataset.full = dbCode;
+    codeEl.dataset.shareUrl = 'https://chorditor.github.io/Chorditor/share/?c=' + dbCode;
     return;
   }
 
@@ -3797,6 +3800,7 @@ async function openShareModal(projectId) {
   const shorten = s => s.length > 30 ? s.slice(0, 20) + '…' + s.slice(-6) : s;
   codeEl.value        = shorten(code);
   codeEl.dataset.full = code;
+  codeEl.dataset.shareUrl = 'https://chorditor.github.io/Chorditor/share/?share=' + code;
 }
 function _fallbackCopy(text) {
   const ta = Object.assign(document.createElement('textarea'), { value: text });
