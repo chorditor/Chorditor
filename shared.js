@@ -6,7 +6,7 @@
 // ── 상수 ─────────────────────────────────────────────────────
 const SUPABASE_URL  = 'https://jbvkygeksohlysyvaoab.supabase.co';
 const SUPABASE_ANON = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Impidmt5Z2Vrc29obHlzeXZhb2FiIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzYzOTk5NjgsImV4cCI6MjA5MTk3NTk2OH0.6RSgChy0Yq0H2TJpZPSoMKQ2V-OYfR0XzE1aJBBZkXI';
-const APP_VERSION   = '1.2.5';
+const APP_VERSION   = '1.2.6_pre6';
 const SUPABASE_STORAGE_KEY = 'sb-jbvkygeksohlysyvaoab-auth-token';
 
 // ── Analytics SDK ─────────────────────────────────────────────
@@ -56,6 +56,62 @@ const analytics = (typeof AnalyticsSDK !== 'undefined')
   };
 
   window.isScrolling = () => _movelock || _velolock;
+})();
+
+// ── 데스크탑 마우스 드래그 스크롤 ─────────────────────────────
+// 웹 브라우저에서는 마우스 드래그로 overflow 스크롤이 안 됨 → 휠피커류에 드래그 지원.
+// 터치(모바일)는 네이티브 스크롤 그대로 사용 (pointerType 'mouse'만 처리).
+function enableMouseDragScroll(el) {
+  if (!el || el._mouseDragScroll) return;
+  el._mouseDragScroll = true;
+  let dragging = false, moved = false, startY = 0, startTop = 0, savedSnap = '';
+  let suppressClickUntil = 0;
+
+  el.addEventListener('pointerdown', (e) => {
+    if (e.pointerType !== 'mouse' || e.button !== 0) return;
+    dragging = true; moved = false;
+    startY = e.clientY; startTop = el.scrollTop;
+  });
+
+  el.addEventListener('pointermove', (e) => {
+    if (!dragging || e.pointerType !== 'mouse') return;
+    const dy = e.clientY - startY;
+    if (!moved && Math.abs(dy) > 3) {
+      moved = true;
+      savedSnap = el.style.scrollSnapType;
+      el.style.scrollSnapType = 'none'; // 드래그 중 snap 간섭 방지
+      try { el.setPointerCapture(e.pointerId); } catch (_) {}
+    }
+    if (moved) { el.scrollTop = startTop - dy; e.preventDefault(); }
+  });
+
+  const _endDrag = (e) => {
+    if (!dragging || e.pointerType !== 'mouse') return;
+    dragging = false;
+    if (moved) {
+      el.style.scrollSnapType = savedSnap; // snap 복원 → 가까운 항목으로 스냅
+      suppressClickUntil = performance.now() + 80; // 드래그 직후 click 오작동 차단
+    }
+  };
+  el.addEventListener('pointerup', _endDrag);
+  el.addEventListener('pointercancel', _endDrag);
+
+  el.addEventListener('click', (ce) => {
+    if (performance.now() < suppressClickUntil) { ce.stopPropagation(); ce.preventDefault(); }
+  }, { capture: true });
+}
+window.enableMouseDragScroll = enableMouseDragScroll;
+
+// ── 화면 회전 잠금 ────────────────────────────────────────────
+// user_project.html(노트 편집)만 가로 회전 허용, 나머지 전 페이지 세로 고정.
+// 실제 잠금/해제는 페이지별 진입 시점(각 페이지 DOMContentLoaded)에 걸어야
+// 이전 페이지의 잠금 상태가 새 페이지로 새지 않는다.
+(function() {
+  const SO = window.Capacitor?.Plugins?.ScreenOrientation;
+  if (!SO) return; // 웹 브라우저: 네이티브 회전 제어 불가, 무시
+  if (!location.pathname.includes('user_project.html')) {
+    SO.lock({ orientation: 'portrait' }).catch(() => {});
+  }
 })();
 
 // ── 네트워크 오프라인 오버레이 ────────────────────────────────
@@ -110,7 +166,159 @@ function loadProjects() {
 }
 
 function saveProjects(projects) {
+  const prevIds = loadProjects().map(p => p.id); // 덮어쓰기 전에 캡처 — 삭제분 DB 반영용
   safeSave('chorditor_projects', JSON.stringify(projects));
+  _syncProjectsToDB(projects, prevIds).catch(() => {}); // 비동기 백그라운드, 로컬 흐름은 그대로 동기
+}
+
+// ── 프로젝트 DB 백업 미러 + 공유 코드 ───────────────────────────
+// 로컬(localStorage)이 계속 source of truth. 저장될 때마다 조용히 DB에 따라가서,
+// 앱을 지워도 로그인만 하면 프로젝트(가사 포함)가 복구되게 함.
+// 읽기 경로(loadProjects 등)는 그대로 로컬 — 앱 흐름/기존 호출부 수정 없음.
+function _authSessionSync() {
+  try {
+    const stored = localStorage.getItem(SUPABASE_STORAGE_KEY);
+    if (!stored) return null;
+    const s = JSON.parse(stored);
+    return (s?.access_token && s?.user?.id) ? s : null;
+  } catch (e) { return null; }
+}
+
+async function _syncProjectsToDB(projects, prevIds) {
+  const session = _authSessionSync();
+  if (!session) return; // 비로그인 — 로컬 전용으로 계속 동작
+  const headers = {
+    'Content-Type': 'application/json',
+    apikey: SUPABASE_ANON,
+    Authorization: 'Bearer ' + session.access_token,
+  };
+  const newIds = new Set(projects.map(p => p.id));
+  const removedIds = (prevIds || []).filter(id => !newIds.has(id));
+  try {
+    if (removedIds.length) {
+      // keepalive: 삭제 직후 location.href로 페이지 이동하는 흐름(deleteProject 등)이 있어서,
+      // 이게 없으면 네비게이션이 이 요청을 끊어버려 DB row가 안 지워지는 문제가 있었음.
+      await fetch(`${SUPABASE_URL}/rest/v1/projects?project_id=in.(${removedIds.join(',')})`, {
+        method: 'DELETE', headers, keepalive: true,
+      });
+    }
+    if (projects.length) {
+      // code/payload는 여기서 안 보냄 — "공유하기"에서만 채움. 미포함 컬럼은 업서트 시 그대로 유지됨.
+      const rows = projects.map(p => ({
+        project_id: p.id,
+        user_id: session.user.id,
+        title: p.name || '',
+        content: p,
+        pinned: !!p.pinned,
+        important: !!p.important,
+        updated_at: new Date().toISOString(),
+      }));
+      // (업서트는 keepalive 안 씀 — 크롬은 keepalive 요청 바디를 64KB로 제한해서
+      // content 전체를 보내는 이 요청엔 안 맞음. delete만 페이로드가 작아서 안전하게 적용)
+      await fetch(`${SUPABASE_URL}/rest/v1/projects?on_conflict=project_id`, {
+        method: 'POST',
+        headers: { ...headers, Prefer: 'resolution=merge-duplicates,return=minimal' },
+        body: JSON.stringify(rows),
+      });
+    }
+  } catch (e) { /* 오프라인 등 — 다음 저장 때 다시 시도됨 */ }
+}
+
+const SHARE_CODE_CHARS = '0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz';
+const SHARE_CODE16_RE  = /^[0-9A-Za-z]{16}$/;
+function _genShareCode16() {
+  const bytes = new Uint8Array(16);
+  crypto.getRandomValues(bytes);
+  return Array.from(bytes, b => SHARE_CODE_CHARS[b % 62]).join('');
+}
+
+// 프로젝트당 공유 코드 1개 고정 — project.shareCode 있으면 재사용(payload만 최신화),
+// 없으면 새로 발급. payloadStr은 호출측 buildSharePayload(project) 결과를 그대로 전달.
+async function getOrCreateShareCode(project, payloadStr) {
+  const session = _authSessionSync();
+  if (!session) return null; // 공유 DB는 소유자 upsert라 로그인 필요 — 없으면 호출측에서 폴백
+  const headers = {
+    'Content-Type': 'application/json',
+    apikey: SUPABASE_ANON,
+    Authorization: 'Bearer ' + session.access_token,
+  };
+  const payload = JSON.parse(payloadStr);
+  const upsertWithCode = async code => {
+    const body = [{
+      project_id: project.id,
+      user_id: session.user.id,
+      title: project.name || '',
+      content: project,
+      code,
+      payload,
+      pinned: !!project.pinned,
+      important: !!project.important,
+      updated_at: new Date().toISOString(),
+    }];
+    const res = await fetch(`${SUPABASE_URL}/rest/v1/projects?on_conflict=project_id`, {
+      method: 'POST',
+      headers: { ...headers, Prefer: 'resolution=merge-duplicates,return=minimal' },
+      body: JSON.stringify(body),
+    });
+    return res.ok;
+  };
+  try {
+    if (project.shareCode) {
+      return (await upsertWithCode(project.shareCode)) ? project.shareCode : null;
+    }
+    for (let i = 0; i < 5; i++) { // code unique 충돌 시 재시도(사실상 발생 거의 안 함)
+      const code = _genShareCode16();
+      if (await upsertWithCode(code)) return code;
+    }
+    return null;
+  } catch (e) { return null; }
+}
+
+// code로 공유 payload만 조회 (RLS 우회 RPC — 로그인 여부 무관하게 실행 가능)
+async function _fetchSharedPayload(code) {
+  try {
+    const res = await fetch(`${SUPABASE_URL}/rest/v1/rpc/get_shared_payload`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', apikey: SUPABASE_ANON, Authorization: 'Bearer ' + SUPABASE_ANON },
+      body: JSON.stringify({ p_code: code }),
+    });
+    if (!res.ok) return null;
+    const payload = await res.json();
+    if (!payload) return null;
+    return (payload.v === 1 || payload.v === 2) ? payload : null;
+  } catch (e) { return null; }
+}
+
+// 로그인 시 로컬↔DB 병합: DB에만 있는 프로젝트(재설치/새 기기)는 로컬로 복구,
+// 로컬에만 있는 프로젝트(아직 한 번도 동기화 안 됨)는 DB로 업로드.
+async function syncProjectsOnLogin() {
+  const session = _authSessionSync();
+  if (!session) return;
+  const headers = { apikey: SUPABASE_ANON, Authorization: 'Bearer ' + session.access_token };
+  try {
+    const res = await fetch(
+      `${SUPABASE_URL}/rest/v1/projects?user_id=eq.${session.user.id}&select=project_id,content`,
+      { headers }
+    );
+    if (!res.ok) return;
+    const rows = await res.json();
+    const local = loadProjects();
+    const localIds = new Set(local.map(p => p.id));
+    const dbIds = new Set(rows.map(r => r.project_id));
+
+    let changed = false;
+    rows.forEach(r => {
+      if (!localIds.has(r.project_id) && r.content) { local.push(r.content); changed = true; }
+    });
+    if (changed) {
+      safeSave('chorditor_projects', JSON.stringify(local));
+      // 재설치 등으로 DB에서 새로 복구된 프로젝트가 있으면 목록 화면 갱신
+      if (typeof renderSidebar === 'function') renderSidebar();
+    }
+
+    const missingInDb = local.filter(p => !dbIds.has(p.id));
+    if (missingInDb.length) await _syncProjectsToDB(missingInDb, []);
+  } catch (e) { /* 무시 — 다음 로그인 때 재시도 */ }
 }
 
 // ── 플랜 관리 ─────────────────────────────────────────────────
@@ -430,6 +638,87 @@ function openPlayStore() {
   }
 }
 
+// ── 앱 자체 공유(초대) ──────────────────────────────────────────
+async function shareApp() {
+  const url = 'https://play.google.com/store/apps/details?id=com.chorditor.app';
+  const text = 'Chorditor로 코드 진행을 만들고 연습해보세요!';
+  const Share = window.Capacitor?.Plugins?.Share;
+  try {
+    if (Share) {
+      await Share.share({ title: 'Chorditor', text, url });
+    } else if (navigator.share) {
+      await navigator.share({ title: 'Chorditor', text, url });
+    } else if (navigator.clipboard) {
+      await navigator.clipboard.writeText(text + ' ' + url);
+      if (typeof showTextToast === 'function') showTextToast('링크 복사됨!');
+    }
+    analytics.track('share_initiated', { type: 'app' });
+  } catch (e) { /* 사용자가 공유 취소한 경우 등 — 무시 */ }
+}
+
+// ── 공유 모달: 코드 아래 아이콘 줄 (링크 복사 / OS 공유) ──────────
+// home.js·user_project.js 양쪽 모두 openShareModal()이 share-code-input의
+// dataset.shareUrl/projectName을 채워두면 이 두 함수가 그걸 그대로 씀 — 페이지별 중복 불필요.
+async function copyShareUrl() {
+  document.activeElement?.blur(); // 터치 후 :focus/:hover 눌림 상태로 고정되는 것 방지
+  const el = document.getElementById('share-code-input');
+  const url = el?.dataset.shareUrl || '';
+  if (!url) return;
+  if (navigator.clipboard) await navigator.clipboard.writeText(url).catch(() => _fallbackCopy(url));
+  else _fallbackCopy(url);
+  if (typeof showTextToast === 'function') showTextToast('링크 복사됨!');
+  incrementStat('shares');
+  analytics.track('share_initiated', { type: 'url' });
+
+  // 복사 아이콘 → 체크 아이콘으로 잠깐 전환해서 복사 완료 피드백(팝 애니메이션은 CSS .copied)
+  const btn = document.getElementById('share-copy-url-btn');
+  if (btn && !btn.dataset.checking) {
+    btn.dataset.checking = '1';
+    btn.innerHTML = '<i data-lucide="check"></i>';
+    btn.classList.add('copied');
+    lucide.createIcons();
+    setTimeout(() => {
+      btn.innerHTML = '<i data-lucide="copy"></i>';
+      btn.classList.remove('copied');
+      lucide.createIcons();
+      delete btn.dataset.checking;
+    }, 1500);
+  }
+}
+
+async function shareProjectViaOS() {
+  document.activeElement?.blur(); // 터치 후 :focus/:hover 눌림 상태로 고정되는 것 방지
+  const el = document.getElementById('share-code-input');
+  const url = el?.dataset.shareUrl || '';
+  if (!url) return;
+  const title = el.dataset.projectName || 'Chorditor';
+  const text = `${title} 코드 진행을 확인해보세요!`;
+  const Share = window.Capacitor?.Plugins?.Share;
+  try {
+    if (Share) {
+      await Share.share({ title, text, url });
+    } else if (navigator.share) {
+      await navigator.share({ title, text, url });
+    } else if (navigator.clipboard) {
+      await navigator.clipboard.writeText(url);
+      if (typeof showTextToast === 'function') showTextToast('링크 복사됨!');
+    }
+    incrementStat('shares');
+    analytics.track('share_initiated', { type: 'native' });
+  } catch (e) { /* 사용자가 공유 취소한 경우 등 — 무시 */ }
+}
+
+// ── 공유 링크/코드로 앱 진입 (Android Activity → WebView, 또는 ?share=/?c= URL) ──
+// 어느 페이지(onboarding/home/user_project)에서 도착하든 일단 세션스토리지에 저장만 해두고,
+// 실제 처리(코드 파싱 → 새 프로젝트 생성 → 그 프로젝트로 즉시 이동)는 home.js/user_project.js의
+// _consumePendingShareCode()가 담당 — 로그인 전(onboarding)에 도착해도 로그인 완료 후
+// home.html에서 자동으로 이어서 처리됨(모달로 "기존/새 노트" 선택 안 시킴, 무조건 새 노트로 생성).
+const PENDING_SHARE_CODE_KEY = 'np_pending_share_code';
+window._handleShareImport = function(rawCode) {
+  sessionStorage.setItem(PENDING_SHARE_CODE_KEY, rawCode);
+  if (typeof _consumePendingShareCode === 'function') _consumePendingShareCode();
+};
+
 // ── RevenueCat (인앱 결제) ─────────────────────────────────────
 const REVENUECAT_ANDROID_KEY = 'goog_KNGCSoBxhHnHfZuTVgJoNKglKhM';
 const ENTITLEMENT_PRO  = 'pro_entitlement';
@@ -670,7 +959,7 @@ function _initPlanSheet() {
         <span class="price-amount">₩4,900<small>/월</small></span>
       </div>
       <ul class="plan-card-features">
-        <li>프로젝트 <strong>무제한</strong></li>
+        <li>노트 <strong>무제한</strong></li>
         <li>이미지 저장 <strong>전 배율</strong> (x0.5~x3)</li>
         <li>훈련소 컨텐츠 전체 개방</li>
       </ul>
@@ -1517,6 +1806,9 @@ const VOICING_CANVAS = (() => {
 //   → VoicingCanvas.draw(canvas, chordToVoicing(chord), { chordName, fingerNumMode, ratio })
 // ═══════════════════════════════════════════════════════════════
 function chordToVoicing(chord) {
+  // 사전/에디터에서 가져온 코드는 원본 보이싱 스냅샷을 그대로 보관 → 재계산 없이 그대로 렌더.
+  // (컴포넌트 모델(dots+fretNumber)로 되돌리면 pattern 보이싱의 source별 offset을 표현 못 해 dot이 어긋남)
+  if (chord.voicing) return chord.voicing;
   const fn   = (chord.fretNumber >= 2) ? chord.fretNumber : 2;
   const base = fn - 2;  // 슬롯 → 절대프렛
   const frets     = [null, null, null, null, null, null];
@@ -1530,8 +1822,11 @@ function chordToVoicing(chord) {
   const barre = {};
   Object.entries(chord.barre || {}).forEach(([k, v]) => { if (v) barre[Number(k) + base] = true; });
   return {
-    frets, openMute: chord.openMute, barre, barreRange: null,
-    fretNumber: fn, source: 'static', fingering,
+    // barreRange(바레가 덮는 현 범위)는 프렛과 무관한 현 인덱스라 offset 불필요 — 저장값 그대로 전달.
+    // null이면 VoicingCanvas가 바레 프렛에 dot 있는 현으로만 범위 추정 → 바레 위 손가락 있는 코드(F·B 등)에서 어긋남.
+    // source(pattern/static)는 VoicingCanvas의 dot 세로 offset을 좌우함 — 누락 시 pattern 코드가 어긋남.
+    frets, openMute: chord.openMute, barre, barreRange: chord.barreRange ?? null,
+    fretNumber: fn, source: chord.source || 'static', fingering,
   };
 }
 if (typeof window !== 'undefined') window.chordToVoicing = chordToVoicing;

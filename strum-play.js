@@ -255,6 +255,8 @@ function strumInitBpmWheel() {
     // 시작 밑으로 스크롤하면 시작값으로 스냅백
     if (newBpm < _strumStartBpm) strumScrollBpmWheel(_strumStartBpm, true);
   }, { passive: true });
+
+  enableMouseDragScroll(wheel); // 웹 브라우저 마우스 드래그 지원
 }
 
 // 초기 위치 설정: scroll-snap mandatory가 로드 시 scrollTop을 무시(맨 위 스냅)하므로
@@ -334,6 +336,8 @@ function strumInitStartWheel() {
       strumUpdateStartActive();
     }
   }, { passive: true });
+
+  enableMouseDragScroll(wheel); // 웹 브라우저 마우스 드래그 지원
 }
 
 function strumScrollStartWheel(bpm, smooth) {

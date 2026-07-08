@@ -66,7 +66,7 @@
   <div class="modal-overlay hidden" id="modal-share">
     <div class="modal">
       <div class="modal-header">
-        <span class="modal-title">공유 코드</span>
+        <span class="modal-title">공유하기</span>
         <button class="icon-btn" onclick="closeModal('modal-share')"><i data-lucide="x"></i></button>
       </div>
       <div class="modal-body" style="gap:16px;">
@@ -78,47 +78,9 @@
             <button class="btn btn-ghost" id="share-code-copy-btn" onclick="copyShareCode()">복사</button>
           </div>
         </div>
-        <div class="share-field-group">
-          <span class="share-label">앱 URL</span>
-          <div class="share-row">
-            <input type="text" id="share-url-input" class="share-code-input" readonly />
-            <button class="btn btn-ghost" id="share-url-copy-btn" onclick="copyShareUrl()">복사</button>
-          </div>
-        </div>
-      </div>
-    </div>
-  </div>
-
-  <!-- ── 모달: 가져오기 ── -->
-  <div class="modal-overlay hidden" id="modal-import">
-    <div class="modal">
-      <div class="modal-header">
-        <span class="modal-title">코드 배열 가져오기</span>
-        <button class="icon-btn" onclick="closeModal('modal-import')"><i data-lucide="x"></i></button>
-      </div>
-      <div class="modal-body" style="gap:16px;">
-        <p class="hint" id="import-meta"></p>
-        <div class="share-field-group">
-          <span class="share-label">기존 프로젝트에 추가</span>
-          <div class="share-row">
-            <select id="import-project-select" class="export-select" style="flex:1"></select>
-            <button class="btn btn-primary" onclick="confirmImport('existing')">가져오기</button>
-          </div>
-        </div>
-        <div class="share-field-group">
-          <span class="share-label">새 프로젝트로 가져오기</span>
-          <div class="share-row">
-            <input type="text" id="import-new-name" class="share-code-input" placeholder="새 프로젝트 이름" />
-            <button class="btn btn-primary" onclick="confirmImport('new')">만들기</button>
-          </div>
-        </div>
-        <div class="share-field-group">
-          <span class="share-label">함께 적용할 설정</span>
-          <div class="import-settings-row">
-            <label><input type="checkbox" id="import-apply-bpm" checked /> BPM</label>
-            <label><input type="checkbox" id="import-apply-capo" checked /> Capo</label>
-            <label><input type="checkbox" id="import-apply-col" checked /> 칸 수</label>
-          </div>
+        <div class="share-icon-row">
+          <button class="share-icon-btn" id="share-copy-url-btn" onclick="copyShareUrl()" title="링크 복사"><i data-lucide="copy"></i></button>
+          <button class="share-icon-btn" id="share-native-btn" onclick="shareProjectViaOS()" title="공유"><i data-lucide="share-2"></i></button>
         </div>
       </div>
     </div>
@@ -128,12 +90,12 @@
   <div class="modal-overlay hidden" id="modal-create-project">
     <div class="modal" style="max-width:360px;">
       <div class="modal-header">
-        <span class="modal-title">새 프로젝트</span>
+        <span class="modal-title">새 노트</span>
         <button class="icon-btn" onclick="closeModal('modal-create-project')"><i data-lucide="x"></i></button>
       </div>
       <div class="modal-body" style="gap:12px;">
         <input type="text" id="create-project-name-input" class="share-code-input"
-               placeholder="프로젝트 이름" style="font-size:14px;font-family:inherit;" />
+               placeholder="노트 이름" style="font-size:14px;font-family:inherit;" />
       </div>
       <div class="modal-footer">
         <button class="btn btn-ghost" onclick="closeModal('modal-create-project')">취소</button>
@@ -145,12 +107,81 @@
   <!-- ── 모달: 프로젝트 삭제 확인 ── -->
   <div class="modal-overlay hidden" id="delete-confirm-overlay" onclick="closeDeleteConfirm()">
     <div class="delete-confirm-modal" onclick="event.stopPropagation()">
-      <h3 class="delete-confirm-title">프로젝트 삭제</h3>
-      <p class="delete-confirm-desc">삭제된 프로젝트는 복구할 수 없어요.<br>정말 삭제하시겠어요?</p>
+      <h3 class="delete-confirm-title">노트 삭제</h3>
+      <p class="delete-confirm-desc">삭제된 노트는 복구할 수 없어요.<br>정말 삭제하시겠어요?</p>
       <p class="delete-confirm-tip">삭제 전 공유하기로 코드 배열을 백업해두세요.</p>
       <div class="delete-confirm-actions">
         <button class="btn btn-ghost" onclick="closeDeleteConfirm()">취소</button>
         <button class="btn btn-danger" id="delete-confirm-btn">삭제</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── 모달: 줄 BPM·박자 설정 ── -->
+  <div class="modal-overlay hidden" id="row-meter-overlay" onclick="closeRowMeterModal()">
+    <div class="modal" style="max-width:340px;" onclick="event.stopPropagation()">
+      <div class="modal-header">
+        <span class="modal-title">마디 정보 수정</span>
+        <button class="icon-btn" onclick="closeRowMeterModal()"><i data-lucide="x"></i></button>
+      </div>
+      <div class="modal-body meter-modal-body">
+        <div class="meter-top-row">
+          <div class="meter-box">
+            <div class="meter-box-label">BPM</div>
+            <input type="number" id="row-meter-bpm-input" class="meter-bpm-input" min="40" max="240" placeholder="기본값" />
+          </div>
+          <div class="meter-box">
+            <div class="meter-box-label">박자</div>
+            <div class="meter-sig">
+              <div class="meter-sig-row">
+                <input type="number" id="row-meter-num-val" class="meter-big meter-num-input" min="1" max="16" value="4" />
+              </div>
+              <div class="meter-sig-bar"></div>
+              <div class="meter-sig-row">
+                <span class="meter-big meter-big-tap" id="row-meter-den-val" onclick="rowMeterStep('den',1)">4</span>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="share-field-group">
+          <span class="share-label">마디 수</span>
+          <div class="meter-bars-toggle" id="row-meter-bars-toggle">
+            <label class="meter-bars-check">
+              <input type="checkbox" data-bars="1" onchange="setRowMeterBars(1)" />
+              <span>1마디</span>
+            </label>
+            <label class="meter-bars-check">
+              <input type="checkbox" data-bars="2" onchange="setRowMeterBars(2)" />
+              <span>2마디</span>
+            </label>
+          </div>
+        </div>
+        <p class="hint" id="row-meter-error" style="color:var(--accent);display:none;"></p>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-ghost" onclick="closeRowMeterModal()">취소</button>
+        <button class="btn btn-primary" id="row-meter-save-btn">저장</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── 모달: 세로/가로 전환 확인 ── -->
+  <div class="modal-overlay hidden" id="orient-confirm-overlay" onclick="closeOrientConfirm()">
+    <div class="orient-confirm-modal" onclick="event.stopPropagation()">
+      <h3 class="orient-confirm-title" id="orient-confirm-title"></h3>
+      <div class="orient-confirm-preview">
+        <div class="orient-confirm-box">
+          <i data-lucide="layout-grid" class="orient-confirm-box-icon"></i>
+          <span id="orient-confirm-box1-line1"></span>
+        </div>
+        <div class="orient-confirm-box">
+          <i data-lucide="metronome" class="orient-confirm-box-icon"></i>
+          <span id="orient-confirm-box2-line1"></span>
+        </div>
+      </div>
+      <div class="orient-confirm-actions">
+        <button class="btn btn-ghost" onclick="closeOrientConfirm()">취소</button>
+        <button class="btn btn-primary" id="orient-confirm-btn">전환</button>
       </div>
     </div>
   </div>
@@ -245,14 +276,6 @@
   <script src="chord-voicings.js"></script>
   <script src="chords-library.js"></script>
   <script src="user_project.js"></script>
-
-  <!-- 이미지 저장 배율 드롭다운 (에디터/라이브러리 공용) -->
-  <div class="scale-dropdown" id="scale-dropdown">
-    <div class="scale-dropdown-item" data-scale="0.5" onclick="onScaleSelect(this)"><span>0.5배</span><span>50×40 px</span></div>
-    <div class="scale-dropdown-item" data-scale="1"   onclick="onScaleSelect(this)"><span>1배</span><span>100×80 px</span></div>
-    <div class="scale-dropdown-item" data-scale="2"   onclick="onScaleSelect(this)"><span>2배</span><span>200×160 px</span></div>
-    <div class="scale-dropdown-item" data-scale="3"   onclick="onScaleSelect(this)"><span>3배</span><span>300×240 px</span></div>
-  </div>
 
   <div id="exit-toast"></div>
 </body>

@@ -293,6 +293,8 @@ function buildLevelList() {
     track.appendChild(el);
   });
 
+  enableMouseDragScroll(track); // 웹 브라우저 마우스 드래그 지원
+
   // 패널 골격 생성 후 Level 1 내용으로 초기화, 높이 고정
   _lwBuildDetailShell();
   requestAnimationFrame(() => {

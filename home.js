@@ -517,6 +517,8 @@ function initWheelPicker(scrollEl, getIdx, onPick) {
   const _abort = new AbortController();
   scrollEl._pickerAbort = _abort;
 
+  enableMouseDragScroll(scrollEl); // 웹 브라우저 마우스 드래그 지원 (내부 중복 방지)
+
   let timer, programmatic = false, _rafId = null;
 
   function updateItemStyles() {
@@ -1837,9 +1839,9 @@ function openPlanModal() {
 // ── 업그레이드 유도 모달 ───────────────────────────────────────
 const UPGRADE_MESSAGES = {
   project_limit: {
-    title: '프로젝트 한도에 도달했습니다',
+    title: '노트 한도에 도달했습니다',
     desc: {
-      free:     '무료 플랜은 프로젝트를 3개까지 만들 수 있습니다. Pro로 업그레이드하면 무제한으로 사용할 수 있습니다.',
+      free:     '무료 플랜은 노트를 3개까지 만들 수 있습니다. Pro로 업그레이드하면 무제한으로 사용할 수 있습니다.',
       pro:      '',
     },
   },
@@ -1869,9 +1871,9 @@ function closeUpgradeModal() {
 // ── 사이드바 플랜 배지 ─────────────────────────────────────────
 async function loadProfileFromDB() {
   const PLAN_DESC = {
-    free:     '프로젝트 3개 · 이미지 x1',
-    standard: '프로젝트 10개 · 이미지 x3',
-    pro:      '프로젝트 무제한 · 이미지 x5',
+    free:     '노트 3개 · 이미지 x1',
+    standard: '노트 10개 · 이미지 x3',
+    pro:      '노트 무제한 · 이미지 x5',
   };
 
   // 통계 (로컬)
@@ -2348,7 +2350,7 @@ function renderProjectsList() {
   if (projects.length === 0) {
     const hint = document.createElement('p');
     hint.style.cssText = 'padding:8px 20px 0;color:var(--text-muted);font-size:13px;';
-    hint.textContent = '+ 버튼으로 새 프로젝트를 만들어보세요.';
+    hint.textContent = '+ 버튼으로 새 노트를 만들어보세요.';
     container.appendChild(hint);
   }
 
@@ -2663,7 +2665,7 @@ function populateProjectSelect() {
     select._changeTracked = true;
   }
   const projects = loadProjects();
-  select.innerHTML = '<option value="">프로젝트 선택</option>';
+  select.innerHTML = '<option value="">노트 선택</option>';
   projects.forEach(p => {
     const opt = document.createElement('option');
     opt.value = p.id;
@@ -2770,9 +2772,21 @@ function libSaveToProject() {
     dots: libDots,
     openMute: libOpenMute,
     barre: libBarre,
+    barreRange: _libEntry.barreRanges?.[_libFingeringIdx] ?? _libEntry.barreRanges?.[0] ?? _libEntry.barreRange ?? null, // 바레 현 범위 보존(선택 보이싱과 동일 인덱스)
+    source: _libEntry.source, // pattern/static — dot 세로 offset 결정, 누락 시 어긋남
     fretNumber: _libEntry.fretNumber >= 2 ? _libEntry.fretNumber : 2,
     fingerNumMode: _libFingerMode,
-    accidental: accidental
+    accidental: accidental,
+    // 원본 보이싱 스냅샷 — 라이브러리 카드와 동일 렌더 계약. chordToVoicing이 이걸 우선 사용.
+    voicing: {
+      frets:      _libEntry.frets,
+      openMute:   _libEntry.openMute,
+      barre:      _libEntry.barres?.[_libFingeringIdx] ?? _libEntry.barres?.[0] ?? _libEntry.barre ?? {},
+      barreRange: _libEntry.barreRanges?.[_libFingeringIdx] ?? _libEntry.barreRanges?.[0] ?? _libEntry.barreRange ?? null,
+      fretNumber: _libEntry.fretNumber,
+      source:     _libEntry.source,
+      fingering:  _libFingerMode ? ((_libEntry.fingerings?.[_libFingeringIdx]) ?? _libEntry.fingerings?.[0] ?? _libEntry.fingering) : null,
+    },
   };
   openProjectSheet();
 }
@@ -2814,7 +2828,7 @@ function openProjectSheet() {
   card.className = 'project-sheet-new-card';
   card.innerHTML =
     `<i data-lucide="plus-circle" class="project-sheet-new-icon"></i>` +
-    `<span class="project-sheet-new-label">새 프로젝트 만들기</span>`;
+    `<span class="project-sheet-new-label">새 노트 만들기</span>`;
   card.addEventListener('pointerdown', () => {
     closeProjectSheet();
     setTimeout(() => promptCreateProject(), 350);
@@ -3702,6 +3716,10 @@ async function fromBase64urlZ(b64url) {
   }
 }
 
+// ── DB 기반 공유(신규): 프로젝트당 코드 1개 고정, payload는 projects 테이블에 저장.
+// 공용 로직(코드 생성/조회, DB 미러링)은 shared.js에 있음(getOrCreateShareCode, _fetchSharedPayload).
+// 오프라인 base64 URL 방식(구)은 하위호환으로 계속 지원 — DB 접근 실패 시에만 폴백.
+
 function buildSharePayload(project) {
   const idToIdx = {};
   project.chords.forEach((c, i) => idToIdx[c.id] = i);
@@ -3721,11 +3739,20 @@ function buildSharePayload(project) {
 async function generateShareCode(project) {
   return await toBase64urlZ(buildSharePayload(project));
 }
-async function generateShareUrl(project) {
-  return 'https://chorditor.github.io/Chorditor/share/?share=' + await toBase64urlZ(buildSharePayload(project));
-}
-
 async function parseShareCode(raw) {
+  raw = raw.trim();
+  // 신규 DB 방식: URL의 ?c= 파라미터
+  if (raw.includes('?c=')) {
+    try {
+      const code = new URL(raw).searchParams.get('c');
+      if (code) { const p = await _fetchSharedPayload(code); if (p) return p; }
+    } catch (e) {}
+  }
+  // 신규 DB 방식: 16자 코드 그대로 붙여넣기 (DB에 없으면 아래 legacy 경로로 계속 시도)
+  if (SHARE_CODE16_RE.test(raw)) {
+    const p = await _fetchSharedPayload(raw);
+    if (p) return p;
+  }
   let b64;
   // legacy prefix 지원 (이전에 생성된 공유 코드 호환)
   if (raw.startsWith('chorditor:v2:')) b64 = raw.slice(13).trim();
@@ -3749,35 +3776,31 @@ async function parseShareCode(raw) {
 async function openShareModal(projectId) {
   const project = getProject(projectId);
   if (!project) return;
-  const code    = await generateShareCode(project);
-  const fullUrl = await generateShareUrl(project);
-  const codeEl     = document.getElementById('share-code-input');
-  const urlEl      = document.getElementById('share-url-input');
-  const urlCopyBtn = document.getElementById('share-url-copy-btn');
-  // 공유 코드: 앞 20자 + … + 뒤 6자 (복사용 전체값은 data-full에 보관)
+  const codeEl = document.getElementById('share-code-input');
+  codeEl.value            = '코드 생성 중…';
+  codeEl.dataset.full     = '';
+  codeEl.dataset.shareUrl = '';
+  codeEl.dataset.projectName = project.name || 'Chorditor';
+  document.getElementById('modal-share').classList.remove('hidden');
+  lucide.createIcons();
+
+  // DB 방식(신규): 프로젝트당 코드 1개 고정 — 있으면 재사용(payload만 최신화), 없으면 새로 발급
+  const payloadStr = buildSharePayload(project);
+  const dbCode = await getOrCreateShareCode(project, payloadStr);
+  if (dbCode) {
+    if (project.shareCode !== dbCode) { project.shareCode = dbCode; updateProject(project); }
+    codeEl.value = dbCode;
+    codeEl.dataset.full = dbCode;
+    codeEl.dataset.shareUrl = 'https://chorditor.github.io/Chorditor/share/?c=' + dbCode;
+    return;
+  }
+
+  // DB 저장 실패(오프라인 등) 시에만 기존 base64 payload 코드로 폴백 (길 수 있어 표시만 축약)
+  const code = await generateShareCode(project);
   const shorten = s => s.length > 30 ? s.slice(0, 20) + '…' + s.slice(-6) : s;
   codeEl.value        = shorten(code);
   codeEl.dataset.full = code;
-  // URL 필드: 로딩 중 표시 후 is.gd 단축 URL로 교체
-  urlEl.value         = '단축 링크 생성 중…';
-  urlEl.dataset.full  = fullUrl;   // fallback용 미리 저장
-  urlCopyBtn.disabled = true;
-  document.getElementById('modal-share').classList.remove('hidden');
-  lucide.createIcons();
-  // is.gd API 호출
-  try {
-    const res  = await fetch('https://is.gd/create.php?format=simple&url=' + encodeURIComponent(fullUrl));
-    const text = (await res.text()).trim();
-    if (text.startsWith('ERROR') || !text.startsWith('http')) throw new Error(text);
-    urlEl.value        = text;   // 예: https://is.gd/aBcDeF (~21자)
-    urlEl.dataset.full = text;   // 단축 URL 자체를 복사 대상으로
-  } catch (e) {
-    // API 실패 시 전체 URL 단축 표시로 fallback
-    urlEl.value        = shorten(fullUrl);
-    urlEl.dataset.full = fullUrl;
-  } finally {
-    urlCopyBtn.disabled = false;
-  }
+  codeEl.dataset.shareUrl = 'https://chorditor.github.io/Chorditor/share/?share=' + code;
 }
 function _fallbackCopy(text) {
   const ta = Object.assign(document.createElement('textarea'), { value: text });
@@ -3796,15 +3819,6 @@ async function copyShareCode() {
   incrementStat('shares');
   analytics.track('share_initiated', { type: 'code' });
 }
-async function copyShareUrl() {
-  const el = document.getElementById('share-url-input');
-  const val = el.dataset.full || el.value;
-  if (navigator.clipboard) await navigator.clipboard.writeText(val).catch(() => _fallbackCopy(val));
-  else _fallbackCopy(val);
-  _flashBtn('share-url-copy-btn', '복사됨!');
-  incrementStat('shares');
-  analytics.track('share_initiated', { type: 'url' });
-}
 
 let _pendingImportPayload = null;
 
@@ -3813,7 +3827,7 @@ function openImportModal(payload) {
   document.getElementById('import-meta').textContent =
     `BPM ${payload.bpm} · Capo ${payload.capo} · ${payload.col}칸 · 코드 ${payload.chords.length}개 · ${payload.arr.length}줄`;
   const sel = document.getElementById('import-project-select');
-  sel.innerHTML = '<option value="">프로젝트 선택…</option>';
+  sel.innerHTML = '<option value="">노트 선택…</option>';
   loadProjects().forEach(p => {
     sel.appendChild(Object.assign(document.createElement('option'), { value: p.id, textContent: p.name }));
   });
@@ -3832,13 +3846,13 @@ function confirmImport(mode) {
   let targetId;
   if (mode === 'new') {
     const name = document.getElementById('import-new-name').value.trim();
-    if (!name) { alert('프로젝트 이름을 입력하세요.'); return; }
+    if (!name) { alert('노트 이름을 입력하세요.'); return; }
     const p = { id: genId(), name, pinned: false, pinnedOrder: 0, important: false, importantOrder: 0, capo: 0, bpm: 120,
                 colCount: 4, createdAt: Date.now(), updatedAt: Date.now(), chords: [], arrangement: [] };
     const list = loadProjects(); list.push(p); saveProjects(list); targetId = p.id;
   } else {
     targetId = document.getElementById('import-project-select').value;
-    if (!targetId) { alert('프로젝트를 선택하세요.'); return; }
+    if (!targetId) { alert('노트를 선택하세요.'); return; }
   }
   applyImportPayload(targetId, payload, opts);
   closeModal('modal-import');
@@ -3899,12 +3913,23 @@ async function triggerManualImport() {
   openImportModal(payload);
 }
 
-// Android Activity → WebView 진입점
-window._handleShareImport = async function(rawCode) {
-  const payload = await parseShareCode(rawCode);
-  if (payload) openImportModal(payload);
-  else alert('공유 코드가 올바르지 않습니다.');
-};
+// 공유 링크로 들어온 코드 처리 — 모달 없이 바로 새 노트 생성 후 그 페이지로 이동.
+// shared.js의 window._handleShareImport(Android 딥링크)와 아래 ?share=/?c= URL 파라미터
+// 처리 둘 다 세션스토리지에 저장만 해두고 여기서 소비함(로그인 전 도착해도 로그인 후 자동 처리).
+async function _consumePendingShareCode() {
+  const raw = sessionStorage.getItem(PENDING_SHARE_CODE_KEY);
+  if (!raw) return;
+  sessionStorage.removeItem(PENDING_SHARE_CODE_KEY);
+  const payload = await parseShareCode(raw);
+  if (!payload) { alert('공유 코드가 올바르지 않습니다.'); return; }
+  const p = {
+    id: genId(), name: '공유받은 노트', pinned: false, pinnedOrder: 0, important: false, importantOrder: 0,
+    capo: 0, bpm: 120, colCount: 4, createdAt: Date.now(), updatedAt: Date.now(), chords: [], arrangement: [],
+  };
+  const list = loadProjects(); list.push(p); saveProjects(list);
+  applyImportPayload(p.id, payload, { applyBpm: true, applyCapo: true, applyCol: true });
+  location.href = 'user_project.html?id=' + p.id;
+}
 
 // ── OAuth 리다이렉트 후 처리 (웹 전용, shared.js에서 typeof 가드로 호출) ──
 function onAuthSignedIn() {
@@ -4110,14 +4135,14 @@ document.addEventListener('DOMContentLoaded', async () => {
   document.getElementById('create-project-name-input')
     ?.addEventListener('keydown', e => { if (e.key === 'Enter') confirmCreateProject(); });
 
-  // URL share 파라미터 처리
-  const shareParam = new URLSearchParams(location.search).get('share');
+  // URL share 파라미터 처리 (구: ?share=<base64 payload>, 신: ?c=<DB 16자 코드>)
+  // 여기서 바로 파싱하지 않고 저장만 함 — 로그인 안 된 상태면 곧 onboarding.html로
+  // 리다이렉트될 수 있어서, 그 전에 파싱해봤자 결과가 버려짐. _consumePendingShareCode가 나중에 처리.
+  const _shareUrlParams = new URLSearchParams(location.search);
+  const shareParam = _shareUrlParams.get('share') || _shareUrlParams.get('c');
   if (shareParam) {
     history.replaceState(null, '', location.pathname);
-    parseShareCode(shareParam).then(payload => {
-      if (payload) openImportModal(payload);
-      else alert('공유 코드가 올바르지 않습니다.');
-    });
+    sessionStorage.setItem(PENDING_SHARE_CODE_KEY, shareParam);
   }
 
   await initBilling();
@@ -4125,6 +4150,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   // ── DEV 빌드: 인증 체크 없이 바로 진입 ──────────────────────
   if (APP_VERSION.includes('_dev')) {
     initSupabase().catch(() => {});
+    _consumePendingShareCode();
     setTimeout(() => checkAndShowNotice(), 800);
     return;
   }
@@ -4145,6 +4171,8 @@ document.addEventListener('DOMContentLoaded', async () => {
       analytics.track('app_open', { platform: 'android', project_count: loadProjects().length });
       analytics.setScreen('home');
       analytics.track('screen_view', { view: 'home' }); // 홈 화면 진입 명시 기록
+      syncProjectsOnLogin().catch(() => {}); // 재설치 등 DB 백업 복구 + 로컬 전용 업로드
+      _consumePendingShareCode();
       loadProfileFromDB();
       _billingReady.then(async () => {
         if (window._RC) await window._RC.logIn({ appUserID: session.user.id }).catch(() => {});
@@ -4173,6 +4201,8 @@ document.addEventListener('DOMContentLoaded', async () => {
   analytics.track('app_open', { platform: 'web', project_count: loadProjects().length });
   analytics.setScreen('home');
   analytics.track('screen_view', { view: 'home' }); // 홈 화면 진입 명시 기록
+  syncProjectsOnLogin().catch(() => {}); // 재설치 등 DB 백업 복구 + 로컬 전용 업로드
+  _consumePendingShareCode();
   setTimeout(() => checkAndShowNotice(), 1000);
 });
 

@@ -212,6 +212,47 @@ GROUP BY 1, 2
 ORDER BY 1, 2;
 
 -- ═══════════════════════════════════════════════════════════════
+-- platform 컬럼 추가 (앱 vs 브라우저 구분)
+-- 'android' | 'ios' | 'web'
+-- ═══════════════════════════════════════════════════════════════
+ALTER TABLE public.analytics_events
+  ADD COLUMN IF NOT EXISTS platform text;
+
+CREATE INDEX IF NOT EXISTS idx_ae_platform ON public.analytics_events (platform);
+
+-- RPC 함수 재생성 (platform 필드 추가)
+CREATE OR REPLACE FUNCTION public.insert_analytics_batch(events jsonb)
+RETURNS void
+LANGUAGE plpgsql
+SECURITY DEFINER
+AS $$
+DECLARE
+  ev jsonb;
+BEGIN
+  FOR ev IN SELECT * FROM jsonb_array_elements(events)
+  LOOP
+    INSERT INTO public.analytics_events (
+      user_id, anon_id, session_id, event_name, event_category,
+      properties, ab_variants, screen, plan, app_version, platform, created_at
+    ) VALUES (
+      NULLIF(ev->>'user_id', '')::uuid,
+      ev->>'anon_id',
+      (ev->>'session_id')::uuid,
+      ev->>'event_name',
+      COALESCE(ev->>'event_category', 'other'),
+      COALESCE(ev->'properties', '{}'),
+      COALESCE(ev->'ab_variants', '{}'),
+      ev->>'screen',
+      ev->>'plan',
+      ev->>'app_version',
+      ev->>'platform',
+      COALESCE((ev->>'created_at')::timestamptz, now())
+    );
+  END LOOP;
+END;
+$$;
+
+-- ═══════════════════════════════════════════════════════════════
 -- 온보딩 정보수집 컬럼 추가 (public.subscriptions)
 -- ═══════════════════════════════════════════════════════════════
 ALTER TABLE public.subscriptions
