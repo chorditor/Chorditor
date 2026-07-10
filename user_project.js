@@ -605,6 +605,51 @@ function updateProject(updated) {
   saveProjects(projects);
 }
 
+// ── 되돌리기(Undo) — arrangement 스냅샷 스택 ─────────────────
+// 대상: 텍스트 편집·붙여넣기·줄 생성/삭제/병합·코드슬롯 배치/교환/줄비우기.
+// 팔레트(p.chords) 추가·삭제는 대상 아님(스냅샷에 arrangement만 담음).
+// 스택은 페이지 세션 한정(페이지 이동 시 자연 소멸). 브라우저 네이티브 undo는
+// keydown/beforeinput에서 차단 — 커스텀 스택과 이중 동작 시 br/캐럿 꼬임 방지.
+let _undoStack = [];
+let _undoProjectId = null;
+const UNDO_MAX = 50;
+
+// 변이 "직전" 상태를 저장 — 호출부는 반드시 arrangement 수정 전에 호출할 것
+function pushUndoSnapshot(projectId) {
+  const p = getProject(projectId);
+  if (!p) return;
+  if (_undoProjectId !== projectId) { _undoStack = []; _undoProjectId = projectId; }
+  const snap = JSON.stringify(p.arrangement);
+  if (_undoStack[_undoStack.length - 1] === snap) return; // 무변화 저장 중복 방지
+  _undoStack.push(snap);
+  if (_undoStack.length > UNDO_MAX) _undoStack.shift();
+  _refreshUndoBtn();
+}
+
+function undoLastAction() {
+  if (!_undoProjectId) return;
+  const p = getProject(_undoProjectId);
+  if (!p) return;
+  const cur = JSON.stringify(p.arrangement);
+  let snap = null;
+  // 현재 상태와 동일한 스냅샷(결과적 무변화 저장)은 건너뛰고 실제 이전 상태까지 pop
+  while (_undoStack.length) {
+    const s = _undoStack.pop();
+    if (s !== cur) { snap = s; break; }
+  }
+  if (snap === null) { _refreshUndoBtn(); return; }
+  p.arrangement = JSON.parse(snap);
+  p.updatedAt = Date.now();
+  updateProject(p);
+  renderProjectView(_undoProjectId);
+  _refreshUndoBtn();
+}
+
+function _refreshUndoBtn() {
+  const btn = document.getElementById('project-undo-btn');
+  if (btn) btn.disabled = _undoStack.length === 0;
+}
+
 // ═══════════════════════════════════════════════════════════════
 // 네비게이션
 // ═══════════════════════════════════════════════════════════════
@@ -1507,9 +1552,19 @@ function renderProjectView(projectId) {
     deleteProjectBtn.style.visibility = 'hidden';
     deleteProjectBtn.style.pointerEvents = 'none';
   }
-  row1Right.appendChild(deleteProjectBtn);
-  row1Right.appendChild(shareBtn);
-  row1Right.appendChild(modeBtn);
+  // 되돌리기 버튼 (편집모드 전용). 클릭 시 line-text focusout → saveAllLines가
+  // 먼저 동기 실행되어 미저장 타이핑이 스냅샷으로 확정된 뒤 undo 실행됨 (mousedown preventDefault 금지)
+  const undoBtn = document.createElement('button');
+  undoBtn.id = 'project-undo-btn';
+  undoBtn.className = 'project-icon-btn';
+  undoBtn.innerHTML = '<i data-lucide="undo-2"></i>';
+  undoBtn.disabled = _undoProjectId !== projectId || _undoStack.length === 0;
+  undoBtn.onclick = () => undoLastAction();
+  if (!isEditMode) {
+    undoBtn.style.visibility = 'hidden';
+    undoBtn.style.pointerEvents = 'none';
+  }
+  row1Right.appendChild(undoBtn);
 
   // ── 2행: [코드슬롯 토글 왼쪽] ... [Capo BPM 메트로놈 재생 오른쪽] ──
   const headerRow2 = document.createElement('div');
@@ -1633,6 +1688,12 @@ function renderProjectView(projectId) {
   }
 
   titleBar.appendChild(nameInput);
+
+  // 타이틀바 우측: 삭제 · 공유 · 완료/편집 (기존 row1-right에서 이동)
+  const titleBtns = document.createElement('div');
+  titleBtns.className = 'project-title-btns';
+  titleBtns.append(deleteProjectBtn, shareBtn, modeBtn);
+  titleBar.appendChild(titleBtns);
 
   // ── 고정 헤더 영역 ── (팔레트는 편집 모드에서만 필요)
   const stickyBar = document.createElement('header');
@@ -2081,6 +2142,14 @@ function buildLinesSection(project, editMode = true) {
       saveDebounce = setTimeout(() => saveAllLines(project.id, linesEl), 300);
     });
 
+    // IME·컨텍스트메뉴 경유 네이티브 undo/redo 차단 (커스텀 undo 스택과 이중 동작 방지)
+    linesEl.addEventListener('beforeinput', e => {
+      if (e.inputType === 'historyUndo' || e.inputType === 'historyRedo') {
+        e.preventDefault();
+        if (e.inputType === 'historyUndo') undoLastAction();
+      }
+    });
+
     // Samsung 키보드: 여러 줄 붙여넣기가 insertText + \n 으로 들어오는 경우 처리
     linesEl.addEventListener('beforeinput', e => {
       if (!e.target.classList?.contains('line-text')) return;
@@ -2107,6 +2176,14 @@ function buildLinesSection(project, editMode = true) {
 
       // Backspace 외 다른 키 입력 시 병합 무장 해제
       if (e.key !== 'Backspace' && _mergeArmedLine) disarmMerge();
+
+      // Ctrl+Z / Cmd+Z: 브라우저 네이티브 undo 차단 → 커스텀 undo 스택 실행
+      // (네이티브 undo가 line-text DOM을 임의 복원하면 저장 상태와 어긋나 br/캐럿 꼬임)
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'z') {
+        e.preventDefault();
+        if (!e.shiftKey) undoLastAction(); // Shift+Z(redo)는 미지원 — 차단만
+        return;
+      }
 
       // Ctrl+A / Cmd+A: 모든 line-text의 텍스트를 전체 선택
       if ((e.ctrlKey || e.metaKey) && e.key === 'a') {
@@ -2518,6 +2595,9 @@ function buildLinesSection(project, editMode = true) {
 function saveAllLines(projectId, linesEl) {
   const p = getProject(projectId);
   if (!p) return;
+  // undo 재렌더 등으로 linesEl이 DOM에서 떨어진 뒤 지연 저장이 발동하면 옛 내용으로 덮어씀 → 차단
+  if (!linesEl.isConnected) return;
+  pushUndoSnapshot(projectId); // 변이 전 상태 스냅샷 (텍스트·줄 생성/삭제/병합·붙여넣기 공통 경로)
   const lineDivs = linesEl.querySelectorAll('.project-line');
   p.arrangement = Array.from(lineDivs).map(div => {
     if (!div.dataset.lineId) div.dataset.lineId = genId();
@@ -2794,6 +2874,7 @@ function _rowMenuAction(action) {
   } else if (action === 'clear') {
     const line = p.arrangement.find(l => l.id === lineId);
     if (!line) return;
+    pushUndoSnapshot(projectId);
     const layout = computeRowLayout(getRowBars(line)) || computeRowLayout(2);
     line.slots    = new Array(layout.landscapeSlots).fill(null); // 저장 길이 = 이 줄 마디 수 기준 canonical 길이
     p.updatedAt   = Date.now();
@@ -2906,6 +2987,7 @@ function confirmRowMeterSave() {
 
   const bpmRaw = document.getElementById('row-meter-bpm-input').value.trim();
   const bpm = bpmRaw === '' ? undefined : Math.min(240, Math.max(40, parseInt(bpmRaw, 10) || 120));
+  pushUndoSnapshot(projectId); // 마디/BPM/박자 변경도 undo 대상 (슬롯 잘림 복구 포함)
   line.meter = { num, den };
   line.bpm = bpm;
   line.barsPerRow = bars;
@@ -3242,6 +3324,7 @@ function placeChordInSlot(projectId, rowId, slotIdx, chordId) {
   if (!p) return;
   const row = p.arrangement.find(r => r.id === rowId);
   if (!row) return;
+  pushUndoSnapshot(projectId);
   if (!row.slots) row.slots = new Array(8).fill(null);
   row.slots[slotIdx] = chordId;
   p.updatedAt = Date.now();
@@ -3286,6 +3369,7 @@ function swapChordSlots(projectId, srcLineId, srcIdx, tgtLineId, tgtIdx) {
   if (!srcLine.slots) srcLine.slots = new Array(8).fill(null);
   if (!tgtLine.slots) tgtLine.slots = new Array(8).fill(null);
   if (srcLineId === tgtLineId && srcIdx === tgtIdx) return;
+  pushUndoSnapshot(projectId);
   const tmp = srcLine.slots[srcIdx];
   srcLine.slots[srcIdx] = tgtLine.slots[tgtIdx];
   tgtLine.slots[tgtIdx] = tmp;
@@ -3583,7 +3667,10 @@ function toggleLibAccidental() {
 function _pdAddEntryToProject(entry) {
   const useFlat    = accidental === 'flat';
   const dispName   = useFlat ? entry.flatName : entry.name;
-  const fretOffset = entry.fretNumber >= 2 ? entry.fretNumber - 2 : 0;
+  // 에디터 "슬롯2 = fretNumber" 모델 — pattern: 라벨 r+1/offset r-1, static: 라벨 r/offset r-2 (라벨 최소 2)
+  // (static 공식 하드코딩 시 pattern 보이싱 dot이 에디터에서 우측 1칸 밀림 — importLibChordToProject와 동일 공식)
+  const _saveFretNum = Math.max(2, entry.source === 'pattern' ? entry.fretNumber + 1 : entry.fretNumber);
+  const fretOffset = _saveFretNum - 2;
   const activeFingering = entry.fingerings?.[0] ?? entry.fingering;
 
   const libDots = entry.frets
@@ -3614,7 +3701,7 @@ function _pdAddEntryToProject(entry) {
     barre: libBarre,
     barreRange: entry.barreRanges?.[0] ?? entry.barreRange ?? null, // 바레 현 범위 보존(카드 렌더 index 0과 일치)
     source: entry.source, // pattern/static — dot 세로 offset 결정, 누락 시 어긋남
-    fretNumber: entry.fretNumber >= 2 ? entry.fretNumber : 2,
+    fretNumber: _saveFretNum,
     fingerNumMode: _libFingerMode,
     accidental: accidental,
     // 원본 보이싱 스냅샷 — 사전 카드(_drawLibCanvas)와 동일한 렌더 계약. chordToVoicing이 이걸 우선 사용.

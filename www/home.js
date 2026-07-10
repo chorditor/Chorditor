@@ -2740,7 +2740,10 @@ function libSaveToProject() {
   if (!_libEntry) return;
   const useFlat  = accidental === 'flat';
   const dispName = useFlat ? _libEntry.flatName : _libEntry.name;
-  const fretOffset = _libEntry.fretNumber >= 2 ? _libEntry.fretNumber - 2 : 0;
+  // 에디터 "슬롯2 = fretNumber" 모델 — pattern: 라벨 r+1/offset r-1, static: 라벨 r/offset r-2 (라벨 최소 2)
+  // (static 공식 하드코딩 시 pattern 보이싱 dot이 에디터에서 우측 1칸 밀림 — importLibChordToProject와 동일 공식)
+  const _saveFretNum = Math.max(2, _libEntry.source === 'pattern' ? _libEntry.fretNumber + 1 : _libEntry.fretNumber);
+  const fretOffset = _saveFretNum - 2;
   const activeFingering = (_libEntry.fingerings?.[_libFingeringIdx]) ?? _libEntry.fingerings?.[0] ?? _libEntry.fingering;
 
   const libDots = _libEntry.frets
@@ -2774,7 +2777,7 @@ function libSaveToProject() {
     barre: libBarre,
     barreRange: _libEntry.barreRanges?.[_libFingeringIdx] ?? _libEntry.barreRanges?.[0] ?? _libEntry.barreRange ?? null, // 바레 현 범위 보존(선택 보이싱과 동일 인덱스)
     source: _libEntry.source, // pattern/static — dot 세로 offset 결정, 누락 시 어긋남
-    fretNumber: _libEntry.fretNumber >= 2 ? _libEntry.fretNumber : 2,
+    fretNumber: _saveFretNum,
     fingerNumMode: _libFingerMode,
     accidental: accidental,
     // 원본 보이싱 스냅샷 — 라이브러리 카드와 동일 렌더 계약. chordToVoicing이 이걸 우선 사용.
