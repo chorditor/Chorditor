@@ -117,6 +117,42 @@
     </div>
   </div>
 
+  <!-- ── 모달: 노트 저장 선택 (팔레트 이미지 / 텍스트 복사) ── -->
+  <div class="modal-overlay hidden" id="note-save-overlay" onclick="closeNoteSaveChoice()">
+    <div class="delete-confirm-modal" onclick="event.stopPropagation()">
+      <h3 class="delete-confirm-title">저장하기</h3>
+      <div class="delete-confirm-actions" style="flex-direction:column; gap:10px;">
+        <button class="btn" style="width:100%;" onclick="noteSaveChoosePaletteImages()">팔레트 코드 이미지 저장</button>
+        <button class="btn" style="width:100%;" onclick="noteSaveChooseText()">현재 텍스트 복사</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── 이미지 저장 모달 (코드에디터 공용 모달 이식 — 팔레트 코드 전체 저장) ── -->
+  <div class="img-save-backdrop" id="img-save-backdrop" onclick="closeImgSaveModal()"></div>
+  <div class="img-save-modal" id="img-save-modal">
+    <div class="ism-handle"></div>
+    <div class="ism-preview">
+      <canvas id="img-preview-canvas"></canvas>
+    </div>
+    <div class="ism-scale">
+      <div class="ism-scale-row">
+        <span class="ism-scale-label">배율</span>
+        <span class="ism-scale-val" id="img-scale-val">1배 · 100×80 px</span>
+      </div>
+      <input type="range" id="img-scale-slider" class="ism-slider"
+             min="0.5" max="3" step="0.5" value="1"
+             oninput="onImgScaleInput(this.value)">
+    </div>
+    <div class="ism-bottom">
+      <label class="ism-transparent" id="img-transparent-label">
+        <input type="checkbox" id="img-transparent-chk" onchange="onImgTransparentToggle(this.checked)">
+        <span>투명 배경으로 저장</span>
+      </label>
+      <button class="ism-save-btn" id="img-save-btn" onclick="onImgSave()">저장</button>
+    </div>
+  </div>
+
   <!-- ── 모달: 줄 BPM·박자 설정 ── -->
   <div class="modal-overlay hidden" id="row-meter-overlay" onclick="closeRowMeterModal()">
     <div class="modal" style="max-width:340px;" onclick="event.stopPropagation()">

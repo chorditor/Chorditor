@@ -368,6 +368,168 @@ async function savePNG() { /* 직접 호출 시 드롭다운 없이 scale=1 */ a
 // resizeCanvas 제거됨 (에디터 전용) — resize 리스너 불필요
 
 // ═══════════════════════════════════════════════════════════════
+// 노트 저장: 팔레트 코드 이미지(개별 저장) / 텍스트 클립보드 복사
+//  - 이미지 저장 UI는 코드에디터의 img-save-modal(배율·투명배경) 이식
+//  - 팔레트 코드는 합성하지 않고 각각 개별 PNG로 저장, 미리보기는 첫 코드만
+// ═══════════════════════════════════════════════════════════════
+let _imgScale = 1;
+let _imgTransparent = false;
+let _noteSaveProjectId = null;
+
+function _paletteSaveChords() {
+  return getProject(_noteSaveProjectId)?.chords || [];
+}
+
+// ── 저장 방식 선택 시트 ──
+function openNoteSaveChoice(projectId) {
+  _noteSaveProjectId = projectId;
+  document.getElementById('note-save-overlay')?.classList.remove('hidden');
+}
+function closeNoteSaveChoice() {
+  document.getElementById('note-save-overlay')?.classList.add('hidden');
+}
+
+function noteSaveChoosePaletteImages() {
+  closeNoteSaveChoice();
+  if (_paletteSaveChords().length === 0) { alert('저장할 코드가 없습니다.'); return; }
+  openImgSaveModal();
+}
+
+async function noteSaveChooseText() {
+  closeNoteSaveChoice();
+  const p = getProject(_noteSaveProjectId);
+  if (!p) return;
+  // 미저장 편집 반영: 현재 라인 DOM이 있으면 먼저 저장
+  const linesEl = document.querySelector('.project-lines');
+  if (linesEl?.isConnected) saveAllLines(_noteSaveProjectId, linesEl);
+  const fresh = getProject(_noteSaveProjectId) || p;
+  const text = (fresh.arrangement || []).map(l => l.text || '').join('\n');
+  try {
+    if (navigator.clipboard?.writeText) await navigator.clipboard.writeText(text);
+    else _fallbackCopy(text);
+    showSaveToast();
+  } catch (e) { _fallbackCopy(text); showSaveToast(); }
+}
+
+// ── 이미지 저장 모달 (배율·투명배경) ──
+function openImgSaveModal() {
+  const modal    = document.getElementById('img-save-modal');
+  const backdrop = document.getElementById('img-save-backdrop');
+  if (!modal) return;
+  const slider = document.getElementById('img-scale-slider');
+  const chk    = document.getElementById('img-transparent-chk');
+  if (slider) slider.value = _imgScale;
+  if (getPlan() === 'free') _imgTransparent = false; // 투명배경은 프리미엄
+  if (chk) chk.checked = _imgTransparent;
+  _updateImgTransparentUI();
+  _updateImgScaleUI();
+  _renderImgPreview();
+  if (backdrop) backdrop.classList.add('open');
+  modal.classList.add('open');
+}
+
+function closeImgSaveModal() {
+  document.getElementById('img-save-modal')?.classList.remove('open');
+  document.getElementById('img-save-backdrop')?.classList.remove('open');
+}
+
+function onImgScaleInput(v) {
+  _imgScale = parseFloat(v) || 1;
+  _updateImgScaleUI();
+}
+
+function onImgTransparentToggle(checked) {
+  if (checked && getPlan() === 'free') {
+    const chk = document.getElementById('img-transparent-chk');
+    if (chk) chk.checked = false;
+    _imgTransparent = false;
+    closeImgSaveModal();
+    showUpgradeModal('image_transparent');
+    return;
+  }
+  _imgTransparent = !!checked;
+  _renderImgPreview();
+}
+
+function _updateImgTransparentUI() {
+  const label = document.getElementById('img-transparent-label');
+  if (label) label.classList.toggle('locked', getPlan() === 'free');
+}
+
+function _updateImgScaleUI() {
+  const valEl = document.getElementById('img-scale-val');
+  const w = Math.round(EXPORT_BASE_W * _imgScale);
+  const h = Math.round(EXPORT_BASE_H * _imgScale);
+  const locked = _imgScale > getPlanLimit('maxScale');
+  if (valEl) valEl.textContent = `${_imgScale}배 · ${w}×${h} px`;
+  const saveBtn = document.getElementById('img-save-btn');
+  if (saveBtn) {
+    saveBtn.classList.toggle('locked', locked);
+    saveBtn.textContent = locked ? '업그레이드' : '저장';
+  }
+}
+
+// 미리보기 — 팔레트 첫 코드만
+function _renderImgPreview() {
+  const cv = document.getElementById('img-preview-canvas');
+  if (!cv) return;
+  const chords = _paletteSaveChords();
+  if (!chords.length) return;
+  const cssW = cv.offsetWidth;
+  if (!cssW) { requestAnimationFrame(_renderImgPreview); return; }
+  const dpr = window.devicePixelRatio || 1;
+  const first = chords[0];
+  VoicingCanvas.draw(cv, chordToVoicing(first), {
+    chordName: first.name, fingerNumMode: first.fingerNumMode,
+    ratio: (cssW * dpr) / VoicingCanvas.BASE_W,
+    transparent: _imgTransparent,
+  });
+  cv.classList.toggle('transparent-bg', _imgTransparent);
+}
+
+async function onImgSave() {
+  if (_imgScale > getPlanLimit('maxScale')) { closeImgSaveModal(); showUpgradeModal('scale_limit'); return; }
+  if (_imgTransparent && getPlan() === 'free') { closeImgSaveModal(); showUpgradeModal('image_transparent'); return; }
+  closeImgSaveModal();
+  await _saveAllPaletteImages(_imgScale, _imgTransparent);
+}
+
+// 팔레트 코드 전체를 각각 개별 PNG로 저장
+async function _saveAllPaletteImages(scale, transparent) {
+  await refreshPlanFromDB();
+  if (!canUseScale(scale)) { showUpgradeModal('scale_limit'); return; }
+  const chords = _paletteSaveChords();
+  if (!chords.length) return;
+
+  const isNative = window.Capacitor && window.Capacitor.isNativePlatform();
+  let saved = 0;
+  for (const chord of chords) {
+    const exp = document.createElement('canvas');
+    VoicingCanvas.draw(exp, chordToVoicing(chord), {
+      chordName: chord.name, fingerNumMode: chord.fingerNumMode,
+      ratio: EXPORT_BASE_W / VoicingCanvas.BASE_W * scale,
+      transparent,
+    });
+    const fileName = ((chord.name || 'chord') + '_chord.png').replace(/[^\w.\-]/g, '_');
+    if (isNative) {
+      try {
+        await window.Capacitor.Plugins.SaveImage.saveToGallery({ base64: exp.toDataURL('image/png').split(',')[1], fileName });
+        saved++;
+      } catch (e) { console.error('저장 실패:', e); }
+    } else {
+      const link = document.createElement('a');
+      link.download = fileName;
+      link.href = exp.toDataURL('image/png');
+      document.body.appendChild(link); link.click(); document.body.removeChild(link);
+      saved++;
+      await new Promise(r => setTimeout(r, 150)); // 브라우저 연속 다운로드 사이 간격
+    }
+  }
+  if (saved) { incrementStat('images'); showSaveToast(); }
+  analytics.track('image_saved', { scale, source: 'note_palette', count: saved, success: saved > 0 });
+}
+
+// ═══════════════════════════════════════════════════════════════
 // fret 입력
 // ═══════════════════════════════════════════════════════════════
 let currentFretNumber = 2;
@@ -1689,10 +1851,16 @@ function renderProjectView(projectId) {
 
   titleBar.appendChild(nameInput);
 
-  // 타이틀바 우측: 삭제 · 공유 · 완료/편집 (기존 row1-right에서 이동)
+  // 저장 버튼 (공유 좌측) — 팔레트 코드 이미지 저장 / 텍스트 복사 선택
+  const saveNoteBtn = document.createElement('button');
+  saveNoteBtn.className = 'project-icon-btn';
+  saveNoteBtn.innerHTML = '<i data-lucide="save"></i>';
+  saveNoteBtn.onclick = () => openNoteSaveChoice(projectId);
+
+  // 타이틀바 우측: 삭제 · 저장 · 공유 · 완료/편집 (기존 row1-right에서 이동)
   const titleBtns = document.createElement('div');
   titleBtns.className = 'project-title-btns';
-  titleBtns.append(deleteProjectBtn, shareBtn, modeBtn);
+  titleBtns.append(deleteProjectBtn, saveNoteBtn, shareBtn, modeBtn);
   titleBar.appendChild(titleBtns);
 
   // ── 고정 헤더 영역 ── (팔레트는 편집 모드에서만 필요)
