@@ -6,7 +6,7 @@
 // ── 상수 ─────────────────────────────────────────────────────
 const SUPABASE_URL  = 'https://jbvkygeksohlysyvaoab.supabase.co';
 const SUPABASE_ANON = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Impidmt5Z2Vrc29obHlzeXZhb2FiIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzYzOTk5NjgsImV4cCI6MjA5MTk3NTk2OH0.6RSgChy0Yq0H2TJpZPSoMKQ2V-OYfR0XzE1aJBBZkXI';
-const APP_VERSION   = '1.2.6';
+const APP_VERSION   = '1.2.6.1';
 const SUPABASE_STORAGE_KEY = 'sb-jbvkygeksohlysyvaoab-auth-token';
 
 // ── Analytics SDK ─────────────────────────────────────────────
@@ -303,21 +303,30 @@ async function syncProjectsOnLogin() {
     if (!res.ok) return;
     const rows = await res.json();
     const local = loadProjects();
-    const localIds = new Set(local.map(p => p.id));
     const dbIds = new Set(rows.map(r => r.project_id));
 
     let changed = false;
+    const newerLocal = []; // 로컬이 DB보다 최신인 노트 → DB로 업로드
+    const localIdx = new Map(local.map((p, i) => [p.id, i]));
     rows.forEach(r => {
-      if (!localIds.has(r.project_id) && r.content) { local.push(r.content); changed = true; }
+      if (!r.content) return;
+      const idx = localIdx.has(r.project_id) ? localIdx.get(r.project_id) : -1;
+      if (idx === -1) { local.push(r.content); changed = true; return; }
+      // 양쪽에 존재: content.updatedAt 비교 last-write-wins (다른 기기에서 편집한 최신본 반영)
+      const dbT = r.content.updatedAt || 0;
+      const localT = local[idx].updatedAt || 0;
+      if (dbT > localT) { local[idx] = r.content; changed = true; }
+      else if (localT > dbT) { newerLocal.push(local[idx]); }
     });
     if (changed) {
       safeSave('chorditor_projects', JSON.stringify(local));
-      // 재설치 등으로 DB에서 새로 복구된 프로젝트가 있으면 목록 화면 갱신
+      // 재설치 복구·타기기 최신본 반영 시 목록 화면 갱신
       if (typeof renderSidebar === 'function') renderSidebar();
     }
 
     const missingInDb = local.filter(p => !dbIds.has(p.id));
-    if (missingInDb.length) await _syncProjectsToDB(missingInDb, []);
+    const toUpload = missingInDb.concat(newerLocal);
+    if (toUpload.length) await _syncProjectsToDB(toUpload, []);
   } catch (e) { /* 무시 — 다음 로그인 때 재시도 */ }
 }
 
