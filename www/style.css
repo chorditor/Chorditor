@@ -2084,6 +2084,7 @@ canvas {
   height: 28px;
   background: #ffffff;
   box-shadow: 0 0 0 1px rgba(0,0,0,0.08);
+  flex-shrink: 0;
 }
 .capo-label {
   font-size: 11px;
@@ -2134,6 +2135,7 @@ canvas {
   height: 28px;
   background: #ffffff;
   box-shadow: 0 0 0 1px rgba(0,0,0,0.08);
+  flex-shrink: 0;
 }
 .bpm-label {
   font-size: 11px;
@@ -2142,6 +2144,10 @@ canvas {
 }
 .bpm-input {
   width: 38px;
+  height: 16px;
+  padding: 0;
+  line-height: 16px;
+  box-sizing: border-box;
   font-size: 11px;
   font-family: 'Pretendard', sans-serif;
   color: var(--text-primary);
@@ -2169,6 +2175,7 @@ canvas {
   cursor: pointer;
   box-shadow: 0 0 0 1px rgba(0,0,0,0.08);
   transition: background .15s, color .15s, box-shadow .15s;
+  flex-shrink: 0;
 }
 .metronome-btn:hover { background: var(--bg); }
 .metronome-btn.active {
@@ -2193,6 +2200,7 @@ canvas {
   cursor: pointer;
   box-shadow: 0 1px 4px rgba(0,0,0,0.15);
   transition: opacity .15s;
+  flex-shrink: 0;
 }
 .play-all-btn:hover { opacity: .75; }
 .play-all-btn svg { width: 12px; height: 12px; }
