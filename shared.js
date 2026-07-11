@@ -959,7 +959,7 @@ function _initPlanSheet() {
     <div class="plan-launch-banner">출시 기념 특별 할인 — 지금 구독하면 첫 달부터 할인가 적용!</div>
     <div class="plan-card plan-card--highlight">
       <div class="plan-card-badge">추천</div>
-      <div class="plan-card-name">Pro <span class="plan-tag">크리에이터</span></div>
+      <div class="plan-card-name">Pro</div>
       <div class="plan-card-price">
         <div class="price-top">
           <span class="price-original">₩6,900</span>
@@ -968,7 +968,7 @@ function _initPlanSheet() {
         <span class="price-amount">₩4,900<small>/월</small></span>
       </div>
       <ul class="plan-card-features">
-        <li>노트 <strong>무제한</strong></li>
+        <li>노트 <strong>무제한</strong>, 편리한 저장 기능</li>
         <li>이미지 저장 <strong>전 배율</strong> (x0.5~x3)</li>
         <li>훈련소 컨텐츠 전체 개방</li>
       </ul>

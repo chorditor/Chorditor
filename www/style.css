@@ -3561,9 +3561,10 @@ canvas {
   color: var(--text-secondary);
 }
 .plan-card-features li::before {
-  content: '??';
+  content: '\2713';
   color: #16a34a;
   font-weight: 700;
+  margin-right: 6px;
 }
 
 /* CTA 버튼 */
@@ -3729,6 +3730,68 @@ canvas {
   content: '·';
   position: absolute;
   left: 2px;
+}
+
+/* 노트 저장 방식 선택 모달 (이미지 저장 / 텍스트 복사) — 정사각 근접, 2열 카드 */
+.note-save-modal {
+  position: relative;
+  background: #ffffff;
+  border-radius: var(--radius);
+  width: 264px;
+  max-width: 90vw;
+  padding: 24px 20px;
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 18px;
+  box-shadow: 0 8px 32px rgba(0,0,0,0.18);
+}
+.note-save-crown {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  font-size: 18px;
+  line-height: 1;
+  color: #E07B00;
+}
+.note-save-title {
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--text-primary);
+}
+.note-save-opts {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+  width: 100%;
+}
+.note-save-opt {
+  aspect-ratio: 4 / 5;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  padding: 10px;
+  cursor: pointer;
+  transition: background .15s, border-color .15s, transform .1s;
+}
+.note-save-opt:active { transform: scale(0.96); }
+.note-save-opt-icon {
+  width: 34px;
+  height: 34px;
+  color: var(--text-secondary);
+}
+.note-save-opt-label {
+  font-size: 12px;
+  font-weight: 400;
+  color: var(--text-primary);
+  text-align: center;
+  line-height: 1.4;
 }
 
 .upgrade-modal { max-width: 320px; }

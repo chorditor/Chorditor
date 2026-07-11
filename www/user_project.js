@@ -389,14 +389,22 @@ function closeNoteSaveChoice() {
   document.getElementById('note-save-overlay')?.classList.add('hidden');
 }
 
+// 프리미엄 게이트: 앱 공용 요금제 바텀시트 오픈
+function _noteSaveGate() {
+  analytics.track('paywall_viewed', { trigger_source: 'note_save', current_plan: 'free' });
+  openPlanSheet('note_save');
+}
+
 function noteSaveChoosePaletteImages() {
   closeNoteSaveChoice();
+  if (getPlan() === 'free') { _noteSaveGate(); return; } // 프리미엄 게이트 → 바텀시트 페이월
   if (_paletteSaveChords().length === 0) { alert('저장할 코드가 없습니다.'); return; }
   openImgSaveModal();
 }
 
 async function noteSaveChooseText() {
   closeNoteSaveChoice();
+  if (getPlan() === 'free') { _noteSaveGate(); return; } // 프리미엄 게이트 → 바텀시트 페이월
   const p = getProject(_noteSaveProjectId);
   if (!p) return;
   // 미저장 편집 반영: 현재 라인 DOM이 있으면 먼저 저장
@@ -502,6 +510,8 @@ async function _saveAllPaletteImages(scale, transparent) {
   if (!chords.length) return;
 
   const isNative = window.Capacitor && window.Capacitor.isNativePlatform();
+  const usedNames = new Set();
+  const webFiles = []; // 웹 zip용 [{name, base64}]
   let saved = 0;
   for (const chord of chords) {
     const exp = document.createElement('canvas');
@@ -510,23 +520,90 @@ async function _saveAllPaletteImages(scale, transparent) {
       ratio: EXPORT_BASE_W / VoicingCanvas.BASE_W * scale,
       transparent,
     });
-    const fileName = ((chord.name || 'chord') + '_chord.png').replace(/[^\w.\-]/g, '_');
+    // 동일 코드명 중복 시 파일명 충돌 방지 (_2, _3 …)
+    let base = ((chord.name || 'chord') + '_chord').replace(/[^\w.\-]/g, '_');
+    let fileName = base + '.png', n = 2;
+    while (usedNames.has(fileName)) fileName = base + '_' + (n++) + '.png';
+    usedNames.add(fileName);
+    const base64 = exp.toDataURL('image/png').split(',')[1];
     if (isNative) {
       try {
-        await window.Capacitor.Plugins.SaveImage.saveToGallery({ base64: exp.toDataURL('image/png').split(',')[1], fileName });
+        await window.Capacitor.Plugins.SaveImage.saveToGallery({ base64, fileName });
         saved++;
       } catch (e) { console.error('저장 실패:', e); }
     } else {
-      const link = document.createElement('a');
-      link.download = fileName;
-      link.href = exp.toDataURL('image/png');
-      document.body.appendChild(link); link.click(); document.body.removeChild(link);
+      webFiles.push({ name: fileName, base64 });
       saved++;
-      await new Promise(r => setTimeout(r, 150)); // 브라우저 연속 다운로드 사이 간격
     }
+  }
+  // 웹: 브라우저가 다중 자동 다운로드를 차단하므로 개별 PNG를 zip 1개로 묶어 저장(파일은 개별 유지)
+  if (!isNative && webFiles.length) {
+    const title = (getProject(_noteSaveProjectId)?.name || '').trim() || 'note';
+    _downloadPngZip(webFiles, title + '.zip');
   }
   if (saved) { incrementStat('images'); showSaveToast(); }
   analytics.track('image_saved', { scale, source: 'note_palette', count: saved, success: saved > 0 });
+}
+
+// ── store-only ZIP 생성기 (무의존, PNG는 이미 압축돼 있어 무압축 저장) ──
+function _crc32(bytes) {
+  if (!_crc32.table) {
+    const t = [];
+    for (let n = 0; n < 256; n++) {
+      let c = n;
+      for (let k = 0; k < 8; k++) c = (c & 1) ? (0xEDB88320 ^ (c >>> 1)) : (c >>> 1);
+      t[n] = c >>> 0;
+    }
+    _crc32.table = t;
+  }
+  let crc = 0xFFFFFFFF;
+  for (let i = 0; i < bytes.length; i++) crc = _crc32.table[(crc ^ bytes[i]) & 0xFF] ^ (crc >>> 8);
+  return (crc ^ 0xFFFFFFFF) >>> 0;
+}
+
+function _b64ToBytes(b64) {
+  const bin = atob(b64);
+  const arr = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) arr[i] = bin.charCodeAt(i);
+  return arr;
+}
+
+function _downloadPngZip(files, zipName) {
+  const enc = new TextEncoder();
+  const u16 = v => [v & 0xFF, (v >>> 8) & 0xFF];
+  const u32 = v => [v & 0xFF, (v >>> 8) & 0xFF, (v >>> 16) & 0xFF, (v >>> 24) & 0xFF];
+  const parts = [];   // 로컬 헤더 + 데이터
+  const central = []; // 중앙 디렉터리
+  let offset = 0;
+
+  files.forEach(f => {
+    const nameB = enc.encode(f.name);
+    const data  = _b64ToBytes(f.base64);
+    const crc   = _crc32(data);
+    const lh = [].concat(u32(0x04034b50), u16(20), u16(0), u16(0), u16(0), u16(0),
+                         u32(crc), u32(data.length), u32(data.length), u16(nameB.length), u16(0));
+    parts.push(new Uint8Array(lh), nameB, data);
+    const cd = [].concat(u32(0x02014b50), u16(20), u16(20), u16(0), u16(0), u16(0), u16(0),
+                         u32(crc), u32(data.length), u32(data.length),
+                         u16(nameB.length), u16(0), u16(0), u16(0), u16(0), u32(0), u32(offset));
+    central.push(new Uint8Array(cd), nameB);
+    offset += lh.length + nameB.length + data.length;
+  });
+
+  const centralStart = offset;
+  let centralSize = 0;
+  central.forEach(c => centralSize += c.length);
+  const eocd = [].concat(u32(0x06054b50), u16(0), u16(0), u16(files.length), u16(files.length),
+                         u32(centralSize), u32(centralStart), u16(0));
+
+  const blob = new Blob([...parts, ...central, new Uint8Array(eocd)], { type: 'application/zip' });
+  const url  = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  // 파일시스템 금지문자만 제거(한글 등 유니코드 제목 보존). 공백은 유지.
+  link.download = zipName.replace(/[\\/:*?"<>|\x00-\x1f]/g, '_').trim() || 'note_chords.zip';
+  link.href = url;
+  document.body.appendChild(link); link.click(); document.body.removeChild(link);
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
 
 // ═══════════════════════════════════════════════════════════════
@@ -1854,7 +1931,7 @@ function renderProjectView(projectId) {
   // 저장 버튼 (공유 좌측) — 팔레트 코드 이미지 저장 / 텍스트 복사 선택
   const saveNoteBtn = document.createElement('button');
   saveNoteBtn.className = 'project-icon-btn';
-  saveNoteBtn.innerHTML = '<i data-lucide="save"></i>';
+  saveNoteBtn.innerHTML = '<i data-lucide="download"></i>';
   saveNoteBtn.onclick = () => openNoteSaveChoice(projectId);
 
   // 타이틀바 우측: 삭제 · 저장 · 공유 · 완료/편집 (기존 row1-right에서 이동)

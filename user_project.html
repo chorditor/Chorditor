@@ -119,11 +119,18 @@
 
   <!-- ── 모달: 노트 저장 선택 (팔레트 이미지 / 텍스트 복사) ── -->
   <div class="modal-overlay hidden" id="note-save-overlay" onclick="closeNoteSaveChoice()">
-    <div class="delete-confirm-modal" onclick="event.stopPropagation()">
-      <h3 class="delete-confirm-title">저장하기</h3>
-      <div class="delete-confirm-actions" style="flex-direction:column; gap:10px;">
-        <button class="btn" style="width:100%;" onclick="noteSaveChoosePaletteImages()">팔레트 코드 이미지 저장</button>
-        <button class="btn" style="width:100%;" onclick="noteSaveChooseText()">현재 텍스트 복사</button>
+    <div class="note-save-modal" onclick="event.stopPropagation()">
+      <i class="ph-fill ph-crown note-save-crown"></i>
+      <h3 class="note-save-title">저장하기</h3>
+      <div class="note-save-opts">
+        <button class="note-save-opt" onclick="noteSaveChoosePaletteImages()">
+          <i data-lucide="image" class="note-save-opt-icon"></i>
+          <span class="note-save-opt-label">팔레트 저장</span>
+        </button>
+        <button class="note-save-opt" onclick="noteSaveChooseText()">
+          <i data-lucide="type" class="note-save-opt-icon"></i>
+          <span class="note-save-opt-label">텍스트 복사</span>
+        </button>
       </div>
     </div>
   </div>
@@ -301,6 +308,7 @@
 
 
   <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.js"></script>
+  <script src="https://unpkg.com/@phosphor-icons/web"></script>
 
   <script src="guitar-samples.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/tone/14.8.49/Tone.js"></script>
