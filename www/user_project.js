@@ -70,10 +70,10 @@ function drawCanvas(c, ratio, data = null) {
   c.fillStyle = '#ffffff';
   c.fillRect(0, 0, w, ch);
 
-  // 너트 — r(프렛번호)>=2면 다이어그램 시작이 0프렛이 아니므로 두꺼운 선 생략 (_fretNum은 r>=2일 때만 비어있지 않음)
+  // 너트 — r(프렛번호)>=3이면 다이어그램 시작이 0프렛이 아니므로 두꺼운 선 생략 (r=2까지는 너트 표시)
   const nutW = Math.max(4, 9 * sc);
   const lineW = Math.max(1, 3 * sc);
-  if (!_fretNum) {
+  if (!_fretNum || _fretNum === '2') {
     const nx = tl - nutW, ny = tt - lineW / 2, nw = nutW, nh = (tb - tt) + lineW;
     c.fillStyle = '#242729';
     c.fillRect(nx, ny, nw, nh);
