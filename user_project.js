@@ -1272,6 +1272,8 @@ let userSelectedProjectId = null;
 let currentColCount  = 4; // (레거시) 신 모델은 currentOrient 사용
 let currentOrient    = 'portrait'; // 'portrait'(세로,4슬롯·슬롯2박) | 'landscape'(가로,8슬롯·슬롯1박)
 let playbackActive = false;
+let _userScrollHoldUntil = 0;   // 사용자 스크롤 감지 시 이 시각까지 자동스크롤 중단
+let _autoScrollLineId = null;   // 자동스크롤이 마지막으로 처리한 줄 (줄 단위 갱신용)
 let currentPlayTimeout = null;
 let metronomeActive = false;
 let metronomeSchedulerTimeout = null;
@@ -1482,6 +1484,17 @@ async function playAll(projectId, startIndex = 0) {
   // 시계 재역산 대신 elapsedMsAtStart를 그대로 넘겨 목표 줄의 박자로 확실히 전환되게 함.
   if (metronomeActive) await startMetronome(false, elapsedMsAtStart);
 
+  // 자동스크롤 상태 초기화 + 사용자 스크롤 감지 리스너 (스크롤 컨테이너당 1회만 부착)
+  _autoScrollLineId = null;
+  _userScrollHoldUntil = 0;
+  const scrollHostEl = document.getElementById('project-lines-' + projectId);
+  if (scrollHostEl && !scrollHostEl._userScrollHooked) {
+    scrollHostEl._userScrollHooked = true;
+    const markUserScroll = () => { _userScrollHoldUntil = Date.now() + 3000; };
+    scrollHostEl.addEventListener('wheel', markUserScroll, { passive: true });
+    scrollHostEl.addEventListener('touchmove', markUserScroll, { passive: true });
+  }
+
   // 드리프트 방지: startIndex 슬롯이 재생됐어야 할 절대 기준 시각
   const refWallTime = performance.now() - elapsedMsAtStart;
   let i = startIndex;
@@ -1519,12 +1532,17 @@ async function playAll(projectId, startIndex = 0) {
         }
         _playheadLineId = item.lineId;
       }
-      if (lineEl) {
-        const scrollEl = document.getElementById('project-lines-' + projectId);
-        if (scrollEl) {
-          const firstLine = scrollEl.querySelector('.project-line');
-          const anchorTop = firstLine ? firstLine.offsetTop : 0;
-          scrollEl.scrollTo({ top: lineEl.offsetTop - anchorTop, behavior: 'smooth' });
+      // 자동스크롤: 슬롯마다가 아니라 줄이 바뀔 때만 갱신.
+      // 사용자가 직접 스크롤하면(wheel/touchmove) 3초 동안 자동스크롤 중단.
+      if (lineEl && item.lineId !== _autoScrollLineId) {
+        _autoScrollLineId = item.lineId;
+        if (Date.now() >= _userScrollHoldUntil) {
+          const scrollEl = document.getElementById('project-lines-' + projectId);
+          if (scrollEl) {
+            const firstLine = scrollEl.querySelector('.project-line');
+            const anchorTop = firstLine ? firstLine.offsetTop : 0;
+            scrollEl.scrollTo({ top: lineEl.offsetTop - anchorTop, behavior: 'smooth' });
+          }
         }
       }
     }
@@ -1677,6 +1695,29 @@ function getGlobalSlotIndex(project, lineId, dataIdx) {
     globalIdx += land ? layout.landscapeSlots : layout.portraitSlots;
   }
   return 0;
+}
+
+// 재생 시작 지점: 스크롤 화면 최상단에 보이는 줄(절반 이상 보이는 첫 줄)의 첫 슬롯.
+// 스크롤이 맨 위면 0(처음부터).
+function getVisibleStartSlotIndex(projectId) {
+  const scrollEl = document.getElementById('project-lines-' + projectId);
+  if (!scrollEl || scrollEl.scrollTop <= 0) return 0;
+  const lines = scrollEl.querySelectorAll('.project-line');
+  if (!lines.length) return 0;
+  const anchorTop = lines[0].offsetTop;
+  for (const lineEl of lines) {
+    const top = lineEl.offsetTop - anchorTop;
+    if (top + lineEl.offsetHeight * 0.5 > scrollEl.scrollTop) {
+      const p = getProject(projectId);
+      if (!p || !lineEl.dataset.lineId) return 0;
+      return getGlobalSlotIndex(p, lineEl.dataset.lineId, 0);
+    }
+  }
+  // 모든 줄이 절반 기준을 못 넘김(맨 아래까지 스크롤) → 마지막 줄부터
+  const lastEl = lines[lines.length - 1];
+  const p = getProject(projectId);
+  if (!p || !lastEl.dataset.lineId) return 0;
+  return getGlobalSlotIndex(p, lastEl.dataset.lineId, 0);
 }
 
 
@@ -1890,7 +1931,7 @@ function renderProjectView(projectId) {
   playAllBtn.innerHTML = playbackActive ? '<i data-lucide="square"></i>' : '<i data-lucide="play"></i>';
   playAllBtn.onclick = () => {
     if (playbackActive) stopPlayAll();
-    else playAll(projectId);
+    else playAll(projectId, getVisibleStartSlotIndex(projectId));
   };
   row2Controls.appendChild(playAllBtn);
   headerRow2.appendChild(row2Controls);
