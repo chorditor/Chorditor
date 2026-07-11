@@ -68,11 +68,13 @@
       c.fillRect(0, 0, w, ch);
     }
 
-    // 너트
+    // 너트 — r(프렛번호)>=2면 다이어그램 시작이 0프렛이 아니므로 두꺼운 선 생략
     const nutW  = Math.max(1, Math.round(9 * sc));
     const lineW = Math.max(1, 3 * sc);
-    c.fillStyle = '#242729';
-    c.fillRect(tl - nutW, tt - lineW / 2, nutW, (tb - tt) + lineW);
+    if (((voicing && voicing.fretNumber) || 0) < 2) {
+      c.fillStyle = '#242729';
+      c.fillRect(tl - nutW, tt - lineW / 2, nutW, (tb - tt) + lineW);
+    }
 
     // 프렛선
     c.strokeStyle = '#242729';
