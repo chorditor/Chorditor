@@ -684,6 +684,12 @@ body {
   align-items: stretch;
 }
 
+/* 노트 카드 패딩: 기본 .card(36px)는 노트 페이지에서 과대 — 뷰포트 무관하게 축소
+   (기존엔 max-width:1400px 블록에만 있어 >1400px 데스크톱에서 콘텐츠 잘림) */
+#view-project .card {
+  padding: 16px 10px;
+}
+
 .project-loading-spinner {
   flex: 1;
   display: flex;
