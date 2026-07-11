@@ -3282,6 +3282,9 @@ function confirmRowMeterSave() {
   updateProject(p);
 
   closeRowMeterModal();
+  // 재렌더 후에도 현재 스크롤 위치 유지 (기본은 맨 위로 리셋됨)
+  const linesEl = document.getElementById('project-lines-' + projectId);
+  if (linesEl) _pendingEditRestore = { scrollTop: linesEl.scrollTop };
   renderProjectView(projectId); // 슬롯 수·그리드·재생 타이밍이 전부 바뀌므로 전체 재렌더
 }
 
