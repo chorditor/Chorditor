@@ -350,7 +350,7 @@ async function _doSavePNG(scale) {
   if (window.Capacitor && window.Capacitor.isNativePlatform()) {
     try {
       const SaveImage = window.Capacitor.Plugins.SaveImage;
-      await SaveImage.saveToGallery({ base64, fileName: fileName.replace(/[^\w.\-]/g, '_') });
+      await SaveImage.saveToGallery({ base64, fileName: fileName.replace(/[\\/:*?"<>|\x00-\x1f]/g, '_') });
       showSaveToast();
       incrementStat('images');
       analytics.track('image_saved', { scale, source: 'editor', success: true });
@@ -523,7 +523,7 @@ async function _saveAllPaletteImages(scale, transparent) {
       transparent,
     });
     // 동일 코드명 중복 시 파일명 충돌 방지 (_2, _3 …)
-    let base = ((chord.name || 'chord') + '_chord').replace(/[^\w.\-]/g, '_');
+    let base = ((chord.name || 'chord') + '_chord').replace(/[\\/:*?"<>|\x00-\x1f]/g, '_');
     let fileName = base + '.png', n = 2;
     while (usedNames.has(fileName)) fileName = base + '_' + (n++) + '.png';
     usedNames.add(fileName);
@@ -621,10 +621,11 @@ let audioCtx = null;
 const OPEN_MIDI = [64, 59, 55, 50, 45, 40];
 const STRUM_INTERVAL = 0.008;
 
-function playChord(chord) {
+function playChord(chord, capoOverride) {
   const notes = [];
   const fretBase = chord.fretNumber >= 2 ? chord.fretNumber - 2 : 0;
-  const capoOffset = getProject(currentProjectId)?.capo ?? 0;
+  // capoOverride: 줄 단위 카포 변경점(line.capo)의 효력 카포. 미지정 시 프로젝트 기본 카포.
+  const capoOffset = capoOverride != null ? capoOverride : (getProject(currentProjectId)?.capo ?? 0);
   const barreMap = buildBarreMap(chord.dots, chord.barre || {});
   for (let s = 0; s < STRINGS; s++) {
     if (chord.openMute[s] === 'mute') continue;
@@ -1440,7 +1441,9 @@ async function playAll(projectId, startIndex = 0) {
   // 슬롯 수만큼 균등 분할한다 — 분자가 슬롯 수와 안 맞아도(홀수 박자 등) 항상 정확히 나뉨.
   const orderedSlots = [];
   metronomeBeats = []; // 메트로놈도 줄마다 다른 BPM·박자를 따라가도록 같은 자리에서 스케줄 재생성
+  let _runCapo = project.capo ?? 0; // 줄 카포 변경점 누적 — 변경점 이후 줄들에 계속 적용
   project.arrangement.forEach(row => {
+    if (row.capo != null) _runCapo = row.capo;
     const meter  = getRowMeter(row);
     const rowBpm = getRowBpm(project, row);
     const bars   = getRowBars(row);
@@ -1460,6 +1463,7 @@ async function playAll(projectId, startIndex = 0) {
         slotMs,
         rowSlotCount: slotCount,
         posInRow: k,
+        rowCapo: _runCapo,
       });
     }
     // 박(pulse) 단위 스케줄 — 마디 첫 박(다운비트)마다 강세, 분자 그대로 반영
@@ -1552,7 +1556,7 @@ async function playAll(projectId, startIndex = 0) {
     if (item.chordId) {
       const p = getProject(projectId);
       const chord = p?.chords.find(c => c.id === item.chordId);
-      if (chord) await playChord(chord);
+      if (chord) await playChord(chord, item.rowCapo);
     }
     // playChord 소요 시간을 빼고 정확한 다음 슬롯 시각까지만 대기
     _accMs += item.slotMs;
@@ -1665,6 +1669,16 @@ function getRowBpm(project, row) {
 // 줄의 마디 수 설정 (기본 2마디/줄 — 기존 동작과 동일하게 유지). 1마디 · 반마디 선택 가능.
 function getRowBars(row) {
   return row?.barsPerRow ?? 2;
+}
+// 줄 효력 카포: 이 줄(포함) 이전의 마지막 카포 변경점(line.capo), 없으면 프로젝트 기본 카포.
+// 변경점은 그 줄부터 이후 줄에 계속 적용되고, 다음 변경점에서 갱신됨.
+function getRowCapo(project, lineId) {
+  let capo = project?.capo ?? 0;
+  for (const row of project?.arrangement || []) {
+    if (row.capo != null) capo = row.capo;
+    if (row.id === lineId) break;
+  }
+  return capo;
 }
 // BPM은 4분음표 기준 — 분모가 4가 아니면 박(pulse) 하나의 실제 길이 보정 필요
 function getPulseMs(bpm, den) {
@@ -2111,7 +2125,7 @@ function buildChordArea(line, project, editMode = true) {
             const p = getProject(project.id);
             if (p) playAll(project.id, getGlobalSlotIndex(p, line.id, dataIdx));
           } else {
-            playChord(chord);
+            playChord(chord, getRowCapo(getProject(project.id) || project, line.id));
             analytics.track('project_chord_played', { chord_name: chord.name, project_id: project.id });
           }
         });
@@ -2141,7 +2155,7 @@ function buildChordArea(line, project, editMode = true) {
             const p = getProject(project.id);
             if (p) playAll(project.id, getGlobalSlotIndex(p, line.id, dataIdx));
           } else {
-            playChord(chord);
+            playChord(chord, getRowCapo(getProject(project.id) || project, line.id));
             analytics.track('project_chord_played', { chord_name: chord.name, project_id: project.id });
           }
         });
@@ -2274,6 +2288,7 @@ function buildProjectLine(line, project, editMode, prevLine = null, isFirstLine 
   if (line.meter) { div.dataset.meterNum = line.meter.num; div.dataset.meterDen = line.meter.den; }
   if (line.bpm != null) div.dataset.rowBpm = line.bpm;
   if (line.barsPerRow != null) div.dataset.rowBars = line.barsPerRow;
+  if (line.capo != null) div.dataset.rowCapo = line.capo;
 
   // 박자 레일: row-meta-badge·chord-row-wrapper·project-line-text-row(보조선) 전체를 아우르는
   // 왼쪽 박스로 항상 자리를 예약(그만큼 나머지 콘텐츠 폭이 줄어듦)
@@ -2303,10 +2318,17 @@ function buildProjectLine(line, project, editMode, prevLine = null, isFirstLine 
   // 첫 줄은 커스텀 여부와 무관하게 항상 기본세팅값(노트 전역 BPM) 표기
   // 이후 줄은 앞줄의 실효 BPM(기본값 포함)과 같으면 생략
   const showBpm = isFirstLine || (bpmCustom && !(prevLine && prevBpm === getRowBpm(project, line)));
-  if (showBpm) {
+  // 카포: 효력 카포가 앞줄과 달라지는 줄(첫 줄 포함)에 템포 우측 표시. 0은 생략.
+  const effCapo  = getRowCapo(project, line.id);
+  const prevCapo = prevLine ? getRowCapo(project, prevLine.id) : null;
+  const showCapo = effCapo > 0 && (isFirstLine || !prevLine || prevCapo !== effCapo);
+  if (showBpm || showCapo) {
     const badge = document.createElement('div');
     badge.className = 'row-meta-badge';
-    badge.textContent = `♩=${getRowBpm(project, line)}`;
+    const parts = [];
+    if (showBpm) parts.push(`♩=${getRowBpm(project, line)}`);
+    if (showCapo) parts.push(`${effCapo} Capo`);
+    badge.textContent = parts.join('  ');
     bodyContent.appendChild(badge);
   }
 
@@ -2372,16 +2394,21 @@ function buildLinesSection(project, editMode = true) {
     addLineBtn.textContent = '+';
     addLineBtn.addEventListener('mousedown', e => e.preventDefault());
     addLineBtn.addEventListener('click', () => {
+      // 클로저의 linesEl을 쓰지 않고 버튼이 실제 붙어있는 컨테이너를 조회.
+      // (위/아래 줄 추가 시 buildLinesSection이 만든 새 버튼의 클로저 linesEl은
+      //  자식을 이식당한 detached 컨테이너라 insertBefore가 throw → 줄 생성 실패)
+      const host = addLineBtn.parentElement;
+      if (!host) return;
       const p = getProject(project.id);
       const newId = genId();
       const newObj = { id: newId, text: '', slots: new Array(8).fill(null) };
       const newDiv = buildProjectLine(newObj, p || project, true);
       newDiv.classList.add('project-line-enter');
       newDiv.addEventListener('animationend', () => newDiv.classList.remove('project-line-enter'), { once: true });
-      linesEl.insertBefore(newDiv, addLineBtn);
-      saveAllLines(project.id, linesEl);
+      host.insertBefore(newDiv, addLineBtn);
+      saveAllLines(project.id, host);
       lucide.createIcons();
-      requestAnimationFrame(() => _syncLineTextWidths(linesEl));
+      requestAnimationFrame(() => _syncLineTextWidths(host));
     });
     linesEl.appendChild(addLineBtn);
 
@@ -2795,6 +2822,24 @@ function buildLinesSection(project, editMode = true) {
     return lines.filter((l, i, a) => !(i === 0 && l === '') && !(i === a.length - 1 && l === '')).join('\n');
   }
 
+  // 복사/잘라내기: 선택 영역을 순수 텍스트(text/plain)로만 클립보드에 기록.
+  // contenteditable 기본 복사는 text/html(<br>·태그 포함)도 함께 실리는데,
+  // 그대로 붙여넣으면 html 경로로 원치 않은 줄바꿈·빈 줄이 생김.
+  // 끝에 딸려오는 줄바꿈(선택이 줄 경계를 스친 경우)도 잘라냄.
+  const _copySelectionAsPlainText = e => {
+    const sel = window.getSelection();
+    if (!sel || sel.isCollapsed || !sel.rangeCount) return false;
+    if (!linesEl.contains(sel.anchorNode)) return false;
+    const text = sel.toString().replace(/[\n\r]+$/, '');
+    e.clipboardData.setData('text/plain', text);
+    e.preventDefault();
+    return true;
+  };
+  linesEl.addEventListener('copy', _copySelectionAsPlainText);
+  linesEl.addEventListener('cut', e => {
+    if (_copySelectionAsPlainText(e)) document.execCommand('delete'); // 기본동작 차단했으니 선택 삭제는 직접
+  });
+
   linesEl.addEventListener('paste', async e => {
     if (!e.target.classList?.contains('line-text')) return;
     e.preventDefault();
@@ -2911,6 +2956,8 @@ function saveAllLines(projectId, linesEl) {
     if (bpm == null && div.dataset.rowBpm != null) bpm = parseInt(div.dataset.rowBpm, 10);
     let barsPerRow = existing?.barsPerRow;
     if (barsPerRow == null && div.dataset.rowBars != null) barsPerRow = parseFloat(div.dataset.rowBars);
+    let capo = existing?.capo;
+    if (capo == null && div.dataset.rowCapo != null) capo = parseInt(div.dataset.rowCapo, 10);
 
     return {
       id: div.dataset.lineId,
@@ -2919,6 +2966,7 @@ function saveAllLines(projectId, linesEl) {
       meter,
       bpm,
       barsPerRow,
+      capo,
     };
   });
   p.updatedAt = Date.now();
@@ -3191,6 +3239,8 @@ let _rowMeterLineId = null;
 let _rowMeterNum = 4;
 let _rowMeterDen = 4;
 let _rowMeterBars = 2;
+let _rowMeterCapo = 0;
+let _rowMeterLast = null; // 마지막 저장값 { meter:{num,den}, bpm, bars } — 미설정 줄 열 때 프리필
 
 const ROW_METER_DEN_VALS = [2, 4, 8];
 
@@ -3204,6 +3254,12 @@ function setRowMeterBars(bars) {
 function _rowMeterRenderSig() {
   document.getElementById('row-meter-num-val').value = String(_rowMeterNum);
   document.getElementById('row-meter-den-val').textContent = String(_rowMeterDen);
+}
+
+// 카포 스테퍼 (스티키 바 capo-control과 동일 규칙: 0~12)
+function rowMeterCapoStep(dir) {
+  _rowMeterCapo = Math.max(0, Math.min(12, _rowMeterCapo + dir));
+  document.getElementById('row-meter-capo-val').textContent = String(_rowMeterCapo);
 }
 
 // 박자 스테퍼: 분모는 [2,4,8] 사이클 (분자는 직접 입력)
@@ -3220,12 +3276,19 @@ function openRowMeterModal(projectId, lineId) {
   if (!p || !line) return;
   _rowMeterProjId = projectId;
   _rowMeterLineId = lineId;
-  const meter = getRowMeter(line);
-  _rowMeterNum = meter.num;
-  _rowMeterDen = meter.den;
+  // 줄에 직접 설정한 값이 있으면 그 값, 없으면 마지막 저장값 프리필 (매번 기본값으로 초기화하지 않음)
+  const hasOwn = !!(line.meter || line.barsPerRow || line.bpm != null);
+  const src = hasOwn
+    ? { meter: getRowMeter(line), bpm: line.bpm ?? '', bars: getRowBars(line) }
+    : (_rowMeterLast || { meter: getRowMeter(line), bpm: '', bars: getRowBars(line) });
+  _rowMeterNum = src.meter.num;
+  _rowMeterDen = src.meter.den;
+
+  _rowMeterCapo = getRowCapo(p, lineId); // 이 줄의 효력 카포 (이전 변경점 상속 포함)
+  document.getElementById('row-meter-capo-val').textContent = String(_rowMeterCapo);
 
   const bpmInputEl = document.getElementById('row-meter-bpm-input');
-  bpmInputEl.value = line.bpm ?? '';
+  bpmInputEl.value = src.bpm;
   const bpmDefaultLabel = String(getRowBpm(p, line));
   bpmInputEl.placeholder = bpmDefaultLabel;
   bpmInputEl.onfocus = () => { bpmInputEl.placeholder = ''; };
@@ -3239,7 +3302,7 @@ function openRowMeterModal(projectId, lineId) {
     numInputEl.value = String(_rowMeterNum);
   };
 
-  setRowMeterBars(getRowBars(line) >= 1.5 ? 2 : 1);
+  setRowMeterBars(src.bars >= 1.5 ? 2 : 1);
   const errEl = document.getElementById('row-meter-error');
   errEl.style.display = 'none';
   errEl.textContent = '';
@@ -3280,6 +3343,12 @@ function confirmRowMeterSave() {
   line.bpm = bpm;
   line.barsPerRow = bars;
   line.slots = _resizeRowSlots(line.slots, layout.landscapeSlots); // 같은 박 순번은 보존, 넘치는 자리만 잘림
+  // 카포: 효력 카포와 다르게 바꿨을 때만 이 줄에 변경점 기록 — 이 줄부터 이후 줄에 계속 적용
+  if (getRowCapo(p, lineId) !== _rowMeterCapo) {
+    line.capo = _rowMeterCapo;
+    analytics.track('capo_changed', { value: _rowMeterCapo, direction: 'modal', project_id: projectId });
+  }
+  _rowMeterLast = { meter: { num, den }, bpm: bpmRaw === '' ? '' : bpm, bars }; // 다음 열 때 프리필용
   p.updatedAt = Date.now();
   updateProject(p);
 

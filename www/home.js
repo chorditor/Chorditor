@@ -1534,7 +1534,7 @@ async function _doSavePNG(scale, transparent = false) {
   if (window.Capacitor && window.Capacitor.isNativePlatform()) {
     try {
       const SaveImage = window.Capacitor.Plugins.SaveImage;
-      await SaveImage.saveToGallery({ base64, fileName: fileName.replace(/[^\w.\-]/g, '_') });
+      await SaveImage.saveToGallery({ base64, fileName: fileName.replace(/[\\/:*?"<>|\x00-\x1f]/g, '_') });
       showSaveToast();
       incrementStat('images');
       analytics.track('image_saved', { scale, source: 'editor', success: true });
@@ -4642,7 +4642,7 @@ async function _doExportLibChordImage(scale, transparent = false) {
   if (window.Capacitor && window.Capacitor.isNativePlatform()) {
     try {
       const SaveImage = window.Capacitor.Plugins.SaveImage;
-      await SaveImage.saveToGallery({ base64, fileName: fileName.replace(/[^\w.\-]/g, '_') });
+      await SaveImage.saveToGallery({ base64, fileName: fileName.replace(/[\\/:*?"<>|\x00-\x1f]/g, '_') });
       showSaveToast();
       incrementStat('images');
       analytics.track('lib_image_saved', { chord_name: dispName, scale, success: true });

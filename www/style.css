@@ -3302,6 +3302,8 @@ canvas {
 
 /* ?�?� Share / Import ?�?� */
 .share-field-group { display: flex; flex-direction: column; gap: 6px; }
+/* 마디 정보 모달 내 카포 컨트롤 — 스티키 바와 동일 디자인, 그룹 폭으로 늘어나지 않게 */
+.row-meter-capo { align-self: flex-start; }
 .share-label { font-size: 12px; color: var(--text-secondary); font-weight: 500; }
 .share-row { display: flex; gap: 8px; align-items: center; }
 .share-code-input {
