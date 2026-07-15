@@ -36,9 +36,9 @@
 
         <!-- 홈 화면 -->
         <div class="view" id="view-home">
-          <!-- 배너 영역 -->
-          <div class="home-banner" id="home-banner">
-            <div class="home-banner-block">
+          <!-- 튜토리얼 배너 + 출석/퀘스트 보드 (단일 카드로 병합) -->
+          <div class="home-daily-board" id="home-daily-board">
+            <div class="hdb-banner" id="home-banner">
               <div class="home-banner-cols">
                 <div class="home-banner-left">
                   <div class="home-banner-title">누구나 기타를 즐기는 세상, 코디터</div>
@@ -50,7 +50,31 @@
                 </div>
               </div>
             </div>
+            <div class="hdb-hdivider"></div>
+            <div class="hdb-row">
+              <div class="hdb-col" id="topbar-level" onclick="switchTab('profile')">
+                <div class="hdb-icon hdb-icon--level"><span class="hdb-icon-lv-prefix">Lv</span><span id="tbl-num">1</span></div>
+                <div class="hdb-text">
+                  <div class="hdb-label" id="hdb-persona">언박싱 1일차</div>
+                </div>
+              </div>
+              <div class="hdb-divider"></div>
+              <div class="hdb-col" id="hdb-attendance" onclick="openAttendanceCalendar()">
+                <div class="hdb-icon"><img src="image/calender.png" alt=""></div>
+                <div class="hdb-text">
+                  <div class="hdb-label">출석체크</div>
+                </div>
+              </div>
+              <div class="hdb-divider"></div>
+              <div class="hdb-col" id="hdb-quest" onclick="openQuestModal()">
+                <div class="hdb-icon"><img src="image/badge.png" alt=""></div>
+                <div class="hdb-text">
+                  <div class="hdb-label">퀘스트 보상</div>
+                </div>
+              </div>
+            </div>
           </div>
+
           <div class="home-blocks">
             <div class="home-block" onpointerdown="enterFromBlock(event,this,'editor')">
               <div class="home-block-icon"><i class="ph-bold ph-grid-nine"></i></div>
@@ -352,18 +376,36 @@
         <div class="view" id="view-profile">
 
           <!-- 컨테이너 1: 유저 정보 -->
-          <div class="profile-container">
-            <div class="profile-header">
-              <div class="profile-info">
-                <span class="profile-name" id="profile-name">—</span>
-                <span class="profile-badges">
-                  <span class="profile-plan-badge" id="profile-plan-badge">Free</span>
-                  <span class="profile-badge-divider" id="profile-badge-divider" hidden></span>
-                  <span class="profile-persona-badge" id="profile-persona-badge" hidden></span>
-                </span>
-                <span class="profile-joined" id="profile-joined">가입일 —</span>
+          <div class="profile-container profile-container--header">
+            <div class="profile-header-block">
+              <div class="profile-header">
+                <div class="profile-info">
+                  <span class="profile-name-row">
+                    <span class="profile-xp-level">Lv.<span id="profile-xp-lv">1</span></span>
+                    <span class="profile-name" id="profile-name">—</span>
+                  </span>
+                  <span class="profile-persona" id="profile-persona"></span>
+                </div>
+              </div>
+              <div class="profile-xp" onclick="openXpInfoModal()">
+                <div class="profile-xp-bar">
+                  <div class="profile-xp-bar-fill" id="profile-xp-bar-fill"></div>
+                </div>
+                <span class="profile-xp-num" id="profile-xp-num">0 / 0 XP</span>
+              </div>
+              <div class="persona-track" id="persona-track">
+                <div class="pt-node" data-persona="unboxing"><div class="pt-dot"></div><span class="pt-label">언박싱<br>1일차</span></div>
+                <div class="pt-line"></div>
+                <div class="pt-node" data-persona="beginner"><div class="pt-dot"></div><span class="pt-label">굳은살<br>비기너</span></div>
+                <div class="pt-line"></div>
+                <div class="pt-node" data-persona="sheet_reader"><div class="pt-dot"></div><span class="pt-label">악보의존자</span></div>
+                <div class="pt-line"></div>
+                <div class="pt-node" data-persona="home_master"><div class="pt-dot"></div><span class="pt-label">방구석<br>기타마스터</span></div>
+                <div class="pt-line"></div>
+                <div class="pt-node" data-persona="guitar_master"><div class="pt-dot"></div><span class="pt-label">기타마스터</span></div>
               </div>
             </div>
+            <div class="profile-header-divider"></div>
           </div>
 
           <!-- 컨테이너 2: 플랜 배너 -->
@@ -680,6 +722,47 @@
       <circle class="save-check-circle" cx="26" cy="26" r="23" fill="none"/>
       <polyline class="save-check-mark" points="14,27 22,35 38,18" fill="none"/>
     </svg>
+  </div>
+
+  <!-- ── 출석 달력 모달 ── -->
+  <div class="attend-cal-overlay" id="attend-cal-overlay" onclick="if(event.target===this)closeAttendanceCalendar()">
+    <div class="attend-cal">
+      <div class="attend-cal-header">
+        <span class="attend-cal-title">출석 달력</span>
+        <div class="attend-cal-header-right">
+          <button class="attend-cal-makeup" id="attend-cal-makeup" onclick="makeupAttendance()">
+            보충출석 <span class="attend-cal-makeup-count" id="attend-cal-makeup-count">3</span>
+          </button>
+          <button class="icon-btn" onclick="closeAttendanceCalendar()"><i data-lucide="x"></i></button>
+        </div>
+      </div>
+      <div class="attend-cal-sub" id="attend-cal-sub">5일마다 피크상자를 받아요 · 30일 순환</div>
+      <div class="attend-cal-grid" id="attend-cal-grid"></div>
+    </div>
+  </div>
+
+  <!-- ── 퀘스트 모달 ── -->
+  <div class="quest-modal-overlay" id="quest-modal-overlay" onclick="if(event.target===this)closeQuestModal()">
+    <div class="quest-modal">
+      <div class="quest-modal-header">
+        <img src="image/badge.png" class="quest-modal-title-icon" alt="">
+        <button class="icon-btn" onclick="closeQuestModal()"><i data-lucide="x"></i></button>
+      </div>
+      <div class="quest-modal-claimable" id="quest-modal-claimable"></div>
+      <div class="quest-modal-body" id="quest-modal-body"></div>
+    </div>
+  </div>
+
+  <!-- ── 경험치 획득 안내 모달 (프로필 XP바 클릭) ── -->
+  <div class="xpinfo-overlay" id="xpinfo-overlay" onclick="if(event.target===this)closeXpInfoModal()">
+    <div class="xpinfo-modal">
+      <div class="xpinfo-header">
+        <span class="xpinfo-title">경험치 획득</span>
+        <button class="icon-btn" onclick="closeXpInfoModal()"><i data-lucide="x"></i></button>
+      </div>
+      <div class="xpinfo-desc">아래 행동으로 경험치가 자동 적립돼요.</div>
+      <div class="xpinfo-body" id="xpinfo-body"></div>
+    </div>
   </div>
 
   <!-- ── 튜토리얼 모달 ── -->

@@ -2049,6 +2049,12 @@ function switchTab(tab, noAnim = false) {
   // 설정(톱니) 버튼: 프로필 탭에서만 노출
   document.getElementById('settings-btn')?.classList.toggle('hidden', tab !== 'profile');
 
+  // 레벨 위젯: 홈 탭에서만 노출
+  document.getElementById('topbar-level')?.classList.toggle('hidden', tab !== 'home');
+  if (tab === 'home' && typeof renderTopbarLevel === 'function') renderTopbarLevel();
+
+  if (tab === 'profile' && typeof renderProfileXp === 'function') renderProfileXp();
+
   if (tab === 'home') enterFromHome('home');
   if (tab === 'projects') renderProjectsList();
   if (tab === 'profile') loadProfileFromDB();
@@ -2652,6 +2658,7 @@ function confirmCreateProject() {
   renderSidebar();
   populateProjectSelect();
   analytics.track('project_created', { total_count: projects.length });
+  incrementStat('notes'); // 노트 생성 퀘스트 누적 카운터
   openProject(newProject.id);
 }
 
@@ -4156,6 +4163,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   // ── DEV 빌드: 인증 체크 없이 바로 진입 ──────────────────────
   if (APP_VERSION.includes('_dev')) {
     initSupabase().catch(() => {});
+    if (typeof runDailyAttendanceFlow === 'function') runDailyAttendanceFlow();
     _consumePendingShareCode();
     setTimeout(() => checkAndShowNotice(), 800);
     return;
@@ -4175,6 +4183,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       _authReady = true;
       analytics.setUserId(session.user.id);
       analytics.track('app_open', { platform: 'android', project_count: loadProjects().length });
+      if (typeof runDailyAttendanceFlow === 'function') runDailyAttendanceFlow();
       analytics.setScreen('home');
       analytics.track('screen_view', { view: 'home' }); // 홈 화면 진입 명시 기록
       syncProjectsOnLogin().catch(() => {}); // 재설치 등 DB 백업 복구 + 로컬 전용 업로드
@@ -4205,6 +4214,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     if (!_hasOAuth && !shareParam) { window.location.replace('onboarding.html'); return; }
   }
   analytics.track('app_open', { platform: 'web', project_count: loadProjects().length });
+  if (typeof claimDailyAttendance === 'function') claimDailyAttendance();
   analytics.setScreen('home');
   analytics.track('screen_view', { view: 'home' }); // 홈 화면 진입 명시 기록
   syncProjectsOnLogin().catch(() => {}); // 재설치 등 DB 백업 복구 + 로컬 전용 업로드

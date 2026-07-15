@@ -1261,6 +1261,7 @@ function confirmCreateProject() {
   saveProjects(projects);
   renderSidebar();
   analytics.track('project_created', { total_count: projects.length });
+  incrementStat('notes'); // 노트 생성 퀘스트 누적 카운터
   navigateTo('project', newProject.id);
 }
 

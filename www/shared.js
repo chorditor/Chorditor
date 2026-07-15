@@ -6,7 +6,7 @@
 // ── 상수 ─────────────────────────────────────────────────────
 const SUPABASE_URL  = 'https://jbvkygeksohlysyvaoab.supabase.co';
 const SUPABASE_ANON = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Impidmt5Z2Vrc29obHlzeXZhb2FiIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzYzOTk5NjgsImV4cCI6MjA5MTk3NTk2OH0.6RSgChy0Yq0H2TJpZPSoMKQ2V-OYfR0XzE1aJBBZkXI';
-const APP_VERSION   = '1.2.6.2';
+const APP_VERSION   = '1.3.0_dev';
 const SUPABASE_STORAGE_KEY = 'sb-jbvkygeksohlysyvaoab-auth-token';
 
 // ── Analytics SDK ─────────────────────────────────────────────
@@ -352,6 +352,366 @@ function getPlanLimit(key) {
 function canCreateProject() { return loadProjects().length < getPlanLimit('maxProjects'); }
 function canUseScale(scale)  { return scale <= getPlanLimit('maxScale'); }
 
+// ── 인앱 재화: 일반 피크 (DB 기반, 유저별 30분마다 자동충전) ─────
+const PEAK_CAP = 30;
+const PEAKBOX_REWARD = 5;
+
+// 출석 랜덤상자 보상: 2~10 랜덤, 기댓값 3 (최빈값 2). SQL claim_daily_attendance()와 동일 가중치.
+const ATTENDANCE_REWARD_WEIGHTS = [5000, 2500, 1250, 625, 313, 156, 78, 39, 39]; // 값 2~10, 합 10000
+function _rollAttendanceReward() {
+  let roll = Math.random() * 10000;
+  for (let i = 0; i < ATTENDANCE_REWARD_WEIGHTS.length; i++) {
+    roll -= ATTENDANCE_REWARD_WEIGHTS[i];
+    if (roll < 0) return i + 2;
+  }
+  return 10;
+}
+let _peakState = { balance: PEAK_CAP, peakbox_count: 0, loaded: false };
+
+function _peakAuth() {
+  try {
+    const stored = localStorage.getItem(SUPABASE_STORAGE_KEY);
+    if (!stored) return null;
+    const parsed = JSON.parse(stored);
+    if (!parsed?.access_token || !parsed?.user?.id) return null;
+    return { accessToken: parsed.access_token };
+  } catch (_) { return null; }
+}
+
+async function _peakRpc(fnName, body) {
+  const auth = _peakAuth();
+  if (!auth) return null;
+  try {
+    const resp = await fetch(`${SUPABASE_URL}/rest/v1/rpc/${fnName}`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'apikey': SUPABASE_ANON,
+        'Authorization': `Bearer ${auth.accessToken}`,
+      },
+      body: JSON.stringify(body || {}),
+    });
+    if (!resp.ok) return null;
+    return await resp.json();
+  } catch (_) { return null; }
+}
+
+// ── DB 미감지(dev) 폴백: localStorage로만 시뮬레이션. RPC가 null 반환할 때만 사용 ──
+const _PEAK_FALLBACK_KEY    = 'chorditor_peak_fallback';
+const _PEAKBOX_FALLBACK_KEY = 'chorditor_peakbox_fallback';
+
+function _localPeakGet() {
+  let bal = parseInt(localStorage.getItem(_PEAK_FALLBACK_KEY), 10);
+  if (isNaN(bal)) bal = PEAK_CAP;
+  let box = parseInt(localStorage.getItem(_PEAKBOX_FALLBACK_KEY), 10);
+  if (isNaN(box)) box = 0;
+  return { balance: bal, peakbox_count: box };
+}
+
+function _localPeakSet(balance, peakbox_count) {
+  localStorage.setItem(_PEAK_FALLBACK_KEY, String(Math.max(0, balance)));
+  localStorage.setItem(_PEAKBOX_FALLBACK_KEY, String(Math.max(0, peakbox_count)));
+}
+
+async function refreshPeakState() {
+  const r = await _peakRpc('get_peak_state');
+  if (r) {
+    _peakState = { balance: r.balance, peakbox_count: r.peakbox_count, loaded: true };
+  } else {
+    const local = _localPeakGet();
+    _peakState = { balance: local.balance, peakbox_count: local.peakbox_count, loaded: true };
+  }
+  renderPeakBadge();
+  renderPeakboxBadge();
+  return _peakState;
+}
+
+function renderPeakBadge() {
+  document.querySelectorAll('#currency-peak-count').forEach(el => {
+    el.textContent = `${_peakState.balance}/${PEAK_CAP}`;
+  });
+}
+
+// 훈련 콘텐츠 진입/재생 시 피크 소모(DB, 서버가 회복 반영 후 판정). 부족하면 false.
+// RPC가 null(비로그인/DB 미감지=dev)이면 localStorage 폴백으로 동작.
+async function consumePeak(cost) {
+  const r = await _peakRpc('consume_peak', { p_cost: cost });
+  if (r) {
+    _peakState = { balance: r.balance, peakbox_count: r.peakbox_count, loaded: true };
+    renderPeakBadge();
+    if (!r.ok) {
+      analytics.track('peak_insufficient', { cost, balance: r.balance });
+      if (typeof openPlanSheet === 'function') openPlanSheet('peak_insufficient');
+      return false;
+    }
+    analytics.track('peak_consumed', { cost, balance_after: r.balance });
+    return true;
+  }
+
+  const local = _localPeakGet();
+  if (local.balance < cost) {
+    _peakState = { balance: local.balance, peakbox_count: local.peakbox_count, loaded: true };
+    renderPeakBadge();
+    analytics.track('peak_insufficient', { cost, balance: local.balance });
+    if (typeof openPlanSheet === 'function') openPlanSheet('peak_insufficient');
+    return false;
+  }
+  const newBal = local.balance - cost;
+  _localPeakSet(newBal, local.peakbox_count);
+  _peakState = { balance: newBal, peakbox_count: local.peakbox_count, loaded: true };
+  renderPeakBadge();
+  analytics.track('peak_consumed', { cost, balance_after: newBal });
+  return true;
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+  if (document.getElementById('currency-peak-count') || document.getElementById('currency-peakbox-count')) {
+    refreshPeakState();
+  }
+});
+
+// 피크 아이콘 터치 → 완전충전까지 남은시간 라운드박스 팝업 (아이콘 바로 아래)
+let _peakTimerInterval = null;
+async function openPeakTimerPopup(evt) {
+  const anchor = evt.currentTarget;
+  closePeakTimerPopup();
+
+  const r = await _peakRpc('get_peak_state');
+  let balance, secondsLeft;
+  if (r) {
+    balance = r.balance;
+    secondsLeft = r.seconds_to_full || 0;
+    _peakState = { balance: r.balance, peakbox_count: r.peakbox_count, loaded: true };
+  } else {
+    const local = _localPeakGet();
+    balance = local.balance;
+    // dev 폴백: 실제 타이머 미추적, 남은 개수 × 30분으로 근사 표시
+    secondsLeft = balance >= PEAK_CAP ? 0 : (PEAK_CAP - balance) * 30 * 60;
+    _peakState = { balance: local.balance, peakbox_count: local.peakbox_count, loaded: true };
+  }
+  renderPeakBadge();
+  renderPeakboxBadge();
+
+  const pop = document.createElement('div');
+  pop.className = 'peak-timer-popup';
+  pop.id = 'peak-timer-popup';
+  document.body.appendChild(pop);
+
+  const rect = anchor.getBoundingClientRect();
+  pop.style.top = (rect.bottom + 8) + 'px';
+  pop.style.right = (window.innerWidth - rect.right) + 'px';
+
+  const render = () => {
+    if (balance >= PEAK_CAP || secondsLeft <= 0) {
+      pop.innerHTML = `<div class="peak-timer-title">피크가 가득 찼어요</div>`;
+      return;
+    }
+    const h = Math.floor(secondsLeft / 3600);
+    const m = Math.floor((secondsLeft % 3600) / 60);
+    const s = secondsLeft % 60;
+    const timeStr = `${h}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
+    pop.innerHTML = `
+      <div class="peak-timer-title">완전충전까지</div>
+      <div class="peak-timer-time">${timeStr}</div>
+    `;
+  };
+  render();
+
+  if (balance < PEAK_CAP && secondsLeft > 0) {
+    _peakTimerInterval = setInterval(() => {
+      secondsLeft--;
+      if (secondsLeft <= 0) { clearInterval(_peakTimerInterval); _peakTimerInterval = null; refreshPeakState(); }
+      render();
+    }, 1000);
+  }
+
+  setTimeout(() => document.addEventListener('click', _peakTimerOutsideClick, { capture: true }), 0);
+}
+
+function _peakTimerOutsideClick(e) {
+  const pop = document.getElementById('peak-timer-popup');
+  if (pop && !pop.contains(e.target)) closePeakTimerPopup();
+}
+
+function closePeakTimerPopup() {
+  const pop = document.getElementById('peak-timer-popup');
+  if (pop) pop.remove();
+  if (_peakTimerInterval) { clearInterval(_peakTimerInterval); _peakTimerInterval = null; }
+  document.removeEventListener('click', _peakTimerOutsideClick, { capture: true });
+}
+
+// ── 인앱 재화: 피크상자 (열면 피크 5개 충전, 오버충전 허용) ───
+function renderPeakboxBadge() {
+  document.querySelectorAll('#currency-peakbox-count').forEach(el => {
+    el.textContent = String(_peakState.peakbox_count);
+  });
+}
+
+// 피크상자 직접 열기: reveal 모달에서 1개/5개씩 개봉. 미개봉 상태(gift)로 시작.
+function openPeakboxModal() {
+  if (_peakState.peakbox_count <= 0) return;
+  // 상자 1개 실제 개봉(RPC 우선, 실패 시 로컬 폴백). 성공 시 true.
+  const openOnce = async () => {
+    const r = await _peakRpc('open_peakbox');
+    if (r) {
+      if (!r.ok) return false;
+      _peakState = { balance: r.balance, peakbox_count: r.peakbox_count, loaded: true };
+      return true;
+    }
+    const local = _localPeakGet();
+    if (local.peakbox_count <= 0) return false;
+    const newBal = local.balance + PEAKBOX_REWARD;
+    const newBox = local.peakbox_count - 1;
+    _localPeakSet(newBal, newBox);
+    _peakState = { balance: newBal, peakbox_count: newBox, loaded: true };
+    return true;
+  };
+  const openN = async (n) => {
+    let opened = 0;
+    for (let i = 0; i < n && _peakState.peakbox_count > 0; i++) {
+      if (await openOnce()) opened++; else break;
+    }
+    if (opened > 0) {
+      renderPeakBadge();
+      renderPeakboxBadge();
+      analytics.track('peakbox_opened', { reward: PEAKBOX_REWARD * opened, balance_after: _peakState.balance });
+    }
+    const remain = _peakState.peakbox_count;
+    if (remain > 0) {
+      showPeakReveal(PEAKBOX_REWARD * opened, {
+        button2Text: '닫기', onButton2: closePeakReveal,
+        buttonText: '계속 열기', onButton: () => openN(1),
+        subText: '피크상자 ' + remain + '개 남음',
+      });
+    } else {
+      showPeakReveal(PEAKBOX_REWARD * opened, {
+        buttonText: '닫기', onButton: closePeakReveal,
+        subText: '피크상자 0개 남음',
+      });
+    }
+  };
+  showPeakReveal(null, {
+    icon: 'gift',
+    labelText: _peakState.peakbox_count + '개 남음',
+    button2Text: '1개 열기', onButton2: () => openN(1),
+    buttonText: '5개 열기', onButton: () => openN(5),
+  });
+}
+
+// 피크 등장 연출: 흰색 후광 + 둥둥 떠있는 아이콘. 탭 시 사라짐.
+// amount == null → 미개봉(gift 아이콘, 라벨 숨김). opts.buttonText/opts.onButton 로 버튼 커스텀.
+function showPeakReveal(amount, opts) {
+  opts = opts || {};
+  const hasReward = amount != null;
+  let ov = document.getElementById('peak-reveal-overlay');
+  if (!ov) {
+    ov = document.createElement('div');
+    ov.id = 'peak-reveal-overlay';
+    ov.className = 'peak-reveal-overlay';
+    ov.innerHTML = `
+      <div class="peak-reveal-stage">
+        <div class="peak-reveal-glow"></div>
+        <img class="peak-reveal-pick" id="peak-reveal-pick" src="image/peak.svg" alt="">
+        <span class="peak-reveal-label" id="peak-reveal-label"></span>
+        <div class="peak-reveal-foot" id="peak-reveal-foot">
+          <div class="peak-reveal-actions">
+            <button type="button" class="peak-reveal-practice" id="peak-reveal-btn2"></button>
+            <button type="button" class="peak-reveal-practice" id="peak-reveal-btn"></button>
+          </div>
+          <span class="peak-reveal-sub" id="peak-reveal-sub"></span>
+        </div>
+      </div>`;
+    document.body.appendChild(ov);
+    ov.onclick = (e) => {
+      if (e.target.closest('.peak-reveal-practice')) return;
+      closePeakReveal();
+    };
+  }
+  _peakRevealClose = opts.onClose || null;
+  const gift = opts.icon === 'gift' || (opts.icon !== 'peak' && !hasReward);
+  const pick = ov.querySelector('#peak-reveal-pick');
+  if (pick) pick.src = gift ? 'image/gift.png' : 'image/peak.svg';
+  const lbl = ov.querySelector('#peak-reveal-label');
+  if (lbl) {
+    const text = opts.labelText != null ? opts.labelText : (hasReward ? '+' + amount + ' 피크' : '');
+    lbl.textContent = text;
+    lbl.style.visibility = text ? 'visible' : 'hidden';
+    lbl.classList.toggle('peak-reveal-label--up', hasReward);
+  }
+  const btn = ov.querySelector('#peak-reveal-btn');
+  if (btn) {
+    btn.textContent = opts.buttonText || '바로 사용하기';
+    btn.onclick = opts.onButton || (() => { location.href = 'training.html'; });
+  }
+  const btn2 = ov.querySelector('#peak-reveal-btn2');
+  if (btn2) {
+    if (opts.button2Text) {
+      btn2.textContent = opts.button2Text;
+      btn2.onclick = opts.onButton2 || closePeakReveal;
+      btn2.style.display = '';
+    } else {
+      btn2.style.display = 'none';
+    }
+  }
+  const sub = ov.querySelector('#peak-reveal-sub');
+  if (sub) {
+    sub.textContent = opts.subText || '';
+    sub.style.display = opts.subText ? '' : 'none';
+  }
+  ov.style.display = 'flex';
+  // 애니메이션 재트리거
+  ov.classList.remove('show');
+  void ov.offsetWidth;
+  ov.classList.add('show');
+}
+
+let _peakRevealClose = null;
+function closePeakReveal() {
+  const ov = document.getElementById('peak-reveal-overlay');
+  if (ov) {
+    ov.classList.remove('show');
+    setTimeout(() => { ov.style.display = 'none'; }, 250);
+  }
+  const cb = _peakRevealClose;
+  _peakRevealClose = null;
+  if (typeof cb === 'function') cb();
+}
+
+// 연습 중단 경고 모달 (진행·주법 공통). onConfirm = 실제 나가기 동작.
+let _leavePracticeOpen = false;
+function showLeavePracticeModal(onConfirm) {
+  let ov = document.getElementById('leave-practice-overlay');
+  if (!ov) {
+    ov = document.createElement('div');
+    ov.id = 'leave-practice-overlay';
+    ov.className = 'leave-practice-overlay';
+    ov.innerHTML = `
+      <div class="leave-practice-modal">
+        <div class="leave-practice-title">연습을 그만두시겠어요?</div>
+        <div class="leave-practice-desc">지금 나가면 다시 연습할 때<br>피크를 사용해야 해요.</div>
+        <div class="leave-practice-actions">
+          <button class="leave-practice-btn leave-practice-btn--ghost" id="leave-practice-stop">그만할래요</button>
+          <button class="leave-practice-btn leave-practice-btn--primary" id="leave-practice-continue">계속할래요</button>
+        </div>
+      </div>`;
+    document.body.appendChild(ov);
+  }
+  ov.style.display = 'flex';
+  _leavePracticeOpen = true;
+  // 통통 튀는 등장 애니메이션 재트리거 (재오픈 시에도 재생)
+  const modal = ov.querySelector('.leave-practice-modal');
+  if (modal) { modal.style.animation = 'none'; void modal.offsetWidth; modal.style.animation = ''; }
+  const close = () => { ov.style.display = 'none'; _leavePracticeOpen = false; };
+  ov.querySelector('#leave-practice-stop').onclick     = () => { close(); onConfirm(); };
+  ov.querySelector('#leave-practice-continue').onclick  = close;
+}
+function isLeavePracticeOpen() { return _leavePracticeOpen; }
+function hideLeavePracticeModal() {
+  const ov = document.getElementById('leave-practice-overlay');
+  if (ov) ov.style.display = 'none';
+  _leavePracticeOpen = false;
+}
+
 // ── 사용 통계 (이미지 저장 / 공유 횟수) ───────────────────────
 // 로컬 카운터(localStorage) 기반 + subscriptions.stat_images/stat_shares 동기화
 const STATS_KEY = 'chorditor_stats';
@@ -359,19 +719,20 @@ const STATS_KEY = 'chorditor_stats';
 function getStats() {
   try {
     const raw = JSON.parse(localStorage.getItem(STATS_KEY) || 'null');
-    return { images: raw?.images || 0, shares: raw?.shares || 0 };
+    return { images: raw?.images || 0, shares: raw?.shares || 0, notes: raw?.notes || 0 };
   } catch (e) {
-    return { images: 0, shares: 0 };
+    return { images: 0, shares: 0, notes: 0 };
   }
 }
 
 function incrementStat(key) {
-  if (key !== 'images' && key !== 'shares') return;
+  if (key !== 'images' && key !== 'shares' && key !== 'notes') return;
   try {
     const s = getStats();
     s[key] = (s[key] || 0) + 1;
     localStorage.setItem(STATS_KEY, JSON.stringify(s));
     syncStatsToDB();
+    addXp(key === 'images' ? BEHAVE_XP.image : (key === 'notes' ? BEHAVE_XP.note : BEHAVE_XP.share)); // 행동형 XP
   } catch (e) {}
 }
 
@@ -392,7 +753,7 @@ async function syncStatsToDB() {
         'Authorization': `Bearer ${token}`,
         'Prefer': 'resolution=merge-duplicates,return=minimal',
       },
-      body: JSON.stringify({ user_id: userId, stat_images: s.images, stat_shares: s.shares }),
+      body: JSON.stringify({ user_id: userId, stat_images: s.images, stat_shares: s.shares, stat_notes: s.notes }),
     });
   } catch (e) {}
 }
@@ -956,7 +1317,17 @@ function _initPlanSheet() {
     <button class="icon-btn" onclick="closePlanSheet()"><i data-lucide="x"></i></button>
   </div>
   <div class="plan-sheet-inner">
-    <div class="plan-launch-banner">출시 기념 특별 할인 — 지금 구독하면 첫 달부터 할인가 적용!</div>
+    <div class="plan-sheet-hero">
+      <div class="plan-sheet-hero-img"><img src="image/gift2.png" alt=""></div>
+      <div class="plan-sheet-hero-text">매일 피크 제한없이<br>사용해보세요!</div>
+    </div>
+    <div class="plan-feature-box">
+      <div class="plan-feature-row"><span class="plan-feature-emoji">⚡</span><span>피크 사용량 무제한</span></div>
+      <div class="plan-feature-row"><span class="plan-feature-emoji">🌟</span><span>코드 이미지 고급 설정 개방</span></div>
+      <div class="plan-feature-row"><span class="plan-feature-emoji">✏️</span><span>노트 무제한, 편리한 저장 기능</span></div>
+    </div>
+    <div class="plan-sheet-divider"></div>
+    <div class="plan-launch-banner">출시 할인가 적용<br>Pro 업그레이드하기</div>
     <div class="plan-card plan-card--highlight">
       <div class="plan-card-badge">추천</div>
       <div class="plan-card-name">Pro</div>
@@ -967,20 +1338,24 @@ function _initPlanSheet() {
         </div>
         <span class="price-amount">₩4,900<small>/월</small></span>
       </div>
-      <ul class="plan-card-features">
-        <li>노트 <strong>무제한</strong>, 편리한 저장 기능</li>
-        <li>이미지 저장 <strong>전 배율</strong> (x0.5~x3)</li>
-        <li>훈련소 컨텐츠 전체 개방</li>
-      </ul>
-      <button class="btn btn-primary plan-card-btn" id="plan-sheet-btn-pro">구독하기</button>
+    </div>
+    <div class="plan-legal-group">
+      <div class="plan-cancel-info">구독은 결제일 기준 매월 자동으로 갱신되며, 갱신 24시간 전까지 언제든 해지할 수 있습니다. 해지는 Google Play 스토어 &gt; 구독 메뉴에서 가능합니다.</div>
+      <div class="plan-legal-links">
+        <span class="plan-legal-link" onclick="window.open('Privacy.html', '_blank')">개인정보 처리방침</span>
+        <span class="plan-legal-link" onclick="window.open('Terms.html', '_blank')">이용약관</span>
+      </div>
     </div>
     <div class="plan-page-footer">
-      <span class="hint">구독은 Google Play에서 언제든지 취소할 수 있습니다.</span>
       <div class="plan-modal-footer-links">
         <span class="plan-restore-link" id="plan-sheet-faq-btn" onclick="openBillingFaq()" style="display:none">결제 도움말</span>
         <span class="plan-restore-link" id="plan-sheet-restore-btn" onclick="restorePurchases()" style="display:none">구매 복원</span>
       </div>
     </div>
+  </div>
+  <div class="plan-sheet-footer">
+    <button class="btn btn-primary plan-card-btn" id="plan-sheet-btn-pro">구독하기</button>
+    <span class="hint">구독은 Google Play에서 언제든지 취소할 수 있습니다.</span>
   </div>
 </div>
 <div class="modal-overlay hidden" id="purchase-confirm-modal" onclick="closePurchaseConfirm(false)">
@@ -1064,7 +1439,7 @@ async function restoreTrainingStatsFromDB() {
 
   try {
     const resp = await fetch(
-      `${SUPABASE_URL}/rest/v1/subscriptions?user_id=eq.${userId}&select=streak,training_time_min,total_completed,streak_synced_date,review_rated`,
+      `${SUPABASE_URL}/rest/v1/subscriptions?user_id=eq.${userId}&select=streak,training_time_min,total_completed,scale_completed,progression_completed,strum_completed,streak_synced_date,review_rated,user_xp`,
       { headers: { 'apikey': SUPABASE_ANON, 'Authorization': `Bearer ${accessToken}` } }
     );
     if (!resp.ok) return;
@@ -1080,6 +1455,12 @@ async function restoreTrainingStatsFromDB() {
       merged.streak = overview.streak;
     if ((overview.total_completed   || 0) > (local.total_completed   || 0))
       merged.total_completed = overview.total_completed;
+    if ((overview.scale_completed   || 0) > (local.scale_completed   || 0))
+      merged.scale_completed = overview.scale_completed;
+    if ((overview.progression_completed || 0) > (local.progression_completed || 0))
+      merged.progression_completed = overview.progression_completed;
+    if ((overview.strum_completed   || 0) > (local.strum_completed   || 0))
+      merged.strum_completed = overview.strum_completed;
     if ((overview.training_time_min || 0) > (local.training_time_min || 0))
       merged.training_time_min = overview.training_time_min;
     // streak_last_counted_date: 서버 streak이 더 크면 함께 복원
@@ -1087,6 +1468,14 @@ async function restoreTrainingStatsFromDB() {
       merged.streak_last_counted_date = overview.streak_synced_date;
 
     localStorage.setItem('training_stats', JSON.stringify(merged));
+
+    // 경험치 복원: 서버 값이 더 크면 로컬 갱신 (되감기 방지). 위젯 있으면 재렌더.
+    const localXp = parseInt(localStorage.getItem('user_xp') || '0', 10);
+    if ((overview.user_xp || 0) > localXp) {
+      localStorage.setItem('user_xp', String(overview.user_xp));
+      if (typeof renderTopbarLevel === 'function') renderTopbarLevel();
+      if (typeof renderProfileXp === 'function') renderProfileXp();
+    }
 
     // 서버에서 이미 평가 완료한 유저면 재노출 방지
     if (overview.review_rated) {
@@ -1118,6 +1507,9 @@ async function syncTrainingStatsToDB() {
     streak:             stats.streak            || 0,
     training_time_min:  stats.training_time_min || 0,
     total_completed:    stats.total_completed   || 0,
+    scale_completed:    stats.scale_completed   || 0,
+    progression_completed: stats.progression_completed || 0,
+    strum_completed:    stats.strum_completed   || 0,
     streak_synced_date: new Date().toISOString().slice(0, 10),
   };
   const headers = {
@@ -1146,6 +1538,21 @@ async function syncTrainingStatsToDB() {
   } catch (_) {}
 }
 
+// ── 경험치(user_xp) DB 동기화 ────────────────────────────────
+// addXp 호출 시마다 sync_user_xp RPC — 서버측 GREATEST(server, local) 원자 병합.
+// 블라인드 덮어쓰기 금지: 멀티기기/복원 경쟁에서 높은 값 항상 보존.
+// 서버가 더 크면(다른 기기 적립분) 로컬도 서버값으로 올림. 비로그인 시 무시.
+async function syncXpToDB() {
+  const localXp = parseInt(localStorage.getItem('user_xp') || '0', 10);
+  const r = await _peakRpc('sync_user_xp', { p_xp: localXp });
+  if (typeof r !== 'number') return; // RPC 실패/비로그인 → 로컬만 유지, 다음 addXp 때 재시도
+  if (r > parseInt(localStorage.getItem('user_xp') || '0', 10)) {
+    localStorage.setItem('user_xp', String(r));
+    if (typeof renderTopbarLevel === 'function') renderTopbarLevel();
+    if (typeof renderProfileXp === 'function') renderProfileXp();
+  }
+}
+
 // ── 전역 훈련시간 적립 (측정 즉시 호출) ─────────────────────
 // seconds 누적 → localStorage training_time_min 갱신 + 즉시 DB 동기화.
 // 모든 훈련 페이지(스케일·퀴즈·주법·코드진행)에서 공용 사용.
@@ -1159,16 +1566,14 @@ function recordTrainingTime(seconds) {
 }
 if (typeof window !== 'undefined') window.recordTrainingTime = recordTrainingTime;
 
-// ── 출석(연속 훈련) 공통 처리 ────────────────────────────────
-// 4개 훈련(코드맞추기/스케일/코드진행/주법리듬) 공유. 그날 어느 하나라도
-// 첫 완료 시 출석 1회 인정 + 모달 1회 표시. training_stats / today_sessions 공유.
-// 단, 코드맞추기·스케일은 자체적으로 today_sessions 를 갱신하므로(이중 카운트 방지)
-// recordTrainingAttendance() 는 자체 갱신이 없는 코드진행·주법리듬에서만 호출하고,
-// 스케일은 자체 갱신 후 showTrainingAttendanceModal() 만 호출한다.
+// ── 훈련 세션 카운트 (연속기록 제외) ──────────────────────────
+// 4개 훈련(코드맞추기/스케일/코드진행/주법리듬) 공유. today_sessions/total_completed만 갱신.
+// 코드맞추기·스케일은 자체적으로 today_sessions 를 갱신하므로(이중 카운트 방지)
+// recordTrainingAttendance() 는 자체 갱신이 없는 코드진행·주법리듬에서만 호출한다.
+// 연속출석(streak)·출석모달은 접속 시 claimDailyAttendance() 로 완전히 분리됨.
 function recordTrainingAttendance() {
   const KEY = 'training_stats';
-  const today     = new Date().toISOString().slice(0, 10);
-  const yesterday = new Date(Date.now() - 86400000).toISOString().slice(0, 10);
+  const today = new Date().toISOString().slice(0, 10);
   const stats = JSON.parse(localStorage.getItem(KEY) || '{}');
   if (stats.today_date !== today) {
     stats.today_sessions = 0;
@@ -1176,59 +1581,1446 @@ function recordTrainingAttendance() {
   }
   stats.today_sessions  = (stats.today_sessions  || 0) + 1;
   stats.total_completed = (stats.total_completed || 0) + 1;
-  let firstToday = false;
-  if (stats.today_sessions === 1) {
-    if (stats.streak_last_counted_date === yesterday) stats.streak = (stats.streak || 0) + 1;
-    else stats.streak = 1;
-    stats.streak_last_counted_date = today;
-    firstToday = true;
-  }
   localStorage.setItem(KEY, JSON.stringify(stats));
   if (typeof syncTrainingStatsToDB === 'function') syncTrainingStatsToDB();
-  if (firstToday) showTrainingAttendanceModal(stats.streak);
-  return firstToday;
 }
 
-// 출석 모달 등장 딜레이(ms) — 코드맞추기와 통일(결과/완료 화면 뜬 뒤 등장).
+// 출석 모달 등장 딜레이(ms).
 const ATTENDANCE_MODAL_DELAY_MS = 650;
+const ATTENDANCE_CAL_DELAY_MS = 300;
 
-// 출석 모달 표시. 모달 DOM 이 없는 페이지(스케일/진행/주법)에서는 동적 생성.
-// 딜레이·애니메이션·이징은 4개 훈련 전부 동일(이 함수 + style.css 의 .attendance-modal).
-function showTrainingAttendanceModal(streak, delayMs) {
-  if (delayMs == null) delayMs = ATTENDANCE_MODAL_DELAY_MS;
+// 출석 랜덤상자 모달 표시(접속 시 claimDailyAttendance() 에서만 호출). 모달 DOM은 동적 생성.
+// reward/newBalance 는 이미 서버(또는 폴백)에서 지급 완료된 값 — 상자 클릭 시 피크 등장 연출로 공개.
+function showTrainingAttendanceModal(streak, reward, newBalance) {
   setTimeout(function () {
-    if (typeof analytics !== 'undefined') analytics.track('training_attendance_achieved', { streak });
+    if (typeof analytics !== 'undefined') analytics.track('training_attendance_achieved', { streak, reward });
     let overlay = document.getElementById('attendance-modal-overlay');
     if (!overlay) {
       overlay = document.createElement('div');
       overlay.id = 'attendance-modal-overlay';
       overlay.className = 'attendance-modal-overlay';
-      overlay.innerHTML =
-        '<div class="attendance-modal">' +
-          '<div class="attendance-modal-icon"><i data-lucide="award"></i></div>' +
-          '<div class="attendance-modal-title">출석 완료!</div>' +
-          '<div class="attendance-modal-desc">오늘 훈련 1회를 달성했어요</div>' +
-          '<div id="attendance-modal-streak" class="attendance-modal-streak">1일 연속</div>' +
-          '<button class="attendance-modal-btn" onpointerup="closeTrainingAttendanceModal()">확인</button>' +
-        '</div>';
       document.body.appendChild(overlay);
-      void overlay.offsetWidth; // 강제 reflow: 초기 상태(opacity:0/scale) 확정 → --show 전환 시 애니메이션 발동
     }
-    const streakEl = document.getElementById('attendance-modal-streak');
-    if (streakEl) streakEl.textContent = streak === 1 ? '오늘부터 시작 · 1일 연속' : streak + '일 연속 달성';
+    overlay.innerHTML =
+      '<div class="attendance-modal">' +
+        '<div class="attendance-modal-title">출석 완료!</div>' +
+        '<button type="button" id="attendance-box" class="attendance-box" aria-label="상자 열기">' +
+          '<img src="image/gift.png" class="attendance-box-icon" id="attendance-box-icon" alt="">' +
+        '</button>' +
+        '<div class="attendance-modal-desc" id="attendance-modal-desc">상자를 눌러 여세요</div>' +
+      '</div>';
+    void overlay.offsetWidth; // 강제 reflow: 초기 상태(opacity:0/scale) 확정 → --show 전환 시 애니메이션 발동
+
+    let opened = false;
+    const box = document.getElementById('attendance-box');
+    box.onclick = function () {
+      if (opened) return;
+      opened = true;
+      overlay.classList.remove('attendance-modal-overlay--show'); // 상자 모달 닫고
+      showPeakReveal(reward);                                     // 피크 등장 연출 공개
+      // 공개 시점에 잔량 배지 반영
+      _peakState = { ..._peakState, balance: newBalance, loaded: true };
+      renderPeakBadge();
+      if (typeof analytics !== 'undefined') analytics.track('attendance_box_opened', { reward, balance_after: newBalance });
+    };
+
     overlay.classList.add('attendance-modal-overlay--show');
     if (typeof lucide !== 'undefined') lucide.createIcons();
-  }, delayMs);
+  }, ATTENDANCE_MODAL_DELAY_MS);
 }
 
 function closeTrainingAttendanceModal() {
   const o = document.getElementById('attendance-modal-overlay');
   if (o) o.classList.remove('attendance-modal-overlay--show');
 }
+
+// ── 출석 체크(접속 시 1일 1회) → 랜덤상자로 일반피크 지급 ─────────
+// home.html 진입(app_open) 시점에만 호출. DB(claim_daily_attendance RPC)가 1일 1회를
+// 서버 기준으로 보장하며, RPC 실패(dev/비로그인) 시 localStorage 폴백으로 동작.
+async function claimDailyAttendance() {
+  const KEY = 'training_stats';
+  const today     = new Date().toISOString().slice(0, 10);
+  const yesterday = new Date(Date.now() - 86400000).toISOString().slice(0, 10);
+  const stats = JSON.parse(localStorage.getItem(KEY) || '{}');
+
+  let reward, newBalance;
+  const r = await _peakRpc('claim_daily_attendance');
+  if (r) {
+    if (!r.ok) return; // 오늘 이미 수령
+    reward     = r.reward;
+    newBalance = r.balance;
+  } else {
+    if (stats.attendance_claimed_date === today) return; // dev 폴백: 오늘 이미 수령
+    const local = _localPeakGet();
+    reward     = _rollAttendanceReward();
+    newBalance = local.balance + reward;
+    _localPeakSet(newBalance, local.peakbox_count);
+    stats.attendance_claimed_date = today;
+    stats.att_total = (stats.att_total || 0) + 1; // 누적출석 퀘스트 카운터(폴백)
+  }
+
+  // 연속 출석일수 갱신 (클라 로컬, training.html 통계와 공유)
+  if (stats.streak_last_counted_date === yesterday) stats.streak = (stats.streak || 0) + 1;
+  else if (stats.streak_last_counted_date !== today) stats.streak = 1;
+  stats.streak_last_counted_date = today;
+  localStorage.setItem(KEY, JSON.stringify(stats));
+  if (typeof syncTrainingStatsToDB === 'function') syncTrainingStatsToDB();
+  if (typeof reviewQualify === 'function' && (stats.streak || 0) >= 3) reviewQualify('streak_3');
+
+  addXp(BEHAVE_XP.attendance); // 행동형 XP: 일일 출석
+  showTrainingAttendanceModal(stats.streak, reward, newBalance);
+}
+
+// ── 출석 달력 (30일 도장판, 순환) ─────────────────────────────
+// 접속 시 advance_attendance() 로 도장 진행. 5일 배수(5·10·15·20·25·30) 도달 시
+// 피크상자 2·3·5·5·5·10 즉시 지급 + 획득 모달. 갭은 보충출석(사이클당 3회)으로 이어감.
+// DB RPC 우선, 실패(dev/비로그인) 시 localStorage 폴백. claim_daily_attendance(랜덤피크)와 병행.
+const ATTENDANCE_TOTAL_DAYS = 30;
+const ATTENDANCE_MILESTONES = { 5: 2, 10: 3, 15: 5, 20: 5, 25: 5, 30: 10 };
+const ATTENDANCE_MAKEUP_MAX = 3;
+let _attState = { day: 0, makeup_left: ATTENDANCE_MAKEUP_MAX, needs_makeup: false, loaded: false };
+
+function _attReward(day) { return ATTENDANCE_MILESTONES[day] || 0; }
+function _kstToday() { return new Date(Date.now() + 9 * 3600000).toISOString().slice(0, 10); }
+function _dayDiff(a, b) { return Math.round((Date.parse(b) - Date.parse(a)) / 86400000); }
+
+// dev/비로그인 폴백: training_stats 에 att_day/att_last_date/att_makeup_left 저장
+function _localAttGet() {
+  const s = JSON.parse(localStorage.getItem('training_stats') || '{}');
+  return { day: s.att_day || 0, last: s.att_last_date || null,
+           makeup: (s.att_makeup_left == null ? ATTENDANCE_MAKEUP_MAX : s.att_makeup_left) };
+}
+function _localAttSet(day, last, makeup) {
+  const s = JSON.parse(localStorage.getItem('training_stats') || '{}');
+  s.att_day = day; s.att_last_date = last; s.att_makeup_left = makeup;
+  localStorage.setItem('training_stats', JSON.stringify(s));
+}
+
+// SQL advance_attendance() 미러
+function _localAdvance() {
+  const today = _kstToday();
+  const a = _localAttGet();
+  if (a.last === today) return { advanced: false, day: a.day, makeup_left: a.makeup, needs_makeup: false, already: true };
+  if (a.last && _dayDiff(a.last, today) >= 2) {
+    if (a.makeup > 0) return { advanced: false, day: a.day, makeup_left: a.makeup, needs_makeup: true };
+    _localAttSet(1, today, ATTENDANCE_MAKEUP_MAX); // 보충 소진 → 사이클 리셋
+    return { advanced: true, day: 1, makeup_left: ATTENDANCE_MAKEUP_MAX, reward: 0, needs_makeup: false, reset: true };
+  }
+  let day = a.day, mk = a.makeup;
+  if (day >= ATTENDANCE_TOTAL_DAYS) { day = 1; mk = ATTENDANCE_MAKEUP_MAX; } else day = day + 1;
+  const reward = _attReward(day);
+  _localAttSet(day, today, mk);
+  if (reward > 0) { const l = _localPeakGet(); _localPeakSet(l.balance, l.peakbox_count + reward); }
+  return { advanced: true, day, makeup_left: mk, reward, needs_makeup: false };
+}
+
+// SQL makeup_attendance() 미러
+function _localMakeup() {
+  const today = _kstToday();
+  const a = _localAttGet();
+  if (a.last === today) return null;
+  if (!a.last || _dayDiff(a.last, today) < 2) return null;
+  if (a.makeup <= 0) return null;
+  let mk = a.makeup - 1, day = a.day;
+  if (day >= ATTENDANCE_TOTAL_DAYS) { day = 1; mk = ATTENDANCE_MAKEUP_MAX; } else day = day + 1;
+  const reward = _attReward(day);
+  _localAttSet(day, today, mk);
+  if (reward > 0) { const l = _localPeakGet(); _localPeakSet(l.balance, l.peakbox_count + reward); }
+  return { ok: true, day, makeup_left: mk, reward };
+}
+
+// 접속 시 도장 진행 (home 진입에서 claimDailyAttendance 와 병행 호출)
+async function advanceAttendance() {
+  const r = await _peakRpc('advance_attendance');
+  let res;
+  if (r) {
+    res = r;
+    if (r.reward > 0) _peakState = { ..._peakState, peakbox_count: (_peakState.peakbox_count || 0) + r.reward, loaded: true };
+  } else {
+    res = _localAdvance();
+  }
+  _attState = { day: res.day, makeup_left: res.makeup_left, needs_makeup: !!res.needs_makeup, loaded: true };
+  renderPeakboxBadge();
+  // 오늘 도장 실제로 찍힘 → 달력 자동 오픈 + 오늘 칸 도장 애니메이션
+  if (res.advanced) setTimeout(() => openAttendanceCalendar(res.day), ATTENDANCE_CAL_DELAY_MS);
+  return res;
+}
+
+// 접속 시 출석 플로우 오케스트레이터 (home 진입에서 호출).
+// 순서: ① 출석도장(달력 자동오픈+애니메이션) → ② 마일스톤 상자모달 → ③ 매일 랜덤피크 모달
+async function runDailyAttendanceFlow() {
+  const res = await advanceAttendance();
+  const stampDelay = (res && res.advanced) ? ATTENDANCE_CAL_DELAY_MS + STAMP_ANIM_MS + 200 : 0;
+  setTimeout(() => {
+    if (res && res.advanced && res.reward > 0) {
+      // 마일스톤: 상자모달 확인 후 랜덤피크 모달로 이어짐 (달력은 유지)
+      showPeakboxRewardModal(res.reward, () => { claimDailyAttendance(); });
+    } else {
+      claimDailyAttendance();
+    }
+  }, stampDelay);
+}
+
+// animateDay: 해당 칸 도장에 찍힘 애니메이션 부여(방금 찍힌 오늘 칸). 없으면 정적 렌더.
+function openAttendanceCalendar(animateDay) {
+  const grid = document.getElementById('attend-cal-grid');
+  const overlay = document.getElementById('attend-cal-overlay');
+  if (!grid || !overlay) return;
+
+  const st = _attState.loaded ? _attState : (function () {
+    const a = _localAttGet(); return { day: a.day, makeup_left: a.makeup, needs_makeup: false };
+  })();
+  const stamped = st.day;
+  const boxSvg = '<img src="image/gift.png" class="acc-box-icon" alt="">';
+
+  let html = '';
+  for (let d = 1; d <= ATTENDANCE_TOTAL_DAYS; d++) {
+    const done      = d <= stamped;
+    const milestone = ATTENDANCE_MILESTONES[d];
+    const cls = ['acc-cell'];
+    if (done) cls.push('acc-cell--done');
+    if (milestone) cls.push('acc-cell--milestone');
+    if (done && d === animateDay) cls.push('acc-cell--animate');
+    // 마일스톤=피크상자(+개수), 일반=날짜 숫자. 찍힌 날은 도장을 위에 겹침.
+    const base = milestone
+      ? boxSvg + '<span class="acc-box-count">' + milestone + '</span>'
+      : '<span class="acc-day-num">' + d + '</span>';
+    const inner = base + (done ? '<span class="acc-stamp"><i data-lucide="guitar"></i></span>' : '');
+    html += '<div class="' + cls.join(' ') + '">' + inner + '</div>';
+  }
+  grid.innerHTML = html;
+
+  const mkCountEl = document.getElementById('attend-cal-makeup-count');
+  if (mkCountEl) mkCountEl.textContent = st.makeup_left;
+  const mkBtn = document.getElementById('attend-cal-makeup');
+  if (mkBtn) mkBtn.disabled = !(st.needs_makeup && st.makeup_left > 0);
+
+  overlay.classList.add('attend-cal-overlay--show');
+  if (typeof lucide !== 'undefined') lucide.createIcons();
+}
+
+function closeAttendanceCalendar() {
+  const overlay = document.getElementById('attend-cal-overlay');
+  if (overlay) overlay.classList.remove('attend-cal-overlay--show');
+}
+
+// ── 퀘스트 XP 보상 (레벨 경험치, 상자 개수와 무관하게 티어별 개별 설정) ──
+// 누적형: 티어 배열 3번째 원소 = XP. _tierXp(테이블, day, 오버플로XP)로 조회.
+function _tierXp(tiers, day, overflowXp) {
+  for (const t of tiers) if (t[0] === day) return t[2];
+  return overflowXp || 0;
+}
+// 레벨/업적형: 레벨 구간별 XP.
+function _scaleLvlXp(lvl)     { return lvl <= 5 ? 100 : (lvl <= 10 ? 150 : (lvl <= 17 ? 300 : 450)); }
+function _quizLvlXp(lvl)      { return lvl <= 2 ? 50  : (lvl <= 5 ? 100 : 200); }
+function _scalePerfectXp(lvl) { return lvl <= 5 ? 200 : (lvl <= 17 ? 350 : 600); }
+function _perfectXp(lvl)      { return lvl <= 2 ? 200 : (lvl <= 8 ? 350 : 600); }
+const _CHALLENGE_XP = { c1: 800, c2: 1200, c3: 1800 };
+
+// ── 행동형 XP (사일런트 적립 — 액션 시 화면표시 없음, 프로필 획득표로 확인) ──
+const BEHAVE_XP = {
+  attendance: 15, // 일일 출석
+  share: 10,      // 노트 공유
+  note: 5,        // 노트(프로젝트) 생성
+  quiz: 5,        // 코드 맞추기 세션 완료
+  scale: 5,       // 스케일 훈련 세션 완료
+  progression: 3, // 코드 진행 재생 완료
+  strum: 3,       // 주법 훈련 완료
+  image: 2,       // 코드 이미지 저장
+  per10min: 1,    // 훈련시간 10분당 (quiz·scale)
+};
+
+// ── 퀘스트: 누적출석 (평생 총 출석일수, 30일 순환달력과 별개) ──────
+// 티어 3·7·14·30·100·200·365·500 → 상자 1·1·2·3·5·5·10·20. 500 이후 매 100일 → 5.
+// 진행값(att_total)·수령여부(att_quest_claimed)는 DB(claim_daily_attendance가 +1) 기준,
+// 폴백 시 training_stats 에 저장. 카드에는 "다음 티어 1개"만 표시하고 수령하면 갱신.
+// 3번째 원소 = XP. 오버플로(500+)는 _tierXp overflowXp=1500.
+const ATT_QUEST_TIERS = [[3, 1, 50], [7, 1, 100], [14, 2, 150], [30, 3, 300], [100, 5, 600], [200, 5, 900], [365, 10, 1500], [500, 20, 3000]];
+
+// 마지막 수령 임계(claimed) 기준 다음 티어 {day, reward}. 365 이후 매 100일 상자5.
+function _attQuestNext(claimed) {
+  for (const [d, r] of ATT_QUEST_TIERS) if (claimed < d) return { day: d, reward: r };
+  return { day: claimed + 100, reward: 5 };
+}
+
+// 폴백: training_stats 에서 att_total / att_quest_claimed 조회
+function _localAttQuestGet() {
+  const s = JSON.parse(localStorage.getItem('training_stats') || '{}');
+  return { total: s.att_total || 0, claimed: s.att_quest_claimed || 0 };
+}
+function _localAttQuestSetClaimed(claimed) {
+  const s = JSON.parse(localStorage.getItem('training_stats') || '{}');
+  s.att_quest_claimed = claimed;
+  localStorage.setItem('training_stats', JSON.stringify(s));
+}
+
+// 누적출석 퀘스트 상태 로드 (RPC 우선, 폴백)
+async function loadAttendanceQuest() {
+  const r = await _peakRpc('get_attendance_quest');
+  if (r) return { total: r.total, claimed: r.claimed, next_day: r.next_day, next_reward: r.next_reward };
+  const l = _localAttQuestGet();
+  const n = _attQuestNext(l.claimed);
+  return { total: l.total, claimed: l.claimed, next_day: n.day, next_reward: n.reward };
+}
+
+// 누적출석 퀘스트 1단계 수령 (RPC 우선, 폴백). 성공 시 상자 지급 + 카드 갱신.
+async function claimAttendanceQuest() {
+  const _boxBefore = _peakState.peakbox_count || 0;
+  const _xpGain = _tierXp(ATT_QUEST_TIERS, (await loadAttendanceQuest()).next_day, 1500);
+  const r = await _peakRpc('claim_attendance_quest');
+  if (r) {
+    if (!r.ok) return; // 미도달
+    _peakState = { ..._peakState, peakbox_count: (_peakState.peakbox_count || 0) + r.reward, loaded: true };
+  } else {
+    const l = _localAttQuestGet();
+    const n = _attQuestNext(l.claimed);
+    if (l.total < n.day) return; // 미도달
+    _localAttQuestSetClaimed(n.day);
+    const local = _localPeakGet();
+    _localPeakSet(local.balance, local.peakbox_count + n.reward);
+    _peakState = { ..._peakState, peakbox_count: (_peakState.peakbox_count || 0) + n.reward, loaded: true };
+  }
+  renderPeakboxBadge();
+  renderQuestList(); // 다음 티어로 갱신
+  showPeakboxRewardModal((_peakState.peakbox_count || 0) - _boxBefore); // 수령 → 상자 획득 표시
+  addXp(_xpGain); // 레벨 경험치
+}
+
+// ── 퀘스트: 코드이미지 저장 (누적 stat_images, 1회성, 반복 없음) ──────
+// 티어 1·5·15·30·50·100·200·500·1000 → 상자 1·1·1·2·2·3·3·5·10. 1000 이후 종료.
+// 진행값 = 기존 stat_images(순수 이미지 저장 누적), 폴백 시 chorditor_stats.images.
+const IMG_QUEST_TIERS = [[1, 1, 30], [5, 1, 50], [15, 1, 100], [30, 2, 150], [50, 2, 250], [100, 3, 350], [200, 3, 500], [500, 5, 900], [1000, 10, 1800]];
+
+// 다음 티어 {day, reward}. 종료 시 day=0.
+function _imgQuestNext(claimed) {
+  for (const [d, r] of IMG_QUEST_TIERS) if (claimed < d) return { day: d, reward: r };
+  return { day: 0, reward: 0 };
+}
+function _localImgQuestGet() {
+  const s = JSON.parse(localStorage.getItem(STATS_KEY) || '{}');
+  return { total: s.images || 0, claimed: s.img_quest_claimed || 0 };
+}
+function _localImgQuestSetClaimed(claimed) {
+  const s = JSON.parse(localStorage.getItem(STATS_KEY) || '{}');
+  s.img_quest_claimed = claimed;
+  localStorage.setItem(STATS_KEY, JSON.stringify(s));
+}
+
+async function loadImageQuest() {
+  const r = await _peakRpc('get_image_quest');
+  if (r) return { total: r.total, claimed: r.claimed, next_day: r.next_day, next_reward: r.next_reward };
+  const l = _localImgQuestGet();
+  const n = _imgQuestNext(l.claimed);
+  return { total: l.total, claimed: l.claimed, next_day: n.day, next_reward: n.reward };
+}
+
+async function claimImageQuest() {
+  const _boxBefore = _peakState.peakbox_count || 0;
+  const _xpGain = _tierXp(IMG_QUEST_TIERS, (await loadImageQuest()).next_day);
+  const r = await _peakRpc('claim_image_quest');
+  if (r) {
+    if (!r.ok) return;
+    _peakState = { ..._peakState, peakbox_count: (_peakState.peakbox_count || 0) + r.reward, loaded: true };
+  } else {
+    const l = _localImgQuestGet();
+    const n = _imgQuestNext(l.claimed);
+    if (n.day === 0 || l.total < n.day) return;
+    _localImgQuestSetClaimed(n.day);
+    const local = _localPeakGet();
+    _localPeakSet(local.balance, local.peakbox_count + n.reward);
+    _peakState = { ..._peakState, peakbox_count: (_peakState.peakbox_count || 0) + n.reward, loaded: true };
+  }
+  renderPeakboxBadge();
+  renderQuestList();
+  showPeakboxRewardModal((_peakState.peakbox_count || 0) - _boxBefore); // 수령 → 상자 획득 표시
+  addXp(_xpGain); // 레벨 경험치
+}
+
+// ── 퀘스트: 노트 생성 / 노트 공유 (누적, 1회성, 반복 없음) ──────────
+// 티어(생성·공유 동일) 1·3·5·10·15·20·30·50 → 상자 1·2·2·2·2·3·3·5. 50 종료.
+// 생성 진행값 = stat_notes(프로젝트 생성 시 +1), 공유 = stat_shares(기존). 폴백 chorditor_stats.
+const NOTE_QUEST_TIERS = [[1, 1, 50], [3, 2, 100], [5, 2, 150], [10, 2, 200], [15, 2, 250], [20, 3, 300], [30, 3, 450], [50, 5, 750]];
+
+function _noteQuestNext(claimed) {
+  for (const [d, r] of NOTE_QUEST_TIERS) if (claimed < d) return { day: d, reward: r };
+  return { day: 0, reward: 0 };
+}
+// kind: 'create' | 'share'. 폴백 진행값·claimed 키 매핑.
+function _localNoteQuestGet(kind) {
+  const s = JSON.parse(localStorage.getItem(STATS_KEY) || '{}');
+  const total = kind === 'create' ? (s.notes || 0) : (s.shares || 0);
+  const ck = kind === 'create' ? 'note_quest_claimed' : 'share_quest_claimed';
+  return { total, claimed: s[ck] || 0 };
+}
+function _localNoteQuestSetClaimed(kind, claimed) {
+  const s = JSON.parse(localStorage.getItem(STATS_KEY) || '{}');
+  s[kind === 'create' ? 'note_quest_claimed' : 'share_quest_claimed'] = claimed;
+  localStorage.setItem(STATS_KEY, JSON.stringify(s));
+}
+
+async function loadNoteQuest(kind) {
+  const fn = kind === 'create' ? 'get_note_create_quest' : 'get_note_share_quest';
+  const r = await _peakRpc(fn);
+  if (r) return { total: r.total, claimed: r.claimed, next_day: r.next_day, next_reward: r.next_reward };
+  const l = _localNoteQuestGet(kind);
+  const n = _noteQuestNext(l.claimed);
+  return { total: l.total, claimed: l.claimed, next_day: n.day, next_reward: n.reward };
+}
+
+async function claimNoteQuest(kind) {
+  const _boxBefore = _peakState.peakbox_count || 0;
+  const _xpGain = _tierXp(NOTE_QUEST_TIERS, (await loadNoteQuest(kind)).next_day);
+  const fn = kind === 'create' ? 'claim_note_create_quest' : 'claim_note_share_quest';
+  const r = await _peakRpc(fn);
+  if (r) {
+    if (!r.ok) return;
+    _peakState = { ..._peakState, peakbox_count: (_peakState.peakbox_count || 0) + r.reward, loaded: true };
+  } else {
+    const l = _localNoteQuestGet(kind);
+    const n = _noteQuestNext(l.claimed);
+    if (n.day === 0 || l.total < n.day) return;
+    _localNoteQuestSetClaimed(kind, n.day);
+    const local = _localPeakGet();
+    _localPeakSet(local.balance, local.peakbox_count + n.reward);
+    _peakState = { ..._peakState, peakbox_count: (_peakState.peakbox_count || 0) + n.reward, loaded: true };
+  }
+  renderPeakboxBadge();
+  renderQuestList();
+  showPeakboxRewardModal((_peakState.peakbox_count || 0) - _boxBefore); // 수령 → 상자 획득 표시
+  addXp(_xpGain); // 레벨 경험치
+}
+function claimNoteCreateQuest() { return claimNoteQuest('create'); }
+function claimNoteShareQuest() { return claimNoteQuest('share'); }
+
+// ── 퀘스트: 누적 훈련시간 (training_time_min 분, 무한 반복) ──────────
+// 티어(분) 10·30·60·180·300·600·1800·3000·6000 → 상자 1·1·2·2·2·3·3·5·10.
+// 6000분 이후 매 600분 → 상자5. 진행값=training_time_min, 폴백 training_stats.
+const TIME_QUEST_TIERS = [[10, 1, 50], [30, 1, 100], [60, 2, 150], [180, 2, 250], [300, 2, 350], [600, 3, 500], [1800, 3, 800], [3000, 5, 1300], [6000, 10, 2500]];
+
+function _timeQuestNext(claimed) {
+  for (const [m, r] of TIME_QUEST_TIERS) if (claimed < m) return { day: m, reward: r };
+  return { day: claimed + 600, reward: 5 };
+}
+function _fmtTimeGoal(min) { return min < 60 ? min + '분' : (min / 60) + '시간'; }
+function _localTimeQuestGet() {
+  const s = JSON.parse(localStorage.getItem('training_stats') || '{}');
+  return { total: Math.floor(s.training_time_min || 0), claimed: s.time_quest_claimed || 0 };
+}
+function _localTimeQuestSetClaimed(claimed) {
+  const s = JSON.parse(localStorage.getItem('training_stats') || '{}');
+  s.time_quest_claimed = claimed;
+  localStorage.setItem('training_stats', JSON.stringify(s));
+}
+
+async function loadTimeQuest() {
+  const r = await _peakRpc('get_time_quest');
+  if (r) return { total: r.total, claimed: r.claimed, next_day: r.next_day, next_reward: r.next_reward };
+  const l = _localTimeQuestGet();
+  const n = _timeQuestNext(l.claimed);
+  return { total: l.total, claimed: l.claimed, next_day: n.day, next_reward: n.reward };
+}
+
+async function claimTimeQuest() {
+  const _boxBefore = _peakState.peakbox_count || 0;
+  const _xpGain = _tierXp(TIME_QUEST_TIERS, (await loadTimeQuest()).next_day, 2500);
+  const r = await _peakRpc('claim_time_quest');
+  if (r) {
+    if (!r.ok) return;
+    _peakState = { ..._peakState, peakbox_count: (_peakState.peakbox_count || 0) + r.reward, loaded: true };
+  } else {
+    const l = _localTimeQuestGet();
+    const n = _timeQuestNext(l.claimed);
+    if (l.total < n.day) return;
+    _localTimeQuestSetClaimed(n.day);
+    const local = _localPeakGet();
+    _localPeakSet(local.balance, local.peakbox_count + n.reward);
+    _peakState = { ..._peakState, peakbox_count: (_peakState.peakbox_count || 0) + n.reward, loaded: true };
+  }
+  renderPeakboxBadge();
+  renderQuestList();
+  showPeakboxRewardModal((_peakState.peakbox_count || 0) - _boxBefore); // 수령 → 상자 획득 표시
+  addXp(_xpGain); // 레벨 경험치
+}
+
+// ── 퀘스트: 코드맞추기 누적완료횟수 (quiz sessions_completed 합, 무한반복) ──
+// 티어 1·5·15·30·50·100·200·300·400·500 → 상자 1·1·2·2·2·3·3·3·3·5. 500 이후 매 50회 → 2.
+// 진행값 = quiz_level_stats 합(폴백 quiz_stats_level*), 수령추적 = quiz_quest_claimed.
+const QUIZ_QUEST_TIERS = [[1, 1, 30], [5, 1, 50], [15, 2, 100], [30, 2, 150], [50, 2, 250], [100, 3, 400], [200, 3, 550], [300, 3, 700], [400, 3, 850], [500, 5, 1200]];
+
+function _quizQuestNext(claimed) {
+  for (const [d, r] of QUIZ_QUEST_TIERS) if (claimed < d) return { day: d, reward: r };
+  return { day: claimed + 50, reward: 2 };
+}
+// 폴백: quiz_stats_level* 전 레벨·전 모드 sessionsCompleted 합
+function _localQuizTotal() {
+  let sum = 0;
+  for (let n = 0; n < localStorage.length; n++) {
+    const k = localStorage.key(n);
+    if (!k || !k.startsWith('quiz_stats_level')) continue;
+    try {
+      const o = JSON.parse(localStorage.getItem(k) || '{}');
+      for (const m of ['name-from-diagram', 'diagram-from-name'])
+        if (o[m]) sum += o[m].sessionsCompleted || 0;
+    } catch (_) {}
+  }
+  return sum;
+}
+function _localQuizClaimedGet() {
+  const s = JSON.parse(localStorage.getItem('training_stats') || '{}');
+  return s.quiz_quest_claimed || 0;
+}
+function _localQuizClaimedSet(claimed) {
+  const s = JSON.parse(localStorage.getItem('training_stats') || '{}');
+  s.quiz_quest_claimed = claimed;
+  localStorage.setItem('training_stats', JSON.stringify(s));
+}
+
+async function loadQuizQuest() {
+  const r = await _peakRpc('get_quiz_quest');
+  if (r) return { total: r.total, claimed: r.claimed, next_day: r.next_day, next_reward: r.next_reward };
+  const total = _localQuizTotal();
+  const claimed = _localQuizClaimedGet();
+  const n = _quizQuestNext(claimed);
+  return { total, claimed, next_day: n.day, next_reward: n.reward };
+}
+
+async function claimQuizQuest() {
+  const _boxBefore = _peakState.peakbox_count || 0;
+  const _xpGain = _tierXp(QUIZ_QUEST_TIERS, (await loadQuizQuest()).next_day, 1200);
+  const r = await _peakRpc('claim_quiz_quest');
+  if (r) {
+    if (!r.ok) return;
+    _peakState = { ..._peakState, peakbox_count: (_peakState.peakbox_count || 0) + r.reward, loaded: true };
+  } else {
+    const total = _localQuizTotal();
+    const claimed = _localQuizClaimedGet();
+    const n = _quizQuestNext(claimed);
+    if (total < n.day) return;
+    _localQuizClaimedSet(n.day);
+    const local = _localPeakGet();
+    _localPeakSet(local.balance, local.peakbox_count + n.reward);
+    _peakState = { ..._peakState, peakbox_count: (_peakState.peakbox_count || 0) + n.reward, loaded: true };
+  }
+  renderPeakboxBadge();
+  renderQuestList();
+  showPeakboxRewardModal((_peakState.peakbox_count || 0) - _boxBefore); // 수령 → 상자 획득 표시
+  addXp(_xpGain); // 레벨 경험치
+}
+
+// ── 퀘스트: 스케일 훈련 누적완료횟수 (코드맞추기 누적과 동일 티어) ──────
+// 진행값 = scale_completed(폴백 training_stats.scale_completed), 수령 = scale_quest_claimed.
+function _localScaleQuestGet() {
+  const s = JSON.parse(localStorage.getItem('training_stats') || '{}');
+  return { total: s.scale_completed || 0, claimed: s.scale_quest_claimed || 0 };
+}
+function _localScaleQuestSetClaimed(claimed) {
+  const s = JSON.parse(localStorage.getItem('training_stats') || '{}');
+  s.scale_quest_claimed = claimed;
+  localStorage.setItem('training_stats', JSON.stringify(s));
+}
+
+async function loadScaleQuest() {
+  const r = await _peakRpc('get_scale_quest');
+  if (r) return { total: r.total, claimed: r.claimed, next_day: r.next_day, next_reward: r.next_reward };
+  const l = _localScaleQuestGet();
+  const n = _quizQuestNext(l.claimed); // 티어 동일
+  return { total: l.total, claimed: l.claimed, next_day: n.day, next_reward: n.reward };
+}
+
+async function claimScaleQuest() {
+  const _boxBefore = _peakState.peakbox_count || 0;
+  const _xpGain = _tierXp(QUIZ_QUEST_TIERS, (await loadScaleQuest()).next_day, 1200);
+  const r = await _peakRpc('claim_scale_quest');
+  if (r) {
+    if (!r.ok) return;
+    _peakState = { ..._peakState, peakbox_count: (_peakState.peakbox_count || 0) + r.reward, loaded: true };
+  } else {
+    const l = _localScaleQuestGet();
+    const n = _quizQuestNext(l.claimed);
+    if (l.total < n.day) return;
+    _localScaleQuestSetClaimed(n.day);
+    const local = _localPeakGet();
+    _localPeakSet(local.balance, local.peakbox_count + n.reward);
+    _peakState = { ..._peakState, peakbox_count: (_peakState.peakbox_count || 0) + n.reward, loaded: true };
+  }
+  renderPeakboxBadge();
+  renderQuestList();
+  showPeakboxRewardModal((_peakState.peakbox_count || 0) - _boxBefore); // 수령 → 상자 획득 표시
+  addXp(_xpGain); // 레벨 경험치
+}
+
+// ── 퀘스트: 스케일 훈련 레벨 첫 완료 (레벨 1~20, 순차, 1회성) ──────────
+// 각 레벨 1회 완료 시 clear. 보상 1~5→1, 6~10→2, 11~17→3, 18~20→5. MAX=20.
+const SCALE_LVL_MAX = 20;
+function _scaleLvlReward(lvl) { return lvl <= 5 ? 1 : (lvl <= 10 ? 2 : (lvl <= 17 ? 3 : 5)); }
+
+// 스케일 레벨 완료 기록(scale-level.js 제출 완료 시 호출). 폴백은 로컬 stats 사용.
+async function markScaleLevelCleared(level) { await _peakRpc('mark_scale_level_cleared', { p_level: level }); }
+
+function _localScaleClearedGet() {
+  const s = JSON.parse(localStorage.getItem('training_stats') || '{}');
+  return { cleared: s.scale_cleared || {}, claimed: s.scale_lvl_quest_claimed || 0 };
+}
+function _localScaleLvlClaimedSet(claimed) {
+  const s = JSON.parse(localStorage.getItem('training_stats') || '{}');
+  s.scale_lvl_quest_claimed = claimed;
+  localStorage.setItem('training_stats', JSON.stringify(s));
+}
+
+async function loadScaleLevelQuest() {
+  const r = await _peakRpc('get_scale_level_quest');
+  if (r) return { next_level: r.next_level, reward: r.reward, done: r.done };
+  const l = _localScaleClearedGet();
+  const next = l.claimed + 1;
+  if (next > SCALE_LVL_MAX) return { next_level: 0, reward: 0, done: false };
+  return { next_level: next, reward: _scaleLvlReward(next), done: !!l.cleared[next] };
+}
+
+async function claimScaleLevelQuest() {
+  const _boxBefore = _peakState.peakbox_count || 0;
+  const _xpGain = _scaleLvlXp((await loadScaleLevelQuest()).next_level);
+  const r = await _peakRpc('claim_scale_level_quest');
+  if (r) {
+    if (!r.ok) return;
+    _peakState = { ..._peakState, peakbox_count: (_peakState.peakbox_count || 0) + r.reward, loaded: true };
+  } else {
+    const l = _localScaleClearedGet();
+    const next = l.claimed + 1;
+    if (next > SCALE_LVL_MAX || !l.cleared[next]) return;
+    _localScaleLvlClaimedSet(next);
+    const local = _localPeakGet();
+    const reward = _scaleLvlReward(next);
+    _localPeakSet(local.balance, local.peakbox_count + reward);
+    _peakState = { ..._peakState, peakbox_count: (_peakState.peakbox_count || 0) + reward, loaded: true };
+  }
+  renderPeakboxBadge();
+  renderQuestList();
+  showPeakboxRewardModal((_peakState.peakbox_count || 0) - _boxBefore); // 수령 → 상자 획득 표시
+  addXp(_xpGain); // 레벨 경험치
+}
+
+// ── 퀘스트: 코드진행 누적 재생횟수 (코드맞추기 누적과 동일 티어) ────────
+// 진행값 = progression_completed(폴백 training_stats.progression_completed), 수령 = progression_quest_claimed.
+function _localProgressionQuestGet() {
+  const s = JSON.parse(localStorage.getItem('training_stats') || '{}');
+  return { total: s.progression_completed || 0, claimed: s.progression_quest_claimed || 0 };
+}
+function _localProgressionQuestSetClaimed(claimed) {
+  const s = JSON.parse(localStorage.getItem('training_stats') || '{}');
+  s.progression_quest_claimed = claimed;
+  localStorage.setItem('training_stats', JSON.stringify(s));
+}
+
+async function loadProgressionQuest() {
+  const r = await _peakRpc('get_progression_quest');
+  if (r) return { total: r.total, claimed: r.claimed, next_day: r.next_day, next_reward: r.next_reward };
+  const l = _localProgressionQuestGet();
+  const n = _quizQuestNext(l.claimed);
+  return { total: l.total, claimed: l.claimed, next_day: n.day, next_reward: n.reward };
+}
+
+async function claimProgressionQuest() {
+  const _boxBefore = _peakState.peakbox_count || 0;
+  const _xpGain = _tierXp(QUIZ_QUEST_TIERS, (await loadProgressionQuest()).next_day, 1200);
+  const r = await _peakRpc('claim_progression_quest');
+  if (r) {
+    if (!r.ok) return;
+    _peakState = { ..._peakState, peakbox_count: (_peakState.peakbox_count || 0) + r.reward, loaded: true };
+  } else {
+    const l = _localProgressionQuestGet();
+    const n = _quizQuestNext(l.claimed);
+    if (l.total < n.day) return;
+    _localProgressionQuestSetClaimed(n.day);
+    const local = _localPeakGet();
+    _localPeakSet(local.balance, local.peakbox_count + n.reward);
+    _peakState = { ..._peakState, peakbox_count: (_peakState.peakbox_count || 0) + n.reward, loaded: true };
+  }
+  renderPeakboxBadge();
+  renderQuestList();
+  showPeakboxRewardModal((_peakState.peakbox_count || 0) - _boxBefore); // 수령 → 상자 획득 표시
+  addXp(_xpGain); // 레벨 경험치
+}
+
+// ── 퀘스트: 주법훈련 누적 재생횟수 (코드맞추기 누적과 동일 티어) ────────
+// 진행값 = strum_completed(폴백 training_stats.strum_completed), 수령 = strum_quest_claimed.
+function _localStrumQuestGet() {
+  const s = JSON.parse(localStorage.getItem('training_stats') || '{}');
+  return { total: s.strum_completed || 0, claimed: s.strum_quest_claimed || 0 };
+}
+function _localStrumQuestSetClaimed(claimed) {
+  const s = JSON.parse(localStorage.getItem('training_stats') || '{}');
+  s.strum_quest_claimed = claimed;
+  localStorage.setItem('training_stats', JSON.stringify(s));
+}
+
+async function loadStrumQuest() {
+  const r = await _peakRpc('get_strum_quest');
+  if (r) return { total: r.total, claimed: r.claimed, next_day: r.next_day, next_reward: r.next_reward };
+  const l = _localStrumQuestGet();
+  const n = _quizQuestNext(l.claimed);
+  return { total: l.total, claimed: l.claimed, next_day: n.day, next_reward: n.reward };
+}
+
+async function claimStrumQuest() {
+  const _boxBefore = _peakState.peakbox_count || 0;
+  const _xpGain = _tierXp(QUIZ_QUEST_TIERS, (await loadStrumQuest()).next_day, 1200);
+  const r = await _peakRpc('claim_strum_quest');
+  if (r) {
+    if (!r.ok) return;
+    _peakState = { ..._peakState, peakbox_count: (_peakState.peakbox_count || 0) + r.reward, loaded: true };
+  } else {
+    const l = _localStrumQuestGet();
+    const n = _quizQuestNext(l.claimed);
+    if (l.total < n.day) return;
+    _localStrumQuestSetClaimed(n.day);
+    const local = _localPeakGet();
+    _localPeakSet(local.balance, local.peakbox_count + n.reward);
+    _peakState = { ..._peakState, peakbox_count: (_peakState.peakbox_count || 0) + n.reward, loaded: true };
+  }
+  renderPeakboxBadge();
+  renderQuestList();
+  showPeakboxRewardModal((_peakState.peakbox_count || 0) - _boxBefore); // 수령 → 상자 획득 표시
+  addXp(_xpGain); // 레벨 경험치
+}
+
+// ── 퀘스트: 스케일 훈련 레벨별 퍼펙트 (반복, 레벨 독립) ────────────────
+// 각 레벨 100%정답(오답0) 제출 3회 누적마다 상자. 보상 1~5→3, 6~17→5, 18~20→8. 레벨 1~20.
+// 스케일 레벨 이름(scale-training.html 과 동기화 — 변경 시 함께 수정).
+const SCALE_LEVEL_NAMES = {
+  1: '메이저 스케일', 2: '마이너 펜타토닉 스케일', 3: '마이너 블루스 스케일',
+  4: '내추럴 마이너 스케일', 5: '하모닉 마이너 스케일',
+  6: '4도 메이저 전환', 7: '5도 메이저 전환', 8: '6도 마이너 전환',
+  9: '2도 마이너 전환', 10: '내추럴 마이너 전환',
+  11: '아이오니안 스케일', 12: '도리안 스케일', 13: '프리지안 스케일',
+  14: '리디안 스케일', 15: '믹솔리디안 스케일', 16: '에올리안 스케일', 17: '로크리안 스케일',
+  18: '멜로딕 마이너 스케일', 19: '프리지안 도미넌트 스케일', 20: '믹솔리디안 b9 b13 스케일',
+};
+function _scalePerfectReward(lvl) { return lvl <= 5 ? 3 : (lvl <= 17 ? 5 : 8); }
+
+// 스케일 퍼펙트 제출 서버 카운트(scale-level.js 에서 호출). 폴백은 로컬 stat 사용.
+async function incrementScalePerfect(level) { await _peakRpc('increment_scale_perfect', { p_level: level }); }
+
+function _localScalePerfectTotal(lvl) {
+  const s = JSON.parse(localStorage.getItem('training_stats') || '{}');
+  return (s.scale_perfect || {})[lvl] || 0;
+}
+function _localScalePerfectClaimedGet() {
+  const s = JSON.parse(localStorage.getItem('training_stats') || '{}');
+  return s.scale_perfect_claimed || {};
+}
+function _localScalePerfectClaimedSet(obj) {
+  const s = JSON.parse(localStorage.getItem('training_stats') || '{}');
+  s.scale_perfect_claimed = obj;
+  localStorage.setItem('training_stats', JSON.stringify(s));
+}
+
+async function loadScalePerfectQuest() {
+  const r = await _peakRpc('get_scale_perfect_quest');
+  if (Array.isArray(r)) return r;
+  const claimed = _localScalePerfectClaimedGet();
+  const arr = [];
+  for (let L = 1; L <= SCALE_LVL_MAX; L++) {
+    const total = _localScalePerfectTotal(L);
+    arr.push({ level: L, perfect: total, earned: Math.floor(total / 3),
+      claimed: claimed[L] || 0, reward: _scalePerfectReward(L) });
+  }
+  return arr;
+}
+
+async function claimScalePerfectQuest(level) {
+  const _boxBefore = _peakState.peakbox_count || 0;
+  const _xpGain = _scalePerfectXp(level);
+  const r = await _peakRpc('claim_scale_perfect_quest', { p_level: level });
+  if (r) {
+    if (!r.ok) return;
+    _peakState = { ..._peakState, peakbox_count: (_peakState.peakbox_count || 0) + r.reward, loaded: true };
+  } else {
+    const total = _localScalePerfectTotal(level);
+    const claimedObj = _localScalePerfectClaimedGet();
+    const claimed = claimedObj[level] || 0;
+    if (Math.floor(total / 3) <= claimed) return;
+    claimedObj[level] = claimed + 1;
+    _localScalePerfectClaimedSet(claimedObj);
+    const local = _localPeakGet();
+    const reward = _scalePerfectReward(level);
+    _localPeakSet(local.balance, local.peakbox_count + reward);
+    _peakState = { ..._peakState, peakbox_count: (_peakState.peakbox_count || 0) + reward, loaded: true };
+  }
+  renderPeakboxBadge();
+  renderQuestList();
+  showPeakboxRewardModal((_peakState.peakbox_count || 0) - _boxBefore); // 수령 → 상자 획득 표시
+  addXp(_xpGain); // 레벨 경험치
+}
+
+// 레벨별 퍼펙트 개별 카드(레벨 1~20)
+function _scalePerfectCardsHtml(list) {
+  return list.map(q => {
+    const pending = q.earned - q.claimed;
+    const inCycle = q.perfect - q.claimed * 3;
+    const tail = pending > 0
+      ? '<button class="quest-card-claim" onclick="claimScalePerfectQuest(' + q.level + ')">수령</button>'
+      : '<span class="quest-card-progress">' + Math.min(inCycle, 3) + ' / 3</span>';
+    return '<div class="quest-card">' +
+        '<div class="quest-card-info">' +
+          '<span class="quest-card-title">' + (SCALE_LEVEL_NAMES[q.level] || ('레벨 ' + q.level)) + '</span>' +
+          '<span class="quest-card-desc">퍼펙트 3회</span>' +
+        '</div>' +
+        '<div class="quest-card-stats">' +
+          _questRewardHtml(q.reward, _scalePerfectXp(q.level)) +
+          '<div class="quest-card-progress-col">' + tail + '</div>' +
+        '</div>' +
+      '</div>';
+  }).join('');
+}
+
+// ── 퀘스트: 코드맞추기 레벨 첫 완료 (숫자 레벨 1~11, 순차, 1회성) ──────
+// 각 레벨 세션 1회 완료 시 수령. 순차 갱신. 보상 1·2→1, 3~5→2, 6+→3. MAX=11.
+const QUIZ_LVL_MAX = 11;
+function _quizLvlReward(lvl) { return lvl <= 2 ? 1 : (lvl <= 5 ? 2 : 3); }
+function _localQuizLvlDone(lvl) {
+  const o = JSON.parse(localStorage.getItem('quiz_stats_level' + lvl) || '{}');
+  return (o['name-from-diagram']?.sessionsCompleted || 0) + (o['diagram-from-name']?.sessionsCompleted || 0);
+}
+function _localQuizLvlClaimedGet() {
+  const s = JSON.parse(localStorage.getItem('training_stats') || '{}');
+  return s.quiz_lvl_quest_claimed || 0;
+}
+function _localQuizLvlClaimedSet(claimed) {
+  const s = JSON.parse(localStorage.getItem('training_stats') || '{}');
+  s.quiz_lvl_quest_claimed = claimed;
+  localStorage.setItem('training_stats', JSON.stringify(s));
+}
+
+async function loadQuizLevelQuest() {
+  const r = await _peakRpc('get_quiz_level_quest');
+  if (r) return { next_level: r.next_level, reward: r.reward, done: r.done };
+  const claimed = _localQuizLvlClaimedGet();
+  const next = claimed + 1;
+  if (next > QUIZ_LVL_MAX) return { next_level: 0, reward: 0, done: 0 };
+  return { next_level: next, reward: _quizLvlReward(next), done: _localQuizLvlDone(next) };
+}
+
+async function claimQuizLevelQuest() {
+  const _boxBefore = _peakState.peakbox_count || 0;
+  const _xpGain = _quizLvlXp((await loadQuizLevelQuest()).next_level);
+  const r = await _peakRpc('claim_quiz_level_quest');
+  if (r) {
+    if (!r.ok) return;
+    _peakState = { ..._peakState, peakbox_count: (_peakState.peakbox_count || 0) + r.reward, loaded: true };
+  } else {
+    const claimed = _localQuizLvlClaimedGet();
+    const next = claimed + 1;
+    if (next > QUIZ_LVL_MAX || _localQuizLvlDone(next) < 1) return;
+    _localQuizLvlClaimedSet(next);
+    const local = _localPeakGet();
+    const reward = _quizLvlReward(next);
+    _localPeakSet(local.balance, local.peakbox_count + reward);
+    _peakState = { ..._peakState, peakbox_count: (_peakState.peakbox_count || 0) + reward, loaded: true };
+  }
+  renderPeakboxBadge();
+  renderQuestList();
+  showPeakboxRewardModal((_peakState.peakbox_count || 0) - _boxBefore); // 수령 → 상자 획득 표시
+  addXp(_xpGain); // 레벨 경험치
+}
+
+// ── 퀘스트: 코드맞추기 레벨별 퍼펙트 (반복, 레벨 독립, 아코디언) ──────
+// 각 레벨 100%정답 3회 누적마다 상자. 보상 1·2→3, 3~8→5, 9~11→8. 숫자 레벨 1~11.
+// 진행값 = quiz_stats_level{L} perfectSessions 모드합, 수령추적 = training_stats.perfect_claimed{L:n}.
+// 숫자 레벨 1~11 이름(chord-name-quiz.js LEVEL_CONFIGS 와 동기화 — 변경 시 함께 수정).
+const QUIZ_LEVEL_NAMES = {
+  1: '필수 코드', 2: '하이코드 입문', 3: '코드 꾸미기', 4: '필수 분수코드',
+  5: '필수 7th코드', 6: '프렛의 확장', 7: '기능성 & 오픈코드', 8: '7th 코드 정복하기',
+  9: '쉘 보이싱 & 드롭 보이싱', 10: '텐션코드', 11: '하이브리드 코드',
+};
+function _perfectReward(lvl) { return lvl <= 2 ? 3 : (lvl <= 8 ? 5 : 8); }
+function _localPerfectLevelTotal(lvl) {
+  const o = JSON.parse(localStorage.getItem('quiz_stats_level' + lvl) || '{}');
+  return (o['name-from-diagram']?.perfectSessions || 0) + (o['diagram-from-name']?.perfectSessions || 0);
+}
+function _localPerfectClaimedGet() {
+  const s = JSON.parse(localStorage.getItem('training_stats') || '{}');
+  return s.perfect_claimed || {};
+}
+function _localPerfectClaimedSet(obj) {
+  const s = JSON.parse(localStorage.getItem('training_stats') || '{}');
+  s.perfect_claimed = obj;
+  localStorage.setItem('training_stats', JSON.stringify(s));
+}
+
+async function loadPerfectQuest() {
+  const r = await _peakRpc('get_perfect_quest');
+  if (Array.isArray(r)) return r;
+  const claimed = _localPerfectClaimedGet();
+  const arr = [];
+  for (let L = 1; L <= 11; L++) {
+    const total = _localPerfectLevelTotal(L);
+    arr.push({ level: L, perfect: total, earned: Math.floor(total / 3),
+      claimed: claimed[L] || 0, reward: _perfectReward(L) });
+  }
+  return arr;
+}
+
+async function claimPerfectQuest(level) {
+  const _boxBefore = _peakState.peakbox_count || 0;
+  const _xpGain = _perfectXp(level);
+  const r = await _peakRpc('claim_perfect_quest', { p_level: level });
+  if (r) {
+    if (!r.ok) return;
+    _peakState = { ..._peakState, peakbox_count: (_peakState.peakbox_count || 0) + r.reward, loaded: true };
+  } else {
+    const total = _localPerfectLevelTotal(level);
+    const claimedObj = _localPerfectClaimedGet();
+    const claimed = claimedObj[level] || 0;
+    if (Math.floor(total / 3) <= claimed) return;
+    claimedObj[level] = claimed + 1;
+    _localPerfectClaimedSet(claimedObj);
+    const local = _localPeakGet();
+    const reward = _perfectReward(level);
+    _localPeakSet(local.balance, local.peakbox_count + reward);
+    _peakState = { ..._peakState, peakbox_count: (_peakState.peakbox_count || 0) + reward, loaded: true };
+  }
+  renderPeakboxBadge();
+  renderQuestList();
+  showPeakboxRewardModal((_peakState.peakbox_count || 0) - _boxBefore); // 수령 → 상자 획득 표시
+  addXp(_xpGain); // 레벨 경험치
+}
+
+// ── 퀘스트: 코드맞추기 챌린지 퍼펙트 (반복, 챌린지 독립) ──────────────
+// c1 브론즈·c2 실버·c3 골드. 각 100%정답 3회 누적마다 상자 10·15·20.
+// 진행값 = DB challenge_perfect(폴백 quiz_stats_level{ch}.perfectSessions), 수령 = challenge_claimed.
+const CHALLENGE_LIST = [
+  { ch: 'c1', name: '브론즈 챌린지', reward: 10 },
+  { ch: 'c2', name: '실버 챌린지',   reward: 15 },
+  { ch: 'c3', name: '골드 챌린지',   reward: 20 },
+];
+
+// 세션 종료 시 챌린지 퍼펙트 서버 카운트(chord-name-quiz.js 에서 호출). 폴백은 로컬 stat 사용.
+async function incrementChallengePerfect(ch) { await _peakRpc('increment_challenge_perfect', { p_ch: ch }); }
+
+function _localChallengePerfect(ch) {
+  const o = JSON.parse(localStorage.getItem('quiz_stats_level' + ch) || '{}');
+  return (o['name-from-diagram']?.perfectSessions || 0) + (o['diagram-from-name']?.perfectSessions || 0);
+}
+function _localChallengeClaimedGet() {
+  const s = JSON.parse(localStorage.getItem('training_stats') || '{}');
+  return s.challenge_claimed || {};
+}
+function _localChallengeClaimedSet(obj) {
+  const s = JSON.parse(localStorage.getItem('training_stats') || '{}');
+  s.challenge_claimed = obj;
+  localStorage.setItem('training_stats', JSON.stringify(s));
+}
+
+async function loadChallengeQuest() {
+  const r = await _peakRpc('get_challenge_quest');
+  if (Array.isArray(r)) return r;
+  const claimed = _localChallengeClaimedGet();
+  return CHALLENGE_LIST.map(c => {
+    const perfect = _localChallengePerfect(c.ch);
+    return { ch: c.ch, perfect, earned: Math.floor(perfect / 3),
+      claimed: claimed[c.ch] || 0, reward: c.reward };
+  });
+}
+
+async function claimChallengeQuest(ch) {
+  const _boxBefore = _peakState.peakbox_count || 0;
+  const _xpGain = _CHALLENGE_XP[ch] || 0;
+  const r = await _peakRpc('claim_challenge_quest', { p_ch: ch });
+  if (r) {
+    if (!r.ok) return;
+    _peakState = { ..._peakState, peakbox_count: (_peakState.peakbox_count || 0) + r.reward, loaded: true };
+  } else {
+    const perfect = _localChallengePerfect(ch);
+    const claimedObj = _localChallengeClaimedGet();
+    const claimed = claimedObj[ch] || 0;
+    if (Math.floor(perfect / 3) <= claimed) return;
+    const reward = (CHALLENGE_LIST.find(c => c.ch === ch) || {}).reward || 0;
+    claimedObj[ch] = claimed + 1;
+    _localChallengeClaimedSet(claimedObj);
+    const local = _localPeakGet();
+    _localPeakSet(local.balance, local.peakbox_count + reward);
+    _peakState = { ..._peakState, peakbox_count: (_peakState.peakbox_count || 0) + reward, loaded: true };
+  }
+  renderPeakboxBadge();
+  renderQuestList();
+  showPeakboxRewardModal((_peakState.peakbox_count || 0) - _boxBefore); // 수령 → 상자 획득 표시
+  addXp(_xpGain); // 레벨 경험치
+}
+
+const _CHALLENGE_NAME = { c1: '브론즈 챌린지', c2: '실버 챌린지', c3: '골드 챌린지' };
+// 챌린지 퍼펙트 개별 카드(c1~c3)
+function _challengeCardsHtml(list) {
+  return list.map(q => {
+    const pending = q.earned - q.claimed;
+    const inCycle = q.perfect - q.claimed * 3;
+    const tail = pending > 0
+      ? '<button class="quest-card-claim" onclick="claimChallengeQuest(\'' + q.ch + '\')">수령</button>'
+      : '<span class="quest-card-progress">' + Math.min(inCycle, 3) + ' / 3</span>';
+    return '<div class="quest-card">' +
+        '<div class="quest-card-info">' +
+          '<span class="quest-card-title">' + (_CHALLENGE_NAME[q.ch] || q.ch) + '</span>' +
+          '<span class="quest-card-desc">퍼펙트 3회</span>' +
+        '</div>' +
+        '<div class="quest-card-stats">' +
+          _questRewardHtml(q.reward, _CHALLENGE_XP[q.ch] || 0) +
+          '<div class="quest-card-progress-col">' + tail + '</div>' +
+        '</div>' +
+      '</div>';
+  }).join('');
+}
+
+// 레벨별 퍼펙트 개별 카드(레벨 1~11)
+function _perfectCardsHtml(list) {
+  return list.map(q => {
+    const pending = q.earned - q.claimed;      // 수령 대기 횟수
+    const inCycle = q.perfect - q.claimed * 3;  // 현재 사이클 누적(0~2)
+    const tail = pending > 0
+      ? '<button class="quest-card-claim" onclick="claimPerfectQuest(' + q.level + ')">수령</button>'
+      : '<span class="quest-card-progress">' + Math.min(inCycle, 3) + ' / 3</span>';
+    return '<div class="quest-card">' +
+        '<div class="quest-card-info">' +
+          '<span class="quest-card-title">' + (QUIZ_LEVEL_NAMES[q.level] || ('레벨 ' + q.level)) + '</span>' +
+          '<span class="quest-card-desc">퍼펙트 3회</span>' +
+        '</div>' +
+        '<div class="quest-card-stats">' +
+          _questRewardHtml(q.reward, _perfectXp(q.level)) +
+          '<div class="quest-card-progress-col">' + tail + '</div>' +
+        '</div>' +
+      '</div>';
+  }).join('');
+}
+
+// 공통 퀘스트 카드 HTML. next_day=0(완료)이면 빈 문자열.
+// progressText: 진행도 표시 오버라이드(미지정 시 total/nextDay).
+// 상자 아이콘(상) + XP(하) 세로 스택 리워드 컬럼
+function _questRewardHtml(reward, xp) {
+  return '<div class="quest-card-reward-col">' +
+      '<span class="quest-card-reward"><img class="quest-card-reward-icon" src="image/gift.png" alt=""><span class="quest-card-reward-num">' + reward + '</span></span>' +
+      '<span class="quest-card-xp">+' + xp + 'XP</span>' +
+    '</div>';
+}
+
+function _questCardHtml(title, desc, reward, xp, total, nextDay, claimFn, progressText) {
+  if (!nextDay) return '';
+  const canClaim = total >= nextDay;
+  const prog = progressText || (Math.min(total, nextDay) + ' / ' + nextDay);
+  const tail = canClaim
+    ? '<button class="quest-card-claim" onclick="' + claimFn + '()">수령</button>'
+    : '<span class="quest-card-progress">' + prog + '</span>';
+  return '<div class="quest-card">' +
+      '<div class="quest-card-info">' +
+        '<span class="quest-card-title">' + title + '</span>' +
+        '<span class="quest-card-desc">' + desc + '</span>' +
+      '</div>' +
+      '<div class="quest-card-stats">' +
+        _questRewardHtml(reward, xp) +
+        '<div class="quest-card-progress-col">' + tail + '</div>' +
+      '</div>' +
+    '</div>';
+}
+
+// 퀘스트 모달 body에 카드 리스트 렌더 (각 퀘스트 다음 티어 1개)
+// nextDay=0(퀘스트 종료)이면 항상 false. 그 외 total>=nextDay면 수령 가능.
+function _isClaimable(total, nextDay) { return !!nextDay && total >= nextDay; }
+
+function _questDividerHtml(label) {
+  return '<div class="quest-divider"><span class="quest-divider-line"></span>' +
+    '<span class="quest-divider-label">' + label + '</span>' +
+    '<span class="quest-divider-line"></span></div>';
+}
+
+/* ── 경험치/레벨 시스템 (레벨 = 순수 그라인드축, 페르소나와 무관) ── */
+// 레벨 L → L+1 필요 XP (구간별 계수). 만렙 50.
+function _xpNeed(L) {
+  if (L <= 10) return 50 * L;
+  if (L <= 25) return 100 * L;
+  if (L <= 40) return 210 * L;
+  return 500 * L;
+}
+// 누적 XP → { level, into, need, pct }
+function xpToLevel(xp) {
+  let lv = 1, acc = 0;
+  while (lv < 50) {
+    const need = _xpNeed(lv);
+    if (xp < acc + need) break;
+    acc += need; lv++;
+  }
+  const need = lv >= 50 ? 0 : _xpNeed(lv);
+  const into = xp - acc;
+  const pct = lv >= 50 ? 100 : Math.min(100, Math.round(into / need * 100));
+  return { level: lv, into: into, need: need, pct: pct };
+}
+
+/* ── 페르소나(칭호) 시스템 — 레벨과 독립, 온보딩 선택 + 퀴즈 승급으로만 변경 ── */
+// 1~4단계: 온보딩 선택 가능 + 퀴즈 승급/즉시 강등. 5단계(guitar_master): 선택 불가, Lv45 자동해금.
+const PERSONA_STAGES = ['unboxing', 'beginner', 'sheet_reader', 'home_master', 'guitar_master'];
+const PERSONA_NAMES = {
+  unboxing: '언박싱 1일차',
+  beginner: '굳은살 비기너',
+  sheet_reader: '악보의존자',
+  home_master: '방구석 기타마스터',
+  guitar_master: '기타마스터',
+};
+const PERSONA_UNLOCK_LV = 45; // guitar_master 자동해금 레벨
+// 다음 페르소나 승급 자격(퀴즈 응시 가능) 레벨 게이트
+const PERSONA_NEXT_GATE_LV = { beginner: 10, sheet_reader: 20, home_master: 35, guitar_master: 45 };
+
+function getUserPersona() {
+  return localStorage.getItem('user_persona') || 'unboxing';
+}
+function setUserPersona(key) {
+  if (PERSONA_STAGES.indexOf(key) === -1) return;
+  localStorage.setItem('user_persona', key);
+}
+// 표시용 페르소나 키: guitar_master는 저장값과 무관하게 Lv45 이상이면 자동 표시
+function _effectivePersonaKey(level) {
+  if (level >= PERSONA_UNLOCK_LV) return 'guitar_master';
+  const stored = getUserPersona();
+  return stored === 'guitar_master' ? 'home_master' : stored; // 레벨 미달인데 저장값만 남아있는 경우 방지
+}
+function _persona(level) {
+  return PERSONA_NAMES[_effectivePersonaKey(level)];
+}
+
+// 홈 우상단 레벨 위젯 렌더 (즉시, 애니메이션 없음)
+function renderTopbarLevel() {
+  const el = document.getElementById('topbar-level');
+  if (!el) return;
+  const xp = parseInt(localStorage.getItem('user_xp') || '0', 10);
+  const s = xpToLevel(xp);
+  const num = document.getElementById('tbl-num');
+  if (num) num.textContent = s.level;
+  const per = document.getElementById('tbl-persona');
+  if (per) per.textContent = _persona(s.level);
+  const fill = document.getElementById('tbl-bar-fill');
+  if (fill) fill.style.width = s.pct + '%';
+}
+
+// 프로필 탭 레벨/XP바 + 페르소나 렌더
+function renderProfileXp() {
+  const xp = parseInt(localStorage.getItem('user_xp') || '0', 10);
+  const s = xpToLevel(xp);
+
+  const lv = document.getElementById('profile-xp-lv');
+  if (lv) lv.textContent = s.level;
+  const num = document.getElementById('profile-xp-num');
+  if (num) num.textContent = (s.level >= 50 ? (s.into + ' / ' + s.into) : (s.into + ' / ' + s.need)) + ' XP';
+  const fill = document.getElementById('profile-xp-bar-fill');
+  if (fill) fill.style.width = s.pct + '%';
+
+  const pEl = document.getElementById('profile-persona');
+  if (pEl) pEl.textContent = _persona(s.level);
+  const hp = document.getElementById('hdb-persona');
+  if (hp) hp.textContent = _persona(s.level);
+
+  renderPersonaTrack(s.level);
+}
+
+// 페르소나 승급 트랙(5원+선) 렌더: 저장된 persona 기준(1~4단계) + Lv45 자동해금(5단계)
+function renderPersonaTrack(level) {
+  const track = document.getElementById('persona-track');
+  if (!track) return;
+  const curKey = _effectivePersonaKey(level);
+  const curIdx = PERSONA_STAGES.indexOf(curKey);
+
+  const nodes = track.querySelectorAll('.pt-node');
+  nodes.forEach((node, i) => {
+    node.classList.toggle('done', i < curIdx);
+    node.classList.toggle('active', i === curIdx);
+    node.classList.remove('eligible');
+  });
+  const lines = track.querySelectorAll('.pt-line');
+  lines.forEach((line, i) => {
+    line.classList.toggle('done', i < curIdx);
+  });
+
+  // 저장된 persona 기준 다음 단계가 레벨 게이트를 충족하면 하이라이트 (퀴즈 응시 가능 표시)
+  const storedIdx = PERSONA_STAGES.indexOf(getUserPersona());
+  const nextIdx = storedIdx + 1;
+  if (nextIdx >= 1 && nextIdx <= 3) {
+    const nextKey = PERSONA_STAGES[nextIdx];
+    if (level >= PERSONA_NEXT_GATE_LV[nextKey]) {
+      nodes[nextIdx]?.classList.add('eligible');
+    }
+  }
+}
+
+// XP 적립 + 게이지 상승 애니메이션 (레벨업 시 100%→0%→목표% 순차)
+function addXp(amount) {
+  if (!amount) return;
+  const fill = document.getElementById('tbl-bar-fill');
+  const num = document.getElementById('tbl-num');
+  const per = document.getElementById('tbl-persona');
+  const oldXp = parseInt(localStorage.getItem('user_xp') || '0', 10);
+  const newXp = oldXp + amount;
+  localStorage.setItem('user_xp', String(newXp));
+  syncXpToDB(); // DB 귀속 (fire-and-forget)
+
+  const before = xpToLevel(oldXp);
+  const after = xpToLevel(newXp);
+
+  // 바 위젯 유무와 무관하게 숫자/페르소나는 즉시 갱신 (데일리배너 등 바 없는 위젯 대응)
+  if (num) num.textContent = after.level;
+  if (per) per.textContent = _persona(after.level);
+
+  if (!fill) return; // 바 위젯 없으면(다른 탭 등) 여기서 끝
+
+  const levelUps = after.level - before.level;
+
+  if (levelUps <= 0) {
+    fill.style.width = after.pct + '%';
+    return;
+  }
+
+  // 레벨업 1회 이상: 현재 레벨 채우기 → 0% 리셋 → 다음 레벨 채우기 ... 반복
+  let step = 0;
+  const runStep = () => {
+    if (step === 0) {
+      fill.style.width = '100%';
+    } else if (step <= levelUps) {
+      const lv = before.level + step;
+      if (num) num.textContent = lv;
+      if (per) per.textContent = _persona(lv);
+      fill.style.transition = 'none';
+      fill.style.width = '0%';
+      // reflow 강제 후 transition 복원
+      void fill.offsetWidth;
+      fill.style.transition = 'width .4s ease';
+      const isLast = step === levelUps;
+      fill.style.width = (isLast ? after.pct : 100) + '%';
+    }
+    if (step < levelUps) {
+      step++;
+      setTimeout(runStep, 450);
+    }
+  };
+  setTimeout(runStep, 0);
+}
+
+async function renderQuestList() {
+  const body      = document.getElementById('quest-modal-body');
+  const claimBody = document.getElementById('quest-modal-claimable');
+  if (!body) return;
+  const parts = [];
+  const top   = [];
+
+  const a = await loadAttendanceQuest();
+  const aHtml = _questCardHtml('누적 출석', a.next_day + '일 누적 출석',
+    a.next_reward, _tierXp(ATT_QUEST_TIERS, a.next_day, 1500), a.total, a.next_day, 'claimAttendanceQuest');
+  parts.push(aHtml);
+  if (_isClaimable(a.total, a.next_day)) top.push(aHtml);
+
+  const i = await loadImageQuest();
+  const iHtml = _questCardHtml('코드 이미지 저장', i.next_day + '개 저장',
+    i.next_reward, _tierXp(IMG_QUEST_TIERS, i.next_day), i.total, i.next_day, 'claimImageQuest');
+  parts.push(iHtml);
+  if (_isClaimable(i.total, i.next_day)) top.push(iHtml);
+
+  const nc = await loadNoteQuest('create');
+  const ncHtml = _questCardHtml('노트 생성', nc.next_day + '개 생성',
+    nc.next_reward, _tierXp(NOTE_QUEST_TIERS, nc.next_day), nc.total, nc.next_day, 'claimNoteCreateQuest');
+  parts.push(ncHtml);
+  if (_isClaimable(nc.total, nc.next_day)) top.push(ncHtml);
+
+  const ns = await loadNoteQuest('share');
+  const nsHtml = _questCardHtml('노트 공유', ns.next_day + '회 공유',
+    ns.next_reward, _tierXp(NOTE_QUEST_TIERS, ns.next_day), ns.total, ns.next_day, 'claimNoteShareQuest');
+  parts.push(nsHtml);
+  if (_isClaimable(ns.total, ns.next_day)) top.push(nsHtml);
+
+  const t = await loadTimeQuest();
+  let tProg;
+  if (t.next_day < 60) {
+    tProg = Math.min(t.total, t.next_day) + ' / ' + t.next_day; // 분
+  } else {
+    const tGoal = t.next_day / 60;
+    tProg = (Math.min(t.total, t.next_day) / 60).toFixed(1) + ' / ' +
+      (Number.isInteger(tGoal) ? tGoal : tGoal.toFixed(1)); // 시간
+  }
+  const tHtml = _questCardHtml('누적 훈련시간', _fmtTimeGoal(t.next_day) + ' 훈련',
+    t.next_reward, _tierXp(TIME_QUEST_TIERS, t.next_day, 2500), t.total, t.next_day, 'claimTimeQuest', tProg);
+  parts.push(tHtml);
+  if (_isClaimable(t.total, t.next_day)) top.push(tHtml);
+  parts.push(_questDividerHtml('코드 맞추기'));
+
+  const qz = await loadQuizQuest();
+  const qzHtml = _questCardHtml('코드 맞추기', '누적 ' + qz.next_day + '회 완료',
+    qz.next_reward, _tierXp(QUIZ_QUEST_TIERS, qz.next_day, 1200), qz.total, qz.next_day, 'claimQuizQuest');
+  parts.push(qzHtml);
+  if (_isClaimable(qz.total, qz.next_day)) top.push(qzHtml);
+
+  const ql = await loadQuizLevelQuest();
+  const qlDone = Math.min(ql.done, 1);
+  const qlNextDay = ql.next_level ? 1 : 0;
+  const qlHtml = _questCardHtml('코드 맞추기 레벨', '레벨 ' + ql.next_level + ' 첫 완료',
+    ql.reward, _quizLvlXp(ql.next_level), qlDone, qlNextDay, 'claimQuizLevelQuest');
+  parts.push(qlHtml);
+  if (_isClaimable(qlDone, qlNextDay)) top.push(qlHtml);
+
+  const pf = await loadPerfectQuest();
+  parts.push(_perfectCardsHtml(pf));
+  const pfClaimable = pf.filter(q => q.earned > q.claimed);
+  if (pfClaimable.length) top.push(_perfectCardsHtml(pfClaimable));
+
+  const cg = await loadChallengeQuest();
+  parts.push(_challengeCardsHtml(cg));
+  const cgClaimable = cg.filter(q => q.earned > q.claimed);
+  if (cgClaimable.length) top.push(_challengeCardsHtml(cgClaimable));
+
+  parts.push(_questDividerHtml('스케일훈련'));
+  const sc = await loadScaleQuest();
+  const scHtml = _questCardHtml('스케일 훈련', '누적 ' + sc.next_day + '회 완료',
+    sc.next_reward, _tierXp(QUIZ_QUEST_TIERS, sc.next_day, 1200), sc.total, sc.next_day, 'claimScaleQuest');
+  parts.push(scHtml);
+  if (_isClaimable(sc.total, sc.next_day)) top.push(scHtml);
+
+  const sl = await loadScaleLevelQuest();
+  const slDone = sl.done ? 1 : 0;
+  const slNextDay = sl.next_level ? 1 : 0;
+  const slHtml = _questCardHtml('스케일 레벨', '레벨 ' + sl.next_level + ' 첫 완료',
+    sl.reward, _scaleLvlXp(sl.next_level), slDone, slNextDay, 'claimScaleLevelQuest');
+  parts.push(slHtml);
+  if (_isClaimable(slDone, slNextDay)) top.push(slHtml);
+
+  const spf = await loadScalePerfectQuest();
+  parts.push(_scalePerfectCardsHtml(spf));
+  const spfClaimable = spf.filter(q => q.earned > q.claimed);
+  if (spfClaimable.length) top.push(_scalePerfectCardsHtml(spfClaimable));
+
+  parts.push(_questDividerHtml('코드 진행 리스트'));
+  const pg = await loadProgressionQuest();
+  const pgHtml = _questCardHtml('코드 진행', '누적 ' + pg.next_day + '회 재생',
+    pg.next_reward, _tierXp(QUIZ_QUEST_TIERS, pg.next_day, 1200), pg.total, pg.next_day, 'claimProgressionQuest');
+  parts.push(pgHtml);
+  if (_isClaimable(pg.total, pg.next_day)) top.push(pgHtml);
+
+  parts.push(_questDividerHtml('주법 리듬 훈련'));
+  const st = await loadStrumQuest();
+  const stHtml = _questCardHtml('주법 훈련', '누적 ' + st.next_day + '회 재생',
+    st.next_reward, _tierXp(QUIZ_QUEST_TIERS, st.next_day, 1200), st.total, st.next_day, 'claimStrumQuest');
+  parts.push(stHtml);
+  if (_isClaimable(st.total, st.next_day)) top.push(stHtml);
+
+  body.innerHTML = parts.join('');
+  if (claimBody) claimBody.innerHTML = top.join('');
+  if (typeof lucide !== 'undefined') lucide.createIcons();
+}
+
+function openQuestModal() {
+  const overlay = document.getElementById('quest-modal-overlay');
+  if (!overlay) return;
+  overlay.classList.add('quest-modal-overlay--show');
+  renderQuestList();
+  if (typeof lucide !== 'undefined') lucide.createIcons();
+}
+
+function closeQuestModal() {
+  const overlay = document.getElementById('quest-modal-overlay');
+  if (overlay) overlay.classList.remove('quest-modal-overlay--show');
+}
+
+// ── 경험치 획득 안내 (행동형 레퍼런스표, 프로필 XP바 클릭) ──
+// 값은 BEHAVE_XP 단일 소스 참조 → 적립 로직과 항상 일치.
+const XP_INFO_ROWS = [
+  ['일일 출석',            BEHAVE_XP.attendance],
+  ['노트 공유',            BEHAVE_XP.share],
+  ['노트 생성',            BEHAVE_XP.note],
+  ['코드 맞추기 완료',      BEHAVE_XP.quiz],
+  ['스케일 훈련 완료',      BEHAVE_XP.scale],
+  ['코드 진행 재생',        BEHAVE_XP.progression],
+  ['주법 훈련',            BEHAVE_XP.strum],
+  ['코드 이미지 저장',      BEHAVE_XP.image],
+  ['훈련 10분당',          BEHAVE_XP.per10min],
+];
+
+function openXpInfoModal() {
+  const overlay = document.getElementById('xpinfo-overlay');
+  const body    = document.getElementById('xpinfo-body');
+  if (!overlay || !body) return;
+  body.innerHTML = '<table class="xpinfo-table"><tbody>' +
+    XP_INFO_ROWS.map(([label, xp]) =>
+      '<tr><td class="xpinfo-td-label">' + label + '</td>' +
+      '<td class="xpinfo-td-xp">' + xp + 'XP</td></tr>').join('') +
+    '</tbody></table>';
+  overlay.classList.add('xpinfo-overlay--show');
+  if (typeof lucide !== 'undefined') lucide.createIcons();
+}
+
+function closeXpInfoModal() {
+  const overlay = document.getElementById('xpinfo-overlay');
+  if (overlay) overlay.classList.remove('xpinfo-overlay--show');
+}
+
+// 보충출석 (갭 상태에서만, 사이클당 3회). 1회 소진해 오늘 도장 이어감.
+async function makeupAttendance() {
+  if (!_attState.needs_makeup || _attState.makeup_left <= 0) return;
+  const r = await _peakRpc('makeup_attendance');
+  let res;
+  if (r) {
+    if (!r.ok) return;
+    res = r;
+    if (r.reward > 0) _peakState = { ..._peakState, peakbox_count: (_peakState.peakbox_count || 0) + r.reward, loaded: true };
+  } else {
+    res = _localMakeup();
+    if (!res) return;
+  }
+  _attState = { day: res.day, makeup_left: res.makeup_left, needs_makeup: false, loaded: true };
+  renderPeakboxBadge();
+  openAttendanceCalendar(res.day); // 재렌더 + 오늘 칸 도장 애니메이션
+  if (res.reward > 0) setTimeout(() => showPeakboxRewardModal(res.reward), STAMP_ANIM_MS + 150);
+}
+
+// 오늘 칸 도장 찍힘 애니메이션 완료 시각(ms) — style.css delay(0.35s)+duration(0.45s) 합
+const STAMP_ANIM_MS = 800;
+
+// 마일스톤 피크상자 획득 모달. onClose = 확인/닫힘 시 콜백(다음 플로우 연결용).
+// 피크상자 획득 연출(마일스톤/보상). gift 아이콘 등장 + '피크상자 +N' 라벨. 확인/탭 시 onClose 실행.
+function showPeakboxRewardModal(count, onClose) {
+  if (count <= 0) { if (typeof onClose === 'function') onClose(); return; }
+  showPeakReveal(null, {
+    icon: 'gift',
+    labelText: '+' + count + ' 상자',
+    buttonText: '닫기',
+    onButton: closePeakReveal,
+    onClose: onClose,
+  });
+  if (typeof analytics !== 'undefined') analytics.track('attendance_milestone_reward', { peakbox: count });
+}
+
 if (typeof window !== 'undefined') {
   window.recordTrainingAttendance     = recordTrainingAttendance;
   window.showTrainingAttendanceModal  = showTrainingAttendanceModal;
   window.closeTrainingAttendanceModal = closeTrainingAttendanceModal;
+  window.claimDailyAttendance         = claimDailyAttendance;
+  window.advanceAttendance            = advanceAttendance;
+  window.runDailyAttendanceFlow       = runDailyAttendanceFlow;
+  window.openAttendanceCalendar       = openAttendanceCalendar;
+  window.closeAttendanceCalendar      = closeAttendanceCalendar;
+  window.makeupAttendance             = makeupAttendance;
+  window.showPeakboxRewardModal       = showPeakboxRewardModal;
+  window.openQuestModal               = openQuestModal;
+  window.closeQuestModal              = closeQuestModal;
+  window.openXpInfoModal              = openXpInfoModal;
+  window.closeXpInfoModal             = closeXpInfoModal;
+  window.claimAttendanceQuest         = claimAttendanceQuest;
+  window.claimImageQuest              = claimImageQuest;
+  window.claimNoteCreateQuest         = claimNoteCreateQuest;
+  window.claimNoteShareQuest          = claimNoteShareQuest;
+  window.claimTimeQuest               = claimTimeQuest;
+  window.syncTrainingStatsToDB        = syncTrainingStatsToDB;
+  window.claimQuizQuest               = claimQuizQuest;
+  window.claimQuizLevelQuest          = claimQuizLevelQuest;
+  window.claimPerfectQuest            = claimPerfectQuest;
+  window.claimChallengeQuest          = claimChallengeQuest;
+  window.incrementChallengePerfect    = incrementChallengePerfect;
+  window.claimScaleQuest              = claimScaleQuest;
+  window.claimScaleLevelQuest         = claimScaleLevelQuest;
+  window.markScaleLevelCleared        = markScaleLevelCleared;
+  window.incrementScalePerfect        = incrementScalePerfect;
+  window.claimScalePerfectQuest       = claimScalePerfectQuest;
+  window.claimProgressionQuest        = claimProgressionQuest;
+  window.claimStrumQuest              = claimStrumQuest;
+  window.renderQuestList              = renderQuestList;
 }
 
 // ── FCM 푸시 토큰 등록 ──────────────────────────────────────
@@ -1548,6 +3340,7 @@ async function syncQuizLevelStatsToDB(levelId) {
       total_played:       s.totalPlayed       || 0,
       total_correct:      s.totalCorrect      || 0,
       sessions_completed: s.sessionsCompleted || 0,
+      perfect_sessions:   s.perfectSessions   || 0,
       best_speed_sec:     s.bestSpeedSec      ?? null,
       updated_at:         new Date().toISOString(),
     };
@@ -1586,7 +3379,7 @@ async function restoreQuizLevelStatsFromDB() {
 
   try {
     const resp = await fetch(
-      `${SUPABASE_URL}/rest/v1/quiz_level_stats?user_id=eq.${userId}&select=level_id,mode,total_played,total_correct,sessions_completed,best_speed_sec`,
+      `${SUPABASE_URL}/rest/v1/quiz_level_stats?user_id=eq.${userId}&select=level_id,mode,total_played,total_correct,sessions_completed,perfect_sessions,best_speed_sec`,
       { headers: { 'apikey': SUPABASE_ANON, 'Authorization': `Bearer ${accessToken}` } }
     );
     if (!resp.ok) return;
@@ -1611,6 +3404,7 @@ async function restoreQuizLevelStatsFromDB() {
         if ((db.total_played       || 0) > (loc.totalPlayed       || 0)) { merged.totalPlayed       = db.total_played;       changed = true; }
         if ((db.total_correct      || 0) > (loc.totalCorrect      || 0)) { merged.totalCorrect      = db.total_correct;      changed = true; }
         if ((db.sessions_completed || 0) > (loc.sessionsCompleted || 0)) { merged.sessionsCompleted = db.sessions_completed; changed = true; }
+        if ((db.perfect_sessions   || 0) > (loc.perfectSessions   || 0)) { merged.perfectSessions   = db.perfect_sessions;   changed = true; }
         if (db.best_speed_sec !== null && (loc.bestSpeedSec === null || db.best_speed_sec < loc.bestSpeedSec)) {
           merged.bestSpeedSec = db.best_speed_sec; changed = true;
         }

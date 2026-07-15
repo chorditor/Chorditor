@@ -99,6 +99,13 @@ function _startPlay(progId) {
     key:     _getKeyDisplayName(_currentKey),
   });
 
+  // 코드진행 누적 재생 퀘스트 카운터
+  const _ps = JSON.parse(localStorage.getItem('training_stats') || '{}');
+  _ps.progression_completed = (_ps.progression_completed || 0) + 1;
+  localStorage.setItem('training_stats', JSON.stringify(_ps));
+  if (typeof syncTrainingStatsToDB === 'function') syncTrainingStatsToDB();
+  if (typeof addXp === 'function') addXp(BEHAVE_XP.progression); // 행동형 XP: 코드 진행 재생 (사일런트)
+
   function tick() {
     const cells = card?.querySelectorAll('.prog-chord-cell');
     if (cells) {

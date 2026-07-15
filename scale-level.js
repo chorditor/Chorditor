@@ -66,6 +66,7 @@ const DOUBLE_DOT_FRETS = new Set([12]);
 
 // ── 상태 ─────────────────────────────────────────────────────
 let _scaleKey  = 'major';
+let _scaleLevel = 0; // 레벨 첫완료 퀘스트용 (URL level 파라미터)
 let _rootNote  = 0;
 let _navIdx    = 0;
 let _useFlat   = false;
@@ -1614,6 +1615,17 @@ function checkAnswer() {
   const _pct = correctSet.size > 0
     ? (nWrong === 0 ? 1 : nCorrect / (correctSet.size + nPlacedWrong))
     : 0;
+
+  // 레벨별 퍼펙트 퀘스트: 100%정답(오답0) 제출 누적
+  if (_scaleLevel > 0 && _pct === 1) {
+    const s2 = JSON.parse(localStorage.getItem(TRAINING_STATS_KEY) || '{}');
+    const sp = s2.scale_perfect || {};
+    sp[_scaleLevel] = (sp[_scaleLevel] || 0) + 1;
+    s2.scale_perfect = sp;
+    localStorage.setItem(TRAINING_STATS_KEY, JSON.stringify(s2));
+    if (typeof incrementScalePerfect === 'function') incrementScalePerfect(_scaleLevel);
+  }
+
   const _PERFECT_MSGS = ['완벽해요!', '정확해요!', '맞았어요! 잘하고 있어요.'];
   const _scoreMsg = _pct === 1
     ? _PERFECT_MSGS[Math.floor(Math.random() * _PERFECT_MSGS.length)]
@@ -1649,8 +1661,10 @@ function checkAnswer() {
   }
 
   // 버튼 상태 갱신 + 뒤로가기 표시
-  const btn = document.getElementById('test-submit-btn');
-  if (btn) btn.textContent = '다시 풀기';
+  const label = document.getElementById('test-submit-btn-label');
+  if (label) label.textContent = '다시 풀기';
+  const retryCost = document.getElementById('test-retry-peak-cost');
+  if (retryCost) retryCost.style.display = '';
   document.getElementById('test-back-btn')?.classList.add('is-visible');
 }
 
@@ -1693,8 +1707,10 @@ function startTest() {
     if (scoreEl)  scoreEl.textContent  = '';
     if (detailEl) detailEl.textContent = '';
   }
-  const btn = document.getElementById('test-submit-btn');
-  if (btn) btn.textContent = '제출하기';
+  const submitLabel = document.getElementById('test-submit-btn-label');
+  if (submitLabel) submitLabel.textContent = '제출하기';
+  const retryCostReset = document.getElementById('test-retry-peak-cost');
+  if (retryCostReset) retryCostReset.style.display = 'none';
   document.getElementById('test-back-btn')?.classList.remove('is-visible');
 
   // 질문 텍스트 초기화 (애니메이션 이후 바뀌도록 숨김)
@@ -3175,17 +3191,24 @@ function updateKeyLabels() {
   document.querySelectorAll('.key-btn').forEach((btn, i) => {
     btn.textContent = names[i];
   });
+  updateStartTestBtnLabel();
+}
+
+function updateStartTestBtnLabel() {
+  const label = document.getElementById('start-test-btn-label');
+  if (!label) return;
+  const keyName = (_useFlat ? KEY_NAMES_FLAT : KEY_NAMES)[_rootNote];
+  label.textContent = `${keyName}key 테스트 시작`;
 }
 
 // ── 임시/기록 관련 함수 ──────────────────────────────────────
 // ── 훈련 통계 ────────────────────────────────────────────────────
 const TRAINING_STATS_KEY = 'training_stats';
 
-/** 제출 완료 1회: today_sessions / total_completed / streak 갱신 */
+/** 제출 완료 1회: today_sessions / total_completed 갱신 (streak/출석모달은 claimDailyAttendance()로 이전) */
 function _recordScaleSubmit() {
-  const today     = new Date().toISOString().slice(0, 10);
-  const yesterday = new Date(Date.now() - 86400000).toISOString().slice(0, 10);
-  const stats     = JSON.parse(localStorage.getItem(TRAINING_STATS_KEY) || '{}');
+  const today = new Date().toISOString().slice(0, 10);
+  const stats = JSON.parse(localStorage.getItem(TRAINING_STATS_KEY) || '{}');
 
   if (stats.today_date !== today) {
     stats.today_sessions = 0;
@@ -3194,29 +3217,22 @@ function _recordScaleSubmit() {
 
   stats.today_sessions  = (stats.today_sessions  || 0) + 1;
   stats.total_completed = (stats.total_completed || 0) + 1;
+  stats.scale_completed = (stats.scale_completed || 0) + 1; // 스케일 누적완료 퀘스트 카운터
 
-  // 하루 1회 완료 시 스트릭 갱신 (quiz와 공유 카운터)
-  let _firstToday = false;
-  if (stats.today_sessions === 1) {
-    if (stats.streak_last_counted_date === yesterday) {
-      stats.streak = (stats.streak || 0) + 1;
-    } else {
-      stats.streak = 1;
+  // 레벨 첫완료 퀘스트: 이 레벨 clear 기록(로컬 폴백) + 서버
+  if (_scaleLevel > 0) {
+    const cl = stats.scale_cleared || {};
+    if (!cl[_scaleLevel]) {
+      cl[_scaleLevel] = true;
+      stats.scale_cleared = cl;
+      if (typeof markScaleLevelCleared === 'function') markScaleLevelCleared(_scaleLevel);
     }
-    stats.streak_last_counted_date = today;
-    _firstToday = true;
   }
 
   localStorage.setItem(TRAINING_STATS_KEY, JSON.stringify(stats));
   syncTrainingStatsToDB(); // 즉시 DB 반영 (fire-and-forget)
 
-  // 그날 첫 훈련 완료 시 출석 모달 (공통 함수, shared.js)
-  if (_firstToday && typeof showTrainingAttendanceModal === 'function') {
-    showTrainingAttendanceModal(stats.streak);
-  }
-
-  // 리뷰 유도 조건: streak 3일+
-  if (typeof reviewQualify === 'function' && (stats.streak || 0) >= 3) reviewQualify('streak_3');
+  if (typeof addXp === 'function') addXp(BEHAVE_XP.scale); // 행동형 XP: 스케일 세션 완료 (사일런트)
 }
 
 /** 페이지 이탈 시 훈련 시간 누적 (문제 미완료여도 기록) */
@@ -3225,11 +3241,18 @@ function _recordScaleSessionTime() {
   const durationMin = (Date.now() - _scaleSessionStart) / 60000;
   if (durationMin < 0.1) return; // 6초 미만 무시
   const stats = JSON.parse(localStorage.getItem(TRAINING_STATS_KEY) || '{}');
+  const _oldMin = stats.training_time_min || 0;
   stats.training_time_min = Math.round(
-    ((stats.training_time_min || 0) + durationMin) * 10
+    (_oldMin + durationMin) * 10
   ) / 10;
   localStorage.setItem(TRAINING_STATS_KEY, JSON.stringify(stats));
   _scaleSessionStart = 0; // 중복 기록 방지
+
+  // 행동형 XP: 훈련시간 10분당 (사일런트)
+  if (typeof addXp === 'function') {
+    const _timeXp = (Math.floor(stats.training_time_min / 10) - Math.floor(_oldMin / 10)) * BEHAVE_XP.per10min;
+    if (_timeXp > 0) addXp(_timeXp);
+  }
 
   // 리뷰 유도 조건: 스케일 연속 3분+ 연습 후 이탈
   if (typeof reviewQualify === 'function' && durationMin >= 3) reviewQualify('scale_3min');
@@ -3323,6 +3346,7 @@ function initKeySelector() {
       renderNotes();
       updateFormLabel();
       updateBlockIndicator();
+      updateStartTestBtnLabel();
       analytics.track('scale_key_selected', {
         scale_key: _scaleKey,
         root_note: semitone,
@@ -3342,6 +3366,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
   const params = new URLSearchParams(location.search);
   _scaleKey = params.get('key') || 'major';
+  _scaleLevel = parseInt(params.get('level'), 10) || 0;
 
   // Ch.2: 전환 버튼 표시
   if (_scaleKey === 'secondary-iv' || _scaleKey === 'secondary-v' || _scaleKey === 'secondary-ii' || _scaleKey === 'secondary-vi' || _scaleKey === 'secondary-iii') {
@@ -3369,11 +3394,13 @@ renderFullNeck();
   initAccidentalToggle();
   initDegreeToggle();
   initKeySelector();
+  updateStartTestBtnLabel();
 
   initTestTap();
 
-  // 테스트 시작 버튼
-  document.getElementById('start-test-btn')?.addEventListener('pointerup', () => {
+  // 테스트 시작 버튼 (피크 2개 소모)
+  document.getElementById('start-test-btn')?.addEventListener('pointerup', async () => {
+    if (!(await consumePeak(2))) return;
     analytics.track('scale_test_started', {
       scale_key: _scaleKey,
       root_name: (_useFlat ? KEY_NAMES_FLAT : KEY_NAMES)[_rootNote],
@@ -3386,9 +3413,10 @@ renderFullNeck();
   });
 
   // 제출하기 / 다시 풀기 버튼
-  document.getElementById('test-submit-btn')?.addEventListener('pointerup', (e) => {
+  document.getElementById('test-submit-btn')?.addEventListener('pointerup', async (e) => {
     if (e.currentTarget.disabled) return;
     if (_testSubmitted) {
+      if (!(await consumePeak(2))) return;
       analytics.track('scale_test_retry', {
         scale_key: _scaleKey,
         root_name: (_useFlat ? KEY_NAMES_FLAT : KEY_NAMES)[_rootNote],

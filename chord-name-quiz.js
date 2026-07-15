@@ -96,18 +96,18 @@ const LEVEL_CONFIGS = [
   { id: '3',  poolReady: true,  premium: false, name: '코드 꾸미기',   info: '세련된 소리가 나는 코드 모음',      timePerQ: '5초', timeSec: 5, count: 10, locked: false },
   { id: '4',  poolReady: true,  premium: false, name: '필수 분수코드', info: '노래에서 자주 쓰이는 분수코드',     timePerQ: '5초', timeSec: 5, count: 10, locked: false },
   { id: '5',  poolReady: true,  premium: false, name: '필수 7th코드',  info: 'M7 / m7 / 7 코드 정복하기',       timePerQ: '5초', timeSec: 5, count: 10, locked: false },
-  { id: 'c1', poolReady: true,  premium: true,  type: 'challenge', name: '기본코드 챌린지', info: 'LEVEL1~5까지의 모든 코드가 등장합니다!', timePerQ: '5초', timeSec: 5, count: 10, locked: false },
-  { id: '6',  poolReady: true,  premium: true,  name: '프렛의 확장',         info: '다양한 프렛에서의 코드를 익혀보세요.',     timePerQ: '5초', timeSec: 5, count: 10, locked: false },
-  { id: '7',  poolReady: true,  premium: true,  name: '기능성 & 오픈코드',   info: '개방현을 활용하는 불규칙적인 코드',       timePerQ: '5초', timeSec: 5, count: 10, locked: false },
-  { id: '8',  poolReady: true,  premium: true,  name: '7th 코드 정복하기',   info: '모든 7음 코드를 정복해보세요.',           timePerQ: '7초', timeSec: 7, count: 15, locked: false },
-  { id: 'c2', poolReady: true,  premium: true,  type: 'challenge', name: '심화코드 챌린지',      info: '대부분의 코드가 수록되어 있습니다.',                              timePerQ: '7초', timeSec: 7, count: 15, locked: false },
-  { id: '9',  poolReady: false, premium: true,  name: '쉘 보이싱 & 드롭 보이싱', info: '다양한 보이싱을 익혀보세요.',          timePerQ: '—', timeSec: null, count: null, locked: true },
-  { id: '10', poolReady: false, premium: true,  name: '텐션코드',             info: '텐션의 세계로 여러분을 초대합니다.',     timePerQ: '—', timeSec: null, count: null, locked: true },
-  { id: '11', poolReady: false, premium: true,  name: '하이브리드 코드',      info: '코드 표기의 오묘한 세계',               timePerQ: '—', timeSec: null, count: null, locked: true },
-  { id: 'c3', poolReady: false, premium: true,  type: 'challenge', name: '코드마스터 챌린지',    info: '코디터의 모든 코드가 수록되어 있습니다!',                         timePerQ: '—', timeSec: null, count: null, locked: true },
+  { id: 'c1', poolReady: true,  premium: false, type: 'challenge', name: '기본코드 챌린지', info: 'LEVEL1~5까지의 모든 코드가 등장합니다!', timePerQ: '5초', timeSec: 5, count: 10, locked: false },
+  { id: '6',  poolReady: true,  premium: false, name: '프렛의 확장',         info: '다양한 프렛에서의 코드를 익혀보세요.',     timePerQ: '5초', timeSec: 5, count: 10, locked: false },
+  { id: '7',  poolReady: true,  premium: false, name: '기능성 & 오픈코드',   info: '개방현을 활용하는 불규칙적인 코드',       timePerQ: '5초', timeSec: 5, count: 10, locked: false },
+  { id: '8',  poolReady: true,  premium: false, name: '7th 코드 정복하기',   info: '모든 7음 코드를 정복해보세요.',           timePerQ: '7초', timeSec: 7, count: 15, locked: false },
+  { id: 'c2', poolReady: true,  premium: false, type: 'challenge', name: '심화코드 챌린지',      info: '대부분의 코드가 수록되어 있습니다.',                              timePerQ: '7초', timeSec: 7, count: 15, locked: false },
+  { id: '9',  poolReady: false, premium: false, name: '쉘 보이싱 & 드롭 보이싱', info: '다양한 보이싱을 익혀보세요.',          timePerQ: '—', timeSec: null, count: null, locked: true },
+  { id: '10', poolReady: false, premium: false, name: '텐션코드',             info: '텐션의 세계로 여러분을 초대합니다.',     timePerQ: '—', timeSec: null, count: null, locked: true },
+  { id: '11', poolReady: false, premium: false, name: '하이브리드 코드',      info: '코드 표기의 오묘한 세계',               timePerQ: '—', timeSec: null, count: null, locked: true },
+  { id: 'c3', poolReady: false, premium: false, type: 'challenge', name: '코드마스터 챌린지',    info: '코디터의 모든 코드가 수록되어 있습니다!',                         timePerQ: '—', timeSec: null, count: null, locked: true },
 ];
 
-const _MODE_DEFAULT = () => ({ totalPlayed: 0, totalCorrect: 0, bestSpeedSec: null, sessionsCompleted: 0 });
+const _MODE_DEFAULT = () => ({ totalPlayed: 0, totalCorrect: 0, bestSpeedSec: null, sessionsCompleted: 0, perfectSessions: 0 });
 
 // ── 레벨 리스트 상태 ──────────────────────────────────────────
 let _lwRealIdx = 0; // 현재 선택된 레벨 인덱스 (0..LW_N-1)
@@ -166,7 +166,13 @@ function _lwBuildDetailShell() {
     <div class="ldp-info"></div>
     <div class="ldp-actions">
       <button class="level-action-btn level-action-btn--secondary">예습하기</button>
-      <button class="level-action-btn level-action-btn--primary">시작하기</button>
+      <button class="level-action-btn level-action-btn--primary">
+        <span>시작하기</span>
+        <span class="ldp-peak-cost" id="ldp-peak-cost">
+          <svg viewBox="0 0 24 24" class="ldp-peak-cost-icon"><path d="M12 1 C18 1 21 5 21 9.5 C21 14 17 20 13.2 22.3 C12.4 22.8 11.6 22.8 10.8 22.3 C7 20 3 14 3 9.5 C3 5 6 1 12 1 Z"/></svg>
+          <span class="ldp-peak-cost-count"></span>
+        </span>
+      </button>
     </div>
     <div class="ldp-stats-grid">
       <!-- 1행: 헤더 -->
@@ -251,6 +257,13 @@ function _lwUpdateDetail() {
   // 프리미엄 레벨은 잠겨도 버튼 활성화 유지 (클릭 → 플랜 시트)
   // 비프리미엄 locked만 disabled
   panel.querySelector('.level-action-btn--primary').disabled   = !!cfg.locked && !cfg.premium;
+
+  // 피크 소모량 표시 (미구현 레벨은 숨김)
+  const peakCostEl = panel.querySelector('#ldp-peak-cost');
+  if (peakCostEl) {
+    peakCostEl.style.display = cfg.poolReady ? '' : 'none';
+    if (cfg.poolReady) peakCostEl.querySelector('.ldp-peak-cost-count').textContent = 'x' + _quizPeakCost(cfg.id);
+  }
 
   if (cfg.count) updateLevelCardStats(cfg.id);
 }
@@ -1419,7 +1432,6 @@ let _current           = 0;
 let _questionStartTime = 0; // 문제 노출 시각 (ms)
 let _sessionStartTime  = 0; // 퀴즈 세션 시작 시각 (ms) — 훈련 시간 측정용
 let _results           = []; // { name, isCorrect, speedSec } 배열
-let _attendanceAchieved = false; // 이번 세션에서 오늘 1회 달성 여부
 let _newRecordSpeed     = null;  // 신기록 달성 시 기록값 (null이면 미달성)
 let _timerTimeout       = null;  // 문제 타임어택 타이머 ID
 let _countdownTimers    = [];    // 카운트다운 setTimeout ID 목록
@@ -1919,6 +1931,11 @@ function saveSessionStats() {
   // 최고기록 = 전문제 정답 달성 세션의 정답 평균 중 역대 최솟값
   _newRecordSpeed = null;
   const isPerfect = correctResults.length === _results.length;
+  if (isPerfect) stats.perfectSessions = (stats.perfectSessions || 0) + 1; // 레벨별 퍼펙트 퀘스트 카운터
+  // 챌린지(c1~c3) 퍼펙트는 quiz_level_stats(integer)에 안 담기므로 서버 별도 카운트
+  if (isPerfect && ['c1', 'c2', 'c3'].includes(String(levelId)) && typeof incrementChallengePerfect === 'function') {
+    incrementChallengePerfect(String(levelId));
+  }
   if (isPerfect && sessionAvg !== null && (stats.bestSpeedSec === null || sessionAvg < stats.bestSpeedSec)) {
     stats.bestSpeedSec = sessionAvg;
     _newRecordSpeed    = sessionAvg;
@@ -1959,30 +1976,22 @@ function updateTrainingOverviewStats(durationMin) {
 
   stats.today_sessions    = (stats.today_sessions    || 0) + 1;
   stats.total_completed   = (stats.total_completed   || 0) + 1;
+  const _oldMin = stats.training_time_min || 0;
   stats.training_time_min = Math.round(
-    ((stats.training_time_min || 0) + durationMin) * 10
+    (_oldMin + durationMin) * 10
   ) / 10;
-
-  // 스트릭 갱신 — 오늘 정확히 3번째 달성 시점에만 1회 적용
-  if (stats.today_sessions === 1) {
-    const yesterday = new Date(Date.now() - 86400000).toISOString().slice(0, 10);
-    if (stats.streak_last_counted_date === yesterday) {
-      stats.streak = (stats.streak || 0) + 1;
-    } else {
-      stats.streak = 1; // 첫 스트릭 또는 연속 끊긴 후 재시작
-    }
-    stats.streak_last_counted_date = today;
-    _attendanceAchieved = true; // 출석 완료 플래그
-  }
 
   localStorage.setItem(TRAINING_STATS_KEY, JSON.stringify(stats));
   syncTrainingStatsToDB(); // 즉시 DB 반영 (fire-and-forget)
 
-  // 리뷰 유도 조건: 코드 맞추기 1회 완료 / streak 3일+
-  if (typeof reviewQualify === 'function') {
-    reviewQualify('quiz_done');
-    if ((stats.streak || 0) >= 3) reviewQualify('streak_3');
+  // 행동형 XP: 세션 완료 + 훈련시간 10분당 (사일런트)
+  if (typeof addXp === 'function') {
+    const _timeXp = (Math.floor(stats.training_time_min / 10) - Math.floor(_oldMin / 10)) * BEHAVE_XP.per10min;
+    addXp(BEHAVE_XP.quiz + _timeXp);
   }
+
+  // 리뷰 유도 조건: 코드 맞추기 1회 완료 (streak 3일+ 조건은 claimDailyAttendance()로 이전)
+  if (typeof reviewQualify === 'function') reviewQualify('quiz_done');
 }
 
 // ── 세션 로컬 캐시 & DB 플러시 ───────────────────────────────
@@ -2232,6 +2241,9 @@ function showResultModal() {
     container.appendChild(item);
   });
 
+  const retryCostEl = document.getElementById('retry-peak-cost-count');
+  if (retryCostEl) retryCostEl.textContent = 'x' + _quizPeakCost(_currentLevel);
+
   document.getElementById('result-modal-overlay').classList.add('result-modal-overlay--show');
 
   // 결과 코드이름 1줄 자동맞춤 (레이아웃 확정 후)
@@ -2246,12 +2258,6 @@ function showResultModal() {
     setTimeout(() => showNewRecordModal(speed), 500);
   }
 
-  // 오늘 1회 달성 시 출석 완료 팝업 (결과 모달 등장 후 딜레이)
-  if (_attendanceAchieved) {
-    _attendanceAchieved = false;
-    const streak = JSON.parse(localStorage.getItem(TRAINING_STATS_KEY) || '{}').streak || 1;
-    setTimeout(() => showAttendanceModal(streak), 650);
-  }
 }
 
 function hideResultModal() {
@@ -2263,7 +2269,8 @@ function closeResultModal() {
   showModeSelect();
 }
 
-function retryFromResult() {
+async function retryFromResult() {
+  if (!(await consumePeak(_quizPeakCost(_currentLevel)))) return;
   analytics.track('quiz_retried', { level_id: _currentLevel, mode: _currentMode });
   hideResultModal();
   initQuiz();
@@ -2282,23 +2289,6 @@ function showNewRecordModal(speedSec) {
 function closeNewRecordModal() {
   const overlay = document.getElementById('newrecord-modal-overlay');
   if (overlay) overlay.classList.remove('newrecord-modal-overlay--show');
-}
-
-// ── 출석 완료 모달 ────────────────────────────────────────────
-function showAttendanceModal(streak) {
-  analytics.track('quiz_attendance_achieved', { streak });
-  const streakEl = document.getElementById('attendance-modal-streak');
-  if (streakEl) {
-    streakEl.textContent = streak === 1 ? '오늘부터 시작 · 1일 연속' : `${streak}일 연속 달성`;
-  }
-  const overlay = document.getElementById('attendance-modal-overlay');
-  if (overlay) overlay.classList.add('attendance-modal-overlay--show');
-  lucide.createIcons();
-}
-
-function closeAttendanceModal() {
-  const overlay = document.getElementById('attendance-modal-overlay');
-  if (overlay) overlay.classList.remove('attendance-modal-overlay--show');
 }
 
 // ── 뒤로 가기 ────────────────────────────────────────────────
@@ -2377,9 +2367,17 @@ function startLevel(levelId) {
   updateTopBar('mode-select');
 }
 
+// 레벨별 피크 소모량: 1~5=2 / 6~11=3 / 챌린지(c1~c3)=5
+function _quizPeakCost(levelId) {
+  if (levelId === 'c1' || levelId === 'c2' || levelId === 'c3') return 5;
+  const n = parseInt(levelId, 10);
+  return n >= 6 ? 3 : 2;
+}
+
 // 모드 선택 → 퀴즈 시작
-function startQuiz(mode) {
+async function startQuiz(mode) {
   if (mode !== 'name-from-diagram' && mode !== 'diagram-from-name') return;
+  if (!(await consumePeak(_quizPeakCost(_currentLevel)))) return;
   analytics.track('quiz_mode_selected', { level_id: _currentLevel, mode });
   _currentMode = mode;
   _currentView = 'quiz';

@@ -448,7 +448,20 @@ function strumTogglePlay() {
 }
 
 let _strumStarting = false;
+// 연습 시작(피크 1회 소모)으로 재생 잠금 해제. 이후 재생은 무한.
+let _strumPracticeUnlocked = false;
+async function strumUnlockPractice() {
+  if (_strumPracticeUnlocked) return;
+  if (!(await consumePeak(2))) return;
+  _strumPracticeUnlocked = true;
+  const gate = document.getElementById('strum-practice-gate');
+  if (gate) gate.style.display = 'none';
+  const btn = document.getElementById('strum-play-btn');
+  if (btn) btn.style.display = '';
+}
+
 async function strumPlayStart() {
+  if (!_strumPracticeUnlocked) return;
   if (_strumPlaying || _strumStarting) return; // 동기 재진입 가드 (await 중 중복 시작 방지)
   _strumStarting = true;
   // AudioContext는 user gesture 후 resume 필요 — 스케줄 전 반드시 await
@@ -469,6 +482,13 @@ async function strumPlayStart() {
   if (typeof Tone !== 'undefined') { try { Tone.getDestination().mute = false; } catch (e) {} }
   _strumPlaying  = true;
   analytics.track('strum_play_started', { id: STRUM_ITEM ? STRUM_ITEM.id : null, title: STRUM_ITEM ? STRUM_ITEM.title : null });
+
+  // 주법훈련 누적 재생 퀘스트 카운터
+  const _ss = JSON.parse(localStorage.getItem('training_stats') || '{}');
+  _ss.strum_completed = (_ss.strum_completed || 0) + 1;
+  localStorage.setItem('training_stats', JSON.stringify(_ss));
+  if (typeof syncTrainingStatsToDB === 'function') syncTrainingStatsToDB();
+  if (typeof addXp === 'function') addXp(BEHAVE_XP.strum); // 행동형 XP: 주법 훈련 (사일런트)
   _strumCellG    = 0;
   _strumDispBpm  = _strumRamp ? _strumStartBpm : _strumBpm;
   _strumPlayStartMs = Date.now(); // 훈련시간 측정 시작
@@ -630,6 +650,13 @@ function strumSchedulerTick() {
 }
 
 // ── 페이지 닫기 (리스트로 복귀) ─────────────────────────────
+// 뒤로가기 요청: 연습 잠금해제 상태면 경고 모달, 아니면 바로 나감.
+function requestStrumBack() {
+  if (isLeavePracticeOpen()) return;
+  if (_strumPracticeUnlocked) { showLeavePracticeModal(closeStrumPlay); return; }
+  closeStrumPlay();
+}
+
 function closeStrumPlay() {
   strumPlayStop();
   const shell = document.querySelector('.app-shell');
@@ -647,6 +674,14 @@ document.addEventListener('DOMContentLoaded', () => {
   // 슬라이드업 진입 애니메이션
   const shell = document.querySelector('.app-shell');
   if (shell) shell.classList.add('project-enter');
+
+  // Android 하드웨어 백: 모달 열려있으면 닫기, 아니면 뒤로가기 요청
+  if (window.Capacitor?.Plugins?.App) {
+    window.Capacitor.Plugins.App.addListener('backButton', () => {
+      if (isLeavePracticeOpen()) { hideLeavePracticeModal(); return; }
+      requestStrumBack();
+    });
+  }
 
   // ?id= 로 카드 데이터 조회 (없으면 ?lv= 넛지: 해당 레벨 카드 중 랜덤)
   const _params = new URLSearchParams(location.search);

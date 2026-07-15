@@ -21,6 +21,16 @@
       <button id="back-btn" class="icon-btn" onpointerup="closeScaleTraining()">
         <i data-lucide="x"></i>
       </button>
+      <div class="topbar-currency" id="topbar-currency" style="margin-left:auto;margin-right:15px;">
+        <div class="currency-item currency-item--clickable" onclick="openPeakboxModal()">
+          <span class="currency-count" id="currency-peakbox-count">0</span>
+          <div class="currency-icon-box"><img src="image/gift.png" alt=""></div>
+        </div>
+        <div class="currency-item currency-item--clickable" onclick="openPeakTimerPopup(event)">
+          <span class="currency-count" id="currency-peak-count">30/30</span>
+          <div class="currency-icon-box"><img src="image/peak.svg" alt=""></div>
+        </div>
+      </div>
     </div>
 
     <!-- ── 메인 콘텐츠 ── -->
@@ -66,20 +76,20 @@
               <span class="lw-name">마이너 블루스 스케일</span>
             </div>
 
-            <!-- 4. 내추럴 마이너 스케일 (프리미엄) -->
-            <div class="scale-item-card" data-key="natural-minor" data-level="4" data-premium="1" onpointerup="onScaleItemTap(this)">
+            <!-- 4. 내추럴 마이너 스케일 -->
+            <div class="scale-item-card" data-key="natural-minor" data-level="4" onpointerup="onScaleItemTap(this)">
               <div class="lw-row1">
                 <span class="lw-badge">LEVEL 4</span>
-                <span class="lw-row1-right"><i class="ph-fill ph-crown lw-premium-crown"></i></span>
+                <span class="lw-row1-right"></span>
               </div>
               <span class="lw-name">내추럴 마이너 스케일</span>
             </div>
 
-            <!-- 5. 하모닉 마이너 스케일 (프리미엄) -->
-            <div class="scale-item-card" data-key="harmonic-minor" data-level="5" data-premium="1" onpointerup="onScaleItemTap(this)">
+            <!-- 5. 하모닉 마이너 스케일 -->
+            <div class="scale-item-card" data-key="harmonic-minor" data-level="5" onpointerup="onScaleItemTap(this)">
               <div class="lw-row1">
                 <span class="lw-badge">LEVEL 5</span>
-                <span class="lw-row1-right"><i class="ph-fill ph-crown lw-premium-crown"></i></span>
+                <span class="lw-row1-right"></span>
               </div>
               <span class="lw-name">하모닉 마이너 스케일</span>
             </div>
@@ -115,28 +125,28 @@
             </div>
 
             <!-- 8. 2도 마이너 전환 -->
-            <div class="scale-item-card" data-key="secondary-ii" data-level="8" data-premium="1" onpointerup="onScaleItemTap(this)">
+            <div class="scale-item-card" data-key="secondary-ii" data-level="8" onpointerup="onScaleItemTap(this)">
               <div class="lw-row1">
                 <span class="lw-badge">LEVEL 8</span>
-                <span class="lw-row1-right"><i class="ph-fill ph-crown lw-premium-crown"></i></span>
+                <span class="lw-row1-right"></span>
               </div>
               <span class="lw-name">6도 마이너 전환</span>
             </div>
 
             <!-- 9. 2도 마이너 전환 -->
-            <div class="scale-item-card" data-key="secondary-vi" data-level="9" data-premium="1" onpointerup="onScaleItemTap(this)">
+            <div class="scale-item-card" data-key="secondary-vi" data-level="9" onpointerup="onScaleItemTap(this)">
               <div class="lw-row1">
                 <span class="lw-badge">LEVEL 9</span>
-                <span class="lw-row1-right"><i class="ph-fill ph-crown lw-premium-crown"></i></span>
+                <span class="lw-row1-right"></span>
               </div>
               <span class="lw-name">2도 마이너 전환</span>
             </div>
 
-            <!-- 10. 3도 마이너 전환 (커밍순, 프리미엄) -->
-            <div class="scale-item-card" data-key="secondary-iii" data-level="10" data-premium="1" onpointerup="onScaleItemTap(this)">
+            <!-- 10. 3도 마이너 전환 -->
+            <div class="scale-item-card" data-key="secondary-iii" data-level="10" onpointerup="onScaleItemTap(this)">
               <div class="lw-row1">
                 <span class="lw-badge">LEVEL 10</span>
-                <span class="lw-row1-right"><i class="ph-fill ph-crown lw-premium-crown"></i></span>
+                <span class="lw-row1-right"></span>
               </div>
               <span class="lw-name">내추럴 마이너 전환</span>
             </div>
@@ -171,47 +181,47 @@
               <span class="lw-name">도리안 스케일</span>
             </div>
 
-            <!-- 13. 프리지안 스케일 (프리미엄) -->
-            <div class="scale-item-card" data-key="phrygian" data-level="13" data-premium="1" onpointerup="onScaleItemTap(this)">
+            <!-- 13. 프리지안 스케일 -->
+            <div class="scale-item-card" data-key="phrygian" data-level="13" onpointerup="onScaleItemTap(this)">
               <div class="lw-row1">
                 <span class="lw-badge">LEVEL 13</span>
-                <span class="lw-row1-right"><i class="ph-fill ph-crown lw-premium-crown"></i></span>
+                <span class="lw-row1-right"></span>
               </div>
               <span class="lw-name">프리지안 스케일</span>
             </div>
 
-            <!-- 14. 리디안 스케일 (프리미엄) -->
-            <div class="scale-item-card" data-key="lydian" data-level="14" data-premium="1" onpointerup="onScaleItemTap(this)">
+            <!-- 14. 리디안 스케일 -->
+            <div class="scale-item-card" data-key="lydian" data-level="14" onpointerup="onScaleItemTap(this)">
               <div class="lw-row1">
                 <span class="lw-badge">LEVEL 14</span>
-                <span class="lw-row1-right"><i class="ph-fill ph-crown lw-premium-crown"></i></span>
+                <span class="lw-row1-right"></span>
               </div>
               <span class="lw-name">리디안 스케일</span>
             </div>
 
-            <!-- 15. 믹솔리디안 스케일 (프리미엄) -->
-            <div class="scale-item-card" data-key="mixolydian" data-level="15" data-premium="1" onpointerup="onScaleItemTap(this)">
+            <!-- 15. 믹솔리디안 스케일 -->
+            <div class="scale-item-card" data-key="mixolydian" data-level="15" onpointerup="onScaleItemTap(this)">
               <div class="lw-row1">
                 <span class="lw-badge">LEVEL 15</span>
-                <span class="lw-row1-right"><i class="ph-fill ph-crown lw-premium-crown"></i></span>
+                <span class="lw-row1-right"></span>
               </div>
               <span class="lw-name">믹솔리디안 스케일</span>
             </div>
 
-            <!-- 16. 에올리안 스케일 (프리미엄) -->
-            <div class="scale-item-card" data-key="aeolian" data-level="16" data-premium="1" onpointerup="onScaleItemTap(this)">
+            <!-- 16. 에올리안 스케일 -->
+            <div class="scale-item-card" data-key="aeolian" data-level="16" onpointerup="onScaleItemTap(this)">
               <div class="lw-row1">
                 <span class="lw-badge">LEVEL 16</span>
-                <span class="lw-row1-right"><i class="ph-fill ph-crown lw-premium-crown"></i></span>
+                <span class="lw-row1-right"></span>
               </div>
               <span class="lw-name">에올리안 스케일</span>
             </div>
 
-            <!-- 17. 로크리안 스케일 (프리미엄) -->
-            <div class="scale-item-card" data-key="locrian" data-level="17" data-premium="1" onpointerup="onScaleItemTap(this)">
+            <!-- 17. 로크리안 스케일 -->
+            <div class="scale-item-card" data-key="locrian" data-level="17" onpointerup="onScaleItemTap(this)">
               <div class="lw-row1">
                 <span class="lw-badge">LEVEL 17</span>
-                <span class="lw-row1-right"><i class="ph-fill ph-crown lw-premium-crown"></i></span>
+                <span class="lw-row1-right"></span>
               </div>
               <span class="lw-name">로크리안 스케일</span>
             </div>

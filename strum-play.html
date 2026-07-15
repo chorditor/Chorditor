@@ -18,9 +18,19 @@
 
     <!-- ── 탑바 ── -->
     <div class="top-bar">
-      <button id="back-btn" class="icon-btn" onpointerup="closeStrumPlay()">
+      <button id="back-btn" class="icon-btn" onpointerup="requestStrumBack()">
         <i data-lucide="chevron-left"></i>
       </button>
+      <div class="topbar-currency" id="topbar-currency" style="margin-left:auto;margin-right:15px;">
+        <div class="currency-item currency-item--clickable" onclick="openPeakboxModal()">
+          <span class="currency-count" id="currency-peakbox-count">0</span>
+          <div class="currency-icon-box"><img src="image/gift.png" alt=""></div>
+        </div>
+        <div class="currency-item currency-item--clickable" onclick="openPeakTimerPopup(event)">
+          <span class="currency-count" id="currency-peak-count">30/30</span>
+          <div class="currency-icon-box"><img src="image/peak.svg" alt=""></div>
+        </div>
+      </div>
     </div>
 
     <!-- ── 메인 콘텐츠 ── -->
@@ -95,8 +105,15 @@
         </div><!-- /strum-play-controls -->
 
         <div class="strum-play-foot">
-          <button class="strum-play-btn" id="strum-play-btn" onpointerup="strumTogglePlay()">
+          <button class="strum-play-btn" id="strum-play-btn" onpointerup="strumTogglePlay()" style="display:none">
             <i class="ph-fill ph-play"></i>
+          </button>
+          <button class="practice-gate-btn" id="strum-practice-gate" onpointerup="strumUnlockPractice()">
+            <span>연습 시작하기</span>
+            <span class="practice-gate-cost">
+              <svg viewBox="0 0 24 24" class="practice-gate-icon"><path d="M12 1 C18 1 21 5 21 9.5 C21 14 17 20 13.2 22.3 C12.4 22.8 11.6 22.8 10.8 22.3 C7 20 3 14 3 9.5 C3 5 6 1 12 1 Z"/></svg>
+              <span>x2</span>
+            </span>
           </button>
         </div>
 

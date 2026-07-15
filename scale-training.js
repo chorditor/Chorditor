@@ -3,7 +3,7 @@
 // ═══════════════════════════════════════════════════════════════
 
 // ── 프리미엄 전역 스위치 (출시 직전 true로 변경) ─────────────
-const PREMIUM_ENABLED = true;
+const PREMIUM_ENABLED = false;
 
 // ── 페이지 닫기 (훈련소로 복귀) ─────────────────────────────
 function closeScaleTraining() {
@@ -30,11 +30,12 @@ function onScaleItemTap(el) {
 
   analytics.track('scale_item_tapped', { scale_key: key, level });
   const shell = document.querySelector('.app-shell');
+  const url = `scale-level.html?key=${key}&level=${level}`;
   if (shell) {
     shell.classList.add('project-exit');
-    setTimeout(() => { location.href = `scale-level.html?key=${key}`; }, 260);
+    setTimeout(() => { location.href = url; }, 260);
   } else {
-    location.href = `scale-level.html?key=${key}`;
+    location.href = url;
   }
 }
 

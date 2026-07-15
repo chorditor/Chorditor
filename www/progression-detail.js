@@ -236,7 +236,20 @@ function _runCountIn(onComplete) {
   }, startDelay);
 }
 
+// 연습 시작(피크 1회 소모)으로 재생 잠금 해제. 이후 재생은 무한.
+let _practiceUnlocked = false;
+async function unlockPractice() {
+  if (_practiceUnlocked) return;
+  if (!(await consumePeak(2))) return;
+  _practiceUnlocked = true;
+  const gate = document.getElementById('detail-practice-gate');
+  if (gate) gate.style.display = 'none';
+  const btn = document.getElementById('detail-play-btn');
+  if (btn) { btn.style.display = ''; }
+}
+
 async function togglePlay() {
+  if (!_practiceUnlocked) return;
   if (_playing || _starting) {
     await _stopPlay();
     return;
@@ -352,6 +365,13 @@ function _updateActiveCard(idx) {
 }
 
 // ── 뒤로가기 ────────────────────────────────────────────────
+// 뒤로가기 요청: 연습 잠금해제 상태면 경고 모달, 아니면 바로 나감.
+function requestBack() {
+  if (isLeavePracticeOpen()) return;
+  if (_practiceUnlocked) { showLeavePracticeModal(goBack); return; }
+  goBack();
+}
+
 async function goBack() {
   await _stopPlay({ wait: true });
   const shell = document.querySelector('.app-shell');
@@ -703,6 +723,14 @@ document.addEventListener('DOMContentLoaded', () => {
   // 페이지 진입 애니메이션
   const shell = document.querySelector('.app-shell');
   if (shell) shell.classList.add('project-enter');
+
+  // Android 하드웨어 백: 모달 열려있으면 닫기, 아니면 뒤로가기 요청
+  if (window.Capacitor?.Plugins?.App) {
+    window.Capacitor.Plugins.App.addListener('backButton', () => {
+      if (isLeavePracticeOpen()) { hideLeavePracticeModal(); return; }
+      requestBack();
+    });
+  }
 
   // 페이지 이탈 중 재생이면 훈련시간 적립
   window.addEventListener('pagehide', () => { if (_playing) _stopPlay(); });
