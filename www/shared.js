@@ -6,7 +6,7 @@
 // ── 상수 ─────────────────────────────────────────────────────
 const SUPABASE_URL  = 'https://jbvkygeksohlysyvaoab.supabase.co';
 const SUPABASE_ANON = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Impidmt5Z2Vrc29obHlzeXZhb2FiIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzYzOTk5NjgsImV4cCI6MjA5MTk3NTk2OH0.6RSgChy0Yq0H2TJpZPSoMKQ2V-OYfR0XzE1aJBBZkXI';
-const APP_VERSION   = '1.3.0_pre2';
+const APP_VERSION   = '1.3.0_dev';
 const SUPABASE_STORAGE_KEY = 'sb-jbvkygeksohlysyvaoab-auth-token';
 
 // ── Analytics SDK ─────────────────────────────────────────────
@@ -442,8 +442,8 @@ async function consumePeak(cost) {
     _peakState = { balance: r.balance, peakbox_count: r.peakbox_count, loaded: true };
     renderPeakBadge();
     if (!r.ok) {
-      analytics.track('peak_insufficient', { cost, balance: r.balance });
-      if (typeof openPlanSheet === 'function') openPlanSheet('peak_insufficient');
+      analytics.track('peak_insufficient', { cost, balance: r.balance, ab_group: _peakFunnelGroup() });
+      _openPeakInsufficientFunnel();
       return false;
     }
     analytics.track('peak_consumed', { cost, balance_after: r.balance });
@@ -454,8 +454,8 @@ async function consumePeak(cost) {
   if (local.balance < cost) {
     _peakState = { balance: local.balance, peakbox_count: local.peakbox_count, loaded: true };
     renderPeakBadge();
-    analytics.track('peak_insufficient', { cost, balance: local.balance });
-    if (typeof openPlanSheet === 'function') openPlanSheet('peak_insufficient');
+    analytics.track('peak_insufficient', { cost, balance: local.balance, ab_group: _peakFunnelGroup() });
+    _openPeakInsufficientFunnel();
     return false;
   }
   const newBal = local.balance - cost;
@@ -1277,10 +1277,52 @@ async function restorePurchases() {
   }
 }
 
+// ── A/B 실험: 피크부족 퍼널 (테이블 없이 user_id 결정론적 50/50) ──
+// A = 부족 즉시 구독시트(기존). B = 완충 모달 경유 후 유저 선택.
+// uuid v4 첫 hex 문자(완전 랜덤): 짝수(0·2·4·6·8·a·c·e)→A, 홀수→B.
+// 비로그인/uid 없음 → A(기존 동작) 폴백.
+// SQL 동일 규칙: substr(user_id::text,1,1) in ('0','2','4','6','8','a','c','e') → 'A' else 'B'
+function _peakFunnelGroup() {
+  let uid = null;
+  try {
+    const stored = localStorage.getItem(SUPABASE_STORAGE_KEY);
+    if (stored) uid = JSON.parse(stored)?.user?.id || null;
+  } catch (_) {}
+  if (!uid) return 'A';
+  return '02468ace'.includes(uid[0].toLowerCase()) ? 'A' : 'B';
+}
+
+function _openPeakInsufficientFunnel() {
+  if (_peakFunnelGroup() === 'B') {
+    if (typeof openPeakBuffer === 'function') openPeakBuffer();
+  } else {
+    if (typeof openPlanSheet === 'function') openPlanSheet('peak_insufficient');
+  }
+}
+
+// B그룹 완충 모달: 구독시트를 바로 띄우지 않고 유저에게 선택권 제공
+function openPeakBuffer() {
+  const ov = document.getElementById('peak-buffer-overlay');
+  if (!ov) return;
+  if (typeof analytics !== 'undefined') analytics.track('peak_buffer_shown', { ab_group: 'B' });
+  setTimeout(() => ov.classList.add('peak-buffer-overlay--open'), 0);
+}
+function closePeakBuffer() {
+  document.getElementById('peak-buffer-overlay')?.classList.remove('peak-buffer-overlay--open');
+}
+function _peakBufferToPlan() {
+  closePeakBuffer();
+  if (typeof analytics !== 'undefined') analytics.track('peak_buffer_cta', { ab_group: 'B' });
+  openPlanSheet('peak_buffer');
+}
+
 function openPlanSheet(triggerSource) {
   const overlay = document.getElementById('plan-sheet-overlay');
   const sheet   = document.getElementById('plan-sheet');
   if (!sheet) return;
+  if (typeof analytics !== 'undefined') {
+    analytics.track('paywall_view', { trigger: triggerSource || 'unknown', ab_group: _peakFunnelGroup() });
+  }
 
   const plan     = getPlan();
   const isNative = window.Capacitor?.isNativePlatform();
@@ -1343,9 +1385,9 @@ function _initPlanSheet() {
       <div class="plan-sheet-hero-text">매일 피크 제한없이<br>사용해보세요!</div>
     </div>
     <div class="plan-feature-box">
-      <div class="plan-feature-row"><span class="plan-feature-emoji">⚡</span><span>피크 사용량 무제한</span></div>
-      <div class="plan-feature-row"><span class="plan-feature-emoji">🌟</span><span>코드 이미지 고급 설정 개방</span></div>
-      <div class="plan-feature-row"><span class="plan-feature-emoji">✏️</span><span>노트 무제한, 편리한 저장 기능</span></div>
+      <div class="plan-feature-row"><img class="plan-feature-icon" src="image/peak.svg" alt=""><span>피크 사용량 무제한</span></div>
+      <div class="plan-feature-row"><img class="plan-feature-icon" src="image/photo.png" alt=""><span>코드 이미지 고급 설정 개방</span></div>
+      <div class="plan-feature-row"><img class="plan-feature-icon" src="image/pencil.png" alt=""><span>노트 무제한, 편리한 저장 기능</span></div>
     </div>
     <div class="plan-sheet-divider"></div>
     <div class="plan-launch-banner">출시 할인가 적용<br>Pro 업그레이드하기</div>
@@ -1408,6 +1450,15 @@ function _initPlanSheet() {
       <div class="faq-item"><div class="faq-q">앱 계정과 Play Store 계정이 다르면?</div><div class="faq-a">플레이스토어 계정의 결제 정보를 사용하게 되어 구독 관리가 어려워질 수 있습니다.</div></div>
       <div class="faq-item"><div class="faq-q">구독했는데 앱에서 Free로 표시되면?</div><div class="faq-a">플랜 설명창 하단의 "구매 복원" 버튼을 눌러주세요.</div></div>
     </div>
+  </div>
+</div>
+<div class="peak-buffer-overlay" id="peak-buffer-overlay" onclick="if(event.target===this)closePeakBuffer()">
+  <div class="peak-buffer-modal">
+    <img class="peak-buffer-icon" src="image/peak.svg" alt="">
+    <div class="peak-buffer-title">피크가 부족해요</div>
+    <div class="peak-buffer-desc">Pro 플랜이면 피크 걱정 없이<br>무제한으로 연습할 수 있어요.</div>
+    <button class="peak-buffer-cta" onclick="_peakBufferToPlan()">Pro 플랜 보기</button>
+    <button class="peak-buffer-dismiss" onclick="closePeakBuffer()">다음에</button>
   </div>
 </div>`;
   while (el.firstChild) document.body.appendChild(el.firstChild);

@@ -345,13 +345,18 @@ body {
   display: flex;
   align-items: center;
   gap: 10px;
+  background: #fff;
+  border-radius: 999px;
+  padding: 0 10px;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.08);
 }
 
 
 .currency-item {
   display: flex;
+  flex-direction: row-reverse;
   align-items: center;
-  gap: 4px;
+  gap: 2px;
 }
 
 .currency-item--clickable {
@@ -362,8 +367,8 @@ body {
 }
 
 .currency-icon-box {
-  width: 15px;
-  height: 19px;
+  width: 22px;
+  height: 26px;
   flex-shrink: 0;
   display: flex;
   align-items: center;
@@ -378,17 +383,21 @@ body {
 }
 
 .currency-icon-box img {
-  width: 12px;
-  height: 12px;
+  width: 16px;
+  height: 16px;
   display: block;
   object-fit: contain;
   margin: auto;
 }
 
+.currency-icon-box img[src$="gift.png"] {
+  transform: translateY(-1.4px);
+}
+
 .currency-count {
   font-size: 12px;
   font-weight: 700;
-  color: var(--text-primary);
+  color: var(--text-secondary);
 }
 
 #back-btn {
@@ -5722,6 +5731,86 @@ canvas {
   opacity: 1;
   pointer-events: all;
 }
+
+/* A/B 실험 B그룹: 피크부족 완충 모달 */
+.peak-buffer-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 5100;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 32px;
+  background: rgba(0,0,0,0.48);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.22s ease;
+}
+.peak-buffer-overlay--open {
+  opacity: 1;
+  pointer-events: all;
+}
+.peak-buffer-modal {
+  width: 100%;
+  max-width: 320px;
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  padding: 28px 24px 20px;
+  background: #fff;
+  border-radius: 20px;
+  box-shadow: 0 8px 32px rgba(0,0,0,0.18);
+  transform: scale(0.94);
+  transition: transform 0.22s ease;
+}
+.peak-buffer-overlay--open .peak-buffer-modal {
+  transform: scale(1);
+}
+.peak-buffer-icon {
+  width: 40px;
+  height: 40px;
+  object-fit: contain;
+  margin-bottom: 2px;
+}
+.peak-buffer-title {
+  font-size: 17px;
+  font-weight: 800;
+  color: var(--text-primary);
+}
+.peak-buffer-desc {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text-secondary);
+  text-align: center;
+  line-height: 1.5;
+  margin-bottom: 8px;
+}
+.peak-buffer-cta {
+  width: 100%;
+  padding: 13px;
+  border: none;
+  border-radius: 12px;
+  background: var(--blue);
+  color: #fff;
+  font-size: 15px;
+  font-weight: 700;
+  font-family: 'Pretendard', sans-serif;
+  cursor: pointer;
+}
+.peak-buffer-cta:active { opacity: 0.85; }
+.peak-buffer-dismiss {
+  width: 100%;
+  padding: 8px;
+  border: none;
+  background: none;
+  color: var(--text-muted);
+  font-size: 13px;
+  font-weight: 600;
+  font-family: 'Pretendard', sans-serif;
+  cursor: pointer;
+}
 .plan-sheet {
   position: fixed;
   bottom: 0;
@@ -5839,15 +5928,11 @@ canvas {
   flex-shrink: 0;
 }
 
-.plan-feature-emoji {
+.plan-feature-icon {
   width: 22px;
+  height: 22px;
   flex-shrink: 0;
-  font-size: 18px;
-  line-height: 1;
-  text-align: center;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
+  object-fit: contain;
 }
 
 /* ?�?� ?�로???�이지 ?�?� */
@@ -8064,6 +8149,9 @@ canvas {
 }
 
 .attend-cal-makeup-count {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   min-width: 16px;
   height: 16px;
   padding: 0 4px;
@@ -8073,7 +8161,6 @@ canvas {
   color: #fff;
   font-size: 10px;
   font-weight: 800;
-  line-height: 16px;
   text-align: center;
 }
 

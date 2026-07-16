@@ -2403,19 +2403,23 @@ function updateProgressDots() {
 
 // 탑바 아이콘·텍스트 전환
 function updateTopBar(view) {
-  const backBtn = document.getElementById('back-btn');
-  const center  = document.getElementById('quiz-topbar-center');
+  const backBtn  = document.getElementById('back-btn');
+  const center   = document.getElementById('quiz-topbar-center');
+  const currency = document.getElementById('topbar-currency');
   if (view === 'level-select') {
     backBtn.style.visibility = '';
     backBtn.innerHTML = '<i data-lucide="x"></i>';
     center.innerHTML  = '';
+    if (currency) currency.style.display = '';
   } else if (view === 'mode-select') {
     backBtn.style.visibility = '';
     backBtn.innerHTML = '<i data-lucide="chevron-left"></i>';
     center.innerHTML  = '';
+    if (currency) currency.style.display = '';
   } else {
     backBtn.style.visibility = 'hidden'; // 퀴즈 중 이탈 버튼 제거
     center.innerHTML  = '<div id="quiz-progress-dots" class="quiz-progress-dots"></div>';
+    if (currency) currency.style.display = 'none'; // 퀴즈 중 UI 단순화 — 수량 표기 숨김
   }
   lucide.createIcons();
 }

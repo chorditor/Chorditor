@@ -21,6 +21,16 @@
       <button id="back-btn" onpointerup="requestBack()">
         <i data-lucide="chevron-left"></i>
       </button>
+      <div class="topbar-currency" id="topbar-currency" style="margin-left:auto;margin-right:15px;">
+        <div class="currency-item currency-item--clickable" onclick="openPeakboxModal()">
+          <span class="currency-count" id="currency-peakbox-count">0</span>
+          <div class="currency-icon-box"><img src="image/gift.png" alt=""></div>
+        </div>
+        <div class="currency-item currency-item--clickable" onclick="openPeakTimerPopup(event)">
+          <span class="currency-count" id="currency-peak-count">30/30</span>
+          <div class="currency-icon-box"><img src="image/peak.svg" alt=""></div>
+        </div>
+      </div>
     </div>
 
     <!-- 메인 콘텐츠 -->
