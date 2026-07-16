@@ -1970,6 +1970,13 @@ async function loadProfileFromDB() {
       if (pBadge) pBadge.hidden = true;
       if (pDiv) pDiv.hidden = true;
     }
+
+    // DB persona → localStorage 동기화 (실기기 등 새 환경에서 unboxing 고정 방지)
+    if (row.persona && PERSONA_STAGES.indexOf(row.persona) !== -1 && row.persona !== getUserPersona()) {
+      setUserPersona(row.persona);
+      if (typeof renderProfileXp === 'function') renderProfileXp();
+      if (typeof renderTopbarLevel === 'function') renderTopbarLevel();
+    }
   } catch(e) {
     console.warn('[Profile] catch:', e);
   }

@@ -7,8 +7,8 @@
   --text-secondary: #6b6560;
   --text-muted: #a09b95;
   --accent: #e03c31;
-  --blue: #2563EB;
-  --blue-light: rgba(37, 99, 235, 0.08);
+  --blue: #3B82F6;
+  --blue-light: rgba(59, 130, 246, 0.08);
   --charcoal-blue: #334155;
   --radius: 16px;
   --radius-lg: 16px;
@@ -6076,8 +6076,8 @@ canvas {
   font-weight: 700;
 }
 @keyframes pt-pulse {
-  0%, 100% { box-shadow: 0 0 0 0 rgba(37,99,235,0.35); }
-  50% { box-shadow: 0 0 0 5px rgba(37,99,235,0); }
+  0%, 100% { box-shadow: 0 0 0 0 rgba(59,130,246,0.35); }
+  50% { box-shadow: 0 0 0 5px rgba(59,130,246,0); }
 }
 
 .profile-plan-banner {
@@ -6243,7 +6243,7 @@ canvas {
   line-height: 1;
   color: var(--text-primary);
 }
-.training-stats-icon i          { color: #2563EB; } /* �?블루 ??차트 */
+.training-stats-icon i          { color: #3B82F6; } /* �?블루 ??차트 */
 .training-card--chord-name    .training-card-icon i,
 .training-card--chord-diagram .training-card-icon i,
 .training-card--fretboard     .training-card-icon i,
@@ -10746,8 +10746,8 @@ canvas {
     --text-secondary: #6b6560;
     --text-muted: #a09b95;
     --accent: #e03c31;
-    --blue: #2563EB;
-    --blue-light: rgba(37, 99, 235, 0.08);
+    --blue: #3B82F6;
+    --blue-light: rgba(59, 130, 246, 0.08);
     --charcoal-blue: #334155;
     --icon-purple: #7B52CC;
     --icon-green:  #2E9E72;
