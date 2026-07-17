@@ -600,6 +600,7 @@ body {
 }
 
 .hdb-icon {
+  position: relative;
   width: 52px;
   height: 44px;
   flex-shrink: 0;
@@ -608,6 +609,18 @@ body {
   align-items: center;
   justify-content: center;
 }
+
+.hdb-quest-dot {
+  position: absolute;
+  top: 2px;
+  right: 8px;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--blue);
+  border: 1.5px solid #fff;
+}
+.hdb-quest-dot[hidden] { display: none; }
 
 .hdb-icon img {
   width: 32px;
@@ -8310,10 +8323,10 @@ canvas {
   justify-content: space-between;
 }
 
-.quest-modal-title-icon {
-  width: 22px;
-  height: 22px;
-  object-fit: contain;
+.quest-modal-title {
+  font-size: 18px;
+  font-weight: 800;
+  color: #1a1a1a;
 }
 
 .quest-modal-claimable {
@@ -8478,6 +8491,7 @@ canvas {
   display: flex;
   flex-direction: column;
   gap: 2px;
+  padding-right: 10px;
 }
 
 .quest-card-stats {
@@ -8501,17 +8515,20 @@ canvas {
 
 .quest-card-progress-col {
   order: 1;
-  width: 64px;
+  width: 52px;
   flex-shrink: 0;
   display: flex;
   justify-content: flex-end;
 }
 
 .quest-card-title {
+  display: block;
   font-size: 12px;
   font-weight: 600;
   color: #1C1F26;
   letter-spacing: -0.2px;
+  padding-right: 10px;
+  white-space: nowrap;
 }
 
 .quest-card-desc {

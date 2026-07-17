@@ -67,7 +67,7 @@
               </div>
               <div class="hdb-divider"></div>
               <div class="hdb-col" id="hdb-quest" onclick="openQuestModal()">
-                <div class="hdb-icon"><img src="image/badge.png" alt=""></div>
+                <div class="hdb-icon"><img src="image/badge.png" alt=""><span class="hdb-quest-dot" id="hdb-quest-dot" hidden></span></div>
                 <div class="hdb-text">
                   <div class="hdb-label">퀘스트 보상</div>
                 </div>
@@ -728,7 +728,7 @@
   <div class="attend-cal-overlay" id="attend-cal-overlay" onclick="if(event.target===this)closeAttendanceCalendar()">
     <div class="attend-cal">
       <div class="attend-cal-header">
-        <span class="attend-cal-title">출석 달력</span>
+        <span class="attend-cal-title">출석체크</span>
         <div class="attend-cal-header-right">
           <button class="attend-cal-makeup" id="attend-cal-makeup" onclick="makeupAttendance()">
             보충출석 <span class="attend-cal-makeup-count" id="attend-cal-makeup-count">3</span>
@@ -745,7 +745,7 @@
   <div class="quest-modal-overlay" id="quest-modal-overlay" onclick="if(event.target===this)closeQuestModal()">
     <div class="quest-modal">
       <div class="quest-modal-header">
-        <img src="image/badge.png" class="quest-modal-title-icon" alt="">
+        <span class="quest-modal-title">퀘스트</span>
         <button class="icon-btn" onclick="closeQuestModal()"><i data-lucide="x"></i></button>
       </div>
       <div class="quest-modal-claimable" id="quest-modal-claimable"></div>

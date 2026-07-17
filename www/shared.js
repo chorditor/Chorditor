@@ -1810,7 +1810,7 @@ function _localMakeup() {
 }
 
 // 접속 시 도장 진행 (home 진입에서 claimDailyAttendance 와 병행 호출)
-async function advanceAttendance() {
+async function advanceAttendance(onDone) {
   const r = await _peakRpc('advance_attendance');
   let res;
   if (r) {
@@ -1823,22 +1823,24 @@ async function advanceAttendance() {
   renderPeakboxBadge();
   // 오늘 도장 실제로 찍힘 → 달력 자동 오픈 + 오늘 칸 도장 애니메이션
   if (res.advanced) setTimeout(() => openAttendanceCalendar(res.day), ATTENDANCE_CAL_DELAY_MS);
+
+  // 마일스톤(보상칸) 도장 → 애니메이션 후 피크상자 수령 모달 자동 표시 (호출 경로 무관)
+  // onDone: 모달 닫힘(보상 없으면 즉시) 후 이어질 콜백 — 홈 플로우의 랜덤피크 모달 연결용
+  const stampDelay = res.advanced ? ATTENDANCE_CAL_DELAY_MS + STAMP_ANIM_MS + 200 : 0;
+  setTimeout(() => {
+    if (res.advanced && res.reward > 0) {
+      showPeakboxRewardModal(res.reward, onDone);
+    } else if (typeof onDone === 'function') {
+      onDone();
+    }
+  }, stampDelay);
   return res;
 }
 
 // 접속 시 출석 플로우 오케스트레이터 (home 진입에서 호출).
 // 순서: ① 출석도장(달력 자동오픈+애니메이션) → ② 마일스톤 상자모달 → ③ 매일 랜덤피크 모달
 async function runDailyAttendanceFlow() {
-  const res = await advanceAttendance();
-  const stampDelay = (res && res.advanced) ? ATTENDANCE_CAL_DELAY_MS + STAMP_ANIM_MS + 200 : 0;
-  setTimeout(() => {
-    if (res && res.advanced && res.reward > 0) {
-      // 마일스톤: 상자모달 확인 후 랜덤피크 모달로 이어짐 (달력은 유지)
-      showPeakboxRewardModal(res.reward, () => { claimDailyAttendance(); });
-    } else {
-      claimDailyAttendance();
-    }
-  }, stampDelay);
+  advanceAttendance(() => { claimDailyAttendance(); });
 }
 
 // animateDay: 해당 칸 도장에 찍힘 애니메이션 부여(방금 찍힌 오늘 칸). 없으면 정적 렌더.
@@ -1899,15 +1901,15 @@ const _CHALLENGE_XP = { c1: 800, c2: 1200, c3: 1800 };
 
 // ── 행동형 XP (사일런트 적립 — 액션 시 화면표시 없음, 프로필 획득표로 확인) ──
 const BEHAVE_XP = {
-  attendance: 15, // 일일 출석
-  share: 10,      // 노트 공유
-  note: 5,        // 노트(프로젝트) 생성
-  quiz: 5,        // 코드 맞추기 세션 완료
-  scale: 5,       // 스케일 훈련 세션 완료
-  progression: 3, // 코드 진행 재생 완료
-  strum: 3,       // 주법 훈련 완료
-  image: 2,       // 코드 이미지 저장
-  per10min: 1,    // 훈련시간 10분당 (quiz·scale)
+  share: 100,      // 노트 공유 (리퍼럴 효과 — 마케팅 가치 높음)
+  note: 50,        // 노트(프로젝트) 생성 (많이 생성하는 컨텐츠가 아니라 고보상)
+  attendance: 15,  // 일일 출석
+  per10min: 10,    // 훈련시간 10분당 (quiz·scale)
+  progression: 10, // 코드 진행 재생 완료
+  strum: 10,       // 주법 훈련 완료
+  quiz: 5,         // 코드 맞추기 세션 완료
+  scale: 5,        // 스케일 훈련 세션 완료
+  image: 2,        // 코드 이미지 저장
 };
 
 // ── 퀘스트: 누적출석 (평생 총 출석일수, 30일 순환달력과 별개) ──────
@@ -2442,8 +2444,8 @@ function _scalePerfectCardsHtml(list) {
       : '<span class="quest-card-progress">' + Math.min(inCycle, 3) + ' / 3</span>';
     return '<div class="quest-card">' +
         '<div class="quest-card-info">' +
-          '<span class="quest-card-title">' + (SCALE_LEVEL_NAMES[q.level] || ('레벨 ' + q.level)) + '</span>' +
-          '<span class="quest-card-desc">퍼펙트 3회</span>' +
+          '<span class="quest-card-title">(반복) ' + (SCALE_LEVEL_NAMES[q.level] || ('레벨 ' + q.level)) + '</span>' +
+          '<span class="quest-card-desc">퍼펙트 정답 3회 마다</span>' +
         '</div>' +
         '<div class="quest-card-stats">' +
           _questRewardHtml(q.reward, _scalePerfectXp(q.level)) +
@@ -2638,8 +2640,8 @@ function _challengeCardsHtml(list) {
       : '<span class="quest-card-progress">' + Math.min(inCycle, 3) + ' / 3</span>';
     return '<div class="quest-card">' +
         '<div class="quest-card-info">' +
-          '<span class="quest-card-title">' + (_CHALLENGE_NAME[q.ch] || q.ch) + '</span>' +
-          '<span class="quest-card-desc">퍼펙트 3회</span>' +
+          '<span class="quest-card-title">(반복) ' + (_CHALLENGE_NAME[q.ch] || q.ch) + '</span>' +
+          '<span class="quest-card-desc">퍼펙트 정답 3회 마다</span>' +
         '</div>' +
         '<div class="quest-card-stats">' +
           _questRewardHtml(q.reward, _CHALLENGE_XP[q.ch] || 0) +
@@ -2659,8 +2661,8 @@ function _perfectCardsHtml(list) {
       : '<span class="quest-card-progress">' + Math.min(inCycle, 3) + ' / 3</span>';
     return '<div class="quest-card">' +
         '<div class="quest-card-info">' +
-          '<span class="quest-card-title">' + (QUIZ_LEVEL_NAMES[q.level] || ('레벨 ' + q.level)) + '</span>' +
-          '<span class="quest-card-desc">퍼펙트 3회</span>' +
+          '<span class="quest-card-title">(반복) ' + (QUIZ_LEVEL_NAMES[q.level] || ('레벨 ' + q.level)) + '</span>' +
+          '<span class="quest-card-desc">퍼펙트 정답 3회 마다</span>' +
         '</div>' +
         '<div class="quest-card-stats">' +
           _questRewardHtml(q.reward, _perfectXp(q.level)) +
@@ -2933,7 +2935,7 @@ async function renderQuestList() {
 
   const qlDone = Math.min(ql.done, 1);
   const qlNextDay = ql.next_level ? 1 : 0;
-  const qlHtml = _questCardHtml('코드 맞추기 레벨', '레벨 ' + ql.next_level + ' 첫 완료',
+  const qlHtml = _questCardHtml('코드 맞추기 레벨', '레벨' + ql.next_level + ' 첫 완료',
     ql.reward, _quizLvlXp(ql.next_level), qlDone, qlNextDay, 'claimQuizLevelQuest');
   parts.push(qlHtml);
   if (_isClaimable(qlDone, qlNextDay)) top.push(qlHtml);
@@ -2954,7 +2956,7 @@ async function renderQuestList() {
 
   const slDone = sl.done ? 1 : 0;
   const slNextDay = sl.next_level ? 1 : 0;
-  const slHtml = _questCardHtml('스케일 레벨', '레벨 ' + sl.next_level + ' 첫 완료',
+  const slHtml = _questCardHtml('스케일 레벨', '레벨' + sl.next_level + ' 첫 완료',
     sl.reward, _scaleLvlXp(sl.next_level), slDone, slNextDay, 'claimScaleLevelQuest');
   parts.push(slHtml);
   if (_isClaimable(slDone, slNextDay)) top.push(slHtml);
@@ -2978,6 +2980,9 @@ async function renderQuestList() {
   body.innerHTML = parts.join('');
   if (claimBody) claimBody.innerHTML = top.slice(0, 3).join(''); // 수령 가능 목록 최대 3개
   if (typeof lucide !== 'undefined') lucide.createIcons();
+
+  const dot = document.getElementById('hdb-quest-dot');
+  if (dot) dot.hidden = top.length === 0;
 }
 
 function openQuestModal() {
@@ -2996,15 +3001,15 @@ function closeQuestModal() {
 // ── 경험치 획득 안내 (행동형 레퍼런스표, 프로필 XP바 클릭) ──
 // 값은 BEHAVE_XP 단일 소스 참조 → 적립 로직과 항상 일치.
 const XP_INFO_ROWS = [
-  ['일일 출석',            BEHAVE_XP.attendance],
   ['노트 공유',            BEHAVE_XP.share],
   ['노트 생성',            BEHAVE_XP.note],
-  ['코드 맞추기 완료',      BEHAVE_XP.quiz],
-  ['스케일 훈련 완료',      BEHAVE_XP.scale],
+  ['일일 출석',            BEHAVE_XP.attendance],
+  ['훈련 10분당',          BEHAVE_XP.per10min],
   ['코드 진행 재생',        BEHAVE_XP.progression],
   ['주법 훈련',            BEHAVE_XP.strum],
+  ['코드 맞추기 완료',      BEHAVE_XP.quiz],
+  ['스케일 훈련 완료',      BEHAVE_XP.scale],
   ['코드 이미지 저장',      BEHAVE_XP.image],
-  ['훈련 10분당',          BEHAVE_XP.per10min],
 ];
 
 function openXpInfoModal() {
