@@ -357,6 +357,36 @@ function canUseScale(scale)  { return scale <= getPlanLimit('maxScale'); }
 const PEAK_CAP = 30;
 const PEAKBOX_REWARD = 5;
 
+// 효과음 프리로드 캐시 — 매번 new Audio()의 디스크 로드·디코드 지연 제거.
+// 프리로드 안 하면 첫 재생이 100ms+ 늦어 화면전환(페이지 이동)과 레이스로 소리가 잘림.
+const _sfxCache = {};
+function _preloadSfx(src) {
+  let a = _sfxCache[src];
+  if (!a) { a = new Audio('sound/' + src); a.preload = 'auto'; try { a.load(); } catch (e) {} _sfxCache[src] = a; }
+  return a;
+}
+// 재생. 프리로드된 객체 재사용(currentTime=0으로 재시작) → play() 즉시 시작.
+// play() 프로미스 반환 → 호출측이 재생 실패/시작을 감지해 후속 처리(페이지 이동 등) 가능.
+// 실제 오디오 게인(진폭). localStorage 'sfx_volume'은 슬라이더 raw값(0~1)이고
+// 청각은 로그 스케일이라 raw 그대로 쓰면 중간에서 별로 안 줄어듦 → raw² 지각 곡선 적용.
+function _getSfxMasterVolume() {
+  const v = parseFloat(localStorage.getItem('sfx_volume'));
+  if (isNaN(v)) return 1;
+  const raw = Math.max(0, Math.min(1, v));
+  return raw * raw;
+}
+function _playSfx(src, vol) {
+  try {
+    const a = _preloadSfx(src);
+    a.volume = ((vol == null) ? 1 : vol) * _getSfxMasterVolume();
+    a.currentTime = 0;
+    const p = a.play();
+    return (p && p.catch) ? p.catch(() => {}) : Promise.resolve();
+  } catch (e) { return Promise.resolve(); }
+}
+// 버튼 탭 효과음(선택 적용) — 파일 교체 시 여기 한 곳만 수정.
+function _playTap() { return _playSfx('tap.mp3'); }
+
 // 출석 랜덤상자 보상: 2~10 랜덤, 기댓값 3 (최빈값 2). SQL claim_daily_attendance()와 동일 가중치.
 const ATTENDANCE_REWARD_WEIGHTS = [5000, 2500, 1250, 625, 313, 156, 78, 39, 39]; // 값 2~10, 합 10000
 function _rollAttendanceReward() {
@@ -473,6 +503,8 @@ document.addEventListener('DOMContentLoaded', () => {
   }
   // 모달용 이미지 프리로드 — 세션 중 모달 첫 오픈 시 아이콘 늦게 뜨는 끊김 방지
   ['image/gift.png', 'image/gift2.png', 'image/peak.svg'].forEach(src => { new Image().src = src; });
+  // 효과음 프리로드 — 첫 재생 디코드 지연 제거(화면전환과 레이스 방지)
+  ['tap.mp3', 'reward.mp3', 'peakbox_open.mp3', 'stamp.mp3', 'page.mp3', 'pop.mp3', 'cancel.mp3', 'attendance.mp3'].forEach(_preloadSfx);
   // 퀘스트 목록 프리렌더 — 모달 열기 전에 미리 채워둠 (첫 오픈 즉시 표시)
   if (document.getElementById('quest-modal-body')) renderQuestList();
 });
@@ -480,6 +512,7 @@ document.addEventListener('DOMContentLoaded', () => {
 // 피크 아이콘 터치 → 완전충전까지 남은시간 라운드박스 팝업 (아이콘 바로 아래)
 let _peakTimerInterval = null;
 async function openPeakTimerPopup(evt) {
+  _playSfx('pop.mp3');
   const anchor = evt.currentTarget;
   closePeakTimerPopup();
 
@@ -570,6 +603,7 @@ function renderPeakboxBadge() {
 
 // 피크상자 직접 열기: reveal 모달에서 1개/5개씩 개봉. 미개봉 상태(gift)로 시작.
 function openPeakboxModal() {
+  _playSfx('pop.mp3');
   if (_peakState.peakbox_count <= 0) return;
   // 상자 1개 실제 개봉(RPC 우선, 실패 시 로컬 폴백). 성공 시 true.
   const openOnce = async () => {
@@ -593,6 +627,7 @@ function openPeakboxModal() {
       if (await openOnce()) opened++; else break;
     }
     if (opened > 0) {
+      _playSfx('peakbox_open.mp3');
       renderPeakBadge();
       renderPeakboxBadge();
       analytics.track('peakbox_opened', { reward: PEAKBOX_REWARD * opened, balance_after: _peakState.balance });
@@ -701,6 +736,7 @@ function closePeakReveal() {
 // 연습 중단 경고 모달 (진행·주법 공통). onConfirm = 실제 나가기 동작.
 let _leavePracticeOpen = false;
 function showLeavePracticeModal(onConfirm) {
+  _playSfx('cancel.mp3');
   let ov = document.getElementById('leave-practice-overlay');
   if (!ov) {
     ov = document.createElement('div');
@@ -1657,8 +1693,8 @@ function recordTrainingAttendance() {
   if (typeof syncTrainingStatsToDB === 'function') syncTrainingStatsToDB();
 }
 
-// 출석 모달 등장 딜레이(ms).
-const ATTENDANCE_MODAL_DELAY_MS = 650;
+// 출석 모달 등장 딜레이(ms). 도장 찍힌 후 완료모달까지의 간격 — 절반으로 단축.
+const ATTENDANCE_MODAL_DELAY_MS = 325;
 const ATTENDANCE_CAL_DELAY_MS = 300;
 
 // 출석 랜덤상자 모달 표시(접속 시 claimDailyAttendance() 에서만 호출). 모달 DOM은 동적 생성.
@@ -1688,6 +1724,7 @@ function showTrainingAttendanceModal(streak, reward, newBalance) {
     box.onclick = function () {
       if (opened) return;
       opened = true;
+      _playSfx('peakbox_open.mp3');
       overlay.classList.remove('attendance-modal-overlay--show'); // 상자 모달 닫고
       showPeakReveal(reward);                                     // 피크 등장 연출 공개
       // 공개 시점에 잔량 배지 반영
@@ -1871,6 +1908,13 @@ function openAttendanceCalendar(animateDay) {
     html += '<div class="' + cls.join(' ') + '">' + inner + '</div>';
   }
   grid.innerHTML = html;
+  // 도장 소리 싱크: CSS 애니메이션 실제 시작(animationstart, delay 경과 후) 기준으로
+  // "쾅" 내려찍는 임팩트(55% 지점 = duration*0.55)에 맞춰 재생. reflow/paint 지연 영향 제거.
+  if (animateDay) {
+    const stampEl = grid.querySelector('.acc-cell--animate .acc-stamp');
+    if (stampEl) stampEl.addEventListener('animationstart',
+      () => setTimeout(() => _playSfx('stamp.mp3'), STAMP_IMPACT_OFFSET_MS), { once: true });
+  }
 
   const mkCountEl = document.getElementById('attend-cal-makeup-count');
   if (mkCountEl) mkCountEl.textContent = st.makeup_left;
@@ -1878,6 +1922,8 @@ function openAttendanceCalendar(animateDay) {
   if (mkBtn) mkBtn.disabled = !(st.needs_makeup && st.makeup_left > 0);
 
   overlay.classList.add('attend-cal-overlay--show');
+  // 도장 찍는 경로(일일 첫 접속·보충)=attendance.mp3, 홈배너 열람(animateDay 없음)=page.mp3
+  _playSfx(animateDay ? 'attendance.mp3' : 'page.mp3', animateDay ? 0.5 : 1);
   if (typeof lucide !== 'undefined') lucide.createIcons();
 }
 
@@ -2989,6 +3035,7 @@ function openQuestModal() {
   const overlay = document.getElementById('quest-modal-overlay');
   if (!overlay) return;
   overlay.classList.add('quest-modal-overlay--show');
+  _playSfx('page.mp3');
   renderQuestList();
   if (typeof lucide !== 'undefined') lucide.createIcons();
 }
@@ -3049,13 +3096,16 @@ async function makeupAttendance() {
   if (res.reward > 0) setTimeout(() => showPeakboxRewardModal(res.reward), STAMP_ANIM_MS + 150);
 }
 
-// 오늘 칸 도장 찍힘 애니메이션 완료 시각(ms) — style.css delay(0.35s)+duration(0.45s) 합
-const STAMP_ANIM_MS = 800;
+// 오늘 칸 도장 찍힘 애니메이션 완료 시각(ms) — style.css delay(0.4s)+duration(0.7s) 합
+const STAMP_ANIM_MS = 1100;
+// 도장 "쾅" 임팩트 오프셋(ms) — animationstart(delay 경과 후) 기준. ease-in이라 끝(duration)에서 쾅. 소리 싱크용
+const STAMP_IMPACT_OFFSET_MS = 700;
 
 // 마일스톤 피크상자 획득 모달. onClose = 확인/닫힘 시 콜백(다음 플로우 연결용).
 // 피크상자 획득 연출(마일스톤/보상). gift 아이콘 등장 + '피크상자 +N' 라벨. 확인/탭 시 onClose 실행.
 function showPeakboxRewardModal(count, onClose) {
   if (count <= 0) { if (typeof onClose === 'function') onClose(); return; }
+  _playSfx('reward.mp3');
   showPeakReveal(null, {
     icon: 'gift',
     labelText: '+' + count + ' 상자',
@@ -3076,6 +3126,7 @@ if (typeof window !== 'undefined') {
   window.openAttendanceCalendar       = openAttendanceCalendar;
   window.closeAttendanceCalendar      = closeAttendanceCalendar;
   window.makeupAttendance             = makeupAttendance;
+  window._playTap                     = _playTap;
   window.showPeakboxRewardModal       = showPeakboxRewardModal;
   window.openQuestModal               = openQuestModal;
   window.closeQuestModal              = closeQuestModal;
@@ -3145,6 +3196,33 @@ async function _savePushToken(token) {
         'apikey':         SUPABASE_ANON,
         'Authorization': `Bearer ${accessToken}`,
       },
+    });
+  } catch (_) {}
+}
+
+// 설정 > 푸시알림 하위 토글(연습 알림=nudge / 리마인드=winback) 서버 반영.
+// col: 'nudge_enabled' | 'winback_enabled'
+async function _setPushCategoryPref(col, val) {
+  let accessToken = null, userId = null;
+  try {
+    const stored = localStorage.getItem(SUPABASE_STORAGE_KEY);
+    if (stored) {
+      const p = JSON.parse(stored);
+      accessToken = p?.access_token ?? null;
+      userId      = p?.user?.id     ?? null;
+    }
+  } catch (_) {}
+  if (!accessToken || !userId) return;
+  try {
+    await fetch(`${SUPABASE_URL}/rest/v1/push_tokens?user_id=eq.${userId}`, {
+      method: 'PATCH',
+      headers: {
+        'Content-Type':  'application/json',
+        'apikey':         SUPABASE_ANON,
+        'Authorization': `Bearer ${accessToken}`,
+        'Prefer':        'return=minimal',
+      },
+      body: JSON.stringify({ [col]: val }),
     });
   } catch (_) {}
 }

@@ -1287,6 +1287,17 @@ let metronomeBeatCount = 0;
 let playbackStartAudioTime = 0;
 let playbackEndAudioTime = 0;   // 곡 종료 오디오 시각 (0 = 제한 없음)
 
+// 설정>사운드 마스터 볼륨용 최종 게인(엔벨로프 뒤 → 낮은 볼륨서도 클릭 없음)
+let _upSfxMaster = null;
+function _getUpSfxBus() {
+  if (!_upSfxMaster || _upSfxMaster.context !== audioCtx) {
+    _upSfxMaster = audioCtx.createGain();
+    _upSfxMaster.connect(audioCtx.destination);
+  }
+  _upSfxMaster.gain.value = (typeof _getSfxMasterVolume === 'function') ? _getSfxMasterVolume() : 1;
+  return _upSfxMaster;
+}
+
 function metronomeClick(time, isDownbeat) {
   if (!audioCtx) return;
   const osc = audioCtx.createOscillator();
@@ -1299,7 +1310,7 @@ function metronomeClick(time, isDownbeat) {
 
   osc.connect(filter);
   filter.connect(gain);
-  gain.connect(audioCtx.destination);
+  gain.connect(_getUpSfxBus());
 
   osc.type = 'sine';
   osc.frequency.value = isDownbeat ? 740 : 520;
@@ -4450,6 +4461,7 @@ function onAuthSignedIn() {
 // ═══════════════════════════════════════════════════════════════
 // ─── 프로젝트 페이지 닫기 (슬라이드다운 애니메이션) ──────────────
 async function closeProjectPage() {
+  _playTap();
   await stopPlayAll({ wait: true });
   const shell = document.querySelector('.app-shell');
   if (shell) {

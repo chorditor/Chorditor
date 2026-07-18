@@ -4,6 +4,7 @@
 
 // ── 훈련소 닫기 (홈으로 복귀) ────────────────────────────────
 function closeTrainingPage() {
+  _playTap();
   const shell = document.querySelector('.app-shell');
   if (shell) {
     shell.classList.add('project-exit');
@@ -138,7 +139,7 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     card.addEventListener('pointerup', () => {
-      if (!_moved) onTrainingCardTap(card.dataset.key);
+      if (!_moved) { _playTap(); onTrainingCardTap(card.dataset.key); }
     });
   });
 });

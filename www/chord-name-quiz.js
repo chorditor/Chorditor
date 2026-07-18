@@ -194,11 +194,14 @@ function _lwBuildDetailShell() {
   // 이벤트는 골격 생성 시 한 번만 바인딩 (이벤트 위임)
   panel.querySelector('.level-action-btn--secondary').addEventListener('pointerup', e => {
     e.stopPropagation();
+    _playTap();
     const cfg = LEVEL_CONFIGS[_lwRealIdx];
     if (cfg.poolReady) openPreviewModal(cfg.id);  // 풀이 구현된 레벨만 예습 허용
   });
   panel.querySelector('.level-action-btn--primary').addEventListener('pointerup', e => {
     e.stopPropagation();
+    _playTap();
+    _playSfx('pop.mp3');
     const cfg = LEVEL_CONFIGS[_lwRealIdx];
     // 프리미엄 체크 먼저 — locked여도 플랜 시트 노출
     if (cfg.premium && getPlan() === 'free') {
@@ -298,6 +301,7 @@ function buildLevelList() {
       ${!cfg.poolReady ? '<span class="lw-coming-soon">COMING SOON</span>' : ''}
     `;
     el.addEventListener('pointerup', () => {
+      _playTap();
       track.querySelectorAll('.lw-item').forEach(e => e.classList.remove('lw-item--selected'));
       el.classList.add('lw-item--selected');
       _lwRealIdx = i;
@@ -1440,7 +1444,8 @@ let _answered           = false; // 현재 문제 응답 처리 여부 — 타�
 const TRAINING_STATS_KEY = 'training_stats';
 
 // ── 효과음 ────────────────────────────────────────────────────
-let _audioCtx = null;
+let _audioCtx    = null;
+let _sfxMaster   = null; // 설정>사운드 마스터 볼륨용 최종 게인(엔벨로프 뒤 → 낮은 볼륨서도 클릭 없음)
 
 function _getAudioCtx() {
   if (!_audioCtx) {
@@ -1448,6 +1453,16 @@ function _getAudioCtx() {
   }
   if (_audioCtx.state === 'suspended') _audioCtx.resume();
   return _audioCtx;
+}
+
+// 마스터 볼륨 게인 버스 반환(재생 시점 최신값 반영). 엔벨로프는 full-range 유지.
+function _getSfxBus(ctx) {
+  if (!_sfxMaster) {
+    _sfxMaster = ctx.createGain();
+    _sfxMaster.connect(ctx.destination);
+  }
+  _sfxMaster.gain.value = (typeof _getSfxMasterVolume === 'function') ? _getSfxMasterVolume() : 1;
+  return _sfxMaster;
 }
 
 // 짧은 게임 비프 (카운트다운용)
@@ -1458,7 +1473,7 @@ function _playBeep(freq, duration) {
     const osc  = ctx.createOscillator();
     const gain = ctx.createGain();
     osc.connect(gain);
-    gain.connect(ctx.destination);
+    gain.connect(_getSfxBus(ctx));
     osc.type = 'sine';
     osc.frequency.setValueAtTime(freq, t);
     gain.gain.setValueAtTime(0, t);
@@ -1474,6 +1489,7 @@ function _playBell(freq, startDelay, gainVal) {
   try {
     const ctx = _getAudioCtx();
     const t   = ctx.currentTime + startDelay;
+    const bus = _getSfxBus(ctx); // 마스터 볼륨은 여기서 일괄(엔벨로프 원형 유지)
     // 배음 비율·게인·감쇠 (높을수록 찰랑 질감)
     const partials = [
       { r: 1,      g: gainVal,        d: 0.8  },
@@ -1486,7 +1502,7 @@ function _playBell(freq, startDelay, gainVal) {
       const osc  = ctx.createOscillator();
       const gain = ctx.createGain();
       osc.connect(gain);
-      gain.connect(ctx.destination);
+      gain.connect(bus);
       osc.type = 'sine';
       // 피치 글라이드: 어택 직후 1.5% 하강 (실제 벨 특성)
       osc.frequency.setValueAtTime(freq * r * 1.015, t);
@@ -2293,6 +2309,7 @@ function closeNewRecordModal() {
 
 // ── 뒤로 가기 ────────────────────────────────────────────────
 function handleBack() {
+  _playTap();
   if (_currentView === 'quiz') {
     analytics.track('quiz_abandoned', {
       level_id:          _currentLevel,

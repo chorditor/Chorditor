@@ -293,6 +293,7 @@ function strumSetBpm(bpm) {
 }
 
 function strumChangeBpm(delta) {
+  _playTap();
   strumSetBpm(_strumBpm + delta);
 }
 
@@ -303,6 +304,7 @@ let _strumRamp = false;
 let _strumStartBpm = 60;
 
 function strumToggleRamp(on) {
+  _playTap();
   _strumRamp = !!on;
   const box = document.getElementById('strum-ramp-start');
   if (box) box.classList.toggle('hidden', !_strumRamp);
@@ -366,6 +368,7 @@ function strumSetStart(bpm) {
 }
 
 function strumChangeStart(delta) {
+  _playTap();
   strumSetStart(_strumStartBpm + delta);
 }
 
@@ -451,6 +454,7 @@ let _strumStarting = false;
 // 연습 시작(피크 1회 소모)으로 재생 잠금 해제. 이후 재생은 무한.
 let _strumPracticeUnlocked = false;
 async function strumUnlockPractice() {
+  _playSfx('pop.mp3');
   if (_strumPracticeUnlocked) return;
   if (!(await consumePeak(2))) return;
   _strumPracticeUnlocked = true;
@@ -652,6 +656,7 @@ function strumSchedulerTick() {
 // ── 페이지 닫기 (리스트로 복귀) ─────────────────────────────
 // 뒤로가기 요청: 연습 잠금해제 상태면 경고 모달, 아니면 바로 나감.
 function requestStrumBack() {
+  _playTap();
   if (isLeavePracticeOpen()) return;
   if (_strumPracticeUnlocked) { showLeavePracticeModal(closeStrumPlay); return; }
   closeStrumPlay();

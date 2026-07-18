@@ -56,6 +56,7 @@ AS $function$
 
   WHERE idle.idle_days <  3          -- 하한 제거(당일 접속 포함) / 3일↑은 윈백 담당
     AND pt.token IS NOT NULL
+    AND pt.nudge_enabled = true      -- 설정 > 푸시알림 > 연습 알림 OFF 시 제외
 
   ORDER BY pt.user_id, random();
 $function$;

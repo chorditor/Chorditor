@@ -495,6 +495,7 @@ let isEditMode = true;
 let _editorReturnProjectId = null;  // 복귀할 프로젝트 ID
 let _editorEditingChordId  = null;  // 편집 중인 기존 코드 ID (null이면 신규 추가)
 let _isFromProject         = false; // user_project → 에디터 진입 모드 여부
+let _fromLibraryToEditor   = false; // 코드사전 '에디터로' → 에디터 진입 시 true. 에디터 뒤로가기를 사전으로 복귀시킴
 
 // 하단 탭 네비게이션 상태
 let _activeTab      = 'home';    // 'home' | 'projects' | 'profile'
@@ -694,10 +695,12 @@ function renderBassBtns() {
 }
 
 function toggleAccidental() {
+  _playTap();
   const current = document.getElementById('acc-sharp')?.classList.contains('active') ? 'sharp' : 'flat';
   setAccidental(current === 'sharp' ? 'flat' : 'sharp');
 }
 function toggleLibAccidental() {
+  _playTap();
   const current = document.getElementById('lib-acc-sharp')?.classList.contains('active') ? 'sharp' : 'flat';
   setLibAccidental(current === 'sharp' ? 'flat' : 'sharp');
 }
@@ -944,6 +947,7 @@ let rootMode    = false;
 let rootIndex   = -1;
 
 function toggleFingerNum() {
+  _playTap();
   fingerNumMode = !fingerNumMode;
   document.getElementById('btn-finger-num').classList.toggle('active', fingerNumMode);
   document.getElementById('finger-group').style.opacity = fingerNumMode ? '1' : '0.35';
@@ -964,6 +968,7 @@ function toggleRootMode() {
 }
 
 function selectFinger(n) {
+  _playTap();
   selectedFinger = n;
   document.querySelectorAll('.finger-btn').forEach(b => b.classList.remove('selected'));
   document.getElementById('f' + n).classList.add('selected');
@@ -1006,7 +1011,7 @@ function resetAll() {
 }
 
 // 캔버스 사이드 버튼 — 바텀바 기능 위임
-function resetChord()     { resetAll(); }
+function resetChord()     { _playTap(); resetAll(); }
 function saveChordImage() { openImgSaveModal('editor'); }
 
 function getBarreFrets() {
@@ -1337,6 +1342,7 @@ function updateBarreBtns() {
       font-size:${Math.round(22 * ds)}px;font-family:'Pretendard',sans-serif;
       cursor:pointer;display:flex;align-items:center;justify-content:center;padding:0;`;
     btn.onclick = () => {
+      _playTap();
       if (!barreActive[f]) {
         // 활성화 시도: 최대 2개 제한 확인
         const activeCount = Object.values(barreActive).filter(Boolean).length;
@@ -1563,6 +1569,7 @@ window.addEventListener('resize', resizeCanvas);
 let currentFretNumber = 2;
 
 function adjustFretNumber(delta) {
+  _playTap();
   const next = currentFretNumber + delta;
   if (next < 2 || next > 18) return;
   currentFretNumber = next;
@@ -2093,9 +2100,24 @@ function enterFromBlock(e, el, view) {
     const moveY   = Math.abs(ev.clientY - startY);
     cleanup();
     if (elapsed < 300 && moveY < 10) {
+      const _tapP = _playTap();
       analytics.track('home_block_tapped', { block: view });
-      if (view === 'training') { location.href = 'training.html'; return; }
-      enterFromHome(view);
+      // training은 실제 페이지 이동(언로드가 재생을 끊음) → 재생 시작 확인 후 어택 확보하고 이동.
+      // 폴백: 재생이 차단/지연돼도 300ms 내 반드시 이동(전환이 멈추지 않도록).
+      if (view === 'training') {
+        let _navd = false;
+        const _go = () => { if (!_navd) { _navd = true; location.href = 'training.html'; } };
+        _tapP.then(() => setTimeout(_go, 240)); // 트림된 tap(~260ms) 온전 재생 후 이동 → 깨짐 방지
+        setTimeout(_go, 450);                   // 폴백: 재생 차단/지연돼도 반드시 이동
+        return;
+      }
+      // 홈블럭 직접 에디터 진입은 사전 복귀 대상 아님 → 플래그 해제
+      if (view === 'editor') _fromLibraryToEditor = false;
+      // 에디터에서 뒤로가기(back-btn = 'home') 시, 사전 경유로 왔으면 홈 대신 사전으로 복귀
+      let _dest = view, _reverse = false;
+      if (view === 'home' && _homeSubView === 'editor' && _fromLibraryToEditor) { _dest = 'library'; _reverse = true; }
+      _fromLibraryToEditor = false; // 에디터 이탈 시 소진
+      enterFromHome(_dest, false, _reverse);
     }
   }
 
@@ -2108,6 +2130,7 @@ function enterFromBlock(e, el, view) {
 
 function tapSwitchTab(el, tab) {
   if (el.dataset.going) return;
+  _playTap();
   // from_project 모드: 커버로 가린 채 에디터 초기화 → 해당 탭으로 이동 → 커버 제거
   if (_isFromProject) {
     _editorReturnProjectId = null;
@@ -2142,7 +2165,7 @@ function tapSwitchTab(el, tab) {
 }
 
 // ─── 홈 탭 → 서브뷰 진입 ─────────────────────────────────────
-async function enterFromHome(view, skipAnim = false) {
+async function enterFromHome(view, skipAnim = false, reverse = false) {
   const prevView = _homeSubView;
   _homeSubView = view;
 
@@ -2163,7 +2186,8 @@ async function enterFromHome(view, skipAnim = false) {
       document.getElementById(id)?.classList.toggle('hidden', id !== ids[view])
     );
   } else {
-    const forward = view !== 'home';
+    let forward = view !== 'home';
+    if (reverse) forward = !forward; // 에디터→사전 복귀 등: 방향 반전
     // outgoing: animationend 미발화 대비 타임아웃 폴백 (SPA DOM 재사용 버그 방지)
     outgoing.classList.add(forward ? 'slide-out-left' : 'slide-out-right');
     let outDone = false;
@@ -2401,6 +2425,13 @@ function _renderProjectsSection(container, label, projects, showDivider = true) 
     const actions = document.createElement('div');
     actions.className = 'projects-item-actions';
 
+    const deleteBtn = document.createElement('button');
+    deleteBtn.className = 'projects-item-delete';
+    deleteBtn.innerHTML = '<i data-lucide="trash-2"></i>';
+    deleteBtn.title = '삭제';
+    deleteBtn.addEventListener('pointerdown', (e) => e.stopPropagation());
+    deleteBtn.addEventListener('pointerup', (e) => { e.stopPropagation(); openDeleteConfirm(project.id); });
+
     const renameBtn = document.createElement('button');
     renameBtn.innerHTML = '<i data-lucide="pencil"></i>';
     renameBtn.title = '이름 변경';
@@ -2421,6 +2452,7 @@ function _renderProjectsSection(container, label, projects, showDivider = true) 
     starBtn.addEventListener('pointerdown', (e) => e.stopPropagation());
     starBtn.addEventListener('pointerup', (e) => { e.stopPropagation(); toggleImportant(project.id); });
 
+    actions.appendChild(deleteBtn); // 가장 좌측
     actions.appendChild(renameBtn);
     actions.appendChild(pinBtn);
     actions.appendChild(starBtn);
@@ -2431,6 +2463,7 @@ function _renderProjectsSection(container, label, projects, showDivider = true) 
     kebabBtn.addEventListener('pointerdown', (e) => e.stopPropagation());
     kebabBtn.addEventListener('pointerup', (e) => {
       e.stopPropagation();
+      _playTap();
       document.querySelectorAll('.projects-item.show-actions').forEach(el => {
         if (el !== item) el.classList.remove('show-actions');
       });
@@ -2524,6 +2557,42 @@ function confirmRenameProject() {
   saveProjects(projects);
   renderProjectsList();
   closeModal('modal-rename-project');
+}
+
+// 노트 목록에서 삭제 — user_project와 동일한 delete-confirm 모달 공유
+function openDeleteConfirm(projectId) {
+  const overlay = document.getElementById('delete-confirm-overlay');
+  if (!overlay) return;
+  const modal = overlay.querySelector('.delete-confirm-modal');
+  const confirmBtn = document.getElementById('delete-confirm-btn');
+  confirmBtn.onclick = () => { closeDeleteConfirm(); _deleteProjectFromList(projectId); };
+  overlay.classList.remove('hidden');
+  requestAnimationFrame(() => {
+    overlay.classList.add('open');
+    modal.style.animation = 'deleteConfirmIn 0.38s cubic-bezier(0.34, 1.56, 0.64, 1) forwards';
+  });
+}
+
+function closeDeleteConfirm() {
+  const overlay = document.getElementById('delete-confirm-overlay');
+  if (!overlay) return;
+  const modal = overlay.querySelector('.delete-confirm-modal');
+  modal.style.animation = 'deleteConfirmOut 0.22s cubic-bezier(0.4, 0, 1, 1) forwards';
+  setTimeout(() => {
+    overlay.classList.add('hidden');
+    overlay.classList.remove('open');
+    modal.style.animation = '';
+  }, 220);
+}
+
+function _deleteProjectFromList(projectId) {
+  let projects = loadProjects();
+  const target = projects.find(p => p.id === projectId);
+  const chordCount = (target?.slots || []).filter(s => s && s.name).length;
+  if (typeof analytics !== 'undefined') analytics.track('project_deleted', { project_id: projectId, chord_count: chordCount });
+  projects = projects.filter(p => p.id !== projectId);
+  saveProjects(projects);
+  renderProjectsList();
 }
 
 function reorderPinned(dragId, targetId) {
@@ -2623,7 +2692,7 @@ async function promptCreateProject() {
       current_count: loadProjects().length,
       plan_limit: getPlanLimit('maxProjects'),
     });
-    showUpgradeModal('project_limit');
+    openPlanModal();
     return;
   }
   const input = document.getElementById('create-project-name-input');
@@ -2639,7 +2708,7 @@ function confirmCreateProject() {
   if (!name) { input.focus(); return; }
   if (!canCreateProject()) {
     closeModal('modal-create-project');
-    showUpgradeModal('project_limit');
+    openPlanModal();
     return;
   }
 
@@ -2755,6 +2824,7 @@ let _pendingChordForSheet = null;
 
 function libSaveToProject() {
   if (!_libEntry) return;
+  _playTap();
   const useFlat  = accidental === 'flat';
   const dispName = useFlat ? _libEntry.flatName : _libEntry.name;
   // 에디터 "슬롯2 = fretNumber" 모델 — pattern: 라벨 r+1/offset r-1, static: 라벨 r/offset r-2 (라벨 최소 2)
@@ -2839,7 +2909,7 @@ function openProjectSheet() {
     item.innerHTML =
       `<span class="project-sheet-item-name">${p.name}</span>` +
       `<span class="project-sheet-item-count">${_relativeTime(p.updatedAt || p.createdAt)}</span>`;
-    item.addEventListener('pointerdown', () => _addChordToProject(p.id));
+    item.addEventListener('click', () => _addChordToProject(p.id));
     list.appendChild(item);
   });
 
@@ -2849,7 +2919,7 @@ function openProjectSheet() {
   card.innerHTML =
     `<i data-lucide="plus-circle" class="project-sheet-new-icon"></i>` +
     `<span class="project-sheet-new-label">새 노트 만들기</span>`;
-  card.addEventListener('pointerdown', () => {
+  card.addEventListener('click', () => {
     closeProjectSheet();
     setTimeout(() => promptCreateProject(), 350);
   });
@@ -2864,6 +2934,7 @@ function openProjectSheet() {
 function closeProjectSheet() {
   const overlay = document.getElementById('project-sheet-overlay');
   if (!overlay) return;
+  _playTap();
   overlay.classList.remove('open');
   overlay.classList.add('closing');
   overlay.addEventListener('transitionend', () => {
@@ -2962,12 +3033,16 @@ function closeModal(id) {
   document.getElementById(id).classList.add('hidden');
 }
 
-// ─── 설정 모달 ───────────────────────────────────────────────
+// ─── 설정 페이지 ───────────────────────────────────────────────
 function openSettings() {
   const t = document.getElementById('setting-push-toggle');
   if (t) t.checked = localStorage.getItem('push_enabled') !== '0'; // 미설정=ON
-  document.getElementById('modal-settings').classList.remove('hidden');
+  document.getElementById('settings-page-overlay').classList.add('settings-page-overlay--open');
   if (window.lucide) lucide.createIcons();
+}
+
+function closeSettings() {
+  document.getElementById('settings-page-overlay').classList.remove('settings-page-overlay--open');
 }
 
 async function onPushToggle(el) {
@@ -2981,6 +3056,134 @@ async function onPushToggle(el) {
       if (typeof showTextToast === 'function') showTextToast('알림 권한이 꺼져 있어요. 기기 설정에서 허용해 주세요.');
     }
   }
+}
+
+// ── 설정 하위 페이지: 푸시알림(연습 알림/리마인드) ───────────────
+function openPushSettingsPage() {
+  _playTap();
+  const nudgeT = document.getElementById('push-nudge-toggle');
+  const winT   = document.getElementById('push-winback-toggle');
+  const peakT  = document.getElementById('push-peakfull-toggle');
+  if (nudgeT) nudgeT.checked = localStorage.getItem('push_nudge_enabled')    !== '0'; // 미설정=ON
+  if (winT)   winT.checked   = localStorage.getItem('push_winback_enabled')  !== '0';
+  if (peakT)  peakT.checked  = localStorage.getItem('push_peakfull_enabled') !== '0';
+  document.getElementById('push-settings-page-overlay').classList.add('settings-page-overlay--open');
+  if (window.lucide) lucide.createIcons();
+}
+
+function closePushSettingsPage() {
+  document.getElementById('push-settings-page-overlay').classList.remove('settings-page-overlay--open');
+}
+
+function onPushCategoryToggle(kind, el) {
+  const KEY = { nudge: 'push_nudge_enabled', winback: 'push_winback_enabled', peakfull: 'push_peakfull_enabled' };
+  const COL = { nudge: 'nudge_enabled',       winback: 'winback_enabled',      peakfull: 'peakfull_enabled' };
+  localStorage.setItem(KEY[kind], el.checked ? '1' : '0');
+  _setPushCategoryPref(COL[kind], el.checked);
+}
+
+// ── 사운드 볼륨 바텀시트 ───────────────────────────────────────
+function openSoundSheet() {
+  _playTap();
+  const slider = document.getElementById('sound-volume-slider');
+  // 슬라이더는 raw값 표시(getter는 raw² 게인이라 그대로 쓰면 desync)
+  if (slider) {
+    const raw = parseFloat(localStorage.getItem('sfx_volume'));
+    slider.value = isNaN(raw) ? 100 : Math.round(Math.max(0, Math.min(1, raw)) * 100);
+  }
+  document.getElementById('sound-sheet-overlay').classList.add('gsheet-overlay--open');
+  document.getElementById('sound-sheet').classList.add('gsheet--open');
+  if (window.lucide) lucide.createIcons();
+}
+
+function closeSoundSheet() {
+  _stopSoundPreview();
+  document.getElementById('sound-sheet-overlay').classList.remove('gsheet-overlay--open');
+  document.getElementById('sound-sheet').classList.remove('gsheet--open');
+}
+
+// 슬라이더 조작 중 A코드 반복 재생 → 실시간 음량 체감용
+let _soundPreviewTimer     = null; // A코드 반복 재생 인터벌
+let _soundPreviewStopTimer = null; // 슬라이드 멈춤 감지 후 정지 예약
+function _playAPreview() {
+  if (typeof GuitarAudio === 'undefined') return;
+  if (GuitarAudio.resume) GuitarAudio.resume();
+  // 오픈 A 메이저 실제 보이싱: A2 E3 A3 C#4 E4 (저음 포함, 에디터 기본값과 동일)
+  GuitarAudio.strumNotes([45, 52, 57, 61, 64], 0.02);
+}
+function _startSoundPreview() {
+  if (_soundPreviewTimer) return; // 이미 재생 중이면 중복 시작 방지
+  _playAPreview();
+  _soundPreviewTimer = setInterval(_playAPreview, 1800); // 울림 유지
+}
+function _stopSoundPreview() {
+  if (_soundPreviewTimer)     { clearInterval(_soundPreviewTimer); _soundPreviewTimer = null; }
+  if (_soundPreviewStopTimer) { clearTimeout(_soundPreviewStopTimer); _soundPreviewStopTimer = null; }
+  if (typeof GuitarAudio !== 'undefined' && GuitarAudio.stop) GuitarAudio.stop();
+}
+
+function onSoundVolumeInput(val) {
+  const v = Math.max(0, Math.min(100, parseInt(val, 10) || 0)) / 100;
+  localStorage.setItem('sfx_volume', v); // raw 저장
+  // 재생 중인 A코드에 즉시 반영(실시간) — 게인은 raw² 지각 곡선
+  if (typeof GuitarAudio !== 'undefined' && GuitarAudio.setOutputVolume) GuitarAudio.setOutputVolume(v * v);
+  // 슬라이드 감지 → A코드 반복 재생 시작(첫 감지 시), 멈추면 곧 정지
+  _startSoundPreview();
+  if (_soundPreviewStopTimer) clearTimeout(_soundPreviewStopTimer);
+  _soundPreviewStopTimer = setTimeout(_stopSoundPreview, 1400);
+}
+
+// ── 확인 바텀시트(로그아웃/계정삭제 공용) ───────────────────────
+function openConfirmSheet({ title, desc, btnText, danger, onConfirm }) {
+  document.getElementById('confirm-sheet-title').textContent = title;
+  document.getElementById('confirm-sheet-desc').textContent  = desc;
+  const btn = document.getElementById('confirm-sheet-btn');
+  btn.textContent = btnText;
+  btn.className = 'btn ' + (danger ? 'btn-danger' : 'btn-primary');
+  btn.onclick = () => { closeConfirmSheet(); onConfirm(); };
+  document.getElementById('confirm-sheet-overlay').classList.add('gsheet-overlay--open');
+  document.getElementById('confirm-sheet').classList.add('gsheet--open');
+}
+
+function closeConfirmSheet() {
+  document.getElementById('confirm-sheet-overlay').classList.remove('gsheet-overlay--open');
+  document.getElementById('confirm-sheet').classList.remove('gsheet--open');
+}
+
+function confirmLogout() {
+  _playTap();
+  openConfirmSheet({
+    title: '로그아웃',
+    desc: '로그아웃 하시겠어요?',
+    btnText: '로그아웃',
+    danger: false,
+    onConfirm: async () => {
+      closeSettings();
+      await signOutWeb();
+      location.reload();
+    },
+  });
+}
+
+function confirmDeleteAccount() {
+  _playTap();
+  openConfirmSheet({
+    title: '계정 삭제',
+    desc: '계정을 삭제하면 모든 노트와 데이터가 영구적으로 삭제되며 복구할 수 없습니다.',
+    btnText: '삭제',
+    danger: true,
+    onConfirm: async () => {
+      const r = await _peakRpc('delete_own_account');
+      if (r === null) {
+        if (typeof showTextToast === 'function') showTextToast('삭제에 실패했어요. 다시 시도해주세요.');
+        return;
+      }
+      if (typeof analytics !== 'undefined') analytics.track('account_deleted', {});
+      closeSettings();
+      await signOutWeb();
+      location.reload();
+    },
+  });
 }
 
 // ═══════════════════════════════════════════════════════════════
@@ -4264,6 +4467,7 @@ function renderLibRootTabs() {
 }
 
 function selectLibRoot(root) {
+  _playTap();
   closeVoicingModal();
   _libRoot = root;
   analytics.track('lib_tab_changed', { root_tab: root });
@@ -4420,6 +4624,7 @@ function onLibCardClick(event, sharpName) {
   if (!idxList.length) return;
 
   if (idxList.length === 1) {
+    _playTap(); // 더 펼칠 보이싱 없음 → 바로 선택(vibe)
     selectLibEntry(idxList[0]);
     return;
   }
@@ -4429,6 +4634,7 @@ function onLibCardClick(event, sharpName) {
   cardEl.classList.add('lib-card-clicked');
   setTimeout(() => cardEl.classList.remove('lib-card-clicked'), 300);
 
+  _playSfx('page.mp3'); // 1차 그리드 펼침(보이싱 모달)
   openVoicingModal(sharpName, cardEl);
 }
 
@@ -4478,7 +4684,7 @@ function _renderVoicingGrid(sharpName) {
   grid.innerHTML = filtered.map(({ e, i }) => {
     const dispName = useFlat ? e.flatName : e.name;
     return `<div class="lib-card${_libEntry === e ? ' active' : ''}"
-                 onclick="event.stopPropagation(); selectLibEntry(${i});">
+                 onclick="event.stopPropagation(); _playTap(); selectLibEntry(${i});">
                <canvas class="lib-card-canvas" data-vidx="${i}"
                        width="${LIB_MINI_W}"
                        height="${Math.round(BASE_H * LIB_MINI_RATIO)}"></canvas>
@@ -4519,6 +4725,7 @@ function setLibAccidental(type) {
 }
 
 function toggleLibFingerNum() {
+  _playTap();
   _libFingerMode = !_libFingerMode;
   const btn = document.getElementById('lib-finger-btn');
   if (btn) btn.classList.toggle('active', _libFingerMode);
@@ -4676,6 +4883,7 @@ async function _doExportLibChordImage(scale, transparent = false) {
 
 function importLibChordToProject() {
   if (!_libEntry) return;
+  _playTap();
   const entry    = _libEntry;
   const useFlat  = accidental === 'flat';
   const dispName = useFlat ? entry.flatName : entry.name;
@@ -4720,6 +4928,7 @@ function importLibChordToProject() {
 
   analytics.track('lib_chord_imported', { chord_name: dispName });
   navigateTo('editor', null, { skipResize: true });
+  _fromLibraryToEditor = true; // 에디터 뒤로가기 → 홈 아닌 코드사전으로 복귀
   renderRootBtns();
   renderBassBtns();
 

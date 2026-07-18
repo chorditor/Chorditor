@@ -5,6 +5,7 @@
 
 // ── 뒤로가기 ─────────────────────────────────────────────────
 function goBack() {
+  _playTap();
   const back = new URLSearchParams(location.search).get('back');
   if (back) {
     location.href = back;

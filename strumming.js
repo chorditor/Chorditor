@@ -4,6 +4,7 @@
 
 // ── 페이지 닫기 (훈련소로 복귀) ─────────────────────────────
 function closeStrumming() {
+  _playTap();
   const shell = document.querySelector('.app-shell');
   if (shell) {
     shell.classList.add('project-exit');
@@ -128,6 +129,7 @@ function buildFilterBar() {
   bar.addEventListener('click', (e) => {
     const btn = e.target.closest('.strum-filter-tag');
     if (!btn) return;
+    _playTap();
     const key = btn.dataset.filter;
     _strumFilter = (_strumFilter === key) ? null : key; // 같은 태그 재클릭 = 해제
     bar.querySelectorAll('.strum-filter-tag').forEach((b) =>
@@ -153,6 +155,7 @@ function renderStrummingList() {
 
 // ── 카드 진입 (연습 페이지로 이동) ───────────────────────────
 function openStrumItem(id) {
+  _playTap();
   const shell = document.querySelector('.app-shell');
   if (shell) {
     shell.classList.add('project-exit');

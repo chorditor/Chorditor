@@ -8,6 +8,14 @@ const SCALE_TITLES = {
   'blues':          '마이너 블루스 스케일',
   'natural-minor':  '내추럴 마이너 스케일',
   'harmonic-minor': '하모닉 마이너 스케일',
+  'melodic-minor':  '멜로딕 마이너 스케일',
+  'phrygian-dominant': '프리지안 도미넌트 스케일',
+  'mixolydian-b9b13':  '믹솔리디안 b9 b13 스케일',
+  'mixolydian-b13':    '믹솔리디안 9 b13 스케일',
+  'lydian-dominant':   '리디안 도미넌트 스케일',
+  'locrian-sharp2':    '로크리안 내추럴2 스케일',
+  'locrian-sharp6':    '로크리안 내추럴6 스케일',
+  'altered':           '얼터드 스케일',
   'mixolydian':     '믹솔리디안 스케일',
   'ionian':         '아이오니안 스케일',
   'dorian':         '도리안 스케일',
@@ -23,6 +31,14 @@ const SCALE_SHORT_NAMES = {
   'blues':          '마이너 블루스',
   'natural-minor':  '내추럴 마이너',
   'harmonic-minor': '하모닉 마이너',
+  'melodic-minor':  '멜로딕 마이너',
+  'phrygian-dominant': '프리지안 도미넌트',
+  'mixolydian-b9b13':  '믹솔리디안 b9 b13',
+  'mixolydian-b13':    '믹솔리디안 9 b13',
+  'lydian-dominant':   '리디안 도미넌트',
+  'locrian-sharp2':    '로크리안 내추럴2',
+  'locrian-sharp6':    '로크리안 내추럴6',
+  'altered':           '얼터드',
   'mixolydian':     '믹솔리디안',
   'ionian':         '아이오니안',
   'dorian':         '도리안',
@@ -85,6 +101,60 @@ const OPEN_MIDI = [64, 59, 55, 50, 45, 40]; // E B G D A E (string 0=1번줄)
 function playScaleNote(stringIdx, absFret) {
   GuitarAudio.stop();
   GuitarAudio.playNote(OPEN_MIDI[stringIdx] + absFret, 2.5);
+}
+
+// ── 정답/오답 효과음 (chord-name-quiz.js playSound 이식) ─────
+let _quizAudioCtx = null;
+let _quizSfxMaster = null; // 설정>사운드 마스터 볼륨용 최종 게인(엔벨로프 뒤 → 낮은 볼륨서도 클릭 없음)
+function _getQuizAudioCtx() {
+  if (!_quizAudioCtx) _quizAudioCtx = new (window.AudioContext || window.webkitAudioContext)();
+  if (_quizAudioCtx.state === 'suspended') _quizAudioCtx.resume();
+  return _quizAudioCtx;
+}
+function _getQuizSfxBus(ctx) {
+  if (!_quizSfxMaster) {
+    _quizSfxMaster = ctx.createGain();
+    _quizSfxMaster.connect(ctx.destination);
+  }
+  _quizSfxMaster.gain.value = (typeof _getSfxMasterVolume === 'function') ? _getSfxMasterVolume() : 1;
+  return _quizSfxMaster;
+}
+function _playQuizBell(freq, startDelay, gainVal) {
+  try {
+    const ctx = _getQuizAudioCtx();
+    const t   = ctx.currentTime + startDelay;
+    const bus = _getQuizSfxBus(ctx); // 마스터 볼륨 일괄(엔벨로프 원형 유지)
+    const partials = [
+      { r: 1,      g: gainVal,        d: 0.8  },
+      { r: 2.756,  g: gainVal * 0.55, d: 0.5  },
+      { r: 5.404,  g: gainVal * 0.35, d: 0.3  },
+      { r: 8.933,  g: gainVal * 0.18, d: 0.15 },
+      { r: 13.46,  g: gainVal * 0.08, d: 0.08 },
+    ];
+    partials.forEach(({ r, g, d }) => {
+      const osc  = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.connect(gain);
+      gain.connect(bus);
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(freq * r * 1.015, t);
+      osc.frequency.exponentialRampToValueAtTime(freq * r, t + 0.02);
+      gain.gain.setValueAtTime(0, t);
+      gain.gain.linearRampToValueAtTime(g, t + 0.004);
+      gain.gain.exponentialRampToValueAtTime(0.001, t + d);
+      osc.start(t);
+      osc.stop(t + d + 0.01);
+    });
+  } catch (e) {}
+}
+function playQuizSound(type) {
+  if (type === 'correct') {
+    _playQuizBell(523.25, 0,    0.20);
+    _playQuizBell(698.46, 0.13, 0.20);
+  } else if (type === 'wrong') {
+    _playQuizBell(349.23, 0,    0.20);
+    _playQuizBell(261.63, 0.13, 0.20);
+  }
 }
 
 // ── 내비게이션 시퀀스 생성 ──────────────────────────────────
@@ -1060,6 +1130,7 @@ function _transitionPairV() {
 }
 
 async function closeScaleLevel() {
+  _playTap();
   _recordScaleSessionTime();
   await GuitarAudio.stop({ wait: true });
   const shell = document.querySelector('.app-shell');
@@ -1183,6 +1254,37 @@ function scrollToFret(startFret, animate = true, viewportId = 'fb-viewport') {
 // 도수 번호 라벨 문자열 (음수=플랫, 리디안 -5는 #4 표기)
 function degreeLabel(degree, scaleKey) {
   if (degree === -5 && scaleKey === 'lydian') return '#4';
+  if (scaleKey === 'altered') {
+    if (degree === -2) return 'b9';   // b2 → b9
+    if (degree === -3) return '#9';   // b3 → #9
+    if (degree === -5) return '#11';  // b5 → #11
+    if (degree === -6) return 'b13';  // b6 → b13
+  }
+  if (scaleKey === 'mixolydian-b9b13') {
+    if (degree === -2) return 'b9';   // b2 → b9
+    if (degree === 4)  return '11';   // 4  → 11
+    if (degree === -6) return 'b13';  // b6 → b13
+  }
+  if (scaleKey === 'mixolydian-b13') {
+    if (degree === 2)  return '9';    // 2  → 9
+    if (degree === 4)  return '11';   // 4  → 11
+    if (degree === -6) return 'b13';  // b6 → b13
+  }
+  if (scaleKey === 'lydian-dominant') {
+    if (degree === 2)  return '9';    // 2  → 9
+    if (degree === -5) return '#11';  // b5(=#4) → #11
+    if (degree === 6)  return '13';   // 6  → 13
+  }
+  if (scaleKey === 'locrian-sharp2') {
+    if (degree === 2)  return '9';    // 2  → 9
+    if (degree === 4)  return '11';   // 4  → 11
+    if (degree === -6) return 'b13';  // b6 → b13
+  }
+  if (scaleKey === 'locrian-sharp6') {
+    if (degree === -2) return 'b9';   // b2 → b9
+    if (degree === 4)  return '11';   // 4  → 11
+    if (degree === 6)  return '13';   // 6  → 13
+  }
   return degree < 0 ? 'b' + (-degree) : '' + degree;
 }
 
@@ -1197,7 +1299,7 @@ function measureDegreeOffsets() {
   ctx.font         = '700 11px Pretendard, sans-serif';
   ctx.textAlign    = 'left';
   ctx.textBaseline = 'alphabetic';
-  const labels = ['1','2','3','4','5','6','7','b2','b3','b5','b6','b7','#4'];
+  const labels = ['1','2','3','4','5','6','7','b2','b3','b5','b6','b7','#4','b9','#9','#11','b13','11','9','13'];
   labels.forEach(lbl => {
     const m = ctx.measureText(lbl);
     const abbL = m.actualBoundingBoxLeft;
@@ -1226,7 +1328,7 @@ function createNoteEl(absF, s, degree, ghost = false) {
   const leftPct = (absF + 0.5) / TOTAL_FRETS * 100;
   const topPct  = (s + 0.5) / STRINGS * 100;
   const isRoot  = degree === 1;
-  const isBlue5 = degree === -5;
+  const isBlue5 = degree === -5 && _scaleKey !== 'altered';   // altered #11은 특징음 강조 없음
   const isNat7  = degree === 7 && _scaleKey === 'harmonic-minor';
   const isChar  = (degree === 4 && _scaleKey === 'ionian')
                || (degree === 6 && _scaleKey === 'dorian')
@@ -1524,6 +1626,7 @@ function _renderTestNotesCh2(neckEl) {
 // ── 정답 채점 ──────────────────────────────────────────────────
 function checkAnswer() {
   if (!_testItem || _testSubmitted) return;
+  GuitarAudio.stop();   // 뷰 전환: 울리던 노트 페이드아웃 후 중단
   _testSubmitted = true;
   _recordScaleSubmit();
 
@@ -1638,6 +1741,8 @@ function checkAnswer() {
   if (scoreEl)  scoreEl.textContent  = `오답 ${nWrong}개`;
   if (detailEl) detailEl.textContent = '';
 
+  playQuizSound(nWrong === 0 ? 'correct' : 'wrong');
+
   analytics.track('scale_test_result', {
     scale_key:  _scaleKey,
     root_name:  (_useFlat ? KEY_NAMES_FLAT : KEY_NAMES)[_rootNote],
@@ -1670,6 +1775,7 @@ function checkAnswer() {
 
 // ── 테스트 시작 ────────────────────────────────────────────────
 function startTest() {
+  GuitarAudio.stop();   // 뷰 전환: 울리던 노트 페이드아웃 후 중단
   const seq = buildNavSequence();
   if (seq.length === 0) return;
 
@@ -3303,6 +3409,7 @@ function initAccidentalToggle() {
   if (!toggle) return;
 
   toggle.addEventListener('pointerup', () => {
+    _playTap();
     _useFlat = !_useFlat;
     sharpSpan.classList.toggle('active', !_useFlat);
     flatSpan.classList.toggle('active',   _useFlat);
@@ -3319,6 +3426,7 @@ function initDegreeToggle() {
   const btn = document.getElementById('degree-toggle-btn');
   if (!btn) return;
   btn.addEventListener('pointerup', () => {
+    _playTap();
     _showDegrees = !_showDegrees;
     btn.classList.toggle('active', _showDegrees);
     document.body.classList.toggle('degrees-on', _showDegrees);
@@ -3339,6 +3447,7 @@ function initKeySelector() {
     btn.className = 'key-btn' + (semitone === _rootNote ? ' key-btn--active' : '');
     btn.textContent = name;
     btn.addEventListener('pointerup', () => {
+      _playTap();
       _rootNote = semitone;
       _navIdx   = 0;   // 키 변경 시 첫 블럭으로 이동
       el.querySelectorAll('.key-btn').forEach(b => b.classList.remove('key-btn--active'));
@@ -3373,7 +3482,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const btn = document.getElementById('pair-transition-btn');
     if (btn) {
       btn.style.display = 'inline-flex';
-      btn.addEventListener('pointerup', () => transitionPair());
+      btn.addEventListener('pointerup', () => { _playTap(); transitionPair(); });
     }
   }
 
@@ -3400,6 +3509,8 @@ renderFullNeck();
 
   // 테스트 시작 버튼 (피크 2개 소모)
   document.getElementById('start-test-btn')?.addEventListener('pointerup', async () => {
+    _playTap();
+    _playSfx('pop.mp3');
     if (!(await consumePeak(2))) return;
     analytics.track('scale_test_started', {
       scale_key: _scaleKey,
@@ -3416,6 +3527,7 @@ renderFullNeck();
   document.getElementById('test-submit-btn')?.addEventListener('pointerup', async (e) => {
     if (e.currentTarget.disabled) return;
     if (_testSubmitted) {
+      _playSfx('pop.mp3');
       if (!(await consumePeak(2))) return;
       analytics.track('scale_test_retry', {
         scale_key: _scaleKey,
@@ -3434,11 +3546,14 @@ renderFullNeck();
   });
 
   // 테스트 오버레이 초기화 (X 버튼 / 뒤로가기 버튼 처리)
-  const closeTestOverlay = () =>
+  const closeTestOverlay = () => {
+    GuitarAudio.stop();   // 뷰 전환: 울리던 노트 페이드아웃 후 중단
     document.getElementById('scale-test-overlay')?.classList.remove('is-open');
+  };
 
   document.getElementById('test-close-btn')?.addEventListener('pointerup', closeTestOverlay);
   document.getElementById('test-back-btn')?.addEventListener('pointerup', () => {
+    _playSfx('pop.mp3');
     analytics.track('scale_test_closed', {
       scale_key: _scaleKey,
       root_name: (_useFlat ? KEY_NAMES_FLAT : KEY_NAMES)[_rootNote],

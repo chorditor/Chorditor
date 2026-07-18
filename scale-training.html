@@ -9,7 +9,7 @@
   <link rel="stylesheet" href="style.css" />
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
 </head>
-<body>
+<body class="scale-training-page">
 
   <!-- 페이지 커버: 초기화 완료 전 화면 가림 -->
   <div id="page-cover"></div>
@@ -37,285 +37,1368 @@
     <div class="main-content" id="main-content">
       <div class="scale-scroll">
 
-        <!-- 페이지 타이틀 -->
-        <span class="training-page-title">스케일 훈련</span>
+        <!-- 상단 스티키 바 -->
+        <div class="scale-sticky-bar">
+          <span class="scale-sticky-title">스케일 훈련</span>
+          <div class="st-track">
+            <div class="st-node active" data-chapter="1" onpointerup="onChapterTabTap(this)"><div class="st-dot">1</div></div>
+            <div class="st-line"></div>
+            <div class="st-node" data-chapter="2" onpointerup="onChapterTabTap(this)"><div class="st-dot">2</div></div>
+            <div class="st-line"></div>
+            <div class="st-node" data-chapter="3" onpointerup="onChapterTabTap(this)"><div class="st-dot">3</div></div>
+            <div class="st-line"></div>
+            <div class="st-node" data-chapter="4" onpointerup="onChapterTabTap(this)"><div class="st-dot">4</div></div>
+          </div>
+        </div>
 
         <!-- ── Ch. 1: 마이너 펜타토닉 스케일 ── -->
-        <div class="scale-chapter">
+        <div class="scale-chapter" id="ch-1">
           <div class="scale-chapter-header">
             <span class="scale-chapter-title">Ch. 1</span>
             <span class="scale-chapter-subtitle">기초 스케일 연습</span>
           </div>
 
-          <div class="scale-item-list">
+          <div class="scale-item-list scale-item-list--carousel">
 
             <!-- 1. 메이저 스케일 -->
-            <div class="scale-item-card" data-key="major" data-level="1" onpointerup="onScaleItemTap(this)">
-              <div class="lw-row1">
-                <span class="lw-badge">LEVEL 1</span>
-                <span class="lw-row1-right"></span>
+            <div class="scale-item-card scale-item-card--template" data-key="major" data-level="1">
+              <div class="scale-card-header">
+                <div class="lw-row1">
+                  <span class="lw-badge">LEVEL 1</span>
+                  <span class="lw-row1-right"></span>
+                </div>
+                <span class="lw-name">메이저 스케일</span>
               </div>
-              <span class="lw-name">메이저 스케일</span>
+
+              <div class="scale-card-shot">
+                <div class="fb-full-neck fb-shot-neck">
+                    <div class="fb-string" style="top:8.33%; height:1px;"></div>
+                    <div class="fb-string" style="top:25.00%; height:1.5px;"></div>
+                    <div class="fb-string" style="top:41.67%; height:2px;"></div>
+                    <div class="fb-string" style="top:58.33%; height:2.5px;"></div>
+                    <div class="fb-string" style="top:75.00%; height:3px;"></div>
+                    <div class="fb-string" style="top:91.67%; height:3.5px;"></div>
+                    <div class="fb-fret-line" style="left:20.00%;"></div>
+                    <div class="fb-fret-line" style="left:40.00%;"></div>
+                    <div class="fb-fret-line" style="left:60.00%;"></div>
+                    <div class="fb-fret-line" style="left:80.00%;"></div>
+                    <div class="fb-note" style="left:30.00%; top:8.33%;"></div>
+                    <div class="fb-note" style="left:70.00%; top:8.33%;"></div>
+                    <div class="fb-note" style="left:30.00%; top:25.00%;"></div>
+                    <div class="fb-note" style="left:70.00%; top:25.00%;"></div>
+                    <div class="fb-note" style="left:90.00%; top:25.00%;"></div>
+                    <div class="fb-note" style="left:10.00%; top:41.67%;"></div>
+                    <div class="fb-note" style="left:50.00%; top:41.67%;"></div>
+                    <div class="fb-note fb-note--root" style="left:70.00%; top:41.67%;"></div>
+                    <div class="fb-note" style="left:10.00%; top:58.33%;"></div>
+                    <div class="fb-note" style="left:30.00%; top:58.33%;"></div>
+                    <div class="fb-note" style="left:70.00%; top:58.33%;"></div>
+                    <div class="fb-note" style="left:10.00%; top:75.00%;"></div>
+                    <div class="fb-note fb-note--root" style="left:30.00%; top:75.00%;"></div>
+                    <div class="fb-note" style="left:70.00%; top:75.00%;"></div>
+                    <div class="fb-note" style="left:30.00%; top:91.67%;"></div>
+                    <div class="fb-note" style="left:70.00%; top:91.67%;"></div>
+                </div>
+                <div class="fb-full-nums">
+                  <div class="fb-fret-num" style="left:30.00%;">3</div>
+                  <div class="fb-fret-num" style="left:70.00%;">5</div>
+                </div>
+              </div>
+
+              <div class="scale-card-notes"></div>
+
+              <button class="scale-card-practice-btn" onpointerup="onScalePracticeTap(this)">
+                <i data-lucide="play"></i>연습하기
+              </button>
             </div>
 
             <!-- 2. 마이너 펜타토닉 스케일 -->
-            <div class="scale-item-card" data-key="pentatonic" data-level="2" onpointerup="onScaleItemTap(this)">
-              <div class="lw-row1">
-                <span class="lw-badge">LEVEL 2</span>
-                <span class="lw-row1-right"></span>
+            <div class="scale-item-card scale-item-card--template" data-key="pentatonic" data-level="2">
+              <div class="scale-card-header">
+                <div class="lw-row1">
+                  <span class="lw-badge">LEVEL 2</span>
+                  <span class="lw-row1-right"></span>
+                </div>
+                <span class="lw-name">마이너 펜타토닉 스케일</span>
               </div>
-              <span class="lw-name">마이너 펜타토닉 스케일</span>
+
+              <div class="scale-card-shot">
+                <div class="fb-full-neck fb-shot-neck">
+                    <div class="fb-string" style="top:8.33%; height:1px;"></div>
+                    <div class="fb-string" style="top:25.00%; height:1.5px;"></div>
+                    <div class="fb-string" style="top:41.67%; height:2px;"></div>
+                    <div class="fb-string" style="top:58.33%; height:2.5px;"></div>
+                    <div class="fb-string" style="top:75.00%; height:3px;"></div>
+                    <div class="fb-string" style="top:91.67%; height:3.5px;"></div>
+                    <div class="fb-fret-line" style="left:25.00%;"></div>
+                    <div class="fb-fret-line" style="left:50.00%;"></div>
+                    <div class="fb-fret-line" style="left:75.00%;"></div>
+                    <div class="fb-note" style="left:12.50%; top:8.33%;"></div>
+                    <div class="fb-note" style="left:87.50%; top:8.33%;"></div>
+                    <div class="fb-note" style="left:37.50%; top:25.00%;"></div>
+                    <div class="fb-note" style="left:87.50%; top:25.00%;"></div>
+                    <div class="fb-note" style="left:12.50%; top:41.67%;"></div>
+                    <div class="fb-note fb-note--root" style="left:62.50%; top:41.67%;"></div>
+                    <div class="fb-note" style="left:12.50%; top:58.33%;"></div>
+                    <div class="fb-note" style="left:62.50%; top:58.33%;"></div>
+                    <div class="fb-note fb-note--root" style="left:12.50%; top:75.00%;"></div>
+                    <div class="fb-note" style="left:87.50%; top:75.00%;"></div>
+                    <div class="fb-note" style="left:12.50%; top:91.67%;"></div>
+                    <div class="fb-note" style="left:87.50%; top:91.67%;"></div>
+                </div>
+                <div class="fb-full-nums">
+                  <div class="fb-fret-num" style="left:37.50%;">3</div>
+                  <div class="fb-fret-num" style="left:87.50%;">5</div>
+                </div>
+              </div>
+
+              <div class="scale-card-notes"></div>
+
+              <button class="scale-card-practice-btn" onpointerup="onScalePracticeTap(this)">
+                <i data-lucide="play"></i>연습하기
+              </button>
             </div>
 
             <!-- 3. 마이너 블루스 스케일 -->
-            <div class="scale-item-card" data-key="blues" data-level="3" onpointerup="onScaleItemTap(this)">
-              <div class="lw-row1">
-                <span class="lw-badge">LEVEL 3</span>
-                <span class="lw-row1-right"></span>
+            <div class="scale-item-card scale-item-card--template" data-key="blues" data-level="3">
+              <div class="scale-card-header">
+                <div class="lw-row1">
+                  <span class="lw-badge">LEVEL 3</span>
+                  <span class="lw-row1-right"></span>
+                </div>
+                <span class="lw-name">마이너 블루스 스케일</span>
               </div>
-              <span class="lw-name">마이너 블루스 스케일</span>
+
+              <div class="scale-card-shot">
+                <div class="fb-full-neck fb-shot-neck">
+                    <div class="fb-string" style="top:8.33%; height:1px;"></div>
+                    <div class="fb-string" style="top:25.00%; height:1.5px;"></div>
+                    <div class="fb-string" style="top:41.67%; height:2px;"></div>
+                    <div class="fb-string" style="top:58.33%; height:2.5px;"></div>
+                    <div class="fb-string" style="top:75.00%; height:3px;"></div>
+                    <div class="fb-string" style="top:91.67%; height:3.5px;"></div>
+                    <div class="fb-fret-line" style="left:20.00%;"></div>
+                    <div class="fb-fret-line" style="left:40.00%;"></div>
+                    <div class="fb-fret-line" style="left:60.00%;"></div>
+                    <div class="fb-fret-line" style="left:80.00%;"></div>
+                    <div class="fb-note" style="left:10.00%; top:8.33%;"></div>
+                    <div class="fb-note" style="left:70.00%; top:8.33%;"></div>
+                    <div class="fb-note" style="left:30.00%; top:25.00%;"></div>
+                    <div class="fb-note" style="left:70.00%; top:25.00%;"></div>
+                    <div class="fb-note" style="left:90.00%; top:25.00%;"></div>
+                    <div class="fb-note" style="left:10.00%; top:41.67%;"></div>
+                    <div class="fb-note fb-note--root" style="left:50.00%; top:41.67%;"></div>
+                    <div class="fb-note" style="left:10.00%; top:58.33%;"></div>
+                    <div class="fb-note" style="left:30.00%; top:58.33%;"></div>
+                    <div class="fb-note" style="left:50.00%; top:58.33%;"></div>
+                    <div class="fb-note fb-note--root" style="left:10.00%; top:75.00%;"></div>
+                    <div class="fb-note" style="left:70.00%; top:75.00%;"></div>
+                    <div class="fb-note" style="left:10.00%; top:91.67%;"></div>
+                    <div class="fb-note" style="left:70.00%; top:91.67%;"></div>
+                </div>
+                <div class="fb-full-nums">
+                  <div class="fb-fret-num" style="left:30.00%;">3</div>
+                  <div class="fb-fret-num" style="left:70.00%;">5</div>
+                </div>
+              </div>
+
+              <div class="scale-card-notes"></div>
+
+              <button class="scale-card-practice-btn" onpointerup="onScalePracticeTap(this)">
+                <i data-lucide="play"></i>연습하기
+              </button>
             </div>
 
             <!-- 4. 내추럴 마이너 스케일 -->
-            <div class="scale-item-card" data-key="natural-minor" data-level="4" onpointerup="onScaleItemTap(this)">
-              <div class="lw-row1">
-                <span class="lw-badge">LEVEL 4</span>
-                <span class="lw-row1-right"></span>
+            <div class="scale-item-card scale-item-card--template" data-key="natural-minor" data-level="4">
+              <div class="scale-card-header">
+                <div class="lw-row1">
+                  <span class="lw-badge">LEVEL 4</span>
+                  <span class="lw-row1-right"></span>
+                </div>
+                <span class="lw-name">내추럴 마이너 스케일</span>
               </div>
-              <span class="lw-name">내추럴 마이너 스케일</span>
+
+              <div class="scale-card-shot">
+                <div class="fb-full-neck fb-shot-neck">
+                    <div class="fb-string" style="top:8.33%; height:1px;"></div>
+                    <div class="fb-string" style="top:25.00%; height:1.5px;"></div>
+                    <div class="fb-string" style="top:41.67%; height:2px;"></div>
+                    <div class="fb-string" style="top:58.33%; height:2.5px;"></div>
+                    <div class="fb-string" style="top:75.00%; height:3px;"></div>
+                    <div class="fb-string" style="top:91.67%; height:3.5px;"></div>
+                    <div class="fb-fret-line" style="left:25.00%;"></div>
+                    <div class="fb-fret-line" style="left:50.00%;"></div>
+                    <div class="fb-fret-line" style="left:75.00%;"></div>
+                    <div class="fb-note" style="left:12.50%; top:8.33%;"></div>
+                    <div class="fb-note" style="left:37.50%; top:8.33%;"></div>
+                    <div class="fb-note" style="left:87.50%; top:8.33%;"></div>
+                    <div class="fb-note" style="left:12.50%; top:25.00%;"></div>
+                    <div class="fb-note" style="left:37.50%; top:25.00%;"></div>
+                    <div class="fb-note" style="left:87.50%; top:25.00%;"></div>
+                    <div class="fb-note" style="left:12.50%; top:41.67%;"></div>
+                    <div class="fb-note fb-note--root" style="left:62.50%; top:41.67%;"></div>
+                    <div class="fb-note" style="left:12.50%; top:58.33%;"></div>
+                    <div class="fb-note" style="left:62.50%; top:58.33%;"></div>
+                    <div class="fb-note" style="left:87.50%; top:58.33%;"></div>
+                    <div class="fb-note fb-note--root" style="left:12.50%; top:75.00%;"></div>
+                    <div class="fb-note" style="left:62.50%; top:75.00%;"></div>
+                    <div class="fb-note" style="left:87.50%; top:75.00%;"></div>
+                    <div class="fb-note" style="left:12.50%; top:91.67%;"></div>
+                    <div class="fb-note" style="left:37.50%; top:91.67%;"></div>
+                    <div class="fb-note" style="left:87.50%; top:91.67%;"></div>
+                </div>
+                <div class="fb-full-nums">
+                  <div class="fb-fret-num" style="left:37.50%;">3</div>
+                  <div class="fb-fret-num" style="left:87.50%;">5</div>
+                </div>
+              </div>
+
+              <div class="scale-card-notes"></div>
+
+              <button class="scale-card-practice-btn" onpointerup="onScalePracticeTap(this)">
+                <i data-lucide="play"></i>연습하기
+              </button>
             </div>
 
             <!-- 5. 하모닉 마이너 스케일 -->
-            <div class="scale-item-card" data-key="harmonic-minor" data-level="5" onpointerup="onScaleItemTap(this)">
-              <div class="lw-row1">
-                <span class="lw-badge">LEVEL 5</span>
-                <span class="lw-row1-right"></span>
+            <div class="scale-item-card scale-item-card--template" data-key="harmonic-minor" data-level="5">
+              <div class="scale-card-header">
+                <div class="lw-row1">
+                  <span class="lw-badge">LEVEL 5</span>
+                  <span class="lw-row1-right"></span>
+                </div>
+                <span class="lw-name">하모닉 마이너 스케일</span>
               </div>
-              <span class="lw-name">하모닉 마이너 스케일</span>
+
+              <div class="scale-card-shot">
+                <div class="fb-full-neck fb-shot-neck">
+                    <div class="fb-string" style="top:8.33%; height:1px;"></div>
+                    <div class="fb-string" style="top:25.00%; height:1.5px;"></div>
+                    <div class="fb-string" style="top:41.67%; height:2px;"></div>
+                    <div class="fb-string" style="top:58.33%; height:2.5px;"></div>
+                    <div class="fb-string" style="top:75.00%; height:3px;"></div>
+                    <div class="fb-string" style="top:91.67%; height:3.5px;"></div>
+                    <div class="fb-fret-line" style="left:20.00%;"></div>
+                    <div class="fb-fret-line" style="left:40.00%;"></div>
+                    <div class="fb-fret-line" style="left:60.00%;"></div>
+                    <div class="fb-fret-line" style="left:80.00%;"></div>
+                    <div class="fb-note" style="left:10.00%; top:8.33%;"></div>
+                    <div class="fb-note" style="left:30.00%; top:8.33%;"></div>
+                    <div class="fb-note" style="left:90.00%; top:8.33%;"></div>
+                    <div class="fb-note" style="left:10.00%; top:25.00%;"></div>
+                    <div class="fb-note" style="left:30.00%; top:25.00%;"></div>
+                    <div class="fb-note" style="left:70.00%; top:25.00%;"></div>
+                    <div class="fb-note" style="left:30.00%; top:41.67%;"></div>
+                    <div class="fb-note fb-note--root" style="left:50.00%; top:41.67%;"></div>
+                    <div class="fb-note" style="left:10.00%; top:58.33%;"></div>
+                    <div class="fb-note" style="left:50.00%; top:58.33%;"></div>
+                    <div class="fb-note" style="left:70.00%; top:58.33%;"></div>
+                    <div class="fb-note fb-note--root" style="left:10.00%; top:75.00%;"></div>
+                    <div class="fb-note" style="left:50.00%; top:75.00%;"></div>
+                    <div class="fb-note" style="left:70.00%; top:75.00%;"></div>
+                    <div class="fb-note" style="left:10.00%; top:91.67%;"></div>
+                    <div class="fb-note" style="left:30.00%; top:91.67%;"></div>
+                    <div class="fb-note" style="left:90.00%; top:91.67%;"></div>
+                </div>
+                <div class="fb-full-nums">
+                  <div class="fb-fret-num" style="left:30.00%;">3</div>
+                  <div class="fb-fret-num" style="left:70.00%;">5</div>
+                </div>
+              </div>
+
+              <div class="scale-card-notes"></div>
+
+              <button class="scale-card-practice-btn" onpointerup="onScalePracticeTap(this)">
+                <i data-lucide="play"></i>연습하기
+              </button>
             </div>
 
           </div><!-- /scale-item-list -->
         </div><!-- /scale-chapter -->
 
         <!-- ── Ch. 2: 세컨더리 도미넌트 활용 ── -->
-        <div class="scale-chapter">
+        <div class="scale-chapter scale-chapter--hidden" id="ch-2">
           <div class="scale-chapter-header">
             <span class="scale-chapter-title">Ch. 2</span>
             <span class="scale-chapter-subtitle">세컨더리 도미넌트 활용</span>
           </div>
 
-          <div class="scale-item-list">
+          <div class="scale-item-list scale-item-list--carousel">
 
             <!-- 6. 4도 메이저 전환 -->
-            <div class="scale-item-card" data-key="secondary-iv" data-level="6" onpointerup="onScaleItemTap(this)">
-              <div class="lw-row1">
-                <span class="lw-badge">LEVEL 6</span>
-                <span class="lw-row1-right"></span>
+            <div class="scale-item-card scale-item-card--template" data-key="secondary-iv" data-level="6">
+              <div class="scale-card-header">
+                <div class="lw-row1">
+                  <span class="lw-badge">LEVEL 6</span>
+                  <span class="lw-row1-right"></span>
+                </div>
+                <span class="lw-name">4도 메이저 전환</span>
               </div>
-              <span class="lw-name">4도 메이저 전환</span>
+
+              <div class="scale-card-shot">
+                <div class="fb-full-neck fb-shot-neck">
+                    <div class="fb-string" style="top:8.33%; height:1px;"></div>
+                    <div class="fb-string" style="top:25.00%; height:1.5px;"></div>
+                    <div class="fb-string" style="top:41.67%; height:2px;"></div>
+                    <div class="fb-string" style="top:58.33%; height:2.5px;"></div>
+                    <div class="fb-string" style="top:75.00%; height:3px;"></div>
+                    <div class="fb-string" style="top:91.67%; height:3.5px;"></div>
+                    <div class="fb-fret-line" style="left:20.00%;"></div>
+                    <div class="fb-fret-line" style="left:40.00%;"></div>
+                    <div class="fb-fret-line" style="left:60.00%;"></div>
+                    <div class="fb-fret-line" style="left:80.00%;"></div>
+                    <div class="fb-note" style="left:30.00%; top:8.33%;"></div>
+                    <div class="fb-note" style="left:70.00%; top:8.33%;"></div>
+                    <div class="fb-note" style="left:30.00%; top:25.00%;"></div>
+                    <div class="fb-note" style="left:70.00%; top:25.00%;"></div>
+                    <div class="fb-note fb-note--root" style="left:90.00%; top:25.00%;"></div>
+                    <div class="fb-note" style="left:10.00%; top:41.67%;"></div>
+                    <div class="fb-note" style="left:30.00%; top:41.67%;"></div>
+                    <div class="fb-note" style="left:70.00%; top:41.67%;"></div>
+                    <div class="fb-note" style="left:10.00%; top:58.33%;"></div>
+                    <div class="fb-note fb-note--root" style="left:30.00%; top:58.33%;"></div>
+                    <div class="fb-note" style="left:70.00%; top:58.33%;"></div>
+                    <div class="fb-note" style="left:30.00%; top:75.00%;"></div>
+                    <div class="fb-note" style="left:70.00%; top:75.00%;"></div>
+                    <div class="fb-note" style="left:30.00%; top:91.67%;"></div>
+                    <div class="fb-note" style="left:70.00%; top:91.67%;"></div>
+                    <div class="fb-note" style="left:90.00%; top:91.67%;"></div>
+                </div>
+                <div class="fb-full-nums">
+                  <div class="fb-fret-num" style="left:30.00%;">3</div>
+                  <div class="fb-fret-num" style="left:70.00%;">5</div>
+                </div>
+              </div>
+
+              <div class="scale-card-notes"></div>
+
+              <button class="scale-card-practice-btn" onpointerup="onScalePracticeTap(this)">
+                <i data-lucide="play"></i>연습하기
+              </button>
             </div>
 
             <!-- 7. 5도 메이저 전환 -->
-            <div class="scale-item-card" data-key="secondary-v" data-level="7" onpointerup="onScaleItemTap(this)">
-              <div class="lw-row1">
-                <span class="lw-badge">LEVEL 7</span>
-                <span class="lw-row1-right"></span>
+            <div class="scale-item-card scale-item-card--template" data-key="secondary-v" data-level="7">
+              <div class="scale-card-header">
+                <div class="lw-row1">
+                  <span class="lw-badge">LEVEL 7</span>
+                  <span class="lw-row1-right"></span>
+                </div>
+                <span class="lw-name">5도 메이저 전환</span>
               </div>
-              <span class="lw-name">5도 메이저 전환</span>
+
+              <div class="scale-card-shot">
+                <div class="fb-full-neck fb-shot-neck">
+                    <div class="fb-string" style="top:8.33%; height:1px;"></div>
+                    <div class="fb-string" style="top:25.00%; height:1.5px;"></div>
+                    <div class="fb-string" style="top:41.67%; height:2px;"></div>
+                    <div class="fb-string" style="top:58.33%; height:2.5px;"></div>
+                    <div class="fb-string" style="top:75.00%; height:3px;"></div>
+                    <div class="fb-string" style="top:91.67%; height:3.5px;"></div>
+                    <div class="fb-fret-line" style="left:25.00%;"></div>
+                    <div class="fb-fret-line" style="left:50.00%;"></div>
+                    <div class="fb-fret-line" style="left:75.00%;"></div>
+                    <div class="fb-note" style="left:12.50%; top:8.33%;"></div>
+                    <div class="fb-note fb-note--root" style="left:37.50%; top:8.33%;"></div>
+                    <div class="fb-note" style="left:87.50%; top:8.33%;"></div>
+                    <div class="fb-note" style="left:37.50%; top:25.00%;"></div>
+                    <div class="fb-note" style="left:87.50%; top:25.00%;"></div>
+                    <div class="fb-note" style="left:12.50%; top:41.67%;"></div>
+                    <div class="fb-note" style="left:62.50%; top:41.67%;"></div>
+                    <div class="fb-note" style="left:87.50%; top:41.67%;"></div>
+                    <div class="fb-note" style="left:12.50%; top:58.33%;"></div>
+                    <div class="fb-note" style="left:62.50%; top:58.33%;"></div>
+                    <div class="fb-note fb-note--root" style="left:87.50%; top:58.33%;"></div>
+                    <div class="fb-note" style="left:12.50%; top:75.00%;"></div>
+                    <div class="fb-note" style="left:37.50%; top:75.00%;"></div>
+                    <div class="fb-note" style="left:87.50%; top:75.00%;"></div>
+                    <div class="fb-note" style="left:12.50%; top:91.67%;"></div>
+                    <div class="fb-note fb-note--root" style="left:37.50%; top:91.67%;"></div>
+                    <div class="fb-note" style="left:87.50%; top:91.67%;"></div>
+                </div>
+                <div class="fb-full-nums">
+                  <div class="fb-fret-num" style="left:37.50%;">3</div>
+                  <div class="fb-fret-num" style="left:87.50%;">5</div>
+                </div>
+              </div>
+
+              <div class="scale-card-notes"></div>
+
+              <button class="scale-card-practice-btn" onpointerup="onScalePracticeTap(this)">
+                <i data-lucide="play"></i>연습하기
+              </button>
             </div>
 
-            <!-- 8. 2도 마이너 전환 -->
-            <div class="scale-item-card" data-key="secondary-ii" data-level="8" onpointerup="onScaleItemTap(this)">
-              <div class="lw-row1">
-                <span class="lw-badge">LEVEL 8</span>
-                <span class="lw-row1-right"></span>
+            <!-- 8. 6도 마이너 전환 -->
+            <div class="scale-item-card scale-item-card--template" data-key="secondary-ii" data-level="8">
+              <div class="scale-card-header">
+                <div class="lw-row1">
+                  <span class="lw-badge">LEVEL 8</span>
+                  <span class="lw-row1-right"></span>
+                </div>
+                <span class="lw-name">6도 마이너 전환</span>
               </div>
-              <span class="lw-name">6도 마이너 전환</span>
+
+              <div class="scale-card-shot">
+                <div class="fb-full-neck fb-shot-neck">
+                    <div class="fb-string" style="top:8.33%; height:1px;"></div>
+                    <div class="fb-string" style="top:25.00%; height:1.5px;"></div>
+                    <div class="fb-string" style="top:41.67%; height:2px;"></div>
+                    <div class="fb-string" style="top:58.33%; height:2.5px;"></div>
+                    <div class="fb-string" style="top:75.00%; height:3px;"></div>
+                    <div class="fb-string" style="top:91.67%; height:3.5px;"></div>
+                    <div class="fb-fret-line" style="left:20.00%;"></div>
+                    <div class="fb-fret-line" style="left:40.00%;"></div>
+                    <div class="fb-fret-line" style="left:60.00%;"></div>
+                    <div class="fb-fret-line" style="left:80.00%;"></div>
+                    <div class="fb-note" style="left:50.00%; top:8.33%;"></div>
+                    <div class="fb-note fb-note--root" style="left:70.00%; top:8.33%;"></div>
+                    <div class="fb-note" style="left:30.00%; top:25.00%;"></div>
+                    <div class="fb-note" style="left:70.00%; top:25.00%;"></div>
+                    <div class="fb-note" style="left:90.00%; top:25.00%;"></div>
+                    <div class="fb-note fb-note--root" style="left:10.00%; top:41.67%;"></div>
+                    <div class="fb-note" style="left:50.00%; top:41.67%;"></div>
+                    <div class="fb-note" style="left:70.00%; top:41.67%;"></div>
+                    <div class="fb-note" style="left:10.00%; top:58.33%;"></div>
+                    <div class="fb-note" style="left:30.00%; top:58.33%;"></div>
+                    <div class="fb-note" style="left:90.00%; top:58.33%;"></div>
+                    <div class="fb-note" style="left:10.00%; top:75.00%;"></div>
+                    <div class="fb-note" style="left:30.00%; top:75.00%;"></div>
+                    <div class="fb-note" style="left:70.00%; top:75.00%;"></div>
+                    <div class="fb-note" style="left:50.00%; top:91.67%;"></div>
+                    <div class="fb-note fb-note--root" style="left:70.00%; top:91.67%;"></div>
+                </div>
+                <div class="fb-full-nums">
+                  <div class="fb-fret-num" style="left:30.00%;">3</div>
+                  <div class="fb-fret-num" style="left:70.00%;">5</div>
+                </div>
+              </div>
+
+              <div class="scale-card-notes"></div>
+
+              <button class="scale-card-practice-btn" onpointerup="onScalePracticeTap(this)">
+                <i data-lucide="play"></i>연습하기
+              </button>
             </div>
 
             <!-- 9. 2도 마이너 전환 -->
-            <div class="scale-item-card" data-key="secondary-vi" data-level="9" onpointerup="onScaleItemTap(this)">
-              <div class="lw-row1">
-                <span class="lw-badge">LEVEL 9</span>
-                <span class="lw-row1-right"></span>
+            <div class="scale-item-card scale-item-card--template" data-key="secondary-vi" data-level="9">
+              <div class="scale-card-header">
+                <div class="lw-row1">
+                  <span class="lw-badge">LEVEL 9</span>
+                  <span class="lw-row1-right"></span>
+                </div>
+                <span class="lw-name">2도 마이너 전환</span>
               </div>
-              <span class="lw-name">2도 마이너 전환</span>
+
+              <div class="scale-card-shot">
+                <div class="fb-full-neck fb-shot-neck">
+                    <div class="fb-string" style="top:8.33%; height:1px;"></div>
+                    <div class="fb-string" style="top:25.00%; height:1.5px;"></div>
+                    <div class="fb-string" style="top:41.67%; height:2px;"></div>
+                    <div class="fb-string" style="top:58.33%; height:2.5px;"></div>
+                    <div class="fb-string" style="top:75.00%; height:3px;"></div>
+                    <div class="fb-string" style="top:91.67%; height:3.5px;"></div>
+                    <div class="fb-fret-line" style="left:20.00%;"></div>
+                    <div class="fb-fret-line" style="left:40.00%;"></div>
+                    <div class="fb-fret-line" style="left:60.00%;"></div>
+                    <div class="fb-fret-line" style="left:80.00%;"></div>
+                    <div class="fb-note" style="left:30.00%; top:8.33%;"></div>
+                    <div class="fb-note" style="left:70.00%; top:8.33%;"></div>
+                    <div class="fb-note fb-note--root" style="left:30.00%; top:25.00%;"></div>
+                    <div class="fb-note" style="left:70.00%; top:25.00%;"></div>
+                    <div class="fb-note" style="left:90.00%; top:25.00%;"></div>
+                    <div class="fb-note" style="left:10.00%; top:41.67%;"></div>
+                    <div class="fb-note" style="left:30.00%; top:41.67%;"></div>
+                    <div class="fb-note" style="left:90.00%; top:41.67%;"></div>
+                    <div class="fb-note" style="left:10.00%; top:58.33%;"></div>
+                    <div class="fb-note" style="left:30.00%; top:58.33%;"></div>
+                    <div class="fb-note" style="left:70.00%; top:58.33%;"></div>
+                    <div class="fb-note" style="left:50.00%; top:75.00%;"></div>
+                    <div class="fb-note fb-note--root" style="left:70.00%; top:75.00%;"></div>
+                    <div class="fb-note" style="left:30.00%; top:91.67%;"></div>
+                    <div class="fb-note" style="left:70.00%; top:91.67%;"></div>
+                    <div class="fb-note" style="left:90.00%; top:91.67%;"></div>
+                </div>
+                <div class="fb-full-nums">
+                  <div class="fb-fret-num" style="left:30.00%;">3</div>
+                  <div class="fb-fret-num" style="left:70.00%;">5</div>
+                </div>
+              </div>
+
+              <div class="scale-card-notes"></div>
+
+              <button class="scale-card-practice-btn" onpointerup="onScalePracticeTap(this)">
+                <i data-lucide="play"></i>연습하기
+              </button>
             </div>
 
             <!-- 10. 3도 마이너 전환 -->
-            <div class="scale-item-card" data-key="secondary-iii" data-level="10" onpointerup="onScaleItemTap(this)">
-              <div class="lw-row1">
-                <span class="lw-badge">LEVEL 10</span>
-                <span class="lw-row1-right"></span>
+            <div class="scale-item-card scale-item-card--template" data-key="secondary-iii" data-level="10">
+              <div class="scale-card-header">
+                <div class="lw-row1">
+                  <span class="lw-badge">LEVEL 10</span>
+                  <span class="lw-row1-right"></span>
+                </div>
+                <span class="lw-name">내추럴 마이너 전환</span>
               </div>
-              <span class="lw-name">내추럴 마이너 전환</span>
+
+              <div class="scale-card-shot">
+                <div class="fb-full-neck fb-shot-neck">
+                    <div class="fb-string" style="top:8.33%; height:1px;"></div>
+                    <div class="fb-string" style="top:25.00%; height:1.5px;"></div>
+                    <div class="fb-string" style="top:41.67%; height:2px;"></div>
+                    <div class="fb-string" style="top:58.33%; height:2.5px;"></div>
+                    <div class="fb-string" style="top:75.00%; height:3px;"></div>
+                    <div class="fb-string" style="top:91.67%; height:3.5px;"></div>
+                    <div class="fb-fret-line" style="left:25.00%;"></div>
+                    <div class="fb-fret-line" style="left:50.00%;"></div>
+                    <div class="fb-fret-line" style="left:75.00%;"></div>
+                    <div class="fb-note" style="left:12.50%; top:8.33%;"></div>
+                    <div class="fb-note" style="left:37.50%; top:8.33%;"></div>
+                    <div class="fb-note" style="left:87.50%; top:8.33%;"></div>
+                    <div class="fb-note" style="left:12.50%; top:25.00%;"></div>
+                    <div class="fb-note" style="left:37.50%; top:25.00%;"></div>
+                    <div class="fb-note" style="left:87.50%; top:25.00%;"></div>
+                    <div class="fb-note" style="left:12.50%; top:41.67%;"></div>
+                    <div class="fb-note fb-note--root" style="left:62.50%; top:41.67%;"></div>
+                    <div class="fb-note" style="left:12.50%; top:58.33%;"></div>
+                    <div class="fb-note" style="left:62.50%; top:58.33%;"></div>
+                    <div class="fb-note" style="left:87.50%; top:58.33%;"></div>
+                    <div class="fb-note fb-note--root" style="left:12.50%; top:75.00%;"></div>
+                    <div class="fb-note" style="left:62.50%; top:75.00%;"></div>
+                    <div class="fb-note" style="left:87.50%; top:75.00%;"></div>
+                    <div class="fb-note" style="left:12.50%; top:91.67%;"></div>
+                    <div class="fb-note" style="left:37.50%; top:91.67%;"></div>
+                    <div class="fb-note" style="left:87.50%; top:91.67%;"></div>
+                </div>
+                <div class="fb-full-nums">
+                  <div class="fb-fret-num" style="left:12.50%;">3</div>
+                  <div class="fb-fret-num" style="left:62.50%;">5</div>
+                </div>
+              </div>
+
+              <div class="scale-card-notes"></div>
+
+              <button class="scale-card-practice-btn" onpointerup="onScalePracticeTap(this)">
+                <i data-lucide="play"></i>연습하기
+              </button>
             </div>
 
           </div><!-- /scale-item-list -->
         </div><!-- /scale-chapter -->
 
         <!-- ── Ch. 3: 모드 스케일 ── -->
-        <div class="scale-chapter">
+        <div class="scale-chapter scale-chapter--hidden" id="ch-3">
           <div class="scale-chapter-header">
             <span class="scale-chapter-title">Ch. 3</span>
             <span class="scale-chapter-subtitle">모드 스케일</span>
           </div>
 
-          <div class="scale-item-list">
+          <div class="scale-item-list scale-item-list--carousel">
 
             <!-- 11. 아이오니안 스케일 -->
-            <div class="scale-item-card" data-key="ionian" data-level="11" onpointerup="onScaleItemTap(this)">
-              <div class="lw-row1">
-                <span class="lw-badge">LEVEL 11</span>
-                <span class="lw-row1-right"></span>
+            <div class="scale-item-card scale-item-card--template" data-key="ionian" data-level="11">
+              <div class="scale-card-header">
+                <div class="lw-row1">
+                  <span class="lw-badge">LEVEL 11</span>
+                  <span class="lw-row1-right"></span>
+                </div>
+                <span class="lw-name">아이오니안 스케일</span>
               </div>
-              <span class="lw-name">아이오니안 스케일</span>
+
+              <div class="scale-card-shot">
+                <div class="fb-full-neck fb-shot-neck">
+                    <div class="fb-string" style="top:8.33%; height:1px;"></div>
+                    <div class="fb-string" style="top:25.00%; height:1.5px;"></div>
+                    <div class="fb-string" style="top:41.67%; height:2px;"></div>
+                    <div class="fb-string" style="top:58.33%; height:2.5px;"></div>
+                    <div class="fb-string" style="top:75.00%; height:3px;"></div>
+                    <div class="fb-string" style="top:91.67%; height:3.5px;"></div>
+                    <div class="fb-fret-line" style="left:20.00%;"></div>
+                    <div class="fb-fret-line" style="left:40.00%;"></div>
+                    <div class="fb-fret-line" style="left:60.00%;"></div>
+                    <div class="fb-fret-line" style="left:80.00%;"></div>
+                    <div class="fb-note" style="left:30.00%; top:8.33%;"></div>
+                    <div class="fb-note" style="left:70.00%; top:8.33%;"></div>
+                    <div class="fb-note" style="left:30.00%; top:25.00%;"></div>
+                    <div class="fb-note" style="left:70.00%; top:25.00%;"></div>
+                    <div class="fb-note" style="left:90.00%; top:25.00%;"></div>
+                    <div class="fb-note" style="left:10.00%; top:41.67%;"></div>
+                    <div class="fb-note" style="left:50.00%; top:41.67%;"></div>
+                    <div class="fb-note fb-note--root" style="left:70.00%; top:41.67%;"></div>
+                    <div class="fb-note" style="left:10.00%; top:58.33%;"></div>
+                    <div class="fb-note" style="left:30.00%; top:58.33%;"></div>
+                    <div class="fb-note" style="left:70.00%; top:58.33%;"></div>
+                    <div class="fb-note" style="left:10.00%; top:75.00%;"></div>
+                    <div class="fb-note fb-note--root" style="left:30.00%; top:75.00%;"></div>
+                    <div class="fb-note" style="left:70.00%; top:75.00%;"></div>
+                    <div class="fb-note" style="left:30.00%; top:91.67%;"></div>
+                    <div class="fb-note" style="left:70.00%; top:91.67%;"></div>
+                </div>
+                <div class="fb-full-nums">
+                  <div class="fb-fret-num" style="left:30.00%;">3</div>
+                  <div class="fb-fret-num" style="left:70.00%;">5</div>
+                </div>
+              </div>
+
+              <div class="scale-card-notes"></div>
+
+              <button class="scale-card-practice-btn" onpointerup="onScalePracticeTap(this)">
+                <i data-lucide="play"></i>연습하기
+              </button>
             </div>
 
             <!-- 12. 도리안 스케일 -->
-            <div class="scale-item-card" data-key="dorian" data-level="12" onpointerup="onScaleItemTap(this)">
-              <div class="lw-row1">
-                <span class="lw-badge">LEVEL 12</span>
-                <span class="lw-row1-right"></span>
+            <div class="scale-item-card scale-item-card--template" data-key="dorian" data-level="12">
+              <div class="scale-card-header">
+                <div class="lw-row1">
+                  <span class="lw-badge">LEVEL 12</span>
+                  <span class="lw-row1-right"></span>
+                </div>
+                <span class="lw-name">도리안 스케일</span>
               </div>
-              <span class="lw-name">도리안 스케일</span>
+
+              <div class="scale-card-shot">
+                <div class="fb-full-neck fb-shot-neck">
+                    <div class="fb-string" style="top:8.33%; height:1px;"></div>
+                    <div class="fb-string" style="top:25.00%; height:1.5px;"></div>
+                    <div class="fb-string" style="top:41.67%; height:2px;"></div>
+                    <div class="fb-string" style="top:58.33%; height:2.5px;"></div>
+                    <div class="fb-string" style="top:75.00%; height:3px;"></div>
+                    <div class="fb-string" style="top:91.67%; height:3.5px;"></div>
+                    <div class="fb-fret-line" style="left:20.00%;"></div>
+                    <div class="fb-fret-line" style="left:40.00%;"></div>
+                    <div class="fb-fret-line" style="left:60.00%;"></div>
+                    <div class="fb-fret-line" style="left:80.00%;"></div>
+                    <div class="fb-note" style="left:30.00%; top:8.33%;"></div>
+                    <div class="fb-note" style="left:70.00%; top:8.33%;"></div>
+                    <div class="fb-note" style="left:90.00%; top:8.33%;"></div>
+                    <div class="fb-note" style="left:30.00%; top:25.00%;"></div>
+                    <div class="fb-note" style="left:50.00%; top:25.00%;"></div>
+                    <div class="fb-note" style="left:90.00%; top:25.00%;"></div>
+                    <div class="fb-note" style="left:10.00%; top:41.67%;"></div>
+                    <div class="fb-note" style="left:30.00%; top:41.67%;"></div>
+                    <div class="fb-note fb-note--root" style="left:70.00%; top:41.67%;"></div>
+                    <div class="fb-note" style="left:30.00%; top:58.33%;"></div>
+                    <div class="fb-note" style="left:70.00%; top:58.33%;"></div>
+                    <div class="fb-note fb-note--root" style="left:30.00%; top:75.00%;"></div>
+                    <div class="fb-note" style="left:70.00%; top:75.00%;"></div>
+                    <div class="fb-note" style="left:90.00%; top:75.00%;"></div>
+                    <div class="fb-note" style="left:30.00%; top:91.67%;"></div>
+                    <div class="fb-note" style="left:70.00%; top:91.67%;"></div>
+                    <div class="fb-note" style="left:90.00%; top:91.67%;"></div>
+                </div>
+                <div class="fb-full-nums">
+                  <div class="fb-fret-num" style="left:30.00%;">3</div>
+                  <div class="fb-fret-num" style="left:70.00%;">5</div>
+                </div>
+              </div>
+
+              <div class="scale-card-notes"></div>
+
+              <button class="scale-card-practice-btn" onpointerup="onScalePracticeTap(this)">
+                <i data-lucide="play"></i>연습하기
+              </button>
             </div>
 
             <!-- 13. 프리지안 스케일 -->
-            <div class="scale-item-card" data-key="phrygian" data-level="13" onpointerup="onScaleItemTap(this)">
-              <div class="lw-row1">
-                <span class="lw-badge">LEVEL 13</span>
-                <span class="lw-row1-right"></span>
+            <div class="scale-item-card scale-item-card--template" data-key="phrygian" data-level="13">
+              <div class="scale-card-header">
+                <div class="lw-row1">
+                  <span class="lw-badge">LEVEL 13</span>
+                  <span class="lw-row1-right"></span>
+                </div>
+                <span class="lw-name">프리지안 스케일</span>
               </div>
-              <span class="lw-name">프리지안 스케일</span>
+
+              <div class="scale-card-shot">
+                <div class="fb-full-neck fb-shot-neck">
+                    <div class="fb-string" style="top:8.33%; height:1px;"></div>
+                    <div class="fb-string" style="top:25.00%; height:1.5px;"></div>
+                    <div class="fb-string" style="top:41.67%; height:2px;"></div>
+                    <div class="fb-string" style="top:58.33%; height:2.5px;"></div>
+                    <div class="fb-string" style="top:75.00%; height:3px;"></div>
+                    <div class="fb-string" style="top:91.67%; height:3.5px;"></div>
+                    <div class="fb-fret-line" style="left:25.00%;"></div>
+                    <div class="fb-fret-line" style="left:50.00%;"></div>
+                    <div class="fb-fret-line" style="left:75.00%;"></div>
+                    <div class="fb-note" style="left:12.50%; top:8.33%;"></div>
+                    <div class="fb-note" style="left:37.50%; top:8.33%;"></div>
+                    <div class="fb-note" style="left:87.50%; top:8.33%;"></div>
+                    <div class="fb-note" style="left:37.50%; top:25.00%;"></div>
+                    <div class="fb-note" style="left:87.50%; top:25.00%;"></div>
+                    <div class="fb-note" style="left:12.50%; top:41.67%;"></div>
+                    <div class="fb-note fb-note--root" style="left:62.50%; top:41.67%;"></div>
+                    <div class="fb-note" style="left:87.50%; top:41.67%;"></div>
+                    <div class="fb-note" style="left:12.50%; top:58.33%;"></div>
+                    <div class="fb-note" style="left:62.50%; top:58.33%;"></div>
+                    <div class="fb-note" style="left:87.50%; top:58.33%;"></div>
+                    <div class="fb-note fb-note--root" style="left:12.50%; top:75.00%;"></div>
+                    <div class="fb-note" style="left:37.50%; top:75.00%;"></div>
+                    <div class="fb-note" style="left:87.50%; top:75.00%;"></div>
+                    <div class="fb-note" style="left:12.50%; top:91.67%;"></div>
+                    <div class="fb-note" style="left:37.50%; top:91.67%;"></div>
+                    <div class="fb-note" style="left:87.50%; top:91.67%;"></div>
+                </div>
+                <div class="fb-full-nums">
+                  <div class="fb-fret-num" style="left:12.50%;">3</div>
+                  <div class="fb-fret-num" style="left:62.50%;">5</div>
+                </div>
+              </div>
+
+              <div class="scale-card-notes"></div>
+
+              <button class="scale-card-practice-btn" onpointerup="onScalePracticeTap(this)">
+                <i data-lucide="play"></i>연습하기
+              </button>
             </div>
 
             <!-- 14. 리디안 스케일 -->
-            <div class="scale-item-card" data-key="lydian" data-level="14" onpointerup="onScaleItemTap(this)">
-              <div class="lw-row1">
-                <span class="lw-badge">LEVEL 14</span>
-                <span class="lw-row1-right"></span>
+            <div class="scale-item-card scale-item-card--template" data-key="lydian" data-level="14">
+              <div class="scale-card-header">
+                <div class="lw-row1">
+                  <span class="lw-badge">LEVEL 14</span>
+                  <span class="lw-row1-right"></span>
+                </div>
+                <span class="lw-name">리디안 스케일</span>
               </div>
-              <span class="lw-name">리디안 스케일</span>
+
+              <div class="scale-card-shot">
+                <div class="fb-full-neck fb-shot-neck">
+                    <div class="fb-string" style="top:8.33%; height:1px;"></div>
+                    <div class="fb-string" style="top:25.00%; height:1.5px;"></div>
+                    <div class="fb-string" style="top:41.67%; height:2px;"></div>
+                    <div class="fb-string" style="top:58.33%; height:2.5px;"></div>
+                    <div class="fb-string" style="top:75.00%; height:3px;"></div>
+                    <div class="fb-string" style="top:91.67%; height:3.5px;"></div>
+                    <div class="fb-fret-line" style="left:20.00%;"></div>
+                    <div class="fb-fret-line" style="left:40.00%;"></div>
+                    <div class="fb-fret-line" style="left:60.00%;"></div>
+                    <div class="fb-fret-line" style="left:80.00%;"></div>
+                    <div class="fb-note" style="left:30.00%; top:8.33%;"></div>
+                    <div class="fb-note" style="left:70.00%; top:8.33%;"></div>
+                    <div class="fb-note" style="left:30.00%; top:25.00%;"></div>
+                    <div class="fb-note" style="left:70.00%; top:25.00%;"></div>
+                    <div class="fb-note" style="left:90.00%; top:25.00%;"></div>
+                    <div class="fb-note" style="left:10.00%; top:41.67%;"></div>
+                    <div class="fb-note fb-note--root" style="left:30.00%; top:41.67%;"></div>
+                    <div class="fb-note" style="left:70.00%; top:41.67%;"></div>
+                    <div class="fb-note" style="left:10.00%; top:58.33%;"></div>
+                    <div class="fb-note" style="left:30.00%; top:58.33%;"></div>
+                    <div class="fb-note" style="left:70.00%; top:58.33%;"></div>
+                    <div class="fb-note" style="left:30.00%; top:75.00%;"></div>
+                    <div class="fb-note" style="left:70.00%; top:75.00%;"></div>
+                    <div class="fb-note" style="left:30.00%; top:91.67%;"></div>
+                    <div class="fb-note" style="left:70.00%; top:91.67%;"></div>
+                    <div class="fb-note fb-note--root" style="left:90.00%; top:91.67%;"></div>
+                </div>
+                <div class="fb-full-nums">
+                  <div class="fb-fret-num" style="left:30.00%;">5</div>
+                  <div class="fb-fret-num" style="left:70.00%;">7</div>
+                </div>
+              </div>
+
+              <div class="scale-card-notes"></div>
+
+              <button class="scale-card-practice-btn" onpointerup="onScalePracticeTap(this)">
+                <i data-lucide="play"></i>연습하기
+              </button>
             </div>
 
             <!-- 15. 믹솔리디안 스케일 -->
-            <div class="scale-item-card" data-key="mixolydian" data-level="15" onpointerup="onScaleItemTap(this)">
-              <div class="lw-row1">
-                <span class="lw-badge">LEVEL 15</span>
-                <span class="lw-row1-right"></span>
+            <div class="scale-item-card scale-item-card--template" data-key="mixolydian" data-level="15">
+              <div class="scale-card-header">
+                <div class="lw-row1">
+                  <span class="lw-badge">LEVEL 15</span>
+                  <span class="lw-row1-right"></span>
+                </div>
+                <span class="lw-name">믹솔리디안 스케일</span>
               </div>
-              <span class="lw-name">믹솔리디안 스케일</span>
+
+              <div class="scale-card-shot">
+                <div class="fb-full-neck fb-shot-neck">
+                    <div class="fb-string" style="top:8.33%; height:1px;"></div>
+                    <div class="fb-string" style="top:25.00%; height:1.5px;"></div>
+                    <div class="fb-string" style="top:41.67%; height:2px;"></div>
+                    <div class="fb-string" style="top:58.33%; height:2.5px;"></div>
+                    <div class="fb-string" style="top:75.00%; height:3px;"></div>
+                    <div class="fb-string" style="top:91.67%; height:3.5px;"></div>
+                    <div class="fb-fret-line" style="left:20.00%;"></div>
+                    <div class="fb-fret-line" style="left:40.00%;"></div>
+                    <div class="fb-fret-line" style="left:60.00%;"></div>
+                    <div class="fb-fret-line" style="left:80.00%;"></div>
+                    <div class="fb-note" style="left:30.00%; top:8.33%;"></div>
+                    <div class="fb-note" style="left:70.00%; top:8.33%;"></div>
+                    <div class="fb-note" style="left:30.00%; top:25.00%;"></div>
+                    <div class="fb-note" style="left:70.00%; top:25.00%;"></div>
+                    <div class="fb-note" style="left:90.00%; top:25.00%;"></div>
+                    <div class="fb-note" style="left:10.00%; top:41.67%;"></div>
+                    <div class="fb-note" style="left:30.00%; top:41.67%;"></div>
+                    <div class="fb-note fb-note--root" style="left:70.00%; top:41.67%;"></div>
+                    <div class="fb-note" style="left:10.00%; top:58.33%;"></div>
+                    <div class="fb-note" style="left:30.00%; top:58.33%;"></div>
+                    <div class="fb-note" style="left:70.00%; top:58.33%;"></div>
+                    <div class="fb-note fb-note--root" style="left:30.00%; top:75.00%;"></div>
+                    <div class="fb-note" style="left:70.00%; top:75.00%;"></div>
+                    <div class="fb-note" style="left:30.00%; top:91.67%;"></div>
+                    <div class="fb-note" style="left:70.00%; top:91.67%;"></div>
+                    <div class="fb-note" style="left:90.00%; top:91.67%;"></div>
+                </div>
+                <div class="fb-full-nums">
+                  <div class="fb-fret-num" style="left:30.00%;">3</div>
+                  <div class="fb-fret-num" style="left:70.00%;">5</div>
+                </div>
+              </div>
+
+              <div class="scale-card-notes"></div>
+
+              <button class="scale-card-practice-btn" onpointerup="onScalePracticeTap(this)">
+                <i data-lucide="play"></i>연습하기
+              </button>
             </div>
 
             <!-- 16. 에올리안 스케일 -->
-            <div class="scale-item-card" data-key="aeolian" data-level="16" onpointerup="onScaleItemTap(this)">
-              <div class="lw-row1">
-                <span class="lw-badge">LEVEL 16</span>
-                <span class="lw-row1-right"></span>
+            <div class="scale-item-card scale-item-card--template" data-key="aeolian" data-level="16">
+              <div class="scale-card-header">
+                <div class="lw-row1">
+                  <span class="lw-badge">LEVEL 16</span>
+                  <span class="lw-row1-right"></span>
+                </div>
+                <span class="lw-name">에올리안 스케일</span>
               </div>
-              <span class="lw-name">에올리안 스케일</span>
+
+              <div class="scale-card-shot">
+                <div class="fb-full-neck fb-shot-neck">
+                    <div class="fb-string" style="top:8.33%; height:1px;"></div>
+                    <div class="fb-string" style="top:25.00%; height:1.5px;"></div>
+                    <div class="fb-string" style="top:41.67%; height:2px;"></div>
+                    <div class="fb-string" style="top:58.33%; height:2.5px;"></div>
+                    <div class="fb-string" style="top:75.00%; height:3px;"></div>
+                    <div class="fb-string" style="top:91.67%; height:3.5px;"></div>
+                    <div class="fb-fret-line" style="left:25.00%;"></div>
+                    <div class="fb-fret-line" style="left:50.00%;"></div>
+                    <div class="fb-fret-line" style="left:75.00%;"></div>
+                    <div class="fb-note" style="left:12.50%; top:8.33%;"></div>
+                    <div class="fb-note" style="left:37.50%; top:8.33%;"></div>
+                    <div class="fb-note" style="left:87.50%; top:8.33%;"></div>
+                    <div class="fb-note" style="left:12.50%; top:25.00%;"></div>
+                    <div class="fb-note" style="left:37.50%; top:25.00%;"></div>
+                    <div class="fb-note" style="left:87.50%; top:25.00%;"></div>
+                    <div class="fb-note" style="left:12.50%; top:41.67%;"></div>
+                    <div class="fb-note fb-note--root" style="left:62.50%; top:41.67%;"></div>
+                    <div class="fb-note" style="left:12.50%; top:58.33%;"></div>
+                    <div class="fb-note" style="left:62.50%; top:58.33%;"></div>
+                    <div class="fb-note" style="left:87.50%; top:58.33%;"></div>
+                    <div class="fb-note fb-note--root" style="left:12.50%; top:75.00%;"></div>
+                    <div class="fb-note" style="left:62.50%; top:75.00%;"></div>
+                    <div class="fb-note" style="left:87.50%; top:75.00%;"></div>
+                    <div class="fb-note" style="left:12.50%; top:91.67%;"></div>
+                    <div class="fb-note" style="left:37.50%; top:91.67%;"></div>
+                    <div class="fb-note" style="left:87.50%; top:91.67%;"></div>
+                </div>
+                <div class="fb-full-nums">
+                  <div class="fb-fret-num" style="left:12.50%;">3</div>
+                  <div class="fb-fret-num" style="left:62.50%;">5</div>
+                </div>
+              </div>
+
+              <div class="scale-card-notes"></div>
+
+              <button class="scale-card-practice-btn" onpointerup="onScalePracticeTap(this)">
+                <i data-lucide="play"></i>연습하기
+              </button>
             </div>
 
             <!-- 17. 로크리안 스케일 -->
-            <div class="scale-item-card" data-key="locrian" data-level="17" onpointerup="onScaleItemTap(this)">
-              <div class="lw-row1">
-                <span class="lw-badge">LEVEL 17</span>
-                <span class="lw-row1-right"></span>
+            <div class="scale-item-card scale-item-card--template" data-key="locrian" data-level="17">
+              <div class="scale-card-header">
+                <div class="lw-row1">
+                  <span class="lw-badge">LEVEL 17</span>
+                  <span class="lw-row1-right"></span>
+                </div>
+                <span class="lw-name">로크리안 스케일</span>
               </div>
-              <span class="lw-name">로크리안 스케일</span>
+
+              <div class="scale-card-shot">
+                <div class="fb-full-neck fb-shot-neck">
+                    <div class="fb-string" style="top:8.33%; height:1px;"></div>
+                    <div class="fb-string" style="top:25.00%; height:1.5px;"></div>
+                    <div class="fb-string" style="top:41.67%; height:2px;"></div>
+                    <div class="fb-string" style="top:58.33%; height:2.5px;"></div>
+                    <div class="fb-string" style="top:75.00%; height:3px;"></div>
+                    <div class="fb-string" style="top:91.67%; height:3.5px;"></div>
+                    <div class="fb-fret-line" style="left:20.00%;"></div>
+                    <div class="fb-fret-line" style="left:40.00%;"></div>
+                    <div class="fb-fret-line" style="left:60.00%;"></div>
+                    <div class="fb-fret-line" style="left:80.00%;"></div>
+                    <div class="fb-note" style="left:30.00%; top:8.33%;"></div>
+                    <div class="fb-note" style="left:70.00%; top:8.33%;"></div>
+                    <div class="fb-note" style="left:30.00%; top:25.00%;"></div>
+                    <div class="fb-note" style="left:70.00%; top:25.00%;"></div>
+                    <div class="fb-note" style="left:90.00%; top:25.00%;"></div>
+                    <div class="fb-note" style="left:10.00%; top:41.67%;"></div>
+                    <div class="fb-note fb-note--root" style="left:50.00%; top:41.67%;"></div>
+                    <div class="fb-note" style="left:70.00%; top:41.67%;"></div>
+                    <div class="fb-note" style="left:10.00%; top:58.33%;"></div>
+                    <div class="fb-note" style="left:30.00%; top:58.33%;"></div>
+                    <div class="fb-note" style="left:70.00%; top:58.33%;"></div>
+                    <div class="fb-note fb-note--root" style="left:10.00%; top:75.00%;"></div>
+                    <div class="fb-note" style="left:30.00%; top:75.00%;"></div>
+                    <div class="fb-note" style="left:70.00%; top:75.00%;"></div>
+                    <div class="fb-note" style="left:30.00%; top:91.67%;"></div>
+                    <div class="fb-note" style="left:70.00%; top:91.67%;"></div>
+                </div>
+                <div class="fb-full-nums">
+                  <div class="fb-fret-num" style="left:10.00%;">3</div>
+                  <div class="fb-fret-num" style="left:50.00%;">5</div>
+                  <div class="fb-fret-num" style="left:90.00%;">7</div>
+                </div>
+              </div>
+
+              <div class="scale-card-notes"></div>
+
+              <button class="scale-card-practice-btn" onpointerup="onScalePracticeTap(this)">
+                <i data-lucide="play"></i>연습하기
+              </button>
             </div>
 
           </div><!-- /scale-item-list -->
         </div><!-- /scale-chapter -->
 
         <!-- ── Ch. 4: 고급 스케일 ── -->
-        <div class="scale-chapter">
+        <div class="scale-chapter scale-chapter--hidden" id="ch-4">
           <div class="scale-chapter-header">
             <span class="scale-chapter-title">Ch. 4</span>
             <span class="scale-chapter-subtitle">고급 스케일</span>
           </div>
 
-          <div class="scale-item-list">
+          <div class="scale-item-list scale-item-list--carousel">
 
-            <!-- 18. 멜로딕 마이너 스케일 (커밍순, 프리미엄) -->
-            <div class="scale-item-card scale-item-card--soon lw-item--coming-soon" data-key="melodic-minor" data-level="18">
-              <div class="lw-row1">
-                <span class="lw-badge">LEVEL 18</span>
-                <span class="lw-row1-right"><i class="ph-fill ph-crown lw-premium-crown"></i></span>
+            <!-- 18. 멜로딕 마이너 스케일 -->
+            <div class="scale-item-card scale-item-card--template" data-key="melodic-minor" data-level="18">
+              <div class="scale-card-header">
+                <div class="lw-row1">
+                  <span class="lw-badge">LEVEL 18</span>
+                  <span class="lw-row1-right"></span>
+                </div>
+                <span class="lw-name">멜로딕 마이너 스케일</span>
               </div>
-              <span class="lw-name">멜로딕 마이너 스케일</span>
-              <span class="lw-coming-soon">COMING SOON</span>
+
+              <div class="scale-card-shot">
+                <div class="fb-full-neck fb-shot-neck">
+                    <div class="fb-string" style="top:8.33%; height:1px;"></div>
+                    <div class="fb-string" style="top:25.00%; height:1.5px;"></div>
+                    <div class="fb-string" style="top:41.67%; height:2px;"></div>
+                    <div class="fb-string" style="top:58.33%; height:2.5px;"></div>
+                    <div class="fb-string" style="top:75.00%; height:3px;"></div>
+                    <div class="fb-string" style="top:91.67%; height:3.5px;"></div>
+                    <div class="fb-fret-line" style="left:20.00%;"></div>
+                    <div class="fb-fret-line" style="left:40.00%;"></div>
+                    <div class="fb-fret-line" style="left:60.00%;"></div>
+                    <div class="fb-fret-line" style="left:80.00%;"></div>
+                    <div class="fb-note" style="left:30.00%; top:8.33%;"></div>
+                    <div class="fb-note" style="left:70.00%; top:8.33%;"></div>
+                    <div class="fb-note" style="left:30.00%; top:25.00%;"></div>
+                    <div class="fb-note" style="left:50.00%; top:25.00%;"></div>
+                    <div class="fb-note" style="left:90.00%; top:25.00%;"></div>
+                    <div class="fb-note" style="left:10.00%; top:41.67%;"></div>
+                    <div class="fb-note" style="left:50.00%; top:41.67%;"></div>
+                    <div class="fb-note fb-note--root" style="left:70.00%; top:41.67%;"></div>
+                    <div class="fb-note" style="left:30.00%; top:58.33%;"></div>
+                    <div class="fb-note" style="left:70.00%; top:58.33%;"></div>
+                    <div class="fb-note" style="left:10.00%; top:75.00%;"></div>
+                    <div class="fb-note fb-note--root" style="left:30.00%; top:75.00%;"></div>
+                    <div class="fb-note" style="left:70.00%; top:75.00%;"></div>
+                    <div class="fb-note" style="left:90.00%; top:75.00%;"></div>
+                    <div class="fb-note" style="left:30.00%; top:91.67%;"></div>
+                    <div class="fb-note" style="left:70.00%; top:91.67%;"></div>
+                </div>
+                <div class="fb-full-nums">
+                  <div class="fb-fret-num" style="left:30.00%;">3</div>
+                  <div class="fb-fret-num" style="left:70.00%;">5</div>
+                </div>
+              </div>
+
+              <div class="scale-card-notes"></div>
+
+              <button class="scale-card-practice-btn" onpointerup="onScalePracticeTap(this)">
+                <i data-lucide="play"></i>연습하기
+              </button>
             </div>
 
-            <!-- 19. 프리지안 도미넌트 스케일 (커밍순, 프리미엄) -->
-            <div class="scale-item-card scale-item-card--soon lw-item--coming-soon" data-key="phrygian-dominant" data-level="19">
-              <div class="lw-row1">
-                <span class="lw-badge">LEVEL 19</span>
-                <span class="lw-row1-right"><i class="ph-fill ph-crown lw-premium-crown"></i></span>
+            <!-- 19. 얼터드 스케일 -->
+            <div class="scale-item-card scale-item-card--template" data-key="altered" data-level="19">
+              <div class="scale-card-header">
+                <div class="lw-row1">
+                  <span class="lw-badge">LEVEL 19</span>
+                  <span class="lw-row1-right"></span>
+                </div>
+                <span class="lw-name">얼터드 스케일</span>
               </div>
-              <span class="lw-name">프리지안 도미넌트 스케일</span>
-              <span class="lw-coming-soon">COMING SOON</span>
+
+              <div class="scale-card-shot">
+                <div class="fb-full-neck fb-shot-neck">
+                    <div class="fb-string" style="top:8.33%; height:1px;"></div>
+                    <div class="fb-string" style="top:25.00%; height:1.5px;"></div>
+                    <div class="fb-string" style="top:41.67%; height:2px;"></div>
+                    <div class="fb-string" style="top:58.33%; height:2.5px;"></div>
+                    <div class="fb-string" style="top:75.00%; height:3px;"></div>
+                    <div class="fb-string" style="top:91.67%; height:3.5px;"></div>
+                    <div class="fb-fret-line" style="left:20.00%;"></div>
+                    <div class="fb-fret-line" style="left:40.00%;"></div>
+                    <div class="fb-fret-line" style="left:60.00%;"></div>
+                    <div class="fb-fret-line" style="left:80.00%;"></div>
+                    <div class="fb-note" style="left:30.00%; top:8.33%;"></div>
+                    <div class="fb-note" style="left:70.00%; top:8.33%;"></div>
+                    <div class="fb-note" style="left:30.00%; top:25.00%;"></div>
+                    <div class="fb-note" style="left:50.00%; top:25.00%;"></div>
+                    <div class="fb-note" style="left:90.00%; top:25.00%;"></div>
+                    <div class="fb-note" style="left:10.00%; top:41.67%;"></div>
+                    <div class="fb-note fb-note--root" style="left:50.00%; top:41.67%;"></div>
+                    <div class="fb-note" style="left:70.00%; top:41.67%;"></div>
+                    <div class="fb-note" style="left:30.00%; top:58.33%;"></div>
+                    <div class="fb-note" style="left:70.00%; top:58.33%;"></div>
+                    <div class="fb-note fb-note--root" style="left:10.00%; top:75.00%;"></div>
+                    <div class="fb-note" style="left:30.00%; top:75.00%;"></div>
+                    <div class="fb-note" style="left:70.00%; top:75.00%;"></div>
+                    <div class="fb-note" style="left:90.00%; top:75.00%;"></div>
+                    <div class="fb-note" style="left:30.00%; top:91.67%;"></div>
+                    <div class="fb-note" style="left:70.00%; top:91.67%;"></div>
+                </div>
+                <div class="fb-full-nums">
+                  <div class="fb-fret-num" style="left:10.00%;">3</div>
+                  <div class="fb-fret-num" style="left:50.00%;">5</div>
+                  <div class="fb-fret-num" style="left:90.00%;">7</div>
+                </div>
+              </div>
+
+              <div class="scale-card-notes"></div>
+
+              <button class="scale-card-practice-btn" onpointerup="onScalePracticeTap(this)">
+                <i data-lucide="play"></i>연습하기
+              </button>
             </div>
 
-            <!-- 20. 믹솔리디안 b9 b13 스케일 (커밍순, 프리미엄) -->
-            <div class="scale-item-card scale-item-card--soon lw-item--coming-soon" data-key="mixolydian-b9b13" data-level="20">
-              <div class="lw-row1">
-                <span class="lw-badge">LEVEL 20</span>
-                <span class="lw-row1-right"><i class="ph-fill ph-crown lw-premium-crown"></i></span>
+            <!-- 20. 프리지안 도미넌트 스케일 -->
+            <div class="scale-item-card scale-item-card--template" data-key="phrygian-dominant" data-level="20">
+              <div class="scale-card-header">
+                <div class="lw-row1">
+                  <span class="lw-badge">LEVEL 20</span>
+                  <span class="lw-row1-right"></span>
+                </div>
+                <span class="lw-name">프리지안 도미넌트 스케일</span>
               </div>
-              <span class="lw-name">믹솔리디안 b9 b13 스케일</span>
-              <span class="lw-coming-soon">COMING SOON</span>
+
+              <div class="scale-card-shot">
+                <div class="fb-full-neck fb-shot-neck">
+                    <div class="fb-string" style="top:8.33%; height:1px;"></div>
+                    <div class="fb-string" style="top:25.00%; height:1.5px;"></div>
+                    <div class="fb-string" style="top:41.67%; height:2px;"></div>
+                    <div class="fb-string" style="top:58.33%; height:2.5px;"></div>
+                    <div class="fb-string" style="top:75.00%; height:3px;"></div>
+                    <div class="fb-string" style="top:91.67%; height:3.5px;"></div>
+                    <div class="fb-fret-line" style="left:20.00%;"></div>
+                    <div class="fb-fret-line" style="left:40.00%;"></div>
+                    <div class="fb-fret-line" style="left:60.00%;"></div>
+                    <div class="fb-fret-line" style="left:80.00%;"></div>
+                    <div class="fb-note" style="left:10.00%; top:8.33%;"></div>
+                    <div class="fb-note" style="left:30.00%; top:8.33%;"></div>
+                    <div class="fb-note" style="left:70.00%; top:8.33%;"></div>
+                    <div class="fb-note" style="left:50.00%; top:25.00%;"></div>
+                    <div class="fb-note" style="left:70.00%; top:25.00%;"></div>
+                    <div class="fb-note" style="left:10.00%; top:41.67%;"></div>
+                    <div class="fb-note fb-note--root" style="left:50.00%; top:41.67%;"></div>
+                    <div class="fb-note" style="left:70.00%; top:41.67%;"></div>
+                    <div class="fb-note" style="left:10.00%; top:58.33%;"></div>
+                    <div class="fb-note" style="left:50.00%; top:58.33%;"></div>
+                    <div class="fb-note" style="left:70.00%; top:58.33%;"></div>
+                    <div class="fb-note fb-note--root" style="left:10.00%; top:75.00%;"></div>
+                    <div class="fb-note" style="left:30.00%; top:75.00%;"></div>
+                    <div class="fb-note" style="left:90.00%; top:75.00%;"></div>
+                    <div class="fb-note" style="left:10.00%; top:91.67%;"></div>
+                    <div class="fb-note" style="left:30.00%; top:91.67%;"></div>
+                    <div class="fb-note" style="left:70.00%; top:91.67%;"></div>
+                </div>
+                <div class="fb-full-nums">
+                  <div class="fb-fret-num" style="left:10.00%;">3</div>
+                  <div class="fb-fret-num" style="left:50.00%;">5</div>
+                  <div class="fb-fret-num" style="left:90.00%;">7</div>
+                </div>
+              </div>
+
+              <div class="scale-card-notes"></div>
+
+              <button class="scale-card-practice-btn" onpointerup="onScalePracticeTap(this)">
+                <i data-lucide="play"></i>연습하기
+              </button>
             </div>
 
-            <!-- 21. 믹솔리디안 b13 스케일 (커밍순, 프리미엄) -->
-            <div class="scale-item-card scale-item-card--soon lw-item--coming-soon" data-key="mixolydian-b13" data-level="21">
-              <div class="lw-row1">
-                <span class="lw-badge">LEVEL 21</span>
-                <span class="lw-row1-right"><i class="ph-fill ph-crown lw-premium-crown"></i></span>
+            <!-- 21. 리디안 도미넌트 스케일 -->
+            <div class="scale-item-card scale-item-card--template" data-key="lydian-dominant" data-level="21">
+              <div class="scale-card-header">
+                <div class="lw-row1">
+                  <span class="lw-badge">LEVEL 21</span>
+                  <span class="lw-row1-right"></span>
+                </div>
+                <span class="lw-name">리디안 도미넌트 스케일</span>
               </div>
-              <span class="lw-name">믹솔리디안 b13 스케일</span>
-              <span class="lw-coming-soon">COMING SOON</span>
+
+              <div class="scale-card-shot">
+                <div class="fb-full-neck fb-shot-neck">
+                    <div class="fb-string" style="top:8.33%; height:1px;"></div>
+                    <div class="fb-string" style="top:25.00%; height:1.5px;"></div>
+                    <div class="fb-string" style="top:41.67%; height:2px;"></div>
+                    <div class="fb-string" style="top:58.33%; height:2.5px;"></div>
+                    <div class="fb-string" style="top:75.00%; height:3px;"></div>
+                    <div class="fb-string" style="top:91.67%; height:3.5px;"></div>
+                    <div class="fb-fret-line" style="left:20.00%;"></div>
+                    <div class="fb-fret-line" style="left:40.00%;"></div>
+                    <div class="fb-fret-line" style="left:60.00%;"></div>
+                    <div class="fb-fret-line" style="left:80.00%;"></div>
+                    <div class="fb-note" style="left:30.00%; top:8.33%;"></div>
+                    <div class="fb-note" style="left:50.00%; top:8.33%;"></div>
+                    <div class="fb-note fb-note--root" style="left:90.00%; top:8.33%;"></div>
+                    <div class="fb-note" style="left:30.00%; top:25.00%;"></div>
+                    <div class="fb-note" style="left:70.00%; top:25.00%;"></div>
+                    <div class="fb-note" style="left:90.00%; top:25.00%;"></div>
+                    <div class="fb-note fb-note--root" style="left:30.00%; top:41.67%;"></div>
+                    <div class="fb-note" style="left:70.00%; top:41.67%;"></div>
+                    <div class="fb-note" style="left:10.00%; top:58.33%;"></div>
+                    <div class="fb-note" style="left:30.00%; top:58.33%;"></div>
+                    <div class="fb-note" style="left:70.00%; top:58.33%;"></div>
+                    <div class="fb-note" style="left:90.00%; top:58.33%;"></div>
+                    <div class="fb-note" style="left:30.00%; top:75.00%;"></div>
+                    <div class="fb-note" style="left:70.00%; top:75.00%;"></div>
+                    <div class="fb-note" style="left:30.00%; top:91.67%;"></div>
+                    <div class="fb-note" style="left:50.00%; top:91.67%;"></div>
+                    <div class="fb-note fb-note--root" style="left:90.00%; top:91.67%;"></div>
+                </div>
+                <div class="fb-full-nums">
+                  <div class="fb-fret-num" style="left:30.00%;">5</div>
+                  <div class="fb-fret-num" style="left:70.00%;">7</div>
+                </div>
+              </div>
+
+              <div class="scale-card-notes"></div>
+
+              <button class="scale-card-practice-btn" onpointerup="onScalePracticeTap(this)">
+                <i data-lucide="play"></i>연습하기
+              </button>
             </div>
 
-            <!-- 22. 리디안 도미넌트 스케일 (커밍순, 프리미엄) -->
-            <div class="scale-item-card scale-item-card--soon lw-item--coming-soon" data-key="lydian-dominant" data-level="22">
-              <div class="lw-row1">
-                <span class="lw-badge">LEVEL 22</span>
-                <span class="lw-row1-right"><i class="ph-fill ph-crown lw-premium-crown"></i></span>
+            <!-- 22. 믹솔리디안 b9 b13 스케일 -->
+            <div class="scale-item-card scale-item-card--template" data-key="mixolydian-b9b13" data-level="22">
+              <div class="scale-card-header">
+                <div class="lw-row1">
+                  <span class="lw-badge">LEVEL 22</span>
+                  <span class="lw-row1-right"></span>
+                </div>
+                <span class="lw-name">믹솔리디안 b9 b13 스케일</span>
               </div>
-              <span class="lw-name">리디안 도미넌트 스케일</span>
-              <span class="lw-coming-soon">COMING SOON</span>
+
+              <div class="scale-card-shot">
+                <div class="fb-full-neck fb-shot-neck">
+                    <div class="fb-string" style="top:8.33%; height:1px;"></div>
+                    <div class="fb-string" style="top:25.00%; height:1.5px;"></div>
+                    <div class="fb-string" style="top:41.67%; height:2px;"></div>
+                    <div class="fb-string" style="top:58.33%; height:2.5px;"></div>
+                    <div class="fb-string" style="top:75.00%; height:3px;"></div>
+                    <div class="fb-string" style="top:91.67%; height:3.5px;"></div>
+                    <div class="fb-fret-line" style="left:20.00%;"></div>
+                    <div class="fb-fret-line" style="left:40.00%;"></div>
+                    <div class="fb-fret-line" style="left:60.00%;"></div>
+                    <div class="fb-fret-line" style="left:80.00%;"></div>
+                    <div class="fb-note" style="left:10.00%; top:8.33%;"></div>
+                    <div class="fb-note" style="left:30.00%; top:8.33%;"></div>
+                    <div class="fb-note" style="left:70.00%; top:8.33%;"></div>
+                    <div class="fb-note" style="left:50.00%; top:25.00%;"></div>
+                    <div class="fb-note" style="left:70.00%; top:25.00%;"></div>
+                    <div class="fb-note" style="left:10.00%; top:41.67%;"></div>
+                    <div class="fb-note fb-note--root" style="left:50.00%; top:41.67%;"></div>
+                    <div class="fb-note" style="left:70.00%; top:41.67%;"></div>
+                    <div class="fb-note" style="left:10.00%; top:58.33%;"></div>
+                    <div class="fb-note" style="left:50.00%; top:58.33%;"></div>
+                    <div class="fb-note" style="left:70.00%; top:58.33%;"></div>
+                    <div class="fb-note fb-note--root" style="left:10.00%; top:75.00%;"></div>
+                    <div class="fb-note" style="left:30.00%; top:75.00%;"></div>
+                    <div class="fb-note" style="left:90.00%; top:75.00%;"></div>
+                    <div class="fb-note" style="left:10.00%; top:91.67%;"></div>
+                    <div class="fb-note" style="left:30.00%; top:91.67%;"></div>
+                    <div class="fb-note" style="left:70.00%; top:91.67%;"></div>
+                </div>
+                <div class="fb-full-nums">
+                  <div class="fb-fret-num" style="left:10.00%;">3</div>
+                  <div class="fb-fret-num" style="left:50.00%;">5</div>
+                  <div class="fb-fret-num" style="left:90.00%;">7</div>
+                </div>
+              </div>
+
+              <div class="scale-card-notes"></div>
+
+              <button class="scale-card-practice-btn" onpointerup="onScalePracticeTap(this)">
+                <i data-lucide="play"></i>연습하기
+              </button>
             </div>
 
-            <!-- 23. 로크리안 #2 스케일 (커밍순, 프리미엄) -->
-            <div class="scale-item-card scale-item-card--soon lw-item--coming-soon" data-key="locrian-sharp2" data-level="23">
-              <div class="lw-row1">
-                <span class="lw-badge">LEVEL 23</span>
-                <span class="lw-row1-right"><i class="ph-fill ph-crown lw-premium-crown"></i></span>
+            <!-- 23. 믹솔리디안 9 b13 스케일 -->
+            <div class="scale-item-card scale-item-card--template" data-key="mixolydian-b13" data-level="23">
+              <div class="scale-card-header">
+                <div class="lw-row1">
+                  <span class="lw-badge">LEVEL 23</span>
+                  <span class="lw-row1-right"></span>
+                </div>
+                <span class="lw-name">믹솔리디안 9 b13 스케일</span>
               </div>
-              <span class="lw-name">로크리안 #2 스케일</span>
-              <span class="lw-coming-soon">COMING SOON</span>
+
+              <div class="scale-card-shot">
+                <div class="fb-full-neck fb-shot-neck">
+                    <div class="fb-string" style="top:8.33%; height:1px;"></div>
+                    <div class="fb-string" style="top:25.00%; height:1.5px;"></div>
+                    <div class="fb-string" style="top:41.67%; height:2px;"></div>
+                    <div class="fb-string" style="top:58.33%; height:2.5px;"></div>
+                    <div class="fb-string" style="top:75.00%; height:3px;"></div>
+                    <div class="fb-string" style="top:91.67%; height:3.5px;"></div>
+                    <div class="fb-fret-line" style="left:20.00%;"></div>
+                    <div class="fb-fret-line" style="left:40.00%;"></div>
+                    <div class="fb-fret-line" style="left:60.00%;"></div>
+                    <div class="fb-fret-line" style="left:80.00%;"></div>
+                    <div class="fb-note" style="left:30.00%; top:8.33%;"></div>
+                    <div class="fb-note" style="left:50.00%; top:8.33%;"></div>
+                    <div class="fb-note" style="left:90.00%; top:8.33%;"></div>
+                    <div class="fb-note" style="left:30.00%; top:25.00%;"></div>
+                    <div class="fb-note" style="left:70.00%; top:25.00%;"></div>
+                    <div class="fb-note" style="left:90.00%; top:25.00%;"></div>
+                    <div class="fb-note" style="left:30.00%; top:41.67%;"></div>
+                    <div class="fb-note fb-note--root" style="left:70.00%; top:41.67%;"></div>
+                    <div class="fb-note" style="left:10.00%; top:58.33%;"></div>
+                    <div class="fb-note" style="left:30.00%; top:58.33%;"></div>
+                    <div class="fb-note" style="left:70.00%; top:58.33%;"></div>
+                    <div class="fb-note" style="left:90.00%; top:58.33%;"></div>
+                    <div class="fb-note fb-note--root" style="left:30.00%; top:75.00%;"></div>
+                    <div class="fb-note" style="left:70.00%; top:75.00%;"></div>
+                    <div class="fb-note" style="left:30.00%; top:91.67%;"></div>
+                    <div class="fb-note" style="left:50.00%; top:91.67%;"></div>
+                    <div class="fb-note" style="left:90.00%; top:91.67%;"></div>
+                </div>
+                <div class="fb-full-nums">
+                  <div class="fb-fret-num" style="left:30.00%;">3</div>
+                  <div class="fb-fret-num" style="left:70.00%;">5</div>
+                </div>
+              </div>
+
+              <div class="scale-card-notes"></div>
+
+              <button class="scale-card-practice-btn" onpointerup="onScalePracticeTap(this)">
+                <i data-lucide="play"></i>연습하기
+              </button>
             </div>
 
-            <!-- 24. 로크리안 #6 스케일 (커밍순, 프리미엄) -->
-            <div class="scale-item-card scale-item-card--soon lw-item--coming-soon" data-key="locrian-sharp6" data-level="24">
-              <div class="lw-row1">
-                <span class="lw-badge">LEVEL 24</span>
-                <span class="lw-row1-right"><i class="ph-fill ph-crown lw-premium-crown"></i></span>
+            <!-- 24. 로크리안 내추럴2 스케일 -->
+            <div class="scale-item-card scale-item-card--template" data-key="locrian-sharp2" data-level="24">
+              <div class="scale-card-header">
+                <div class="lw-row1">
+                  <span class="lw-badge">LEVEL 24</span>
+                  <span class="lw-row1-right"></span>
+                </div>
+                <span class="lw-name">로크리안 내추럴2 스케일</span>
               </div>
-              <span class="lw-name">로크리안 #6 스케일</span>
-              <span class="lw-coming-soon">COMING SOON</span>
+
+              <div class="scale-card-shot">
+                <div class="fb-full-neck fb-shot-neck">
+                    <div class="fb-string" style="top:8.33%; height:1px;"></div>
+                    <div class="fb-string" style="top:25.00%; height:1.5px;"></div>
+                    <div class="fb-string" style="top:41.67%; height:2px;"></div>
+                    <div class="fb-string" style="top:58.33%; height:2.5px;"></div>
+                    <div class="fb-string" style="top:75.00%; height:3px;"></div>
+                    <div class="fb-string" style="top:91.67%; height:3.5px;"></div>
+                    <div class="fb-fret-line" style="left:20.00%;"></div>
+                    <div class="fb-fret-line" style="left:40.00%;"></div>
+                    <div class="fb-fret-line" style="left:60.00%;"></div>
+                    <div class="fb-fret-line" style="left:80.00%;"></div>
+                    <div class="fb-note" style="left:30.00%; top:8.33%;"></div>
+                    <div class="fb-note" style="left:70.00%; top:8.33%;"></div>
+                    <div class="fb-note" style="left:10.00%; top:25.00%;"></div>
+                    <div class="fb-note" style="left:30.00%; top:25.00%;"></div>
+                    <div class="fb-note" style="left:70.00%; top:25.00%;"></div>
+                    <div class="fb-note" style="left:90.00%; top:25.00%;"></div>
+                    <div class="fb-note" style="left:10.00%; top:41.67%;"></div>
+                    <div class="fb-note fb-note--root" style="left:50.00%; top:41.67%;"></div>
+                    <div class="fb-note" style="left:10.00%; top:58.33%;"></div>
+                    <div class="fb-note" style="left:30.00%; top:58.33%;"></div>
+                    <div class="fb-note" style="left:70.00%; top:58.33%;"></div>
+                    <div class="fb-note fb-note--root" style="left:10.00%; top:75.00%;"></div>
+                    <div class="fb-note" style="left:50.00%; top:75.00%;"></div>
+                    <div class="fb-note" style="left:70.00%; top:75.00%;"></div>
+                    <div class="fb-note" style="left:30.00%; top:91.67%;"></div>
+                    <div class="fb-note" style="left:70.00%; top:91.67%;"></div>
+                </div>
+                <div class="fb-full-nums">
+                  <div class="fb-fret-num" style="left:10.00%;">3</div>
+                  <div class="fb-fret-num" style="left:50.00%;">5</div>
+                  <div class="fb-fret-num" style="left:90.00%;">7</div>
+                </div>
+              </div>
+
+              <div class="scale-card-notes"></div>
+
+              <button class="scale-card-practice-btn" onpointerup="onScalePracticeTap(this)">
+                <i data-lucide="play"></i>연습하기
+              </button>
             </div>
 
-            <!-- 25. 얼터드 스케일 (커밍순, 프리미엄) -->
-            <div class="scale-item-card scale-item-card--soon lw-item--coming-soon" data-key="altered" data-level="25">
-              <div class="lw-row1">
-                <span class="lw-badge">LEVEL 25</span>
-                <span class="lw-row1-right"><i class="ph-fill ph-crown lw-premium-crown"></i></span>
+            <!-- 25. 로크리안 내추럴6 스케일 -->
+            <div class="scale-item-card scale-item-card--template" data-key="locrian-sharp6" data-level="25">
+              <div class="scale-card-header">
+                <div class="lw-row1">
+                  <span class="lw-badge">LEVEL 25</span>
+                  <span class="lw-row1-right"></span>
+                </div>
+                <span class="lw-name">로크리안 내추럴6 스케일</span>
               </div>
-              <span class="lw-name">얼터드 스케일</span>
-              <span class="lw-coming-soon">COMING SOON</span>
+
+              <div class="scale-card-shot">
+                <div class="fb-full-neck fb-shot-neck">
+                    <div class="fb-string" style="top:8.33%; height:1px;"></div>
+                    <div class="fb-string" style="top:25.00%; height:1.5px;"></div>
+                    <div class="fb-string" style="top:41.67%; height:2px;"></div>
+                    <div class="fb-string" style="top:58.33%; height:2.5px;"></div>
+                    <div class="fb-string" style="top:75.00%; height:3px;"></div>
+                    <div class="fb-string" style="top:91.67%; height:3.5px;"></div>
+                    <div class="fb-fret-line" style="left:20.00%;"></div>
+                    <div class="fb-fret-line" style="left:40.00%;"></div>
+                    <div class="fb-fret-line" style="left:60.00%;"></div>
+                    <div class="fb-fret-line" style="left:80.00%;"></div>
+                    <div class="fb-note" style="left:50.00%; top:8.33%;"></div>
+                    <div class="fb-note" style="left:70.00%; top:8.33%;"></div>
+                    <div class="fb-note" style="left:30.00%; top:25.00%;"></div>
+                    <div class="fb-note" style="left:70.00%; top:25.00%;"></div>
+                    <div class="fb-note" style="left:90.00%; top:25.00%;"></div>
+                    <div class="fb-note" style="left:10.00%; top:41.67%;"></div>
+                    <div class="fb-note fb-note--root" style="left:50.00%; top:41.67%;"></div>
+                    <div class="fb-note" style="left:70.00%; top:41.67%;"></div>
+                    <div class="fb-note" style="left:10.00%; top:58.33%;"></div>
+                    <div class="fb-note" style="left:30.00%; top:58.33%;"></div>
+                    <div class="fb-note" style="left:90.00%; top:58.33%;"></div>
+                    <div class="fb-note fb-note--root" style="left:10.00%; top:75.00%;"></div>
+                    <div class="fb-note" style="left:30.00%; top:75.00%;"></div>
+                    <div class="fb-note" style="left:70.00%; top:75.00%;"></div>
+                    <div class="fb-note" style="left:50.00%; top:91.67%;"></div>
+                    <div class="fb-note" style="left:70.00%; top:91.67%;"></div>
+                </div>
+                <div class="fb-full-nums">
+                  <div class="fb-fret-num" style="left:10.00%;">3</div>
+                  <div class="fb-fret-num" style="left:50.00%;">5</div>
+                  <div class="fb-fret-num" style="left:90.00%;">7</div>
+                </div>
+              </div>
+
+              <div class="scale-card-notes"></div>
+
+              <button class="scale-card-practice-btn" onpointerup="onScalePracticeTap(this)">
+                <i data-lucide="play"></i>연습하기
+              </button>
             </div>
 
           </div><!-- /scale-item-list -->
@@ -330,6 +1413,7 @@
   <script src="https://unpkg.com/@phosphor-icons/web"></script>
   <script src="analytics-sdk.js"></script>
   <script src="shared.js"></script>
+  <script src="scale-data.js"></script>
   <script src="scale-training.js"></script>
 </body>
 </html>

@@ -134,6 +134,7 @@ function _renderKeyGrid() {
     btn.className = 'prog-key-grid-btn' + (k === _currentKey ? ' prog-key-grid-btn--active' : '');
     btn.textContent = _getKeyDisplayName(k);
     btn.addEventListener('pointerup', () => {
+      _playTap();
       if (k === _currentKey) return;
       _stopPlay();
       const prevKey = _getKeyDisplayName(_currentKey);
@@ -214,9 +215,14 @@ function _renderProgList() {
       </div>`;
 
       card.querySelector('.prog-play-btn').addEventListener('pointerup', async () => {
+        const _tapP = _playTap();
         await _stopPlay({ wait: true });
         analytics.track('progression_detail_entered', { prog_id: prog.id, key: _getKeyDisplayName(_currentKey), no: prog.no ?? 1 });
-        location.href = `progression-detail.html?id=${encodeURIComponent(prog.id)}&key=${_currentKey}&flat=${_useFlat ? 1 : 0}`;
+        const dest = `progression-detail.html?id=${encodeURIComponent(prog.id)}&key=${_currentKey}&flat=${_useFlat ? 1 : 0}`;
+        let _navd = false;
+        const _go = () => { if (!_navd) { _navd = true; location.href = dest; } };
+        _tapP.then(() => setTimeout(_go, 240));
+        setTimeout(_go, 450);
       });
       list.appendChild(card);
     }); // group.items.forEach
@@ -227,6 +233,7 @@ function _renderProgList() {
 
 // ── 닫기 ────────────────────────────────────────────────────
 async function closeProgressionPage() {
+  _playTap();
   await _stopPlay({ wait: true });
   const shell = document.querySelector('.app-shell');
   if (shell) {
@@ -264,6 +271,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
   keyChip.addEventListener('pointerup', e => {
     e.stopPropagation();
+    _playTap();
     const open = !keyDropdown.hidden;
     keyDropdown.hidden = open;
     keyChip.classList.toggle('prog-filter-chip--active', !open);
@@ -293,6 +301,7 @@ document.addEventListener('DOMContentLoaded', () => {
       btn.className = 'prog-no-list-btn' + (opt.no === _noFilter ? ' prog-no-list-btn--active' : '');
       btn.innerHTML = `<span>${opt.label}</span>${opt.no === _noFilter ? '<span class="prog-no-list-check"><svg viewBox="0 0 12 12"><polyline points="2,6 5,9 10,3"/></svg></span>' : ''}`;
       btn.addEventListener('pointerup', () => {
+        _playTap();
         _noFilter = opt.no;
         diffBtn.classList.toggle('prog-filter-chip--active', _noFilter !== 0);
         noDropdown.hidden = true;
@@ -307,6 +316,7 @@ document.addEventListener('DOMContentLoaded', () => {
   if (diffBtn && noDropdown) {
     diffBtn.addEventListener('pointerup', e => {
       e.stopPropagation();
+      _playTap();
       // key 드롭다운 닫기
       if (keyDropdown && !keyDropdown.hidden) {
         keyDropdown.hidden = true;
@@ -339,6 +349,7 @@ document.addEventListener('DOMContentLoaded', () => {
     stepsBtn.textContent = _STEPS_LABEL[_stepsFilter];
 
     stepsBtn.addEventListener('pointerup', () => {
+      _playTap();
       const idx = _STEPS_CYCLE.indexOf(_stepsFilter);
       _stepsFilter = _STEPS_CYCLE[(idx + 1) % _STEPS_CYCLE.length];
       stepsBtn.textContent = _STEPS_LABEL[_stepsFilter];
@@ -364,7 +375,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
   const accToggle = sharpBtn.closest('.accidental-toggle');
   if (accToggle) {
-    accToggle.addEventListener('pointerup', () => _setAccidental(!_useFlat));
+    accToggle.addEventListener('pointerup', () => { _playTap(); _setAccidental(!_useFlat); });
   }
 
   // 마우스 드래그 스크롤 (브라우저 환경)

@@ -46,6 +46,7 @@ const GuitarAudio = (() => {
   let _cutSampler   = null; // 컷팅 전용 (highpass → 저역↓ 고역↑)
   let _cutFilter    = null;
   let _masterGain   = null;
+  let _outGain      = null; // 컴프레서 뒤 최종 출력 게인 — 설정>사운드 마스터 볼륨 적용(압축에 안 먹힘)
   let _ready        = false;
   let _pending      = [];   // ready 전 요청 큐
   let _lastNotes    = [];   // 마지막 재생된 노트 목록
@@ -69,6 +70,11 @@ const GuitarAudio = (() => {
   function _restoreOutput() {
     if (!_masterGain || typeof Tone === 'undefined') return;
     _setMasterGain(1, Tone.now());
+    // 설정>사운드 마스터 볼륨 — 컴프레서 뒤 최종단에서 적용(압축이 감소분 안 먹게)
+    if (_outGain) {
+      const mv = (typeof _getSfxMasterVolume === 'function') ? _getSfxMasterVolume() : 1;
+      _outGain.gain.value = mv;
+    }
   }
 
   function _fadeOutOutput(duration) {
@@ -103,7 +109,7 @@ const GuitarAudio = (() => {
       ratio:      6,
       attack:     0.02,
       release:    0.1,
-    }).toDestination();
+    }).connect(_outGain = new Tone.Gain(1).toDestination());
 
     // 500Hz 이하 -3dB
     const _lowShelf = new Tone.Filter({
@@ -285,6 +291,7 @@ const GuitarAudio = (() => {
     if (_sampler)    { _sampler.dispose();    _sampler = null; }
     if (_ringGain)   { _ringGain.dispose();   _ringGain = null; }
     if (_masterGain) { _masterGain.dispose(); _masterGain = null; }
+    if (_outGain)    { _outGain.dispose();    _outGain = null; }
     _init(); // 재초기화 (다음 재생 대비)
   }
 
@@ -307,6 +314,13 @@ const GuitarAudio = (() => {
 
   async function resume() { await Tone.start(); }
 
+  // 설정>사운드 슬라이더 실시간 조절용 — 재생 중인 소리에 즉시 반영(컴프레서 뒤 최종단)
+  function setOutputVolume(v) {
+    if (!_outGain) return;
+    const mv = Math.max(0, Math.min(1, (typeof v === 'number' ? v : 1)));
+    _outGain.gain.value = mv;
+  }
+
   // 외부 AudioContext와 동기화 (메트로놈 등) — lookAhead 0으로 지연 제거
   async function syncContext(externalCtx) {
     if (!externalCtx || typeof Tone === 'undefined') return;
@@ -320,8 +334,9 @@ const GuitarAudio = (() => {
     if (_sampler) { _sampler.dispose(); _sampler = null; }
     if (_ringGain) { _ringGain.dispose(); _ringGain = null; }
     if (_masterGain) { _masterGain.dispose(); _masterGain = null; }
+    if (_outGain)  { _outGain.dispose();  _outGain = null; }
     _init();
   }
 
-  return { playChord, strumNotes, strumAt, strumAtCut, cutAt, playNote, stop, panic, ready, resume, syncContext };
+  return { playChord, strumNotes, strumAt, strumAtCut, cutAt, playNote, stop, panic, ready, resume, syncContext, setOutputVolume };
 })();

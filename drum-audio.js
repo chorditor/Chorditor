@@ -37,7 +37,8 @@ const DrumAudio = (() => {
 
   function hit(inst, absTime, vel) {
     if (!_ready || !_buffers || !_buffers.has(inst)) return;
-    const lin = Tone.dbToGain(VOL[inst] || 0) * (vel != null ? Math.max(0.05, vel) : 1);
+    const mv  = (typeof _getSfxMasterVolume === 'function') ? _getSfxMasterVolume() : 1;
+    const lin = Tone.dbToGain(VOL[inst] || 0) * (vel != null ? Math.max(0.05, vel) : 1) * mv;
     const g = new Tone.Gain(lin).connect(_chains[inst]);
     const src = new Tone.ToneBufferSource({
       url: _buffers.get(inst),

@@ -1,0 +1,63 @@
+Kenney UI Audio Pack - 파일 목록 (총 50개, 원본 포맷 .ogg, 라이선스 CC0 퍼블릭도메인)
+다운로드: https://kenney.nl/assets/ui-audio
+
+[클릭 계열] - 5개
+click1.ogg
+click2.ogg
+click3.ogg
+click4.ogg
+click5.ogg
+
+[마우스 클릭] - 2개
+mouseclick1.ogg
+mouserelease1.ogg
+
+[롤오버(호버)] - 6개
+rollover1.ogg
+rollover2.ogg
+rollover3.ogg
+rollover4.ogg
+rollover5.ogg
+rollover6.ogg
+
+[스위치/토글] - 37개
+switch1.ogg
+switch2.ogg
+switch3.ogg
+switch4.ogg
+switch5.ogg
+switch6.ogg
+switch7.ogg
+switch8.ogg
+switch9.ogg
+switch10.ogg
+switch11.ogg
+switch12.ogg
+switch13.ogg
+switch14.ogg
+switch15.ogg
+switch16.ogg
+switch17.ogg
+switch18.ogg
+switch19.ogg
+switch20.ogg
+switch21.ogg
+switch22.ogg
+switch23.ogg
+switch24.ogg
+switch25.ogg
+switch26.ogg
+switch27.ogg
+switch28.ogg
+switch29.ogg
+switch30.ogg
+switch31.ogg
+switch32.ogg
+switch33.ogg
+switch34.ogg
+switch35.ogg
+switch36.ogg
+switch37.ogg
+
+합계: 5(click) + 2(mouseclick/release) + 6(rollover) + 37(switch) = 50개, 팩 표기와 일치.
+※ 출처: github.com/Calinou/kenney-ui-audio (Kenney 원본 팩을 Godot용으로 재패키징한 미러, 파일명은 원본과 동일)

@@ -43,12 +43,12 @@ begin
   with last_active as (
     -- 유저별 마지막 활동 시각 (로그인 유저만, 토큰 보유자).
     -- 활동 이벤트 없으면 토큰 등록시각(pt.updated_at)을 바닥값으로 → 신규 유저 오판 방지.
-    select pt.user_id, pt.token, pt.platform,
+    select pt.user_id, pt.token, pt.platform, pt.winback_enabled,
            greatest(coalesce(max(ae.created_at), pt.updated_at), pt.updated_at) as last_at
     from public.push_tokens pt
     left join public.analytics_events ae on ae.user_id = pt.user_id
     where pt.user_id is not null
-    group by pt.user_id, pt.token, pt.platform, pt.updated_at
+    group by pt.user_id, pt.token, pt.platform, pt.winback_enabled, pt.updated_at
   ),
   staged as (
     -- 유휴일수 → 도달 단계(최고 임계 통과). 단계별 요일 게이트.
@@ -57,7 +57,7 @@ begin
     from last_active la
   ),
   target as (
-    select s.user_id, s.token, s.platform,
+    select s.user_id, s.token, s.platform, s.winback_enabled,
            case
              when s.idle_days >= 180 then 4
              when s.idle_days >= 30  then 3
@@ -75,6 +75,7 @@ begin
   from target t
   join public.push_winback w on w.stage = t.stage and w.active = true
   where t.stage > 0
+    and t.winback_enabled = true     -- 설정 > 푸시알림 > 리마인드 OFF 시 제외
     -- 단계2~ 는 월요일만
     and (t.stage = 1 or is_monday)
     -- 이번 유휴기간(마지막활동 이후) 동안 해당 단계 미발송

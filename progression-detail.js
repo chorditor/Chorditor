@@ -239,6 +239,7 @@ function _runCountIn(onComplete) {
 // 연습 시작(피크 1회 소모)으로 재생 잠금 해제. 이후 재생은 무한.
 let _practiceUnlocked = false;
 async function unlockPractice() {
+  _playSfx('pop.mp3');
   if (_practiceUnlocked) return;
   if (!(await consumePeak(2))) return;
   _practiceUnlocked = true;
@@ -341,6 +342,7 @@ function _setBpm(bpm) {
 }
 
 function changeBpm(delta) {
+  _playTap();
   _setBpm(_bpm + delta);
 }
 
@@ -367,6 +369,7 @@ function _updateActiveCard(idx) {
 // ── 뒤로가기 ────────────────────────────────────────────────
 // 뒤로가기 요청: 연습 잠금해제 상태면 경고 모달, 아니면 바로 나감.
 function requestBack() {
+  _playTap();
   if (isLeavePracticeOpen()) return;
   if (_practiceUnlocked) { showLeavePracticeModal(goBack); return; }
   goBack();
@@ -393,6 +396,7 @@ function _renderKeyStrip() {
     btn.className = 'key-btn' + (k === _key ? ' key-btn--active' : '');
     btn.textContent = _getKeyDisplayName(k);
     btn.addEventListener('pointerup', async () => {
+      _playTap();
       if (k === _key) return;
       await _stopPlay({ wait: true }); // 재생/예약 완전 정지 후 키 적용 (레이스 방지)
       _key = k;
@@ -760,7 +764,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
   const accToggle = document.getElementById('detail-accidental-toggle');
   if (accToggle) {
-    accToggle.addEventListener('pointerup', () => _setAccidental(!_useFlat));
+    accToggle.addEventListener('pointerup', () => { _playTap(); _setAccidental(!_useFlat); });
   }
 
   if (_useFlat) _setAccidental(true);
@@ -769,6 +773,7 @@ document.addEventListener('DOMContentLoaded', () => {
   const fingerBtn = document.getElementById('detail-finger-toggle');
   if (fingerBtn) {
     fingerBtn.addEventListener('pointerup', () => {
+      _playTap();
       _showFingers = !_showFingers;
       fingerBtn.classList.toggle('active', _showFingers);
       _redrawAllSlots();
