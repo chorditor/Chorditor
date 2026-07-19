@@ -1677,6 +1677,13 @@ function strumChord() {
   GuitarAudio.strumNotes(notes.map(n => n.midi), STRUM_INTERVAL);
 }
 
+// 페이지 이탈 시 잔향 하드컷 — 전환 애니메이션 동안 이전 문서가 살아있어
+// SUSTAIN(3.5초) 잔향이 다음 페이지까지 넘어가는 문제 방지.
+window.addEventListener('pagehide', () => {
+  if (typeof Tone !== 'undefined') { try { Tone.getDestination().mute = true; } catch (e) {} }
+  if (typeof GuitarAudio !== 'undefined' && GuitarAudio.panic) GuitarAudio.panic();
+});
+
 
 // ═══════════════════════════════════════════════════════════════
 // DOM 전용 — 스토리지 경고 (shared.js에서 typeof 가드로 호출)
@@ -3082,56 +3089,7 @@ function onPushCategoryToggle(kind, el) {
   _setPushCategoryPref(COL[kind], el.checked);
 }
 
-// ── 사운드 볼륨 바텀시트 ───────────────────────────────────────
-function openSoundSheet() {
-  _playTap();
-  const slider = document.getElementById('sound-volume-slider');
-  // 슬라이더는 raw값 표시(getter는 raw² 게인이라 그대로 쓰면 desync)
-  if (slider) {
-    const raw = parseFloat(localStorage.getItem('sfx_volume'));
-    slider.value = isNaN(raw) ? 100 : Math.round(Math.max(0, Math.min(1, raw)) * 100);
-  }
-  document.getElementById('sound-sheet-overlay').classList.add('gsheet-overlay--open');
-  document.getElementById('sound-sheet').classList.add('gsheet--open');
-  if (window.lucide) lucide.createIcons();
-}
-
-function closeSoundSheet() {
-  _stopSoundPreview();
-  document.getElementById('sound-sheet-overlay').classList.remove('gsheet-overlay--open');
-  document.getElementById('sound-sheet').classList.remove('gsheet--open');
-}
-
-// 슬라이더 조작 중 A코드 반복 재생 → 실시간 음량 체감용
-let _soundPreviewTimer     = null; // A코드 반복 재생 인터벌
-let _soundPreviewStopTimer = null; // 슬라이드 멈춤 감지 후 정지 예약
-function _playAPreview() {
-  if (typeof GuitarAudio === 'undefined') return;
-  if (GuitarAudio.resume) GuitarAudio.resume();
-  // 오픈 A 메이저 실제 보이싱: A2 E3 A3 C#4 E4 (저음 포함, 에디터 기본값과 동일)
-  GuitarAudio.strumNotes([45, 52, 57, 61, 64], 0.02);
-}
-function _startSoundPreview() {
-  if (_soundPreviewTimer) return; // 이미 재생 중이면 중복 시작 방지
-  _playAPreview();
-  _soundPreviewTimer = setInterval(_playAPreview, 1800); // 울림 유지
-}
-function _stopSoundPreview() {
-  if (_soundPreviewTimer)     { clearInterval(_soundPreviewTimer); _soundPreviewTimer = null; }
-  if (_soundPreviewStopTimer) { clearTimeout(_soundPreviewStopTimer); _soundPreviewStopTimer = null; }
-  if (typeof GuitarAudio !== 'undefined' && GuitarAudio.stop) GuitarAudio.stop();
-}
-
-function onSoundVolumeInput(val) {
-  const v = Math.max(0, Math.min(100, parseInt(val, 10) || 0)) / 100;
-  localStorage.setItem('sfx_volume', v); // raw 저장
-  // 재생 중인 A코드에 즉시 반영(실시간) — 게인은 raw² 지각 곡선
-  if (typeof GuitarAudio !== 'undefined' && GuitarAudio.setOutputVolume) GuitarAudio.setOutputVolume(v * v);
-  // 슬라이드 감지 → A코드 반복 재생 시작(첫 감지 시), 멈추면 곧 정지
-  _startSoundPreview();
-  if (_soundPreviewStopTimer) clearTimeout(_soundPreviewStopTimer);
-  _soundPreviewStopTimer = setTimeout(_stopSoundPreview, 1400);
-}
+// ── 사운드 볼륨 바텀시트 → shared.js 로 이동(코드진행·주법훈련 페이지와 공용) ──
 
 // ── 확인 바텀시트(로그아웃/계정삭제 공용) ───────────────────────
 function openConfirmSheet({ title, desc, btnText, danger, onConfirm }) {

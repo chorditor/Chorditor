@@ -6,7 +6,7 @@
 // ── 상수 ─────────────────────────────────────────────────────
 const SUPABASE_URL  = 'https://jbvkygeksohlysyvaoab.supabase.co';
 const SUPABASE_ANON = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Impidmt5Z2Vrc29obHlzeXZhb2FiIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzYzOTk5NjgsImV4cCI6MjA5MTk3NTk2OH0.6RSgChy0Yq0H2TJpZPSoMKQ2V-OYfR0XzE1aJBBZkXI';
-const APP_VERSION   = '1.3.0_pre';
+const APP_VERSION   = '1.3.0_pre10';
 const SUPABASE_STORAGE_KEY = 'sb-jbvkygeksohlysyvaoab-auth-token';
 
 // ── Analytics SDK ─────────────────────────────────────────────
@@ -359,8 +359,29 @@ const PEAKBOX_REWARD = 5;
 
 // 효과음 프리로드 캐시 — 매번 new Audio()의 디스크 로드·디코드 지연 제거.
 // 프리로드 안 하면 첫 재생이 100ms+ 늦어 화면전환(페이지 이동)과 레이스로 소리가 잘림.
+// ⛔ 안드로이드 WebView는 HTMLAudioElement.volume 설정을 무시한다(하드웨어 볼륨만 적용).
+//    → 효과음을 <audio>로 재생하면 설정>사운드 슬라이더가 전혀 안 먹힘(기타음만 조절되는 것처럼 보임).
+//    그래서 효과음도 기타음과 동일하게 WebAudio(GainNode) 경로로 재생한다. <audio>는 폴백용.
 const _sfxCache = {};
+let   _sfxCtx     = null;
+const _sfxBuffers = {};
+function _getSfxCtx() {
+  if (_sfxCtx) return _sfxCtx;
+  const AC = window.AudioContext || window.webkitAudioContext;
+  if (!AC) return null;
+  try { _sfxCtx = new AC(); } catch (e) { _sfxCtx = null; }
+  return _sfxCtx;
+}
 function _preloadSfx(src) {
+  const ctx = _getSfxCtx();
+  if (ctx && !_sfxBuffers[src] && !_sfxBuffers['_loading_' + src]) {
+    _sfxBuffers['_loading_' + src] = true;
+    fetch('sound/' + src)
+      .then(r => r.arrayBuffer())
+      .then(buf => new Promise((res, rej) => ctx.decodeAudioData(buf, res, rej)))
+      .then(b => { _sfxBuffers[src] = b; })
+      .catch(() => {});
+  }
   let a = _sfxCache[src];
   if (!a) { a = new Audio('sound/' + src); a.preload = 'auto'; try { a.load(); } catch (e) {} _sfxCache[src] = a; }
   return a;
@@ -376,9 +397,26 @@ function _getSfxMasterVolume() {
   return raw * raw;
 }
 function _playSfx(src, vol) {
+  const gain = ((vol == null) ? 1 : vol) * _getSfxMasterVolume();
+  // 1순위: WebAudio — 안드로이드 포함 전 플랫폼에서 음량 조절이 실제로 먹는 유일한 경로
+  const ctx = _getSfxCtx();
+  const buf = _sfxBuffers[src];
+  if (ctx && buf) {
+    try {
+      if (ctx.state === 'suspended') ctx.resume();
+      const s = ctx.createBufferSource();
+      s.buffer = buf;
+      const g = ctx.createGain();
+      g.gain.value = gain;
+      s.connect(g); g.connect(ctx.destination);
+      s.start();
+      return Promise.resolve();
+    } catch (e) {}
+  }
+  // 폴백: 디코드 전이거나 WebAudio 미지원 — <audio>(안드로이드는 volume 무시될 수 있음)
   try {
     const a = _preloadSfx(src);
-    a.volume = ((vol == null) ? 1 : vol) * _getSfxMasterVolume();
+    a.volume = gain;
     a.currentTime = 0;
     const p = a.play();
     return (p && p.catch) ? p.catch(() => {}) : Promise.resolve();
@@ -409,19 +447,60 @@ function _peakAuth() {
   } catch (_) { return null; }
 }
 
+// 세션 토큰 리프레시 (만료/401 시). 성공 시 새 access_token, 실패 시 null.
+async function _peakRefreshToken() {
+  try {
+    const stored = localStorage.getItem(SUPABASE_STORAGE_KEY);
+    if (!stored) return null;
+    const session = JSON.parse(stored);
+    if (!session?.refresh_token) return null;
+    const rr = await fetch(`${SUPABASE_URL}/auth/v1/token?grant_type=refresh_token`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'apikey': SUPABASE_ANON },
+      body: JSON.stringify({ refresh_token: session.refresh_token }),
+    });
+    if (!rr.ok) return null;
+    const refreshed = await rr.json();
+    if (!refreshed.access_token) return null;
+    return saveSessionToStorage(refreshed).access_token;
+  } catch (_) { return null; }
+}
+
 async function _peakRpc(fnName, body) {
   const auth = _peakAuth();
   if (!auth) return null;
+
+  // 만료된 토큰이면 호출 전에 미리 리프레시
+  let token = auth.accessToken;
   try {
-    const resp = await fetch(`${SUPABASE_URL}/rest/v1/rpc/${fnName}`, {
+    const session = JSON.parse(localStorage.getItem(SUPABASE_STORAGE_KEY));
+    const now = Math.floor(Date.now() / 1000);
+    if (session?.expires_at && session.expires_at <= now) {
+      const fresh = await _peakRefreshToken();
+      if (fresh) token = fresh;
+    }
+  } catch (_) {}
+
+  const call = async (tk) => {
+    return fetch(`${SUPABASE_URL}/rest/v1/rpc/${fnName}`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
         'apikey': SUPABASE_ANON,
-        'Authorization': `Bearer ${auth.accessToken}`,
+        'Authorization': `Bearer ${tk}`,
       },
       body: JSON.stringify(body || {}),
     });
+  };
+
+  try {
+    let resp = await call(token);
+    // 401 = 토큰 만료/무효 → 리프레시 후 1회 재시도
+    if (resp.status === 401) {
+      const fresh = await _peakRefreshToken();
+      if (fresh) resp = await call(fresh);
+      else return null;
+    }
     if (!resp.ok) return null;
     return await resp.json();
   } catch (_) { return null; }
@@ -3116,7 +3195,62 @@ function showPeakboxRewardModal(count, onClose) {
   if (typeof analytics !== 'undefined') analytics.track('attendance_milestone_reward', { peakbox: count });
 }
 
+// ── 사운드 볼륨 바텀시트 (home / progression-detail / strum-play 공용) ──────
+// 해당 페이지에 sound-sheet 마크업이 있어야 동작. 없는 페이지에서는 호출되지 않음.
+function openSoundSheet() {
+  _playTap();
+  const slider = document.getElementById('sound-volume-slider');
+  // 슬라이더는 raw값 표시(getter는 raw² 게인이라 그대로 쓰면 desync)
+  if (slider) {
+    const raw = parseFloat(localStorage.getItem('sfx_volume'));
+    slider.value = isNaN(raw) ? 100 : Math.round(Math.max(0, Math.min(1, raw)) * 100);
+  }
+  document.getElementById('sound-sheet-overlay').classList.add('gsheet-overlay--open');
+  document.getElementById('sound-sheet').classList.add('gsheet--open');
+  if (window.lucide) lucide.createIcons();
+}
+
+function closeSoundSheet() {
+  _stopSoundPreview();
+  document.getElementById('sound-sheet-overlay').classList.remove('gsheet-overlay--open');
+  document.getElementById('sound-sheet').classList.remove('gsheet--open');
+}
+
+// 슬라이더 조작 중 A코드 반복 재생 → 실시간 음량 체감용
+let _soundPreviewTimer     = null; // A코드 반복 재생 인터벌
+let _soundPreviewStopTimer = null; // 슬라이드 멈춤 감지 후 정지 예약
+function _playAPreview() {
+  if (typeof GuitarAudio === 'undefined') return;
+  if (GuitarAudio.resume) GuitarAudio.resume();
+  // 오픈 A 메이저 실제 보이싱: A2 E3 A3 C#4 E4 (저음 포함, 에디터 기본값과 동일)
+  GuitarAudio.strumNotes([45, 52, 57, 61, 64], 0.02);
+}
+function _startSoundPreview() {
+  if (_soundPreviewTimer) return; // 이미 재생 중이면 중복 시작 방지
+  _playAPreview();
+  _soundPreviewTimer = setInterval(_playAPreview, 1800); // 울림 유지
+}
+function _stopSoundPreview() {
+  if (_soundPreviewTimer)     { clearInterval(_soundPreviewTimer); _soundPreviewTimer = null; }
+  if (_soundPreviewStopTimer) { clearTimeout(_soundPreviewStopTimer); _soundPreviewStopTimer = null; }
+  if (typeof GuitarAudio !== 'undefined' && GuitarAudio.stop) GuitarAudio.stop();
+}
+
+function onSoundVolumeInput(val) {
+  const v = Math.max(0, Math.min(100, parseInt(val, 10) || 0)) / 100;
+  localStorage.setItem('sfx_volume', v); // raw 저장
+  // 재생 중인 A코드에 즉시 반영(실시간) — 게인은 raw² 지각 곡선
+  if (typeof GuitarAudio !== 'undefined' && GuitarAudio.setOutputVolume) GuitarAudio.setOutputVolume(v * v);
+  // 슬라이드 감지 → A코드 반복 재생 시작(첫 감지 시), 멈추면 곧 정지
+  _startSoundPreview();
+  if (_soundPreviewStopTimer) clearTimeout(_soundPreviewStopTimer);
+  _soundPreviewStopTimer = setTimeout(_stopSoundPreview, 1400);
+}
+
 if (typeof window !== 'undefined') {
+  window.openSoundSheet               = openSoundSheet;
+  window.closeSoundSheet              = closeSoundSheet;
+  window.onSoundVolumeInput           = onSoundVolumeInput;
   window.recordTrainingAttendance     = recordTrainingAttendance;
   window.showTrainingAttendanceModal  = showTrainingAttendanceModal;
   window.closeTrainingAttendanceModal = closeTrainingAttendanceModal;

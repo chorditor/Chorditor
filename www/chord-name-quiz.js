@@ -443,8 +443,8 @@ function openPreviewModal(levelId) {
   // 토글 바 표시 제어
   const bar = document.getElementById('preview-accidental-bar');
   if (bar) bar.style.display = showAccBar ? '' : 'none';
-  document.getElementById('preview-acc-sharp')?.classList.add('preview-acc-btn--active');
-  document.getElementById('preview-acc-flat')?.classList.remove('preview-acc-btn--active');
+  document.getElementById('preview-acc-sharp')?.classList.add('active');
+  document.getElementById('preview-acc-flat')?.classList.remove('active');
 
   // 제목
   const badge = isChallenge ? 'CHALLENGE' : `LEVEL ${levelId}`;
@@ -547,9 +547,9 @@ function setPreviewAccidental(mode) {
   if (_previewAccMode === mode) return;
   _previewAccMode = mode;
   document.getElementById('preview-acc-sharp')
-    ?.classList.toggle('preview-acc-btn--active', mode === 'sharp');
+    ?.classList.toggle('active', mode === 'sharp');
   document.getElementById('preview-acc-flat')
-    ?.classList.toggle('preview-acc-btn--active', mode === 'flat');
+    ?.classList.toggle('active', mode === 'flat');
   _renderPreviewGrid();
 }
 

@@ -62,7 +62,8 @@ function _cardDegreeLabel(degree, scaleKey) {
     if (degree === -5) return '#11';
     if (degree === -6) return 'b13';
   }
-  if (scaleKey === 'mixolydian-b9b13') {
+  // 프리지안 도미넌트 = 믹솔리디안 b9 b13 과 동일 음정 → 표기도 동일
+  if (scaleKey === 'mixolydian-b9b13' || scaleKey === 'phrygian-dominant') {
     if (degree === -2) return 'b9';
     if (degree === 4)  return '11';
     if (degree === -6) return 'b13';

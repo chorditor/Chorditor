@@ -1434,6 +1434,16 @@ async function stopPlayAll(options = {}) {
   if (options.wait) await stopPromise;
 }
 
+// 페이지 이탈(다른 화면으로 이동) 시 재생 중이던 사운드 잔류 방지 — 전환 애니메이션 동안
+// 이전 문서가 살아있어 잔향(SUSTAIN 3.5초)이 다음 페이지까지 넘어가므로 하드컷으로 즉시 묵음.
+window.addEventListener('pagehide', () => {
+  playbackActive = false;
+  _stopMetronomeAudio();
+  if (currentPlayTimeout) { clearTimeout(currentPlayTimeout); currentPlayTimeout = null; }
+  if (typeof Tone !== 'undefined') { try { Tone.getDestination().mute = true; } catch (e) {} }
+  if (typeof GuitarAudio !== 'undefined' && GuitarAudio.panic) GuitarAudio.panic();
+});
+
 async function playAll(projectId, startIndex = 0) {
   stopPlayAll();
 

@@ -80,6 +80,16 @@ function _voicingMidis(voicing) {
   return midis;
 }
 
+// 다이어그램 탭 → 현재 표시 중인 코드 즉시 스트럼 (재생 중 스트럼과 동일한 간격)
+async function _playCurrentChord() {
+  if (typeof GuitarAudio === 'undefined') return;
+  const cached = _stepCache && _stepCache[_currentDisplayStep];
+  const midis  = _voicingMidis(cached && cached.voicing);
+  if (!midis.length) return;
+  if (GuitarAudio.resume) { try { await GuitarAudio.resume(); } catch (e) {} }
+  GuitarAudio.strumNotes(midis, 0.008);
+}
+
 // 절대 오디오 시각 t에 스트럼 (드리프트 없는 스케줄용). dur 동안 울린 뒤 감쇄.
 function _strumVoicingAt(voicing, t, dur) {
   const midis = _voicingMidis(voicing);
@@ -135,6 +145,7 @@ async function _stopPlay(options = {}) {
   if (typeof DrumAudio !== 'undefined' && DrumAudio.stop) DrumAudio.stop();
   const stopPromise = GuitarAudio.stop({ wait: options.wait === true });
   _playing    = false;
+  window._chordSoundPlaying = false;
   _masterBeat = 0;
   _resetCountDots();
   _updateActiveCard(-1);
@@ -271,6 +282,7 @@ async function togglePlay() {
 
   _starting   = false;
   _playing    = true;
+  window._chordSoundPlaying = true; // 음량조절 A코드 프리뷰 중복재생 방지용 전역 플래그
   _masterBeat = 0;
   // 재생 시작 = 첫 코드로 복귀. 멀티스텝 슬라이드는 슬롯 스택 정합성이 깨져
   // (연속 동일코드 시 2번째를 첫 코드로 오인) → 클린 리빌드로 정확히 step0 리셋.
@@ -793,10 +805,10 @@ document.addEventListener('DOMContentLoaded', () => {
       if (!_swiping || _playing) { _swiping = false; return; }
       _swiping = false;
       if (_busy || !_prog) return;
+      const dx = e.clientX - _sx;
+      if (Math.abs(dx) < 40) { _playCurrentChord(); return; } // 스와이프 아닌 탭 → 코드 사운드
       const count = _prog.steps.length;
       if (count < 2) return;
-      const dx = e.clientX - _sx;
-      if (Math.abs(dx) < 40) return;     // 드래그(스와이프)만
       _busy = true;
       setTimeout(() => { _busy = false; }, 460);
       if (dx < 0) { // 좌 → 다음

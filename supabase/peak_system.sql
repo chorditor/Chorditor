@@ -30,17 +30,17 @@ declare
   v_elapsed_min integer;
   v_increments  integer;
 begin
-  select peak_balance, peak_updated_at, peakbox_count
+  select s.peak_balance, s.peak_updated_at, s.peakbox_count
     into v_balance, v_updated, v_peakbox
-    from public.subscriptions
-    where user_id = p_user_id
+    from public.subscriptions s
+    where s.user_id = p_user_id
     for update;
 
   if not found then
-    insert into public.subscriptions (user_id, plan, status, peak_balance, peak_updated_at, peakbox_count)
+    insert into public.subscriptions as s (user_id, plan, status, peak_balance, peak_updated_at, peakbox_count)
     values (p_user_id, 'free', 'active', v_cap, now(), 0)
     on conflict (user_id) do update set user_id = excluded.user_id
-    returning peak_balance, peak_updated_at, peakbox_count into v_balance, v_updated, v_peakbox;
+    returning s.peak_balance, s.peak_updated_at, s.peakbox_count into v_balance, v_updated, v_peakbox;
   end if;
 
   if v_balance >= v_cap then

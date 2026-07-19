@@ -1260,7 +1260,8 @@ function degreeLabel(degree, scaleKey) {
     if (degree === -5) return '#11';  // b5 → #11
     if (degree === -6) return 'b13';  // b6 → b13
   }
-  if (scaleKey === 'mixolydian-b9b13') {
+  // 프리지안 도미넌트 = 믹솔리디안 b9 b13 과 동일 음정(1 b2 3 4 5 b6 b7) → 표기도 동일
+  if (scaleKey === 'mixolydian-b9b13' || scaleKey === 'phrygian-dominant') {
     if (degree === -2) return 'b9';   // b2 → b9
     if (degree === 4)  return '11';   // 4  → 11
     if (degree === -6) return 'b13';  // b6 → b13
@@ -3551,14 +3552,25 @@ renderFullNeck();
     document.getElementById('scale-test-overlay')?.classList.remove('is-open');
   };
 
-  document.getElementById('test-close-btn')?.addEventListener('pointerup', closeTestOverlay);
+  // 제출 전 이탈은 소모한 피크가 그대로 날아감 → 확인 모달. 제출 후엔 바로 닫기.
+  const requestCloseTest = (onLeave) => {
+    if (isLeavePracticeOpen()) return;
+    if (!_testSubmitted) { showLeavePracticeModal(onLeave); return; }
+    onLeave();
+  };
+
+  document.getElementById('test-close-btn')?.addEventListener('pointerup', () => {
+    requestCloseTest(closeTestOverlay);
+  });
   document.getElementById('test-back-btn')?.addEventListener('pointerup', () => {
     _playSfx('pop.mp3');
-    analytics.track('scale_test_closed', {
-      scale_key: _scaleKey,
-      root_name: (_useFlat ? KEY_NAMES_FLAT : KEY_NAMES)[_rootNote],
+    requestCloseTest(() => {
+      analytics.track('scale_test_closed', {
+        scale_key: _scaleKey,
+        root_name: (_useFlat ? KEY_NAMES_FLAT : KEY_NAMES)[_rootNote],
+      });
+      closeTestOverlay();
     });
-    closeTestOverlay();
   });
 
   const cover = document.getElementById('page-cover');

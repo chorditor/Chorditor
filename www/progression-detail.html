@@ -31,6 +31,23 @@
           <div class="currency-icon-box"><img src="image/peak.svg" alt=""></div>
         </div>
       </div>
+      <button class="icon-btn" onclick="openSoundSheet()" title="음량">
+        <i data-lucide="volume-2"></i>
+      </button>
+    </div>
+
+    <!-- ── 바텀시트: 사운드 볼륨 ── -->
+    <div class="gsheet-overlay" id="sound-sheet-overlay" onclick="closeSoundSheet()"></div>
+    <div class="gsheet" id="sound-sheet">
+      <div class="gsheet-handle"></div>
+      <div class="gsheet-header"><span class="gsheet-title">사운드</span></div>
+      <div class="gsheet-inner">
+        <div class="sound-sheet-row">
+          <i data-lucide="volume-1"></i>
+          <input type="range" id="sound-volume-slider" min="0" max="100" value="100" oninput="onSoundVolumeInput(this.value)">
+          <i data-lucide="volume-2"></i>
+        </div>
+      </div>
     </div>
 
     <!-- 메인 콘텐츠 -->
