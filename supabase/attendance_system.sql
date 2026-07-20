@@ -695,8 +695,9 @@ declare v_total integer; v_claimed integer; v_next_day integer; v_next_rw intege
 begin
   v_total := (select coalesce(sum(sessions_completed), 0)::integer
               from public.quiz_level_stats where user_id = auth.uid());
-  v_claimed := coalesce((select quiz_quest_claimed from public.subscriptions
-                         where user_id = auth.uid()), 0);
+  select quiz_quest_claimed into v_claimed
+    from public.subscriptions where user_id = auth.uid();
+  v_claimed := coalesce(v_claimed, 0);
   select next_day, next_reward into v_next_day, v_next_rw
     from public._quiz_quest_next(v_claimed);
   return json_build_object('total', v_total, 'claimed', v_claimed,
@@ -767,8 +768,9 @@ returns json language plpgsql security definer set search_path = public
 as $$
 declare v_claimed integer; v_next integer; v_done integer;
 begin
-  v_claimed := coalesce((select quiz_lvl_quest_claimed from public.subscriptions
-                         where user_id = auth.uid()), 0);
+  select quiz_lvl_quest_claimed into v_claimed
+    from public.subscriptions where user_id = auth.uid();
+  v_claimed := coalesce(v_claimed, 0);
   v_next := v_claimed + 1;
   if v_next > 11 then
     return json_build_object('claimed', v_claimed, 'next_level', 0, 'reward', 0, 'done', 0);
@@ -830,8 +832,9 @@ returns json language plpgsql security definer set search_path = public
 as $$
 declare v_claimed jsonb;
 begin
-  v_claimed := coalesce((select perfect_claimed from public.subscriptions
-                         where user_id = auth.uid()), '{}'::jsonb);
+  select perfect_claimed into v_claimed
+    from public.subscriptions where user_id = auth.uid();
+  v_claimed := coalesce(v_claimed, '{}'::jsonb);
   return (
     select coalesce(json_agg(json_build_object(
       'level',   L,
