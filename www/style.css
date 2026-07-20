@@ -9101,7 +9101,7 @@ canvas {
   flex: 0 0 calc(100vw - 88px);
   width: calc(100vw - 88px);
   height: calc((100dvh - 320px) * 0.9);
-  min-height: 288px;
+  min-height: 415px;
   scroll-snap-align: center;
 }
 
@@ -9157,7 +9157,7 @@ canvas {
   align-self: center;
   width: 90%;
   height: calc((100dvh - 320px) * 0.9);
-  min-height: 288px;
+  min-height: 415px;
   align-items: flex-start;
   justify-content: flex-start;
   padding: calc(20 * var(--cs));
