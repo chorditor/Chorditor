@@ -123,11 +123,14 @@ body {
 #page-cover {
   position: fixed;
   inset: 0;
+  width: 100vw;
+  height: 100vh;
   background: #FAFAF8;
   z-index: 9999;
   pointer-events: none;
   opacity: 1;
   transition: opacity 0.18s ease-out;
+  transform: translateZ(0);
 }
 #page-cover.cover-out {
   opacity: 0;
