@@ -145,6 +145,7 @@ async function _stopPlay(options = {}) {
   if (typeof DrumAudio !== 'undefined' && DrumAudio.stop) DrumAudio.stop();
   const stopPromise = GuitarAudio.stop({ wait: options.wait === true });
   _playing    = false;
+  window._chordSoundPlaying = false;
   _masterBeat = 0;
   _resetCountDots();
   _updateActiveCard(-1);
@@ -281,6 +282,7 @@ async function togglePlay() {
 
   _starting   = false;
   _playing    = true;
+  window._chordSoundPlaying = true; // 음량조절 A코드 프리뷰 중복재생 방지용 전역 플래그
   _masterBeat = 0;
   // 재생 시작 = 첫 코드로 복귀. 멀티스텝 슬라이드는 슬롯 스택 정합성이 깨져
   // (연속 동일코드 시 2번째를 첫 코드로 오인) → 클린 리빌드로 정확히 step0 리셋.

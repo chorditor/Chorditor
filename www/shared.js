@@ -6,7 +6,7 @@
 // ── 상수 ─────────────────────────────────────────────────────
 const SUPABASE_URL  = 'https://jbvkygeksohlysyvaoab.supabase.co';
 const SUPABASE_ANON = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Impidmt5Z2Vrc29obHlzeXZhb2FiIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzYzOTk5NjgsImV4cCI6MjA5MTk3NTk2OH0.6RSgChy0Yq0H2TJpZPSoMKQ2V-OYfR0XzE1aJBBZkXI';
-const APP_VERSION   = '1.3.0_pre10';
+const APP_VERSION   = '1.3.0_dev1';
 const SUPABASE_STORAGE_KEY = 'sb-jbvkygeksohlysyvaoab-auth-token';
 
 // ── Analytics SDK ─────────────────────────────────────────────
@@ -422,8 +422,8 @@ function _playSfx(src, vol) {
     return (p && p.catch) ? p.catch(() => {}) : Promise.resolve();
   } catch (e) { return Promise.resolve(); }
 }
-// 버튼 탭 효과음(선택 적용) — 파일 교체 시 여기 한 곳만 수정.
-function _playTap() { return _playSfx('tap.mp3'); }
+// 버튼 탭 효과음 — 1.3.0 폐기(조작감 개선 미미). 더 나은 사운드 확보 시 재활성화.
+function _playTap() { return Promise.resolve(); }
 
 // 출석 랜덤상자 보상: 2~10 랜덤, 기댓값 3 (최빈값 2). SQL claim_daily_attendance()와 동일 가중치.
 const ATTENDANCE_REWARD_WEIGHTS = [5000, 2500, 1250, 625, 313, 156, 78, 39, 39]; // 값 2~10, 합 10000
@@ -3221,6 +3221,7 @@ let _soundPreviewTimer     = null; // A코드 반복 재생 인터벌
 let _soundPreviewStopTimer = null; // 슬라이드 멈춤 감지 후 정지 예약
 function _playAPreview() {
   if (typeof GuitarAudio === 'undefined') return;
+  if (window._chordSoundPlaying) return; // 코드진행/주법 재생 중엔 A코드 프리뷰 생략(사운드 겹침 방지)
   if (GuitarAudio.resume) GuitarAudio.resume();
   // 오픈 A 메이저 실제 보이싱: A2 E3 A3 C#4 E4 (저음 포함, 에디터 기본값과 동일)
   GuitarAudio.strumNotes([45, 52, 57, 61, 64], 0.02);

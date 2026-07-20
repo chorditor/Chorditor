@@ -2038,6 +2038,9 @@ function switchTab(tab, noAnim = false) {
   const prevTab = _activeTab;
   _activeTab = tab;
 
+  // SPA 내부 탭 이동은 pagehide가 안 뜸 → 코드에디터 재생 중이던 사운드가 안 멈춤. 하드컷.
+  if (prevTab !== tab && typeof stopPlayAll === 'function') stopPlayAll();
+
   // 모든 탭 즉시 정리 — 진행 중 애니메이션 강제 종료 + 비대상 탭 즉시 숨김
   // (animationend에 hide를 위임하지 않음 → 빠른 연속 탭 전환 시 안전)
   ['home', 'projects', 'profile'].forEach(t => {

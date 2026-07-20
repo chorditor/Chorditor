@@ -73,6 +73,63 @@ const PAIR_STARTFRET_OFFSET_VI = { 1: 1 };  // G폼↔Am폼: Am폼 startFret = G
 const PAIR_PARTNER_BI_III       = { 0: 4, 1: 0, 2: 1, 3: 2, 4: 3 }; // A↔Am, G↔Gm, E↔Em, D↔Dm, C↔Cm
 const PAIR_STARTFRET_OFFSET_III = { 0: 1, 1: 1, 3: 1 };  // A폼↔Am폼, G폼↔Gm폼, D폼↔Dm폼: 짝궁 startFret = 원폼 + 1
 
+// Ch.2 secondary-iii(E 하모닉 마이너): 메이저 폼에서 2→#2, 4→#4 슬라이드 후 하모닉마이너 폼 모양에 맞추기 위한 폼별 델타.
+//   spawn : 슬라이드 후 새로 생성할 dot  { s, off(=absF-startFret), degree }
+//   remove: 슬라이드 후 제거할 dot        { s, off } — 원래 major degree도 함께 기록(역전환 복구용)
+// 폼별 값은 사용자 지정으로 채운다. (bi: 0=A,1=G,2=E,3=D,4=C 폼)
+// 전환 후 폼 라벨에 표시할 하모닉마이너 폼 이름 (major bi → HM 폼명). 사용자 지정대로 채운다.
+const SECONDARY_III_FORM_NAME = { 0: 'Dm폼', 1: 'Cm폼', 2: 'Am폼', 3: 'Gm폼', 4: 'Em폼' };
+
+// spawn : { s, off, degree }                       — 슬라이드 후 생성
+// remove: { s, off, backOff, backDeg }              — 슬라이드 후 제거 / 역전환 시 backOff·backDeg로 복구
+const SECONDARY_III_DELTA = {
+  0: { // A폼 → E 하모닉 마이너 Dm폼
+    spawn: [
+      { s: 0, off: 1, degree: '#4' },  // 1번줄: 5(+2) 왼쪽
+      { s: 5, off: 1, degree: '#4' },  // 6번줄: 5(+2) 왼쪽
+    ],
+    remove: [
+      { s: 1, off: 6, backOff: 5, backDeg: '4' },  // 2번줄: 슬라이드된 #4 제거
+    ],
+  },
+  1: { // G폼 → E 하모닉 마이너 Cm폼
+    spawn: [
+      { s: 3, off: 1, degree: '#4' },  // 4번줄: 5(+2) 왼쪽
+    ],
+    remove: [
+      { s: 0, off: 5, backOff: 5, backDeg: '1' },  // 1번줄: 근음 제거
+      { s: 4, off: 6, backOff: 5, backDeg: '4' },  // 5번줄: 슬라이드된 #4 제거
+    ],
+  },
+  2: { // E폼 → E 하모닉 마이너 Am폼
+    spawn: [
+      { s: 1, off: 1, degree: '#4' },  // 2번줄: 5(+2) 왼쪽
+    ],
+    remove: [
+      { s: 2, off: 5, backOff: 4, backDeg: '4' },  // 3번줄: 슬라이드된 #4 제거
+    ],
+  },
+  3: { // D폼 → E 하모닉 마이너 Gm폼
+    spawn: [
+      { s: 4, off: 1, degree: '#4' },  // 5번줄: 5(+2) 왼쪽
+    ],
+    remove: [
+      { s: 5, off: 6, backOff: 5, backDeg: '4' },  // 6번줄: 슬라이드된 #4 제거
+    ],
+  },
+  4: { // C폼 → E 하모닉 마이너 Em폼
+    spawn: [
+      { s: 0, off: 0, degree: '#2' },  // 1번줄: 3(+1) 왼쪽
+      { s: 2, off: 0, degree: '#4' },  // 3번줄: 5(+1) 왼쪽
+      { s: 5, off: 0, degree: '#2' },  // 6번줄: 3(+1) 왼쪽
+    ],
+    remove: [
+      { s: 1, off: 5, backOff: 4, backDeg: '2' },  // 2번줄: 슬라이드된 #2 제거
+      { s: 3, off: 5, backOff: 4, backDeg: '4' },  // 4번줄: 슬라이드된 #4 제거
+    ],
+  },
+};
+
 const KEY_NAMES        = ['C','C#','D','D#','E','F','F#','G','G#','A','A#','B'];
 const KEY_NAMES_FLAT   = ['C','Db','D','Eb','E','F','Gb','G','Ab','A','Bb','B'];
 const STRINGS          = 6;
@@ -168,12 +225,31 @@ function buildNavSequence() {
   blocks.forEach((block, bi) => {
     const startFrets = ScaleData.getStartFrets(block, _rootNote);
     startFrets.forEach(sf => {
+      // secondary-iii: 전환 타겟(슬라이드+spawn) dot이 하나라도 유효범위(0~22) 밖이면 블럭 자체 제외
+      if (_scaleKey === 'secondary-iii' && !_secondaryIIITargetFits(block, bi, sf)) return;
       seq.push({ block, bi, startFret: sf });
     });
   });
   // startFret 오름차순 정렬 — 키 이동 시 순서대로
   seq.sort((a, b) => a.startFret - b.startFret);
   return seq;
+}
+
+// secondary-iii: 전환 타겟(shifted-major + spawn − remove) 모든 dot이 [0, TOTAL_FRETS) 안에 드는지
+function _secondaryIIITargetFits(majorBlock, bi, sf) {
+  const delta   = SECONDARY_III_DELTA[bi] || { spawn: [], remove: [] };
+  const removeK = new Set(delta.remove.map(r => r.s + ',' + r.off));
+  const inRange = absF => absF >= 0 && absF < TOTAL_FRETS;
+  const notes   = ScaleData.parseGrid(majorBlock.grid).notes;
+  for (const n of notes) {
+    const col = (n.degree === 2 || n.degree === 4) ? n.col + 1 : n.col;  // 2→#2, 4→#4 (+1)
+    if (removeK.has(n.s + ',' + col)) continue;                          // 제거 대상은 무시
+    if (!inRange(sf + col)) return false;
+  }
+  for (const sp of delta.spawn) {
+    if (!inRange(sf + sp.off)) return false;
+  }
+  return true;
 }
 
 // ── 페이지 초기화 ────────────────────────────────────────────
@@ -183,6 +259,8 @@ function buildNavSequence() {
 // ================================================================
 let _transitioning = false;
 let _pairTransitioned = false; // 전환 버튼으로 짝궁 폼으로 이동한 상태
+let _instantPair = false;      // 즉시 전환(블럭 이동 시 상태 복원): spawn/root-pop/슬라이드 애니메이션 억제
+let _pairPersist = false;      // 사용자가 마지막으로 선택한 전환 상태 — 블럭 이동해도 유지 (Ch.2 전체)
 
 // Ch.2: 현재 _pairTransitioned 상태 기준으로 파트너 블럭을 ghost로 렌더
 // _pairTransitioned=false → 파트너폼(전환 대상) ghost 표시
@@ -200,6 +278,36 @@ function _refreshSecondaryGhost() {
   const isII       = _scaleKey === 'secondary-ii';
   const isVI       = _scaleKey === 'secondary-vi';
   const isIII      = _scaleKey === 'secondary-iii';
+
+  // secondary-iii: 전환 대상 ghost = 같은 major 폼에서 2→#2·4→#4(+1프랫) 슬라이드 + 폼별 델타(spawn/remove)
+  // 전환 후 ghost = 순정 major(복구 대상)
+  if (isIII) {
+    const firstReal = neckEl.querySelector('.fb-note:not(.fb-note--ghost)');
+    const addGhost  = (s, absF, deg) => {
+      if (absF < 0 || absF >= TOTAL_FRETS) return;
+      neckEl.insertBefore(createNoteEl(absF, s, deg, true), firstReal || null);
+    };
+    if (_pairTransitioned) {
+      // 복구 대상 = 순정 major
+      const mj = ScaleData.getBlocks('major')[cur.bi];
+      if (mj) ScaleData.parseGrid(mj.grid).notes.forEach(n => addGhost(n.s, cur.startFret + n.col, n.degree));
+      return;
+    }
+    // 전환 대상 = 하모닉마이너 폼 모양
+    const mj = ScaleData.getBlocks('major')[cur.bi];
+    if (!mj) return;
+    const delta   = SECONDARY_III_DELTA[cur.bi] || { spawn: [], remove: [] };
+    const removeK = new Set(delta.remove.map(r => r.s + ',' + r.off));
+    ScaleData.parseGrid(mj.grid).notes.forEach(n => {
+      let col = n.col, deg = n.degree;
+      if (n.degree === 2 || n.degree === 4) { col = n.col + 1; deg = n.degree === 2 ? '#2' : '#4'; }
+      if (removeK.has(n.s + ',' + col)) return;   // 델타 제거 대상
+      addGhost(n.s, cur.startFret + col, deg);
+    });
+    delta.spawn.forEach(sp => addGhost(sp.s, cur.startFret + sp.off, sp.degree));
+    return;
+  }
+
   const partnerMap = isVI ? PAIR_PARTNER_BI_VI : isII ? PAIR_PARTNER_BI_II : isIII ? PAIR_PARTNER_BI_III : isV ? PAIR_PARTNER_BI_V : PAIR_PARTNER_BI;
   const offsetMap  = isVI ? PAIR_STARTFRET_OFFSET_VI : isII ? PAIR_STARTFRET_OFFSET_II : isIII ? PAIR_STARTFRET_OFFSET_III : isV ? PAIR_STARTFRET_OFFSET_V : PAIR_STARTFRET_OFFSET;
   const offset     = offsetMap[cur.bi] || 0;
@@ -221,19 +329,41 @@ function _refreshSecondaryGhost() {
   });
 }
 
+// secondary-iii E 하모닉 마이너 전환 전용 도수 재표기 (C-major degree → minor degree)
+// 3→1, #4→2, 5→b3, 6→4, 7→5, 1→b6, #2→7. dataset.degree는 건드리지 않음(역전환 매칭용).
+const HM_III_MAP = { '3': 1, '#4': 2, '5': -3, '6': 4, '7': 5, '1': -6, '#2': 7 };
+function _relabelSecondaryIIIAsHM(neckEl) {
+  neckEl.querySelectorAll('.fb-note:not(.fb-note--ghost)').forEach(el => {
+    const nd = HM_III_MAP[el.dataset.degree];
+    if (nd === undefined) return;
+    const wasRoot = el.classList.contains('fb-note--root');
+    el.classList.toggle('fb-note--root', nd === 1);
+    if (nd === 1 && !wasRoot && !_instantPair) {   // 새로 근음이 된 노트: 다른 전환과 동일한 pop 애니메이션
+      el.classList.add('fb-note--root-pop');
+      setTimeout(() => el.classList.remove('fb-note--root-pop'), 400);
+    }
+    _setNoteDegreeLabel(el, nd);
+  });
+}
+
 // 전환 완료 공통 마무리 — 상태 저장 + 버튼 라벨 + 폼 라벨 + ghost 갱신 + 뷰포트 + 잠금 해제
 function _finishTransition(forward) {
   _pairTransitioned = forward;
   // 전환 후 도수 라벨 전체 재작성 — 슬라이드로 dataset.degree만 바뀐 노트까지 포함
   const neckEl = document.getElementById('fb-full-neck');
   if (neckEl) {
-    neckEl.querySelectorAll('.fb-note:not(.fb-note--ghost)').forEach(el => {
-      _setNoteDegreeLabel(el, el.dataset.degree);
-    });
+    if (_scaleKey === 'secondary-iii' && forward) {
+      _relabelSecondaryIIIAsHM(neckEl);   // C-major degree → E 하모닉 마이너 degree
+    } else {
+      neckEl.querySelectorAll('.fb-note:not(.fb-note--ghost)').forEach(el => {
+        _setNoteDegreeLabel(el, el.dataset.degree);
+      });
+    }
   }
   updateFormLabel();
   _refreshSecondaryGhost();
   _transitioning = false;
+  _instantPair = false;
 }
 
 // 노트 el의 도수 라벨 span 재작성 (근음=라벨 없음)
@@ -242,7 +372,9 @@ function _setNoteDegreeLabel(el, degVal) {
   el.querySelectorAll('.fb-note-deg').forEach(d => d.remove());
   if (String(degVal) === '1') return;   // 근음은 표시 생략
   // raw degree(음수=플랫) → 표시 라벨('b3','#4'...)로 변환해야 잉크박스 오프셋 키가 맞음
-  const lbl = degreeLabel(Number(degVal), _scaleKey);
+  // 'b3'·'#2' 같은 문자열 토큰은 Number()가 NaN → degreeLabel에 원본 문자열 그대로 전달(패스스루)
+  const _n  = Number(degVal);
+  const lbl = degreeLabel(Number.isNaN(_n) ? degVal : _n, _scaleKey);
   const deg = document.createElement('span');
   deg.className = 'fb-note-deg';
   deg.textContent = lbl;
@@ -257,7 +389,7 @@ function _applyDegMap(neckEl, degMap) {
     if (nd !== undefined) {
       el.dataset.degree = nd;
       el.classList.toggle('fb-note--root', nd === 1);
-      if (nd === 1) {
+      if (nd === 1 && !_instantPair) {
         el.classList.add('fb-note--root-pop');
         setTimeout(() => el.classList.remove('fb-note--root-pop'), 400);
       }
@@ -266,7 +398,9 @@ function _applyDegMap(neckEl, degMap) {
 }
 
 function _spawnNote(neckEl, absF, s, degree) {
+  if (absF < 0 || absF >= TOTAL_FRETS) return;   // 유효 프랫(0~22) 밖엔 생성하지 않음
   const newEl = createNoteEl(absF, s, degree, false);
+  if (_instantPair) { neckEl.appendChild(newEl); return; }   // 즉시 전환: 생성 애니메이션 없이 완성 상태
   newEl.style.opacity   = '0';
   newEl.style.transform = 'translate(-50%, -50%) scale(0)';
   newEl.style.transition = 'opacity 200ms ease, transform 360ms cubic-bezier(0.34, 1.56, 0.64, 1)';
@@ -276,24 +410,25 @@ function _spawnNote(neckEl, absF, s, degree) {
   newEl.style.transform = 'translate(-50%, -50%) scale(1)';
 }
 
-function transitionPair() {
+function transitionPair(instant = false) {
   if (_transitioning) return;
+  _instantPair = instant;   // spawn/root-pop/슬라이드 애니메이션 억제 (_finishTransition에서 해제)
   if (_scaleKey === 'secondary-v') { _transitionPairV(); return; }
   if (_scaleKey === 'secondary-ii') { _transitionPairII(); return; }
   if (_scaleKey === 'secondary-vi') { _transitionPairVI(); return; }
   if (_scaleKey === 'secondary-iii') { _transitionPairIII(); return; }
   const neckEl = document.getElementById('fb-full-neck');
-  if (!neckEl) return;
+  if (!neckEl) { _instantPair = false; return; }
 
   const seq = buildNavSequence();
   const cur = seq[_navIdx];
-  if (!cur) return;
+  if (!cur) { _instantPair = false; return; }
   const bi = cur.bi;
 
   const activeEls = [...neckEl.querySelectorAll('.fb-note:not(.fb-note--ghost)')];
-  if (!activeEls.length) return;
+  if (!activeEls.length) { _instantPair = false; return; }
 
-  const DURATION = 350;
+  const DURATION = _instantPair ? 0 : 350;
   _transitioning = true;
 
   activeEls.forEach(el => {
@@ -718,7 +853,7 @@ function _transitionPairV() {
   const activeEls = [...neckEl.querySelectorAll('.fb-note:not(.fb-note--ghost)')];
   if (!activeEls.length) return;
 
-  const DURATION = 350;
+  const DURATION = _instantPair ? 0 : 350;
   _transitioning = true;
 
   activeEls.forEach(el => {
@@ -1300,7 +1435,7 @@ function measureDegreeOffsets() {
   ctx.font         = '700 11px Pretendard, sans-serif';
   ctx.textAlign    = 'left';
   ctx.textBaseline = 'alphabetic';
-  const labels = ['1','2','3','4','5','6','7','b2','b3','b5','b6','b7','#4','b9','#9','#11','b13','11','9','13'];
+  const labels = ['1','2','3','4','5','6','7','b2','b3','b5','b6','b7','#2','#4','b9','#9','#11','b13','11','9','13'];
   labels.forEach(lbl => {
     const m = ctx.measureText(lbl);
     const abbL = m.actualBoundingBoxLeft;
@@ -1431,7 +1566,18 @@ function renderNotes(animate = true) {
     neckEl.appendChild(createNoteEl(absF, note.s, note.degree, false));
   });
 
-  scrollToFret(current.startFret, animate);
+  // secondary-iii C폼(bi=4): 실제 음은 그대로, 뷰포트만 오른쪽 1칸(startFret-1)으로 잡아 화면 중앙 배치
+  const _scrollFret = (_scaleKey === 'secondary-iii' && current.bi === 4) ? current.startFret - 1 : current.startFret;
+  scrollToFret(_scrollFret, animate);
+
+  // Ch.2: 블럭 이동 시 마지막으로 선택한 전환 상태 유지 (애니메이션 없이 즉시).
+  // 유지 상태면 폼 라벨은 _finishTransition에서 1회만 갱신 → 여기서 미리 부르면 원래폼→전환폼 이중 갱신(깜빡임)
+  const _isSecondaryPair = _scaleKey === 'secondary-iv' || _scaleKey === 'secondary-v' || _scaleKey === 'secondary-ii' || _scaleKey === 'secondary-vi' || _scaleKey === 'secondary-iii';
+  if (_isSecondaryPair && _pairPersist) {
+    transitionPair(true);
+  } else {
+    updateFormLabel();
+  }
 }
 
 // ── 가장 높은 루트음 찾기 ────────────────────────────────────
@@ -1996,7 +2142,7 @@ function _transitionPairII() {
   const activeEls = [...neckEl.querySelectorAll('.fb-note:not(.fb-note--ghost)')];
   if (!activeEls.length) return;
 
-  const DURATION = 350;
+  const DURATION = _instantPair ? 0 : 350;
   _transitioning = true;
 
   activeEls.forEach(el => {
@@ -2346,7 +2492,7 @@ function _transitionPairVI() {
   const activeEls = [...neckEl.querySelectorAll('.fb-note:not(.fb-note--ghost)')];
   if (!activeEls.length) return;
 
-  const DURATION = 350;
+  const DURATION = _instantPair ? 0 : 350;
   _transitioning = true;
 
   activeEls.forEach(el => {
@@ -2587,7 +2733,9 @@ function _transitionPairVI() {
   }
 }
 
-// ── Ch.2 secondary-iii: 내추럴 마이너 전환 애니메이션 ────────────────
+// ── Ch.2 secondary-iii: E 하모닉 마이너 전환 애니메이션 ────────────
+// 메이저 폼 → 하모닉마이너 폼: 2→#2, 4→#4 (+1프랫) 슬라이드 + 폼별 델타(spawn/remove).
+// 델타 좌표는 "슬라이드 후 shifted-major 보드" 기준 (off = absF - startFret).
 function _transitionPairIII() {
   const neckEl = document.getElementById('fb-full-neck');
   if (!neckEl) return;
@@ -2598,9 +2746,12 @@ function _transitionPairIII() {
   if (!cur) { _transitioning = false; return; }
   const sf = cur.startFret;
   const bi = cur.bi;
-  const DURATION = 350;
+  const DURATION = _instantPair ? 0 : 350;
+  const forward  = !_pairTransitioned;
+  const delta    = SECONDARY_III_DELTA[bi] || { spawn: [], remove: [] };
 
   const activeEls = Array.from(neckEl.querySelectorAll('.fb-note:not(.fb-note--ghost)'));
+  if (!activeEls.length) { _transitioning = false; return; }
 
   activeEls.forEach(el => {
     el.style.transition =
@@ -2610,579 +2761,64 @@ function _transitionPairIII() {
   });
   void neckEl.offsetHeight;
 
-  // ── C폼(bi=4): major C폼 ↔ natural-minor Cm폼 ─────────────────
-  if (bi === 4) {
-    if (!_pairTransitioned) {
-      // 정방향: major C폼 → natural-minor Cm폼
-      const slidNodes = [];
-      activeEls.forEach(el => {
-        const s    = parseInt(el.dataset.s);
-        const d    = el.dataset.degree;
-        const absf = parseInt(el.dataset.absf);
-        // fade: s=0(3), s=1(7), s=4(6), s=5(3) — 모두 col1
-        if ((s===0 && d==='3' && absf===sf+1) ||
-            (s===1 && d==='7' && absf===sf+1) ||
-            (s===4 && d==='6' && absf===sf+1) ||
-            (s===5 && d==='3' && absf===sf+1)) {
-          el.style.opacity = '0';
-          el.style.transform = 'translate(-50%,-50%) scale(0)';
-        }
-        // slide s=2: col3=6 → col2=b6
-        if (s===2 && d==='6' && absf===sf+3) {
-          const nf = sf+2;
-          el.style.left = ((nf+0.5)/TOTAL_FRETS*100)+'%';
-          el.dataset.absf = nf;
-          el.classList.toggle('fb-note--open', nf===0);
-          slidNodes.push({ el, finalDeg: 'b6' });
-        }
-        // slide s=3: col3=3 → col2=b3
-        if (s===3 && d==='3' && absf===sf+3) {
-          const nf = sf+2;
-          el.style.left = ((nf+0.5)/TOTAL_FRETS*100)+'%';
-          el.dataset.absf = nf;
-          el.classList.toggle('fb-note--open', nf===0);
-          slidNodes.push({ el, finalDeg: 'b3' });
-        }
-        // slide s=4: col3=7 → col2=b7
-        if (s===4 && d==='7' && absf===sf+3) {
-          const nf = sf+2;
-          el.style.left = ((nf+0.5)/TOTAL_FRETS*100)+'%';
-          el.dataset.absf = nf;
-          el.classList.toggle('fb-note--open', nf===0);
-          slidNodes.push({ el, finalDeg: 'b7' });
-        }
+  const slidNodes = [];
+  if (forward) {
+    // 1) 2→#2, 4→#4 (+1프랫) 슬라이드
+    activeEls.forEach(el => {
+      const d    = el.dataset.degree;
+      const absf = parseInt(el.dataset.absf);
+      if (d === '2' || d === '4') {
+        const nf = absf + 1;
+        el.style.left = ((nf + 0.5) / TOTAL_FRETS * 100) + '%';
+        el.dataset.absf = nf;
+        el.classList.toggle('fb-note--open', nf === 0);
+        slidNodes.push({ el, finalDeg: d === '2' ? '#2' : '#4' });
+      }
+    });
+    // 2) 델타 remove 대상 fade out (슬라이드 후 좌표 기준)
+    const removeK = new Set(delta.remove.map(r => r.s + ',' + (sf + r.off)));
+    activeEls.forEach(el => {
+      if (removeK.has(el.dataset.s + ',' + el.dataset.absf)) {
+        el.style.opacity = '0';
+        el.style.transform = 'translate(-50%,-50%) scale(0)';
+      }
+    });
+    setTimeout(function() {
+      neckEl.querySelectorAll('.fb-note:not(.fb-note--ghost)').forEach(el => {
+        if (parseFloat(el.style.opacity) === 0) el.remove();
       });
-      setTimeout(function() {
-        neckEl.querySelectorAll('.fb-note:not(.fb-note--ghost)').forEach(el => {
-          if (parseFloat(el.style.opacity) === 0) el.remove();
-        });
-        _applyDegMap(neckEl, {});
-        slidNodes.forEach(({ el, finalDeg }) => {
-          el.dataset.degree = finalDeg;
-          el.classList.toggle('fb-note--root', finalDeg === 1);
-        });
-        _spawnNote(neckEl, sf+5, 1, 'b3');
-        _spawnNote(neckEl, sf+4, 2, 'b7');
-        _spawnNote(neckEl, sf+5, 5, 'b6');
-        _finishTransition(true);
-      }, DURATION + 60);
-    } else {
-      // 역방향: natural-minor Cm폼 → major C폼
-      const slidNodes = [];
-      activeEls.forEach(el => {
-        const s    = parseInt(el.dataset.s);
-        const d    = el.dataset.degree;
-        const absf = parseInt(el.dataset.absf);
-        // fade: 정방향 spawn 역방향 — s=1(b3 col5), s=2(b7 col4), s=5(b6 col5)
-        if ((s===1 && d==='b3' && absf===sf+5) ||
-            (s===2 && d==='b7' && absf===sf+4) ||
-            (s===5 && d==='b6' && absf===sf+5)) {
-          el.style.opacity = '0';
-          el.style.transform = 'translate(-50%,-50%) scale(0)';
-        }
-        // slide s=2: col2=b6 → col3=6
-        if (s===2 && d==='b6' && absf===sf+2) {
-          const nf = sf+3;
-          el.style.left = ((nf+0.5)/TOTAL_FRETS*100)+'%';
-          el.dataset.absf = nf;
-          el.classList.toggle('fb-note--open', nf===0);
-          slidNodes.push({ el, finalDeg: '6' });
-        }
-        // slide s=3: col2=b3 → col3=3
-        if (s===3 && d==='b3' && absf===sf+2) {
-          const nf = sf+3;
-          el.style.left = ((nf+0.5)/TOTAL_FRETS*100)+'%';
-          el.dataset.absf = nf;
-          el.classList.toggle('fb-note--open', nf===0);
-          slidNodes.push({ el, finalDeg: '3' });
-        }
-        // slide s=4: col2=b7 → col3=7
-        if (s===4 && d==='b7' && absf===sf+2) {
-          const nf = sf+3;
-          el.style.left = ((nf+0.5)/TOTAL_FRETS*100)+'%';
-          el.dataset.absf = nf;
-          el.classList.toggle('fb-note--open', nf===0);
-          slidNodes.push({ el, finalDeg: '7' });
-        }
-      });
-      setTimeout(function() {
-        neckEl.querySelectorAll('.fb-note:not(.fb-note--ghost)').forEach(el => {
-          if (parseFloat(el.style.opacity) === 0) el.remove();
-        });
-        _applyDegMap(neckEl, {});
-        slidNodes.forEach(({ el, finalDeg }) => {
-          el.dataset.degree = finalDeg;
-          el.classList.toggle('fb-note--root', finalDeg === 1);
-        });
-        _spawnNote(neckEl, sf+1, 0, '3');
-        _spawnNote(neckEl, sf+1, 1, '7');
-        _spawnNote(neckEl, sf+1, 4, '6');
-        _spawnNote(neckEl, sf+1, 5, '3');
-        _finishTransition(false);
-      }, DURATION + 60);
-    }
-  }
+      slidNodes.forEach(({ el, finalDeg }) => { el.dataset.degree = finalDeg; });
+      delta.spawn.forEach(sp => _spawnNote(neckEl, sf + sp.off, sp.s, sp.degree));
+      _finishTransition(true);
+    }, DURATION + 60);
 
-  // ── A폼(bi=0): major A폼 ↔ natural-minor Am폼 ─────────────────
-  // Am폼 startFret = major A폼 startFret + 1 (PAIR_STARTFRET_OFFSET_III[0]=1)
-  // major A폼(major-pos1): s0:sf+2=5,sf+4=6 / s1:sf+2=2,sf+4=3,sf+5=4
-  //   s2:sf+1=6,sf+3=7,sf+4=1 / s3:sf+1=3,sf+2=4,sf+4=5
-  //   s4:sf+1=7,sf+2=1,sf+4=2 / s5:sf+2=5,sf+4=6
-  // natural-minor Am폼(at sf+1): s0:sf+2=5,sf+3=b6,sf+5=b7
-  //   s1:sf+2=2,sf+3=b3,sf+5=4 / s2:sf+2=b7,sf+4=1
-  //   s3:sf+2=4,sf+4=5,sf+5=b6 / s4:sf+2=1,sf+4=2,sf+5=b3
-  //   s5:sf+2=5,sf+3=b6,sf+5=b7
-  if (bi === 0) {
-    if (!_pairTransitioned) {
-      // 정방향: major A폼 → natural-minor Am폼
-      const slidNodes = [];
-      activeEls.forEach(el => {
-        const s    = parseInt(el.dataset.s);
-        const d    = el.dataset.degree;
-        const absf = parseInt(el.dataset.absf);
-        // fade: s=2의 6(sf+1), s=3의 3(sf+1), s=4의 7(sf+1)
-        if ((s===2 && d==='6'  && absf===sf+1) ||
-            (s===3 && d==='3'  && absf===sf+1) ||
-            (s===4 && d==='7'  && absf===sf+1)) {
-          el.style.opacity = '0';
-          el.style.transform = 'translate(-50%,-50%) scale(0)';
-        }
-        // slide s=0: sf+4(6) → sf+3 → b6
-        if (s===0 && d==='6' && absf===sf+4) {
-          el.style.left = ((sf+3+0.5)/TOTAL_FRETS*100)+'%';
-          el.dataset.absf = sf+3;
-          slidNodes.push({ el, finalDeg: 'b6' });
-        }
-        // slide s=1: sf+4(3) → sf+3 → b3
-        if (s===1 && d==='3' && absf===sf+4) {
-          el.style.left = ((sf+3+0.5)/TOTAL_FRETS*100)+'%';
-          el.dataset.absf = sf+3;
-          slidNodes.push({ el, finalDeg: 'b3' });
-        }
-        // slide s=2: sf+3(7) → sf+2 → b7
-        if (s===2 && d==='7' && absf===sf+3) {
-          el.style.left = ((sf+2+0.5)/TOTAL_FRETS*100)+'%';
-          el.dataset.absf = sf+2;
-          slidNodes.push({ el, finalDeg: 'b7' });
-        }
-        // slide s=5: sf+4(6) → sf+3 → b6
-        if (s===5 && d==='6' && absf===sf+4) {
-          el.style.left = ((sf+3+0.5)/TOTAL_FRETS*100)+'%';
-          el.dataset.absf = sf+3;
-          slidNodes.push({ el, finalDeg: 'b6' });
-        }
+  } else {
+    // 역방향: 델타 spawn 제거 → #2→2, #4→4 (-1프랫) → 델타 remove 복구
+    const spawnK = new Set(delta.spawn.map(sp => sp.s + ',' + (sf + sp.off)));
+    activeEls.forEach(el => {
+      const d    = el.dataset.degree;
+      const absf = parseInt(el.dataset.absf);
+      if (spawnK.has(el.dataset.s + ',' + absf)) {
+        el.style.opacity = '0';
+        el.style.transform = 'translate(-50%,-50%) scale(0)';
+        return;
+      }
+      if (d === '#2' || d === '#4') {
+        const nf = absf - 1;
+        el.style.left = ((nf + 0.5) / TOTAL_FRETS * 100) + '%';
+        el.dataset.absf = nf;
+        el.classList.toggle('fb-note--open', nf === 0);
+        slidNodes.push({ el, finalDeg: d === '#2' ? '2' : '4' });
+      }
+    });
+    setTimeout(function() {
+      neckEl.querySelectorAll('.fb-note:not(.fb-note--ghost)').forEach(el => {
+        if (parseFloat(el.style.opacity) === 0) el.remove();
       });
-      setTimeout(function() {
-        neckEl.querySelectorAll('.fb-note:not(.fb-note--ghost)').forEach(el => {
-          if (parseFloat(el.style.opacity) === 0) el.remove();
-        });
-        _applyDegMap(neckEl, {});
-        slidNodes.forEach(({ el, finalDeg }) => {
-          el.dataset.degree = finalDeg;
-          el.classList.toggle('fb-note--root', finalDeg === 1);
-        });
-        _spawnNote(neckEl, sf+5, 0, 'b7');  // 1번줄: 원래 6자리(sf+4)+1 = sf+5
-        _spawnNote(neckEl, sf+5, 3, 'b6');  // 4번줄: 5(sf+4)+1 = sf+5
-        _spawnNote(neckEl, sf+5, 4, 'b3');  // 5번줄: 2(sf+4)+1 = sf+5
-        _spawnNote(neckEl, sf+5, 5, 'b7');  // 6번줄: 원래 6자리(sf+4)+1 = sf+5
-        _finishTransition(true);
-      }, DURATION + 60);
-    } else {
-      // 역방향: natural-minor Am폼 → major A폼
-      const slidNodes = [];
-      activeEls.forEach(el => {
-        const s    = parseInt(el.dataset.s);
-        const d    = el.dataset.degree;
-        const absf = parseInt(el.dataset.absf);
-        // fade: 정방향 spawn 역방향 — s=0(b7,sf+5), s=3(b6,sf+5), s=4(b3,sf+5), s=5(b7,sf+5)
-        if ((s===0 && d==='b7' && absf===sf+5) ||
-            (s===3 && d==='b6' && absf===sf+5) ||
-            (s===4 && d==='b3' && absf===sf+5) ||
-            (s===5 && d==='b7' && absf===sf+5)) {
-          el.style.opacity = '0';
-          el.style.transform = 'translate(-50%,-50%) scale(0)';
-        }
-        // slide s=0: sf+3(b6) → sf+4 → 6
-        if (s===0 && d==='b6' && absf===sf+3) {
-          el.style.left = ((sf+4+0.5)/TOTAL_FRETS*100)+'%';
-          el.dataset.absf = sf+4;
-          slidNodes.push({ el, finalDeg: '6' });
-        }
-        // slide s=1: sf+3(b3) → sf+4 → 3
-        if (s===1 && d==='b3' && absf===sf+3) {
-          el.style.left = ((sf+4+0.5)/TOTAL_FRETS*100)+'%';
-          el.dataset.absf = sf+4;
-          slidNodes.push({ el, finalDeg: '3' });
-        }
-        // slide s=2: sf+2(b7) → sf+3 → 7
-        if (s===2 && d==='b7' && absf===sf+2) {
-          el.style.left = ((sf+3+0.5)/TOTAL_FRETS*100)+'%';
-          el.dataset.absf = sf+3;
-          slidNodes.push({ el, finalDeg: '7' });
-        }
-        // slide s=5: sf+3(b6) → sf+4 → 6
-        if (s===5 && d==='b6' && absf===sf+3) {
-          el.style.left = ((sf+4+0.5)/TOTAL_FRETS*100)+'%';
-          el.dataset.absf = sf+4;
-          slidNodes.push({ el, finalDeg: '6' });
-        }
-      });
-      setTimeout(function() {
-        neckEl.querySelectorAll('.fb-note:not(.fb-note--ghost)').forEach(el => {
-          if (parseFloat(el.style.opacity) === 0) el.remove();
-        });
-        _applyDegMap(neckEl, {});
-        slidNodes.forEach(({ el, finalDeg }) => {
-          el.dataset.degree = finalDeg;
-          el.classList.toggle('fb-note--root', finalDeg === 1);
-        });
-        _spawnNote(neckEl, sf+1, 2, '6');  // 3번줄: sf+1
-        _spawnNote(neckEl, sf+1, 3, '3');  // 4번줄: sf+1
-        _spawnNote(neckEl, sf+1, 4, '7');  // 5번줄: sf+1
-        _finishTransition(false);
-      }, DURATION + 60);
-    }
-  }
-
-  // ── D폼(bi=3): major D폼 ↔ natural-minor Dm폼 ─────────────────
-  // Dm폼 startFret = major D폼 startFret + 1 (PAIR_STARTFRET_OFFSET_III[3]=1)
-  // major D폼(major-pos4): s0:sf+2=2,sf+4=3 / s1:sf+2=6,sf+4=7,sf+5=1
-  //   s2:sf+1=3,sf+2=4,sf+4=5 / s3:sf+1=7,sf+2=1,sf+4=2
-  //   s4:sf+2=5,sf+4=6 / s5:sf+2=2,sf+4=3,sf+5=4
-  if (bi === 3) {
-    if (!_pairTransitioned) {
-      // 정방향: major D폼 → natural-minor Dm폼
-      const slidNodes = [];
-      activeEls.forEach(el => {
-        const s    = parseInt(el.dataset.s);
-        const d    = el.dataset.degree;
-        const absf = parseInt(el.dataset.absf);
-        // fade: s=1의 6(sf+2), s=2의 3(sf+1), s=3의 7(sf+1)
-        if ((s===1 && d==='6'  && absf===sf+2) ||
-            (s===2 && d==='3'  && absf===sf+1) ||
-            (s===3 && d==='7'  && absf===sf+1)) {
-          el.style.opacity = '0';
-          el.style.transform = 'translate(-50%,-50%) scale(0)';
-        }
-        // slide s=0: sf+4(3) → sf+3 → b3
-        if (s===0 && d==='3' && absf===sf+4) {
-          el.style.left = ((sf+3+0.5)/TOTAL_FRETS*100)+'%';
-          el.dataset.absf = sf+3;
-          slidNodes.push({ el, finalDeg: 'b3' });
-        }
-        // slide s=1: sf+4(7) → sf+3 → b7
-        if (s===1 && d==='7' && absf===sf+4) {
-          el.style.left = ((sf+3+0.5)/TOTAL_FRETS*100)+'%';
-          el.dataset.absf = sf+3;
-          slidNodes.push({ el, finalDeg: 'b7' });
-        }
-        // slide s=4: sf+4(6) → sf+3 → b6
-        if (s===4 && d==='6' && absf===sf+4) {
-          el.style.left = ((sf+3+0.5)/TOTAL_FRETS*100)+'%';
-          el.dataset.absf = sf+3;
-          slidNodes.push({ el, finalDeg: 'b6' });
-        }
-        // slide s=5: sf+4(3) → sf+3 → b3
-        if (s===5 && d==='3' && absf===sf+4) {
-          el.style.left = ((sf+3+0.5)/TOTAL_FRETS*100)+'%';
-          el.dataset.absf = sf+3;
-          slidNodes.push({ el, finalDeg: 'b3' });
-        }
-      });
-      setTimeout(function() {
-        neckEl.querySelectorAll('.fb-note:not(.fb-note--ghost)').forEach(el => {
-          if (parseFloat(el.style.opacity) === 0) el.remove();
-        });
-        _applyDegMap(neckEl, {});
-        slidNodes.forEach(({ el, finalDeg }) => {
-          el.dataset.degree = finalDeg;
-          el.classList.toggle('fb-note--root', finalDeg === 1);
-        });
-        _spawnNote(neckEl, sf+5, 0, '4');   // 1번줄: 원래 3자리(sf+4)+1 = sf+5
-        _spawnNote(neckEl, sf+5, 2, 'b6');  // 3번줄: 5(sf+4)+1 = sf+5
-        _spawnNote(neckEl, sf+5, 3, 'b3');  // 4번줄: 2(sf+4)+1 = sf+5
-        _spawnNote(neckEl, sf+5, 4, 'b7');  // 5번줄: 원래 6자리(sf+4)+1 = sf+5
-        _finishTransition(true);
-      }, DURATION + 60);
-    } else {
-      // 역방향: natural-minor Dm폼 → major D폼
-      const slidNodes = [];
-      activeEls.forEach(el => {
-        const s    = parseInt(el.dataset.s);
-        const d    = el.dataset.degree;
-        const absf = parseInt(el.dataset.absf);
-        // fade: 정방향 spawn 역방향 — s=0(4,sf+5), s=2(b6,sf+5), s=3(b3,sf+5), s=4(b7,sf+5)
-        if ((s===0 && d==='4'  && absf===sf+5) ||
-            (s===2 && d==='b6' && absf===sf+5) ||
-            (s===3 && d==='b3' && absf===sf+5) ||
-            (s===4 && d==='b7' && absf===sf+5)) {
-          el.style.opacity = '0';
-          el.style.transform = 'translate(-50%,-50%) scale(0)';
-        }
-        // slide s=0: sf+3(b3) → sf+4 → 3
-        if (s===0 && d==='b3' && absf===sf+3) {
-          el.style.left = ((sf+4+0.5)/TOTAL_FRETS*100)+'%';
-          el.dataset.absf = sf+4;
-          slidNodes.push({ el, finalDeg: '3' });
-        }
-        // slide s=1: sf+3(b7) → sf+4 → 7
-        if (s===1 && d==='b7' && absf===sf+3) {
-          el.style.left = ((sf+4+0.5)/TOTAL_FRETS*100)+'%';
-          el.dataset.absf = sf+4;
-          slidNodes.push({ el, finalDeg: '7' });
-        }
-        // slide s=4: sf+3(b6) → sf+4 → 6
-        if (s===4 && d==='b6' && absf===sf+3) {
-          el.style.left = ((sf+4+0.5)/TOTAL_FRETS*100)+'%';
-          el.dataset.absf = sf+4;
-          slidNodes.push({ el, finalDeg: '6' });
-        }
-        // slide s=5: sf+3(b3) → sf+4 → 3
-        if (s===5 && d==='b3' && absf===sf+3) {
-          el.style.left = ((sf+4+0.5)/TOTAL_FRETS*100)+'%';
-          el.dataset.absf = sf+4;
-          slidNodes.push({ el, finalDeg: '3' });
-        }
-      });
-      setTimeout(function() {
-        neckEl.querySelectorAll('.fb-note:not(.fb-note--ghost)').forEach(el => {
-          if (parseFloat(el.style.opacity) === 0) el.remove();
-        });
-        _applyDegMap(neckEl, {});
-        slidNodes.forEach(({ el, finalDeg }) => {
-          el.dataset.degree = finalDeg;
-          el.classList.toggle('fb-note--root', finalDeg === 1);
-        });
-        _spawnNote(neckEl, sf+2, 1, '6');  // 2번줄: sf+2
-        _spawnNote(neckEl, sf+1, 2, '3');  // 3번줄: sf+1
-        _spawnNote(neckEl, sf+1, 3, '7');  // 4번줄: sf+1
-        _finishTransition(false);
-      }, DURATION + 60);
-    }
-  }
-
-  // ── G폼(bi=1): major G폼 ↔ natural-minor Gm폼 ─────────────────
-  // Gm폼 startFret = major G폼 startFret + 1 (PAIR_STARTFRET_OFFSET_III[1]=1)
-  // major G폼(major-pos2): s0:sf+2=6,sf+4=7,sf+5=1 / s1:sf+2=3,sf+3=4,sf+5=5
-  //   s2:sf+1=7,sf+2=1,sf+4=2 / s3:sf+2=5,sf+4=6
-  //   s4:sf+2=2,sf+4=3,sf+5=4 / s5:sf+2=6,sf+4=7,sf+5=1
-  if (bi === 1) {
-    if (!_pairTransitioned) {
-      // 정방향: major G폼 → natural-minor Gm폼
-      const slidNodes = [];
-      activeEls.forEach(el => {
-        const s    = parseInt(el.dataset.s);
-        const d    = el.dataset.degree;
-        const absf = parseInt(el.dataset.absf);
-        // fade: s=0의 6(sf+2), s=1의 3(sf+2), s=2의 7(sf+1), s=5의 6(sf+2)
-        if ((s===0 && d==='6'  && absf===sf+2) ||
-            (s===1 && d==='3'  && absf===sf+2) ||
-            (s===2 && d==='7'  && absf===sf+1) ||
-            (s===5 && d==='6'  && absf===sf+2)) {
-          el.style.opacity = '0';
-          el.style.transform = 'translate(-50%,-50%) scale(0)';
-        }
-        // slide s=0: sf+4(7) → sf+3 → b7
-        if (s===0 && d==='7' && absf===sf+4) {
-          el.style.left = ((sf+3+0.5)/TOTAL_FRETS*100)+'%';
-          el.dataset.absf = sf+3;
-          slidNodes.push({ el, finalDeg: 'b7' });
-        }
-        // slide s=3: sf+4(6) → sf+3 → b6
-        if (s===3 && d==='6' && absf===sf+4) {
-          el.style.left = ((sf+3+0.5)/TOTAL_FRETS*100)+'%';
-          el.dataset.absf = sf+3;
-          slidNodes.push({ el, finalDeg: 'b6' });
-        }
-        // slide s=4: sf+4(3) → sf+3 → b3
-        if (s===4 && d==='3' && absf===sf+4) {
-          el.style.left = ((sf+3+0.5)/TOTAL_FRETS*100)+'%';
-          el.dataset.absf = sf+3;
-          slidNodes.push({ el, finalDeg: 'b3' });
-        }
-        // slide s=5: sf+4(7) → sf+3 → b7
-        if (s===5 && d==='7' && absf===sf+4) {
-          el.style.left = ((sf+3+0.5)/TOTAL_FRETS*100)+'%';
-          el.dataset.absf = sf+3;
-          slidNodes.push({ el, finalDeg: 'b7' });
-        }
-      });
-      setTimeout(function() {
-        neckEl.querySelectorAll('.fb-note:not(.fb-note--ghost)').forEach(el => {
-          if (parseFloat(el.style.opacity) === 0) el.remove();
-        });
-        _applyDegMap(neckEl, {});
-        slidNodes.forEach(({ el, finalDeg }) => {
-          el.dataset.degree = finalDeg;
-          el.classList.toggle('fb-note--root', finalDeg === 1);
-        });
-        _spawnNote(neckEl, sf+6, 1, 'b6');  // 2번줄: 5(sf+5)+1 = sf+6
-        _spawnNote(neckEl, sf+5, 2, 'b3');  // 3번줄: 2(sf+4)+1 = sf+5
-        _spawnNote(neckEl, sf+5, 3, 'b7');  // 4번줄: 원래 6자리(sf+4)+1 = sf+5
-        _finishTransition(true);
-      }, DURATION + 60);
-    } else {
-      // 역방향: natural-minor Gm폼 → major G폼
-      const slidNodes = [];
-      activeEls.forEach(el => {
-        const s    = parseInt(el.dataset.s);
-        const d    = el.dataset.degree;
-        const absf = parseInt(el.dataset.absf);
-        // fade: 정방향 spawn 역방향 — s=1(b6,sf+6), s=2(b3,sf+5), s=3(b7,sf+5)
-        if ((s===1 && d==='b6' && absf===sf+6) ||
-            (s===2 && d==='b3' && absf===sf+5) ||
-            (s===3 && d==='b7' && absf===sf+5)) {
-          el.style.opacity = '0';
-          el.style.transform = 'translate(-50%,-50%) scale(0)';
-        }
-        // slide s=0: sf+3(b7) → sf+4 → 7
-        if (s===0 && d==='b7' && absf===sf+3) {
-          el.style.left = ((sf+4+0.5)/TOTAL_FRETS*100)+'%';
-          el.dataset.absf = sf+4;
-          slidNodes.push({ el, finalDeg: '7' });
-        }
-        // slide s=3: sf+3(b6) → sf+4 → 6
-        if (s===3 && d==='b6' && absf===sf+3) {
-          el.style.left = ((sf+4+0.5)/TOTAL_FRETS*100)+'%';
-          el.dataset.absf = sf+4;
-          slidNodes.push({ el, finalDeg: '6' });
-        }
-        // slide s=4: sf+3(b3) → sf+4 → 3
-        if (s===4 && d==='b3' && absf===sf+3) {
-          el.style.left = ((sf+4+0.5)/TOTAL_FRETS*100)+'%';
-          el.dataset.absf = sf+4;
-          slidNodes.push({ el, finalDeg: '3' });
-        }
-        // slide s=5: sf+3(b7) → sf+4 → 7
-        if (s===5 && d==='b7' && absf===sf+3) {
-          el.style.left = ((sf+4+0.5)/TOTAL_FRETS*100)+'%';
-          el.dataset.absf = sf+4;
-          slidNodes.push({ el, finalDeg: '7' });
-        }
-      });
-      setTimeout(function() {
-        neckEl.querySelectorAll('.fb-note:not(.fb-note--ghost)').forEach(el => {
-          if (parseFloat(el.style.opacity) === 0) el.remove();
-        });
-        _applyDegMap(neckEl, {});
-        slidNodes.forEach(({ el, finalDeg }) => {
-          el.dataset.degree = finalDeg;
-          el.classList.toggle('fb-note--root', finalDeg === 1);
-        });
-        _spawnNote(neckEl, sf+2, 0, '6');  // 1번줄: sf+2
-        _spawnNote(neckEl, sf+2, 1, '3');  // 2번줄: sf+2
-        _spawnNote(neckEl, sf+1, 2, '7');  // 3번줄: sf+1
-        _spawnNote(neckEl, sf+2, 5, '6');  // 6번줄: sf+2
-        _finishTransition(false);
-      }, DURATION + 60);
-    }
-  }
-
-  // ── E폼(bi=2): major E폼 ↔ natural-minor Em폼 ─────────────────
-  // 오프셋 없음: roots 동일 sf (PAIR_STARTFRET_OFFSET_III[2] 미설정)
-  // major E폼(major-pos3): s0:sf+1=7,sf+2=1,sf+4=2 / s1:sf+2=5,sf+4=6
-  //   s2:sf+1=2,sf+3=3,sf+4=4 / s3:sf+1=6,sf+3=7,sf+4=1
-  //   s4:sf+1=3,sf+2=4,sf+4=5 / s5:sf+1=7,sf+2=1,sf+4=2
-  if (bi === 2) {
-    if (!_pairTransitioned) {
-      // 정방향: major E폼 → natural-minor Em폼
-      const slidNodes = [];
-      activeEls.forEach(el => {
-        const s    = parseInt(el.dataset.s);
-        const d    = el.dataset.degree;
-        const absf = parseInt(el.dataset.absf);
-        // fade: s=0의 7(sf+1), s=3의 6(sf+1), s=4의 3(sf+1), s=5의 7(sf+1)
-        if ((s===0 && d==='7'  && absf===sf+1) ||
-            (s===3 && d==='6'  && absf===sf+1) ||
-            (s===4 && d==='3'  && absf===sf+1) ||
-            (s===5 && d==='7'  && absf===sf+1)) {
-          el.style.opacity = '0';
-          el.style.transform = 'translate(-50%,-50%) scale(0)';
-        }
-        // slide s=1: sf+4(6) → sf+3 → b6
-        if (s===1 && d==='6' && absf===sf+4) {
-          el.style.left = ((sf+3+0.5)/TOTAL_FRETS*100)+'%';
-          el.dataset.absf = sf+3;
-          slidNodes.push({ el, finalDeg: 'b6' });
-        }
-        // slide s=2: sf+3(3) → sf+2 → b3
-        if (s===2 && d==='3' && absf===sf+3) {
-          el.style.left = ((sf+2+0.5)/TOTAL_FRETS*100)+'%';
-          el.dataset.absf = sf+2;
-          slidNodes.push({ el, finalDeg: 'b3' });
-        }
-        // slide s=3: sf+3(7) → sf+2 → b7
-        if (s===3 && d==='7' && absf===sf+3) {
-          el.style.left = ((sf+2+0.5)/TOTAL_FRETS*100)+'%';
-          el.dataset.absf = sf+2;
-          slidNodes.push({ el, finalDeg: 'b7' });
-        }
-      });
-      setTimeout(function() {
-        neckEl.querySelectorAll('.fb-note:not(.fb-note--ghost)').forEach(el => {
-          if (parseFloat(el.style.opacity) === 0) el.remove();
-        });
-        _applyDegMap(neckEl, {});
-        slidNodes.forEach(({ el, finalDeg }) => {
-          el.dataset.degree = finalDeg;
-          el.classList.toggle('fb-note--root', finalDeg === 1);
-        });
-        _spawnNote(neckEl, sf+5, 0, 'b3');  // 1번줄: 2(sf+4)+1 = sf+5
-        _spawnNote(neckEl, sf+5, 1, 'b7');  // 2번줄: 원래 6자리(sf+4)+1 = sf+5
-        _spawnNote(neckEl, sf+5, 4, 'b6');  // 5번줄: 5(sf+4)+1 = sf+5
-        _spawnNote(neckEl, sf+5, 5, 'b3');  // 6번줄: 2(sf+4)+1 = sf+5
-        _finishTransition(true);
-      }, DURATION + 60);
-    } else {
-      // 역방향: natural-minor Em폼 → major E폼
-      const slidNodes = [];
-      activeEls.forEach(el => {
-        const s    = parseInt(el.dataset.s);
-        const d    = el.dataset.degree;
-        const absf = parseInt(el.dataset.absf);
-        // fade: 정방향 spawn 역방향 — s=0(b3,sf+5), s=1(b7,sf+5), s=4(b6,sf+5), s=5(b3,sf+5)
-        if ((s===0 && d==='b3' && absf===sf+5) ||
-            (s===1 && d==='b7' && absf===sf+5) ||
-            (s===4 && d==='b6' && absf===sf+5) ||
-            (s===5 && d==='b3' && absf===sf+5)) {
-          el.style.opacity = '0';
-          el.style.transform = 'translate(-50%,-50%) scale(0)';
-        }
-        // slide s=1: sf+3(b6) → sf+4 → 6
-        if (s===1 && d==='b6' && absf===sf+3) {
-          el.style.left = ((sf+4+0.5)/TOTAL_FRETS*100)+'%';
-          el.dataset.absf = sf+4;
-          slidNodes.push({ el, finalDeg: '6' });
-        }
-        // slide s=2: sf+2(b3) → sf+3 → 3
-        if (s===2 && d==='b3' && absf===sf+2) {
-          el.style.left = ((sf+3+0.5)/TOTAL_FRETS*100)+'%';
-          el.dataset.absf = sf+3;
-          slidNodes.push({ el, finalDeg: '3' });
-        }
-        // slide s=3: sf+2(b7) → sf+3 → 7
-        if (s===3 && d==='b7' && absf===sf+2) {
-          el.style.left = ((sf+3+0.5)/TOTAL_FRETS*100)+'%';
-          el.dataset.absf = sf+3;
-          slidNodes.push({ el, finalDeg: '7' });
-        }
-      });
-      setTimeout(function() {
-        neckEl.querySelectorAll('.fb-note:not(.fb-note--ghost)').forEach(el => {
-          if (parseFloat(el.style.opacity) === 0) el.remove();
-        });
-        _applyDegMap(neckEl, {});
-        slidNodes.forEach(({ el, finalDeg }) => {
-          el.dataset.degree = finalDeg;
-          el.classList.toggle('fb-note--root', finalDeg === 1);
-        });
-        _spawnNote(neckEl, sf+1, 0, '7');  // 1번줄: sf+1
-        _spawnNote(neckEl, sf+1, 3, '6');  // 4번줄: sf+1
-        _spawnNote(neckEl, sf+1, 4, '3');  // 5번줄: sf+1
-        _spawnNote(neckEl, sf+1, 5, '7');  // 6번줄: sf+1
-        _finishTransition(false);
-      }, DURATION + 60);
-    }
+      slidNodes.forEach(({ el, finalDeg }) => { el.dataset.degree = finalDeg; });
+      delta.remove.forEach(r => _spawnNote(neckEl, sf + r.backOff, r.s, r.backDeg));
+      _finishTransition(false);
+    }, DURATION + 60);
   }
 }
 
@@ -3232,13 +2868,13 @@ function updateFormLabel() {
     }
     return;
   }
-  // Ch.2 secondary-iii: 전환 전=메이저, 전환 후=내추럴 마이너 표시
+  // Ch.2 secondary-iii: 전환 전=메이저, 전환 후=E 하모닉 마이너 표시 (root+4 = 3도)
   if (_scaleKey === 'secondary-iii') {
     const names = _useFlat ? KEY_NAMES_FLAT : KEY_NAMES;
-    const nmFormNames = ['Gm폼','Em폼','Dm폼','Cm폼','Am폼'];
     if (_pairTransitioned) {
-      const partnerBi = PAIR_PARTNER_BI_III[bi];
-      el.textContent = `${names[_rootNote]} 내추럴 마이너 ${nmFormNames[partnerBi]}`;
+      const hmKey    = (_rootNote + 4) % 12;
+      const formName = SECONDARY_III_FORM_NAME[bi] || FORM_NAMES[bi];
+      el.textContent = `${names[hmKey]} 하모닉 마이너 ${formName}`;
     } else {
       el.textContent = `${names[_rootNote]}메이저 ${FORM_NAMES[bi]}`;
     }
@@ -3260,9 +2896,9 @@ function updateBlockIndicator() {
     const dot = document.createElement('div');
     dot.className = 'block-dot' + (i === _navIdx ? ' block-dot--active' : '');
     dot.addEventListener('pointerup', () => {
+      if (_transitioning) return;
       _navIdx = i;
       renderNotes();
-      updateFormLabel();
       updateBlockIndicator();
     });
     el.appendChild(dot);
@@ -3272,21 +2908,21 @@ function updateBlockIndicator() {
 // ── 이전/다음 버튼 (탐색 이동) ───────────────────────────────
 function initArrows() {
   document.getElementById('fb-arrow-prev')?.addEventListener('pointerup', () => {
+    if (_transitioning) return;
     const seq = buildNavSequence();
     if (seq.length <= 1) return;
     _navIdx = (_navIdx - 1 + seq.length) % seq.length;
     renderNotes();
-    updateFormLabel();
     updateBlockIndicator();
     _trackBlockViewed();
   });
 
   document.getElementById('fb-arrow-next')?.addEventListener('pointerup', () => {
+    if (_transitioning) return;
     const seq = buildNavSequence();
     if (seq.length <= 1) return;
     _navIdx = (_navIdx + 1) % seq.length;
     renderNotes();
-    updateFormLabel();
     updateBlockIndicator();
     _trackBlockViewed();
   });
@@ -3483,7 +3119,12 @@ document.addEventListener('DOMContentLoaded', () => {
     const btn = document.getElementById('pair-transition-btn');
     if (btn) {
       btn.style.display = 'inline-flex';
-      btn.addEventListener('pointerup', () => { _playTap(); transitionPair(); });
+      btn.addEventListener('pointerup', () => {
+        if (_transitioning) return;
+        _playTap();
+        _pairPersist = !_pairTransitioned;   // 이번 전환 후 상태를 블럭 이동해도 유지
+        transitionPair();
+      });
     }
   }
 

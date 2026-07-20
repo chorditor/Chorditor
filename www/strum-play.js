@@ -485,6 +485,7 @@ async function strumPlayStart() {
   _strumStarting = false;
   if (typeof Tone !== 'undefined') { try { Tone.getDestination().mute = false; } catch (e) {} }
   _strumPlaying  = true;
+  window._chordSoundPlaying = true; // 음량조절 A코드 프리뷰 중복재생 방지용 전역 플래그
   analytics.track('strum_play_started', { id: STRUM_ITEM ? STRUM_ITEM.id : null, title: STRUM_ITEM ? STRUM_ITEM.title : null });
 
   // 주법훈련 누적 재생 퀘스트 카운터
@@ -537,6 +538,7 @@ function strumPlayStop() {
   }
   _strumPlayStartMs = 0;
   _strumPlaying = false;
+  window._chordSoundPlaying = false;
   _strumStarting = false;
   if (_strumTimer) { clearInterval(_strumTimer); _strumTimer = null; }
   // 최종 출력 즉시 mute + 엔진 그래프 절단 → 잔향 없이 즉시 묵음

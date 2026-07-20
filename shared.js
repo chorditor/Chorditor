@@ -6,7 +6,7 @@
 // ── 상수 ─────────────────────────────────────────────────────
 const SUPABASE_URL  = 'https://jbvkygeksohlysyvaoab.supabase.co';
 const SUPABASE_ANON = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Impidmt5Z2Vrc29obHlzeXZhb2FiIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzYzOTk5NjgsImV4cCI6MjA5MTk3NTk2OH0.6RSgChy0Yq0H2TJpZPSoMKQ2V-OYfR0XzE1aJBBZkXI';
-const APP_VERSION   = '1.3.0_pre10';
+const APP_VERSION   = '1.3.0_dev1';
 const SUPABASE_STORAGE_KEY = 'sb-jbvkygeksohlysyvaoab-auth-token';
 
 // ── Analytics SDK ─────────────────────────────────────────────
@@ -2496,8 +2496,8 @@ async function claimStrumQuest() {
 const SCALE_LEVEL_NAMES = {
   1: '메이저 스케일', 2: '마이너 펜타토닉 스케일', 3: '마이너 블루스 스케일',
   4: '내추럴 마이너 스케일', 5: '하모닉 마이너 스케일',
-  6: '4도 메이저 전환', 7: '5도 메이저 전환', 8: '6도 마이너 전환',
-  9: '2도 마이너 전환', 10: '내추럴 마이너 전환',
+  6: '4도 세컨더리 도미넌트', 7: '5도 세컨더리 도미넌트', 8: '6도 세컨더리 도미넌트',
+  9: '2도 세컨더리 도미넌트', 10: '3도 세컨더리 도미넌트',
   11: '아이오니안 스케일', 12: '도리안 스케일', 13: '프리지안 스케일',
   14: '리디안 스케일', 15: '믹솔리디안 스케일', 16: '에올리안 스케일', 17: '로크리안 스케일',
   18: '멜로딕 마이너 스케일', 19: '프리지안 도미넌트 스케일', 20: '믹솔리디안 b9 b13 스케일',

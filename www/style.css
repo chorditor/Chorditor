@@ -27,8 +27,8 @@
 
 * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; user-select: none; -webkit-user-select: none; }
 
-/* ?�이지 ?�환 �???배경 ?�리�?방�? */
-html { background: #FAFAF8; }
+/* ?�이지 ?�환 �???배경 ?�리�?방�? — body?� ??? --bg ?�용(?�이 미묘???�르�?top-bar/컨텐�?경계 ?�선?�로 비침) */
+html { background: var(--bg); }
 
 body {
   background: var(--bg);
@@ -7221,7 +7221,8 @@ canvas {
   box-sizing: border-box;
   gap: 32px;
   overflow: hidden;
-  background: #F5F5F5;
+  /* top-bar(투명 → body --bg #FAFAF9 노출)와 색이 달라(#F5F5F5) 경계선처럼 보였음 → 통일 */
+  background: var(--bg);
 }
 
 /* ?�?� ?�단 ?�세 ?�널 ?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?� */
@@ -7229,8 +7230,9 @@ canvas {
   flex-shrink: 0;
   background: #fff;
   border-radius: var(--radius);
+  /* blur 32px가 위로도 번져 top-bar 밑에 옅은 선처럼 보였음 → blur 축소 + y오프셋만으로 아래쪽 강조 */
   box-shadow:
-    0 8px 32px rgba(0,0,0,0.16),
+    0 6px 16px rgba(0,0,0,0.14),
     inset 0 1px 0 rgba(255,255,255,0.9);
   padding: 16px;
   display: flex;
@@ -8913,7 +8915,7 @@ canvas {
 .st-track {
   display: flex;
   align-items: center;
-  margin-top: 16px;
+  margin: 16px -16px 0; /* 부모 .scale-sticky-bar 16px 좌우 패딩 상쇄 → 화면 끝까지 확장 */
   padding-bottom: 14px;
   border-bottom: 1px solid var(--border-color, #eee);
   box-shadow: 0 6px 10px -6px rgba(0,0,0,0.12);
@@ -9017,12 +9019,21 @@ canvas {
   scroll-snap-type: x mandatory;
 }
 .scale-item-list--carousel::-webkit-scrollbar { display: none; }
+.scale-item-list--carousel { cursor: grab; }
+.scale-item-list--carousel.carousel--dragging { cursor: grabbing; user-select: none; }
 .scale-item-list--carousel .scale-item-card {
   flex: 0 0 calc(100vw - 88px);
   width: calc(100vw - 88px);
   height: calc((100dvh - 320px) * 0.9);
   min-height: 288px;
   scroll-snap-align: center;
+}
+
+/* 카드 내부 스케일 단위: 기준 뷰포트 375px(카드폭 287px)에서 1px.
+   내부 요소 크기·여백을 전부 --cs 배수로 지정 → 기기 폭이 달라도 여백 비율 동일. */
+.scale-item-list--carousel .scale-item-card,
+.scale-item-card--template {
+  --cs: calc((100vw - 88px) / 287);
 }
 
 .scale-item-card .lw-badge { color: #334155; }
@@ -9072,7 +9083,8 @@ canvas {
   min-height: 288px;
   align-items: flex-start;
   justify-content: flex-start;
-  padding: 20px;
+  padding: calc(20 * var(--cs));
+  border-radius: calc(14 * var(--cs));
   box-shadow:
     0 12px 28px rgba(90, 110, 160, 0.22),
     0 2px 6px rgba(90, 110, 160, 0.15),
@@ -9081,39 +9093,44 @@ canvas {
 
 .scale-item-card--template .lw-badge {
   color: #9ca3af;
+  font-size: calc(11 * var(--cs));
 }
 
 .scale-card-header {
   display: flex;
   flex-direction: column;
-  gap: 14px;
+  gap: calc(14 * var(--cs));
   align-self: stretch;
   background: linear-gradient(180deg, rgba(210, 216, 230, 0.1) 0%, rgba(210, 216, 230, 0) 100%);
-  border-radius: 14px 14px 0 0;
-  padding: 20px;
-  margin: -20px -20px 0;
+  border-radius: calc(14 * var(--cs)) calc(14 * var(--cs)) 0 0;
+  padding: calc(20 * var(--cs));
+  margin: calc(-20 * var(--cs)) calc(-20 * var(--cs)) 0;
   position: relative;
 }
 .scale-card-header::after {
   content: '';
   position: absolute;
-  left: 20px;
-  right: 20px;
+  left: calc(20 * var(--cs));
+  right: calc(20 * var(--cs));
   bottom: 0;
   height: 1px;
   background: rgba(170, 190, 225, 0.35);
 }
 
 .scale-item-card--template .lw-name {
-  font-size: 20px;
+  font-size: calc(20 * var(--cs));
 }
 
 .scale-card-shot {
   align-self: center;
-  width: 220px;
-  margin-top: 64px;
+  width: calc(220 * var(--cs));
+  margin-top: calc(64 * var(--cs));
   zoom: 0.75;
 }
+/* 샷 내부 고정 px(넥 높이·dot·프렛번호)도 --cs 배수로 → 가로/세로 비율 유지 */
+.scale-card-shot .fb-full-neck { height: calc(160 * var(--cs)); }
+.scale-card-shot .fb-full-nums { height: calc(22 * var(--cs)); margin-top: calc(6 * var(--cs)); }
+.scale-card-shot .fb-fret-num  { font-size: calc(11 * var(--cs)); }
 
 .fb-shot-neck {
   position: relative;
@@ -9121,43 +9138,52 @@ canvas {
 
 .scale-card-notes {
   align-self: center;
-  margin-top: 14px;
+  margin-top: calc(14 * var(--cs));
   display: flex;
   justify-content: center;
-  gap: 7px;
+  gap: calc(7 * var(--cs));
 }
 
 .scale-card-note {
-  font-size: 22px;
+  font-size: calc(22 * var(--cs));
   font-weight: 800;
   letter-spacing: -0.5px;
   color: #1a1a1a;
+}
+
+.scale-card-note--arrow {
+  color: #1a1a1a;
+  font-weight: 600;
+}
+
+.scale-card-note-sep {
+  width: calc(10 * var(--cs));
 }
 
 .scale-card-practice-btn {
   font-family: 'Pretendard', sans-serif;
   align-self: center;
   margin-top: auto;
-  margin-bottom: 12px;
+  margin-bottom: calc(12 * var(--cs));
   border: none;
-  border-radius: 10px;
+  border-radius: calc(10 * var(--cs));
   background: var(--blue);
   color: #ffffff;
-  font-size: 14px;
+  font-size: calc(14 * var(--cs));
   font-weight: 600;
-  padding: 12px 28px 12px 24px;
+  padding: calc(12 * var(--cs)) calc(28 * var(--cs)) calc(12 * var(--cs)) calc(24 * var(--cs));
   cursor: pointer;
   -webkit-tap-highlight-color: transparent;
   transition: transform 0.1s, filter 0.1s;
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 5px;
+  gap: calc(5 * var(--cs));
 }
 .scale-card-practice-btn i,
 .scale-card-practice-btn svg {
-  width: 15px;
-  height: 15px;
+  width: calc(15 * var(--cs));
+  height: calc(15 * var(--cs));
   fill: currentColor;
 }
 .scale-card-practice-btn:active {
@@ -9167,15 +9193,15 @@ canvas {
 
 .fb-shot-neck .fb-note--root::after {
   inset: 0;
-  width: 8px;
-  height: 8px;
+  width: calc(8 * var(--cs, 1px));
+  height: calc(8 * var(--cs, 1px));
   margin: auto;
   transform: none;
 }
 
 .fb-shot-neck .fb-note {
-  width: 24px;
-  height: 24px;
+  width: calc(24 * var(--cs, 1px));
+  height: calc(24 * var(--cs, 1px));
 }
 
 
@@ -9240,6 +9266,13 @@ canvas {
   height: 100%;
   overflow: hidden;
   background: #ffffff;
+  /* 375px 기준 확정 레이아웃(9:19.5/9:20) → 기기 폭에 비례해 프렛보드 시각비율 유지 */
+  --cs: calc(100vw / 375);
+}
+
+/* 테스트 오버레이는 .scale-level-layout 형제 노드라 --cs 별도 정의 필요 */
+.scale-test-overlay {
+  --cs: calc(100vw / 375);
 }
 
 .scale-level-top {
@@ -9319,8 +9352,8 @@ canvas {
 /* ?�?� ?�트 마커 ?�?� */
 .fb-dot {
   position: absolute;
-  width: 12px;
-  height: 12px;
+  width: calc(12 * var(--cs, 1px));
+  height: calc(12 * var(--cs, 1px));
   border-radius: 50%;
   background: #d8d8d8;
   transform: translate(-50%, -50%);
@@ -9518,7 +9551,7 @@ canvas {
 /* ?�?� ?� ???�?� */
 .fb-full-neck {
   position: relative;
-  height: 160px;
+  height: calc(160 * var(--cs, 1px));
   background: #ffffff;
   touch-action: none;
 }
@@ -9528,7 +9561,7 @@ canvas {
   position: absolute;
   top: calc(100% / 12);
   bottom: calc(100% / 12);
-  width: 4px;
+  width: calc(4 * var(--cs, 1px));
   background: #1a1a1a;
   border-radius: 2px;
   transform: translateX(-50%);
@@ -9539,14 +9572,14 @@ canvas {
 /* ?�?� ?�랫 번호 ???�?� */
 .fb-full-nums {
   position: relative;
-  height: 22px;
-  margin-top: 6px;
+  height: calc(22 * var(--cs, 1px));
+  margin-top: calc(6 * var(--cs, 1px));
 }
 
 .fb-fret-num {
   position: absolute;
   top: 0;
-  font-size: 11px;
+  font-size: calc(11 * var(--cs, 1px));
   font-weight: 600;
   color: #aaa;
   transform: translateX(-50%);
@@ -9557,9 +9590,9 @@ canvas {
 /* ?�?� ???�이�??�?� */
 .form-label {
   position: absolute;
-  top: 16px;
-  left: 16px;
-  font-size: 18px;
+  top: calc(16 * var(--cs, 1px));
+  left: calc(16 * var(--cs, 1px));
+  font-size: calc(18 * var(--cs, 1px));
   font-weight: 700;
   color: #1a1a1a;
   letter-spacing: -0.3px;
@@ -9577,7 +9610,7 @@ canvas {
   width: 36px;
   height: 36px;
   align-self: flex-start;
-  margin-top: calc((160px - 36px) / 2); /* ???�이 160px 기�? 중앙 */
+  margin-top: calc((160 * var(--cs, 1px) - 36px) / 2); /* 넥 높이(가변) 기준 중앙 */
   display: flex;
   align-items: center;
   justify-content: center;
@@ -9596,14 +9629,14 @@ canvas {
 /* ?�?� 블럭 ?�디케?�터 ?�?� */
 .block-indicator {
   display: flex;
-  gap: 6px;
+  gap: calc(6 * var(--cs, 1px));
   justify-content: center;
-  margin-top: 14px;
+  margin-top: calc(14 * var(--cs, 1px));
 }
 
 .block-dot {
-  width: 6px;
-  height: 6px;
+  width: calc(6 * var(--cs, 1px));
+  height: calc(6 * var(--cs, 1px));
   border-radius: 50%;
   background: #d0d0d0;
 }
@@ -9668,15 +9701,7 @@ canvas {
   flex-shrink: 0;
 }
 
-.accidental-toggle {
-  display: flex;
-  background: #f0f0f0;
-  border-radius: 8px;
-  padding: 3px;
-  gap: 2px;
-  cursor: pointer;
-  -webkit-tap-highlight-color: transparent;
-}
+/* .accidental-toggle 중복 정의(radius 8px) 제거 — 전역 공용본(style.css:1264, radius 999px)만 사용 */
 
 .toggle-opt {
   padding: 4px 14px;
@@ -10015,7 +10040,7 @@ canvas {
 
 .scale-test-fb-wrap {
   width: 100%;
-  padding: 0 36px;
+  padding: 0 calc(36 * var(--cs, 1px));
   box-sizing: border-box;
 }
 
@@ -10528,6 +10553,18 @@ canvas {
   letter-spacing: 0.02em;
   flex-shrink: 0;
   background: #ffffff;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.progd-key-header-sound-btn {
+  flex-shrink: 0;
+  margin: -4px -4px -4px 0; /* icon-btn 자체 padding(4px)만큼 헤더 오른쪽 끝에 밀착 */
+}
+/* icon-btn 기본 hover 배경(둥근 사각형이 26px 박스에서 원처럼 보임) — 터치 후 sticky hover로 남는 원 제거 */
+.progd-key-header-sound-btn:hover {
+  background: none;
 }
 
 .progd-prog-bar {
@@ -11137,6 +11174,18 @@ canvas {
     max-width: 400px;
     margin-inline: auto;
   }
+
+  /* 스케일훈련 카드: 카드 폭/높이가 100vw·100dvh 기준이라, .app-shell은 400px로 캡돼도
+     카드 자체는 데스크톱 창 전체 크기로 커짐 → 캡 너비(400px) 기준으로 고정 */
+  .scale-item-list--carousel .scale-item-card {
+    flex: 0 0 calc(400px - 88px);
+    width: calc(400px - 88px);
+  }
+  /* --cs도 같은 이유로 100vw 기준 → 캡 너비(400px) 기준 고정값으로 오버라이드 */
+  .scale-item-list--carousel .scale-item-card,
+  .scale-item-card--template {
+    --cs: calc((400px - 88px) / 287);
+  }
 }
 
 /* ?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═
@@ -11175,7 +11224,7 @@ canvas {
     --icon-yellow: #E8C000;
     --icon-pink:   #C94B7A;
   }
-  html  { background: #FAFAF8 !important; }
+  html  { background: var(--bg) !important; }
   body  { background: var(--bg) !important; color: var(--text-primary); }
 }
 

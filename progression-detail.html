@@ -31,9 +31,6 @@
           <div class="currency-icon-box"><img src="image/peak.svg" alt=""></div>
         </div>
       </div>
-      <button class="icon-btn" onclick="openSoundSheet()" title="음량">
-        <i data-lucide="volume-2"></i>
-      </button>
     </div>
 
     <!-- ── 바텀시트: 사운드 볼륨 ── -->
@@ -56,7 +53,12 @@
       <!-- ① 코드 뷰 -->
       <div class="progd-chord-view">
         <!-- 조성/모드 헤더 (root 선택 따라 전조) -->
-        <div class="progd-key-header" id="detail-key-header"></div>
+        <div class="progd-key-header" id="detail-key-header">
+          <span id="detail-key-header-text"></span>
+          <button class="icon-btn progd-key-header-sound-btn" onclick="openSoundSheet()" title="음량">
+            <i data-lucide="volume-2"></i>
+          </button>
+        </div>
         <!-- 코드 진행 나열 -->
         <div class="progd-prog-bar" id="detail-prog-bar"></div>
         <!-- 메트로놈 인디케이터 -->
@@ -96,7 +98,7 @@
       <div class="key-selector-section">
         <div class="accidental-toggle-row">
           <div class="accidental-toggle" id="detail-accidental-toggle">
-            <span class="acc-btn" id="detail-acc-sharp">&#9839;</span>
+            <span class="acc-btn" id="detail-acc-sharp">#</span>
             <span class="acc-btn active" id="detail-acc-flat">b</span>
           </div>
           <button class="finger-toggle" id="detail-finger-toggle" aria-label="손가락 번호 표시">

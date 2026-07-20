@@ -91,10 +91,31 @@ function _cardDegreeLabel(degree, scaleKey) {
   return degree < 0 ? 'b' + (-degree) : '' + degree;
 }
 
+// Ch.2 세컨더리 도미넌트 카드: 로마자 코드 진행 (세컨더리 도미넌트 → 해결 코드)
+const SECONDARY_CARD_ROMAN = {
+  'secondary-iv':  ['I7',   'IVM7'],
+  'secondary-v':   ['II7',  'V7'],
+  'secondary-ii':  ['III7', 'VIm7'],
+  'secondary-vi':  ['VI7',  'IIm7'],
+  'secondary-iii': ['VII7', 'IIIm7'],
+};
+
 function renderScaleCardNotes() {
   document.querySelectorAll('.scale-card-notes').forEach(slot => {
     const card = slot.closest('.scale-item-card');
     if (!card) return;
+
+    // Ch.2: 로마자 코드 진행 표기
+    const roman = SECONDARY_CARD_ROMAN[card.dataset.key];
+    if (roman) {
+      const [from, to] = roman;
+      slot.innerHTML =
+        `<span class="scale-card-note">${from}</span>` +
+        `<span class="scale-card-note scale-card-note--arrow">→</span>` +
+        `<span class="scale-card-note">${to}</span>`;
+      return;
+    }
+
     const blocks = ScaleData.getBlocks(card.dataset.key);
     if (!blocks.length) return;
 

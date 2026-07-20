@@ -22,7 +22,7 @@
 
 const STANDARD_TUNING = [4, 11, 7, 2, 9, 4]; // E B G D A E
 const FRETS_VISIBLE   = 7;
-const TOTAL_FRETS     = 21; // 0~20 프랫
+const TOTAL_FRETS     = 23; // 0~22 프랫
 
 // ── 스케일 블럭 데이터 ───────────────────────────────────────
 const SCALE_BLOCKS = {
