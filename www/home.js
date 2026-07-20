@@ -4403,7 +4403,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     if (!_hasOAuth && !shareParam) { window.location.replace('onboarding.html'); return; }
   }
   analytics.track('app_open', { platform: 'web', project_count: loadProjects().length });
-  if (typeof claimDailyAttendance === 'function') claimDailyAttendance();
+  if (typeof runDailyAttendanceFlow === 'function') runDailyAttendanceFlow();
   analytics.setScreen('home');
   analytics.track('screen_view', { view: 'home' }); // 홈 화면 진입 명시 기록
   syncProjectsOnLogin().catch(() => {}); // 재설치 등 DB 백업 복구 + 로컬 전용 업로드
