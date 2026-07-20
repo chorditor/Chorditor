@@ -6,7 +6,7 @@
 // ── 상수 ─────────────────────────────────────────────────────
 const SUPABASE_URL  = 'https://jbvkygeksohlysyvaoab.supabase.co';
 const SUPABASE_ANON = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Impidmt5Z2Vrc29obHlzeXZhb2FiIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzYzOTk5NjgsImV4cCI6MjA5MTk3NTk2OH0.6RSgChy0Yq0H2TJpZPSoMKQ2V-OYfR0XzE1aJBBZkXI';
-const APP_VERSION   = '1.3.0_dev1';
+const APP_VERSION   = '1.3.0_pre14';
 const SUPABASE_STORAGE_KEY = 'sb-jbvkygeksohlysyvaoab-auth-token';
 
 // ── Analytics SDK ─────────────────────────────────────────────
@@ -3193,6 +3193,31 @@ function showPeakboxRewardModal(count, onClose) {
     onClose: onClose,
   });
   if (typeof analytics !== 'undefined') analytics.track('attendance_milestone_reward', { peakbox: count });
+}
+
+// ── 1.3.0 업데이트 감사 이벤트 (기존 유저 대상 1회성 픽박스 50개 지급) ──
+const EVENT_130_TITLE   = '1.3.0 업데이트 감사 이벤트';
+const EVENT_130_MESSAGE = '기존 유저 분들에 대한 감사의 마음으로 \n 피크상자 보상을 드립니다!';
+const EVENT_130_REWARD  = 50;
+
+// 반환값: 모달을 띄웠으면 true (호출부에서 다른 팝업과 중첩 방지에 사용)
+async function checkEventThanks130() {
+  const r = await _peakRpc('get_event_130_status');
+  if (!r || !r.eligible || r.claimed) return false;
+  if (typeof openEventModal !== 'function') return false;
+  openEventModal(EVENT_130_TITLE, EVENT_130_MESSAGE, EVENT_130_REWARD);
+  if (typeof analytics !== 'undefined') analytics.track('event_130_viewed', {});
+  return true;
+}
+
+async function claimEventThanks130() {
+  if (typeof closeEventModal === 'function') closeEventModal();
+  const r = await _peakRpc('claim_event_130_reward');
+  if (!r || !r.ok) return;
+  _peakState = { ..._peakState, peakbox_count: r.peakbox_count, loaded: true };
+  renderPeakboxBadge();
+  showPeakboxRewardModal(r.reward);
+  if (typeof analytics !== 'undefined') analytics.track('event_130_claimed', { reward: r.reward });
 }
 
 // ── 사운드 볼륨 바텀시트 (home / progression-detail / strum-play 공용) ──────

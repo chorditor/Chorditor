@@ -5739,6 +5739,78 @@ canvas {
 .notice-modal-btn:hover { opacity: 0.85; }
 .notice-modal-btn:active { transform: scale(0.98); }
 
+.event-modal {
+  background: var(--surface);
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--border);
+  width: calc(100% - 32px);
+  max-width: 300px;
+  padding: 32px 24px 24px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+}
+
+.event-modal-icon {
+  width: 64px;
+  height: 64px;
+  border-radius: 50%;
+  background: #eaf0ff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 18px;
+}
+.event-modal-icon img { width: 28px; height: 28px; object-fit: contain; }
+
+.event-modal-title {
+  font-family: 'Pretendard', sans-serif;
+  font-size: 20px;
+  font-weight: 600;
+  color: var(--text-primary);
+  line-height: 1.35;
+  margin: 0 0 10px;
+}
+
+.event-modal-message {
+  font-size: 13px;
+  color: var(--text-secondary);
+  line-height: 1.7;
+  white-space: pre-line;
+  margin: 0 0 22px;
+}
+
+.event-modal-reward {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 24px;
+}
+.event-modal-reward img { width: 16px; height: 16px; object-fit: contain; }
+.event-modal-reward span {
+  font-size: 18px;
+  font-weight: 500;
+  color: #0c447c;
+}
+
+.event-modal-btn {
+  width: 100%;
+  padding: 13px;
+  background: #4f7cff;
+  color: #fff;
+  border: none;
+  border-radius: 12px;
+  font-family: 'Pretendard', sans-serif;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  letter-spacing: 0.02em;
+  transition: opacity .15s;
+}
+.event-modal-btn:hover { opacity: 0.85; }
+.event-modal-btn:active { transform: scale(0.98); }
+
 /* ?�?� 리뷰/?�점 ?�도 모달 (미니멀, ?�스??버튼) ?�?� */
 .review-modal {
   background: var(--surface);
@@ -7722,6 +7794,7 @@ canvas {
 .ldp-peak-cost-icon {
   width: 11px;
   height: 14px;
+  object-fit: contain;
   fill: #fff;
   opacity: 0.85;
 }
@@ -9821,6 +9894,7 @@ canvas {
 .stt-peak-cost-icon {
   width: 12px;
   height: 15px;
+  object-fit: contain;
   fill: #fff;
   opacity: 0.85;
 }
@@ -10819,6 +10893,7 @@ canvas {
 .practice-gate-icon {
   width: 11px;
   height: 14px;
+  object-fit: contain;
   fill: #fff;
   opacity: 0.85;
 }

@@ -1752,8 +1752,12 @@ async function checkAndShowNotice() {
     }
     const noticesResp = await fetch(url, { headers });
     const notices = noticesResp.ok ? await noticesResp.json() : [];
-    // 노출할 공지 없으면 리뷰 유도 모달 시도 (안전 시점)
-    if (!notices?.length) { if (typeof reviewMaybeShow === 'function') reviewMaybeShow(); return; }
+    // 노출할 공지 없으면 이벤트 보상 모달 → 없으면 리뷰 유도 모달 시도 (안전 시점)
+    if (!notices?.length) {
+      if (typeof checkEventThanks130 === 'function' && await checkEventThanks130()) return;
+      if (typeof reviewMaybeShow === 'function') reviewMaybeShow();
+      return;
+    }
 
     const notice = notices[0];
     _currentNoticeId = notice.id;
@@ -1788,6 +1792,19 @@ async function closeNoticeModal() {
       body: JSON.stringify({ user_id: session.user.id, notice_id: noticeId }),
     });
   } catch(e) { /* 무시 */ }
+}
+
+// ── 이벤트 보상 모달 (버전 감사 이벤트 등 1회성 지급) ──
+// 지급/플래그 서버 로직 미결 — 현재는 UI만. 자동 트리거 조건 확정되면 연결.
+function openEventModal(title, message, rewardCount) {
+  document.getElementById('event-modal-title').textContent = title;
+  document.getElementById('event-modal-message').textContent = message;
+  document.getElementById('event-modal-reward-count').textContent = '+' + rewardCount;
+  document.getElementById('event-modal-overlay').classList.remove('hidden');
+}
+
+function closeEventModal() {
+  document.getElementById('event-modal-overlay').classList.add('hidden');
 }
 
 

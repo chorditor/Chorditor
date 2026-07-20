@@ -169,7 +169,7 @@ function _lwBuildDetailShell() {
       <button class="level-action-btn level-action-btn--primary">
         <span>시작하기</span>
         <span class="ldp-peak-cost" id="ldp-peak-cost">
-          <svg viewBox="0 0 24 24" class="ldp-peak-cost-icon"><path d="M12 1 C18 1 21 5 21 9.5 C21 14 17 20 13.2 22.3 C12.4 22.8 11.6 22.8 10.8 22.3 C7 20 3 14 3 9.5 C3 5 6 1 12 1 Z"/></svg>
+          <img src="image/white_peak.svg" alt="" class="ldp-peak-cost-icon">
           <span class="ldp-peak-cost-count"></span>
         </span>
       </button>

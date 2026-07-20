@@ -567,7 +567,7 @@ function _buildStepCache() {
 // 코드 진행 바 렌더링
 // 조성/모드 헤더 — root 선택(_key) 따라 전조. 형식: "{tonic} {mode} / {key} key"
 function _renderKeyHeader() {
-  const el = document.getElementById('detail-key-header');
+  const el = document.getElementById('detail-key-header-text');
   if (!el || !_prog) return;
   const names    = _useFlat ? KEY_NAMES_FLAT : KEY_NAMES_SHARP;
   const tonic    = _getKeyDisplayName(_key);                              // root 선택 = C기준 으뜸음

@@ -783,6 +783,20 @@
     </div>
   </div>
 
+  <!-- ── 모달: 이벤트 보상 팝업 (버전 감사 이벤트 등 1회성 지급) ── -->
+  <div class="modal-overlay hidden" id="event-modal-overlay">
+    <div class="event-modal" onclick="event.stopPropagation()">
+      <div class="event-modal-icon"><img src="image/confetti.png" alt=""></div>
+      <h3 class="event-modal-title" id="event-modal-title"></h3>
+      <p class="event-modal-message" id="event-modal-message"></p>
+      <div class="event-modal-reward">
+        <img src="image/gift.png" alt="">
+        <span id="event-modal-reward-count"></span>
+      </div>
+      <button class="event-modal-btn" onclick="claimEventThanks130()">받기</button>
+    </div>
+  </div>
+
   <!-- ── 리뷰/평점 유도 모달 ── -->
   <div class="modal-overlay hidden" id="review-modal-overlay" onclick="reviewRespond('later')">
     <div class="review-modal" onclick="event.stopPropagation()">

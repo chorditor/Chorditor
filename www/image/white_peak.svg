@@ -3,14 +3,17 @@
   <defs>
     <style>
       .cls-1 {
-        fill: url(#_무제_그라디언트_186);
+        fill: url(#_무제_그라디언트_217);
       }
     </style>
-    <linearGradient id="_무제_그라디언트_186" data-name="무제 그라디언트 186" x1="11.64" y1="10.29" x2=".04" y2="3.59" gradientUnits="userSpaceOnUse">
-      <stop offset="0" stop-color="#ffca3f"/>
-      <stop offset=".11" stop-color="#ffc434"/>
-      <stop offset=".47" stop-color="#ffb617"/>
-      <stop offset=".77" stop-color="#ffad06"/>
+    <linearGradient id="_무제_그라디언트_217" data-name="무제 그라디언트 217" x1="11.64" y1="10.29" x2=".04" y2="3.59" gradientUnits="userSpaceOnUse">
+      <stop offset="1" stop-color="#fff"/>
+      <stop offset="1" stop-color="#ffefcf"/>
+      <stop offset="1" stop-color="#ffda91"/>
+      <stop offset="1" stop-color="#ffc95d"/>
+      <stop offset="1" stop-color="#ffbb34"/>
+      <stop offset="1" stop-color="#ffb117"/>
+      <stop offset="1" stop-color="#ffac06"/>
       <stop offset="1" stop-color="#fa0"/>
     </linearGradient>
   </defs>
