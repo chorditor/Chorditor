@@ -9124,6 +9124,7 @@ canvas {
   display: flex;
   flex-direction: column;
   justify-content: center;
+  overflow: hidden;
   box-shadow:
     0 2px 10px rgba(90, 110, 160, 0.1),
     inset 0 1px 0 rgba(255, 255, 255, 0.95);
