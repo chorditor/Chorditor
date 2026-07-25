@@ -872,26 +872,22 @@ function incrementStat(key) {
   } catch (e) {}
 }
 
+// sync_user_stats RPC = 서버측 GREATEST 병합. 블라인드 덮어쓰기 금지
+// (재설치/데이터삭제로 로컬이 0인 상태에서 서버 누적값이 초기화되던 버그 방지).
+// 병합 결과가 로컬보다 크면 로컬도 끌어올린다 — 이 값이 유일한 복원 경로다.
 async function syncStatsToDB() {
-  try {
-    const stored = localStorage.getItem(SUPABASE_STORAGE_KEY);
-    if (!stored) return;
-    const session = JSON.parse(stored);
-    const token  = session?.access_token;
-    const userId = session?.user?.id;
-    if (!token || !userId) return;
-    const s = getStats();
-    await fetch(`${SUPABASE_URL}/rest/v1/subscriptions?on_conflict=user_id`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'apikey': SUPABASE_ANON,
-        'Authorization': `Bearer ${token}`,
-        'Prefer': 'resolution=merge-duplicates,return=minimal',
-      },
-      body: JSON.stringify({ user_id: userId, stat_images: s.images, stat_shares: s.shares, stat_notes: s.notes }),
-    });
-  } catch (e) {}
+  const s = getStats();
+  const r = await _peakRpc('sync_user_stats', {
+    p_images: s.images, p_shares: s.shares, p_notes: s.notes,
+  });
+  if (!r) return; // RPC 실패/비로그인 → 로컬만 유지, 다음 호출 때 재시도
+  if ((r.images || 0) > s.images || (r.shares || 0) > s.shares || (r.notes || 0) > s.notes) {
+    localStorage.setItem(STATS_KEY, JSON.stringify({
+      images: Math.max(s.images, r.images || 0),
+      shares: Math.max(s.shares, r.shares || 0),
+      notes:  Math.max(s.notes,  r.notes  || 0),
+    }));
+  }
 }
 
 let _lastPlanRefresh = 0;
@@ -1714,56 +1710,40 @@ async function restoreTrainingStatsFromDB() {
 }
 
 // ── 훈련 통계 DB 즉시 동기화 ────────────────────────────────
-// training_stats localStorage → public.subscriptions (streak/training_time_min/total_completed)
-// 기존 구독 row가 있으면 PATCH(plan 보존), 없으면 free로 INSERT. 비로그인 시 무시.
+// training_stats localStorage ↔ public.subscriptions.
+// sync_training_stats RPC = 서버측 GREATEST 병합(streak만 날짜 기준 최신 채택).
+// 블라인드 덮어쓰기 금지: 재설치/데이터삭제로 로컬이 0인 상태에서 서버 누적값이
+// 초기화되던 버그 방지. 병합 결과가 로컬보다 크면 로컬도 끌어올린다. 비로그인 시 무시.
 async function syncTrainingStatsToDB() {
   const stats = JSON.parse(localStorage.getItem('training_stats') || 'null');
   if (!stats) return;
 
-  let accessToken = null, userId = null;
-  try {
-    const stored = localStorage.getItem(SUPABASE_STORAGE_KEY);
-    if (stored) {
-      const parsed = JSON.parse(stored);
-      accessToken  = parsed?.access_token ?? null;
-      userId       = parsed?.user?.id     ?? null;
-    }
-  } catch (_) {}
-  if (!accessToken || !userId) return;
+  const r = await _peakRpc('sync_training_stats', {
+    p_streak:                stats.streak            || 0,
+    p_streak_date:           stats.streak_last_counted_date || null,
+    p_training_time_min:     stats.training_time_min || 0,
+    p_total_completed:       stats.total_completed   || 0,
+    p_scale_completed:       stats.scale_completed   || 0,
+    p_progression_completed: stats.progression_completed || 0,
+    p_strum_completed:       stats.strum_completed   || 0,
+  });
+  if (!r) return; // RPC 실패/비로그인 → 로컬만 유지, 다음 호출 때 재시도
 
-  const payload = {
-    streak:             stats.streak            || 0,
-    training_time_min:  stats.training_time_min || 0,
-    total_completed:    stats.total_completed   || 0,
-    scale_completed:    stats.scale_completed   || 0,
-    progression_completed: stats.progression_completed || 0,
-    strum_completed:    stats.strum_completed   || 0,
-    streak_synced_date: new Date().toISOString().slice(0, 10),
-  };
-  const headers = {
-    'Content-Type':  'application/json',
-    'apikey':         SUPABASE_ANON,
-    'Authorization': `Bearer ${accessToken}`,
-  };
-
-  try {
-    // 1) 기존 구독 row 갱신 (plan/status 보존)
-    const patch = await fetch(
-      `${SUPABASE_URL}/rest/v1/subscriptions?user_id=eq.${userId}`,
-      { method: 'PATCH', headers: { ...headers, 'Prefer': 'return=representation' },
-        body: JSON.stringify(payload) }
-    );
-    let rows = [];
-    if (patch.ok) rows = await patch.json();
-    // 2) row 없으면 free로 신규 생성
-    if (rows.length === 0) {
-      await fetch(`${SUPABASE_URL}/rest/v1/subscriptions`, {
-        method:  'POST',
-        headers: { ...headers, 'Prefer': 'resolution=merge-duplicates,return=minimal' },
-        body: JSON.stringify({ user_id: userId, plan: 'free', status: 'active', ...payload }),
-      });
-    }
-  } catch (_) {}
+  const local = JSON.parse(localStorage.getItem('training_stats') || '{}');
+  const take = (key, val) => { if ((val || 0) > (local[key] || 0)) local[key] = val; };
+  take('training_time_min',     r.training_time_min);
+  take('total_completed',       r.total_completed);
+  take('scale_completed',       r.scale_completed);
+  take('progression_completed', r.progression_completed);
+  take('strum_completed',       r.strum_completed);
+  // streak은 서버가 고른 (streak, 날짜) 쌍을 그대로 채택 — 값만 따로 취하면 어긋난다.
+  if (r.streak_date && r.streak_date !== local.streak_last_counted_date) {
+    local.streak = r.streak;
+    local.streak_last_counted_date = r.streak_date;
+  } else if ((r.streak || 0) > (local.streak || 0)) {
+    local.streak = r.streak;
+  }
+  localStorage.setItem('training_stats', JSON.stringify(local));
 }
 
 // ── 경험치(user_xp) DB 동기화 ────────────────────────────────
@@ -3858,53 +3838,40 @@ if (typeof window !== 'undefined') {
 }
 
 // ── 퀴즈 레벨 통계 DB 동기화 ────────────────────────────────────
-// quiz_stats_level{N} localStorage → Supabase quiz_level_stats
+// quiz_stats_level{N} localStorage ↔ Supabase quiz_level_stats.
+// sync_quiz_level_stat RPC = 서버측 GREATEST 병합(best_speed_sec만 LEAST).
+// 블라인드 upsert 금지: 로컬이 비어있는 상태에서 서버 누적값이 초기화되던 버그 방지.
 async function syncQuizLevelStatsToDB(levelId) {
-  let accessToken = null, userId = null;
-  try {
-    const stored = localStorage.getItem(SUPABASE_STORAGE_KEY);
-    if (stored) {
-      const parsed = JSON.parse(stored);
-      accessToken  = parsed?.access_token ?? null;
-      userId       = parsed?.user?.id     ?? null;
-    }
-  } catch (_) {}
-  if (!accessToken || !userId) return;
-
   const raw = JSON.parse(localStorage.getItem(`quiz_stats_level${levelId}`) || 'null');
   if (!raw) return;
 
   const modes = ['name-from-diagram', 'diagram-from-name'];
-  const rows = modes.map(mode => {
-    const s = raw[mode];
-    if (!s) return null;
-    return {
-      user_id:            userId,
-      level_id:           levelId,
-      mode,
-      total_played:       s.totalPlayed       || 0,
-      total_correct:      s.totalCorrect      || 0,
-      sessions_completed: s.sessionsCompleted || 0,
-      perfect_sessions:   s.perfectSessions   || 0,
-      best_speed_sec:     s.bestSpeedSec      ?? null,
-      updated_at:         new Date().toISOString(),
-    };
-  }).filter(Boolean);
+  let changed = false;
 
-  for (const row of rows) {
-    try {
-      await fetch(`${SUPABASE_URL}/rest/v1/quiz_level_stats`, {
-        method:  'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'apikey':        SUPABASE_ANON,
-          'Authorization': `Bearer ${accessToken}`,
-          'Prefer':        'resolution=merge-duplicates',
-        },
-        body: JSON.stringify(row),
-      });
-    } catch (_) {}
+  for (const mode of modes) {
+    const s = raw[mode];
+    if (!s) continue;
+    const r = await _peakRpc('sync_quiz_level_stat', {
+      p_level_id:           levelId,
+      p_mode:               mode,
+      p_total_played:       s.totalPlayed       || 0,
+      p_total_correct:      s.totalCorrect      || 0,
+      p_sessions_completed: s.sessionsCompleted || 0,
+      p_perfect_sessions:   s.perfectSessions   || 0,
+      p_best_speed_sec:     s.bestSpeedSec      ?? null,
+    });
+    if (!r) continue; // RPC 실패 → 로컬만 유지, 다음 완료 때 재시도
+    // 병합 결과가 로컬보다 크면 로컬도 끌어올린다
+    if ((r.total_played       || 0) > (s.totalPlayed       || 0)) { s.totalPlayed       = r.total_played;       changed = true; }
+    if ((r.total_correct      || 0) > (s.totalCorrect      || 0)) { s.totalCorrect      = r.total_correct;      changed = true; }
+    if ((r.sessions_completed || 0) > (s.sessionsCompleted || 0)) { s.sessionsCompleted = r.sessions_completed; changed = true; }
+    if ((r.perfect_sessions   || 0) > (s.perfectSessions   || 0)) { s.perfectSessions   = r.perfect_sessions;   changed = true; }
+    if (r.best_speed_sec !== null && (s.bestSpeedSec == null || r.best_speed_sec < s.bestSpeedSec)) {
+      s.bestSpeedSec = r.best_speed_sec; changed = true;
+    }
   }
+
+  if (changed) localStorage.setItem(`quiz_stats_level${levelId}`, JSON.stringify(raw));
 }
 
 // ── 퀴즈 레벨 통계 DB 복원 ──────────────────────────────────────
