@@ -484,24 +484,6 @@ async function onboardingSignIn() {
   }
 }
 
-// ── 강제 업데이트 체크 ────────────────────────────────────────
-async function checkForceUpdate() {
-  if (!window.Capacitor?.isNativePlatform()) return;
-  try {
-    const res = await fetch(
-      `${SUPABASE_URL}/rest/v1/app_config?key=eq.min_version&select=value`,
-      { headers: { 'apikey': SUPABASE_ANON, 'Authorization': `Bearer ${SUPABASE_ANON}` } }
-    );
-    if (!res.ok) return;
-    const data = await res.json();
-    const minVersion = data?.[0]?.value;
-    if (!minVersion) return;
-    if (_compareVersion(APP_VERSION, minVersion) < 0) {
-      document.getElementById('force-update-overlay')?.classList.remove('hidden');
-    }
-  } catch(e) {}
-}
-
 // ── Android 세션 자동 복원 ────────────────────────────────────
 async function tryAutoSignIn() {
   if (!window.Capacitor?.isNativePlatform()) {

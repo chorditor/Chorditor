@@ -114,7 +114,7 @@
       const nameFn    = pat.name || ((r, flat) => fn(si, r, flat) + suffix);
       const voicingLabel = `${pat.rootStr}번줄 바레`;
 
-      for (let r = 0; r <= 11; r++) {
+      for (let r = -1; r <= 11; r++) {
         const frets = evalPat(tokens, r);
         if (frets.some(f => f !== null && f < 0)) continue;
 
@@ -157,8 +157,11 @@
           }
         }
         const openMute  = frets.map(f => f === null ? 'mute' : null);
-        // 패턴 보이싱: fretNumber 직접 지정 시 사용, 생략 시 r (근음 프렛 = 슬롯1)
-        const minFret   = pat.fretNumber !== undefined ? pat.fretNumber : r;
+        // 패턴 보이싱: fretNumber 직접 지정 시 사용, 생략 시 실제 사용된 프렛 중 최솟값
+        // (r 자체가 아니라 frets 최솟값 기준 — 토큰이 r+1 이상부터 시작하는 패턴도 정확히 반영,
+        //  r=-1(개방현 포함) 케이스에서 fretNumber가 음수로 새는 것도 방지)
+        const playedFrets = frets.filter(f => f !== null);
+        const minFret   = pat.fretNumber !== undefined ? pat.fretNumber : Math.min(...playedFrets);
 
         const patEntry = {
           quality:      pat.quality,
@@ -169,6 +172,9 @@
           barreRange,
           openMute,
           fretNumber:   minFret,
+          // 캔버스 드로잉 전용 — 패턴 변수 r 그대로. fretNumber(=실제 최소 프렛)는
+          // 최소 토큰이 r+1 이상인 패턴에서 r과 달라지므로, offset/라벨 계산에 쓰면 한 칸 밀림.
+          patternR:     r,
           name:         sharpName,
           flatName,
           source:       'pattern',

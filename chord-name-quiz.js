@@ -65,6 +65,7 @@ function drawLibEntry(canvas, entry) {
     barre:      entry.barres?.[0]      ?? {},
     barreRange: entry.barreRanges?.[0] ?? null,
     fretNumber: entry.fretNumber,
+    patternR:   entry.patternR, // ★ 누락 시 fretNumber로 폴백 → r+1 시작 패턴이 한 칸 밀림
     source:     entry.source,  // 사전과 동일 분기 (pattern: r-1/r+1, static: r-2/r)
   }, {
     ratio: canvas.width / VoicingCanvas.BASE_W,
@@ -79,6 +80,7 @@ function drawLibEntryWithName(canvas, entry, name) {
     barre:      entry.barres?.[0]      ?? {},
     barreRange: entry.barreRanges?.[0] ?? null,
     fretNumber: entry.fretNumber,
+    patternR:   entry.patternR, // ★ 누락 시 fretNumber로 폴백 → r+1 시작 패턴이 한 칸 밀림
     source:     entry.source,  // 사전과 동일 분기 (pattern: r-1/r+1, static: r-2/r)
   }, {
     chordName: name,

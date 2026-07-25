@@ -6,7 +6,7 @@
 // ── 상수 ─────────────────────────────────────────────────────
 const SUPABASE_URL  = 'https://jbvkygeksohlysyvaoab.supabase.co';
 const SUPABASE_ANON = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Impidmt5Z2Vrc29obHlzeXZhb2FiIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzYzOTk5NjgsImV4cCI6MjA5MTk3NTk2OH0.6RSgChy0Yq0H2TJpZPSoMKQ2V-OYfR0XzE1aJBBZkXI';
-const APP_VERSION   = '1.3.0';
+const APP_VERSION   = '1.3.1_dev1';
 const SUPABASE_STORAGE_KEY = 'sb-jbvkygeksohlysyvaoab-auth-token';
 
 // ── Analytics SDK ─────────────────────────────────────────────
@@ -1144,6 +1144,47 @@ function openPlayStore() {
   }
 }
 
+// onboarding.html은 정적 마크업 있음 → 그대로 사용. 다른 페이지는 마크업이 없어
+// 딥링크로 바로 진입해도 강제 업데이트가 노출되도록 동적 생성.
+function _ensureForceUpdateOverlay() {
+  let el = document.getElementById('force-update-overlay');
+  if (el) return el;
+  el = document.createElement('div');
+  el.className = 'onboarding-overlay hidden';
+  el.id = 'force-update-overlay';
+  el.innerHTML = `
+    <div class="onboarding-card">
+      <div class="onboarding-logo">CHORDITOR</div>
+      <p class="onboarding-desc" style="margin-bottom:8px;">새로운 버전이 출시되었습니다.</p>
+      <p class="onboarding-desc" style="font-size:13px;opacity:0.7;margin-bottom:24px;">계속 사용하려면 최신 버전으로 업데이트해 주세요.</p>
+      <button class="onboarding-start-btn" onclick="openPlayStore()">업데이트 하기</button>
+    </div>`;
+  document.body.appendChild(el);
+  return el;
+}
+
+// 온보딩 화면뿐 아니라 모든 페이지 진입(딥링크 포함)에서 체크 — initPushNotifications()와
+// 같은 전역 DOMContentLoaded 훅에서 호출됨.
+// 업데이트가 강제되면 true 반환 — 호출부는 이후 초기화/라우팅을 중단해야 함.
+async function checkForceUpdate() {
+  if (!window.Capacitor?.isNativePlatform()) return false;
+  try {
+    const res = await fetch(
+      `${SUPABASE_URL}/rest/v1/app_config?key=eq.min_version&select=value`,
+      { headers: { 'apikey': SUPABASE_ANON, 'Authorization': `Bearer ${SUPABASE_ANON}` } }
+    );
+    if (!res.ok) return false;
+    const data = await res.json();
+    const minVersion = data?.[0]?.value;
+    if (!minVersion) return false;
+    if (_compareVersion(APP_VERSION, minVersion) < 0) {
+      _ensureForceUpdateOverlay().classList.remove('hidden');
+      return true;
+    }
+  } catch(e) {}
+  return false;
+}
+
 // ── 앱 자체 공유(초대) ──────────────────────────────────────────
 async function shareApp() {
   const url = 'https://play.google.com/store/apps/details?id=com.chorditor.app';
@@ -2035,6 +2076,7 @@ const BEHAVE_XP = {
   quiz: 5,         // 코드 맞추기 세션 완료
   scale: 5,        // 스케일 훈련 세션 완료
   image: 2,        // 코드 이미지 저장
+  combo: 15,       // 코드 조합 훈련 세션 완료 (정답 무관)
 };
 
 // ── 퀘스트: 누적출석 (평생 총 출석일수, 30일 순환달력과 별개) ──────
@@ -2797,6 +2839,146 @@ function _perfectCardsHtml(list) {
   }).join('');
 }
 
+// ── 퀘스트: 코드 조합 훈련 장 첫 완료 (1~8, 순차, 1회성) ──────────────
+// 정답 수 무관 — 10문제 세션 1회만 완료하면 수령. 코드맞추기 레벨퀘스트와 동일 패턴.
+// 보상 1·2장→1, 3~5장→2, 6~8장→3. XP는 _quizLvlXp 재사용(동일 곡선).
+const COMBO_LVL_MAX = 8;
+function _comboLvlReward(ch) { return ch <= 2 ? 1 : (ch <= 5 ? 2 : 3); }
+const COMBO_CHAPTER_NAMES = {
+  1: '패밀리코드', 2: '패밀리코드의 대리코드', 3: '세컨더리 도미넌트',
+  4: 'Rel. IIm-V-I', 5: '도미넌트의 대리코드', 6: '텐션코드 1',
+  7: '마이너 패밀리코드', 8: '모달 인터체인지',
+};
+
+// 세션 종료 시 서버 카운트(chord-combo.js 에서 호출, fire-and-forget). 폴백은 로컬 stat 사용.
+async function incrementComboComplete(chapter, perfect) {
+  await _peakRpc('increment_combo_complete', { p_chapter: chapter, p_perfect: !!perfect });
+}
+
+function _localComboLvlDone(ch) {
+  const s = JSON.parse(localStorage.getItem('training_stats') || '{}');
+  return s['combo_completed' + ch] || 0;
+}
+function _localComboLvlClaimedGet() {
+  const s = JSON.parse(localStorage.getItem('training_stats') || '{}');
+  return s.combo_lvl_quest_claimed || 0;
+}
+function _localComboLvlClaimedSet(claimed) {
+  const s = JSON.parse(localStorage.getItem('training_stats') || '{}');
+  s.combo_lvl_quest_claimed = claimed;
+  localStorage.setItem('training_stats', JSON.stringify(s));
+}
+
+async function loadComboLevelQuest() {
+  const r = await _peakRpc('get_combo_level_quest');
+  if (r) return { next_level: r.next_level, reward: r.reward, done: r.done };
+  const claimed = _localComboLvlClaimedGet();
+  const next = claimed + 1;
+  if (next > COMBO_LVL_MAX) return { next_level: 0, reward: 0, done: 0 };
+  return { next_level: next, reward: _comboLvlReward(next), done: _localComboLvlDone(next) };
+}
+
+async function claimComboLevelQuest() {
+  const _boxBefore = _peakState.peakbox_count || 0;
+  const _xpGain = _quizLvlXp((await loadComboLevelQuest()).next_level);
+  const r = await _peakRpc('claim_combo_level_quest');
+  if (r) {
+    if (!r.ok) return;
+    _peakState = { ..._peakState, peakbox_count: (_peakState.peakbox_count || 0) + r.reward, loaded: true };
+  } else {
+    const claimed = _localComboLvlClaimedGet();
+    const next = claimed + 1;
+    if (next > COMBO_LVL_MAX || _localComboLvlDone(next) < 1) return;
+    _localComboLvlClaimedSet(next);
+    const local = _localPeakGet();
+    const reward = _comboLvlReward(next);
+    _localPeakSet(local.balance, local.peakbox_count + reward);
+    _peakState = { ..._peakState, peakbox_count: (_peakState.peakbox_count || 0) + reward, loaded: true };
+  }
+  renderPeakboxBadge();
+  renderQuestList();
+  showPeakboxRewardModal((_peakState.peakbox_count || 0) - _boxBefore); // 수령 → 상자 획득 표시
+  addXp(_xpGain); // 레벨 경험치
+}
+
+// ── 퀘스트: 코드 조합 훈련 티어별 퍼펙트 (반복, 장 3개 그룹) ────────────
+// 장마다 독립 — 그 장 퍼펙트(10문제 전부 정답) 3회 누적마다 보상. 난이도 무관.
+// 보상은 장 범위(티어)로 결정: 1~2장→300XP+상자3 / 3~5장→500XP+상자5 / 6~8장→750XP+상자8.
+function _comboPerfectTierFor(ch) { return ch <= 2 ? { reward: 3, xp: 300 } : (ch <= 5 ? { reward: 5, xp: 500 } : { reward: 8, xp: 750 }); }
+function _localComboPerfectTotal(ch) {
+  const s = JSON.parse(localStorage.getItem('training_stats') || '{}');
+  return s['combo_perfect' + ch] || 0;
+}
+function _localComboPerfectClaimedGet() {
+  const s = JSON.parse(localStorage.getItem('training_stats') || '{}');
+  return s.combo_perfect_claimed || {};
+}
+function _localComboPerfectClaimedSet(obj) {
+  const s = JSON.parse(localStorage.getItem('training_stats') || '{}');
+  s.combo_perfect_claimed = obj;
+  localStorage.setItem('training_stats', JSON.stringify(s));
+}
+
+async function loadComboPerfectQuest() {
+  const r = await _peakRpc('get_combo_perfect_quest');
+  if (Array.isArray(r)) return r;
+  const claimed = _localComboPerfectClaimedGet();
+  const arr = [];
+  for (let ch = 1; ch <= COMBO_LVL_MAX; ch++) {
+    const total = _localComboPerfectTotal(ch);
+    const tier  = _comboPerfectTierFor(ch);
+    arr.push({ level: ch, perfect: total, earned: Math.floor(total / 3),
+      claimed: claimed[ch] || 0, reward: tier.reward, xp: tier.xp });
+  }
+  return arr;
+}
+
+async function claimComboPerfectQuest(ch) {
+  const _boxBefore = _peakState.peakbox_count || 0;
+  const tier     = _comboPerfectTierFor(ch);
+  const _xpGain  = tier.xp;
+  const r = await _peakRpc('claim_combo_perfect_quest', { p_chapter: ch });
+  if (r) {
+    if (!r.ok) return;
+    _peakState = { ..._peakState, peakbox_count: (_peakState.peakbox_count || 0) + r.reward, loaded: true };
+  } else {
+    const total = _localComboPerfectTotal(ch);
+    const claimedObj = _localComboPerfectClaimedGet();
+    const claimed = claimedObj[ch] || 0;
+    if (Math.floor(total / 3) <= claimed) return;
+    claimedObj[ch] = claimed + 1;
+    _localComboPerfectClaimedSet(claimedObj);
+    const local = _localPeakGet();
+    _localPeakSet(local.balance, local.peakbox_count + tier.reward);
+    _peakState = { ..._peakState, peakbox_count: (_peakState.peakbox_count || 0) + tier.reward, loaded: true };
+  }
+  renderPeakboxBadge();
+  renderQuestList();
+  showPeakboxRewardModal((_peakState.peakbox_count || 0) - _boxBefore); // 수령 → 상자 획득 표시
+  addXp(_xpGain); // 레벨 경험치
+}
+
+// 장별 퍼펙트 개별 카드(1~8장)
+function _comboPerfectCardsHtml(list) {
+  return list.map(q => {
+    const pending = q.earned - q.claimed;      // 수령 대기 횟수
+    const inCycle = q.perfect - q.claimed * 3;  // 현재 사이클 누적(0~2)
+    const tail = pending > 0
+      ? '<button class="quest-card-claim" onclick="claimComboPerfectQuest(' + q.level + ')">수령</button>'
+      : '<span class="quest-card-progress">' + Math.min(inCycle, 3) + ' / 3</span>';
+    return '<div class="quest-card">' +
+        '<div class="quest-card-info">' +
+          '<span class="quest-card-title">(반복) ' + (COMBO_CHAPTER_NAMES[q.level] || ('제' + q.level + '장')) + '</span>' +
+          '<span class="quest-card-desc">퍼펙트 정답 3회 마다</span>' +
+        '</div>' +
+        '<div class="quest-card-stats">' +
+          _questRewardHtml(q.reward, q.xp) +
+          '<div class="quest-card-progress-col">' + tail + '</div>' +
+        '</div>' +
+      '</div>';
+  }).join('');
+}
+
 // 공통 퀘스트 카드 HTML. next_day=0(완료)이면 빈 문자열.
 // progressText: 진행도 표시 오버라이드(미지정 시 total/nextDay).
 // 상자 아이콘(상) + XP(하) 세로 스택 리워드 컬럼
@@ -3011,12 +3193,12 @@ async function renderQuestList() {
   const parts = [];
   const top   = [];
 
-  // 전 퀘스트 병렬 로드 — 직렬 await 14회(왕복 누적 지연) → 동시 발사
-  const [a, i, nc, ns, t, qz, ql, pf, cg, sc, sl, spf, pg, st] = await Promise.all([
+  // 전 퀘스트 병렬 로드 — 직렬 await 16회(왕복 누적 지연) → 동시 발사
+  const [a, i, nc, ns, t, qz, ql, pf, cg, sc, sl, spf, pg, st, cl, cpf] = await Promise.all([
     loadAttendanceQuest(), loadImageQuest(), loadNoteQuest('create'), loadNoteQuest('share'),
     loadTimeQuest(), loadQuizQuest(), loadQuizLevelQuest(), loadPerfectQuest(),
     loadChallengeQuest(), loadScaleQuest(), loadScaleLevelQuest(), loadScalePerfectQuest(),
-    loadProgressionQuest(), loadStrumQuest(),
+    loadProgressionQuest(), loadStrumQuest(), loadComboLevelQuest(), loadComboPerfectQuest(),
   ]);
 
   const aHtml = _questCardHtml('누적 출석', a.next_day + '일 누적 출석',
@@ -3102,6 +3284,19 @@ async function renderQuestList() {
   parts.push(stHtml);
   if (_isClaimable(st.total, st.next_day)) top.push(stHtml);
 
+  parts.push(_questDividerHtml('코드 조합 훈련'));
+  const clDone = Math.min(cl.done, 1);
+  const clNextDay = cl.next_level ? 1 : 0;
+  const clHtml = _questCardHtml('코드 조합 훈련',
+    (COMBO_CHAPTER_NAMES[cl.next_level] || ('제' + cl.next_level + '장')) + ' 첫 완료',
+    cl.reward, _quizLvlXp(cl.next_level), clDone, clNextDay, 'claimComboLevelQuest');
+  parts.push(clHtml);
+  if (_isClaimable(clDone, clNextDay)) top.push(clHtml);
+
+  parts.push(_comboPerfectCardsHtml(cpf));
+  const cpfClaimable = cpf.filter(q => q.earned > q.claimed);
+  cpfClaimable.forEach(q => top.push(_comboPerfectCardsHtml([q])));
+
   body.innerHTML = parts.join('');
   if (claimBody) claimBody.innerHTML = top.slice(0, 3).join(''); // 수령 가능 목록 최대 3개
   if (typeof lucide !== 'undefined') lucide.createIcons();
@@ -3136,6 +3331,7 @@ const XP_INFO_ROWS = [
   ['코드 맞추기 완료',      BEHAVE_XP.quiz],
   ['스케일 훈련 완료',      BEHAVE_XP.scale],
   ['코드 이미지 저장',      BEHAVE_XP.image],
+  ['코드 조합 훈련 완료',    BEHAVE_XP.combo],
 ];
 
 function openXpInfoModal() {
@@ -3143,7 +3339,7 @@ function openXpInfoModal() {
   const body    = document.getElementById('xpinfo-body');
   if (!overlay || !body) return;
   body.innerHTML = '<table class="xpinfo-table"><tbody>' +
-    XP_INFO_ROWS.map(([label, xp]) =>
+    XP_INFO_ROWS.slice().sort((a, b) => b[1] - a[1]).map(([label, xp]) =>
       '<tr><td class="xpinfo-td-label">' + label + '</td>' +
       '<td class="xpinfo-td-xp">' + xp + 'XP</td></tr>').join('') +
     '</tbody></table>';
@@ -3409,6 +3605,32 @@ async function _deletePushToken() {
   } catch (_) {}
 }
 
+// ── 세션 생존 마커 / 푸시 딥링크 보류 ────────────────────────────
+// sessionStorage는 웹뷰가 살아있는 동안만 유지되고 앱 프로세스가 종료되면 사라짐
+// → "마지막 세션이 아직 종료되지 않았는가"를 그대로 표현. 웜 진입은 온보딩을 다시 거치지 않는다.
+const SESSION_ALIVE_KEY = '_session_alive';
+const PUSH_TARGET_KEY   = '_push_target';
+
+function _isSessionAlive() {
+  try { return sessionStorage.getItem(SESSION_ALIVE_KEY) === '1'; } catch (_) { return false; }
+}
+function _markSessionAlive() {
+  try { sessionStorage.setItem(SESSION_ALIVE_KEY, '1'); } catch (_) {}
+}
+function _setPushTarget(url) {
+  try { sessionStorage.setItem(PUSH_TARGET_KEY, url); } catch (_) {}
+}
+function _hasPushTarget() {
+  try { return !!sessionStorage.getItem(PUSH_TARGET_KEY); } catch (_) { return false; }
+}
+function _consumePushTarget() {
+  try {
+    const url = sessionStorage.getItem(PUSH_TARGET_KEY);
+    if (url) sessionStorage.removeItem(PUSH_TARGET_KEY);
+    return url;
+  } catch (_) { return null; }
+}
+
 function initPushNotifications() {
   const PN = window.Capacitor?.Plugins?.PushNotifications;
   if (!PN) return; // 브라우저 등 = FCM 없음
@@ -3437,30 +3659,36 @@ function initPushNotifications() {
   PN.addListener('pushNotificationActionPerformed', (action) => {
     const data = (action && action.notification && action.notification.data) || {};
     const setEntry = (v) => { try { localStorage.setItem('_push_entry', v); } catch (_) {} };
+    // 세션이 살아있으면(웜) 이미 온보딩 관문을 통과한 상태 → 즉시 이동.
+    // 콜드스타트면 목적지만 저장하고 온보딩(강제업데이트·인증·plan 동기화)이 끝난 뒤 이동.
+    const go = (url) => {
+      if (_isSessionAlive()) location.href = url;
+      else _setPushTarget(url);
+    };
     if (data.progId != null) {
       setEntry('progression');
-      location.href = 'progression-detail.html?id=' + encodeURIComponent(data.progId)
-        + '&key=' + (data.key || 0) + '&flat=' + (data.flat ? 1 : 0);
+      go('progression-detail.html?id=' + encodeURIComponent(data.progId)
+        + '&key=' + (data.key || 0) + '&flat=' + (data.flat ? 1 : 0));
     } else if (data.progNo != null) {
       // 넛지: no 그룹만 지정 → progression-detail 이 해당 no 중 랜덤 진행 선택
       setEntry('progression');
-      location.href = 'progression-detail.html?no=' + encodeURIComponent(data.progNo);
+      go('progression-detail.html?no=' + encodeURIComponent(data.progNo));
     } else if (data.quizLevel != null) {
       setEntry('quiz');
-      location.href = 'chord-name-quiz.html?level=' + encodeURIComponent(data.quizLevel);
+      go('chord-name-quiz.html?level=' + encodeURIComponent(data.quizLevel));
     } else if (data.scaleKey != null) {
       setEntry('scale');
-      location.href = 'scale-level.html?key=' + encodeURIComponent(data.scaleKey);
+      go('scale-level.html?key=' + encodeURIComponent(data.scaleKey));
     } else if (data.strumId != null) {
       setEntry('strum');
-      location.href = 'strum-play.html?id=' + encodeURIComponent(data.strumId);
+      go('strum-play.html?id=' + encodeURIComponent(data.strumId));
     } else if (data.strumLv != null) {
       // 넛지: lv 만 지정 → strum-play 가 해당 lv 카드 중 랜덤 선택
       setEntry('strum');
-      location.href = 'strum-play.html?lv=' + encodeURIComponent(data.strumLv);
+      go('strum-play.html?lv=' + encodeURIComponent(data.strumLv));
     } else if (data.winback != null) {
       setEntry('winback');
-      if (!/home\.html/.test(location.pathname)) location.href = 'home.html';
+      if (!/home\.html/.test(location.pathname)) go('home.html');
     }
   });
 
@@ -3494,7 +3722,7 @@ if (typeof window !== 'undefined') {
   window.initPushNotifications = initPushNotifications;
   window._savePushToken = _savePushToken;
   window.__pushApplyEnabled = __pushApplyEnabled;
-  document.addEventListener('DOMContentLoaded', () => { initPushNotifications(); });
+  document.addEventListener('DOMContentLoaded', () => { initPushNotifications(); checkForceUpdate(); });
 }
 
 // ── 리뷰/평점 유도 시스템 ───────────────────────────────────

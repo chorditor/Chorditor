@@ -20,13 +20,28 @@ const ProgressionVoicings = (() => {
   // 허용된 후보 보이싱 전부 반환 (static 우선, 그 다음 pattern)
   // 외부에서 cyclic DP 로 최적 선택
   // bass: 루트로부터의 반음 간격 (전위코드), undefined/null 이면 일반 보이싱
-  function getCandidates(rootSemitone, quality, progressionKey, bass) {
+  function getCandidates(rootSemitone, quality, progressionKey, bass, tension) {
     const lib = window.chordsLibrary;
     if (!lib) return [];
 
     const key     = _libKey(rootSemitone);
     const entries = lib[key];
     if (!entries || !entries.length) return [];
+
+    // ── 텐션코드: name 문자열 매칭 (quality:'tension' 버킷 내 특정 텐션만 선별) ──
+    if (tension) {
+      const qualSfx = { M:'', m:'m', '7':'7', M7:'M7', m7:'m7', '7sus4':'7sus4' };
+      const sfx   = qualSfx[quality] ?? '';
+      const nameS = NOTE_SHARP[rootSemitone] + sfx + tension;
+      const nameF = NOTE_FLAT[rootSemitone]  + sfx + tension;
+      const nameMatch = v => v.name === nameS || v.name === nameF ||
+                             v.flatName === nameS || v.flatName === nameF;
+
+      const matches  = entries.filter(v => v.quality === 'tension' && nameMatch(v));
+      // static(오픈) 텐션 보이싱은 존재하지 않으므로 slash/일반 경로처럼 static 1개로 고정할 수 없음.
+      // 매칭되는 pattern 후보를 전부 반환해 호출부(예: 최저 fret 선택 로직)가 직접 고르게 함.
+      return matches.filter(v => isAllowedTensionVoicing(v));
+    }
 
     // ── 전위코드(slash): name 문자열 매칭 ────────────────────────
     if (bass != null) {
@@ -50,6 +65,12 @@ const ProgressionVoicings = (() => {
     // ── 일반 보이싱 ──────────────────────────────────────────────
     const matches = entries.filter(v => v.quality === quality);
     if (!matches.length) return [];
+
+    // EM7: 4번줄 바레 패턴 강제 우선 (static/6번줄 shape 등 다른 후보 배제)
+    if (key === 'E' && quality === 'M7') {
+      const forced = matches.filter(v => v.source === 'pattern' && v.voicingLabel === '4번줄 바레');
+      if (forced.length) return forced;
+    }
 
     const statics = matches.filter(v => isAllowedStaticVoicing(v));
 

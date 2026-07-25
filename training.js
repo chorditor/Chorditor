@@ -57,6 +57,16 @@ function onTrainingCardTap(key) {
     }
     return;
   }
+  if (key === 'reharmony') {
+    const shell = document.querySelector('.app-shell');
+    if (shell) {
+      shell.classList.add('project-exit');
+      setTimeout(() => { location.href = 'chord-combo.html'; }, 260);
+    } else {
+      location.href = 'chord-combo.html';
+    }
+    return;
+  }
   console.log('training:', key);
 }
 

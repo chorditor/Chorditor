@@ -68,10 +68,23 @@
       c.fillRect(0, 0, w, ch);
     }
 
-    // 너트 — r(프렛번호)>=3이면 다이어그램 시작이 0프렛이 아니므로 두꺼운 선 생략 (r=2까지는 너트 표시)
+    // ── 기준 프렛 값 ──
+    // pattern: 패턴 변수 r(= patternR). fretNumber는 "실제 사용된 최소 프렛"이라
+    //          최소 토큰이 r+1 이상인 패턴에서 r과 달라짐 → 이걸로 계산하면 한 칸 밀림.
+    //          (patternR 없는 구버전 데이터는 fretNumber로 폴백)
+    // static : fretNumber 그대로(직접 지정값)
+    const isPattern = !!voicing && voicing.source === 'pattern';
+    const baseFret  = !voicing ? 0
+                    : (isPattern ? (voicing.patternR ?? voicing.fretNumber ?? 0)
+                                 : (voicing.fretNumber ?? 0));
+    // 슬롯2에 표기되는 프렛 번호 (pattern: max(2, r+1) / static: r)
+    const labelFret = isPattern ? Math.max(2, baseFret + 1) : baseFret;
+    const showLabel = isPattern ? true : (baseFret >= 2);
+
+    // 너트 — 슬롯1이 1프렛일 때(=슬롯2 표기가 2)만 두꺼운 선 표시
     const nutW  = Math.max(1, Math.round(9 * sc));
     const lineW = Math.max(1, 3 * sc);
-    if (((voicing && voicing.fretNumber) || 0) <= 2) {
+    if (labelFret <= 2) {
       c.fillStyle = '#242729';
       c.fillRect(tl - nutW, tt - lineW / 2, nutW, (tb - tt) + lineW);
     }
@@ -94,16 +107,14 @@
     if (!voicing) return;
 
     // 프랫 정규화
-    const rawFrets       = voicing.frets;
-    const displayFretNum = voicing.fretNumber ?? 0;  // r = 슬롯1 프렛
-    const isPattern      = voicing.source === 'pattern';
+    const rawFrets = voicing.frets;
     // 도트 offset — source로만 결정 (패턴·정적 철저 분리)
     //  pattern: max(0, r-1) → 라벨 max(2,r+1)이 항상 슬롯2에 오도록 정렬
     //           r=0(오픈 보이싱)일 때 r-1=-1이면 dot가 우측 1칸 밀려 라벨과 어긋남 → 0으로 clamp
     //  static : r>=2 → r-2 (입력 그대로 — dot/프렛번호 직접 지정), 그 외 0
     const offset = isPattern
-      ? Math.max(0, displayFretNum - 1)
-      : (displayFretNum >= 2 ? displayFretNum - 2 : 0);
+      ? Math.max(0, baseFret - 1)
+      : (baseFret >= 2 ? baseFret - 2 : 0);
     const frets      = offset ? rawFrets.map(f => f === null ? null : (f === 0 ? 0 : f - offset)) : rawFrets;
     const rawBarre   = voicing.barre || {};
     const barre      = offset
@@ -203,9 +214,7 @@
     // 프렛 번호 라벨 — 슬롯2(프랫보드 2번째 프렛) 위치 고정
     //  pattern: 항상 표시 / 값 = max(2, r+1)
     //  static : 입력 그대로 — r>=2일 때만 r 표시
-    const showLabel = isPattern ? true : (displayFretNum >= 2);
     if (showLabel) {
-      const labelFret = isPattern ? Math.max(2, displayFretNum + 1) : displayFretNum;
       c.save();
       c.font         = `500 ${Math.round(28 * sc)}px "Pretendard", sans-serif`;
       c.fillStyle    = '#666';

@@ -33,23 +33,32 @@
     return { semitones, quality: 'M' };
   }
 
+  // 텐션 표기 '(9)', '(#11)' 등을 코드문자열 끝에서 분리
+  function _extractTension(part) {
+    const m = part.match(/(\([^)]*\))$/);
+    if (!m) return { base: part, tension: null };
+    return { base: part.slice(0, -m[1].length), tension: m[1] };
+  }
+
   function parseChord(str) {
     // 전위코드 (slash chord): 'C/E', 'Am/C', 'C/G' 등
     const slashIdx = str.indexOf('/');
     if (slashIdx !== -1) {
       const chordPart = str.slice(0, slashIdx);
       const bassPart  = str.slice(slashIdx + 1).trim();
-      const { semitones, quality } = _parseChordSimple(chordPart);
+      const { base, tension } = _extractTension(chordPart);
+      const { semitones, quality } = _parseChordSimple(base);
       const bassAbsC = ROOT_MAP[bassPart];
       if (bassAbsC === undefined) {
         console.error('[progression-parser] 알 수 없는 베이스음:', str);
-        return { semitones, quality };
+        return { semitones, quality, tension };
       }
       // bass: 루트로부터의 반음 간격 (0-11)
       const bass = ((bassAbsC - semitones) + 12) % 12;
-      return { semitones, quality, bass };
+      return { semitones, quality, bass, tension };
     }
-    return _parseChordSimple(str);
+    const { base, tension } = _extractTension(str);
+    return { ..._parseChordSimple(base), tension };
   }
 
   if (typeof PROGRESSION_DATA === 'undefined') {
@@ -68,8 +77,8 @@
     keySemitone: ROOT_MAP[prog.key ?? 'C'] ?? 0,
     roots: Array.isArray(prog.roots) ? prog.roots : (prog.roots ? [prog.roots] : []),
     steps: prog.steps.map(s => {
-      const { semitones, quality, bass } = parseChord(s.chord);
-      return { semitones, quality, bass };
+      const { semitones, quality, bass, tension } = parseChord(s.chord);
+      return { semitones, quality, bass, tension };
     }),
   }));
 })();

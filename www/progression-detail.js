@@ -13,12 +13,13 @@ function _getKeyDisplayName(k) {
 const _SEMITONE_TO_DEGREE   = { 0:'I', 1:'bII', 2:'II', 3:'bIII', 4:'III', 5:'IV', 6:'#IV', 7:'V', 8:'bVI', 9:'VI', 10:'bVII', 11:'VII' };
 const _SEMITONE_TO_BASS_NUM = { 0:'1', 1:'b2', 2:'2', 3:'b3', 4:'3', 5:'4', 6:'#4', 7:'5', 8:'b6', 9:'6', 10:'b7', 11:'7' };
 
-function _getRomanNumeral(semitones, quality, bass) {
+function _getRomanNumeral(semitones, quality, bass, tension) {
   const norm  = ((semitones % 12) + 12) % 12;
   const roman = _SEMITONE_TO_DEGREE[norm] || '?';
   const sfx   = { M:'', m:'m', '7':'7', M7:'M7', m7:'m7', dim:'dim', dim7:'dim7', aug:'aug', sus4:'sus4', sus2:'sus2', '7sus4':'7sus4', m6:'m6', '6':'6', 'm7(b5)':'m7(b5)' };
   const suffix = sfx[quality] ?? '';
   let result  = roman + (suffix ? `<span class="progd-prog-sfx">${suffix}</span>` : '');
+  if (tension) result += `<span class="progd-prog-sfx">${tension}</span>`;
   if (bass != null) {
     const bassNorm = ((bass % 12) + 12) % 12;
     const bassNum  = _SEMITONE_TO_BASS_NUM[bassNorm];
@@ -27,12 +28,12 @@ function _getRomanNumeral(semitones, quality, bass) {
   return result;
 }
 
-function _getChordName(rootKey, semitones, quality, bass) {
+function _getChordName(rootKey, semitones, quality, bass, tension) {
   const names   = _useFlat ? KEY_NAMES_FLAT : KEY_NAMES_SHARP;
   const noteIdx = (rootKey + semitones + 12) % 12;
   const note    = names[noteIdx];
   const sfx     = { M: '', m: 'm', '7': '7', M7: 'M7', m7: 'm7', dim: 'dim', dim7: 'dim7', aug: 'aug', sus4: 'sus4', sus2: 'sus2', '7sus4': '7sus4', m6: 'm6', '6': '6', 'm7(b5)': 'm7(b5)' };
-  let result    = note + (sfx[quality] ?? '');
+  let result    = note + (sfx[quality] ?? '') + (tension || '');
   if (bass != null) {
     const bassIdx = (noteIdx + bass) % 12;
     result += '/' + names[bassIdx];
@@ -97,9 +98,9 @@ function _strumVoicingAt(voicing, t, dur) {
 }
 
 // 보이싱 후보 조회 (progression-voicings.js 기반)
-function _getCandidates(rootSemitone, quality, bass) {
+function _getCandidates(rootSemitone, quality, bass, tension) {
   if (typeof ProgressionVoicings === 'undefined') return [];
-  return ProgressionVoicings.getCandidates(rootSemitone, quality, _key, bass);
+  return ProgressionVoicings.getCandidates(rootSemitone, quality, _key, bass, tension);
 }
 
 // 캔버스 드로잉 → voicing-canvas.js 모듈(VoicingCanvas) 위임
@@ -496,9 +497,9 @@ function _buildStepCache() {
 
   // 각 스텝의 후보 목록 수집
   const stepData = _prog.steps.map(step => {
-    const chordName    = _getChordName(_key, step.semitones, step.quality, step.bass);
+    const chordName    = _getChordName(_key, step.semitones, step.quality, step.bass, step.tension);
     const rootSemitone = (_key + step.semitones + 120) % 12;
-    const candidates   = _getCandidates(rootSemitone, step.quality, step.bass);
+    const candidates   = _getCandidates(rootSemitone, step.quality, step.bass, step.tension);
     return { chordName, candidates };
   });
 
@@ -583,8 +584,8 @@ function _renderProgBar() {
   // 4열 grid 직접 배치 → 위·아랫줄 컬럼 정렬 (8코드 → 2줄)
   _prog.steps.forEach((step, i) => {
     const prev   = _prog.steps[i - 1];
-    const isSame = prev && prev.semitones === step.semitones && prev.quality === step.quality && (prev.bass ?? null) === (step.bass ?? null);
-    const name   = isSame ? '-' : _getRomanNumeral(step.semitones, step.quality, step.bass);
+    const isSame = prev && prev.semitones === step.semitones && prev.quality === step.quality && (prev.bass ?? null) === (step.bass ?? null) && (prev.tension ?? null) === (step.tension ?? null);
+    const name   = isSame ? '-' : _getRomanNumeral(step.semitones, step.quality, step.bass, step.tension);
     const chip = document.createElement('span');
     chip.className = 'progd-prog-chip';
     chip.innerHTML = name;

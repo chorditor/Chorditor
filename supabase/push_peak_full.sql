@@ -64,3 +64,53 @@ as $$
 $$;
 
 grant execute on function public.mark_peak_full_notified(uuid, timestamptz) to service_role;
+
+-- ───────────────────────────────────────────────────────────
+-- 동시 실행 방지 락(2026-07-22 추가): cron(30분)과 수동 트리거, 또는 실행이
+-- 길어져 다음 cron과 겹치는 경우 같은 대상에게 중복발송될 수 있음 →
+-- 단일 row UPDATE...WHERE 로 원자적 락 획득. TTL 지나면 자동 만료(함수가
+-- 중간에 죽어도 영구 락 방지) → Edge Function 은 시작 시 이 RPC 먼저 호출,
+-- false 면 즉시 종료.
+-- ───────────────────────────────────────────────────────────
+
+create table if not exists public.push_peak_full_lock (
+  id        boolean primary key default true,
+  locked_at timestamptz,
+  constraint push_peak_full_lock_single_row check (id)
+);
+
+insert into public.push_peak_full_lock (id, locked_at)
+values (true, null)
+on conflict (id) do nothing;
+
+create or replace function public.acquire_peak_full_lock(p_ttl_seconds int default 90)
+returns boolean
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  acquired boolean;
+begin
+  update public.push_peak_full_lock
+  set locked_at = now()
+  where id = true
+    and (locked_at is null or locked_at < now() - make_interval(secs => p_ttl_seconds))
+  returning true into acquired;
+  return coalesce(acquired, false);
+end;
+$$;
+
+grant execute on function public.acquire_peak_full_lock(int) to service_role;
+
+-- 정상 종료 시 즉시 락 해제(다음 실행이 TTL 만료까지 기다리지 않도록)
+create or replace function public.release_peak_full_lock()
+returns void
+language sql
+security definer
+set search_path = public
+as $$
+  update public.push_peak_full_lock set locked_at = null where id = true;
+$$;
+
+grant execute on function public.release_peak_full_lock() to service_role;

@@ -3957,6 +3957,7 @@ function _drawLibCanvas(canvas, ratio, entry, nameOverride = '') {
     barre:      entry.barres?.[0] ?? entry.barre ?? {},
     barreRange: entry.barreRanges?.[0] ?? entry.barreRange ?? null,
     fretNumber: entry.fretNumber,
+    patternR:   entry.patternR, // ★ 누락 시 fretNumber로 폴백 → r+1 시작 패턴이 한 칸 밀림
     source:     entry.source,   // ★ 누락 시 모듈이 static 취급 → offset/라벨 어긋남
     fingering:  entry.fingerings?.[0] ?? entry.fingering,
   }, {

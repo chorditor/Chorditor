@@ -1,0 +1,1016 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="color-scheme" content="light dark" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <title>Chorditor - 코드 조합 훈련</title>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css" />
+  <link rel="stylesheet" href="style.css" />
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
+</head>
+<body>
+
+  <!-- 페이지 커버: 초기화 완료 전 화면 가림 -->
+  <div id="page-cover"></div>
+
+  <div class="app-shell">
+
+    <!-- ── 탑바 ── -->
+    <div class="top-bar combo-top-bar">
+      <button id="back-btn" class="icon-btn" onpointerup="handleComboBack()">
+        <i data-lucide="x"></i>
+      </button>
+      <div id="combo-quiz-progress" class="quiz-topbar-center combo-quiz-dots" style="display:none"></div>
+      <div class="topbar-currency" id="topbar-currency" style="margin-left:auto;margin-right:15px;">
+        <div class="currency-item currency-item--clickable" onclick="openPeakboxModal()">
+          <span class="currency-count" id="currency-peakbox-count">0</span>
+          <div class="currency-icon-box"><img src="image/gift.png" alt=""></div>
+        </div>
+        <div class="currency-item currency-item--clickable" onclick="openPeakTimerPopup(event)">
+          <span class="currency-count" id="currency-peak-count">30/30</span>
+          <div class="currency-icon-box"><img src="image/peak.svg" alt=""></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── 메인 콘텐츠 ── -->
+    <div class="main-content" id="main-content">
+
+      <!-- ── 선택 뷰 (챕터/난이도 선택) ── -->
+      <div id="combo-view-select" class="quiz-view">
+      <div class="combo-scroll">
+
+        <!-- 스티키 헤더 -->
+        <div class="combo-sticky-head">
+          <span class="combo-title">코드 조합 훈련</span>
+          <span class="combo-subtitle">어려운 화성학을 쉽게 배워요!</span>
+        </div>
+
+        <!-- 콘텐츠 영역 -->
+        <div class="combo-content">
+          <div class="combo-chapter-track" id="combo-chapter-track">
+          <div class="combo-card active" data-chapter="1">
+            <div class="combo-chapter-title">패밀리코드 배열하기</div>
+
+            <!-- 학습 정보창 (튜토리얼, 추후 캐러셀) -->
+            <div class="combo-info-card">
+              <div class="combo-tutorial-track" id="combo-tutorial-track">
+                <div class="combo-tutorial-page">
+                  <p class="combo-tutorial-text">패밀리코드는</p>
+                  <div class="combo-tutorial-degrees">
+                    <div class="combo-degree-row">
+                      <span class="combo-degree-chip">I</span>
+                      <span class="combo-degree-chip">IIm</span>
+                      <span class="combo-degree-chip">IIIm</span>
+                      <span class="combo-degree-chip">IV</span>
+                      <span class="combo-degree-chip">V</span>
+                      <span class="combo-degree-chip">VI</span>
+                      <span class="combo-degree-chip">VIIdim</span>
+                    </div>
+                  </div>
+                  <p class="combo-tutorial-text">이 7가지 코드를 말합니다.</p>
+                </div>
+                <div class="combo-tutorial-page">
+                  <p class="combo-tutorial-text">7음을 추가한다면,</p>
+                  <div class="combo-tutorial-degrees">
+                    <div class="combo-degree-row combo-degree-row--wide">
+                      <span class="combo-degree-chip">IM7</span>
+                      <span class="combo-degree-chip">IIm7</span>
+                      <span class="combo-degree-chip">IIIm7</span>
+                      <span class="combo-degree-chip">IVM7</span>
+                    </div>
+                    <div class="combo-degree-row">
+                      <span class="combo-degree-chip">V7</span>
+                      <span class="combo-degree-chip">VIm7</span>
+                      <span class="combo-degree-chip">VIIm7<sup>(b5)</sup></span>
+                    </div>
+                  </div>
+                  <p class="combo-tutorial-text">가 됩니다.</p>
+                </div>
+                <div class="combo-tutorial-page">
+                  <p class="combo-tutorial-text">패밀리코드 배열을 해보면서<br>마음에 드는 코드배열을 찾아보아요!</p>
+                </div>
+              </div>
+              <div class="combo-tutorial-dots" id="combo-tutorial-dots">
+                <span class="combo-tutorial-dot active"></span>
+                <span class="combo-tutorial-dot"></span>
+                <span class="combo-tutorial-dot"></span>
+              </div>
+            </div>
+
+            <!-- 난이도 선택 카드 3개 -->
+            <div class="combo-difficulty-row" id="combo-difficulty-row">
+              <div class="combo-difficulty-card active" data-difficulty="low" data-desc="필수 5가지 key와 쉬운코드 위주로 등장해요.">
+                <div class="combo-difficulty-stars">
+                  <i class="ph-fill ph-star combo-difficulty-star"></i>
+                </div>
+                <span class="combo-difficulty-label">쉬움</span>
+              </div>
+              <div class="combo-difficulty-card" data-difficulty="mid" data-desc="7가지 key와 7코드들이 등장해요.">
+                <div class="combo-difficulty-stars">
+                  <i class="ph-fill ph-star combo-difficulty-star"></i>
+                  <i class="ph-fill ph-star combo-difficulty-star"></i>
+                </div>
+                <span class="combo-difficulty-label">보통</span>
+              </div>
+              <div class="combo-difficulty-card" data-difficulty="high" data-desc="모든 key, 모든 코드들이 등장해요.">
+                <div class="combo-difficulty-stars">
+                  <i class="ph-fill ph-star combo-difficulty-star"></i>
+                  <i class="ph-fill ph-star combo-difficulty-star"></i>
+                  <i class="ph-fill ph-star combo-difficulty-star"></i>
+                </div>
+                <span class="combo-difficulty-label">어려움</span>
+              </div>
+            </div>
+
+            <!-- 난이도 설명 -->
+            <p class="combo-difficulty-desc" id="combo-difficulty-desc">필수 5가지 key와 쉬운코드 위주로 등장해요.</p>
+
+            <!-- 시작하기 -->
+            <button class="practice-gate-btn" id="combo-start-btn" onpointerup="comboStartTraining(event)">
+              <span>시작하기</span>
+              <span class="practice-gate-cost">
+                <img src="image/white_peak.svg" alt="" class="practice-gate-icon">
+                <span>x3</span>
+              </span>
+            </button>
+          </div>
+
+          <!-- 제 2장 -->
+          <div class="combo-card" data-chapter="2">
+            <div class="combo-chapter-title">패밀리코드의 대리코드</div>
+
+            <div class="combo-info-card">
+              <div class="combo-tutorial-track">
+                <div class="combo-tutorial-page">
+                  <p class="combo-tutorial-text">패밀리코드는 3가지 역할로 나눠져요.</p>
+                  <div class="combo-role-groups">
+                    <div class="combo-role-group">
+                      <span class="combo-role-label">해결</span>
+                      <span class="combo-degree-chip">I</span>
+                      <span class="combo-degree-chip">VIm</span>
+                      <span class="combo-degree-chip">IIIm</span>
+                    </div>
+                    <div class="combo-role-group">
+                      <span class="combo-role-label">예비</span>
+                      <span class="combo-degree-chip">IV</span>
+                      <span class="combo-degree-chip">IIm</span>
+                    </div>
+                    <div class="combo-role-group">
+                      <span class="combo-role-label">긴장</span>
+                      <span class="combo-degree-chip">V7</span>
+                      <span class="combo-degree-chip">VIIdim</span>
+                    </div>
+                  </div>
+                </div>
+                <div class="combo-tutorial-page">
+                  <p class="combo-tutorial-text">각 역할끼리의 코드들은 서로 바꿀 수 있어요.</p>
+                  <div class="combo-degree-row combo-degree-row--wide">
+                    <span class="combo-degree-chip">I</span>
+                    <span class="combo-tutorial-arrow">↔</span>
+                    <span class="combo-degree-chip">VIm</span>
+                    <span class="combo-tutorial-arrow">↔</span>
+                    <span class="combo-degree-chip">IIIm</span>
+                  </div>
+                </div>
+                <div class="combo-tutorial-page">
+                  <p class="combo-tutorial-text">분수코드는 중간다리 역할을 해줘요.</p>
+                  <div class="combo-tutorial-degrees">
+                    <div class="combo-degree-row">
+                      <span class="combo-degree-chip">C</span>
+                      <span class="combo-tutorial-arrow">↔</span>
+                      <span class="combo-degree-chip">C/E</span>
+                      <span class="combo-tutorial-arrow">↔</span>
+                      <span class="combo-degree-chip">Em</span>
+                    </div>
+                    <div class="combo-degree-row">
+                      <span class="combo-degree-chip">F</span>
+                      <span class="combo-tutorial-arrow">↔</span>
+                      <span class="combo-degree-chip">F/A</span>
+                      <span class="combo-tutorial-arrow">↔</span>
+                      <span class="combo-degree-chip">Am</span>
+                    </div>
+                    <div class="combo-degree-row">
+                      <span class="combo-degree-chip">G</span>
+                      <span class="combo-tutorial-arrow">↔</span>
+                      <span class="combo-degree-chip">G/B</span>
+                      <span class="combo-tutorial-arrow">↔</span>
+                      <span class="combo-degree-chip">Bdim</span>
+                    </div>
+                  </div>
+                </div>
+                <div class="combo-tutorial-page">
+                  <p class="combo-tutorial-text">이렇게 베이스를 좀 더 부드럽게 이어줘요.</p>
+                  <div class="combo-tutorial-degrees">
+                    <div class="combo-degree-row">
+                      <span class="combo-degree-chip">C</span>
+                      <span class="combo-tutorial-arrow">→</span>
+                      <span class="combo-degree-chip">F</span>
+                    </div>
+                    <div class="combo-degree-row">
+                      <span class="combo-degree-chip">C</span>
+                      <span class="combo-tutorial-arrow">→</span>
+                      <span class="combo-degree-chip">C/E</span>
+                      <span class="combo-tutorial-arrow">→</span>
+                      <span class="combo-degree-chip">F</span>
+                    </div>
+                  </div>
+                </div>
+                <div class="combo-tutorial-page">
+                  <p class="combo-tutorial-text">바꾸다보면 어울리는 진행과,<br>어울리지 않는 진행이 있을거예요.<br>직접 어떤 진행이 어울리는 지 찾아봐요!</p>
+                </div>
+              </div>
+              <div class="combo-tutorial-dots">
+                <span class="combo-tutorial-dot active"></span>
+                <span class="combo-tutorial-dot"></span>
+                <span class="combo-tutorial-dot"></span>
+                <span class="combo-tutorial-dot"></span>
+                <span class="combo-tutorial-dot"></span>
+              </div>
+            </div>
+
+            <!-- 난이도 선택 카드 3개 -->
+            <div class="combo-difficulty-row">
+              <div class="combo-difficulty-card active" data-difficulty="low" data-desc="필수 5가지 key와 쉬운코드 위주로 등장해요.">
+                <div class="combo-difficulty-stars">
+                  <i class="ph-fill ph-star combo-difficulty-star"></i>
+                </div>
+                <span class="combo-difficulty-label">쉬움</span>
+              </div>
+              <div class="combo-difficulty-card" data-difficulty="mid" data-desc="7가지 key와 7코드들이 등장해요.">
+                <div class="combo-difficulty-stars">
+                  <i class="ph-fill ph-star combo-difficulty-star"></i>
+                  <i class="ph-fill ph-star combo-difficulty-star"></i>
+                </div>
+                <span class="combo-difficulty-label">보통</span>
+              </div>
+              <div class="combo-difficulty-card" data-difficulty="high" data-desc="모든 key, 모든 코드들이 등장해요.">
+                <div class="combo-difficulty-stars">
+                  <i class="ph-fill ph-star combo-difficulty-star"></i>
+                  <i class="ph-fill ph-star combo-difficulty-star"></i>
+                  <i class="ph-fill ph-star combo-difficulty-star"></i>
+                </div>
+                <span class="combo-difficulty-label">어려움</span>
+              </div>
+            </div>
+
+            <!-- 난이도 설명 -->
+            <p class="combo-difficulty-desc">필수 5가지 key와 쉬운코드 위주로 등장해요.</p>
+
+            <!-- 시작하기 -->
+            <button class="practice-gate-btn" onpointerup="comboStartTraining(event)">
+              <span>시작하기</span>
+              <span class="practice-gate-cost">
+                <img src="image/white_peak.svg" alt="" class="practice-gate-icon">
+                <span>x3</span>
+              </span>
+            </button>
+          </div>
+
+          <!-- 제 3장 -->
+          <div class="combo-card" data-chapter="3">
+            <div class="combo-chapter-title">세컨더리 도미넌트</div>
+
+            <div class="combo-info-card">
+              <div class="combo-tutorial-track">
+                <div class="combo-tutorial-page">
+                  <p class="combo-tutorial-text">패밀리코드의 5번째 코드는<br>'도미넌트 코드'라고 해요.<br>1도로 가려는 성향이 아주 강해요!</p>
+                  <div class="combo-tutorial-degrees">
+                    <div class="combo-degree-row">
+                      <span class="combo-degree-chip">G7</span>
+                      <span class="combo-tutorial-arrow">→</span>
+                      <span class="combo-degree-chip">C</span>
+                    </div>
+                  </div>
+                </div>
+                <div class="combo-tutorial-page">
+                  <p class="combo-tutorial-text">그래서 패밀리코드 마다 다른 집의<br>친한 친구를 데려올 수 있어요.</p>
+                  <div class="combo-secdom-grid">
+                    <span class="combo-degree-chip">C</span>
+                    <span class="combo-degree-chip">Dm</span>
+                    <span class="combo-degree-chip">Em</span>
+                    <span class="combo-degree-chip">F</span>
+                    <span class="combo-degree-chip">G7</span>
+                    <span class="combo-degree-chip">Am</span>
+                    <span class="combo-degree-chip">Bdim</span>
+                    <span class="combo-degree-chip"></span>
+                    <span class="combo-degree-chip combo-degree-chip--sub">A7</span>
+                    <span class="combo-degree-chip combo-degree-chip--sub">B7</span>
+                    <span class="combo-degree-chip combo-degree-chip--sub">C7</span>
+                    <span class="combo-degree-chip combo-degree-chip--sub">D7</span>
+                    <span class="combo-degree-chip combo-degree-chip--sub">E7</span>
+                    <span class="combo-degree-chip"></span>
+                  </div>
+                </div>
+                <div class="combo-tutorial-page">
+                  <p class="combo-tutorial-text">이렇게 새롭게 초대한 친구를<br>'세컨더리 도미넌트'라고 해요.</p>
+                  <div class="combo-tutorial-degrees">
+                    <div class="combo-degree-row combo-degree-row--gap-lg">
+                      <span class="combo-degree-chip">F</span>
+                      <span class="combo-degree-chip combo-degree-chip--blue">E7</span>
+                      <span class="combo-degree-chip">Am</span>
+                      <span class="combo-degree-chip combo-degree-chip--blue">C7</span>
+                    </div>
+                  </div>
+                </div>
+                <div class="combo-tutorial-page">
+                  <p class="combo-tutorial-text">표기법은 V7를 적고, 해결하려는<br>패밀리코드의 순서를 적어요.</p>
+                  <div class="combo-tutorial-degrees">
+                    <div class="combo-degree-row combo-degree-row--wide">
+                      <span class="combo-degree-stack">
+                        <span class="combo-degree-chip">A7</span>
+                        <span class="combo-degree-roman">V7/II</span>
+                      </span>
+                      <span class="combo-degree-stack">
+                        <span class="combo-degree-chip">Dm</span>
+                        <span class="combo-degree-roman">IIm</span>
+                      </span>
+                    </div>
+                  </div>
+                </div>
+                <div class="combo-tutorial-page">
+                  <p class="combo-tutorial-text">멋있는 진행에는 이 세컨더리 도미넌트가<br>많이 사용되고 있답니다.<br>여러분도 직접 적용해보아요!</p>
+                </div>
+              </div>
+              <div class="combo-tutorial-dots">
+                <span class="combo-tutorial-dot active"></span>
+                <span class="combo-tutorial-dot"></span>
+                <span class="combo-tutorial-dot"></span>
+                <span class="combo-tutorial-dot"></span>
+                <span class="combo-tutorial-dot"></span>
+              </div>
+            </div>
+
+            <!-- 난이도 선택 카드 3개 -->
+            <div class="combo-difficulty-row">
+              <div class="combo-difficulty-card active" data-difficulty="low" data-desc="필수 5가지 key와 쉬운코드 위주로 등장해요.">
+                <div class="combo-difficulty-stars">
+                  <i class="ph-fill ph-star combo-difficulty-star"></i>
+                </div>
+                <span class="combo-difficulty-label">쉬움</span>
+              </div>
+              <div class="combo-difficulty-card" data-difficulty="mid" data-desc="7가지 key와 7코드들이 등장해요.">
+                <div class="combo-difficulty-stars">
+                  <i class="ph-fill ph-star combo-difficulty-star"></i>
+                  <i class="ph-fill ph-star combo-difficulty-star"></i>
+                </div>
+                <span class="combo-difficulty-label">보통</span>
+              </div>
+              <div class="combo-difficulty-card" data-difficulty="high" data-desc="모든 key, 모든 코드들이 등장해요.">
+                <div class="combo-difficulty-stars">
+                  <i class="ph-fill ph-star combo-difficulty-star"></i>
+                  <i class="ph-fill ph-star combo-difficulty-star"></i>
+                  <i class="ph-fill ph-star combo-difficulty-star"></i>
+                </div>
+                <span class="combo-difficulty-label">어려움</span>
+              </div>
+            </div>
+
+            <!-- 난이도 설명 -->
+            <p class="combo-difficulty-desc">필수 5가지 key와 쉬운코드 위주로 등장해요.</p>
+
+            <!-- 시작하기 -->
+            <button class="practice-gate-btn" onpointerup="comboStartTraining(event)">
+              <span>시작하기</span>
+              <span class="practice-gate-cost">
+                <img src="image/white_peak.svg" alt="" class="practice-gate-icon">
+                <span>x3</span>
+              </span>
+            </button>
+          </div>
+
+          <!-- 제 4장 -->
+          <div class="combo-card" data-chapter="4">
+            <div class="combo-chapter-title">Rel. II 마이너</div>
+
+            <div class="combo-info-card">
+              <div class="combo-tutorial-track">
+                <div class="combo-tutorial-page">
+                  <p class="combo-tutorial-text">도미넌트는 아주 친한 코드가 있어서,<br>껌딱지 붙어 다니는 친구가 있어요.</p>
+                </div>
+                <div class="combo-tutorial-page">
+                  <p class="combo-tutorial-text">그 친구는 해결하려는 친구의<br>두번째 코드인 IIm 코드입니다.<br><br>도미넌트인 V7랑 관련있다고 해서<br>'릴레이티드(Related) 투 마이너'<br>라고 불러요.</p>
+                </div>
+                <div class="combo-tutorial-page">
+                  <p class="combo-tutorial-text">해결 코드가 메이저일 때, 마이너일 때<br>어울리는 IIm 코드가 있어요.</p>
+                  <div class="combo-tutorial-degrees">
+                    <div class="combo-degree-row">
+                      <span class="combo-degree-chip">IIm7</span>
+                      <span class="combo-tutorial-arrow">→</span>
+                      <span class="combo-degree-chip">V7</span>
+                      <span class="combo-tutorial-arrow">→</span>
+                      <span class="combo-degree-chip">IM7</span>
+                    </div>
+                    <div class="combo-degree-row">
+                      <span class="combo-degree-chip">IIm7<sup>(b5)</sup></span>
+                      <span class="combo-tutorial-arrow">→</span>
+                      <span class="combo-degree-chip">V7</span>
+                      <span class="combo-tutorial-arrow">→</span>
+                      <span class="combo-degree-chip">Im7</span>
+                    </div>
+                  </div>
+                </div>
+                <div class="combo-tutorial-page">
+                  <p class="combo-tutorial-text">세컨더리 도미넌트들도 각각<br>껌딱지 친구가 있어요.</p>
+                  <div class="combo-degree-col combo-secdom-pairs">
+                    <div class="combo-degree-row combo-degree-row--wide">
+                      <span class="combo-degree-stack">
+                        <span class="combo-degree-chip">A7</span>
+                        <span class="combo-degree-roman">Em7<sup>(b5)</sup></span>
+                      </span>
+                      <span class="combo-degree-stack">
+                        <span class="combo-degree-chip">B7</span>
+                        <span class="combo-degree-roman">F#m7<sup>(b5)</sup></span>
+                      </span>
+                      <span class="combo-degree-stack">
+                        <span class="combo-degree-chip">C7</span>
+                        <span class="combo-degree-roman">Gm7</span>
+                      </span>
+                    </div>
+                    <div class="combo-degree-row combo-degree-row--wide">
+                      <span class="combo-degree-stack">
+                        <span class="combo-degree-chip">D7</span>
+                        <span class="combo-degree-roman">Am7</span>
+                      </span>
+                      <span class="combo-degree-stack">
+                        <span class="combo-degree-chip">E7</span>
+                        <span class="combo-degree-roman">Bm7<sup>(b5)</sup></span>
+                      </span>
+                    </div>
+                  </div>
+                </div>
+                <div class="combo-tutorial-page">
+                  <p class="combo-tutorial-text">여기서 화성학의 공식!<br>투-파이브-원 진행이 만들어집니다.</p>
+                  <div class="combo-degree-col combo-secdom-pairs">
+                    <div class="combo-degree-row combo-degree-row--wide">
+                      <span class="combo-degree-stack">
+                        <span class="combo-degree-chip">Dm7</span>
+                      </span>
+                      <span class="combo-degree-stack">
+                        <span class="combo-degree-chip">G7</span>
+                      </span>
+                      <span class="combo-degree-stack">
+                        <span class="combo-degree-chip">C</span>
+                      </span>
+                    </div>
+                    <div class="combo-degree-row combo-degree-row--wide">
+                      <span class="combo-degree-stack">
+                        <span class="combo-degree-chip">Bm7<sup>(b5)</sup></span>
+                      </span>
+                      <span class="combo-degree-stack">
+                        <span class="combo-degree-chip">E7</span>
+                      </span>
+                      <span class="combo-degree-stack">
+                        <span class="combo-degree-chip">Am</span>
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+              <div class="combo-tutorial-dots">
+                <span class="combo-tutorial-dot active"></span>
+                <span class="combo-tutorial-dot"></span>
+                <span class="combo-tutorial-dot"></span>
+                <span class="combo-tutorial-dot"></span>
+                <span class="combo-tutorial-dot"></span>
+              </div>
+            </div>
+
+            <!-- 난이도 선택 카드 3개 -->
+            <div class="combo-difficulty-row">
+              <div class="combo-difficulty-card active" data-difficulty="low" data-desc="필수 5가지 key와 쉬운코드 위주로 등장해요.">
+                <div class="combo-difficulty-stars">
+                  <i class="ph-fill ph-star combo-difficulty-star"></i>
+                </div>
+                <span class="combo-difficulty-label">쉬움</span>
+              </div>
+              <div class="combo-difficulty-card" data-difficulty="mid" data-desc="7가지 key와 7코드들이 등장해요.">
+                <div class="combo-difficulty-stars">
+                  <i class="ph-fill ph-star combo-difficulty-star"></i>
+                  <i class="ph-fill ph-star combo-difficulty-star"></i>
+                </div>
+                <span class="combo-difficulty-label">보통</span>
+              </div>
+              <div class="combo-difficulty-card" data-difficulty="high" data-desc="모든 key, 모든 코드들이 등장해요.">
+                <div class="combo-difficulty-stars">
+                  <i class="ph-fill ph-star combo-difficulty-star"></i>
+                  <i class="ph-fill ph-star combo-difficulty-star"></i>
+                  <i class="ph-fill ph-star combo-difficulty-star"></i>
+                </div>
+                <span class="combo-difficulty-label">어려움</span>
+              </div>
+            </div>
+
+            <!-- 난이도 설명 -->
+            <p class="combo-difficulty-desc">필수 5가지 key와 쉬운코드 위주로 등장해요.</p>
+
+            <!-- 시작하기 -->
+            <button class="practice-gate-btn" onpointerup="comboStartTraining(event)">
+              <span>시작하기</span>
+              <span class="practice-gate-cost">
+                <img src="image/white_peak.svg" alt="" class="practice-gate-icon">
+                <span>x3</span>
+              </span>
+            </button>
+          </div>
+
+          <div class="combo-card" data-chapter="5">
+            <div class="combo-chapter-title">도미넌트의 대리코드</div>
+
+            <div class="combo-info-card">
+              <div class="combo-tutorial-track">
+                <div class="combo-tutorial-page">
+                  <p class="combo-tutorial-text">도미넌트 코드는 3가지의<br>대리코드로 교체할 수 있어요.</p>
+                  <div class="combo-tutorial-degrees">
+                    <div class="combo-degree-row">
+                      <span class="combo-degree-chip">G7</span>
+                      <span class="combo-tutorial-arrow">→</span>
+                      <span class="combo-degree-chip">Db7</span>
+                    </div>
+                    <div class="combo-degree-row">
+                      <span class="combo-degree-chip">G7</span>
+                      <span class="combo-tutorial-arrow">→</span>
+                      <span class="combo-degree-chip">G7/B</span>
+                      <span class="combo-tutorial-arrow">or</span>
+                      <span class="combo-degree-chip">Bdim7</span>
+                    </div>
+                  </div>
+                </div>
+                <div class="combo-tutorial-page">
+                  <p class="combo-tutorial-text">세컨더리 도미넌트도<br>마찬가지로 적용할 수 있어요.</p>
+                  <div class="combo-tutorial-degrees combo-tutorial-degrees--compact">
+                    <div class="combo-degree-split">
+                      <div class="combo-degree-row">
+                        <span class="combo-degree-chip">C</span>
+                        <span class="combo-degree-chip">E7</span>
+                        <span class="combo-degree-chip">Am7</span>
+                      </div>
+                      <span class="combo-tutorial-arrow">→</span>
+                      <div class="combo-degree-col">
+                        <div class="combo-degree-row">
+                          <span class="combo-degree-chip">C</span>
+                          <span class="combo-degree-chip">Bb7</span>
+                          <span class="combo-degree-chip">Am7</span>
+                        </div>
+                        <div class="combo-degree-row">
+                          <span class="combo-degree-chip">C</span>
+                          <span class="combo-degree-chip">G#dim7</span>
+                          <span class="combo-degree-chip">Am7</span>
+                        </div>
+                        <div class="combo-degree-row">
+                          <span class="combo-degree-chip">C</span>
+                          <span class="combo-degree-chip">E7/G#</span>
+                          <span class="combo-degree-chip">Am7</span>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+                <div class="combo-tutorial-page">
+                  <p class="combo-tutorial-text">G7 → Db7으로 바꿀 때는<br>Db7에 #11이라는 텐션을 사용해요.<br>나중에 등장하지만 미리 알려드릴게요!</p>
+                </div>
+                <div class="combo-tutorial-page">
+                  <p class="combo-tutorial-text">Rel. II 마이너랑 조합도 가능해요.</p>
+                  <div class="combo-degree-col combo-relii-quad">
+                    <div class="combo-degree-row">
+                      <span class="combo-degree-stack"><span class="combo-degree-chip">C</span></span>
+                      <span class="combo-degree-stack"><span class="combo-degree-chip">Bm7<sup>(b5)</sup></span></span>
+                      <span class="combo-degree-stack"><span class="combo-degree-chip">Ab7</span></span>
+                      <span class="combo-degree-stack"><span class="combo-degree-chip">Am7</span></span>
+                    </div>
+                    <div class="combo-degree-row">
+                      <span class="combo-degree-stack"><span class="combo-degree-chip">C</span></span>
+                      <span class="combo-degree-stack"><span class="combo-degree-chip">Bm7<sup>(b5)</sup></span></span>
+                      <span class="combo-degree-stack"><span class="combo-degree-chip">G#dim7</span></span>
+                      <span class="combo-degree-stack"><span class="combo-degree-chip">Am7</span></span>
+                    </div>
+                    <div class="combo-degree-row">
+                      <span class="combo-degree-stack"><span class="combo-degree-chip">C</span></span>
+                      <span class="combo-degree-stack"><span class="combo-degree-chip">Bm7<sup>(b5)</sup></span></span>
+                      <span class="combo-degree-stack"><span class="combo-degree-chip">E7/G#</span></span>
+                      <span class="combo-degree-stack"><span class="combo-degree-chip">Am7</span></span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+              <div class="combo-tutorial-dots">
+                <span class="combo-tutorial-dot active"></span>
+                <span class="combo-tutorial-dot"></span>
+                <span class="combo-tutorial-dot"></span>
+                <span class="combo-tutorial-dot"></span>
+              </div>
+            </div>
+
+            <!-- 난이도 선택 카드 3개 -->
+            <div class="combo-difficulty-row">
+              <div class="combo-difficulty-card active" data-difficulty="low" data-desc="필수 5가지 key와 쉬운코드 위주로 등장해요.">
+                <div class="combo-difficulty-stars">
+                  <i class="ph-fill ph-star combo-difficulty-star"></i>
+                </div>
+                <span class="combo-difficulty-label">쉬움</span>
+              </div>
+              <div class="combo-difficulty-card" data-difficulty="mid" data-desc="7가지 key와 7코드들이 등장해요.">
+                <div class="combo-difficulty-stars">
+                  <i class="ph-fill ph-star combo-difficulty-star"></i>
+                  <i class="ph-fill ph-star combo-difficulty-star"></i>
+                </div>
+                <span class="combo-difficulty-label">보통</span>
+              </div>
+              <div class="combo-difficulty-card" data-difficulty="high" data-desc="모든 key, 모든 코드들이 등장해요.">
+                <div class="combo-difficulty-stars">
+                  <i class="ph-fill ph-star combo-difficulty-star"></i>
+                  <i class="ph-fill ph-star combo-difficulty-star"></i>
+                  <i class="ph-fill ph-star combo-difficulty-star"></i>
+                </div>
+                <span class="combo-difficulty-label">어려움</span>
+              </div>
+            </div>
+
+            <!-- 난이도 설명 -->
+            <p class="combo-difficulty-desc">필수 5가지 key와 쉬운코드 위주로 등장해요.</p>
+
+            <!-- 시작하기 -->
+            <button class="practice-gate-btn" onpointerup="comboStartTraining(event)">
+              <span>시작하기</span>
+              <span class="practice-gate-cost">
+                <img src="image/white_peak.svg" alt="" class="practice-gate-icon">
+                <span>x3</span>
+              </span>
+            </button>
+          </div>
+
+          <div class="combo-card" data-chapter="6">
+            <div class="combo-chapter-title">텐션코드 1</div>
+
+            <div class="combo-info-card">
+              <div class="combo-tutorial-track">
+                <div class="combo-tutorial-page">
+                  <p class="combo-tutorial-text">코드를 더 꾸미기 위해서<br>텐션이라는 걸 사용해요.<br><br>1 3 5 7음에서 사용하지 않은<br>나머지 음들을 사용해요.</p>
+                </div>
+                <div class="combo-tutorial-page">
+                  <p class="combo-tutorial-text">기본적으로는 이렇게 넣을 수 있어요.</p>
+                  <div class="combo-tension-rows">
+                    <div class="combo-tension-row">
+                      <span class="combo-tension-quality">M7</span>
+                      <span class="combo-tension-plus">+</span>
+                      <span class="combo-tension-list">9, #11, 13</span>
+                    </div>
+                    <div class="combo-tension-row">
+                      <span class="combo-tension-quality">m7</span>
+                      <span class="combo-tension-plus">+</span>
+                      <span class="combo-tension-list">9, 11, (13)</span>
+                    </div>
+                    <div class="combo-tension-row">
+                      <span class="combo-tension-quality">7</span>
+                      <span class="combo-tension-plus">+</span>
+                      <span class="combo-tension-list">b9, 9, #9, #11, b13, 13</span>
+                    </div>
+                  </div>
+                </div>
+                <div class="combo-tutorial-page">
+                  <p class="combo-tutorial-text">여러가지 텐션 코드의 소리를 듣고<br>익숙해져보는 시간을 가져요.</p>
+                </div>
+              </div>
+              <div class="combo-tutorial-dots">
+                <span class="combo-tutorial-dot active"></span>
+                <span class="combo-tutorial-dot"></span>
+                <span class="combo-tutorial-dot"></span>
+              </div>
+            </div>
+
+            <!-- 난이도 선택 카드 3개 — 6장은 예외: 모든 난이도 7th 코드 고정, key 범위만 다름 -->
+            <div class="combo-difficulty-row">
+              <div class="combo-difficulty-card active" data-difficulty="low" data-desc="C, G 2가지 key만 등장해요.">
+                <div class="combo-difficulty-stars">
+                  <i class="ph-fill ph-star combo-difficulty-star"></i>
+                </div>
+                <span class="combo-difficulty-label">쉬움</span>
+              </div>
+              <div class="combo-difficulty-card" data-difficulty="mid" data-desc="C D E G A 5가지 key가 등장해요.">
+                <div class="combo-difficulty-stars">
+                  <i class="ph-fill ph-star combo-difficulty-star"></i>
+                  <i class="ph-fill ph-star combo-difficulty-star"></i>
+                </div>
+                <span class="combo-difficulty-label">보통</span>
+              </div>
+              <div class="combo-difficulty-card" data-difficulty="high" data-desc="모든 key가 등장해요.">
+                <div class="combo-difficulty-stars">
+                  <i class="ph-fill ph-star combo-difficulty-star"></i>
+                  <i class="ph-fill ph-star combo-difficulty-star"></i>
+                  <i class="ph-fill ph-star combo-difficulty-star"></i>
+                </div>
+                <span class="combo-difficulty-label">어려움</span>
+              </div>
+            </div>
+
+            <!-- 난이도 설명 -->
+            <p class="combo-difficulty-desc">C, G 2가지 key만 등장해요.</p>
+
+            <!-- 시작하기 -->
+            <button class="practice-gate-btn" onpointerup="comboStartTraining(event)">
+              <span>시작하기</span>
+              <span class="practice-gate-cost">
+                <img src="image/white_peak.svg" alt="" class="practice-gate-icon">
+                <span>x3</span>
+              </span>
+            </button>
+          </div>
+
+          <div class="combo-card" data-chapter="7">
+            <div class="combo-chapter-title">마이너 패밀리코드</div>
+
+            <div class="combo-info-card">
+              <div class="combo-tutorial-track">
+                <div class="combo-tutorial-page">
+                  <p class="combo-tutorial-text">마이너 스케일로 만든<br>패밀리코드도 있어요.</p>
+                  <div class="combo-tutorial-degrees combo-tutorial-degrees--compact">
+                    <div class="combo-degree-row">
+                      <span class="combo-degree-chip">Im7</span>
+                      <span class="combo-degree-chip">IIm7<sup>(b5)</sup></span>
+                      <span class="combo-degree-chip">bIIIM7</span>
+                      <span class="combo-degree-chip">IVm7</span>
+                    </div>
+                    <div class="combo-degree-row">
+                      <span class="combo-degree-chip">Vm7</span>
+                      <span class="combo-degree-chip">bVIM7</span>
+                      <span class="combo-degree-chip">bVII7</span>
+                    </div>
+                  </div>
+                </div>
+                <div class="combo-tutorial-page">
+                  <p class="combo-tutorial-text">C key와 Am key는<br>서로 같은 조표를 공유하는 친척이예요.<br>그래서 패밀리코드 구성이 같아요.</p>
+                  <div class="combo-tutorial-degrees">
+                    <div class="combo-degree-row">
+                      <span class="combo-degree-chip">C</span>
+                      <span class="combo-degree-chip">Dm</span>
+                      <span class="combo-degree-chip">Em</span>
+                      <span class="combo-degree-chip">F</span>
+                      <span class="combo-degree-chip">G7</span>
+                      <span class="combo-degree-chip">Am</span>
+                      <span class="combo-degree-chip">Bdim</span>
+                    </div>
+                    <div class="combo-degree-row">
+                      <span class="combo-degree-chip">Am</span>
+                      <span class="combo-degree-chip">Bdim</span>
+                      <span class="combo-degree-chip">C</span>
+                      <span class="combo-degree-chip">Dm</span>
+                      <span class="combo-degree-chip">Em</span>
+                      <span class="combo-degree-chip">F</span>
+                      <span class="combo-degree-chip">G7</span>
+                    </div>
+                  </div>
+                </div>
+                <div class="combo-tutorial-page">
+                  <p class="combo-tutorial-text">그런데 5번째을 도미넌트로 만들기 위해,<br>하모닉 마이너라는 것도 생겨났어요.<br><br>지금은 중요한건 아니니 걱정말아요!</p>
+                  <div class="combo-degree-row combo-degree-row--align-end">
+                    <span class="combo-degree-chip combo-degree-chip--xs">Am</span>
+                    <span class="combo-degree-chip combo-degree-chip--xs">Bdim</span>
+                    <span class="combo-degree-chip combo-degree-chip--xs">C</span>
+                    <span class="combo-degree-chip combo-degree-chip--xs">Dm</span>
+                    <span class="combo-degree-chip">E7</span>
+                    <span class="combo-degree-chip combo-degree-chip--xs">F</span>
+                    <span class="combo-degree-chip">G#dim</span>
+                  </div>
+                </div>
+                <div class="combo-tutorial-page">
+                  <p class="combo-tutorial-text">두 가지를 섞어서 실전에선<br>이렇게 많이 사용해요.</p>
+                  <div class="combo-tutorial-degrees combo-tutorial-degrees--compact">
+                    <div class="combo-degree-row">
+                      <span class="combo-degree-chip">Im7</span>
+                      <span class="combo-degree-chip">IIm7<sup>(b5)</sup></span>
+                      <span class="combo-degree-chip">bIIIM7</span>
+                      <span class="combo-degree-chip">IVm7</span>
+                    </div>
+                    <div class="combo-degree-row">
+                      <span class="combo-degree-chip">V7</span>
+                      <span class="combo-degree-chip">bVIM7</span>
+                      <span class="combo-degree-chip">bVII7(VIIdim7)</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+              <div class="combo-tutorial-dots">
+                <span class="combo-tutorial-dot active"></span>
+                <span class="combo-tutorial-dot"></span>
+                <span class="combo-tutorial-dot"></span>
+                <span class="combo-tutorial-dot"></span>
+              </div>
+            </div>
+
+            <!-- 난이도 선택 카드 3개 -->
+            <div class="combo-difficulty-row">
+              <div class="combo-difficulty-card active" data-difficulty="low" data-desc="필수 5가지 key와 쉬운코드 위주로 등장해요.">
+                <div class="combo-difficulty-stars">
+                  <i class="ph-fill ph-star combo-difficulty-star"></i>
+                </div>
+                <span class="combo-difficulty-label">쉬움</span>
+              </div>
+              <div class="combo-difficulty-card" data-difficulty="mid" data-desc="7가지 key와 7코드들이 등장해요.">
+                <div class="combo-difficulty-stars">
+                  <i class="ph-fill ph-star combo-difficulty-star"></i>
+                  <i class="ph-fill ph-star combo-difficulty-star"></i>
+                </div>
+                <span class="combo-difficulty-label">보통</span>
+              </div>
+              <div class="combo-difficulty-card" data-difficulty="high" data-desc="모든 key, 모든 코드들이 등장해요.">
+                <div class="combo-difficulty-stars">
+                  <i class="ph-fill ph-star combo-difficulty-star"></i>
+                  <i class="ph-fill ph-star combo-difficulty-star"></i>
+                  <i class="ph-fill ph-star combo-difficulty-star"></i>
+                </div>
+                <span class="combo-difficulty-label">어려움</span>
+              </div>
+            </div>
+
+            <!-- 난이도 설명 -->
+            <p class="combo-difficulty-desc">필수 5가지 key와 쉬운코드 위주로 등장해요.</p>
+
+            <!-- 시작하기 -->
+            <button class="practice-gate-btn" onpointerup="comboStartTraining(event)">
+              <span>시작하기</span>
+              <span class="practice-gate-cost">
+                <img src="image/white_peak.svg" alt="" class="practice-gate-icon">
+                <span>x3</span>
+              </span>
+            </button>
+          </div>
+
+          <div class="combo-card" data-chapter="8">
+            <div class="combo-chapter-title">모달 인터체인지</div>
+
+            <div class="combo-info-card">
+              <div class="combo-tutorial-track">
+                <div class="combo-tutorial-page">
+                  <p class="combo-tutorial-text">패밀리코드에는 나오지 않는<br>다른 패밀리코드를 가져오는 것을<br>모달 인터체인지라고 해요.</p>
+                </div>
+                <div class="combo-tutorial-page">
+                  <p class="combo-tutorial-text">마이너 패밀리코드가 대표적인 예시예요!<br>Ckey 가족에 Cm key의 가족이<br>방문해서 새로운 분위기를 주어요!<br><br>시작음은 같지만 구성이 다른 관계를<br>'평행한 조'라고 불러요.</p>
+                </div>
+                <div class="combo-tutorial-page">
+                  <p class="combo-tutorial-text">평행한 조에는 C도리안, C리디안 등<br>다양한 평행한 조가 있어서,<br>빌려올 수 있는 코드들이 아주 많아요!</p>
+                </div>
+                <div class="combo-tutorial-page">
+                  <p class="combo-tutorial-text">하지만 주로 사용되는 것이 있어서,<br>기능별로 알려드릴게요.<br>이것만 외워도 크게 문제없어요!</p>
+                  <div class="combo-tutorial-degrees combo-tutorial-degrees--compact">
+                    <div class="combo-degree-split">
+                      <span class="combo-degree-chip">IM7</span>
+                      <span class="combo-tutorial-arrow">→</span>
+                      <div class="combo-degree-targets">
+                        <span class="combo-degree-chip">bIIIM7</span>
+                        <span class="combo-degree-chip">#IVm7<sup>(b5)</sup></span>
+                        <span class="combo-degree-chip">bVIM7</span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+                <div class="combo-tutorial-page">
+                  <div class="combo-tutorial-degrees combo-tutorial-degrees--compact combo-tutorial-degrees--split-gap">
+                    <div class="combo-degree-split">
+                      <span class="combo-degree-chip">IVM7</span>
+                      <span class="combo-tutorial-arrow">→</span>
+                      <div class="combo-degree-targets">
+                        <span class="combo-degree-chip">bIIM7</span>
+                        <span class="combo-degree-chip">IIm7<sup>(b5)</sup></span>
+                        <span class="combo-degree-chip">IVm7</span>
+                        <span class="combo-degree-chip">IVm6</span>
+                        <span class="combo-degree-chip">#IVm7<sup>(b5)</sup></span>
+                        <span class="combo-degree-chip">bVIM7</span>
+                      </div>
+                    </div>
+                    <div class="combo-degree-split">
+                      <span class="combo-degree-chip">V7</span>
+                      <span class="combo-tutorial-arrow">→</span>
+                      <div class="combo-degree-targets">
+                        <span class="combo-degree-chip">bIIM7</span>
+                        <span class="combo-degree-chip">IIm7<sup>(b5)</sup></span>
+                        <span class="combo-degree-chip">IVm7</span>
+                        <span class="combo-degree-chip">IVm6</span>
+                        <span class="combo-degree-chip">bVII7</span>
+                        <span class="combo-degree-chip">bVIM7</span>
+                        <span class="combo-degree-chip">bVIIM7</span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+              <div class="combo-tutorial-dots">
+                <span class="combo-tutorial-dot active"></span>
+                <span class="combo-tutorial-dot"></span>
+                <span class="combo-tutorial-dot"></span>
+                <span class="combo-tutorial-dot"></span>
+                <span class="combo-tutorial-dot"></span>
+              </div>
+            </div>
+
+            <!-- 난이도 선택 카드 3개 -->
+            <div class="combo-difficulty-row">
+              <div class="combo-difficulty-card active" data-difficulty="low" data-desc="필수 5가지 key와 쉬운코드 위주로 등장해요.">
+                <div class="combo-difficulty-stars">
+                  <i class="ph-fill ph-star combo-difficulty-star"></i>
+                </div>
+                <span class="combo-difficulty-label">쉬움</span>
+              </div>
+              <div class="combo-difficulty-card" data-difficulty="mid" data-desc="7가지 key와 7코드들이 등장해요.">
+                <div class="combo-difficulty-stars">
+                  <i class="ph-fill ph-star combo-difficulty-star"></i>
+                  <i class="ph-fill ph-star combo-difficulty-star"></i>
+                </div>
+                <span class="combo-difficulty-label">보통</span>
+              </div>
+              <div class="combo-difficulty-card" data-difficulty="high" data-desc="모든 key, 모든 코드들이 등장해요.">
+                <div class="combo-difficulty-stars">
+                  <i class="ph-fill ph-star combo-difficulty-star"></i>
+                  <i class="ph-fill ph-star combo-difficulty-star"></i>
+                  <i class="ph-fill ph-star combo-difficulty-star"></i>
+                </div>
+                <span class="combo-difficulty-label">어려움</span>
+              </div>
+            </div>
+
+            <!-- 난이도 설명 -->
+            <p class="combo-difficulty-desc">필수 5가지 key와 쉬운코드 위주로 등장해요.</p>
+
+            <!-- 시작하기 -->
+            <button class="practice-gate-btn" onpointerup="comboStartTraining(event)">
+              <span>시작하기</span>
+              <span class="practice-gate-cost">
+                <img src="image/white_peak.svg" alt="" class="practice-gate-icon">
+                <span>x3</span>
+              </span>
+            </button>
+          </div>
+          </div><!-- /combo-chapter-track -->
+        </div><!-- /combo-content -->
+
+      </div><!-- /combo-scroll -->
+      </div><!-- /combo-view-select -->
+
+      <!-- ── 퀴즈 뷰 ── -->
+      <div id="combo-view-quiz" class="quiz-view quiz-view--right">
+        <div class="combo-quiz-wrap">
+
+          <!-- ① 문제 영역 -->
+          <div class="combo-quiz-question">
+            <span class="combo-quiz-key">C key</span>
+            <span class="combo-quiz-prompt">주어진 진행을 순서대로 배치하세요</span>
+          </div>
+
+          <!-- ② 정답 배치 영역 (언더바 + 도수 라벨) -->
+          <div class="combo-quiz-answer" id="combo-quiz-answer">
+            <div class="combo-answer-slot">
+              <div class="combo-answer-drop"></div>
+              <span class="combo-answer-degree">I</span>
+            </div>
+            <div class="combo-answer-slot">
+              <div class="combo-answer-drop"></div>
+              <span class="combo-answer-degree">VIm</span>
+            </div>
+            <div class="combo-answer-slot">
+              <div class="combo-answer-drop"></div>
+              <span class="combo-answer-degree">IV</span>
+            </div>
+            <div class="combo-answer-slot">
+              <div class="combo-answer-drop"></div>
+              <span class="combo-answer-degree">V</span>
+            </div>
+            <div id="combo-answer-bracket" class="combo-answer-bracket" style="display:none"></div>
+          </div>
+
+          <!-- ③ 카드블록 영역 -->
+          <div class="combo-quiz-blocks" id="combo-quiz-blocks">
+            <div class="combo-block">C</div>
+            <div class="combo-block">Dm</div>
+            <div class="combo-block">Em</div>
+            <div class="combo-block">F</div>
+            <div class="combo-block">G</div>
+            <div class="combo-block">Am7</div>
+            <div class="combo-block">G7</div>
+          </div>
+
+          <!-- ④ 제출 버튼 -->
+          <button class="combo-quiz-submit" id="combo-quiz-submit" onpointerup="comboSubmitAnswer()">제출하기</button>
+
+        </div><!-- /combo-quiz-wrap -->
+      </div><!-- /combo-view-quiz -->
+
+    </div><!-- /main-content -->
+
+  </div><!-- /app-shell -->
+
+  <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.js"></script>
+  <script src="https://unpkg.com/@phosphor-icons/web"></script>
+  <script src="analytics-sdk.js"></script>
+  <script src="shared.js"></script>
+  <script src="chord-voicings.js"></script>
+  <script src="chords-library.js"></script>
+  <script src="guitar-samples.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/tone/14.8.49/Tone.js"></script>
+  <script src="guitar-audio.js"></script>
+  <script src="progression-voicing-list.js"></script>
+  <script src="progression-voicings.js"></script>
+  <script src="voicing-canvas.js"></script>
+  <script src="chord-combo-questions.js"></script>
+  <script src="chord-combo.js"></script>
+</body>
+</html>

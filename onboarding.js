@@ -3,9 +3,11 @@
 // 의존: shared.js (SUPABASE_*, APP_VERSION, analytics, _authReady 등)
 // ═══════════════════════════════════════════════════════════════
 
-// ── home.html로 이동 ──────────────────────────────────────────
+// ── 온보딩 관문 통과 → home.html(또는 보류된 푸시 딥링크)로 이동 ──
+// 여기서 세션 생존 마커를 세워야 이후 웜 진입이 온보딩을 건너뛴다.
 function goToHome() {
-  window.location.replace('home.html');
+  _markSessionAlive();
+  window.location.replace(_consumePushTarget() || 'home.html');
 }
 
 // ── 인앱 브라우저(임베디드 WebView) 감지 및 외부 브라우저 유도 ──
@@ -369,8 +371,9 @@ async function _routeAuthedUser() {
     }
   } catch (e) {}
   // persona 있음(또는 확인 실패) → 시작하기 welcome 표시
-  // 단, 공유 링크로 들어온 경우엔 탭 기다리지 않고 바로 진입(home.js가 pending code를 이어서 처리)
-  if (sessionStorage.getItem(PENDING_SHARE_CODE_KEY)) { goToHome(); return; }
+  // 단, 공유 링크·푸시 딥링크로 들어온 경우엔 탭 기다리지 않고 바로 진입
+  // (공유는 home.js가 pending code를 이어서 처리, 푸시는 goToHome이 목적지로 보냄)
+  if (sessionStorage.getItem(PENDING_SHARE_CODE_KEY) || _hasPushTarget()) { goToHome(); return; }
   _showOnboardingButtons();
 }
 
@@ -484,24 +487,6 @@ async function onboardingSignIn() {
   }
 }
 
-// ── 강제 업데이트 체크 ────────────────────────────────────────
-async function checkForceUpdate() {
-  if (!window.Capacitor?.isNativePlatform()) return;
-  try {
-    const res = await fetch(
-      `${SUPABASE_URL}/rest/v1/app_config?key=eq.min_version&select=value`,
-      { headers: { 'apikey': SUPABASE_ANON, 'Authorization': `Bearer ${SUPABASE_ANON}` } }
-    );
-    if (!res.ok) return;
-    const data = await res.json();
-    const minVersion = data?.[0]?.value;
-    if (!minVersion) return;
-    if (_compareVersion(APP_VERSION, minVersion) < 0) {
-      document.getElementById('force-update-overlay')?.classList.remove('hidden');
-    }
-  } catch(e) {}
-}
-
 // ── Android 세션 자동 복원 ────────────────────────────────────
 async function tryAutoSignIn() {
   if (!window.Capacitor?.isNativePlatform()) {
@@ -542,12 +527,17 @@ async function tryAutoSignIn() {
         });
         _authResolve();
         _obRouted = true;
-        _routeAuthedUser();
-        _billingReady.then(async () => {
+        const planSync = _billingReady.then(async () => {
           if (window._RC) await window._RC.logIn({ appUserID: session.user.id }).catch(() => {});
           await syncPlanFromBilling();
-          fetchPlanWithToken(session.access_token).catch(() => {});
+          await fetchPlanWithToken(session.access_token).catch(() => {});
         }).catch(() => {});
+        // 푸시 딥링크는 '시작하기' 탭 없이 곧바로 목적지로 가므로 plan 동기화를 기다린다.
+        // (안 기다리면 stale plan으로 analytics가 free로 기록됨) 느릴 때 무한대기 방지로 3초 컷.
+        if (_hasPushTarget()) {
+          await Promise.race([planSync, new Promise(r => setTimeout(r, 3000))]);
+        }
+        _routeAuthedUser();
         return;
       }
     }
@@ -565,7 +555,7 @@ async function tryAutoSignIn() {
 document.addEventListener('DOMContentLoaded', async () => {
   // ── DEV 빌드: 온보딩/로그인 건너뛰고 바로 홈으로 ────────────
   if (typeof APP_VERSION !== 'undefined' && APP_VERSION.includes('_dev')) {
-    window.location.replace('home.html');
+    goToHome();
     return;
   }
 
@@ -578,7 +568,8 @@ document.addEventListener('DOMContentLoaded', async () => {
   // 로딩 스피너 즉시 표시 (checkForceUpdate/initBilling 대기 중 빈 화면 방지)
   document.getElementById('onboarding-overlay')?.classList.remove('hidden');
 
-  await checkForceUpdate();
+  // 강제 업데이트 대상이면 여기서 완전히 멈춤 — 푸시 딥링크도 오버레이를 통과할 수 없다.
+  if (await checkForceUpdate()) return;
   await initBilling();
 
   // Android: GoogleAuth 1회 사전 초기화 (onboardingSignIn에서 재호출 시 상태 꼬임 방지)

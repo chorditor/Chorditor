@@ -102,6 +102,18 @@ const _ALLOWED_SLASH_SHAPES = [
   [null, 3, 2, 0, null, 2],
   [null, 0, 0, 0, 2, null],
   [0, 1, 0, 2, null, null],
+  // CM7/E: x r r+2 r+2 r+1 x (rootStr:6) → [null,1,2,2,0,null]
+  [null, 1, 2, 2, 0, null],
+  // CM7/E: x x r r+2 r+3 r+1 (rootStr:5) → [1,3,2,0,null,null]
+  [1, 3, 2, 0, null, null],
+  // C7/E: r+2 x r r+2 r+1 x (rootStr:6) → [null,1,2,0,null,2]
+  [null, 1, 2, 0, null, 2],
+  // C7/E: x r+2 x r r r+1 (rootStr:5) → [1,0,0,null,2,null]
+  [1, 0, 0, null, 2, null],
+  // C7/E: x r+2 r r r r+1 (rootStr:5) → [1,0,0,0,2,null]
+  [1, 0, 0, 0, 2, null],
+  // C7/E: x x r+1 r+2 r r+2 (rootStr:4) → [2,0,2,1,null,null]
+  [2, 0, 2, 1, null, null],
 ];
 
 function isAllowedSlashVoicing(v) {
@@ -139,6 +151,9 @@ function isAllowedSlashVoicing(v) {
 // dim7  rootStr:6  r+2 x r+1 r+2 r+1 x       → [null,0,1,0,null,1]
 // dim7  rootStr:5  x r+1 r+2 r r+2 x         → [null,2,0,2,1,null]
 // dim7  rootStr:4  x x r+1 r+2 r+1 r+2       → [1,0,1,0,null,null]
+// dim   rootStr:6  r+1 r+2 r+3 r+1 x x       → [null,null,0,2,1,0]
+// dim   rootStr:5  x r+1 r+2 r+3 r+2 x       → [null,1,2,1,0,null]
+// dim   rootStr:4  x x r+1 r+2 x r+2         → [1,null,1,0,null,null]
 const _ALLOWED_PATTERN_SHAPES = [
   [0, 0, 1, 2, 2, 0],         // M rootStr:6
   [0, 2, 2, 2, 0, null],      // M rootStr:5
@@ -153,6 +168,7 @@ const _ALLOWED_PATTERN_SHAPES = [
   [2, 2, 2, 0, null, null],   // M7 rootStr:4
   [0, 0, 1, 0, 2, 0],         // 7 rootStr:6
   [0, 2, 0, 2, 0, null],      // 7 rootStr:5
+  [null, 0, 2, 1, 2, null],   // 7 rootStr:5 (alt — m7(b5) 쉘 뒤 ii→V 연결용)
   [2, 1, 2, 0, null, null],   // 7 rootStr:4
   [null, 0, 0, 0, null, 0],   // m7 rootStr:6
   [0, 1, 0, 2, 0, null],      // m7 rootStr:5
@@ -163,6 +179,9 @@ const _ALLOWED_PATTERN_SHAPES = [
   [null, 0, 1, 0, null, 1],   // dim7 rootStr:6
   [null, 2, 0, 2, 1, null],   // dim7 rootStr:5
   [1, 0, 1, 0, null, null],   // dim7 rootStr:4
+  [null, null, 0, 2, 1, 0],   // dim rootStr:6
+  [null, 1, 2, 1, 0, null],   // dim rootStr:5
+  [1, null, 1, 0, null, null],// dim rootStr:4
   [0, 0, 2, 0, 2, 0],         // 7sus4 rootStr:6
   [0, 3, 0, 2, 0, null],      // 7sus4 rootStr:5
   [3, 1, 2, 0, null, null],   // 7sus4 rootStr:4
@@ -179,6 +198,59 @@ function isAllowedPatternVoicing(v) {
   if (!v || v.source !== 'pattern') return false;
   const shape = _shapeOf(v.frets);
   return _ALLOWED_PATTERN_SHAPES.some(allowed =>
+    allowed.every((f, i) => f === shape[i])
+  );
+}
+
+// ── 4. 텐션(Tension) 허용 보이싱 ─────────────────────────────
+// chord-voicings.js quality:'tension' 항목의 fret shape 허용 목록
+const _ALLOWED_TENSION_SHAPES = [
+  [0, 1, 2, 2, null, 0],       // 7sus4(b13) rootStr:6
+  [null, 0, 1, 2, null, 2],    // 7sus4(9) rootStr:6
+  [null, 0, 0, 0, 0, null],    // 7sus4(9) rootStr:5
+  [0, 1, 0, 0, null, null],    // 7sus4(9) rootStr:4
+  [2, 0, 1, 1, null, 0],       // M7(9) rootStr:6
+  [null, 1, 2, 0, 1, null],    // M7(9) rootStr:5
+  [0, 0, 1, 2, 0, null],       // M7(9) rootStr:5 (alt)
+  [0, 2, 2, 0, null, null],    // M7(9) rootStr:4
+  [null, 0, 2, 2, null, 1],    // M7(#11) rootStr:6
+  [null, 2, 1, 1, 0, null],    // M7(#11) rootStr:5
+  [2, 2, 1, 0, null, null],    // M7(#11) rootStr:4
+  [null, 2, 1, 1, null, 0],    // M7(13) rootStr:6
+  [2, 2, 1, null, 0, null],    // M7(13) rootStr:5
+  [2, 0, 0, 0, 2, 0],          // m7(9) rootStr:6
+  [null, 2, 2, 0, 2, null],    // m7(9) rootStr:5
+  [2, 3, 0, 2, null, null],    // m7(9) rootStr:4
+  [null, 0, 2, 2, null, 2],    // m7(11) rootStr:6
+  [0, 0, 2, 2, null, 2],       // m7(11) rootStr:6 (alt)
+  [0, 3, 2, null, 2, null],    // m7(11) rootStr:5
+  [null, 2, 0, 0, null, 0],    // m7(13) rootStr:6
+  [2, 1, 0, null, 0, null],    // m7(13) rootStr:6 (alt fingering)
+  [1, 0, 1, 0, null, 0],       // 7(b9) rootStr:6
+  [null, 0, 1, 0, 1, null],    // 7(b9) rootStr:5
+  [0, 2, 0, 1, null, null],    // 7(b9) rootStr:4
+  [2, 0, 1, 0, null, 0],       // 7(9) rootStr:6
+  [null, 1, 1, 0, 1, null],    // 7(9) rootStr:5
+  [0, 0, 0, 2, 0, null],       // 7(9) rootStr:5 (alt)
+  [0, 1, 2, 0, null, null],    // 7(9) rootStr:4
+  [1, 2, 0, 1, null, null],    // 7(9) rootStr:4 (alt)
+  [3, 0, 1, 0, 2, 0],          // 7(#9) rootStr:6
+  [null, 2, 1, 0, 1, null],    // 7(#9) rootStr:5
+  [2, 2, 0, 1, null, null],    // 7(#9) rootStr:4
+  [null, 0, 2, 1, null, 1],    // 7(#11) rootStr:6
+  [null, 2, 1, 0, 1, null],    // 7(#11) rootStr:5 (dup shape w/ #9, harmless)
+  [2, 1, 1, 0, null, null],    // 7(#11) rootStr:4
+  [1, 0, 1, 0, null, 0],       // 7(b13) rootStr:6 (dup shape w/ b9, harmless)
+  [1, 2, 0, 2, 0, null],       // 7(b13) rootStr:5
+  [1, 2, 0, null, 0, null],    // 7(b13) rootStr:5 (alt)
+  [3, 0, 1, 0, 2, 0],          // 7(13) rootStr:6 (dup shape w/ #9, harmless)
+  [2, 2, 0, null, 0, null],    // 7(13) rootStr:5
+];
+
+function isAllowedTensionVoicing(v) {
+  if (!v || v.quality !== 'tension' || v.source !== 'pattern') return false;
+  const shape = _shapeOf(v.frets);
+  return _ALLOWED_TENSION_SHAPES.some(allowed =>
     allowed.every((f, i) => f === shape[i])
   );
 }

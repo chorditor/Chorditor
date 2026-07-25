@@ -1311,3 +1311,160 @@ begin
 end;
 $$;
 grant execute on function public.claim_strum_quest() to authenticated;
+
+
+-- ───────────────────────────────────────────────────────────
+-- 퀘스트: 코드 조합 훈련 (1~8장)
+--   장별 완료/퍼펙트 카운터는 quiz_level_stats 같은 전용 테이블이 없어서
+--   챌린지 퀘스트(challenge_perfect/challenge_claimed)와 동일하게 subscriptions jsonb로 관리.
+--   combo_completed {chapter:n}  = 10문제 세션 완료 누적(정답 무관, 세션 종료 시 +1).
+--   combo_perfect   {chapter:n}  = 그 중 퍼펙트(10/10) 세션 누적.
+--   combo_lvl_quest_claimed      = 1회성 레벨퀘스트 마지막 수령 장(순차 1~8).
+--   combo_perfect_claimed {chapter:n} = 반복 퍼펙트퀘스트 장별 수령 횟수.
+--   1회성 보상: 1·2장→상자1, 3~5장→상자2, 6~8장→상자3 (코드맞추기 레벨퀘스트와 동일 곡선).
+--   반복 보상(퍼펙트 3회마다): 1·2장→상자3, 3~5장→상자5, 6~8장→상자8.
+-- ───────────────────────────────────────────────────────────
+
+alter table public.subscriptions
+  add column if not exists combo_completed         jsonb   not null default '{}'::jsonb,
+  add column if not exists combo_perfect            jsonb   not null default '{}'::jsonb,
+  add column if not exists combo_perfect_claimed     jsonb   not null default '{}'::jsonb,
+  add column if not exists combo_lvl_quest_claimed   integer not null default 0;
+
+-- 세션 종료 시 클라가 호출: 해당 장 완료 +1, 퍼펙트면 퍼펙트도 +1 (원자적으로 한 번에).
+create or replace function public.increment_combo_complete(p_chapter integer, p_perfect boolean default false)
+returns json language plpgsql security definer set search_path = public
+as $$
+declare v_completed integer; v_perfect integer;
+begin
+  if p_chapter < 1 or p_chapter > 8 then return json_build_object('ok', false, 'reason', 'bad_chapter'); end if;
+  select coalesce((combo_completed ->> p_chapter::text)::int, 0),
+         coalesce((combo_perfect   ->> p_chapter::text)::int, 0)
+    into v_completed, v_perfect
+    from public.subscriptions where user_id = auth.uid() for update;
+  if not found then return json_build_object('ok', false, 'reason', 'no_row'); end if;
+  v_completed := v_completed + 1;
+  if p_perfect then v_perfect := v_perfect + 1; end if;
+  update public.subscriptions
+    set combo_completed = jsonb_set(coalesce(combo_completed, '{}'::jsonb), array[p_chapter::text], to_jsonb(v_completed)),
+        combo_perfect   = jsonb_set(coalesce(combo_perfect,   '{}'::jsonb), array[p_chapter::text], to_jsonb(v_perfect))
+    where user_id = auth.uid();
+  return json_build_object('ok', true, 'completed', v_completed, 'perfect', v_perfect);
+end;
+$$;
+grant execute on function public.increment_combo_complete(integer, boolean) to authenticated;
+
+-- ── 1회성: 장 첫 완료 (순차 1~8) ──
+create or replace function public._combo_lvl_reward(p_chapter integer)
+returns integer language sql immutable as $$
+  select case when p_chapter <= 2 then 1 when p_chapter <= 5 then 2 else 3 end;
+$$;
+
+create or replace function public.get_combo_level_quest()
+returns json language plpgsql security definer set search_path = public
+as $$
+declare v_claimed integer; v_next integer; v_done integer; v_completed jsonb;
+begin
+  select combo_lvl_quest_claimed, coalesce(combo_completed, '{}'::jsonb)
+    into v_claimed, v_completed
+    from public.subscriptions where user_id = auth.uid();
+  v_claimed := coalesce(v_claimed, 0);
+  v_next := v_claimed + 1;
+  if v_next > 8 then
+    return json_build_object('claimed', v_claimed, 'next_level', 0, 'reward', 0, 'done', 0);
+  end if;
+  v_done := coalesce((v_completed ->> v_next::text)::int, 0);
+  return json_build_object('claimed', v_claimed, 'next_level', v_next,
+    'reward', public._combo_lvl_reward(v_next), 'done', v_done);
+end;
+$$;
+grant execute on function public.get_combo_level_quest() to authenticated;
+
+create or replace function public.claim_combo_level_quest()
+returns json language plpgsql security definer set search_path = public
+as $$
+declare v_claimed integer; v_next integer; v_done integer; v_reward integer; v_completed jsonb;
+begin
+  select combo_lvl_quest_claimed, coalesce(combo_completed, '{}'::jsonb)
+    into v_claimed, v_completed
+    from public.subscriptions where user_id = auth.uid() for update;
+  if not found then return json_build_object('ok', false, 'reason', 'no_row'); end if;
+  v_claimed := coalesce(v_claimed, 0);
+  v_next := v_claimed + 1;
+  if v_next > 8 then return json_build_object('ok', false, 'reason', 'done'); end if;
+  v_done := coalesce((v_completed ->> v_next::text)::int, 0);
+  if v_done < 1 then
+    return json_build_object('ok', false, 'reason', 'not_reached',
+      'next_level', v_next, 'reward', public._combo_lvl_reward(v_next));
+  end if;
+  v_reward := public._combo_lvl_reward(v_next);
+  update public.subscriptions
+    set peakbox_count = peakbox_count + v_reward, combo_lvl_quest_claimed = v_next
+    where user_id = auth.uid();
+  return json_build_object('ok', true, 'claimed_level', v_next, 'reward', v_reward,
+    'next_level', case when v_next + 1 > 8 then 0 else v_next + 1 end);
+end;
+$$;
+grant execute on function public.claim_combo_level_quest() to authenticated;
+
+-- ── 반복: 장별 퍼펙트 3회마다 (장 독립, 1~8) ──
+create or replace function public._combo_perfect_reward(p_chapter integer)
+returns integer language sql immutable as $$
+  select case when p_chapter <= 2 then 3 when p_chapter <= 5 then 5 else 8 end;
+$$;
+create or replace function public._combo_perfect_xp(p_chapter integer)
+returns integer language sql immutable as $$
+  select case when p_chapter <= 2 then 300 when p_chapter <= 5 then 500 else 750 end;
+$$;
+
+create or replace function public.get_combo_perfect_quest()
+returns json language plpgsql security definer set search_path = public
+as $$
+declare v_perfect jsonb; v_claimed jsonb;
+begin
+  select coalesce(combo_perfect, '{}'::jsonb), coalesce(combo_perfect_claimed, '{}'::jsonb)
+    into v_perfect, v_claimed
+    from public.subscriptions where user_id = auth.uid();
+  if not found then v_perfect := '{}'::jsonb; v_claimed := '{}'::jsonb; end if;
+  return (
+    select coalesce(json_agg(json_build_object(
+      'level',   ch,
+      'perfect', coalesce((v_perfect ->> ch::text)::int, 0),
+      'earned',  coalesce((v_perfect ->> ch::text)::int, 0) / 3,
+      'claimed', coalesce((v_claimed ->> ch::text)::int, 0),
+      'reward',  public._combo_perfect_reward(ch),
+      'xp',      public._combo_perfect_xp(ch)
+    ) order by ch), '[]'::json)
+    from generate_series(1, 8) ch
+  );
+end;
+$$;
+grant execute on function public.get_combo_perfect_quest() to authenticated;
+
+create or replace function public.claim_combo_perfect_quest(p_chapter integer)
+returns json language plpgsql security definer set search_path = public
+as $$
+declare
+  v_perfect jsonb; v_claimed jsonb; v_p integer; v_earned integer; v_c integer; v_reward integer;
+begin
+  if p_chapter < 1 or p_chapter > 8 then return json_build_object('ok', false, 'reason', 'bad_chapter'); end if;
+  select coalesce(combo_perfect, '{}'::jsonb), coalesce(combo_perfect_claimed, '{}'::jsonb)
+    into v_perfect, v_claimed
+    from public.subscriptions where user_id = auth.uid() for update;
+  if not found then return json_build_object('ok', false, 'reason', 'no_row'); end if;
+  v_p := coalesce((v_perfect ->> p_chapter::text)::int, 0);
+  v_earned := v_p / 3;
+  v_c := coalesce((v_claimed ->> p_chapter::text)::int, 0);
+  if v_earned <= v_c then
+    return json_build_object('ok', false, 'reason', 'not_reached', 'level', p_chapter, 'earned', v_earned, 'claimed', v_c);
+  end if;
+  v_reward := public._combo_perfect_reward(p_chapter);
+  update public.subscriptions
+    set peakbox_count = peakbox_count + v_reward,
+        combo_perfect_claimed = jsonb_set(coalesce(combo_perfect_claimed, '{}'::jsonb),
+                                          array[p_chapter::text], to_jsonb(v_c + 1))
+    where user_id = auth.uid();
+  return json_build_object('ok', true, 'level', p_chapter, 'reward', v_reward, 'claimed', v_c + 1, 'earned', v_earned);
+end;
+$$;
+grant execute on function public.claim_combo_perfect_quest(integer) to authenticated;

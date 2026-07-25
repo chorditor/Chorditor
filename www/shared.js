@@ -6,7 +6,7 @@
 // ── 상수 ─────────────────────────────────────────────────────
 const SUPABASE_URL  = 'https://jbvkygeksohlysyvaoab.supabase.co';
 const SUPABASE_ANON = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Impidmt5Z2Vrc29obHlzeXZhb2FiIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzYzOTk5NjgsImV4cCI6MjA5MTk3NTk2OH0.6RSgChy0Yq0H2TJpZPSoMKQ2V-OYfR0XzE1aJBBZkXI';
-const APP_VERSION   = '1.3.0';
+const APP_VERSION   = '1.3.1_dev1';
 const SUPABASE_STORAGE_KEY = 'sb-jbvkygeksohlysyvaoab-auth-token';
 
 // ── Analytics SDK ─────────────────────────────────────────────
@@ -1142,6 +1142,44 @@ function openPlayStore() {
   } else {
     window.open(url, '_blank');
   }
+}
+
+// onboarding.html은 정적 마크업 있음 → 그대로 사용. 다른 페이지는 마크업이 없어
+// 딥링크로 바로 진입해도 강제 업데이트가 노출되도록 동적 생성.
+function _ensureForceUpdateOverlay() {
+  let el = document.getElementById('force-update-overlay');
+  if (el) return el;
+  el = document.createElement('div');
+  el.className = 'onboarding-overlay hidden';
+  el.id = 'force-update-overlay';
+  el.innerHTML = `
+    <div class="onboarding-card">
+      <div class="onboarding-logo">CHORDITOR</div>
+      <p class="onboarding-desc" style="margin-bottom:8px;">새로운 버전이 출시되었습니다.</p>
+      <p class="onboarding-desc" style="font-size:13px;opacity:0.7;margin-bottom:24px;">계속 사용하려면 최신 버전으로 업데이트해 주세요.</p>
+      <button class="onboarding-start-btn" onclick="openPlayStore()">업데이트 하기</button>
+    </div>`;
+  document.body.appendChild(el);
+  return el;
+}
+
+// 온보딩 화면뿐 아니라 모든 페이지 진입(딥링크 포함)에서 체크 — initPushNotifications()와
+// 같은 전역 DOMContentLoaded 훅에서 호출됨.
+async function checkForceUpdate() {
+  if (!window.Capacitor?.isNativePlatform()) return;
+  try {
+    const res = await fetch(
+      `${SUPABASE_URL}/rest/v1/app_config?key=eq.min_version&select=value`,
+      { headers: { 'apikey': SUPABASE_ANON, 'Authorization': `Bearer ${SUPABASE_ANON}` } }
+    );
+    if (!res.ok) return;
+    const data = await res.json();
+    const minVersion = data?.[0]?.value;
+    if (!minVersion) return;
+    if (_compareVersion(APP_VERSION, minVersion) < 0) {
+      _ensureForceUpdateOverlay().classList.remove('hidden');
+    }
+  } catch(e) {}
 }
 
 // ── 앱 자체 공유(초대) ──────────────────────────────────────────
@@ -3494,7 +3532,7 @@ if (typeof window !== 'undefined') {
   window.initPushNotifications = initPushNotifications;
   window._savePushToken = _savePushToken;
   window.__pushApplyEnabled = __pushApplyEnabled;
-  document.addEventListener('DOMContentLoaded', () => { initPushNotifications(); });
+  document.addEventListener('DOMContentLoaded', () => { initPushNotifications(); checkForceUpdate(); });
 }
 
 // ── 리뷰/평점 유도 시스템 ───────────────────────────────────

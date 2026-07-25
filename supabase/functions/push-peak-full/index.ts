@@ -107,8 +107,30 @@ async function fetchTargets(): Promise<PeakFullTarget[]> {
   return await resp.json();
 }
 
+// push_message_templates(category='peak_full')에서 랜덤 1개 조회. 실패/빈 테이블이면 기본 문구로 폴백.
+async function fetchRandomMessage(): Promise<{ title: string; body: string }> {
+  const fallback = { title: '픽이 가득 찼어요!', body: '픽 30개 완충! 지금 코드 연습을 시작해보세요.' };
+  try {
+    const resp = await fetch(`${SUPABASE_URL}/rest/v1/rpc/get_random_push_message`, {
+      method: 'POST',
+      headers: {
+        'apikey': SERVICE_ROLE,
+        'Authorization': `Bearer ${SERVICE_ROLE}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ p_category: 'peak_full' }),
+    });
+    if (!resp.ok) return fallback;
+    const rows = await resp.json();
+    return rows?.[0] ?? fallback;
+  } catch (_) {
+    return fallback;
+  }
+}
+
+// 응답 status 미확인 시 실패해도 sent 처리되어 다음 사이클에 중복발송됨 → 반드시 체크.
 async function markNotified(userId: string, candidateFullAt: string): Promise<void> {
-  await fetch(`${SUPABASE_URL}/rest/v1/rpc/mark_peak_full_notified`, {
+  const resp = await fetch(`${SUPABASE_URL}/rest/v1/rpc/mark_peak_full_notified`, {
     method: 'POST',
     headers: {
       'apikey': SERVICE_ROLE,
@@ -117,6 +139,7 @@ async function markNotified(userId: string, candidateFullAt: string): Promise<vo
     },
     body: JSON.stringify({ p_user_id: userId, p_at: candidateFullAt }),
   });
+  if (!resp.ok) throw new Error(`markNotified failed ${resp.status}: ${await resp.text()}`);
 }
 
 async function deleteToken(token: string): Promise<void> {
@@ -124,6 +147,36 @@ async function deleteToken(token: string): Promise<void> {
     method: 'DELETE',
     headers: { 'apikey': SERVICE_ROLE, 'Authorization': `Bearer ${SERVICE_ROLE}` },
   });
+}
+
+// cron(30분)과 수동 트리거, 또는 실행 지연으로 다음 cron과 겹치는 경우 같은 대상에게
+// 중복발송될 수 있음 → 원자적 락으로 동시 실행 자체를 차단(TTL 90초로 자동 만료).
+async function acquireLock(): Promise<boolean> {
+  const resp = await fetch(`${SUPABASE_URL}/rest/v1/rpc/acquire_peak_full_lock`, {
+    method: 'POST',
+    headers: {
+      'apikey': SERVICE_ROLE,
+      'Authorization': `Bearer ${SERVICE_ROLE}`,
+      'Content-Type': 'application/json',
+    },
+    body: '{}',
+  });
+  if (!resp.ok) return false; // 락 상태 불확실 → 안전하게 이번 실행은 스킵
+  return await resp.json();
+}
+
+async function releaseLock(): Promise<void> {
+  try {
+    await fetch(`${SUPABASE_URL}/rest/v1/rpc/release_peak_full_lock`, {
+      method: 'POST',
+      headers: {
+        'apikey': SERVICE_ROLE,
+        'Authorization': `Bearer ${SERVICE_ROLE}`,
+        'Content-Type': 'application/json',
+      },
+      body: '{}',
+    });
+  } catch (_e) { /* TTL(90초)로 자동 만료되므로 실패해도 영구 락 아님 */ }
 }
 
 // 법정 광고성 정보 발송 제한시간대: 21:00~08:00 KST
@@ -135,9 +188,17 @@ function isNightRestricted(): boolean {
 }
 
 Deno.serve(async (_req) => {
+  let locked = false;
   try {
     if (isNightRestricted()) {
       return new Response(JSON.stringify({ skipped: 'night_restricted' }), {
+        headers: { 'Content-Type': 'application/json' },
+      });
+    }
+
+    locked = await acquireLock();
+    if (!locked) {
+      return new Response(JSON.stringify({ skipped: 'already_running' }), {
         headers: { 'Content-Type': 'application/json' },
       });
     }
@@ -149,21 +210,28 @@ Deno.serve(async (_req) => {
     let sent = 0, failed = 0, pruned = 0;
 
     for (const t of targets) {
-      const r = await fcmSend(
-        sa, accessToken, t.token,
-        '픽이 가득 찼어요!',
-        '픽 30개 완충! 지금 코드 연습을 시작해보세요.',
-        { entry: 'peak_full' },
-      );
-      if (r.ok) {
-        await markNotified(t.user_id, t.candidate_full_at);
-        sent++;
-      } else {
-        failed++;
-        if (r.status === 404 || /UNREGISTERED|INVALID_ARGUMENT/.test(r.text)) {
-          await deleteToken(t.token);
-          pruned++;
+      try {
+        const msg = await fetchRandomMessage();
+        const r = await fcmSend(
+          sa, accessToken, t.token,
+          msg.title,
+          msg.body,
+          { entry: 'peak_full' },
+        );
+        if (r.ok) {
+          await markNotified(t.user_id, t.candidate_full_at);
+          sent++;
+        } else {
+          failed++;
+          if (r.status === 404 || /UNREGISTERED|INVALID_ARGUMENT/.test(r.text)) {
+            await deleteToken(t.token);
+            pruned++;
+          }
         }
+      } catch (_e) {
+        // 이 유저 처리 중 예외(markNotified 실패 등) → 다음 사이클에 재시도되도록 실패로만 카운트,
+        // 나머지 대상 처리는 중단하지 않음.
+        failed++;
       }
     }
 
@@ -174,5 +242,7 @@ Deno.serve(async (_req) => {
     return new Response(JSON.stringify({ error: String(e) }), {
       status: 500, headers: { 'Content-Type': 'application/json' },
     });
+  } finally {
+    if (locked) await releaseLock();
   }
 });

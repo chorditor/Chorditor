@@ -207,6 +207,11 @@ window.CHORD_PATTERN = [
   { pattern: 'x r r+2 r+2 r r', rootStr: 5, fingers: 'x 1 3 4 1 1', barre: true, quality: 'sus2', name: (r, flat) => chordNoteName(1, r, flat) + 'sus2'},
   { pattern: 'x x r r+2 r+3 r', rootStr: 4, fingers: 'x x 1 3 4 1', barre: true, quality: 'sus2', name: (r, flat) => chordNoteName(2, r, flat) + 'sus2'},
 
+  //dim 코드
+  { pattern: 'r+1 r+2 r+3 r+1 x x', rootStr: 6, fingers: '1 2 3 1 x x', barre: true, quality: 'dim', name: (r, flat) => chordNoteName(0, r+1, flat) + 'dim'},
+  { pattern: 'x r+1 r+2 r+3 r+2 x', rootStr: 5, fingers: 'x 1 2 4 3 x', barre: false, quality: 'dim', name: (r, flat) => chordNoteName(1, r+1, flat) + 'dim'},
+  { pattern: 'x x r+1 r+2 x r+2', rootStr: 4, fingers: 'x x 1 2 x 3', barre: false, quality: 'dim', name: (r, flat) => chordNoteName(2, r+1, flat) + 'dim'},
+  
   // ── 7th 코드 ─────────────────────────────────────
   // M7 코드 (CAGED 시스템)
   { pattern: 'r r+2 r+1 r+1 r r', rootStr: 6, fingers: '1 4 2 3 1 1', barre: true, quality: 'M7', name: (r, flat) => chordNoteName(0, r, flat) + 'M7'},
@@ -274,6 +279,10 @@ window.CHORD_PATTERN = [
   { pattern: 'x r+2 r r r r+3', rootStr: 5, fingers: 'x 3 1 1 1 4', barre: true, quality: 'slash', name: (r, flat) => chordNoteName(3, r, flat) + '/' + chordNoteName(1, r+2, flat)},
   { pattern: 'x r r+3 r+2 r+1 x', rootStr: 5, fingers: 'x 1 4 3 2 x', barre: false, quality: 'slash', name: (r, flat) => chordNoteName(2, r+3, flat) + '/' + chordNoteName(1, r, flat)},
   { pattern: 'x x r+2 r r+1 r', rootStr: 4, fingers: 'x x 3 1 2 1', barre: true, quality: 'slash', name: (r, flat) => chordNoteName(4, r+1, flat) + '/' + chordNoteName(2, r+2, flat)},
+  // 1전위 코드 (CM7/E)
+  { pattern: 'x r r+2 r+2 r+1 x', rootStr: 6, fingers: 'x 1 3 4 2 x', barre: false, quality: 'slash', name: (r, flat) => chordNoteName(0, r+1, flat) + 'M7' + '/' + chordNoteName(1, r, flat)},
+  { pattern: 'x x r r+2 r+3 r+1', rootStr: 5, fingers: 'x x 1 3 4 2', barre: false, quality: 'slash', name: (r, flat) => chordNoteName(1, r+1, flat) + 'M7' + '/' + chordNoteName(2, r, flat)},
+
   // 1전위 코드 (C7/E)
   { pattern: 'r+2 x r r+2 r+1 x', rootStr: 6, fingers: '3 x 1 4 2 x', barre: false, quality: 'slash', name: (r, flat) => chordNoteName(2, r, flat) + '7' + '/' + chordNoteName(0, r+2, flat)},
   { pattern: 'x r+2 x r r r+1', rootStr: 5, fingers: 'x 3 x 1 1 2', barre: true, quality: 'slash', name: (r, flat) => chordNoteName(3, r, flat) + '7' + '/' + chordNoteName(1, r+2, flat)},
@@ -356,10 +365,18 @@ window.CHORD_PATTERN = [
 
   // ── 텐션 코드(미완성) ─────────────────────────────────────
   // CM7(9)
-  { pattern: 'r x r+1 r+1 r r+2', rootStr: 6, fingers: 'T x 2 3 1 4', barre: false, quality: 'tension', name: (r, flat) => chordNoteName(0, r, flat) + 'M7' + '(9)'},
+  { pattern: 'r+1 x r+2 r+2 r+1 r+3', rootStr: 6, fingers: 'T x 2 3 1 4', barre: false, quality: 'tension', name: (r, flat) => chordNoteName(0, r+1, flat) + 'M7' + '(9)'},
   { pattern: 'x r+1 r r+2 r+1 x', rootStr: 5, fingers: 'x 2 1 4 3 x', barre: false, quality: 'tension', name: (r, flat) => chordNoteName(1, r+1, flat) + 'M7' + '(9)'},
   { pattern: 'x r r+2 r+1 r r', rootStr: 5, fingers: 'x 1 3 2 1 1', barre: true, quality: 'tension', name: (r, flat) => chordNoteName(1, r, flat) + 'M7' + '(9)'},
   { pattern: 'x x r r+2 r+2 r', rootStr: 4, fingers: 'x x 1 3 4 1', barre: true, quality: 'tension', name: (r, flat) => chordNoteName(2, r, flat) + 'M7' + '(9)'},
+  // CM7(#11)
+  { pattern: 'r+1 x r+2 r+2 r x', rootStr: 6, fingers: 'T x 2 3 1 x', barre: false, quality: 'tension', name: (r, flat) => chordNoteName(0, r+1, flat) + 'M7' + '(#11)'},
+  { pattern: 'x r+1 r+2 r+2 r+3 x', rootStr: 5, fingers: 'x 1 2 3 4 x', barre: false, quality: 'tension', name: (r, flat) => chordNoteName(1, r+1, flat) + 'M7' + '(#11)'},
+  { pattern: 'x x r+1 r+2 r+3 r+3', rootStr: 4, fingers: 'x x 1 2 3 4', barre: false, quality: 'tension', name: (r, flat) => chordNoteName(2, r+1, flat) + 'M7' + '(#11)'},
+  // CM7(13)
+  { pattern: 'r+1 x r+2 r+2 r+3 x', rootStr: 6, fingers: 'T x 2 3 4 x', barre: false, quality: 'tension', name: (r, flat) => chordNoteName(0, r+1, flat) + 'M7' + '(13)'},
+  { pattern: 'x r+1 x r+2 r+3 r+3', rootStr: 5, fingers: 'x 1 x 2 3 4', barre: false, quality: 'tension', name: (r, flat) => chordNoteName(1, r+1, flat) + 'M7' + '(13)'},
+
   // Cm7(9)
   { pattern: 'r r+2 r r r r+2', rootStr: 6, fingers: '1 3 1 1 1 4', barre: true, quality: 'tension', name: (r, flat) => chordNoteName(0, r, flat) + 'm7' + '(9)'},
   { pattern: 'x r+2 r r+2 r+2 x', rootStr: 5, fingers: 'x 2 1 3 4 x', barre: false, quality: 'tension', name: (r, flat) => chordNoteName(1, r+2, flat) + 'm7' + '(9)'},
@@ -368,6 +385,10 @@ window.CHORD_PATTERN = [
   { pattern: 'r+2 x r+2 r+2 r x', rootStr: 6, fingers: '2 x 3 4 1 x', barre: false, quality: 'tension', name: (r, flat) => chordNoteName(0, r+2, flat) + 'm7' + '(11)'},
   { pattern: 'r+2 x r+2 r+2 r r', rootStr: 6, fingers: '2 x 3 4 1 1', barre: true, quality: 'tension', name: (r, flat) => chordNoteName(0, r+2, flat) + 'm7' + '(11)'},
   { pattern: 'x r+2 x r+2 r+3 r', rootStr: 5, fingers: 'x 2 x 3 4 1', barre: false, quality: 'tension', name: (r, flat) => chordNoteName(1, r+2, flat) + 'm7' + '(11)'},
+  // Cm7(13)
+  { pattern: 'r+1 x r+1 r+1 r+3 x', rootStr: 6, fingers: '1 x 1 1 4 x', barre: true, quality: 'tension', name: (r, flat) => chordNoteName(0, r+1, flat) + 'm7' + '(13)'},
+  { pattern: 'x r+1 x r+1 r+2 r+3', rootStr: 6, fingers: 'x 1 x 2 3 4', barre: false, quality: 'tension', name: (r, flat) => chordNoteName(1, r+1, flat) + 'm7' + '(13)'},
+
   // C7(b9)
   { pattern: 'r x r r+1 r r+1', rootStr: 6, fingers: '1 x 1 2 1 3', barre: true, quality: 'tension', name: (r, flat) => chordNoteName(0, r, flat) + '7' + '(b9)'},
   { pattern: 'x r+2 r+1 r+2 r+1 x', rootStr: 5, fingers: 'x 2 1 3 1 x', barre: true, quality: 'tension', name: (r, flat) => chordNoteName(1, r+2, flat) + '7' + '(b9)'},
