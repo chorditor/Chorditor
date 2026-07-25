@@ -649,22 +649,41 @@
                   <p class="combo-tutorial-text">코드를 더 꾸미기 위해서<br>텐션이라는 걸 사용해요.<br><br>1 3 5 7음에서 사용하지 않은<br>나머지 음들을 사용해요.</p>
                 </div>
                 <div class="combo-tutorial-page">
-                  <p class="combo-tutorial-text">기본적으로는 이렇게 넣을 수 있어요.</p>
-                  <div class="combo-tension-rows">
-                    <div class="combo-tension-row">
-                      <span class="combo-tension-quality">M7</span>
-                      <span class="combo-tension-plus">+</span>
-                      <span class="combo-tension-list">9, #11, 13</span>
+                  <p class="combo-tutorial-text">기능에 따라 어울리는 텐션 조합이에요!</p>
+                  <div class="combo-tension-rows combo-tension-rows--degree">
+                    <div class="combo-tension-pair">
+                      <div class="combo-tension-row">
+                        <span class="combo-tension-quality">IM7</span>
+                        <span class="combo-tension-plus">+</span>
+                        <span class="combo-tension-list">9, 13</span>
+                      </div>
+                      <div class="combo-tension-row">
+                        <span class="combo-tension-quality">IIm7</span>
+                        <span class="combo-tension-plus">+</span>
+                        <span class="combo-tension-list">9, 11</span>
+                      </div>
+                    </div>
+                    <div class="combo-tension-pair">
+                      <div class="combo-tension-row">
+                        <span class="combo-tension-quality">IIIm7</span>
+                        <span class="combo-tension-plus">+</span>
+                        <span class="combo-tension-list">11</span>
+                      </div>
+                      <div class="combo-tension-row">
+                        <span class="combo-tension-quality">IVM7</span>
+                        <span class="combo-tension-plus">+</span>
+                        <span class="combo-tension-list">9, #11, 13</span>
+                      </div>
                     </div>
                     <div class="combo-tension-row">
-                      <span class="combo-tension-quality">m7</span>
-                      <span class="combo-tension-plus">+</span>
-                      <span class="combo-tension-list">9, 11, (13)</span>
-                    </div>
-                    <div class="combo-tension-row">
-                      <span class="combo-tension-quality">7</span>
+                      <span class="combo-tension-quality">V7</span>
                       <span class="combo-tension-plus">+</span>
                       <span class="combo-tension-list">b9, 9, #9, #11, b13, 13</span>
+                    </div>
+                    <div class="combo-tension-row">
+                      <span class="combo-tension-quality">VIm7</span>
+                      <span class="combo-tension-plus">+</span>
+                      <span class="combo-tension-list">9, 11</span>
                     </div>
                   </div>
                 </div>
@@ -886,8 +905,8 @@
                         <span class="combo-degree-chip">IIm7<sup>(b5)</sup></span>
                         <span class="combo-degree-chip">IVm7</span>
                         <span class="combo-degree-chip">IVm6</span>
-                        <span class="combo-degree-chip">bVII7</span>
                         <span class="combo-degree-chip">bVIM7</span>
+                        <span class="combo-degree-chip">bVII7</span>
                         <span class="combo-degree-chip">bVIIM7</span>
                       </div>
                     </div>
@@ -975,6 +994,13 @@
               <span class="combo-answer-degree">V</span>
             </div>
             <div id="combo-answer-bracket" class="combo-answer-bracket" style="display:none"></div>
+          </div>
+
+          <!-- 힌트보기 -->
+          <div class="combo-quiz-hint" id="combo-quiz-hint" onpointerup="comboShowHint()">
+            <i class="ph ph-lightbulb"></i>
+            <span>힌트보기</span>
+            <div class="combo-hint-bubble" id="combo-hint-bubble" style="display:none"></div>
           </div>
 
           <!-- ③ 카드블록 영역 -->

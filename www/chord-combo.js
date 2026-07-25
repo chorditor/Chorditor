@@ -74,7 +74,15 @@ function comboPlaySound(type) {
 // ── 탑바 X 버튼: 퀴즈 중이면 그만두기 모달, 아니면 페이지 닫기 ──
 function handleComboBack() {
   if (_comboInQuiz) {
-    showLeavePracticeModal(exitComboQuiz);
+    showLeavePracticeModal(() => {
+      if (typeof analytics !== 'undefined') {
+        analytics.track('combo_training_abandoned', {
+          chapter: _comboChapter, difficulty: _comboDifficulty,
+          question_index: _comboQuestionIndex, correct: _comboCorrectCount,
+        });
+      }
+      exitComboQuiz();
+    });
     return;
   }
   closeChordCombo();
@@ -99,11 +107,11 @@ async function comboStartTraining(e) {
   const chapter = card?.dataset.chapter || '1';
   if (!['1', '2', '3', '4', '5', '6', '7', '8'].includes(chapter)) return;
   _playSfx('pop.mp3');
-  // TODO: 피크 소모 임시 중단 — 재개 시 주석 해제
-  // if (!(await consumePeak(3))) return;
+  if (!(await consumePeak(3))) return;
   const activeCard = card.querySelector('.combo-difficulty-card.active');
   const difficulty = activeCard?.dataset.difficulty === 'high' ? 'high'
     : activeCard?.dataset.difficulty === 'mid' ? 'mid' : 'low';
+  if (typeof analytics !== 'undefined') analytics.track('combo_training_started', { chapter, difficulty });
   enterComboQuiz(difficulty, chapter);
 }
 
@@ -119,10 +127,92 @@ let _comboChapter          = '1';  // 현재 장 ('1' | '2' | '3')
 let _comboQuestionType     = 'placement'; // 2·3장 문제 타입 (문제마다 결정)
 let _comboSeenProgressions = []; // 이번 세션(COMBO_QUESTIONS_PER_SESSION문제)에 나온 기저 진행들 — 중복 방지용
 let _comboLastTarget       = null; // 3·4장: 직전 문제의 타겟 도수 — 연속 반복 회피용
+let _comboCorrectCount     = 0; // 이번 세션에서 전부 맞춘 문제 수 — 완료 모달 결과 표시용
 
 // ── 현재 장에 맞는 문제 렌더 (2·3·4장 모두 교체형만) ──
 // 매 문제 렌더 전 퀴즈 뷰를 순정 HTML로 통째 복원 → 이전 문제/이전 장이 남긴 어떤 DOM 변경도
 // 무조건 초기화된 상태에서 렌더 시작. (개별 항목 리셋 추적 방식은 새 장 추가 시 계속 새어서 폐기.)
+// ── 힌트보기 — 장별 힌트 문구 생성 함수 레지스트리 (없는 장은 버튼 숨김) ──
+const _ccScaleHint = () => {
+  const q = _comboCurrentQuestion;
+  if (!q) return null;
+  const notes = getMajorScaleNotes(q.keyIdx, _comboUseFlat);
+  return `${q.keyName} 스케일은 ${notes.join(' ')} 예요.`;
+};
+const CC_CHAPTER_HINTS = {
+  '1': _ccScaleHint,
+  '2': _ccScaleHint,
+  '3': () => {
+    const q = _comboCurrentQuestion;
+    if (!q || !q.targetDegree) return null;
+    const rootChord = degreeToChordName(q.targetDegree, q.keyIdx, false, _comboUseFlat);
+    const root = rootChord.match(/^([A-G][#b]?)/)?.[1] || rootChord;
+    return `타겟인 ${root}의 5번째 코드를 찾아보세요!`;
+  },
+  '4': () => {
+    const q = _comboCurrentQuestion;
+    if (!q || !q.targetDegree) return null;
+    const rootChord = degreeToChordName(q.targetDegree, q.keyIdx, false, _comboUseFlat);
+    const root = rootChord.match(/^([A-G][#b]?)/)?.[1] || rootChord;
+    return `타겟인 ${root}의 2번째와 5번째 코드를 찾아보세요!`;
+  },
+  '5': () => {
+    const q = _comboCurrentQuestion;
+    if (!q || !q.targetDegree || !q.substituteDegree) return null;
+    const rootChord = degreeToChordName(q.targetDegree, q.keyIdx, false, _comboUseFlat);
+    const root = rootChord.match(/^([A-G][#b]?)/)?.[1] || rootChord;
+    // 1전위(.../3)·디미니쉬7(..._DIM7) = 타겟 반음 아래(리딩톤) / 트라이톤서브(..._SUBV) = 타겟 반음 위(bII)
+    const direction = q.substituteDegree.endsWith('_SUBV') ? '높은' : '낮은';
+    return `타겟인 ${root}의 반음 ${direction} 음을 찾으세요!`;
+  },
+  '6': () => {
+    const q = _comboCurrentQuestion;
+    if (!q || !q.targetDegree) return null;
+    const info = (typeof CC_DEGREE_TRIAD !== 'undefined') ? CC_DEGREE_TRIAD[q.targetDegree] : null;
+    const quality = info && info.quality7; // 6장은 항상 7화음 고정이라 quality7만 봄
+    if (quality === 'M7') return 'M7코드는 9, #11, 13 텐션을 사용할 수 있어요!';
+    if (quality === 'm7') return 'm7코드는 9, 11 텐션을 사용할 수 있어요!';
+    if (quality === '7')  return '7코드는 모든 텐션을 사용할 수 있어요!';
+    return null;
+  },
+  '7': () => {
+    const q = _comboCurrentQuestion;
+    if (!q) return null;
+    const notes = getMinorScaleNotes(q.keyIdx, _comboUseFlat);
+    return `${q.keyName} 스케일은 ${notes.join(' ')} 예요!`;
+  },
+  '8': _ccScaleHint,
+};
+
+// 어려움 난이도는 힌트 미제공. 해당 장에 힌트가 정의 안 됐으면 버튼 숨김.
+function _comboUpdateHintVisibility() {
+  const btn = document.getElementById('combo-quiz-hint');
+  if (!btn) return;
+  const available = _comboDifficulty !== 'high' && !!CC_CHAPTER_HINTS[_comboChapter];
+  btn.classList.toggle('combo-quiz-hint--hidden', !available);
+}
+
+function comboShowHint() {
+  if (_comboDifficulty === 'high') return;
+  const fn = CC_CHAPTER_HINTS[_comboChapter];
+  if (!fn) return;
+  const text = fn();
+  if (!text) return;
+  const bubble = document.getElementById('combo-hint-bubble');
+  if (!bubble) return;
+  const showing = bubble.style.display !== 'none';
+  if (showing) {
+    bubble.style.display = 'none';
+    bubble.classList.remove('combo-hint-bubble--show');
+    return;
+  }
+  bubble.textContent = text;
+  bubble.style.display = 'block';
+  bubble.classList.remove('combo-hint-bubble--show');
+  void bubble.offsetWidth;
+  bubble.classList.add('combo-hint-bubble--show');
+}
+
 function renderComboQuestion() {
   _comboRestoreQuizWrap();
   if (_comboChapter === '8') {
@@ -148,6 +238,7 @@ function renderComboQuestion() {
   } else {
     renderCh1Question(_comboDifficulty);
   }
+  _comboUpdateHintVisibility();
 }
 
 // ── 트레이 카드 배열 규칙 ──
@@ -278,6 +369,8 @@ function renderChapterQuestion(generatorFn, type, options = {}) {
   const promptEl = document.querySelector('.combo-quiz-prompt');
 
   const slots = document.querySelectorAll('#combo-quiz-answer .combo-answer-slot');
+  // 이전 문제 채점 후 그려진 다이어그램 잔상 제거(안 지우면 다음 문제 타겟 슬롯에 이전 정답 모양이 남음)
+  slots.forEach(slot => slot.querySelector('.combo-answer-diagram')?.remove());
 
   if (type === 'placement') {
     if (promptEl) promptEl.textContent = '주어진 진행을 순서대로 배치하세요';
@@ -303,9 +396,11 @@ function renderChapterQuestion(generatorFn, type, options = {}) {
       answerAt[q.targetIndex] = q.substituteChord;
     }
     if (promptEl) {
-      promptEl.textContent = promptText || (q.substituteLabels
-        ? `표시된 부분을 순서대로 ${q.substituteLabels.join(' · ')}(으)로 바꿔보세요`
-        : `표시된 부분을 ${q.substituteLabel}(으)로 바꿔보세요`);
+      // substituteLabel(s)에 "(b5)" 등 실제 텐션 괄호가 섞일 수 있어 그 부분만 sup 처리 —
+      // 문장 전체에 _ccFormatB5를 걸면 "(으)로"의 괄호까지 sup 처리되어 라벨 조각에만 적용.
+      promptEl.innerHTML = promptText || (q.substituteLabels
+        ? `표시된 부분을 순서대로 ${q.substituteLabels.map(_ccFormatB5).join(' · ')}(으)로 바꿔보세요`
+        : `표시된 부분을 ${_ccFormatB5(q.substituteLabel)}(으)로 바꿔보세요`);
     }
     slots.forEach((slot, i) => {
       const isTarget = targets.includes(i);
@@ -331,6 +426,7 @@ function renderChapterQuestion(generatorFn, type, options = {}) {
       slot.dataset.answerChord = isTarget ? answerAt[i] : q.originalChords[i];
     });
     _comboUpdateBracket(noBracket ? null : (q.bracketIndices || (targets.length > 1 ? targets : null)));
+    _comboShowLockedDiagrams();
   }
   if (type === 'placement') _comboUpdateBracket(null);
 
@@ -381,6 +477,7 @@ function enterComboQuiz(difficulty, chapter) {
   _comboCurrentQuestion = null;
   _comboSeenProgressions = [];
   _comboLastTarget = null;
+  _comboCorrectCount = 0;
 
   try {
     renderComboQuestion();
@@ -503,6 +600,7 @@ function comboSubmitAnswer() {
 
   _comboShowAnswerDiagrams();
 
+  if (allCorrect) _comboCorrectCount++;
   console.log('chord-combo: 제출 결과 —', allCorrect ? '정답' : '오답');
   comboPlaySound(allCorrect ? 'correct' : 'wrong');
 
@@ -512,22 +610,30 @@ function comboSubmitAnswer() {
   if (btn) btn.textContent = isLast ? '완료' : '다음';
 }
 
-// ── 채점 후 각 슬롯에 정답 코드의 운지 다이어그램 표시 ──────────
+// ── 슬롯에 정답 코드의 운지 다이어그램 표시 ──────────────────
 // 보이싱은 _comboResolveVoicing 한 곳에서만 결정 → 화면의 운지와 클릭 사운드가 항상 같은 보이싱.
 const COMBO_DIAGRAM_W = 64; // CSS px (비율은 VoicingCanvas BASE_W:BASE_H 고정)
-function _comboShowAnswerDiagrams() {
+function _comboDrawSlotDiagram(slot, i) {
   if (typeof VoicingCanvas === 'undefined') return;
   const dpr = window.devicePixelRatio || 1;
+  slot.querySelector('.combo-answer-diagram')?.remove();
+  const voicing = _comboResolveVoicing(_comboCorrectDegreeForSlot(i), slot.dataset.answerChord);
+  if (!voicing) return;
+  const canvas = document.createElement('canvas');
+  canvas.className = 'combo-answer-diagram';
+  slot.insertBefore(canvas, slot.firstChild); // 슬롯 최상단(코드블록 위)
+  VoicingCanvas.draw(canvas, voicing, { ratio: (COMBO_DIAGRAM_W * dpr) / VoicingCanvas.BASE_W, transparent: true });
+  canvas.style.width  = COMBO_DIAGRAM_W + 'px';
+  canvas.style.height = Math.round(COMBO_DIAGRAM_W * VoicingCanvas.BASE_H / VoicingCanvas.BASE_W) + 'px';
+}
+// 채점 후: 전체 슬롯(타겟 포함) 다이어그램 표시
+function _comboShowAnswerDiagrams() {
+  document.querySelectorAll('#combo-quiz-answer .combo-answer-slot').forEach((slot, i) => _comboDrawSlotDiagram(slot, i));
+}
+// 문제 렌더 시: 이미 채워진(잠긴) 슬롯만 다이어그램 표시 — 타겟(정답) 슬롯은 채점 전엔 그리지 않음(힌트 방지)
+function _comboShowLockedDiagrams() {
   document.querySelectorAll('#combo-quiz-answer .combo-answer-slot').forEach((slot, i) => {
-    slot.querySelector('.combo-answer-diagram')?.remove();
-    const voicing = _comboResolveVoicing(_comboCorrectDegreeForSlot(i), slot.dataset.answerChord);
-    if (!voicing) return;
-    const canvas = document.createElement('canvas');
-    canvas.className = 'combo-answer-diagram';
-    slot.insertBefore(canvas, slot.firstChild); // 슬롯 최상단(코드블록 위)
-    VoicingCanvas.draw(canvas, voicing, { ratio: (COMBO_DIAGRAM_W * dpr) / VoicingCanvas.BASE_W, transparent: true });
-    canvas.style.width  = COMBO_DIAGRAM_W + 'px';
-    canvas.style.height = Math.round(COMBO_DIAGRAM_W * VoicingCanvas.BASE_H / VoicingCanvas.BASE_W) + 'px';
+    if (slot.dataset.locked === '1') _comboDrawSlotDiagram(slot, i);
   });
 }
 
@@ -536,7 +642,8 @@ function comboNextQuestion() {
   _playTap();
   if (typeof GuitarAudio !== 'undefined' && GuitarAudio.stop) GuitarAudio.stop();
   if (_comboQuestionIndex >= COMBO_QUESTIONS_PER_SESSION - 1) {
-    exitComboQuiz();
+    _comboRecordSessionComplete();
+    _comboShowResultModal();
     return;
   }
   _comboQuestionIndex++;
@@ -544,6 +651,63 @@ function comboNextQuestion() {
   renderComboQuestion();
   resetComboSubmitBtn();
   updateComboQuizProgress(_comboQuestionIndex);
+}
+
+// ── 10문제 완료 기록: 행동형 XP(정답 무관) + 장별 완료/퍼펙트 카운터(퀘스트용) ──
+function _comboRecordSessionComplete() {
+  const s = JSON.parse(localStorage.getItem('training_stats') || '{}');
+  const ch = _comboChapter;
+  const isPerfect = _comboCorrectCount === COMBO_QUESTIONS_PER_SESSION;
+  s['combo_completed' + ch] = (s['combo_completed' + ch] || 0) + 1;
+  if (isPerfect) {
+    s['combo_perfect' + ch] = (s['combo_perfect' + ch] || 0) + 1;
+  }
+  localStorage.setItem('training_stats', JSON.stringify(s));
+  if (typeof incrementComboComplete === 'function') incrementComboComplete(parseInt(ch, 10), isPerfect); // 서버 카운트 동기화(fire-and-forget)
+  if (typeof addXp === 'function') addXp(BEHAVE_XP.combo); // 행동형 XP: 코드 조합 훈련 완료 (사일런트, 정답 무관)
+  if (typeof analytics !== 'undefined') {
+    analytics.track('combo_training_completed', {
+      chapter: ch, difficulty: _comboDifficulty,
+      correct: _comboCorrectCount, total: COMBO_QUESTIONS_PER_SESSION,
+    });
+  }
+}
+
+// ── 10문제 완료 모달: 정답 수/문제 수 표시 + 돌아갈래요/다시할래요 ──
+function _comboShowResultModal() {
+  let ov = document.getElementById('combo-result-overlay');
+  if (!ov) {
+    ov = document.createElement('div');
+    ov.id = 'combo-result-overlay';
+    ov.className = 'leave-practice-overlay';
+    ov.innerHTML = `
+      <div class="leave-practice-modal combo-result-modal">
+        <div class="leave-practice-title">완료했어요!</div>
+        <div class="combo-result-score"><span id="combo-result-correct">0</span> / <span id="combo-result-total">${COMBO_QUESTIONS_PER_SESSION}</span></div>
+        <div class="leave-practice-actions">
+          <button class="leave-practice-btn leave-practice-btn--ghost" id="combo-result-exit">그만할래요</button>
+          <button class="leave-practice-btn leave-practice-btn--primary" id="combo-result-retry">
+            <span>다시할래요</span>
+            <span class="practice-gate-cost">
+              <img src="image/white_peak.svg" alt="" class="practice-gate-icon">
+              <span>x3</span>
+            </span>
+          </button>
+        </div>
+      </div>`;
+    document.body.appendChild(ov);
+    ov.querySelector('#combo-result-exit').onclick  = () => { ov.style.display = 'none'; exitComboQuiz(); };
+    ov.querySelector('#combo-result-retry').onclick = async () => {
+      _playSfx('pop.mp3');
+      if (!(await consumePeak(3))) return;
+      ov.style.display = 'none';
+      enterComboQuiz(_comboDifficulty, _comboChapter);
+    };
+  }
+  ov.querySelector('#combo-result-correct').textContent = _comboCorrectCount;
+  ov.style.display = 'flex';
+  const modal = ov.querySelector('.leave-practice-modal');
+  if (modal) { modal.style.animation = 'none'; void modal.offsetWidth; modal.style.animation = ''; }
 }
 
 // ── 카드블록 드래그 배치 / 배치된 카드블록끼리 교체 ───────────
@@ -672,8 +836,6 @@ function _comboVoicingMidis(voicing) {
 function _comboResolveVoicing(degree, chordStr) {
   const useSeventh   = _comboChapter === '6' ? true : _comboDifficulty === 'high'; // 6장은 항상 7화음
   const slash        = (typeof CC_SLASH_INFO !== 'undefined') ? CC_SLASH_INFO[degree] : null;
-  const tensionMatch = _comboChapter === '6' ? (chordStr || '').match(/\([^)]*\)$/) : null;
-  const tension      = tensionMatch ? tensionMatch[0] : null;
 
   let rootSemitone, quality, bass = null;
   if (slash) {
@@ -689,7 +851,17 @@ function _comboResolveVoicing(degree, chordStr) {
     quality      = useSeventh ? info.quality7 : info.quality;
     rootSemitone = (_comboKeyIdx + info.offset) % 12;
   }
-  return _comboGetLowestFretVoicing(rootSemitone, quality, _comboKeyIdx, bass, tension);
+
+  // 6장(텐션코드) 또는 quality:'tension'(5장 bII7(#11) 등)이면 코드명 끝 "(...)" 텐션 심볼을
+  // getCandidates에 명시적으로 넘겨야 정확한 보이싱을 찾음.
+  // bII7(#11)류는 CC_DEGREE_TRIAD.quality가 'tension' 버킷 이름 그 자체라 getCandidates 텐션 분기의
+  // 코드명 조합(root+베이스코드질+텐션)에 못 씀 — 실제 베이스 코드질(항상 dominant 7)로 치환해서 넘김.
+  const isTensionBucket = quality === 'tension';
+  const tensionMatch    = (_comboChapter === '6' || isTensionBucket) ? (chordStr || '').match(/\([^)]*\)$/) : null;
+  const tension          = tensionMatch ? tensionMatch[0] : null;
+  const lookupQuality    = isTensionBucket ? '7' : quality;
+
+  return _comboGetLowestFretVoicing(rootSemitone, lookupQuality, _comboKeyIdx, bass, tension);
 }
 
 async function comboPlayBlockSound(block) {
@@ -836,6 +1008,8 @@ function initTutorialCarousel() {
 
 // ── DOMContentLoaded ─────────────────────────────────────────
 document.addEventListener('DOMContentLoaded', () => {
+
+  if (typeof analytics !== 'undefined') analytics.track('combo_page_viewed', {});
 
   // 슬라이드업 진입 애니메이션
   const shell = document.querySelector('.app-shell');

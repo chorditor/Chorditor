@@ -168,6 +168,7 @@ const _ALLOWED_PATTERN_SHAPES = [
   [2, 2, 2, 0, null, null],   // M7 rootStr:4
   [0, 0, 1, 0, 2, 0],         // 7 rootStr:6
   [0, 2, 0, 2, 0, null],      // 7 rootStr:5
+  [null, 0, 2, 1, 2, null],   // 7 rootStr:5 (alt — m7(b5) 쉘 뒤 ii→V 연결용)
   [2, 1, 2, 0, null, null],   // 7 rootStr:4
   [null, 0, 0, 0, null, 0],   // m7 rootStr:6
   [0, 1, 0, 2, 0, null],      // m7 rootStr:5

@@ -11708,6 +11708,21 @@ canvas {
   font-weight: 500;
   color: var(--text-secondary, #888);
 }
+/* 6장 튜토리얼 2페이지: 도수별 6줄 표기 — 4줄로 압축(짧은 항목은 2열 페어) */
+.combo-tension-rows--degree {
+  gap: 6px;
+}
+.combo-tension-rows--degree .combo-tension-quality {
+  font-size: 15px;
+}
+.combo-tension-rows--degree .combo-tension-list {
+  font-size: 12px;
+}
+.combo-tension-pair {
+  display: flex;
+  justify-content: center;
+  gap: 16px;
+}
 .combo-tutorial-degrees--compact {
   gap: 4px;
 }
@@ -11925,9 +11940,67 @@ canvas {
 .combo-block sup, .combo-degree-chip sup {
   vertical-align: 0.7em;
 }
+/* 10문제 완료 모달 — 상하 크기 확대 */
+.combo-result-modal {
+  padding-top: 40px;
+  padding-bottom: 32px;
+}
+.combo-result-score {
+  font-size: 32px;
+  font-weight: 800;
+  color: var(--text-primary, #1a1a1a);
+  margin-bottom: 20px;
+}
+/* 다시할래요 버튼 — 라벨 + 피크 소모량(.practice-gate-cost) 세로 중앙정렬 */
+#combo-result-retry {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+}
+/* 힌트보기 — 카드블록 영역 구분선 바로 위, 작고 연하게 */
+.combo-quiz-hint {
+  position: relative;
+  margin-top: auto;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  font-size: 12px;
+  color: var(--text-muted, #b0b0b0);
+  cursor: pointer;
+}
+.combo-quiz-hint i {
+  font-size: 13px;
+}
+.combo-quiz-hint--hidden {
+  visibility: hidden;
+}
+.combo-hint-bubble {
+  position: absolute;
+  bottom: calc(100% + 8px);
+  left: 50%;
+  transform: translateX(-50%);
+  background: #fff;
+  color: var(--text-muted, #b0b0b0);
+  font-size: 12px;
+  font-weight: 400;
+  padding: 8px 12px;
+  border-radius: 14px;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.08);
+  white-space: nowrap;
+  pointer-events: none;
+}
+@keyframes comboHintBubblePop {
+  0%   { opacity: 0; transform: translateX(-50%) scale(0.85); }
+  60%  { opacity: 1; transform: translateX(-50%) scale(1.05); }
+  100% { transform: translateX(-50%) scale(1); }
+}
+.combo-hint-bubble--show {
+  animation: comboHintBubblePop 0.28s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
 /* ③ 카드블록 영역 */
 .combo-quiz-blocks {
-  margin-top: auto;
   padding-top: 32px;
   border-top: 1px solid rgba(217, 212, 204, 0.5);
   display: flex;

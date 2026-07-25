@@ -238,6 +238,21 @@ function getKeyDisplayName(keyIdx, useFlat) {
   return (useFlat ? CC_KEY_NAMES_FLAT : CC_KEY_NAMES_SHARP)[keyIdx];
 }
 
+// 메이저 스케일 7음 이름(다이어토닉) — key의 #/b 표기(useFlat)를 그대로 따라가면
+// 표준 조표와 일치함(예: F key(useFlat)→F G A Bb C D E, G key(useSharp)→G A B C D E F#).
+const CC_MAJOR_SCALE_OFFSETS = [0, 2, 4, 5, 7, 9, 11];
+function getMajorScaleNotes(keyIdx, useFlat) {
+  const names = useFlat ? CC_KEY_NAMES_FLAT : CC_KEY_NAMES_SHARP;
+  return CC_MAJOR_SCALE_OFFSETS.map(off => names[(keyIdx + off) % 12]);
+}
+
+// 자연단조 7음 — 7장 전용(useFlat은 pickUseFlatForCh7Key 표기 규칙 그대로 사용).
+const CC_MINOR_SCALE_OFFSETS = [0, 2, 3, 5, 7, 8, 10];
+function getMinorScaleNotes(keyIdx, useFlat) {
+  const names = useFlat ? CC_KEY_NAMES_FLAT : CC_KEY_NAMES_SHARP;
+  return CC_MINOR_SCALE_OFFSETS.map(off => names[(keyIdx + off) % 12]);
+}
+
 // ── 난이도별 key 후보 풀 (반음 인덱스, 0=C) ─────────────────────
 const CC_DIFFICULTY_KEY_POOL = {
   low:  [0, 2, 4, 7, 9],               // C D E G A
@@ -329,9 +344,22 @@ function generateCh2Question(type, difficulty, keyIdx, useFlat, prevDegrees) {
   if (useFlat == null) useFlat = pickUseFlatForKey(keyIdx);
   const useSeventh = difficulty === 'high';
 
-  const base        = generateCh1Progression(prevDegrees); // 원본 진행 4개
-  const targetIndex = Math.floor(Math.random() * 4);       // 교체 대상 (제약 없음)
-  const subs        = ch2SubstitutesFor(base[targetIndex], useSeventh);
+  const base = generateCh1Progression(prevDegrees); // 원본 진행 4개
+
+  // 정답이 분수코드(I/3·IV/3·V/3)인 문제 50% / 일반 대리코드인 문제 50%로 균형 배분.
+  // V(긴장)는 low·mid에서 대리 후보가 V/3 하나뿐이라(dim 사운드 없음), 균형 안 잡으면
+  // V가 타겟일 때마다 무조건 분수코드로 쏠림 — 타겟 자체를 정답 종류에 맞게 먼저 고름.
+  const wantSlash = Math.random() < 0.5;
+  const isSlashDeg = m => m.includes('/');
+  const eligible = base
+    .map((d, i) => i)
+    .filter(i => ch2SubstitutesFor(base[i], useSeventh).some(m => isSlashDeg(m) === wantSlash));
+  const pool = eligible.length ? eligible : base.map((d, i) => i); // 안전망(이론상 항상 존재)
+  const targetIndex = pool[Math.floor(Math.random() * pool.length)];
+
+  const subsAll = ch2SubstitutesFor(base[targetIndex], useSeventh);
+  const subsTyped = subsAll.filter(m => isSlashDeg(m) === wantSlash);
+  const subs       = subsTyped.length ? subsTyped : subsAll; // 안전망
   const substitute  = subs[Math.floor(Math.random() * subs.length)];
 
   // 트레이 (두 타입 공통): 해당 난이도 등장가능 코드 전부 셔플
@@ -645,26 +673,32 @@ function generateCh5Question(type, difficulty, keyIdx, useFlat, prevDegrees, pre
 
 // ── 제 6장: 텐션코드 1 — 알고리즘 생성 ─────────────────────────
 // 1장 패밀리코드 진행(항상 7화음 고정)에서 1칸을 골라 어울리는 텐션코드로 바꾸는 문제.
-// 코드질(quality)별 사용 가능 텐션.
+// 도수별 사용 가능 텐션(같은 코드질이라도 도수별로 실제 어울리는 텐션이 다름 — IIm7/IIIm7은 13 제외).
 const CH6_TENSIONS = {
-  M7: ['9', '#11', '13'],
-  m7: ['9', '11', '13'],
-  '7': ['b9', '9', '#9', '#11', 'b13', '13'],
+  I:    ['9', '13'],
+  IV:   ['9', '#11', '13'],
+  IIm:  ['9', '11'],
+  IIIm: ['11'],
+  VIm:  ['9', '11'],
+  V:    ['b9', '9', '#9', '#11', 'b13', '13'],
 };
-// 오답 후보 풀(전체 텐션 심볼 합집합) — 타겟 코드질에 안 맞는 텐션도 섞여서 오답으로 나옴(실제 코드가 없어 무음).
+// 오답 후보 풀(전체 텐션 심볼 합집합) — 타겟 도수에 안 맞는 텐션도 섞여서 오답으로 나옴(실제 코드가 없어 무음).
 const CH6_ALL_TENSIONS = ['b9', '9', '#9', '11', '#11', 'b13', '13'];
 
-// 코드질별 텐션 등장 빈도(실제 곡에서 쓰이는 비율 반영, 합 100). 정답 선택·나머지 3칸 랜덤부여 둘 다 이 가중치 사용.
-// M7: 9가 압도적(80) > 13 > #11 / m7: 9·11 합쳐서 90(균등분배) > 13 / 7: 골고루지만 9 > 13 > b9 > b13 > #9 > #11 순
+// 도수별 텐션 등장 빈도(실제 곡에서 쓰이는 비율 반영, 합 100). 정답 선택·나머지 3칸 랜덤부여 둘 다 이 가중치 사용.
+// I·IV: 9가 압도적(80) > 13 > #11 / IIm·IIIm: 9·11 균등분배 / VIm: 9·11 위주 + 13 소량 / V: 골고루지만 9 > 13 > b9 > b13 > #9 > #11 순
 const CH6_TENSION_WEIGHTS = {
-  M7: { '9': 80, '13': 14, '#11': 6 },
-  m7: { '9': 45, '11': 45, '13': 10 },
-  '7': { '9': 25, '13': 20, 'b9': 18, 'b13': 15, '#9': 12, '#11': 10 },
+  I:    { '9': 80, '13': 20 },
+  IV:   { '9': 80, '13': 14, '#11': 6 },
+  IIm:  { '9': 50, '11': 50 },
+  IIIm: { '11': 100 },
+  VIm:  { '9': 50, '11': 50 },
+  V:    { '9': 25, '13': 20, 'b9': 18, 'b13': 15, '#9': 12, '#11': 10 },
 };
 
 // 가중치 기반 텐션 랜덤 선택. exclude로 특정 텐션 심볼 제외 가능(예: 마지막 칸 M7(#11) 금지).
-function ch6PickWeightedTension(quality, exclude) {
-  const weights = CH6_TENSION_WEIGHTS[quality];
+function ch6PickWeightedTension(degree, exclude) {
+  const weights = CH6_TENSION_WEIGHTS[degree];
   const entries = Object.entries(weights).filter(([t]) => t !== exclude);
   const total   = entries.reduce((sum, [, w]) => sum + w, 0);
   let r = Math.random() * total;
@@ -674,13 +708,6 @@ function ch6PickWeightedTension(quality, exclude) {
   }
   return entries[0][0];
 }
-
-// 도수별 코드질(7화음 고정 전제) — CH1_POOL 기준. V(도미넌트)는 모든 텐션이 다 어울려서 타겟 제외 대상.
-const CH6_DEGREE_QUALITY = {
-  I: 'M7', IV: 'M7',
-  IIm: 'm7', IIIm: 'm7', VIm: 'm7',
-  V: '7',
-};
 
 // 6장 전용 난이도별 key 풀(예외 — 다른 장과 다름, 모든 난이도 7화음 고정)
 const CH6_DIFFICULTY_KEY_POOL = {
@@ -747,24 +774,23 @@ function generateCh6Question(type, difficulty, keyIdx, useFlat, prevDegrees) {
   const candidates = base.map((d, i) => i).filter(i => base[i] !== 'V');
   const targetIndex = candidates[Math.floor(Math.random() * candidates.length)];
 
-  const targetQuality  = CH6_DEGREE_QUALITY[base[targetIndex]];
-  const validTensions   = CH6_TENSIONS[targetQuality];
+  const targetDegree    = base[targetIndex];
+  const validTensions   = CH6_TENSIONS[targetDegree];
   // 마지막(4번째) 칸은 M7(#11) 금지
-  const lastSlotBanTension = (i, q) => (i === 3 && q === 'M7') ? '#11' : undefined;
-  const correctTension  = ch6PickWeightedTension(targetQuality, lastSlotBanTension(targetIndex, targetQuality));
-  // 오답은 이 코드질에서 애초에 안 어울리는 텐션만(같은 코드질의 다른 유효 텐션은 그것도 정답이라 중복정답 됨 → 제외)
-  const wrongPool = CH6_ALL_TENSIONS.filter(t => !validTensions.includes(t) && t !== lastSlotBanTension(targetIndex, targetQuality));
+  const lastSlotBanTension = (i, d) => (i === 3 && (d === 'I' || d === 'IV')) ? '#11' : undefined;
+  const correctTension  = ch6PickWeightedTension(targetDegree, lastSlotBanTension(targetIndex, targetDegree));
+  // 오답은 이 도수에서 애초에 안 어울리는 텐션만(같은 도수의 다른 유효 텐션은 그것도 정답이라 중복정답 됨 → 제외)
+  const wrongPool = CH6_ALL_TENSIONS.filter(t => !validTensions.includes(t) && t !== lastSlotBanTension(targetIndex, targetDegree));
   const wrongTensions   = _ccShuffle(wrongPool).slice(0, 2);
 
   const keyName          = getKeyDisplayName(keyIdx, useFlat);
   const originalChords    = base.map(d => degreeToChordName(d, keyIdx, true, useFlat)); // 항상 7화음
   const labels            = base.map(d => degreeToLabel(d, true));
 
-  // 타겟 제외 나머지 3칸도 각자 코드질에 맞는 텐션을 랜덤 부여(진행 전체가 텐션코드로 보이게).
+  // 타겟 제외 나머지 3칸도 각자 도수에 맞는 텐션을 랜덤 부여(진행 전체가 텐션코드로 보이게).
   base.forEach((d, i) => {
     if (i === targetIndex) return;
-    const q = CH6_DEGREE_QUALITY[d];
-    const t = ch6PickWeightedTension(q, lastSlotBanTension(i, q));
+    const t = ch6PickWeightedTension(d, lastSlotBanTension(i, d));
     originalChords[i] = originalChords[i] + `(${t})`;
   });
 

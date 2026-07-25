@@ -486,13 +486,46 @@ function _buildStepCache() {
     return -1;
   }
 
+  // ii→V 쉘 보이싱 연결 보너스: m7(b5) 쉘(6번줄) 다음 V7가 같은 자리(5번줄 alt shape)로 이어지면 가산점
+  const IIV_SHELL_BONUS   = 3;
+  const NOTE_SEMI = { C:0,'C#':1,Db:1,D:2,'D#':3,Eb:3,E:4,F:5,'F#':6,Gb:6,G:7,'G#':8,Ab:8,A:9,'A#':10,Bb:10,B:11 };
+  const M7B5_SHELL_SHAPE  = [null, 0, 1, 1, null, 1];  // r+1 x r+1 r+1 r x (rootStr:6)
+  const DOM7_PLAIN_SHAPE  = [0, 2, 0, 2, 0, null];      // x r r+2 r r+2 r   (rootStr:5)
+  const DOM7_ALT_SHAPE    = [null, 0, 2, 1, 2, null];   // x r+2 r+1 r+2 r x (rootStr:5)
+  function _relShape(frets) {
+    if (!frets) return null;
+    const vals = frets.filter(f => f !== null);
+    if (!vals.length) return frets;
+    const min = Math.min(...vals);
+    return frets.map(f => f === null ? null : f - min);
+  }
+  function _shapeEq(a, b) {
+    return !!a && !!b && a.length === b.length && a.every((v, i) => v === b[i]);
+  }
+  function _rootSemi(v) {
+    const m = v && v.name && v.name.match(/^([A-G][#b]?)/);
+    return m ? NOTE_SEMI[m[1]] : null;
+  }
+
   // 이동 비용: 프렛 차 + 줄 변경 페널티 + 고프렛 페널티 + 3번줄↑ 근음 페널티 + 4번줄 페널티 - 오픈 포지션 보너스
   function dist(a, b) {
     const hfp  = Math.max(0, fret(b) - HIGH_FRET_THRESH) * HIGH_FRET_FACTOR;
     const trp  = rootStr(b) < 3 ? THIN_ROOT_PENALTY : 0;
     const fsp  = rootStr(b) === 3 ? FOUR_STR_PENALTY : 0;
     const lfb  = fret(b) <= 1 ? LOW_FRET_BONUS : 0;
-    return Math.abs(fret(a) - fret(b)) + (rootStr(a) !== rootStr(b) ? CROSS_PENALTY : 0) + hfp + trp + fsp - lfb;
+
+    // ii→V 쉘 연결: a가 m7(b5) 6번줄 쉘 + b가 완전4도 위(V7) + rootStr5 7 보이싱이면
+    // alt shape(같은 자리 연결)는 가산점, plain shape는 감점 — alt가 우선 선택되도록.
+    let iiVBias = 0;
+    if (a && b && a.quality === 'm7(b5)' && b.quality === '7' &&
+        rootStr(b) === 4 && _shapeEq(_relShape(a.frets), M7B5_SHELL_SHAPE) &&
+        ((_rootSemi(b) - _rootSemi(a) + 12) % 12) === 5) {
+      const bShape = _relShape(b.frets);
+      if (_shapeEq(bShape, DOM7_ALT_SHAPE))        iiVBias = -IIV_SHELL_BONUS;
+      else if (_shapeEq(bShape, DOM7_PLAIN_SHAPE))  iiVBias =  IIV_SHELL_BONUS;
+    }
+
+    return Math.abs(fret(a) - fret(b)) + (rootStr(a) !== rootStr(b) ? CROSS_PENALTY : 0) + hfp + trp + fsp - lfb + iiVBias;
   }
 
   // 각 스텝의 후보 목록 수집
