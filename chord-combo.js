@@ -975,6 +975,48 @@ function _updateComboCarouselScale(track) {
   });
 }
 
+// 데스크탑 마우스 드래그로 가로 스크롤(shared.js enableMouseDragScroll은 세로 전용이라 별도 구현).
+// 터치(모바일)는 네이티브 스크롤 그대로 사용(pointerType 'mouse'만 처리).
+function _comboEnableHorizontalDrag(el) {
+  if (!el || el._mouseDragScroll) return;
+  el._mouseDragScroll = true;
+  let dragging = false, moved = false, startX = 0, startLeft = 0, savedSnap = '';
+  let suppressClickUntil = 0;
+
+  el.addEventListener('pointerdown', (e) => {
+    if (e.pointerType !== 'mouse' || e.button !== 0) return;
+    dragging = true; moved = false;
+    startX = e.clientX; startLeft = el.scrollLeft;
+  });
+
+  el.addEventListener('pointermove', (e) => {
+    if (!dragging || e.pointerType !== 'mouse') return;
+    const dx = e.clientX - startX;
+    if (!moved && Math.abs(dx) > 3) {
+      moved = true;
+      savedSnap = el.style.scrollSnapType;
+      el.style.scrollSnapType = 'none'; // 드래그 중 snap 간섭 방지
+      try { el.setPointerCapture(e.pointerId); } catch (_) {}
+    }
+    if (moved) { el.scrollLeft = startLeft - dx; e.preventDefault(); }
+  });
+
+  const _endDrag = (e) => {
+    if (!dragging || e.pointerType !== 'mouse') return;
+    dragging = false;
+    if (moved) {
+      el.style.scrollSnapType = savedSnap; // snap 복원 → 가까운 카드로 스냅
+      suppressClickUntil = performance.now() + 80; // 드래그 직후 click 오작동 차단
+    }
+  };
+  el.addEventListener('pointerup', _endDrag);
+  el.addEventListener('pointercancel', _endDrag);
+
+  el.addEventListener('click', (ce) => {
+    if (performance.now() < suppressClickUntil) { ce.stopPropagation(); ce.preventDefault(); }
+  }, { capture: true });
+}
+
 function initChapterCarousel() {
   const track = document.getElementById('combo-chapter-track');
   if (!track) return;
@@ -987,6 +1029,7 @@ function initChapterCarousel() {
 
   _updateComboCarouselScale(track);
   track.addEventListener('scroll', () => _updateComboCarouselScale(track), { passive: true });
+  _comboEnableHorizontalDrag(track); // 웹 브라우저 마우스 드래그 지원
 }
 
 // ── 난이도 선택 (카드 클릭 → 설명 텍스트 교체) — 챕터 카드마다 각각 초기화 ──
