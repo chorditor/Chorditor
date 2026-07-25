@@ -128,6 +128,16 @@ let _comboQuestionType     = 'placement'; // 2·3장 문제 타입 (문제마다
 let _comboSeenProgressions = []; // 이번 세션(COMBO_QUESTIONS_PER_SESSION문제)에 나온 기저 진행들 — 중복 방지용
 let _comboLastTarget       = null; // 3·4장: 직전 문제의 타겟 도수 — 연속 반복 회피용
 let _comboCorrectCount     = 0; // 이번 세션에서 전부 맞춘 문제 수 — 완료 모달 결과 표시용
+let _comboSessionStartMs   = 0; // 퀴즈 진입 시각 — 훈련시간 측정용 (0이면 측정 중 아님)
+
+// ── 훈련시간 적립 (퀴즈 진입 ~ 완료/이탈) ────────────────────
+// 완료·그만두기·페이지 이탈 어느 경로로 빠져도 한 번만 적립되도록 시작시각을 즉시 0으로 되돌린다.
+function _comboFlushTrainingTime() {
+  if (!_comboSessionStartMs) return;
+  const elapsedSec = (Date.now() - _comboSessionStartMs) / 1000;
+  _comboSessionStartMs = 0;
+  if (typeof recordTrainingTime === 'function') recordTrainingTime(elapsedSec);
+}
 
 // ── 현재 장에 맞는 문제 렌더 (2·3·4장 모두 교체형만) ──
 // 매 문제 렌더 전 퀴즈 뷰를 순정 HTML로 통째 복원 → 이전 문제/이전 장이 남긴 어떤 DOM 변경도
@@ -478,6 +488,7 @@ function enterComboQuiz(difficulty, chapter) {
   _comboSeenProgressions = [];
   _comboLastTarget = null;
   _comboCorrectCount = 0;
+  _comboSessionStartMs = Date.now(); // 훈련시간 측정 시작
 
   try {
     renderComboQuestion();
@@ -521,6 +532,7 @@ function updateComboQuizProgress(idx) {
 
 // ── 퀴즈 뷰 이탈 (선택 뷰로 복귀) ───────────────────────────
 function exitComboQuiz() {
+  _comboFlushTrainingTime(); // 중간 이탈분 적립 (완료 후 이탈이면 이미 적립돼 no-op)
   if (typeof GuitarAudio !== 'undefined' && GuitarAudio.stop) GuitarAudio.stop();
   _comboResetDragState();
   _comboInQuiz = false;
@@ -655,6 +667,7 @@ function comboNextQuestion() {
 
 // ── 10문제 완료 기록: 행동형 XP(정답 무관) + 장별 완료/퍼펙트 카운터(퀘스트용) ──
 function _comboRecordSessionComplete() {
+  _comboFlushTrainingTime(); // 완료까지 걸린 시간 적립
   const s = JSON.parse(localStorage.getItem('training_stats') || '{}');
   const ch = _comboChapter;
   const isPerfect = _comboCorrectCount === COMBO_QUESTIONS_PER_SESSION;
@@ -1030,4 +1043,7 @@ document.addEventListener('DOMContentLoaded', () => {
       setTimeout(() => { cover.style.display = 'none'; }, 200);
     });
   }
+
+  // 탭 닫기 / 하드웨어 뒤로가기 등 exitComboQuiz 를 안 거치는 이탈 경로 처리
+  window.addEventListener('pagehide', _comboFlushTrainingTime, { once: true });
 });
