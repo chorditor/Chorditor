@@ -11284,12 +11284,6 @@ canvas {
   .scale-item-card--template {
     --cs: calc((400px - 88px) / 287);
   }
-
-  /* 코드 조합 훈련 챕터 카드: 위 스케일훈련 카드와 동일한 100vw 오버플로 문제 */
-  .combo-card {
-    flex: 0 0 calc(400px - 88px);
-    width: calc(400px - 88px);
-  }
 }
 
 /* ?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═
@@ -11436,6 +11430,15 @@ canvas {
   gap: 8px;
   text-align: center;
   overflow: hidden;
+}
+/* 데스크톱(.app-shell이 400px로 캡되는 구간): 카드 폭이 100vw 기준이라 뷰포트 전체 폭으로
+   커짐 → 캡 너비(400px) 기준 고정값으로 오버라이드. 위 base .combo-card 규칙보다
+   파일 뒤쪽에 와야 동일 우선도에서 이 규칙이 이긴다(순서 중요). */
+@media (min-width: 401px) {
+  .combo-card {
+    flex: 0 0 calc(400px - 88px);
+    width: calc(400px - 88px);
+  }
 }
 @media (max-height: 750px) {
   .combo-card {
