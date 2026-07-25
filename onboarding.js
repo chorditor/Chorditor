@@ -343,10 +343,30 @@ async function _saveOnboardingData() {
   }
 }
 
+// ── 서버 데이터 선반영 ────────────────────────────────────────
+// 재설치·새 기기는 로컬이 비어있어서, 복원 전에 home으로 보내면 노트·훈련통계·XP가
+// 전부 빈 값으로 보인다(각 화면이 로컬을 먼저 읽음). 온보딩 스피너 뒤에서 끌어온 뒤
+// '시작하기'를 띄운다. 실패해도 진입은 막지 않는다 — 6초 컷 후 그냥 진행.
+async function _restoreServerData() {
+  const jobs = [
+    typeof syncProjectsOnLogin        === 'function' && syncProjectsOnLogin(),
+    typeof restoreTrainingStatsFromDB === 'function' && restoreTrainingStatsFromDB(),
+    typeof restoreQuizLevelStatsFromDB === 'function' && restoreQuizLevelStatsFromDB(),
+    // GREATEST 병합 RPC라 호출 자체가 이미지/공유/노트 카운터의 유일한 복원 경로다.
+    typeof syncStatsToDB              === 'function' && syncStatsToDB(),
+  ].filter(Boolean).map(p => Promise.resolve(p).catch(() => {}));
+
+  await Promise.race([
+    Promise.all(jobs),
+    new Promise(r => setTimeout(r, 6000)),
+  ]);
+}
+
 // ── 인증된 유저 라우팅 (persona 유무 분기) ───────────────────
 //  persona 있음 → '시작하기' welcome 표시 (클릭 시 home)
 //  persona 없음 → 바로 persona step 진입 (_obFlow='existing')
 async function _routeAuthedUser() {
+  await _restoreServerData(); // 스피너 유지한 채 서버 데이터 복원 완료까지 대기
   try {
     const stored = localStorage.getItem(SUPABASE_STORAGE_KEY);
     const session = JSON.parse(stored || '{}');
@@ -473,6 +493,8 @@ async function onboardingSignIn() {
     if (session.user) {
       if (window._RC) await window._RC.logIn({ appUserID: session.user.id }).catch(() => {});
       await fetchPlanWithToken(session.access_token);
+      // 재설치 후 재로그인이 이 경로로 들어온다 — 스텝 진입 전에 서버 데이터를 끌어온다.
+      await _restoreServerData();
       _obFlow   = 'signup'; // 신규 가입 → 닉네임 완료 후 바로 home
       _obRouted = true;     // 이중 라우팅 방지
       _startOnboardingSteps();
@@ -532,11 +554,9 @@ async function tryAutoSignIn() {
           await syncPlanFromBilling();
           await fetchPlanWithToken(session.access_token).catch(() => {});
         }).catch(() => {});
-        // 푸시 딥링크는 '시작하기' 탭 없이 곧바로 목적지로 가므로 plan 동기화를 기다린다.
-        // (안 기다리면 stale plan으로 analytics가 free로 기록됨) 느릴 때 무한대기 방지로 3초 컷.
-        if (_hasPushTarget()) {
-          await Promise.race([planSync, new Promise(r => setTimeout(r, 3000))]);
-        }
+        // plan 동기화 완료까지 대기 — 안 기다리면 stale plan으로 analytics가 free로 기록되고,
+        // Pro 유저가 잠깐 free 화면을 보게 된다. 느릴 때 무한대기 방지로 3초 컷.
+        await Promise.race([planSync, new Promise(r => setTimeout(r, 3000))]);
         _routeAuthedUser();
         return;
       }
