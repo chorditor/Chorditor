@@ -4169,6 +4169,7 @@ document.addEventListener('pointerdown', (e) => {
 });
 
 function enterChordComboFromBanner() {
+  analytics.track('home_banner_click', { target: 'chord_combo' });
   const shell = document.querySelector('.app-shell');
   if (shell) {
     shell.classList.add('project-exit');
@@ -4182,6 +4183,7 @@ function enterTrainingFromBanner(key) {
   const pages = { 'chord-name': 'chord-name-quiz.html', 'scale': 'scale-training.html' };
   const href = pages[key];
   if (!href) return;
+  analytics.track('home_banner_click', { target: key === 'chord-name' ? 'chord_name_quiz' : 'scale_training' });
   const shell = document.querySelector('.app-shell');
   if (shell) {
     shell.classList.add('project-exit');
@@ -4192,6 +4194,7 @@ function enterTrainingFromBanner(key) {
 }
 
 function enterProgressionFromBanner() {
+  analytics.track('home_banner_click', { target: 'progression', prog_id: _dailyProg?.id || null });
   // 오늘의 코드진행 → 해당 진행의 디테일 페이지로 직행 (C키 / 플랫 표기 = 리스트 기본값)
   const href = _dailyProg
     ? `progression-detail.html?id=${encodeURIComponent(_dailyProg.id)}&key=0&flat=1`
