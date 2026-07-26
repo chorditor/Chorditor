@@ -70,6 +70,7 @@ const _ALLOWED_STATIC_FRETS = [
   _parseFrets('2 x 0 2 3 2'),   // D/F#
   _parseFrets('x 0 0 2 3 2'),   // D/A
   _parseFrets('x 0 3 2 1 1'),   // F/A
+  _parseFrets('1 x 0 0 0 3'),   // G/F (b7 베이스)
 ];
 
 // 일반 코드(non-slash) 경로용: slash 이름(name에 '/' 포함) 제외
@@ -114,6 +115,12 @@ const _ALLOWED_SLASH_SHAPES = [
   [1, 0, 0, 0, 2, null],
   // C7/E: x x r+1 r+2 r r+2 (rootStr:4) → [2,0,2,1,null,null]
   [2, 0, 2, 1, null, null],
+  // G/F(b7 베이스): r+1 x r r r x (rootStr:6) → [null,0,0,0,null,1]
+  [null, 0, 0, 0, null, 1],
+  // G/F(b7 베이스): x r r+1 r x x (rootStr:5) → [0,1,0,null,1,null]
+  [0, 1, 0, null, 1, null],
+  // G/F(b7 베이스): x x r r+1 r r (rootStr:4) → [0,0,1,0,null,null]
+  [0, 0, 1, 0, null, null],
 ];
 
 function isAllowedSlashVoicing(v) {
