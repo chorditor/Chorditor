@@ -41,6 +41,14 @@
 
         </activity>
 
+        <!-- FCM 원격 푸시 알림 아이콘: 풀컬러 런처 아이콘 fallback 방지 (흰색 실루엣 전용 모노크롬 아이콘 지정) -->
+        <meta-data
+            android:name="com.google.firebase.messaging.default_notification_icon"
+            android:resource="@drawable/ic_stat_notify" />
+        <meta-data
+            android:name="com.google.firebase.messaging.default_notification_color"
+            android:resource="@color/notification_icon_color" />
+
         <provider
             android:name="androidx.core.content.FileProvider"
             android:authorities="${applicationId}.fileprovider"

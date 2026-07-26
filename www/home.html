@@ -73,6 +73,77 @@
             </div>
           </div>
 
+          <div class="home-ad-banner">
+            <div class="home-ad-banner-track" id="home-ad-banner-track">
+              <div class="home-ad-banner-slide home-ad-banner-slide--1">
+                <!-- 배경 장식: 곡선 오선지 + 음표 (우하단 사선 배치) -->
+                <svg class="ad-banner-deco" viewBox="0 0 220 110" fill="none" aria-hidden="true">
+                  <g stroke="currentColor" stroke-width="1" stroke-linecap="round" opacity="0.9">
+                    <path d="M2 40 C46 6 106 74 218 24"/>
+                    <path d="M2 50 C46 16 106 84 218 34"/>
+                    <path d="M2 60 C46 26 106 94 218 44"/>
+                    <path d="M2 70 C46 36 106 104 218 54"/>
+                    <path d="M2 80 C46 46 106 114 218 64"/>
+                  </g>
+                  <g fill="currentColor">
+                    <!-- 8분음표 -->
+                    <ellipse cx="38" cy="53" rx="7.6" ry="5.4" transform="rotate(-22 38 53)"/>
+                    <path d="M44.6 49.5 L44.6 20" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
+                    <path d="M44.6 20 C52 24 55 30 53 37" stroke="currentColor" stroke-width="1.8" fill="none" stroke-linecap="round"/>
+                    <!-- 4분음표 -->
+                    <ellipse cx="104" cy="86" rx="7.2" ry="5.2" transform="rotate(-22 104 86)"/>
+                    <path d="M110.4 82.5 L110.4 54" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
+                    <!-- 빔으로 묶인 8분음표 2개 -->
+                    <ellipse cx="158" cy="70" rx="7.2" ry="5.2" transform="rotate(-22 158 70)"/>
+                    <path d="M164.4 66.5 L164.4 38" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
+                    <ellipse cx="190" cy="60" rx="7.2" ry="5.2" transform="rotate(-22 190 60)"/>
+                    <path d="M196.4 56.5 L196.4 28" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
+                    <path d="M163.6 38 L197.2 28" stroke="currentColor" stroke-width="4.4" stroke-linecap="round"/>
+                  </g>
+                </svg>
+                <span class="ad-banner-badge">신규</span>
+                <div class="ad-banner-text">
+                  <div class="ad-banner-title">코드 조합 훈련</div>
+                  <div class="ad-banner-desc">복잡하고 어려운 화성학을<br>퀴즈로 연습해요!</div>
+                </div>
+                <button class="ad-banner-cta" onclick="_playTap();enterChordComboFromBanner()">
+                  <i data-lucide="chevron-right"></i>
+                </button>
+              </div>
+              <div class="home-ad-banner-slide home-ad-banner-slide--2">
+                <div class="ad-banner-prog-bg" id="home-ad-banner-prog-bg"></div>
+                <div class="ad-banner-text">
+                  <div class="ad-banner-title">오늘의 코드진행</div>
+                  <div class="ad-banner-desc">매일 코드진행 하나씩<br>연습해보아요!</div>
+                </div>
+                <button class="ad-banner-cta" onclick="_playTap();enterProgressionFromBanner()">
+                  <i data-lucide="chevron-right"></i>
+                </button>
+              </div>
+              <div class="home-ad-banner-slide home-ad-banner-slide--3">
+                <div class="ad-banner-split" onclick="_playTap();enterTrainingFromBanner('chord-name')">
+                  <div class="ad-banner-split-text">
+                    <div class="ad-banner-split-label"><i class="ph-fill ph-grid-nine"></i>코드 맞추기</div>
+                    <div class="ad-banner-split-desc">기타 없이도 코드 암기를<br>할 수 있어요.</div>
+                  </div>
+                  <i data-lucide="chevron-right" class="ad-banner-split-arrow"></i>
+                </div>
+                <div class="ad-banner-split" onclick="_playTap();enterTrainingFromBanner('scale')">
+                  <div class="ad-banner-split-text">
+                    <div class="ad-banner-split-label"><i class="ph-fill ph-music-notes"></i>스케일 훈련</div>
+                    <div class="ad-banner-split-desc">다양한 스케일들이<br>모여있어요!</div>
+                  </div>
+                  <i data-lucide="chevron-right" class="ad-banner-split-arrow"></i>
+                </div>
+              </div>
+            </div>
+            <div class="home-ad-banner-dots" id="home-ad-banner-dots">
+              <span class="home-ad-banner-dot is-active"></span>
+              <span class="home-ad-banner-dot"></span>
+              <span class="home-ad-banner-dot"></span>
+            </div>
+          </div>
+
           <div class="home-blocks">
             <div class="home-block" onpointerdown="enterFromBlock(event,this,'editor')">
               <div class="home-block-icon"><i class="ph-bold ph-grid-nine"></i></div>
@@ -883,6 +954,7 @@
   <script src="guitar-audio.js"></script>
   <script src="analytics-sdk.js"></script>
   <script src="shared.js"></script>
+  <script src="progression-data.js"></script>
   <script src="voicing-canvas.js"></script>
   <script src="home.js"></script>
   <script src="chord-voicings.js"></script>

@@ -439,7 +439,8 @@ body {
   flex-direction: column;
   align-items: center;
   justify-content: flex-start;
-  gap: clamp(52px, 16vw, 8px);
+  --view-home-gap: clamp(52px, 16vw, 8px);
+  gap: var(--view-home-gap);
   box-sizing: border-box;
   overflow-y: auto;
   overflow-x: hidden;
@@ -679,6 +680,273 @@ body {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+
+/* 배너 카드 자체는 위치·크기 고정. 카드 안 내용(슬라이드)만 좌우로 넘어감. */
+.home-ad-banner {
+  width: 100%;
+  flex-shrink: 0;
+  aspect-ratio: 3 / 1;
+  border-radius: var(--radius);
+  box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+  box-sizing: border-box;
+  margin-block: calc(20px - var(--view-home-gap));
+  overflow: hidden;
+  position: relative;
+  cursor: grab;
+}
+.home-ad-banner.carousel--dragging { cursor: grabbing; user-select: none; }
+
+.home-ad-banner-track {
+  display: flex;
+  width: 100%;
+  height: 100%;
+  overflow-x: auto;
+  scroll-snap-type: x mandatory;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+.home-ad-banner-track::-webkit-scrollbar { display: none; }
+
+.home-ad-banner-slide {
+  flex: 0 0 100%;
+  width: 100%;
+  height: 100%;
+  box-sizing: border-box;
+  scroll-snap-align: center;
+  scroll-snap-stop: always;
+}
+
+.home-ad-banner-slide--1 {
+  background: linear-gradient(135deg, #fdfeff 0%, #eef4ff 45%, #e2ecfd 100%);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 20px;
+  box-sizing: border-box;
+  position: relative;
+  overflow: hidden;
+}
+
+/* 배경 장식(곡선 오선지): 우하단에 사선으로 걸치게 배치. 흐릿하게 깔아 텍스트 가독성 유지 */
+.ad-banner-deco {
+  position: absolute;
+  right: -18px;
+  bottom: -16px;
+  width: 62%;
+  height: auto;
+  transform: rotate(-7deg);
+  transform-origin: bottom right;
+  color: var(--charcoal-blue, #2E323B);
+  opacity: 0.16;
+  filter: blur(0.5px);
+  pointer-events: none;
+  /* 좌측 50% 구간에서 완전히 사라지게 → 텍스트 쪽으로 번지지 않음 */
+  -webkit-mask-image: linear-gradient(to right, transparent 0%, #000 50%);
+  mask-image: linear-gradient(to right, transparent 0%, #000 50%);
+}
+
+/* 장식 레이어 위로 텍스트·버튼이 오도록 */
+.home-ad-banner-slide--1 .ad-banner-text,
+.home-ad-banner-slide--1 .ad-banner-cta {
+  position: relative;
+  z-index: 1;
+}
+.home-ad-banner-slide--1 .ad-banner-badge {
+  z-index: 1; /* position: absolute는 유지 */
+}
+
+.ad-banner-badge {
+  position: absolute;
+  top: 10px;
+  right: 20px;
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.03em;
+  color: #fff;
+  background: #e53935;
+  padding: 3px 8px;
+  border-radius: 999px;
+}
+
+.ad-banner-text {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+
+.ad-banner-title {
+  font-size: clamp(14px, 4.2vw, 16px);
+  font-weight: 800;
+  color: var(--text-primary);
+  letter-spacing: -0.02em;
+}
+
+.ad-banner-desc {
+  font-size: clamp(11px, 3.1vw, 13px);
+  font-weight: 500;
+  color: var(--text-muted);
+  line-height: 1.4;
+}
+
+.ad-banner-cta {
+  flex-shrink: 0;
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  border: none;
+  background: none;
+  color: var(--charcoal-blue);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  position: relative;
+}
+/* 아이콘이 작아 터치가 잘 안 잡히므로 보이지 않는 가상 히트박스로 터치 영역만 확장 */
+.ad-banner-cta::before {
+  content: '';
+  position: absolute;
+  inset: -14px -16px -14px -20px;
+}
+.ad-banner-cta i {
+  width: 18px;
+  height: 18px;
+}
+.home-ad-banner-slide--2 {
+  background: linear-gradient(135deg, #ffffff 0%, #f7f7f8 45%, #eeeef0 100%);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 0 20px;
+  box-sizing: border-box;
+  position: relative;
+  overflow: hidden;
+}
+
+/* 코드진행을 배경 장식으로 표시. 살짝 blur + 낮은 불투명도로 배경처럼 뒤로 물러나 보이게 한다.
+   우측은 화살표 앞에 고정(right), 좌측은 내용 길이만큼 자동으로 넓어짐(width: max-content).
+   → m7/M7처럼 표기가 길어져도 잘리지 않고, 짧으면 우측 기준으로 자연스럽게 붙는다.
+   2열 grid라 윗줄·아랫줄 컬럼 정렬이 맞는다. */
+.ad-banner-prog-bg {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  right: 80px;
+  width: max-content;
+  max-width: calc(100% - 96px); /* 카드 밖으로는 못 나가게 */
+  display: grid;
+  grid-template-columns: repeat(2, max-content);
+  justify-content: start;
+  align-content: center;
+  gap: 10px 20px;
+  font-size: 20px;
+  font-weight: 600;
+  letter-spacing: -0.03em;
+  white-space: nowrap;
+  color: var(--charcoal-blue, #2E323B);
+  opacity: 0.35;
+  filter: blur(0.4px);
+  pointer-events: none;
+  -webkit-mask-image: linear-gradient(to right, rgba(0,0,0,0.55) 0%, rgba(0,0,0,0.55) 15%, rgba(0,0,0,0.35) 100%);
+  mask-image: linear-gradient(to right, rgba(0,0,0,0.55) 0%, rgba(0,0,0,0.55) 15%, rgba(0,0,0,0.35) 100%);
+}
+
+/* 배경 레이어 위로 텍스트·버튼이 오도록 */
+.home-ad-banner-slide--2 .ad-banner-text,
+.home-ad-banner-slide--2 .ad-banner-cta {
+  position: relative;
+  z-index: 1;
+}
+.home-ad-banner-slide--3 {
+  display: flex;
+  align-items: stretch;
+}
+
+.ad-banner-split {
+  flex: 1 1 0;
+  min-width: 0;
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+  padding: 0 14px 0 20px;
+  box-sizing: border-box;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+.ad-banner-split:nth-child(1) {
+  background: #f2f7fe;
+}
+.ad-banner-split:nth-child(2) {
+  background: #fdf8fa;
+}
+
+.ad-banner-split-text {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+}
+
+.ad-banner-split-label {
+  font-size: clamp(13px, 3.8vw, 15px);
+  font-weight: 800;
+  color: var(--text-primary);
+  letter-spacing: -0.02em;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+/* 타이틀 앞 아이콘: 각 영역 배경색과 어울리는 톤 */
+.ad-banner-split-label i {
+  font-size: 1.15em;
+  line-height: 1;
+  flex-shrink: 0;
+}
+.ad-banner-split:nth-child(1) .ad-banner-split-label i { color: #4B7BD6; }
+.ad-banner-split:nth-child(2) .ad-banner-split-label i { color: #D06A94; }
+
+.ad-banner-split-desc {
+  font-size: clamp(10px, 2.9vw, 12px);
+  font-weight: 500;
+  color: var(--text-muted);
+  text-align: left;
+}
+
+.ad-banner-split-arrow {
+  flex-shrink: 0;
+  width: 16px;
+  height: 16px;
+  color: var(--text-muted);
+}
+
+.home-ad-banner-dots {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  pointer-events: none;
+}
+.home-ad-banner-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: rgba(75,123,214,0.25);
+  transition: background 0.15s, transform 0.15s;
+}
+.home-ad-banner-dot.is-active {
+  background: #4B7BD6;
+  transform: scale(1.2);
 }
 
 .home-blocks {

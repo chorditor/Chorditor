@@ -4168,6 +4168,236 @@ document.addEventListener('pointerdown', (e) => {
   }
 });
 
+function enterChordComboFromBanner() {
+  const shell = document.querySelector('.app-shell');
+  if (shell) {
+    shell.classList.add('project-exit');
+    setTimeout(() => { location.href = 'chord-combo.html'; }, 260);
+  } else {
+    location.href = 'chord-combo.html';
+  }
+}
+
+function enterTrainingFromBanner(key) {
+  const pages = { 'chord-name': 'chord-name-quiz.html', 'scale': 'scale-training.html' };
+  const href = pages[key];
+  if (!href) return;
+  const shell = document.querySelector('.app-shell');
+  if (shell) {
+    shell.classList.add('project-exit');
+    setTimeout(() => { location.href = href; }, 260);
+  } else {
+    location.href = href;
+  }
+}
+
+function enterProgressionFromBanner() {
+  // 오늘의 코드진행 → 해당 진행의 디테일 페이지로 직행 (C키 / 플랫 표기 = 리스트 기본값)
+  const href = _dailyProg
+    ? `progression-detail.html?id=${encodeURIComponent(_dailyProg.id)}&key=0&flat=1`
+    : 'progression.html';
+  const shell = document.querySelector('.app-shell');
+  if (shell) {
+    shell.classList.add('project-exit');
+    setTimeout(() => { location.href = href; }, 260);
+  } else {
+    location.href = href;
+  }
+}
+
+// ── 오늘의 코드진행 ────────────────────────────────────────────
+// 페르소나별 노출 목록 (progression-data.js의 no 그룹: 1=초보자용, 2=7th, 3=실전형, 4=고급)
+const _DAILY_PROG_NO_BY_PERSONA = {
+  unboxing:      [1],
+  beginner:      [1],
+  sheet_reader:  [2, 4],
+  home_master:   [2, 4],
+  guitar_master: [2, 4],
+};
+
+// 하루 경계는 오전 5시. 05시 이전 접속은 전날로 취급 → 05시에 딱 한 번만 바뀐다.
+function _dailyProgDayKey() {
+  const d = new Date(Date.now() - 5 * 60 * 60 * 1000);
+  return `${d.getFullYear()}-${d.getMonth() + 1}-${d.getDate()}`;
+}
+
+let _dailyProg = null;
+
+// 같은 날이면 localStorage에 저장된 진행을 그대로 사용(재접속해도 불변).
+// 최초 선택은 랜덤이라 개인마다 다르게 뽑히고, 페르소나가 바뀌면 풀이 달라져 재선택된다.
+function _pickDailyProgression() {
+  if (typeof PROGRESSION_DATA === 'undefined' || !PROGRESSION_DATA.length) return null;
+  const allowNo = _DAILY_PROG_NO_BY_PERSONA[getUserPersona()] || [1];
+  const pool = PROGRESSION_DATA.filter(p => p.steps.length <= 4 && allowNo.indexOf(p.no ?? 1) !== -1);
+  if (!pool.length) return null;
+
+  const day = _dailyProgDayKey();
+  let saved = null;
+  try { saved = JSON.parse(localStorage.getItem('home_daily_prog') || 'null'); } catch (_) {}
+  if (saved && saved.day === day) {
+    const hit = pool.find(p => p.id === saved.id);
+    if (hit) return hit;
+  }
+  const picked = pool[Math.floor(Math.random() * pool.length)];
+  localStorage.setItem('home_daily_prog', JSON.stringify({ day, id: picked.id }));
+  return picked;
+}
+
+// 2번 배너 배경 장식: 오늘의 코드진행 코드명 표시 (C키 기준).
+// 잘림은 마스크 그라디언트가 처리하므로 폰트 축소 로직 불필요.
+function renderHomeAdBannerProgression() {
+  const bg = document.getElementById('home-ad-banner-prog-bg');
+  if (!bg) return;
+  const prog = _pickDailyProgression();
+  if (!prog) return;
+  _dailyProg = prog;
+  bg.innerHTML = prog.steps.map(s => `<span>${s.chord}</span>`).join('');
+
+  // 코드명이 길수록(m7·M7·sus4 등) 컬럼 gap을 좁혀 전체 폭이 과하게 늘어나지 않게 한다.
+  // 글자수 2 이하 → GAP_MAX, 6 이상 → GAP_MIN, 사이는 선형 보간.
+  const GAP_MIN = 12, GAP_MAX = 28;
+  const maxLen = Math.max(...prog.steps.map(s => s.chord.length));
+  const gap = Math.round(Math.min(GAP_MAX, Math.max(GAP_MIN, GAP_MAX - (maxLen - 2) * 4)));
+  bg.style.columnGap = gap + 'px';
+}
+
+// 배너 캐러셀: 순환 이동 + 5초 자동 넘김 + 데스크탑 마우스 드래그(터치는 네이티브 스크롤).
+// 순환은 앞뒤에 클론 슬라이드를 하나씩 붙이고, 스크롤이 멈춘 뒤 클론 위치면
+// 애니메이션 없이 반대편 실제 슬라이드로 순간 이동시키는 방식.
+const HOME_BANNER_AUTO_MS = 5000;
+
+function initHomeAdBannerCarousel() {
+  const track = document.getElementById('home-ad-banner-track');
+  if (!track || track._carouselInit) return;
+  track._carouselInit = true;
+
+  const slides = Array.from(track.children);
+  const count = slides.length;
+  if (!count) return;
+
+  // 클론 생성(id 중복 방지를 위해 클론 내부 id 제거)
+  const _stripIds = (el) => {
+    el.removeAttribute('id');
+    el.querySelectorAll('[id]').forEach(n => n.removeAttribute('id'));
+    return el;
+  };
+  track.insertBefore(_stripIds(slides[count - 1].cloneNode(true)), slides[0]);
+  track.appendChild(_stripIds(slides[0].cloneNode(true)));
+
+  const dots     = document.querySelectorAll('#home-ad-banner-dots .home-ad-banner-dot');
+  const slideW   = () => track.clientWidth;
+  const curIdx   = () => Math.round(track.scrollLeft / slideW());
+  const goto     = (i) => track.scrollTo({ left: i * slideW(), behavior: 'smooth' });
+
+  // 순간 이동. scroll-snap이 켜진 채로 위치를 바꾸면 브라우저가 다시 스냅을 걸면서
+  // 애니메이션이 튀어 보이므로, 이동 동안만 스냅을 끄고 리플로우로 위치를 확정한다.
+  function jumpTo(i) {
+    const saved = track.style.scrollSnapType;
+    track.style.scrollSnapType = 'none';
+    track.scrollLeft = i * slideW();
+    void track.offsetWidth; // 강제 리플로우 → 새 위치 확정 후 스냅 복구
+    track.style.scrollSnapType = saved;
+  }
+
+  // 실제 첫 슬라이드(클론 다음) 위치에서 시작
+  requestAnimationFrame(() => jumpTo(1));
+
+  function updateDots() {
+    if (!dots.length) return;
+    const real = ((curIdx() - 1) % count + count) % count;
+    dots.forEach((d, i) => d.classList.toggle('is-active', i === real));
+  }
+
+  // 스크롤이 멈춘 뒤 클론 위치면 반대편 실제 슬라이드로 순간 이동.
+  // 애니메이션 도중 끼어들면 튀므로, 슬라이드 경계에 충분히 붙었을 때만 처리한다.
+  function normalize() {
+    const w = slideW();
+    const i = curIdx();
+    if (Math.abs(track.scrollLeft - i * w) > 2) return;
+    if (i === 0)              jumpTo(count);
+    else if (i === count + 1) jumpTo(1);
+  }
+
+  // 드래그 상태(자동 넘김 판단에도 쓰이므로 먼저 선언)
+  let dragging = false, moved = false, startX = 0, startLeft = 0, savedSnap = '';
+  let suppressClickUntil = 0;
+
+  // ── 자동 넘김 ──
+  let autoTimer = null;
+  const stopAuto  = () => { if (autoTimer) { clearInterval(autoTimer); autoTimer = null; } };
+  const startAuto = () => {
+    stopAuto();
+    autoTimer = setInterval(() => {
+      if (document.hidden || dragging) return;
+      goto(curIdx() + 1);
+    }, HOME_BANNER_AUTO_MS);
+  };
+  startAuto();
+  document.addEventListener('visibilitychange', () => {
+    if (document.hidden) stopAuto(); else startAuto();
+  });
+
+  let scrollTimer = null;
+  track.addEventListener('scroll', () => {
+    updateDots();
+    clearTimeout(scrollTimer);
+    scrollTimer = setTimeout(normalize, 120);
+  }, { passive: true });
+
+  // ── 마우스 드래그(데스크탑) ──
+  // 한 번의 드래그로 정확히 1장만 넘어가도록: 드래그 중 이동량을 ±1장으로 제한하고,
+  // 놓는 순간 이동 거리로 "넘길지 / 제자리로 돌아갈지"만 판단한다.
+  const DRAG_THRESHOLD_RATIO = 0.18; // 슬라이드 폭 대비 이 비율 이상 끌면 넘어감
+  let startIdx = 0;
+
+  track.addEventListener('pointerdown', (e) => {
+    stopAuto(); // 직접 조작 중에는 자동 넘김 정지
+    if (e.pointerType !== 'mouse' || e.button !== 0) return;
+    dragging = true; moved = false;
+    startX = e.clientX;
+    startIdx = curIdx();
+    startLeft = startIdx * slideW();
+  });
+
+  track.addEventListener('pointermove', (e) => {
+    if (!dragging || e.pointerType !== 'mouse') return;
+    const w = slideW();
+    let dx = e.clientX - startX;
+    if (!moved && Math.abs(dx) > 3) {
+      moved = true;
+      savedSnap = track.style.scrollSnapType;
+      track.style.scrollSnapType = 'none';
+      track.classList.add('carousel--dragging');
+      try { track.setPointerCapture(e.pointerId); } catch (_) {}
+    }
+    if (moved) {
+      dx = Math.max(-w, Math.min(w, dx)); // 최대 1장 분량까지만 따라오게 제한
+      track.scrollLeft = startLeft - dx;
+      e.preventDefault();
+    }
+  });
+
+  const _endDrag = (e) => {
+    startAuto(); // 조작이 끝나면 5초 카운트를 새로 시작
+    if (!dragging || e.pointerType !== 'mouse') return;
+    dragging = false;
+    if (moved) {
+      track.style.scrollSnapType = savedSnap;
+      track.classList.remove('carousel--dragging');
+      suppressClickUntil = performance.now() + 80;
+      const dx = e.clientX - startX;
+      const step = Math.abs(dx) > slideW() * DRAG_THRESHOLD_RATIO ? (dx < 0 ? 1 : -1) : 0;
+      goto(startIdx + step);
+    }
+  };
+  track.addEventListener('pointerup', _endDrag);
+  track.addEventListener('pointercancel', _endDrag);
+
+  track.addEventListener('click', (ce) => {
+    if (performance.now() < suppressClickUntil) { ce.stopPropagation(); ce.preventDefault(); }
+  }, { capture: true });
+}
+
 document.addEventListener('DOMContentLoaded', async () => {
   // 리뷰 유도: 앱 실행 카운트 (성숙도 측정)
   if (typeof reviewRegisterLaunch === 'function') reviewRegisterLaunch();
@@ -4183,6 +4413,8 @@ document.addEventListener('DOMContentLoaded', async () => {
   renderRootBtns();
   renderBassBtns();
   initStaticWheelPickers();
+  renderHomeAdBannerProgression(); // 클론 슬라이드에도 내용이 담기도록 캐러셀 초기화보다 먼저
+  initHomeAdBannerCarousel();
   updateChordDisplay(false); // 초기 렌더 = 비유저, chord_build 제외
   const _fnGroup = document.getElementById('finger-group');
   if (_fnGroup) _fnGroup.style.opacity = fingerNumMode ? '1' : '0.35';
@@ -4284,6 +4516,8 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
 
     el.addEventListener('touchstart', e => {
+      // 배너 캐러셀 내부 터치는 가로 스와이프 전용 → Y축 모멘텀 스크롤 관여 금지
+      if (e.target.closest && e.target.closest('.home-ad-banner-track')) { isDragging = false; return; }
       cancelAnim();
       startY     = e.touches[0].clientY;
       lastY      = startY;
