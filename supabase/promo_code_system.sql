@@ -130,11 +130,18 @@ begin
   end if;
 
   if v_days > 0 then
-    -- 이미 프로모션 pro면 기존 만료일에 이어붙여 연장
+    -- 이미 프로모션 pro면 기존 만료일에 이어붙여 연장.
+    -- 만료 시각은 한국시간(KST) 기준 그날 23:59:59로 올림 — 늦은 시간에 입력해도
+    -- 손해가 없고, 프로필에 '○월 ○일까지'로 날짜만 표시하는 것과 정확히 일치한다.
+    -- (DB now()는 UTC라 KST로 변환 후 잘라야 한국 자정이 경계가 됨)
     update public.subscriptions
        set promo_plan       = 'pro',
-           promo_expires_at = greatest(coalesce(promo_expires_at, now()), now())
-                              + (v_days || ' days')::interval
+           promo_expires_at = (
+             date_trunc('day',
+               (greatest(coalesce(promo_expires_at, now()), now())
+                 + (v_days || ' days')::interval) at time zone 'Asia/Seoul'
+             ) + interval '1 day' - interval '1 second'
+           ) at time zone 'Asia/Seoul'
      where user_id = v_me;
     v_plan := 'pro';
   end if;

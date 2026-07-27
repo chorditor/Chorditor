@@ -2,7 +2,8 @@
 -- 픽(Peak) 인앱재화 시스템 — 유저별 DB 관리, 30분마다 +1 자동충전(cap 30)
 --   회복 계산은 크론 없이 lazy 방식: get_peak_state/consume_peak/open_peakbox
 --   호출 시점에 peak_updated_at 기준 경과시간으로 서버가 즉시 계산·반영.
---   cap 도달 시엔 peak_updated_at을 now()로 당겨 타이머를 일시정지(백로그 방지),
+--   cap 도달 시엔 peak_updated_at을 그대로 고정(건드리면 push-peak-full의
+--   candidate_full_at도 매번 밀려 완충 유지 중에도 재발송되는 버그 발생),
 --   cap 밑으로 소모되면 그 시점부터 다시 30분 카운트 시작.
 --   피크상자 보상(+5)은 오버충전 허용(cap 무시) — 정규 회복 로직과 무관.
 --   Supabase SQL Editor에서 1회 실행.
@@ -44,10 +45,7 @@ begin
   end if;
 
   if v_balance >= v_cap then
-    if v_updated < now() then
-      update public.subscriptions set peak_updated_at = now() where user_id = p_user_id;
-      v_updated := now();
-    end if;
+    null; -- 캡 도달 시 peak_updated_at 고정(건드리면 push-peak-full의 candidate_full_at도 밀려 재발송 버그 발생, 2026-07-26 수정)
   else
     v_elapsed_min := floor(extract(epoch from (now() - v_updated)) / 60);
     v_increments  := floor(v_elapsed_min::numeric / v_interval);

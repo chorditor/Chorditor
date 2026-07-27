@@ -519,7 +519,22 @@
             </div>
           </div>
 
-          <!-- 컨테이너 4: 코드 입력 (프로모션 쿠폰 전용) -->
+          <!-- 컨테이너 4: 내 초대코드 -->
+          <div class="profile-container">
+            <div class="profile-section-label">내 초대코드</div>
+            <div class="profile-invite-box">
+              <span class="profile-invite-code" id="profile-invite-code">------</span>
+              <button class="profile-invite-btn" onclick="_playTap();copyMyInviteCode()" aria-label="복사">
+                <i data-lucide="copy"></i>
+              </button>
+              <button class="profile-invite-btn" onclick="_playTap();shareMyInviteCode()" aria-label="공유">
+                <i data-lucide="share-2"></i>
+              </button>
+            </div>
+            <div class="profile-invite-hint">친구가 가입할 때 이 코드를 입력하면 둘 다 보상을 받아요</div>
+          </div>
+
+          <!-- 컨테이너 5: 코드 입력 (프로모션 쿠폰 전용) -->
           <div class="profile-container">
             <div class="profile-section-label">코드 입력</div>
             <div class="profile-code-box">

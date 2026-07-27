@@ -49,6 +49,20 @@
             android:name="com.google.firebase.messaging.default_notification_color"
             android:resource="@color/notification_icon_color" />
 
+        <!-- Capacitor 기본 FCM 수신 서비스 제거 → largeIcon 붙이는 커스텀 서비스로 교체.
+             MyFirebaseMessagingService가 PushNotificationsPlugin.sendRemoteMessage/onNewToken을
+             그대로 호출하므로 JS 쪽 push 이벤트·토큰 등록 흐름은 동일하게 유지된다. -->
+        <service
+            android:name="com.capacitorjs.plugins.pushnotifications.MessagingService"
+            tools:node="remove" />
+        <service
+            android:name=".MyFirebaseMessagingService"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="com.google.firebase.MESSAGING_EVENT" />
+            </intent-filter>
+        </service>
+
         <provider
             android:name="androidx.core.content.FileProvider"
             android:authorities="${applicationId}.fileprovider"

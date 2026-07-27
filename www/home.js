@@ -1954,7 +1954,7 @@ async function loadProfileFromDB() {
     }
 
     const resp = await fetch(
-      `${SUPABASE_URL}/rest/v1/subscriptions?user_id=eq.${userId}&select=nickname,plan,created_at,persona,promo_plan,promo_expires_at`,
+      `${SUPABASE_URL}/rest/v1/subscriptions?user_id=eq.${userId}&select=nickname,plan,created_at,persona,promo_plan,promo_expires_at,invite_code`,
       { headers: { 'apikey': SUPABASE_ANON, 'Authorization': `Bearer ${token}` } }
     );
     if (!resp.ok) {
@@ -1999,6 +1999,10 @@ async function loadProfileFromDB() {
         expEl.hidden = true;
       }
     }
+
+    // 내 초대코드 (가입 트리거로 자동 발급되므로 정상적으론 항상 존재)
+    if (row.invite_code) _myInviteCode = row.invite_code;
+    _sv('profile-invite-code', _myInviteCode || '------');
 
     // 페르소나 뱃지 (있을 때만 구분자+라벨 표시)
     const PERSONA_LABEL = {
@@ -3040,9 +3044,41 @@ function showTextToast(msg) {
   _textToastTimer = setTimeout(() => el.classList.remove('show'), 2000);
 }
 
+// ── 내 초대코드 (복사 / 공유) ──
+let _myInviteCode = null;
+
+function copyMyInviteCode() {
+  if (!_myInviteCode) return;
+  if (navigator.clipboard?.writeText) {
+    navigator.clipboard.writeText(_myInviteCode)
+      .then(() => showTextToast('초대코드 복사됨!'))
+      .catch(() => showTextToast('복사에 실패했어요.'));
+  } else {
+    showTextToast('복사에 실패했어요.');
+  }
+}
+
+async function shareMyInviteCode() {
+  if (!_myInviteCode) return;
+  const text = `기타 코드 연습은 코디터에서!\n가입할 때 초대코드 ${_myInviteCode} 를 입력하면 피크상자를 드려요.`;
+  const Share = window.Capacitor?.Plugins?.Share;
+  try {
+    if (Share) {
+      await Share.share({ title: 'Chorditor 초대코드', text });
+    } else if (navigator.share) {
+      await navigator.share({ title: 'Chorditor 초대코드', text });
+    } else {
+      copyMyInviteCode();
+      return;
+    }
+    if (typeof analytics !== 'undefined') analytics.track('invite_code_shared', {});
+  } catch (e) { /* 사용자가 공유 취소 — 무시 */ }
+}
+
 // ── 프로필 코드 입력(프로모션 쿠폰 전용) ──
-// 성공 시 보상 지급: 상자만 있으면 기존 피크상자 모달, pro 포함이면
-// (임시) 코드 결과 모달로 안내 — pro 전용 발급완료 모달은 다음 단계에서 교체.
+// 성공 시: 상자는 기존 피크상자 모달, pro는 전용 발급완료 모달.
+// 지급 후 프로필을 서버에서 다시 읽어 플랜 배너를 갱신한다
+// (안 하면 pro를 받았는데 화면엔 Free가 그대로 남아 유저가 오해함).
 const PROMO_ERROR_MESSAGES = {
   invalid:  '코드가 유효하지 않습니다.',
   inactive: '현재 사용할 수 없는 코드입니다.',
@@ -3081,6 +3117,11 @@ async function submitProfileCode() {
       setPlan('pro');
       await refreshPromoUntil();
     }
+
+    // 프로필 배너(플랜/만료일)를 서버 기준으로 다시 그림 — 지급 결과가 화면에 바로 반영되도록
+    await loadProfileFromDB();
+    if (typeof renderPeakboxBadge === 'function') renderPeakboxBadge();
+    if (typeof renderPeakBadge === 'function') renderPeakBadge();
 
     // 상자+pro 동시 지급이면 상자 모달 먼저 → 닫힌 뒤 pro 모달
     const showProIfAny = () => { if (r.pro_days > 0) showPromoProModal(r.pro_days); };

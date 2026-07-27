@@ -7079,6 +7079,54 @@ canvas {
 .profile-code-submit:hover { opacity: 0.85; }
 .profile-code-submit:active { transform: scale(0.97); }
 
+/* ── 내 초대코드 (프로모션 입력창과 동일한 박스 톤) ── */
+.profile-invite-box {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  background: #fff;
+  border-radius: var(--radius);
+  padding: 8px 8px 8px 16px;
+  box-shadow: 0 1px 4px rgba(0,0,0,0.06);
+}
+
+.profile-invite-code {
+  flex: 1;
+  min-width: 0;
+  font-family: 'Pretendard', sans-serif;
+  font-size: 18px;
+  font-weight: 800;
+  letter-spacing: 0.14em;
+  color: var(--text-primary);
+}
+
+.profile-invite-btn {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  background: none;
+  border: none;
+  padding: 0;
+  color: var(--text-muted);
+  cursor: pointer;
+  border-radius: calc(var(--radius) - 4px);
+  transition: opacity .15s;
+}
+.profile-invite-btn svg { width: 18px; height: 18px; }
+.profile-invite-btn:hover { opacity: 0.7; }
+.profile-invite-btn:active { transform: scale(0.92); }
+
+.profile-invite-hint {
+  font-size: 11px;
+  color: var(--text-muted);
+  padding: 8px 4px 0;
+  text-align: center;
+  line-height: 1.5;
+}
+
 #exit-toast.visible {
   opacity: 1;
   transform: translateX(-50%) translateY(0);
