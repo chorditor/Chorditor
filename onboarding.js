@@ -78,7 +78,7 @@ function _showInAppGuide() {
 }
 
 // ── 온보딩 정보수집 스텝 ──────────────────────────────────────
-let _obData = { persona: null, guitar_experience: null, gender: null, birth_year: null, nickname: null };
+let _obData = { persona: null, guitar_experience: null, gender: null, birth_year: null, nickname: null, has_invite: null, invite_code: null };
 // 온보딩 진입 경로: 'signup'(신규 가입) | 'existing'(기존 유저·persona 미입력)
 // signup  → 마지막 닉네임 step 완료 후 바로 home
 // existing → 마지막 닉네임 step 완료 후 '시작하기' 화면 거쳐 home
@@ -89,6 +89,12 @@ async function _startOnboardingSteps() {
   // 페르소나 온보딩 노출 조건: DB subscriptions.persona 값이 존재하는지 여부.
   // persona 있으면 완료 처리 → home / 없으면(기존·신규 무관, 계정 재생성 포함) 온보딩 표시.
   // localStorage 플래그에 의존하지 않음(계정 삭제 후 재로그인 시 stale 플래그로 스킵되던 버그 방지).
+  // ?ob=1(테스트 강제 진입) 시엔 persona 존재 여부와 무관하게 항상 Step1부터 표시.
+  if (new URLSearchParams(location.search).get('ob') === '1') {
+    document.getElementById('onboarding-overlay')?.classList.add('hidden');
+    _showStep('ob-step1');
+    return;
+  }
   try {
     const stored = localStorage.getItem(SUPABASE_STORAGE_KEY);
     if (stored) {
@@ -155,15 +161,22 @@ function obToggleTerms() {
   icon.textContent = isHidden ? '▾' : '▴';
 }
 
-function obOnConsentCheck() {}
+function obOnConsentCheck() {
+  const checkbox = document.getElementById('ob-consent-checkbox');
+  const btn      = document.getElementById('ob-consent-btn');
+  if (btn) btn.disabled = !checkbox?.checked;
+}
 
 function obConsentAgree() {
-  const checkbox = document.getElementById('ob-consent-checkbox');
-  if (checkbox) checkbox.checked = true;
   // 푸시 알림 동의 시 권한 요청 (체크된 경우만)
   const pushCheck = document.getElementById('ob-push-checkbox');
   if (pushCheck && pushCheck.checked) _requestPushPermission();
-  document.getElementById('ob-consent-backdrop')?.classList.add('hidden');
+  const backdrop = document.getElementById('ob-consent-backdrop');
+  backdrop?.classList.add('ob-consent-backdrop--closing');
+  setTimeout(() => {
+    backdrop?.classList.add('hidden');
+    backdrop?.classList.remove('ob-consent-backdrop--closing');
+  }, 280);
   _showStep('ob-step2', 'ob-step1');
 }
 
@@ -223,7 +236,7 @@ function obStep4Next() {
       input.value = googleName;
       _obData.nickname = googleName;
       document.getElementById('ob-nickname-len').textContent = googleName.length;
-      document.getElementById('ob-step5-complete').disabled = false;
+      document.getElementById('ob-step5-next').disabled = false;
     }
   } catch(e) {}
 }
@@ -233,14 +246,129 @@ function obOnNicknameInput(input) {
   const val = input.value.trim();
   _obData.nickname = val || null;
   document.getElementById('ob-nickname-len').textContent = input.value.length;
-  document.getElementById('ob-step5-complete').disabled = val.length === 0;
+  document.getElementById('ob-step5-next').disabled = val.length === 0;
 }
 
-// Step 5: 완료 → Supabase 저장 → (신규)home / (기존)시작하기 화면
-async function obStep5Complete() {
-  const btn = document.getElementById('ob-step5-complete');
+// Step 5: 닉네임 확정 → Step 6(초대코드 보유 여부) 이동
+function obStep5Next() {
+  if (!_obData.nickname) return;
+  _showStep('ob-step6', 'ob-step5');
+}
+
+// Step 6: 초대코드 보유 여부 선택 → '아니요'는 바로 완료, '예'는 Step 7(코드 입력)로 이동
+function obStep6Choice(el, val) {
+  document.querySelectorAll('#ob-step6 .ob-big-card').forEach(c => c.classList.remove('ob-big-card--selected'));
+  el.classList.add('ob-big-card--selected');
+  _obData.has_invite = val;
+  if (val === 'no') {
+    _obFinishOnboarding();
+  } else {
+    _showStep('ob-step7', 'ob-step6');
+  }
+}
+
+// Step 7: 코드 입력 처리 — 재입력 시 에러 상태 해제
+function obOnInviteInput(input) {
+  const val = input.value.trim();
+  _obData.invite_code = val || null;
+  document.getElementById('ob-step7-complete').disabled = val.length === 0;
+  _clearInviteError();
+}
+
+// Step 7: 완료 → 코드 유효성 확인. 성공은 Step 8로 전환. 실패/오류는 화면전환 없이 인라인 표시.
+async function obStep7Complete() {
+  const btn = document.getElementById('ob-step7-complete');
+  if (btn) { btn.disabled = true; btn.textContent = '확인 중...'; }
+  try {
+    const r = await _checkInviteCode(_obData.invite_code);
+    if (r.ok) {
+      _showStep('ob-step8', 'ob-step7');
+    } else {
+      _showInviteError(INVITE_ERROR_MESSAGES[r.reason] || INVITE_ERROR_MESSAGES.network);
+      if (btn) { btn.disabled = false; btn.textContent = '완료'; }
+    }
+  } catch (e) {
+    _showInviteError(INVITE_ERROR_MESSAGES.network);
+    if (btn) { btn.disabled = false; btn.textContent = '완료'; }
+  }
+}
+
+// Step 7: 넘어가기 — 실수로 진입했을 경우 코드 없이 바로 온보딩 종료
+function obStep7Skip() {
+  _obData.invite_code = null;
+  _obFinishOnboarding();
+}
+
+const INVITE_ERROR_MESSAGES = {
+  invalid: '유효하지 않은 코드입니다.',
+  self:    '본인의 코드는 사용할 수 없어요.',
+  already: '이미 초대코드를 사용했어요.',
+  network: '잠시 후 다시 시도해 주세요.',
+};
+
+// Supabase RPC 호출 (온보딩 전용 경량 헬퍼). 비로그인 상태면 anon 키만으로 호출.
+async function _obRpc(fnName, body) {
+  let token = null;
+  try {
+    const stored = localStorage.getItem(SUPABASE_STORAGE_KEY);
+    if (stored) token = JSON.parse(stored)?.access_token || null;
+  } catch (_) {}
+  const headers = { 'Content-Type': 'application/json', 'apikey': SUPABASE_ANON };
+  if (token) headers['Authorization'] = `Bearer ${token}`;
+  const resp = await fetch(`${SUPABASE_URL}/rest/v1/rpc/${fnName}`, {
+    method: 'POST', headers, body: JSON.stringify(body || {}),
+  });
+  if (!resp.ok) throw new Error(fnName + ' ' + resp.status);
+  return await resp.json();
+}
+
+// 코드 유효성만 확인(보상 지급 없음) — 이 시점엔 subscriptions row가 아직 없을 수 있다.
+// 실제 지급은 온보딩 저장 후 _redeemInviteCode()에서.
+async function _checkInviteCode(code) {
+  return await _obRpc('check_invite_code', { p_code: code });
+}
+
+// 온보딩 저장 완료 후 호출 — referrals 기록 + 피초대자 보상(피크상자) 지급.
+// 실패해도 앱 진입은 막지 않는다(보상은 재시도 불가하지만 진입 차단이 더 나쁨).
+async function _redeemInviteCode(code) {
+  try {
+    const r = await _obRpc('redeem_invite_code', { p_code: code });
+    if (!r?.ok) console.error('[Onboarding] 초대코드 지급 실패:', r?.reason);
+  } catch (e) {
+    console.error('[Onboarding] 초대코드 지급 예외:', e);
+  }
+}
+
+// 실패/오류: 화면전환 없이 입력창 빨간 테두리 + 흔들림 + 약한 진동 + 인라인 에러 텍스트로 표시
+function _showInviteError(message) {
+  const input = document.getElementById('ob-invite-input');
+  input?.classList.add('ob-invite-input--error');
+  if (input) {
+    input.classList.remove('ob-invite-input--shake');
+    void input.offsetWidth; // 리플로우 강제 → 연속 실패 시에도 애니메이션 재트리거
+    input.classList.add('ob-invite-input--shake');
+  }
+  const errEl = document.getElementById('ob-invite-error');
+  if (errEl) { errEl.textContent = message; errEl.classList.remove('hidden'); }
+  if (navigator.vibrate) navigator.vibrate(30);
+}
+function _clearInviteError() {
+  document.getElementById('ob-invite-input')?.classList.remove('ob-invite-input--error');
+  document.getElementById('ob-invite-error')?.classList.add('hidden');
+}
+
+// Step 8: 완료 → 온보딩 종료
+async function obStep8Complete() {
+  const btn = document.getElementById('ob-step8-complete');
   if (btn) { btn.disabled = true; btn.textContent = '저장 중...'; }
+  await _obFinishOnboarding();
+}
+
+// 온보딩 완료 → Supabase 저장 → (신규)home / (기존)시작하기 화면
+async function _obFinishOnboarding() {
   await _saveOnboardingData();
+  // subscriptions row가 생긴 뒤에 지급해야 보상이 유실되지 않는다.
+  if (_obData.invite_code) await _redeemInviteCode(_obData.invite_code);
   localStorage.setItem('onboarding_done', '1');
   // 공유 링크로 들어온 경우엔 '시작하기' 탭 없이 바로 home(→ 공유 노트로 이동)
   if (_obFlow === 'existing' && !sessionStorage.getItem(PENDING_SHARE_CODE_KEY)) {
@@ -573,9 +701,19 @@ async function tryAutoSignIn() {
 
 // ── 앱 초기화 ─────────────────────────────────────────────────
 document.addEventListener('DOMContentLoaded', async () => {
+  // ── 온보딩 스텝 강제 진입(테스트용): onboarding.html?ob=1 → DEV 빌드/기존 persona 무관하게 Step1부터 노출 ──
+  const _forceOnboarding = new URLSearchParams(location.search).get('ob') === '1';
+
   // ── DEV 빌드: 온보딩/로그인 건너뛰고 바로 홈으로 ────────────
-  if (typeof APP_VERSION !== 'undefined' && APP_VERSION.includes('_dev')) {
+  if (!_forceOnboarding && typeof APP_VERSION !== 'undefined' && APP_VERSION.includes('_dev')) {
     goToHome();
+    return;
+  }
+
+  // 테스트 강제 진입: 로딩 스플래시/강제업데이트체크/빌링/인증 대기 전부 건너뛰고 바로 스텝 표시
+  // (매번 새로고침해서 스텝을 확인할 때 로딩 화면이 매번 잠깐 보이는 걸 방지)
+  if (_forceOnboarding) {
+    _startOnboardingSteps();
     return;
   }
 

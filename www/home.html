@@ -483,6 +483,7 @@
               <div class="profile-plan-left">
                 <span class="profile-plan-label">현재 플랜</span>
                 <span class="profile-plan-name" id="profile-plan-name">Free</span>
+                <span class="profile-plan-expiry" id="profile-plan-expiry" hidden></span>
               </div>
               <button class="profile-upgrade-btn" onclick="_playTap();openPlanModal()">
                 업그레이드
@@ -515,6 +516,17 @@
                 <span class="psc-value" id="stat-shares">0</span>
                 <span class="psc-label">공유</span>
               </div>
+            </div>
+          </div>
+
+          <!-- 컨테이너 4: 코드 입력 (프로모션 쿠폰 전용) -->
+          <div class="profile-container">
+            <div class="profile-section-label">코드 입력</div>
+            <div class="profile-code-box">
+              <input type="text" class="profile-code-input" id="profile-code-input"
+                     placeholder="프로모션 쿠폰 코드입력" autocomplete="off"
+                     autocapitalize="characters" spellcheck="false">
+              <button class="profile-code-submit" onclick="_playTap();submitProfileCode()">확인</button>
             </div>
           </div>
 
@@ -851,6 +863,25 @@
       <h3 class="notice-modal-title" id="notice-modal-title"></h3>
       <p class="notice-modal-message" id="notice-modal-message"></p>
       <button class="notice-modal-btn" onclick="closeNoticeModal()">확인</button>
+    </div>
+  </div>
+
+  <!-- ── 모달: 코드 입력 결과 (초대코드/프로모션 코드 — 성공/실패/네트워크오류) ── -->
+  <div class="modal-overlay hidden" id="code-result-modal-overlay" onclick="closeCodeResultModal()">
+    <div class="code-result-modal" onclick="event.stopPropagation()">
+      <button class="code-result-close" onclick="closeCodeResultModal()"><i data-lucide="x"></i></button>
+      <div class="code-result-icon" id="code-result-icon"><i data-lucide="check-circle-2"></i></div>
+      <p class="code-result-message" id="code-result-message"></p>
+    </div>
+  </div>
+
+  <!-- ── 모달: 프로모션 쿠폰으로 Pro 플랜 발급 완료 ── -->
+  <div class="modal-overlay hidden" id="promo-pro-modal-overlay">
+    <div class="event-modal" onclick="event.stopPropagation()">
+      <div class="event-modal-icon"><img src="image/gift.png" alt=""></div>
+      <h3 class="event-modal-title">Pro 플랜이 적용됐어요!</h3>
+      <p class="event-modal-message" id="promo-pro-modal-message"></p>
+      <button class="event-modal-btn" onclick="closePromoProModal()">확인</button>
     </div>
   </div>
 

@@ -6,7 +6,7 @@
 // ── 상수 ─────────────────────────────────────────────────────
 const SUPABASE_URL  = 'https://jbvkygeksohlysyvaoab.supabase.co';
 const SUPABASE_ANON = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Impidmt5Z2Vrc29obHlzeXZhb2FiIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzYzOTk5NjgsImV4cCI6MjA5MTk3NTk2OH0.6RSgChy0Yq0H2TJpZPSoMKQ2V-OYfR0XzE1aJBBZkXI';
-const APP_VERSION   = '1.3.1';
+const APP_VERSION   = '1.3.2_dev';
 const SUPABASE_STORAGE_KEY = 'sb-jbvkygeksohlysyvaoab-auth-token';
 
 // ── Analytics SDK ─────────────────────────────────────────────
@@ -1001,6 +1001,50 @@ function saveSessionToStorage(rawJson) {
   return session;
 }
 
+// ── 프로모션 쿠폰 플랜 만료일 캐시 ────────────────────────────
+// get_my_plan은 'pro' 문자열만 반환해서 결제 pro와 프로모션 pro를 구분할 수 없다.
+// 플랜 시트의 자동갱신 안내를 분기하려면 출처를 알아야 하므로 만료일을 따로 캐싱.
+const PROMO_UNTIL_KEY = 'chorditor_promo_until';
+
+// 플랜 시트 하단 안내(결제 구독 기본값). 프로모션 유저에겐 다른 문구로 교체된다.
+const PLAN_CANCEL_INFO_DEFAULT = '구독은 결제일 기준 매월 자동으로 갱신되며, 갱신 24시간 전까지 언제든 해지할 수 있습니다. 해지는 Google Play 스토어 > 구독 메뉴에서 가능합니다.';
+
+// 유효한 프로모션 플랜이면 만료 Date, 아니면 null (만료 시각 지나면 자동 무효)
+function getPromoUntil() {
+  const v = localStorage.getItem(PROMO_UNTIL_KEY);
+  if (!v) return null;
+  const d = new Date(v);
+  return d > new Date() ? d : null;
+}
+function setPromoUntil(iso) {
+  if (iso) localStorage.setItem(PROMO_UNTIL_KEY, iso);
+  else localStorage.removeItem(PROMO_UNTIL_KEY);
+}
+
+async function _fetchPromoUntil(accessToken) {
+  try {
+    const stored = localStorage.getItem(SUPABASE_STORAGE_KEY);
+    const userId = stored ? JSON.parse(stored)?.user?.id : null;
+    if (!userId) return;
+    const resp = await fetch(
+      `${SUPABASE_URL}/rest/v1/subscriptions?user_id=eq.${userId}&select=promo_plan,promo_expires_at`,
+      { headers: { 'apikey': SUPABASE_ANON, 'Authorization': 'Bearer ' + accessToken } }
+    );
+    if (!resp.ok) return;
+    const row = (await resp.json())?.[0];
+    setPromoUntil(row?.promo_plan && row?.promo_expires_at ? row.promo_expires_at : null);
+  } catch(e) { console.warn('[Plan] promo 만료일 조회 실패:', e); }
+}
+
+// 쿠폰 사용 직후 등 즉시 갱신이 필요할 때 호출
+async function refreshPromoUntil() {
+  try {
+    const stored = localStorage.getItem(SUPABASE_STORAGE_KEY);
+    const token = stored ? JSON.parse(stored)?.access_token : null;
+    if (token) await _fetchPromoUntil(token);
+  } catch(_) {}
+}
+
 // ── 플랜 fetch ────────────────────────────────────────────────
 async function fetchPlanWithToken(accessToken) {
   try {
@@ -1016,6 +1060,9 @@ async function fetchPlanWithToken(accessToken) {
     if (resp.ok) {
       const plan = await resp.json();
       if (plan) setPlan(plan);
+      // pro일 때만 출처 확인 (free/standard는 프로모션일 수 없음)
+      if (plan === 'pro') await _fetchPromoUntil(accessToken);
+      else setPromoUntil(null);
     }
   } catch(e) { console.warn('[Auth] fetchPlanWithToken 실패:', e); }
 }
@@ -1033,7 +1080,11 @@ async function fetchWebPlan() {
   if (!_supabase) return;
   try {
     const { data, error } = await _supabase.rpc('get_my_plan');
-    if (!error && data) setPlan(data);
+    if (!error && data) {
+      setPlan(data);
+      if (data === 'pro') await refreshPromoUntil();
+      else setPromoUntil(null);
+    }
   } catch(e) { console.warn('[Supabase] fetchWebPlan 실패:', e); }
 }
 
@@ -1497,6 +1548,17 @@ function openPlanSheet(triggerSource) {
     }
   }
 
+  // 프로모션 쿠폰으로 받은 Pro는 스토어 구독이 아니라 자동갱신·해지가 없다 → 안내 문구 분기
+  const cancelInfo = document.getElementById('plan-cancel-info');
+  if (cancelInfo) {
+    const promoUntil = getPromoUntil();
+    cancelInfo.textContent = promoUntil
+      ? '프로모션 코드로 받은 Pro 플랜입니다. '
+        + promoUntil.toLocaleDateString('ko-KR', { year: 'numeric', month: 'long', day: 'numeric' })
+        + '까지 이용할 수 있으며, 자동 결제나 갱신은 되지 않습니다.'
+      : PLAN_CANCEL_INFO_DEFAULT;
+  }
+
   const faqBtn     = document.getElementById('plan-sheet-faq-btn');
   const restoreBtn = document.getElementById('plan-sheet-restore-btn');
   if (faqBtn)     faqBtn.style.display     = isNative ? '' : 'none';
@@ -1555,7 +1617,7 @@ function _initPlanSheet() {
       </div>
     </div>
     <div class="plan-legal-group">
-      <div class="plan-cancel-info">구독은 결제일 기준 매월 자동으로 갱신되며, 갱신 24시간 전까지 언제든 해지할 수 있습니다. 해지는 Google Play 스토어 &gt; 구독 메뉴에서 가능합니다.</div>
+      <div class="plan-cancel-info" id="plan-cancel-info">구독은 결제일 기준 매월 자동으로 갱신되며, 갱신 24시간 전까지 언제든 해지할 수 있습니다. 해지는 Google Play 스토어 &gt; 구독 메뉴에서 가능합니다.</div>
       <div class="plan-legal-links">
         <span class="plan-legal-link" onclick="window.open('Privacy.html', '_blank')">개인정보 처리방침</span>
         <span class="plan-legal-link" onclick="window.open('Terms.html', '_blank')">이용약관</span>
@@ -2334,6 +2396,32 @@ async function claimQuizQuest() {
   renderQuestList();
   showPeakboxRewardModal((_peakState.peakbox_count || 0) - _boxBefore); // 수령 → 상자 획득 표시
   addXp(_xpGain); // 레벨 경험치
+}
+
+// ── 퀘스트: 초대 확정 수 ────────────────────────────────────
+// 진행값 = referrals 중 confirmed_at 채워진 수(피초대자가 레벨2 도달한 건만).
+// 다른 유저 상태에 의존하는 값이라 로컬로 셀 수 없다 — 비로그인/오프라인 시엔
+// 카드는 항상 노출하되 진행도만 0/첫티어로 표시(수령은 로그인해야 가능).
+const INVITE_QUEST_TIERS = [[1, 3, 200], [3, 5, 400], [5, 8, 700], [10, 15, 1500]];
+
+async function loadInviteQuest() {
+  const r = await _peakRpc('get_invite_quest');
+  if (r) return { total: r.total, claimed: r.claimed, next_day: r.next_day, next_reward: r.next_reward };
+  return { total: 0, claimed: 0, next_day: INVITE_QUEST_TIERS[0][0], next_reward: INVITE_QUEST_TIERS[0][1] };
+}
+
+async function claimInviteQuest() {
+  const _boxBefore = _peakState.peakbox_count || 0;
+  const q = await loadInviteQuest();
+  if (!q) return;
+  const _xpGain = _tierXp(INVITE_QUEST_TIERS, q.next_day, 1500);
+  const r = await _peakRpc('claim_invite_quest');
+  if (!r || !r.ok) return;
+  _peakState = { ..._peakState, peakbox_count: (_peakState.peakbox_count || 0) + r.reward, loaded: true };
+  renderPeakboxBadge();
+  renderQuestList();
+  showPeakboxRewardModal((_peakState.peakbox_count || 0) - _boxBefore);
+  addXp(_xpGain);
 }
 
 // ── 퀘스트: 스케일 훈련 누적완료횟수 (코드맞추기 누적과 동일 티어) ──────
@@ -3174,11 +3262,12 @@ async function renderQuestList() {
   const top   = [];
 
   // 전 퀘스트 병렬 로드 — 직렬 await 16회(왕복 누적 지연) → 동시 발사
-  const [a, i, nc, ns, t, qz, ql, pf, cg, sc, sl, spf, pg, st, cl, cpf] = await Promise.all([
+  const [a, i, nc, ns, t, qz, ql, pf, cg, sc, sl, spf, pg, st, cl, cpf, iv] = await Promise.all([
     loadAttendanceQuest(), loadImageQuest(), loadNoteQuest('create'), loadNoteQuest('share'),
     loadTimeQuest(), loadQuizQuest(), loadQuizLevelQuest(), loadPerfectQuest(),
     loadChallengeQuest(), loadScaleQuest(), loadScaleLevelQuest(), loadScalePerfectQuest(),
     loadProgressionQuest(), loadStrumQuest(), loadComboLevelQuest(), loadComboPerfectQuest(),
+    loadInviteQuest(),
   ]);
 
   const aHtml = _questCardHtml('누적 출석', a.next_day + '일 누적 출석',
@@ -3213,6 +3302,12 @@ async function renderQuestList() {
     t.next_reward, _tierXp(TIME_QUEST_TIERS, t.next_day, 2500), t.total, t.next_day, 'claimTimeQuest', tProg);
   parts.push(tHtml);
   if (_isClaimable(t.total, t.next_day)) top.push(tHtml);
+
+  const ivHtml = _questCardHtml('친구 초대', iv.next_day + '명 초대 성공',
+    iv.next_reward, _tierXp(INVITE_QUEST_TIERS, iv.next_day, 1500), iv.total, iv.next_day, 'claimInviteQuest');
+  parts.push(ivHtml);
+  if (_isClaimable(iv.total, iv.next_day)) top.push(ivHtml);
+
   parts.push(_questDividerHtml('코드 맞추기'));
 
   const qzHtml = _questCardHtml('코드 맞추기', '누적 ' + qz.next_day + '회 완료',
@@ -3475,6 +3570,7 @@ if (typeof window !== 'undefined') {
   window.claimTimeQuest               = claimTimeQuest;
   window.syncTrainingStatsToDB        = syncTrainingStatsToDB;
   window.claimQuizQuest               = claimQuizQuest;
+  window.claimInviteQuest             = claimInviteQuest;
   window.claimQuizLevelQuest          = claimQuizLevelQuest;
   window.claimPerfectQuest            = claimPerfectQuest;
   window.claimChallengeQuest          = claimChallengeQuest;

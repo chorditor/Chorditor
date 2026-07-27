@@ -4879,10 +4879,19 @@ canvas {
   cursor: pointer;
   letter-spacing: 0.04em;
   transition: opacity .15s, transform 0.12s ease-out;
+  /* 같은 화면 내 다른 요소들의 진입 애니메이션이 끝난 뒤에도 WebView가 이 버튼 영역을
+     제때 리페인트하지 않아 흐리게 남아있다가 화면 터치 시에야 정상화되는 경우가 있음
+     (컴포지팅 stale-paint) → 독립 GPU 레이어로 승격시켜 항상 정상 페인트되게 강제 */
+  transform: translateZ(0);
 }
 .onboarding-start-btn:hover { opacity: 0.82; }
-.onboarding-start-btn:active { transform: scale(0.96); }
+.onboarding-start-btn:active { transform: translateZ(0) scale(0.96); }
 .onboarding-start-btn.hidden { display: none; }
+.onboarding-start-btn:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+  pointer-events: none;
+}
 .onboarding-btn.hidden { display: none; }
 
 .onboarding-switch-account {
@@ -4972,6 +4981,15 @@ canvas {
   margin: 0 0 24px;
 }
 
+#ob-step6 .ob-title {
+  font-size: 24px;
+}
+
+#ob-step6 .ob-big-card-list--row {
+  flex: 1;
+  align-items: center;
+}
+
 /* ?�르?�나 ?�로 리스??*/
 .ob-persona-list {
   display: flex;
@@ -5003,24 +5021,142 @@ canvas {
 .ob-persona-label { font-size: 20px; font-weight: 700; color: var(--text-primary); line-height: 1.3; }
 .ob-persona-sub   { font-size: 12px; color: var(--text-muted); line-height: 1.4; }
 
+/* ── Step1 진입 애니메이션: 타이틀 → 페르소나 카드 4개 순차 라이즈업 ── */
+@keyframes ob-rise-in {
+  from { opacity: 0; transform: translateY(20px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+#ob-step1 .ob-persona-card {
+  animation: ob-rise-in 0.7s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+#ob-step1 .ob-title {
+  animation: ob-rise-in 1.3s cubic-bezier(0.16, 1, 0.3, 1) both;
+  animation-delay: 0.5s;
+}
+#ob-step1 .ob-persona-card:nth-child(1) { animation-delay: 1.25s; }
+#ob-step1 .ob-persona-card:nth-child(2) { animation-delay: 1.40s; }
+#ob-step1 .ob-persona-card:nth-child(3) { animation-delay: 1.55s; }
+#ob-step1 .ob-persona-card:nth-child(4) { animation-delay: 1.70s; }
+
+/* ── Step2 진입 애니메이션: Step1과 동일한 타이밍 ── */
+#ob-step2 .ob-choice-item {
+  animation: ob-rise-in 0.7s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+#ob-step2 .ob-title {
+  animation: ob-rise-in 1.3s cubic-bezier(0.16, 1, 0.3, 1) both;
+  animation-delay: 0.5s;
+}
+#ob-step2 .ob-choice-item:nth-child(1) { animation-delay: 1.25s; }
+#ob-step2 .ob-choice-item:nth-child(2) { animation-delay: 1.40s; }
+#ob-step2 .ob-choice-item:nth-child(3) { animation-delay: 1.55s; }
+#ob-step2 .ob-choice-item:nth-child(4) { animation-delay: 1.70s; }
+
+/* ── Step3 진입 애니메이션: Step1/2와 동일한 타이밍 ── */
+#ob-step3 .ob-big-card {
+  animation: ob-rise-in 0.7s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+#ob-step3 .ob-title {
+  animation: ob-rise-in 1.3s cubic-bezier(0.16, 1, 0.3, 1) both;
+  animation-delay: 0.5s;
+}
+#ob-step3 .ob-big-card:nth-child(1),
+#ob-step3 .ob-big-card:nth-child(2) { animation-delay: 1.25s; }
+
+/* ── Step4 진입 애니메이션: Step1~3과 동일한 타이밍 (년도 피커는 단일 요소) ── */
+#ob-step4 .ob-year-picker {
+  animation: ob-rise-in 0.7s cubic-bezier(0.16, 1, 0.3, 1) both;
+  animation-delay: 1.25s;
+  margin-bottom: 28px; /* 흰색 fade 그라데이션이 버튼과 붙어 대비 착시로 연해 보이는 것 방지 */
+}
+#ob-step4 .ob-title {
+  animation: ob-rise-in 1.3s cubic-bezier(0.16, 1, 0.3, 1) both;
+  animation-delay: 0.5s;
+}
+
+/* ── Step5 진입 애니메이션: 닉네임 입력창 (단일 요소) ── */
+#ob-step5 .ob-nickname-wrap {
+  animation: ob-rise-in 0.7s cubic-bezier(0.16, 1, 0.3, 1) both;
+  animation-delay: 1.25s;
+}
+#ob-step5 .ob-title {
+  animation: ob-rise-in 1.3s cubic-bezier(0.16, 1, 0.3, 1) both;
+  animation-delay: 0.5s;
+}
+
+/* ── Step6 진입 애니메이션: 예/아니오 카드 동시 등장 ── */
+#ob-step6 .ob-big-card {
+  animation: ob-rise-in 0.7s cubic-bezier(0.16, 1, 0.3, 1) both;
+  animation-delay: 1.25s;
+}
+#ob-step6 .ob-title {
+  animation: ob-rise-in 1.3s cubic-bezier(0.16, 1, 0.3, 1) both;
+  animation-delay: 0.5s;
+}
+
+/* ── Step7 진입 애니메이션: 코드 입력창 (단일 요소) ── */
+#ob-step7 .ob-nickname-wrap {
+  animation: ob-rise-in 0.7s cubic-bezier(0.16, 1, 0.3, 1) both;
+  animation-delay: 1.25s;
+}
+#ob-step7 .ob-title {
+  animation: ob-rise-in 1.3s cubic-bezier(0.16, 1, 0.3, 1) both;
+  animation-delay: 0.5s;
+}
+
+/* ── Step8 진입 애니메이션: 타이틀 → (충분한 딜레이 후) 안내문 ── */
+#ob-step8 .ob-main {
+  justify-content: flex-start;
+}
+.ob-step8-header {
+  margin-top: 12px;
+}
+.ob-step8-icon-wrap {
+  flex: 1;
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.ob-step8-icon {
+  width: 96px;
+  height: 96px;
+  object-fit: contain;
+  animation: ob-rise-in 0.7s cubic-bezier(0.16, 1, 0.3, 1) both;
+  animation-delay: 2.15s;
+}
+.ob-step8-desc {
+  font-size: 20px;
+  font-weight: 700;
+  color: var(--text-primary);
+  margin: 12px 0 0;
+}
+#ob-step8-title {
+  animation: ob-rise-in 1.3s cubic-bezier(0.16, 1, 0.3, 1) both;
+  animation-delay: 0.5s;
+}
+#ob-step8-desc {
+  animation: ob-rise-in 0.7s cubic-bezier(0.16, 1, 0.3, 1) both;
+  animation-delay: 1.25s;
+}
+
 /* 기�? 경력 ?�택 목록 */
 .ob-choice-list {
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 10px;
   width: 100%;
   margin: 0;
 }
 .ob-choice-item {
   display: flex;
   align-items: center;
-  padding: 14px 16px;
+  padding: 16px 18px;
   background: #F5F5F5;
   border: 2px solid transparent;
-  border-radius: 12px;
+  border-radius: 14px;
   font-family: 'Pretendard', sans-serif;
-  font-size: 15px;
-  font-weight: 500;
+  font-size: 20px;
+  font-weight: 700;
   color: var(--text-primary);
   cursor: pointer;
   text-align: left;
@@ -5136,6 +5272,85 @@ canvas {
   outline: none;
   font-family: 'Pretendard', sans-serif;
 }
+/* 초대코드 입력창: 닉네임과 달리 우측 카운터가 없어 패딩 대칭으로 재정렬 */
+.ob-invite-input {
+  padding: 8px;
+  text-transform: uppercase;
+}
+.ob-invite-input--error {
+  border-bottom-color: var(--accent);
+}
+@keyframes ob-shake {
+  10%, 90% { transform: translateX(-1px); }
+  20%, 80% { transform: translateX(2px); }
+  30%, 50%, 70% { transform: translateX(-4px); }
+  40%, 60% { transform: translateX(4px); }
+}
+.ob-invite-input--shake {
+  animation: ob-shake 0.4s cubic-bezier(.36,.07,.19,.97) both;
+}
+.ob-invite-error {
+  margin: 8px 0 0;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--accent);
+  text-align: center;
+}
+.ob-invite-error.hidden { display: none; }
+
+.ob-bottom-actions {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 14px;
+}
+.ob-skip-link {
+  font-size: 13px;
+  color: var(--text-muted);
+  cursor: pointer;
+  letter-spacing: 0.02em;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+.ob-skip-link:hover { color: var(--text-secondary); }
+
+/* 초대코드 확인 결과 팝업 */
+.ob-invite-result-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 10001;
+  background: rgba(0,0,0,0.45);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 32px;
+}
+.ob-invite-result-overlay.hidden { display: none; }
+.ob-invite-result-card {
+  width: 100%;
+  max-width: 300px;
+  background: #fff;
+  border-radius: 20px;
+  padding: 32px 24px 24px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  gap: 20px;
+}
+.ob-invite-result-message {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--text-primary);
+  line-height: 1.6;
+  white-space: pre-line;
+  margin: 0;
+}
+.ob-invite-result-card .onboarding-start-btn {
+  width: 100%;
+}
+
 .ob-nickname-count {
   position: absolute;
   right: 4px;
@@ -5197,6 +5412,21 @@ canvas {
 @keyframes ob-sheet-up {
   from { transform: translateY(100%); }
   to   { transform: translateY(0); }
+}
+@keyframes ob-sheet-down {
+  from { transform: translateY(0); }
+  to   { transform: translateY(100%); }
+}
+@keyframes ob-backdrop-fade-out {
+  from { opacity: 1; }
+  to   { opacity: 0; }
+}
+.ob-consent-backdrop--closing {
+  animation: ob-backdrop-fade-out 0.28s ease forwards;
+  pointer-events: none;
+}
+.ob-consent-backdrop--closing .ob-consent-sheet {
+  animation: ob-sheet-down 0.28s cubic-bezier(0.4, 0, 0.2, 1) forwards;
 }
 .ob-consent-sheet {
   width: 100%;
@@ -5284,6 +5514,10 @@ canvas {
   font-size: 13px;
   font-weight: 600;
   color: var(--text-primary);
+}
+.ob-consent-check-tag {
+  color: var(--text-muted);
+  font-weight: 500;
 }
 
 /* ?�?� ?�내 모달 공통 ?�니메이???�?� */
@@ -6010,6 +6244,65 @@ canvas {
 .notice-modal-btn:hover { opacity: 0.85; }
 .notice-modal-btn:active { transform: scale(0.98); }
 
+/* ── 코드 입력 결과 모달 (성공/실패/네트워크오류) ── */
+.code-result-modal {
+  position: relative;
+  background: var(--surface);
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--border);
+  width: calc(100% - 64px);
+  max-width: 280px;
+  padding: 44px 24px 40px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+}
+
+.code-result-close {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  width: 28px;
+  height: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  cursor: pointer;
+  padding: 0;
+}
+.code-result-close svg { width: 16px; height: 16px; }
+
+.code-result-icon {
+  width: 40px;
+  height: 40px;
+  margin-bottom: 14px;
+  color: var(--text-muted);
+  opacity: 0.5;
+}
+.code-result-icon svg { width: 100%; height: 100%; }
+
+.code-result-message {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-primary);
+  line-height: 1.5;
+}
+
+#promo-pro-modal-overlay,
+#code-result-modal-overlay {
+  animation: modal-overlay-in 0.2s ease both;
+}
+#promo-pro-modal-overlay .event-modal {
+  animation: modal-scale-in 0.25s cubic-bezier(0.34, 1.56, 0.64, 1) both;
+}
+#code-result-modal-overlay .code-result-modal {
+  animation: modal-scale-in 0.25s cubic-bezier(0.34, 1.56, 0.64, 1) both;
+}
+
 .event-modal {
   background: var(--surface);
   border-radius: var(--radius-lg);
@@ -6673,6 +6966,13 @@ canvas {
   color: var(--text-secondary);
 }
 
+/* 프로모션 쿠폰으로 받은 플랜의 만료일 (결제 구독엔 표시 안 함) */
+.profile-plan-expiry {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--text-muted);
+}
+
 .profile-upgrade-btn {
   display: flex;
   align-items: center;
@@ -6691,7 +6991,7 @@ canvas {
 .profile-upgrade-btn svg { width: 14px; height: 14px; }
 
 .profile-section-label {
-  font-size: 14px;
+  font-size: 12px;
   font-weight: 500;
   color: var(--text-muted);
   padding: 0 4px;
@@ -6732,6 +7032,52 @@ canvas {
   font-size: 12px;
   color: var(--text-muted);
 }
+
+.profile-code-box {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: #fff;
+  border-radius: var(--radius);
+  padding: 8px 8px 8px 16px;
+  box-shadow: 0 1px 4px rgba(0,0,0,0.06);
+}
+
+.profile-code-input {
+  flex: 1;
+  min-width: 0;
+  border: none;
+  outline: none;
+  background: transparent;
+  font-family: 'Pretendard', sans-serif;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  color: var(--text-primary);
+  text-transform: uppercase;
+}
+.profile-code-input::placeholder {
+  font-weight: 400;
+  letter-spacing: normal;
+  text-transform: none;
+  color: var(--text-muted);
+}
+
+.profile-code-submit {
+  flex-shrink: 0;
+  font-family: 'Pretendard', sans-serif;
+  font-size: 13px;
+  font-weight: 600;
+  color: #fff;
+  background: var(--blue);
+  border: none;
+  border-radius: calc(var(--radius) - 4px);
+  padding: 9px 16px;
+  cursor: pointer;
+  transition: opacity .15s;
+}
+.profile-code-submit:hover { opacity: 0.85; }
+.profile-code-submit:active { transform: scale(0.97); }
 
 #exit-toast.visible {
   opacity: 1;

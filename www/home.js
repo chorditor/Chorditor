@@ -1954,7 +1954,7 @@ async function loadProfileFromDB() {
     }
 
     const resp = await fetch(
-      `${SUPABASE_URL}/rest/v1/subscriptions?user_id=eq.${userId}&select=nickname,plan,created_at,persona`,
+      `${SUPABASE_URL}/rest/v1/subscriptions?user_id=eq.${userId}&select=nickname,plan,created_at,persona,promo_plan,promo_expires_at`,
       { headers: { 'apikey': SUPABASE_ANON, 'Authorization': `Bearer ${token}` } }
     );
     if (!resp.ok) {
@@ -1969,7 +1969,11 @@ async function loadProfileFromDB() {
     const row = rows[0];
 
     const nickname = row.nickname || session?.user?.user_metadata?.full_name || '—';
-    const plan = row.plan || getPlan() || 'free';
+    // row.plan은 결제 원본값. 프로모션 쿠폰으로 받은 플랜은 promo_* 에 따로 있으므로
+    // 서버 get_my_plan과 동일하게 유효 플랜을 합성해야 한다(안 하면 프로모션 Pro가 Free로 보임).
+    const promoActive = !!row.promo_plan && !!row.promo_expires_at
+      && new Date(row.promo_expires_at) > new Date();
+    const plan = promoActive ? row.promo_plan : (row.plan || getPlan() || 'free');
     const joinedAt = row.created_at
       ? new Date(row.created_at).toLocaleDateString('ko-KR', { year: 'numeric', month: 'long', day: 'numeric' })
       : '—';
@@ -1983,6 +1987,18 @@ async function loadProfileFromDB() {
 
     const badge = document.getElementById('profile-plan-badge');
     if (badge) badge.dataset.plan = plan;
+
+    // 프로모션 플랜일 때만 만료일 표시 (결제 구독은 스토어에서 관리하므로 미표시)
+    const expEl = document.getElementById('profile-plan-expiry');
+    if (expEl) {
+      if (promoActive) {
+        expEl.textContent = new Date(row.promo_expires_at)
+          .toLocaleDateString('ko-KR', { year: 'numeric', month: 'long', day: 'numeric' }) + '까지';
+        expEl.hidden = false;
+      } else {
+        expEl.hidden = true;
+      }
+    }
 
     // 페르소나 뱃지 (있을 때만 구분자+라벨 표시)
     const PERSONA_LABEL = {
@@ -3022,6 +3038,98 @@ function showTextToast(msg) {
   void el.offsetWidth;
   el.classList.add('show');
   _textToastTimer = setTimeout(() => el.classList.remove('show'), 2000);
+}
+
+// ── 프로필 코드 입력(프로모션 쿠폰 전용) ──
+// 성공 시 보상 지급: 상자만 있으면 기존 피크상자 모달, pro 포함이면
+// (임시) 코드 결과 모달로 안내 — pro 전용 발급완료 모달은 다음 단계에서 교체.
+const PROMO_ERROR_MESSAGES = {
+  invalid:  '코드가 유효하지 않습니다.',
+  inactive: '현재 사용할 수 없는 코드입니다.',
+  expired:  '유효기간이 지난 코드입니다.',
+  soldout:  '선착순 마감된 코드입니다.',
+  already:  '이미 사용한 코드입니다.',
+  no_auth:  '로그인 후 이용해주세요.',
+  no_row:   '잠시 후 다시 시도해주세요.',
+};
+
+let _submittingProfileCode = false;
+
+async function submitProfileCode() {
+  if (_submittingProfileCode) return;
+  const input = document.getElementById('profile-code-input');
+  if (!input) return;
+  const code = input.value.trim();
+  if (!code) return;
+
+  _submittingProfileCode = true;
+  try {
+    const r = await _peakRpc('redeem_promo_code', { p_code: code });
+    if (!r) {
+      showCodeResultModal('error');
+      return;
+    }
+    if (!r.ok) {
+      showCodeResultModal('invalid', PROMO_ERROR_MESSAGES[r.reason] || PROMO_ERROR_MESSAGES.invalid);
+      return;
+    }
+
+    input.value = '';
+
+    // pro 지급: 로컬 즉시 반영 + 만료일 캐시 갱신(플랜 시트 안내 문구 분기용)
+    if (r.pro_days > 0) {
+      setPlan('pro');
+      await refreshPromoUntil();
+    }
+
+    // 상자+pro 동시 지급이면 상자 모달 먼저 → 닫힌 뒤 pro 모달
+    const showProIfAny = () => { if (r.pro_days > 0) showPromoProModal(r.pro_days); };
+    if (r.peakbox > 0) {
+      showPeakboxRewardModal(r.peakbox, showProIfAny); // 기존 피크상자 수령 모달 재사용
+    } else if (r.pro_days > 0) {
+      showPromoProModal(r.pro_days);
+    } else {
+      showCodeResultModal('success');
+    }
+  } catch (e) {
+    showCodeResultModal('error');
+  } finally {
+    _submittingProfileCode = false;
+  }
+}
+
+// ── 프로모션 쿠폰 Pro 플랜 발급 완료 모달 ──
+function showPromoProModal(days) {
+  const msgEl = document.getElementById('promo-pro-modal-message');
+  if (msgEl) msgEl.textContent = days + '일간 Pro 기능을 이용하실 수 있어요.';
+  document.getElementById('promo-pro-modal-overlay')?.classList.remove('hidden');
+  if (typeof lucide !== 'undefined') lucide.createIcons();
+}
+function closePromoProModal() {
+  document.getElementById('promo-pro-modal-overlay')?.classList.add('hidden');
+}
+
+// ── 코드 입력 결과 모달 (성공/실패/네트워크오류) ──
+// state: 'success' | 'invalid' | 'error'. message 생략 시 기본 문구 사용.
+const CODE_RESULT_CONFIG = {
+  success: { icon: 'check-circle-2', message: '코드 입력 성공~!' },
+  invalid: { icon: 'x-circle',       message: '코드가 유효하지 않습니다.' },
+  error:   { icon: 'wifi-off',       message: '잠시 후 다시 시도해주세요.' },
+};
+function showCodeResultModal(state, message) {
+  const cfg = CODE_RESULT_CONFIG[state];
+  if (!cfg) return;
+  const overlay = document.getElementById('code-result-modal-overlay');
+  const iconEl  = document.getElementById('code-result-icon');
+  if (!overlay || !iconEl) return;
+  overlay.dataset.state = state;
+  iconEl.innerHTML = `<i data-lucide="${cfg.icon}"></i>`;
+  document.getElementById('code-result-message').textContent = message || cfg.message;
+  if (window.lucide) lucide.createIcons({ nodes: [iconEl] });
+  overlay.classList.remove('hidden');
+}
+function closeCodeResultModal() {
+  document.getElementById('code-result-modal-overlay').classList.add('hidden');
 }
 
 
