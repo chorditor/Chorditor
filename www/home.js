@@ -1754,6 +1754,7 @@ async function checkAndShowNotice() {
     const notices = noticesResp.ok ? await noticesResp.json() : [];
     // 노출할 공지 없으면 이벤트 보상 모달 → 없으면 리뷰 유도 모달 시도 (안전 시점)
     if (!notices?.length) {
+      if (typeof checkPromoExpiryNotice === 'function' && checkPromoExpiryNotice()) return;
       if (typeof checkEventThanks130 === 'function' && await checkEventThanks130()) return;
       if (typeof reviewMaybeShow === 'function') reviewMaybeShow();
       return;
@@ -1954,7 +1955,7 @@ async function loadProfileFromDB() {
     }
 
     const resp = await fetch(
-      `${SUPABASE_URL}/rest/v1/subscriptions?user_id=eq.${userId}&select=nickname,plan,created_at,persona,promo_plan,promo_expires_at,invite_code`,
+      `${SUPABASE_URL}/rest/v1/subscriptions?user_id=eq.${userId}&select=nickname,plan,created_at,persona,promo_plan,promo_expires_at,promo_pending_days,invite_code`,
       { headers: { 'apikey': SUPABASE_ANON, 'Authorization': `Bearer ${token}` } }
     );
     if (!resp.ok) {
@@ -1997,6 +1998,18 @@ async function loadProfileFromDB() {
         expEl.hidden = false;
       } else {
         expEl.hidden = true;
+      }
+    }
+
+    // 결제 Pro 이용 중이라 적립만 된 쿠폰 (있을 때만 노출)
+    const pendEl = document.getElementById('profile-plan-pending');
+    if (pendEl) {
+      const pendDays = row.promo_pending_days || 0;
+      if (pendDays > 0) {
+        pendEl.textContent = `구독 종료 후 Pro ${pendDays}일 적용 예정`;
+        pendEl.hidden = false;
+      } else {
+        pendEl.hidden = true;
       }
     }
 
@@ -2368,7 +2381,9 @@ async function _returnToProject(returnId) {
 
 // ─── 프로젝트 페이지 열기 (슬라이드업 애니메이션) ────────────────
 async function openProject(projectId) {
-  const proj = loadProjects().find(p => p.id === projectId);
+  const projects = loadProjects();
+  const proj = projects.find(p => p.id === projectId);
+  if (proj && isProjectLocked(proj, projects)) { openPlanSheet('note_locked'); return; }
   if (proj) {
     const chordCount = (proj.slots || []).filter(s => s && s.name).length;
     const ageDays    = proj.createdAt ? Math.floor((Date.now() - proj.createdAt) / 86400000) : 0;
@@ -2431,9 +2446,10 @@ function renderProjectsList() {
 
   container.innerHTML = '';
 
+  const locked = isNotesLockedState(projects);
   _renderProjectsSection(container, '중요', important);
-  _renderProjectsSection(container, '즐겨찾기', pinned);
-  _renderProjectsSection(container, '최근', recent, false);
+  _renderProjectsSection(container, '즐겨찾기', pinned, true, locked);
+  _renderProjectsSection(container, '최근', recent, false, locked);
 
   if (projects.length === 0) {
     const hint = document.createElement('p');
@@ -2445,13 +2461,25 @@ function renderProjectsList() {
   lucide.createIcons();
 }
 
-function _renderProjectsSection(container, label, projects, showDivider = true) {
+function _renderProjectsSection(container, label, projects, showDivider = true, locked = false) {
   const section = document.createElement('div');
   section.className = 'projects-section';
 
   const sectionLabel = document.createElement('div');
   sectionLabel.className = 'projects-section-label';
   sectionLabel.textContent = label;
+  if (label === '중요') {
+    const hint = document.createElement('span');
+    hint.className = 'projects-section-hint';
+    hint.textContent = '구독이 만료되어도 잠기지 않아요';
+    sectionLabel.appendChild(hint);
+  }
+  if (locked && label === '최근') {
+    const lockIcon = document.createElement('i');
+    lockIcon.setAttribute('data-lucide', 'lock');
+    lockIcon.className = 'projects-section-lock-icon';
+    sectionLabel.appendChild(lockIcon);
+  }
   section.appendChild(sectionLabel);
 
   if (projects.length === 0) {
@@ -2465,6 +2493,8 @@ function _renderProjectsSection(container, label, projects, showDivider = true) 
     const item = document.createElement('div');
     item.className = 'projects-item';
     item.dataset.id = project.id;
+    const isLocked = locked && !project.important;
+    if (isLocked) item.classList.add('locked');
 
     const name = document.createElement('span');
     name.className = 'projects-item-name';
@@ -2538,6 +2568,7 @@ function _renderProjectsSection(container, label, projects, showDivider = true) 
       item.classList.remove('pressing');
       if (item._tapping) {
         item._tapping = false;
+        if (isLocked) { openPlanSheet('note_locked'); return; }
         openProject(project.id);
       }
     });
@@ -3044,7 +3075,7 @@ function showTextToast(msg) {
   _textToastTimer = setTimeout(() => el.classList.remove('show'), 2000);
 }
 
-// ── 내 초대코드 (복사 / 공유) ──
+// ── 내 초대코드 (박스 탭 = 복사) ──
 let _myInviteCode = null;
 
 function copyMyInviteCode() {
@@ -3056,23 +3087,6 @@ function copyMyInviteCode() {
   } else {
     showTextToast('복사에 실패했어요.');
   }
-}
-
-async function shareMyInviteCode() {
-  if (!_myInviteCode) return;
-  const text = `기타 코드 연습은 코디터에서!\n가입할 때 초대코드 ${_myInviteCode} 를 입력하면 피크상자를 드려요.`;
-  const Share = window.Capacitor?.Plugins?.Share;
-  try {
-    if (Share) {
-      await Share.share({ title: 'Chorditor 초대코드', text });
-    } else if (navigator.share) {
-      await navigator.share({ title: 'Chorditor 초대코드', text });
-    } else {
-      copyMyInviteCode();
-      return;
-    }
-    if (typeof analytics !== 'undefined') analytics.track('invite_code_shared', {});
-  } catch (e) { /* 사용자가 공유 취소 — 무시 */ }
 }
 
 // ── 프로필 코드 입력(프로모션 쿠폰 전용) ──
@@ -3112,8 +3126,9 @@ async function submitProfileCode() {
 
     input.value = '';
 
-    // pro 지급: 로컬 즉시 반영 + 만료일 캐시 갱신(플랜 시트 안내 문구 분기용)
-    if (r.pro_days > 0) {
+    // pro 지급: 로컬 즉시 반영 + 만료일 캐시 갱신(플랜 시트 안내 문구 분기용).
+    // 적립(pending)이면 아직 적용 전이므로 건드리지 않는다 — 이 경우 유저는 이미 결제 Pro다.
+    if (r.pro_days > 0 && !r.pending) {
       setPlan('pro');
       await refreshPromoUntil();
     }
@@ -3123,12 +3138,13 @@ async function submitProfileCode() {
     if (typeof renderPeakboxBadge === 'function') renderPeakboxBadge();
     if (typeof renderPeakBadge === 'function') renderPeakBadge();
 
-    // 상자+pro 동시 지급이면 상자 모달 먼저 → 닫힌 뒤 pro 모달
-    const showProIfAny = () => { if (r.pro_days > 0) showPromoProModal(r.pro_days); };
-    if (r.peakbox > 0) {
-      showPeakboxRewardModal(r.peakbox, showProIfAny); // 기존 피크상자 수령 모달 재사용
-    } else if (r.pro_days > 0) {
-      showPromoProModal(r.pro_days);
+    // 상자+pro 동시 지급이면 pro 모달 먼저 → 닫힌 뒤 상자 모달
+    // (쿠폰 내용 안내가 먼저 오고 보상 연출이 뒤따르는 순서)
+    const showBoxIfAny = () => { if (r.peakbox > 0) showPeakboxRewardModal(r.peakbox); };
+    if (r.pro_days > 0) {
+      showPromoProModal(r, showBoxIfAny);
+    } else if (r.peakbox > 0) {
+      showPeakboxRewardModal(r.peakbox); // 기존 피크상자 수령 모달 재사용
     } else {
       showCodeResultModal('success');
     }
@@ -3140,14 +3156,49 @@ async function submitProfileCode() {
 }
 
 // ── 프로모션 쿠폰 Pro 플랜 발급 완료 모달 ──
-function showPromoProModal(days) {
+// pending: 이미 Pro 이용 중이라 즉시 적용되지 않고 적립된 경우.
+// 해지를 권하는 표현은 쓰지 않는다 — 결제 중인 유저에게 해지를 유도하게 된다.
+function _fmtPromoDate(iso) {
+  return new Date(iso).toLocaleDateString('ko-KR', { year: 'numeric', month: 'long', day: 'numeric' });
+}
+
+// onClose: 닫은 뒤 이어서 띄울 모달(예: 피크상자 수령)이 있으면 전달.
+let _promoProOnClose = null;
+
+// r: redeem_promo_code 응답 { pro_days, pending, extended, pending_total, expires_at }
+// 이미 프로모션 Pro거나 적립분이 있으면 누적되므로, 이번 쿠폰 일수만 보여주면
+// 총 기간을 오해한다 → 연장/추가적립은 총합 기준으로 안내한다.
+function showPromoProModal(r, onClose) {
+  _promoProOnClose = typeof onClose === 'function' ? onClose : null;
+  const days = r.pro_days;
+
+  let title, message;
+  if (r.pending && r.extended) {
+    title   = '쿠폰이 등록됐어요';
+    message = `Pro ${days}일이 추가로 적립됐어요. 총 ${r.pending_total}일이 구독 종료 후 적용돼요.`;
+  } else if (r.pending) {
+    title   = '쿠폰이 등록됐어요';
+    message = `현재 Pro를 이용 중이라, Pro ${days}일은 구독이 끝난 뒤 자동으로 적용돼요.`;
+  } else if (r.extended) {
+    title   = 'Pro 기간이 연장됐어요!';
+    message = `${days}일이 추가돼 ${_fmtPromoDate(r.expires_at)}까지 이용하실 수 있어요.`;
+  } else {
+    title   = 'Pro 플랜이 적용됐어요!';
+    message = `${days}일간 Pro 기능을 이용하실 수 있어요.`;
+  }
+
+  const titleEl = document.getElementById('promo-pro-modal-title');
+  if (titleEl) titleEl.textContent = title;
   const msgEl = document.getElementById('promo-pro-modal-message');
-  if (msgEl) msgEl.textContent = days + '일간 Pro 기능을 이용하실 수 있어요.';
+  if (msgEl) msgEl.textContent = message;
   document.getElementById('promo-pro-modal-overlay')?.classList.remove('hidden');
   if (typeof lucide !== 'undefined') lucide.createIcons();
 }
 function closePromoProModal() {
   document.getElementById('promo-pro-modal-overlay')?.classList.add('hidden');
+  const cb = _promoProOnClose;
+  _promoProOnClose = null; // 콜백이 다시 이 모달을 열 경우를 대비해 먼저 비운다
+  if (cb) cb();
 }
 
 // ── 코드 입력 결과 모달 (성공/실패/네트워크오류) ──

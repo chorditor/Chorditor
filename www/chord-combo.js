@@ -1065,7 +1065,8 @@ function initTutorialCarousel() {
 // ── DOMContentLoaded ─────────────────────────────────────────
 document.addEventListener('DOMContentLoaded', () => {
 
-  if (typeof analytics !== 'undefined') analytics.track('combo_page_viewed', {});
+  var _pushEntry = null; try { _pushEntry = localStorage.getItem('_push_entry'); if (_pushEntry) localStorage.removeItem('_push_entry'); } catch(_) {}
+  if (typeof analytics !== 'undefined') analytics.track('combo_page_viewed', { from: _pushEntry ? 'push' : 'training', entry: _pushEntry || 'direct' });
 
   // 슬라이드업 진입 애니메이션
   const shell = document.querySelector('.app-shell');
@@ -1077,6 +1078,22 @@ document.addEventListener('DOMContentLoaded', () => {
   initChapterCarousel();
   initComboDragDrop();
   _comboSnapshotQuizWrap(); // 순정 퀴즈 뷰 HTML 저장 (장 전환 시 전체 복원용)
+
+  // 푸시 딥링크: ?chapter=<콤마 목록> → 그중 랜덤 1장 카드로 스크롤 (자동 시작 X, 난이도는 카드 기본값 low)
+  try {
+    const chapterParam = new URLSearchParams(location.search).get('chapter');
+    if (chapterParam) {
+      const list = chapterParam.split(',');
+      const pick = list[Math.floor(Math.random() * list.length)];
+      const track  = document.getElementById('combo-chapter-track');
+      const target = track?.querySelector(`.combo-card[data-chapter="${pick}"]`);
+      if (track && target) {
+        requestAnimationFrame(() => {
+          track.scrollLeft = target.offsetLeft - (track.clientWidth - target.offsetWidth) / 2;
+        });
+      }
+    }
+  } catch (_) {}
 
   // 페이지 커버 제거
   const cover = document.getElementById('page-cover');

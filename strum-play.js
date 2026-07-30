@@ -690,7 +690,7 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   }
 
-  // ?id= 로 카드 데이터 조회 (없으면 ?lv= 넛지: 해당 레벨 카드 중 랜덤)
+  // ?id= 로 카드 데이터 조회 (없으면 ?lv= 넛지: 해당 레벨 카드 중 랜덤, 콤마로 여러 레벨 합집합 가능)
   const _params = new URLSearchParams(location.search);
   const id = Number(_params.get('id'));
   const lv = _params.get('lv');
@@ -698,7 +698,8 @@ document.addEventListener('DOMContentLoaded', () => {
     if (_params.get('id') != null) {
       STRUM_ITEM = window.STRUMMING_LIST.find((it) => it.id === id) || null;
     } else if (lv != null) {
-      const pool = window.STRUMMING_LIST.filter((it) => String(it.level) === String(lv));
+      const lvList = String(lv).split(',');
+      const pool = window.STRUMMING_LIST.filter((it) => lvList.includes(String(it.level)));
       STRUM_ITEM = pool.length ? pool[Math.floor(Math.random() * pool.length)] : null;
     }
   }

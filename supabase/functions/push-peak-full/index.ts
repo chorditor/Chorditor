@@ -108,8 +108,28 @@ async function fetchTargets(): Promise<PeakFullTarget[]> {
 }
 
 // push_message_templates(category='peak_full')에서 랜덤 1개 조회. 실패/빈 테이블이면 기본 문구로 폴백.
-async function fetchRandomMessage(): Promise<{ title: string; body: string }> {
-  const fallback = { title: '픽이 가득 찼어요!', body: '픽 30개 완충! 지금 코드 연습을 시작해보세요.' };
+// 발송 1건 기록(CTR 분모, push_send_log). id를 FCM data.logId로 실어보내 클릭과 1:1 매칭.
+async function logPush(row: {
+  id: string; user_id: string; push_type: string;
+  category?: string | null; template_id?: number | null;
+  title: string; body: string;
+}): Promise<void> {
+  try {
+    await fetch(`${SUPABASE_URL}/rest/v1/push_send_log`, {
+      method: 'POST',
+      headers: {
+        'apikey': SERVICE_ROLE,
+        'Authorization': `Bearer ${SERVICE_ROLE}`,
+        'Content-Type': 'application/json',
+        'Prefer': 'return=minimal',
+      },
+      body: JSON.stringify(row),
+    });
+  } catch (_) { /* 로깅 실패가 발송을 막으면 안 됨 */ }
+}
+
+async function fetchRandomMessage(): Promise<{ id: number | null; title: string; body: string }> {
+  const fallback = { id: null, title: '픽이 가득 찼어요!', body: '픽 30개 완충! 지금 코드 연습을 시작해보세요.' };
   try {
     const resp = await fetch(`${SUPABASE_URL}/rest/v1/rpc/get_random_push_message`, {
       method: 'POST',
@@ -212,14 +232,20 @@ Deno.serve(async (_req) => {
     for (const t of targets) {
       try {
         const msg = await fetchRandomMessage();
+        const logId = crypto.randomUUID();
         const r = await fcmSend(
           sa, accessToken, t.token,
           msg.title,
           msg.body,
-          { entry: 'peak_full' },
+          { entry: 'peak_full', logId },
         );
         if (r.ok) {
           await markNotified(t.user_id, t.candidate_full_at);
+          await logPush({
+            id: logId, user_id: t.user_id, push_type: 'peak_full',
+            category: 'peak_full', template_id: msg.id,
+            title: msg.title, body: msg.body,
+          });
           sent++;
         } else {
           failed++;

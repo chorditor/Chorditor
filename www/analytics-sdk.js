@@ -90,6 +90,8 @@ class AnalyticsSDK {
     quiz_attendance_achieved:  'quiz',
     quiz_retried:              'quiz',
     quiz_abandoned:            'quiz',
+    // push
+    push_opened:    'push',
     // session
     app_open:       'session',
     app_background: 'session',

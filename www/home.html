@@ -484,6 +484,7 @@
                 <span class="profile-plan-label">현재 플랜</span>
                 <span class="profile-plan-name" id="profile-plan-name">Free</span>
                 <span class="profile-plan-expiry" id="profile-plan-expiry" hidden></span>
+                <span class="profile-plan-pending" id="profile-plan-pending" hidden></span>
               </div>
               <button class="profile-upgrade-btn" onclick="_playTap();openPlanModal()">
                 업그레이드
@@ -522,14 +523,9 @@
           <!-- 컨테이너 4: 내 초대코드 -->
           <div class="profile-container">
             <div class="profile-section-label">내 초대코드</div>
-            <div class="profile-invite-box">
+            <div class="profile-invite-box" onclick="_playTap();copyMyInviteCode()">
               <span class="profile-invite-code" id="profile-invite-code">------</span>
-              <button class="profile-invite-btn" onclick="_playTap();copyMyInviteCode()" aria-label="복사">
-                <i data-lucide="copy"></i>
-              </button>
-              <button class="profile-invite-btn" onclick="_playTap();shareMyInviteCode()" aria-label="공유">
-                <i data-lucide="share-2"></i>
-              </button>
+              <i data-lucide="copy" class="profile-invite-copy-icon"></i>
             </div>
             <div class="profile-invite-hint">친구가 가입할 때 이 코드를 입력하면 둘 다 보상을 받아요</div>
           </div>
@@ -894,9 +890,20 @@
   <div class="modal-overlay hidden" id="promo-pro-modal-overlay">
     <div class="event-modal" onclick="event.stopPropagation()">
       <div class="event-modal-icon"><img src="image/gift.png" alt=""></div>
-      <h3 class="event-modal-title">Pro 플랜이 적용됐어요!</h3>
+      <h3 class="event-modal-title" id="promo-pro-modal-title">Pro 플랜이 적용됐어요!</h3>
       <p class="event-modal-message" id="promo-pro-modal-message"></p>
       <button class="event-modal-btn" onclick="closePromoProModal()">확인</button>
+    </div>
+  </div>
+
+  <!-- ── 모달: 프로모션 Pro 만료 임박/종료 안내 (홈 진입, 출석 다음 순번) ── -->
+  <div class="modal-overlay hidden" id="promo-expiry-modal-overlay" onclick="closePromoExpiryModal()">
+    <div class="promo-expiry-modal" onclick="event.stopPropagation()">
+      <button class="code-result-close" onclick="closePromoExpiryModal()"><i data-lucide="x"></i></button>
+      <div class="event-modal-icon promo-expiry-modal-icon" id="promo-expiry-modal-icon"><i data-lucide="clock"></i></div>
+      <h3 class="event-modal-title" id="promo-expiry-modal-title"></h3>
+      <p class="event-modal-message" id="promo-expiry-modal-message"></p>
+      <button class="event-modal-btn" onclick="promoExpiryUpgrade()">업그레이드</button>
     </div>
   </div>
 

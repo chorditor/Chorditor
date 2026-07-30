@@ -946,6 +946,9 @@ function navigateTo(view, projectId, opts = {}) {
   }
 
   if (view === 'project' && projectId) {
+    const _projects = loadProjects();
+    const _p0 = _projects.find(p => p.id === projectId);
+    if (_p0 && isProjectLocked(_p0, _projects)) { openPlanSheet('note_locked'); return; }
     // 프로젝트 탭으로 이동 후 개별 프로젝트 표시
     switchTab('projects');
     _projectsSubView = 'project';
@@ -1014,9 +1017,10 @@ function renderProjectsList() {
 
   container.innerHTML = '';
 
-  if (important.length > 0) _renderProjectsSection(container, '중요', important);
-  if (pinned.length > 0)    _renderProjectsSection(container, '즐겨찾기', pinned);
-  if (recent.length > 0)    _renderProjectsSection(container, '최근', recent);
+  const locked = isNotesLockedState(projects);
+  if (important.length > 0 || locked) _renderProjectsSection(container, '중요', important);
+  if (pinned.length > 0)    _renderProjectsSection(container, '즐겨찾기', pinned, locked);
+  if (recent.length > 0)    _renderProjectsSection(container, '최근', recent, locked);
 
   if (projects.length === 0) {
     container.innerHTML = '<p style="padding:32px 20px;color:var(--text-muted);font-size:14px;text-align:center;">노트가 없습니다.<br>+ 버튼으로 새 노트를 만들어보세요.</p>';
@@ -1025,19 +1029,32 @@ function renderProjectsList() {
   lucide.createIcons();
 }
 
-function _renderProjectsSection(container, label, projects) {
+function _renderProjectsSection(container, label, projects, locked = false) {
   const section = document.createElement('div');
   section.className = 'projects-section';
 
   const sectionLabel = document.createElement('div');
   sectionLabel.className = 'projects-section-label';
   sectionLabel.textContent = label;
+  if (label === '중요') {
+    const hint = document.createElement('span');
+    hint.className = 'projects-section-hint';
+    hint.textContent = '구독이 만료되어도 잠기지 않아요';
+    sectionLabel.appendChild(hint);
+  }
+  if (locked && label === '최근') {
+    const lockIcon = document.createElement('i');
+    lockIcon.setAttribute('data-lucide', 'lock');
+    lockIcon.className = 'projects-section-lock-icon';
+    sectionLabel.appendChild(lockIcon);
+  }
   section.appendChild(sectionLabel);
 
   projects.forEach(project => {
     const item = document.createElement('div');
     item.className = 'projects-item';
     item.dataset.id = project.id;
+    if (locked && !project.important) item.classList.add('locked');
 
     const name = document.createElement('span');
     name.className = 'projects-item-name';
@@ -4510,6 +4527,12 @@ document.addEventListener('DOMContentLoaded', async () => {
   // URL ?id= 파라미터로 프로젝트 자동 렌더링
   const params = new URLSearchParams(location.search);
   const projectIdParam = params.get('id');
+  const _allProjects = loadProjects();
+  const _paramProject = projectIdParam ? _allProjects.find(p => p.id === projectIdParam) : null;
+  if (projectIdParam && _paramProject && isProjectLocked(_paramProject, _allProjects)) {
+    location.href = 'home.html';
+    return;
+  }
   if (projectIdParam) {
     // 에디터 왕복 복귀: 편집 모드 + 스크롤 위치 복원
     try {

@@ -6,7 +6,7 @@
 // ── 상수 ─────────────────────────────────────────────────────
 const SUPABASE_URL  = 'https://jbvkygeksohlysyvaoab.supabase.co';
 const SUPABASE_ANON = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Impidmt5Z2Vrc29obHlzeXZhb2FiIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzYzOTk5NjgsImV4cCI6MjA5MTk3NTk2OH0.6RSgChy0Yq0H2TJpZPSoMKQ2V-OYfR0XzE1aJBBZkXI';
-const APP_VERSION   = '1.3.2_pre1';
+const APP_VERSION   = '1.3.2_pre8';
 const SUPABASE_STORAGE_KEY = 'sb-jbvkygeksohlysyvaoab-auth-token';
 
 // ── Analytics SDK ─────────────────────────────────────────────
@@ -341,10 +341,12 @@ function getPlan() {
 }
 
 function setPlan(plan) {
+  const prev = localStorage.getItem('chorditor_plan');
   localStorage.setItem('chorditor_plan', plan);
   if (typeof updateExportScaleOptions === 'function') updateExportScaleOptions();
   if (typeof renderPlanBadge === 'function') renderPlanBadge();
   if (typeof renderPeakBadge === 'function') renderPeakBadge();
+  if (prev !== plan && typeof renderSidebar === 'function') renderSidebar();
 }
 
 function getPlanLimit(key) {
@@ -352,6 +354,14 @@ function getPlanLimit(key) {
 }
 function canCreateProject() { return loadProjects().length < getPlanLimit('maxProjects'); }
 function canUseScale(scale)  { return scale <= getPlanLimit('maxScale'); }
+
+// Pro→Free 강등으로 노트가 무료 한도를 초과한 상태인지. true면 '중요' 미지정 노트 전부 잠금.
+function isNotesLockedState(projects) {
+  return getPlan() === 'free' && projects.length > getPlanLimit('maxProjects');
+}
+function isProjectLocked(project, projects) {
+  return isNotesLockedState(projects) && !project.important;
+}
 
 // ── 인앱 재화: 일반 피크 (DB 기반, 유저별 30분마다 자동충전) ─────
 const PEAK_CAP = 30;
@@ -1034,6 +1044,83 @@ async function _fetchPromoUntil(accessToken) {
     const row = (await resp.json())?.[0];
     setPromoUntil(row?.promo_plan && row?.promo_expires_at ? row.promo_expires_at : null);
   } catch(e) { console.warn('[Plan] promo 만료일 조회 실패:', e); }
+}
+
+// ── 프로모션 만료 임박/종료 알림 ───────────────────────────────
+// 홈 진입 시(출석 완료 후) 1회. D-3/D-1 각 1회 + 만료 직후 1회.
+// 상태는 promo_expires_at(만료 시각) 기준으로 리셋되므로 연장 시 자동 재무장된다.
+const PROMO_NOTIFY_KEY = 'chorditor_promo_notify';
+const PROMO_WARN_DAYS  = [3, 1]; // 내림차순
+
+function _loadPromoNotifyState() {
+  try { return JSON.parse(localStorage.getItem(PROMO_NOTIFY_KEY) || 'null'); }
+  catch (_) { return null; }
+}
+function _savePromoNotifyState(s) {
+  localStorage.setItem(PROMO_NOTIFY_KEY, JSON.stringify(s));
+}
+
+// true 반환 시 모달을 띄운 것 — 호출부(checkAndShowNotice)에서 다른 팝업과 중첩 방지에 사용.
+function checkPromoExpiryNotice() {
+  const until = getPromoUntil();
+
+  if (until) {
+    const untilIso = until.toISOString();
+    let state = _loadPromoNotifyState();
+    const daysLeft = Math.ceil((until - Date.now()) / 86400000);
+
+    if (!state || state.expiresAt !== untilIso) {
+      // 새 만료 시각(신규 발급 또는 연장) → 재무장.
+      // 등록 시점에 이미 3일 미만 남은 짧은 쿠폰은 D-3/D-1 경고를 스킵한다
+      // (예: 1일권은 등록 즉시 "내일 끝나요"가 뜨는 게 무의미함). 종료 직후 알림은 그대로 유지.
+      state = { expiresAt: untilIso, seen: daysLeft < 3 ? [...PROMO_WARN_DAYS] : [], expiredNotified: false };
+    }
+
+    for (const threshold of PROMO_WARN_DAYS) {
+      if (daysLeft <= threshold && !state.seen.includes(threshold)) {
+        state.seen.push(threshold);
+        _savePromoNotifyState(state);
+        _showPromoExpiryModal('warn', daysLeft);
+        return true;
+      }
+    }
+    _savePromoNotifyState(state);
+    return false;
+  }
+
+  // 프로모션이 더 이상 유효하지 않음 — 직전까지 추적 중이었다면(=쿠폰을 받았던 적이 있으면) 종료 1회 안내
+  const state = _loadPromoNotifyState();
+  if (state && !state.expiredNotified) {
+    localStorage.removeItem(PROMO_NOTIFY_KEY); // 다음 쿠폰을 위해 완전히 초기화
+    _showPromoExpiryModal('expired');
+    return true;
+  }
+  return false;
+}
+
+function _showPromoExpiryModal(kind, daysLeft) {
+  const icon  = kind === 'expired' ? 'calendar-x' : 'clock';
+  const title = kind === 'expired' ? 'Pro 이용 기간이 끝났어요' : `Pro 이용 기간이 ${daysLeft}일 남았어요`;
+  const msg   = kind === 'expired'
+    ? '프로모션으로 받은 Pro 혜택이 종료됐어요. 계속 이용하시려면 업그레이드해주세요.'
+    : `Pro 혜택이 ${daysLeft}일 뒤 종료돼요. 계속 이용하시려면 업그레이드해주세요.`;
+
+  const iconEl = document.getElementById('promo-expiry-modal-icon');
+  if (iconEl) iconEl.innerHTML = `<i data-lucide="${icon}"></i>`;
+  const titleEl = document.getElementById('promo-expiry-modal-title');
+  if (titleEl) titleEl.textContent = title;
+  const msgEl = document.getElementById('promo-expiry-modal-message');
+  if (msgEl) msgEl.textContent = msg;
+  document.getElementById('promo-expiry-modal-overlay')?.classList.remove('hidden');
+  if (typeof lucide !== 'undefined') lucide.createIcons();
+  if (typeof analytics !== 'undefined') analytics.track('promo_expiry_notice_shown', { kind, days_left: daysLeft ?? null });
+}
+function closePromoExpiryModal() {
+  document.getElementById('promo-expiry-modal-overlay')?.classList.add('hidden');
+}
+function promoExpiryUpgrade() {
+  closePromoExpiryModal();
+  if (typeof openPlanSheet === 'function') openPlanSheet('promo_expiry_notice');
 }
 
 // 쿠폰 사용 직후 등 즉시 갱신이 필요할 때 호출
@@ -3734,6 +3821,11 @@ function initPushNotifications() {
   // 알림 탭 → 딥링크 라우팅 + 진입 마커(analytics entry 귀속)
   PN.addListener('pushNotificationActionPerformed', (action) => {
     const data = (action && action.notification && action.notification.data) || {};
+    // 푸시 클릭 귀속 — 발송 종류(넛지/윈백/중단인지형/성적형/연동형) 구분용.
+    // data.entry/logId 는 Edge Function 이 발송 시 넣어줌. 랜딩 페이지의 entry(=목적지)와 달리
+    // "어떤 푸시였나"를 나타내므로 종류별 CTR 계산은 이 이벤트로만 가능.
+    // log_id 는 push_send_log.id → 발송 1건과 클릭을 1:1로 매칭(문구별 CTR 계산용).
+    analytics.track('push_opened', { push_type: data.entry || 'unknown', log_id: data.logId || null });
     const setEntry = (v) => { try { localStorage.setItem('_push_entry', v); } catch (_) {} };
     // 세션이 살아있으면(웜) 이미 온보딩 관문을 통과한 상태 → 즉시 이동.
     // 콜드스타트면 목적지만 저장하고 온보딩(강제업데이트·인증·plan 동기화)이 끝난 뒤 이동.
@@ -3762,6 +3854,11 @@ function initPushNotifications() {
       // 넛지: lv 만 지정 → strum-play 가 해당 lv 카드 중 랜덤 선택
       setEntry('strum');
       go('strum-play.html?lv=' + encodeURIComponent(data.strumLv));
+    } else if (data.comboChapter != null) {
+      // 넛지: chapter 만 지정(콤마로 여러 장 가능) → chord-combo 가 그중 랜덤 장 선택
+      setEntry('combo');
+      go('chord-combo.html?chapter=' + encodeURIComponent(data.comboChapter)
+        + '&difficulty=' + encodeURIComponent(data.comboDifficulty || 'low'));
     } else if (data.winback != null) {
       setEntry('winback');
       if (!/home\.html/.test(location.pathname)) go('home.html');

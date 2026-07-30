@@ -16,8 +16,10 @@
 
 -- ── 1. 프로모션 상태 컬럼 ───────────────────────────────────
 alter table public.subscriptions
-  add column if not exists promo_plan       text,
-  add column if not exists promo_expires_at timestamptz;
+  add column if not exists promo_plan         text,
+  add column if not exists promo_expires_at   timestamptz,
+  -- 결제 Pro 이용 중 받은 쿠폰의 적립 일수(시계가 흐르지 않음). 구독 종료 시 활성화.
+  add column if not exists promo_pending_days integer not null default 0;
 
 -- ── 2. get_my_plan 교체 (유효 플랜 합성) ────────────────────
 -- 기존 정의:
@@ -76,6 +78,19 @@ alter table public.promo_redemptions enable row level security;
 -- ── 4. 코드 사용 RPC ────────────────────────────────────────
 -- 수량 제한은 반드시 UPDATE 한 문장으로 원자 처리한다.
 -- select 후 update 로 나누면 동시 입력 시 수량 초과가 발생한다.
+
+-- 만료 시각을 한국시간(KST) 기준 그날 23:59:59로 올린다.
+-- 늦은 시간에 입력해도 손해가 없고, 프로필의 '○월 ○일까지' 날짜 표시와 정확히 일치.
+-- (DB now()는 UTC라 KST로 변환 후 잘라야 한국 자정이 경계가 됨)
+create or replace function public._promo_expire_kst(p_base timestamptz, p_days integer)
+returns timestamptz
+language sql immutable as $$
+  select (
+    date_trunc('day', (p_base + (p_days || ' days')::interval) at time zone 'Asia/Seoul')
+    + interval '1 day' - interval '1 second'
+  ) at time zone 'Asia/Seoul';
+$$;
+
 create or replace function public.redeem_promo_code(p_code text)
 returns json
 language plpgsql
@@ -89,6 +104,10 @@ declare
   v_days    integer;
   v_row     public.promo_codes%rowtype;
   v_plan    text := null;
+  v_pending boolean := false;
+  v_extended boolean := false;   -- 기존 프로모션 기간에 이어붙였는지
+  v_total   integer := 0;        -- 적립 총 일수 / 최종 만료일 안내용
+  v_until   timestamptz;
 begin
   if v_me is null then
     return json_build_object('ok', false, 'reason', 'no_auth');
@@ -130,23 +149,75 @@ begin
   end if;
 
   if v_days > 0 then
-    -- 이미 프로모션 pro면 기존 만료일에 이어붙여 연장.
-    -- 만료 시각은 한국시간(KST) 기준 그날 23:59:59로 올림 — 늦은 시간에 입력해도
-    -- 손해가 없고, 프로필에 '○월 ○일까지'로 날짜만 표시하는 것과 정확히 일치한다.
-    -- (DB now()는 UTC라 KST로 변환 후 잘라야 한국 자정이 경계가 됨)
-    update public.subscriptions
-       set promo_plan       = 'pro',
-           promo_expires_at = (
-             date_trunc('day',
-               (greatest(coalesce(promo_expires_at, now()), now())
-                 + (v_days || ' days')::interval) at time zone 'Asia/Seoul'
-             ) + interval '1 day' - interval '1 second'
-           ) at time zone 'Asia/Seoul'
-     where user_id = v_me;
-    v_plan := 'pro';
+    -- 결제(또는 운영자 수동 부여) Pro를 이미 이용 중이면 즉시 적용하지 않고 적립한다.
+    -- 즉시 적용하면 결제 기간과 프로모션 기간이 동시에 흘러 유저가 그만큼 손해를 본다.
+    -- 적립분은 시계가 흐르지 않으며, 구독 종료 시(RevenueCat 웹훅 EXPIRATION/REFUND)
+    -- activate_pending_promo가 호출되어 그 시점부터 일수를 온전히 부여한다.
+    select true into v_pending
+      from public.subscriptions
+     where user_id = v_me
+       and plan = 'pro' and status = 'active'
+       and (current_period_end is null or current_period_end > now());
+
+    if coalesce(v_pending, false) then
+      -- 이미 적립분이 있으면 누적된다. 안내 문구용으로 누적 후 총합을 돌려준다.
+      update public.subscriptions
+         set promo_pending_days = promo_pending_days + v_days
+       where user_id = v_me
+      returning promo_pending_days into v_total;
+      v_extended := (v_total > v_days);
+    else
+      -- 이미 프로모션 Pro면 기존 만료일에 이어붙여 연장
+      select (promo_expires_at is not null and promo_expires_at > now())
+        into v_extended
+        from public.subscriptions where user_id = v_me;
+
+      update public.subscriptions
+         set promo_plan       = 'pro',
+             promo_expires_at = public._promo_expire_kst(
+                                  greatest(coalesce(promo_expires_at, now()), now()), v_days)
+       where user_id = v_me
+      returning promo_expires_at into v_until;
+      v_plan := 'pro';
+    end if;
   end if;
 
-  return json_build_object('ok', true, 'peakbox', v_box, 'pro_days', v_days, 'plan', v_plan);
+  return json_build_object('ok', true, 'peakbox', v_box, 'pro_days', v_days,
+    'plan', v_plan, 'pending', coalesce(v_pending, false),
+    'extended', coalesce(v_extended, false),
+    'pending_total', v_total, 'expires_at', v_until);
 end;
 $$;
 grant execute on function public.redeem_promo_code(text) to authenticated;
+
+-- ── 5. 적립분 활성화 (구독 종료 시 웹훅이 호출) ─────────────
+-- RevenueCat 웹훅의 EXPIRATION/REFUND 분기에서 호출한다.
+-- 적립 일수는 이 시점부터 카운트를 시작하므로 유저는 일수를 온전히 받는다.
+-- 적립분이 없으면 아무것도 하지 않는다(모든 구독 종료마다 안전하게 호출 가능).
+create or replace function public.activate_pending_promo(p_user_id uuid)
+returns json
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_days integer;
+begin
+  select promo_pending_days into v_days
+    from public.subscriptions where user_id = p_user_id for update;
+  if not found or coalesce(v_days, 0) <= 0 then
+    return json_build_object('activated', false);
+  end if;
+
+  update public.subscriptions
+     set promo_plan         = 'pro',
+         promo_expires_at   = public._promo_expire_kst(
+                                greatest(coalesce(promo_expires_at, now()), now()), v_days),
+         promo_pending_days = 0
+   where user_id = p_user_id;
+
+  return json_build_object('activated', true, 'days', v_days);
+end;
+$$;
+-- 웹훅(service_role) 전용. 클라에는 열지 않는다.
+grant execute on function public.activate_pending_promo(uuid) to service_role;

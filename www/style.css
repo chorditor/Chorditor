@@ -4464,6 +4464,29 @@ canvas {
   padding: 10px 0 12px 8px;
 }
 
+.projects-section-hint {
+  text-transform: none;
+  font-weight: 400;
+  letter-spacing: 0;
+  margin-left: 6px;
+  opacity: .75;
+}
+
+.projects-section-lock-icon {
+  width: 11px;
+  height: 11px;
+  margin-left: 6px;
+  vertical-align: -1px;
+  color: var(--text-muted);
+}
+
+.projects-item.locked {
+  opacity: .45;
+}
+.projects-item.locked .projects-item-name {
+  color: var(--text-muted);
+}
+
 .projects-item {
   display: flex;
   align-items: center;
@@ -6293,15 +6316,37 @@ canvas {
 }
 
 #promo-pro-modal-overlay,
-#code-result-modal-overlay {
+#code-result-modal-overlay,
+#promo-expiry-modal-overlay {
   animation: modal-overlay-in 0.2s ease both;
 }
-#promo-pro-modal-overlay .event-modal {
+#promo-pro-modal-overlay .event-modal,
+#promo-expiry-modal-overlay .promo-expiry-modal {
   animation: modal-scale-in 0.25s cubic-bezier(0.34, 1.56, 0.64, 1) both;
 }
 #code-result-modal-overlay .code-result-modal {
   animation: modal-scale-in 0.25s cubic-bezier(0.34, 1.56, 0.64, 1) both;
 }
+
+/* ── 프로모션 만료 임박/종료 안내 모달 (event-modal 톤 + X 닫기) ── */
+.promo-expiry-modal {
+  position: relative;
+  background: var(--surface);
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--border);
+  width: calc(100% - 32px);
+  max-width: 300px;
+  padding: 32px 24px 24px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+}
+.promo-expiry-modal-icon {
+  background: #eef1f6;
+  color: var(--text-secondary);
+}
+.promo-expiry-modal-icon svg { width: 28px; height: 28px; }
 
 .event-modal {
   background: var(--surface);
@@ -6967,7 +7012,9 @@ canvas {
 }
 
 /* 프로모션 쿠폰으로 받은 플랜의 만료일 (결제 구독엔 표시 안 함) */
-.profile-plan-expiry {
+.profile-plan-expiry,
+/* 결제 Pro 이용 중이라 적립만 된 쿠폰 안내 (적립분 있을 때만 노출) */
+.profile-plan-pending {
   font-size: 12px;
   font-weight: 500;
   color: var(--text-muted);
@@ -7040,6 +7087,7 @@ canvas {
   background: #fff;
   border-radius: var(--radius);
   padding: 8px 8px 8px 16px;
+  min-height: 52px;
   box-shadow: 0 1px 4px rgba(0,0,0,0.06);
 }
 
@@ -7079,16 +7127,21 @@ canvas {
 .profile-code-submit:hover { opacity: 0.85; }
 .profile-code-submit:active { transform: scale(0.97); }
 
-/* ── 내 초대코드 (프로모션 입력창과 동일한 박스 톤) ── */
+/* ── 내 초대코드 (프로모션 입력창과 동일한 박스 톤, 박스 전체 탭 = 복사) ── */
 .profile-invite-box {
   display: flex;
   align-items: center;
   gap: 4px;
   background: #fff;
   border-radius: var(--radius);
-  padding: 8px 8px 8px 16px;
+  padding: 8px 16px;
+  min-height: 52px;
   box-shadow: 0 1px 4px rgba(0,0,0,0.06);
+  cursor: pointer;
+  transition: opacity .15s;
 }
+.profile-invite-box:hover { opacity: 0.85; }
+.profile-invite-box:active { transform: scale(0.98); }
 
 .profile-invite-code {
   flex: 1;
@@ -7096,28 +7149,16 @@ canvas {
   font-family: 'Pretendard', sans-serif;
   font-size: 18px;
   font-weight: 800;
-  letter-spacing: 0.14em;
+  letter-spacing: 0.08em;
   color: var(--text-primary);
 }
 
-.profile-invite-btn {
+.profile-invite-copy-icon {
   flex-shrink: 0;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 36px;
-  height: 36px;
-  background: none;
-  border: none;
-  padding: 0;
+  width: 18px;
+  height: 18px;
   color: var(--text-muted);
-  cursor: pointer;
-  border-radius: calc(var(--radius) - 4px);
-  transition: opacity .15s;
 }
-.profile-invite-btn svg { width: 18px; height: 18px; }
-.profile-invite-btn:hover { opacity: 0.7; }
-.profile-invite-btn:active { transform: scale(0.92); }
 
 .profile-invite-hint {
   font-size: 11px;

@@ -757,14 +757,15 @@ document.addEventListener('DOMContentLoaded', () => {
   // URL 파라미터 파싱
   const params = new URLSearchParams(location.search);
   const progId = params.get('id');
-  const progNo = params.get('no'); // 넛지: no 그룹만 지정 → 랜덤 진행
+  const progNo = params.get('no'); // 넛지: no 그룹만 지정 → 랜덤 진행 (콤마로 여러 그룹 합집합 가능)
   _key     = parseInt(params.get('key')  || '0', 10);
   _useFlat = params.get('flat') !== '0'; // 기본 플랫 (명시적 0만 샵)
 
   if (progId) {
     _prog = PROGRESSIONS.find(p => p.id === progId) || null;
   } else if (progNo != null) {
-    const group = PROGRESSIONS.filter(p => String(p.no) === String(progNo));
+    const noList = String(progNo).split(',');
+    const group = PROGRESSIONS.filter(p => noList.includes(String(p.no)));
     _prog = group.length ? group[Math.floor(Math.random() * group.length)] : null;
   } else {
     _prog = null;

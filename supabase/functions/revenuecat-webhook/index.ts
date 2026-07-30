@@ -117,6 +117,14 @@ serve(async (req: Request) => {
       cancel_at_period_end: false,
     }, { onConflict: 'user_id' })
     if (error) console.error('[Webhook] upsert 오류:', error)
+
+    // 결제 Pro 이용 중에 등록해 적립해 둔 프로모션 쿠폰이 있으면 여기서 활성화.
+    // 적립분이 없으면 no-op이라 무조건 호출해도 안전하다.
+    const { data: promo, error: promoErr } = await supabase.rpc('activate_pending_promo', {
+      p_user_id: appUserId,
+    })
+    if (promoErr) console.error('[Webhook] activate_pending_promo 오류:', promoErr)
+    else if (promo?.activated) console.log(`[Webhook] 적립 프로모션 활성화 | ${appUserId} | ${promo.days}일`)
   }
 
   console.log(`[Webhook] ${eventType} | user: ${appUserId} | plan: ${plan}`)
