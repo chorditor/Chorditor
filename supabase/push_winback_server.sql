@@ -3,9 +3,12 @@
 -- 서버측 윈백 발송: 발송 이력 + 타겟팅 함수.
 -- 마지막 활동(analytics_events) 기준 유휴 단계 산정 → 미발송 단계만 추출.
 --
--- 사다리(마지막 접속 기준 누적):
+-- 사다리(마지막 접속 기준 누적, KST 달력일 차이 — 자정 넘어가면 무조건 +1일):
 --   stage1 +3일 / stage2 +7일 / stage3 +30일 / stage4 +180일
---   stage2~ 는 월요일에만 발송(요일 게이트). stage1 은 요일 무관.
+--   요일 게이트 없음(2026-07-31 제거). 기존엔 stage2~ 를 월요일에만 보냈는데,
+--   그 결과 idle 7~179일 유저가 화~일에는 stage1 자격도 잃고 요일에도 막혀
+--   아무 푸시도 못 받는 사각지대가 생겨서 폐지.
+--   idle 1~2일은 넛지(get_nudge_targets)가 담당 → 넛지 2회 후 3일째부터 이 사다리로 인계.
 -- ───────────────────────────────────────────────────────────
 
 -- ── 발송 이력 (중복 발송 방지) ──────────────────────────────
@@ -35,9 +38,6 @@ language plpgsql
 security definer
 set search_path = public
 as $$
-declare
-  now_kst timestamptz := now();
-  is_monday boolean := (extract(dow from (now() at time zone 'Asia/Seoul')) = 1);
 begin
   return query
   with last_active as (
@@ -51,9 +51,10 @@ begin
     group by pt.user_id, pt.token, pt.platform, pt.winback_enabled, pt.updated_at
   ),
   staged as (
-    -- 유휴일수 → 도달 단계(최고 임계 통과). 단계별 요일 게이트.
+    -- 유휴일수 → 도달 단계(최고 임계 통과). KST 달력일 차이 기준.
     select la.*,
-           extract(epoch from (now() - la.last_at)) / 86400.0 as idle_days
+           (now() at time zone 'Asia/Seoul')::date
+             - (la.last_at at time zone 'Asia/Seoul')::date as idle_days
     from last_active la
   ),
   target as (
@@ -76,8 +77,6 @@ begin
   join public.push_winback w on w.stage = t.stage and w.active = true
   where t.stage > 0
     and t.winback_enabled = true     -- 설정 > 푸시알림 > 리마인드 OFF 시 제외
-    -- 단계2~ 는 월요일만
-    and (t.stage = 1 or is_monday)
     -- 이번 유휴기간(마지막활동 이후) 동안 해당 단계 미발송
     and not exists (
       select 1 from public.push_winback_log l
