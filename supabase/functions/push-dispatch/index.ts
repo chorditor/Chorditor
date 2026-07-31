@@ -598,12 +598,14 @@ Deno.serve(async (_req) => {
 
       const logId = crypto.randomUUID();
       const data = { ...dest.data, logId };
-      const r = await fcmSend(sa, accessToken, t.token, trainingName, body, data);
+      // 일반넛지 title 은 훈련명이 아니라 DB의 중립 문구를 그대로 사용.
+      // 훈련을 지칭하지 않으므로 어떤 딥링크가 붙어도 불일치가 생기지 않음.
+      const r = await fcmSend(sa, accessToken, t.token, msg.title, body, data);
       if (r.ok) {
         await logPush({
           id: logId, user_id: t.user_id, push_type: 'nudge',
           category: kind === 'repeat' ? 'nudge_repeat' : 'nudge_persona',
-          template_id: msg.id, title: trainingName, body, deeplink: dest.deeplink,
+          template_id: msg.id, title: msg.title, body, deeplink: dest.deeplink,
         });
         sentUsers.add(t.user_id);
         nSent++;
