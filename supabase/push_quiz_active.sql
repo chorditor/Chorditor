@@ -90,7 +90,8 @@ as $$
     where ratio >= 1.5
     order by user_id, ratio desc
   ),
-  -- 추천용: 유저별 5개 훈련 중 기록이 가장 적은 훈련(미기록=0, 동률시 이름순 고정으로 결정론적)
+  -- 추천용: 유저별 5개 훈련 중 기록이 가장 적은 훈련(미기록=0, 동률시 랜덤 — 이름순 고정 시 알파벳
+  -- 순으로 combo가 항상 우선 뽑히는 편향 있었음, 2026-07-31 발견 후 수정)
   all_trainings as (
     select unnest(array['combo', 'progression', 'quiz', 'scale', 'strum']) as training
   ),
@@ -103,7 +104,7 @@ as $$
   least_pick as (
     select distinct on (user_id) user_id, training as least_training
     from user_all
-    order by user_id, cnt asc, training
+    order by user_id, cnt asc, random()
   )
   select
     tp.user_id,
