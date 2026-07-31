@@ -199,7 +199,9 @@ Deno.serve(async (_req) => {
 
     for (const t of targets) {
       const tone: 'continue' | 'recommend' = Math.random() < 0.5 ? 'continue' : 'recommend';
-      const category = tone === 'continue' ? 'quiz_active_continue' : 'quiz_active_recommend';
+      // 5배 이상은 놀라움+칭찬 톤(high) 티어로 분리
+      const tier = t.ratio >= 5 ? 'high_' : '';
+      const category = `quiz_active_${tier}${tone}`;
 
       const msg = await fetchRandomMessage(category);
       if (!msg) { skipped++; continue; }
