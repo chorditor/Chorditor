@@ -196,8 +196,13 @@ const SCALE_KEY_BY_LEVEL: Record<number, string> = {
 };
 function pickRandom<T>(arr: T[]): T { return arr[Math.floor(Math.random() * arr.length)]; }
 
-// 코드맞추기 관련 넛지(2·3·4번) 공용 — 타이틀은 본문 카테고리와 무관하게 5개 중 랜덤(특정 타이틀 쏠림 방지)
-const QUIZ_PUSH_TITLES = ['코드 맞추기', '스케일 훈련', '코드 진행 리스트', '주법 리듬 훈련', '코드 조합 훈련'];
+// 콘텐츠 타입별 타이틀 — 본문(딥링크 대상)과 반드시 일치해야 함(불일치 시 오해 유발)
+const CONTENT_TITLE: Record<string, string> = {
+  scale: '스케일 훈련',
+  progression: '코드 진행 리스트',
+  strum: '주법 리듬 훈련',
+  combo: '코드 조합 훈련',
+};
 
 function resolveScaleKey(quizLevel: number): string {
   const lv =
@@ -359,7 +364,7 @@ Deno.serve(async (_req) => {
       if (!msg) { aSkipped++; continue; }
       const body = msg.body.replaceAll('{레벨명}', levelLabel(t.level_id, levelNames));
       const logId = crypto.randomUUID();
-      const title = pickRandom(QUIZ_PUSH_TITLES);
+      const title = '코드 맞추기';
       const data = { entry: 'quiz_abandoned', quizLevel: t.level_id, logId };
       const r = await fcmSend(sa, accessToken, t.token, title, body, data);
       if (r.ok) {
@@ -417,7 +422,7 @@ Deno.serve(async (_req) => {
           t.category === 'quiz_challenge' ? t.challenge_id :
           t.level_id;
         const logId = crypto.randomUUID();
-        const title = pickRandom(QUIZ_PUSH_TITLES);
+        const title = '코드 맞추기';
         const data = { entry: 'quiz_pattern', category: t.category, quizLevel: targetLevel ?? t.level_id, logId };
         const r = await fcmSend(sa, accessToken, t.token, title, body, data);
         if (r.ok) {
@@ -469,7 +474,7 @@ Deno.serve(async (_req) => {
         const msg = await fetchRandomMessage(category);
         if (!msg) { lSkipped++; continue; }
         const body = msg.body.replaceAll('{레벨명}', levelLabel(t.level_id, levelNames));
-        const title = pickRandom(QUIZ_PUSH_TITLES);
+        const title = CONTENT_TITLE[chosenType];
         const r = await fcmSend(sa, accessToken, t.token, title, body, data);
         if (r.ok) {
           await logPush({
