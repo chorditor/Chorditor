@@ -2,15 +2,18 @@
 -- push_cron_active.sql : 5번(적극형) 주간 결산 푸시, 매주 월요일 1회 호출.
 --   월요일 선택 이유: "주간 결산=월요일" 관습적 멘탈모델과 일치해 유저 이해도 우선
 --   (활동량 자체는 월요일이 최저 요일이지만, 이해도가 열람률보다 중요하다고 판단, 2026-07-31).
+--   시간은 12:00 KST(점심시간) — 기존 슬롯(10:00 실험/16:00 공통/18:00 teen/20:30 윈백/
+--   20:45 공통)과 전부 겹치지 않게 분리. 같은 시각에 겹치면 "특별한 결산"이 일반 넛지
+--   더미에 묻혀버리는 문제 있어 별도 시간대로 뺌(2026-07-31).
 -- ───────────────────────────────────────────────────────────
 
 select cron.unschedule('push-quiz-active-monday')
 where exists (select 1 from cron.job where jobname = 'push-quiz-active-monday');
 
--- 매주 월요일 20:45 KST = 11:45 UTC (공통 슬롯과 동일 시간대)
+-- 매주 월요일 12:00 KST = 03:00 UTC
 select cron.schedule(
   'push-quiz-active-monday',
-  '45 11 * * 1',
+  '0 3 * * 1',
   $$
   select net.http_post(
     url     := 'https://jbvkygeksohlysyvaoab.supabase.co/functions/v1/push-active',
