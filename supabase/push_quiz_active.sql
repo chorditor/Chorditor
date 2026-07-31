@@ -111,7 +111,7 @@ as $$
     pt.platform,
     sub.nickname,
     tp.top_training,
-    round(tp.ratio, 0) as ratio,
+    round(tp.ratio, 1) as ratio,
     lp.least_training
   from top_pick tp
   join least_pick lp using (user_id)
