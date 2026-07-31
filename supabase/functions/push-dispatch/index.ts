@@ -196,12 +196,47 @@ const SCALE_KEY_BY_LEVEL: Record<number, string> = {
 };
 function pickRandom<T>(arr: T[]): T { return arr[Math.floor(Math.random() * arr.length)]; }
 
-// 콘텐츠 타입별 타이틀 — 본문(딥링크 대상)과 반드시 일치해야 함(불일치 시 오해 유발)
-const CONTENT_TITLE: Record<string, string> = {
-  scale: '스케일 훈련',
-  progression: '코드 진행 리스트',
-  strum: '주법 리듬 훈련',
-  combo: '코드 조합 훈련',
+// ⚠️ 불변식: 푸시 목적지는 오직 title 에서만 파생된다.
+//   push_message_templates.title = 그 문구가 유도하는 훈련 = 딥링크 대상.
+//   목적지를 title 이외의 값(카테고리·랜덤 등)으로 정하면 타이틀과 실제 이동 화면이
+//   어긋나므로, 딥링크 생성은 반드시 이 함수 한 곳만 거칠 것.
+//   quizLevel = 코드맞추기 레벨(콘텐츠 난이도 매핑 기준), quizTarget = '코드 맞추기'일 때 이동할 레벨.
+//   보낼 수 없는 조합(예: 레벨9+ 주법)은 null 반환.
+function deeplinkByTitle(
+  title: string,
+  quizLevel: number,
+  quizTarget: string | null,
+): { data: Record<string, string>; deeplink: string } | null {
+  if (title === '코드 맞추기') {
+    const lv = quizTarget ?? String(quizLevel);
+    return { data: { quizLevel: lv }, deeplink: `quiz:${lv}` };
+  }
+  if (title === '스케일 훈련') {
+    const scaleKey = resolveScaleKey(quizLevel);
+    return { data: { scaleKey }, deeplink: `scale:${scaleKey}` };
+  }
+  if (title === '코드 진행 리스트') {
+    const progNo = resolveProgressionNo(quizLevel);
+    return { data: { progNo }, deeplink: `progression:${progNo}` };
+  }
+  if (title === '주법 리듬 훈련') {
+    const strumLv = resolveStrumLv(quizLevel);
+    if (strumLv === null) return null; // 레벨9+ 매핑 없음
+    return { data: { strumLv }, deeplink: `strum:${strumLv}` };
+  }
+  if (title === '코드 조합 훈련') {
+    const comboChapter = resolveComboChapter(quizLevel);
+    return { data: { comboChapter, comboDifficulty: 'low' }, deeplink: `combo:${comboChapter}` };
+  }
+  return null;
+}
+
+// title 별 후보 category (연동형). '코드 맞추기'는 유저 자격에 따라 동적으로 결정됨.
+const LINK_TITLE_CATEGORY: Record<string, string> = {
+  '스케일 훈련':      'quiz_link_scale',
+  '코드 진행 리스트': 'quiz_link_progression',
+  '주법 리듬 훈련':   'quiz_link_strum',
+  '코드 조합 훈련':   'quiz_link_combo',
 };
 
 function resolveScaleKey(quizLevel: number): string {
@@ -268,6 +303,30 @@ async function logPush(row: {
       body: JSON.stringify(row),
     });
   } catch (_) { /* 로깅 실패가 발송을 막으면 안 됨 */ }
+}
+
+// title 균등 배분 문구 조회(get_balanced_push_message).
+//   ① 자격 있는 title 중 균등 랜덤 1개 → ② 그 title 안에서 행 랜덤.
+//   문구 개수가 많은 훈련으로 발송이 쏠리는 것을 방지.
+async function fetchBalancedMessage(
+  titles: string[], categories: string[],
+): Promise<{ id: number; category: string; title: string; body: string } | null> {
+  try {
+    const resp = await fetch(`${SUPABASE_URL}/rest/v1/rpc/get_balanced_push_message`, {
+      method: 'POST',
+      headers: {
+        'apikey': SERVICE_ROLE,
+        'Authorization': `Bearer ${SERVICE_ROLE}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ p_titles: titles, p_categories: categories }),
+    });
+    if (!resp.ok) return null;
+    const rows = await resp.json();
+    return rows?.[0] ?? null;
+  } catch (_) {
+    return null;
+  }
 }
 
 // push_message_templates(category)에서 랜덤 1개 조회. 실패/빈 카테고리면 null(스킵).
@@ -363,15 +422,18 @@ Deno.serve(async (_req) => {
       const msg = await fetchRandomMessage('quiz_abandoned');
       if (!msg) { aSkipped++; continue; }
       const body = msg.body.replaceAll('{레벨명}', levelLabel(t.level_id, levelNames));
+      // 중단인지형은 "풀던 레벨로 돌아가기"라 title 은 항상 '코드 맞추기' 고정.
+      // 목적지는 다른 경로와 동일하게 title 에서 파생시켜 불일치 가능성을 없앰.
+      const dest = deeplinkByTitle(msg.title, parseInt(t.level_id, 10), t.level_id);
+      if (!dest) { aSkipped++; continue; }
       const logId = crypto.randomUUID();
-      const title = '코드 맞추기';
-      const data = { entry: 'quiz_abandoned', quizLevel: t.level_id, logId };
-      const r = await fcmSend(sa, accessToken, t.token, title, body, data);
+      const data = { ...dest.data, entry: 'quiz_abandoned', logId };
+      const r = await fcmSend(sa, accessToken, t.token, msg.title, body, data);
       if (r.ok) {
         await logPush({
           id: logId, user_id: t.user_id, push_type: 'quiz_abandoned',
           category: 'quiz_abandoned', template_id: msg.id,
-          title, body, deeplink: `quiz:${t.level_id}`,
+          title: msg.title, body, deeplink: dest.deeplink,
         });
         sentUsers.add(t.user_id);
         aSent++;
@@ -409,84 +471,59 @@ Deno.serve(async (_req) => {
     let lSent = 0, lFailed = 0, lSkipped = 0;
 
     for (const [userId, candidates] of byUser3) {
-      const pick = candidates[Math.floor(Math.random() * candidates.length)];
+      const stat = candidates.find(c => c.source === 'stat')?.t as QuizPatternTarget | undefined;
+      const link = candidates.find(c => c.source === 'link')?.t as QuizLinkTarget | undefined;
+      const token = (stat ?? link)!.token;
 
-      if (pick.source === 'stat') {
-        const t = pick.t;
-        const msg = await fetchRandomMessage(t.category);
-        if (!msg) { qSkipped++; continue; }
-        const body = fillQuizPlaceholders(msg.body, t, levelNames);
-        // 딥링크 대상: level_up→다음레벨 / challenge→해당 챌린지 / reinforce→현재 레벨
-        const targetLevel =
-          t.category === 'quiz_level_up' ? t.next_level_id :
-          t.category === 'quiz_challenge' ? t.challenge_id :
-          t.level_id;
-        const logId = crypto.randomUUID();
-        const title = '코드 맞추기';
-        const data = { entry: 'quiz_pattern', category: t.category, quizLevel: targetLevel ?? t.level_id, logId };
-        const r = await fcmSend(sa, accessToken, t.token, title, body, data);
-        if (r.ok) {
-          await logPush({
-            id: logId, user_id: userId, push_type: 'quiz_pattern',
-            category: t.category, template_id: msg.id,
-            title, body, deeplink: `quiz:${targetLevel ?? t.level_id}`,
-          });
-          sentUsers.add(userId); qSent++;
+      // 콘텐츠 난이도 매핑 기준 레벨: 연동형은 마지막 세션 레벨, 없으면 성적형 기준 레벨
+      const quizLevel = parseInt((link ?? stat)!.level_id, 10);
+      // '코드 맞추기'로 뽑혔을 때 이동할 레벨: level_up→다음레벨 / challenge→챌린지 / reinforce→현재
+      const quizTarget = stat
+        ? (stat.category === 'quiz_level_up'   ? stat.next_level_id :
+           stat.category === 'quiz_challenge'  ? stat.challenge_id  :
+           stat.level_id)
+        : null;
+
+      // 이 유저가 받을 자격이 있는 title/category 만 후보로 — 그 안에서 title 균등 랜덤
+      const titles: string[] = [];
+      const categories: string[] = [];
+      if (stat) { titles.push('코드 맞추기'); categories.push(stat.category); }
+      if (link) {
+        for (const [title, category] of Object.entries(LINK_TITLE_CATEGORY)) {
+          if (deeplinkByTitle(title, quizLevel, null) === null) continue; // 레벨9+ 주법 등 제외
+          titles.push(title);
+          categories.push(category);
         }
-        else {
-          qFailed++;
-          if (r.status === 404 || /UNREGISTERED|INVALID_ARGUMENT/.test(r.text)) { await deleteToken(t.token); pruned++; }
-        }
+      }
+      if (!titles.length) continue;
+
+      const msg = await fetchBalancedMessage(titles, categories);
+      if (!msg) { if (stat) qSkipped++; else lSkipped++; continue; }
+
+      // 목적지는 오직 뽑힌 title 로 결정 — 타이틀과 딥링크가 어긋날 수 없음
+      const dest = deeplinkByTitle(msg.title, quizLevel, quizTarget);
+      if (!dest) { if (stat) qSkipped++; else lSkipped++; continue; }
+
+      const isQuizTitle = msg.title === '코드 맞추기';
+      const body = (isQuizTitle && stat)
+        ? fillQuizPlaceholders(msg.body, stat, levelNames)
+        : msg.body.replaceAll('{레벨명}', levelLabel((link ?? stat)!.level_id, levelNames));
+
+      const logId = crypto.randomUUID();
+      const pushType = isQuizTitle ? 'quiz_pattern' : 'quiz_link';
+      const data = { ...dest.data, entry: pushType, category: msg.category, logId };
+      const r = await fcmSend(sa, accessToken, token, msg.title, body, data);
+      if (r.ok) {
+        await logPush({
+          id: logId, user_id: userId, push_type: pushType,
+          category: msg.category, template_id: msg.id,
+          title: msg.title, body, deeplink: dest.deeplink,
+        });
+        sentUsers.add(userId);
+        if (isQuizTitle) qSent++; else lSent++;
       } else {
-        const t = pick.t;
-        const quizLevel = parseInt(t.level_id, 10);
-        // 연동형: 스케일/코드진행/코드조합은 항상 가능, 주법은 레벨9+에서 제외
-        const contentTypes = ['scale', 'progression', 'combo'];
-        if (resolveStrumLv(quizLevel) !== null) contentTypes.push('strum');
-        const chosenType = pickRandom(contentTypes);
-
-        const logId = crypto.randomUUID();
-        let category = '';
-        let deeplink = '';
-        let data: Record<string, string> = { entry: 'quiz_link', logId };
-        if (chosenType === 'scale') {
-          category = 'quiz_link_scale';
-          const scaleKey = resolveScaleKey(quizLevel);
-          deeplink = `scale:${scaleKey}`;
-          data = { ...data, scaleKey };
-        } else if (chosenType === 'progression') {
-          category = 'quiz_link_progression';
-          const progNo = resolveProgressionNo(quizLevel);
-          deeplink = `progression:${progNo}`;
-          data = { ...data, progNo };
-        } else if (chosenType === 'strum') {
-          category = 'quiz_link_strum';
-          const strumLv = resolveStrumLv(quizLevel)!;
-          deeplink = `strum:${strumLv}`;
-          data = { ...data, strumLv };
-        } else {
-          category = 'quiz_link_combo';
-          const comboChapter = resolveComboChapter(quizLevel);
-          deeplink = `combo:${comboChapter}`;
-          data = { ...data, comboChapter, comboDifficulty: 'low' };
-        }
-
-        const msg = await fetchRandomMessage(category);
-        if (!msg) { lSkipped++; continue; }
-        const body = msg.body.replaceAll('{레벨명}', levelLabel(t.level_id, levelNames));
-        const title = CONTENT_TITLE[chosenType];
-        const r = await fcmSend(sa, accessToken, t.token, title, body, data);
-        if (r.ok) {
-          await logPush({
-            id: logId, user_id: userId, push_type: 'quiz_link',
-            category, template_id: msg.id, title, body, deeplink,
-          });
-          sentUsers.add(userId); lSent++;
-        }
-        else {
-          lFailed++;
-          if (r.status === 404 || /UNREGISTERED|INVALID_ARGUMENT/.test(r.text)) { await deleteToken(t.token); pruned++; }
-        }
+        if (isQuizTitle) qFailed++; else lFailed++;
+        if (r.status === 404 || /UNREGISTERED|INVALID_ARGUMENT/.test(r.text)) { await deleteToken(token); pruned++; }
       }
     }
 
