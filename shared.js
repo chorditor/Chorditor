@@ -3859,6 +3859,14 @@ function initPushNotifications() {
       setEntry('combo');
       go('chord-combo.html?chapter=' + encodeURIComponent(data.comboChapter)
         + '&difficulty=' + encodeURIComponent(data.comboDifficulty || 'low'));
+    } else if (data.trainingHome != null) {
+      // 적극형(주간 결산): 특정 레벨 없이 해당 훈련의 메인 목록 페이지로 이동
+      const HOME_URL = {
+        quiz: 'chord-name-quiz.html', scale: 'scale-training.html',
+        progression: 'progression.html', strum: 'strumming.html', combo: 'chord-combo.html',
+      };
+      const url = HOME_URL[data.trainingHome];
+      if (url) { setEntry(data.trainingHome); go(url); }
     } else if (data.winback != null) {
       setEntry('winback');
       if (!/home\.html/.test(location.pathname)) go('home.html');
