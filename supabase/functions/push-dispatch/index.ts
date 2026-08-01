@@ -8,10 +8,12 @@
 //   패턴이 바뀌면(예: 2045조였다가 16시대 위주로 전환) 자동으로 다음 호출부터 그룹이 갱신됨
 //   (별도 캐시/저장 없음 — 항상 최신 패턴 기준).
 //
-//   1순위) get_quiz_abandoned_targets() — 코드맞추기 중단인지형(풀다 나감) 발송
+//   1순위) get_quiz_abandoned_targets() + get_scale_abandoned_targets()
+//          — 중단인지형, 퀴즈·스케일 동등 경쟁(2026-07-31 스케일 추가) 유저당 랜덤 1개
 //   2순위) get_quiz_pattern_targets() + get_quiz_link_targets()
-//          — 성적형(누적평균 기준 레벨업/챌린지/재정비)과 연동형(마지막 세션 90%↑ →
-//            스케일/코드진행/주법/코드조합 중 랜덤 추천)은 동등 경쟁, 유저당 랜덤 1개
+//          + get_scale_pattern_targets() + get_scale_link_targets()
+//          — 성적형(누적평균 기준 레벨업/챌린지·재정비)과 연동형(마지막 세션 기준 →
+//            나머지 훈련 랜덤 추천)을 퀴즈·스케일 4개 소스 동등 경쟁, 유저당 랜덤 1개
 //   3순위) get_nudge_targets()          — 위 조건에 아무것도 해당 안 되는 유저 캐치올.
 //          유휴 0~2일(3일↑은 push-winback 담당). 마지막 훈련 재유도(repeat) /
 //          페르소나별 추천(persona, push_nudge_persona 테이블) 50:50.
@@ -133,6 +135,32 @@ interface QuizLinkTarget {
   level_id: string;
 }
 
+interface ScaleAbandonedTarget {
+  user_id: string;
+  token: string;
+  platform: string | null;
+  nickname: string | null;
+  scale_key: string;
+}
+
+interface ScaleLinkTarget {
+  user_id: string;
+  token: string;
+  platform: string | null;
+  nickname: string | null;
+  scale_key: string;
+}
+
+interface ScalePatternTarget {
+  user_id: string;
+  token: string;
+  platform: string | null;
+  nickname: string | null;
+  category: 'scale_level_up' | 'scale_reinforce';
+  scale_key: string;
+  next_scale_key: string | null;
+}
+
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL')!;
 const SERVICE_ROLE = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
 
@@ -190,6 +218,72 @@ async function fetchQuizLinkTargets(): Promise<QuizLinkTarget[]> {
   });
   if (!resp.ok) throw new Error(`quiz link targets error ${resp.status}: ${await resp.text()}`);
   return await resp.json();
+}
+
+async function fetchScaleAbandonedTargets(): Promise<ScaleAbandonedTarget[]> {
+  const resp = await fetch(`${SUPABASE_URL}/rest/v1/rpc/get_scale_abandoned_targets`, {
+    method: 'POST',
+    headers: {
+      'apikey': SERVICE_ROLE,
+      'Authorization': `Bearer ${SERVICE_ROLE}`,
+      'Content-Type': 'application/json',
+    },
+    body: '{}',
+  });
+  if (!resp.ok) throw new Error(`scale abandoned targets error ${resp.status}: ${await resp.text()}`);
+  return await resp.json();
+}
+
+async function fetchScaleLinkTargets(): Promise<ScaleLinkTarget[]> {
+  const resp = await fetch(`${SUPABASE_URL}/rest/v1/rpc/get_scale_link_targets`, {
+    method: 'POST',
+    headers: {
+      'apikey': SERVICE_ROLE,
+      'Authorization': `Bearer ${SERVICE_ROLE}`,
+      'Content-Type': 'application/json',
+    },
+    body: '{}',
+  });
+  if (!resp.ok) throw new Error(`scale link targets error ${resp.status}: ${await resp.text()}`);
+  return await resp.json();
+}
+
+async function fetchScalePatternTargets(): Promise<ScalePatternTarget[]> {
+  const resp = await fetch(`${SUPABASE_URL}/rest/v1/rpc/get_scale_pattern_targets`, {
+    method: 'POST',
+    headers: {
+      'apikey': SERVICE_ROLE,
+      'Authorization': `Bearer ${SERVICE_ROLE}`,
+      'Content-Type': 'application/json',
+    },
+    body: '{}',
+  });
+  if (!resp.ok) throw new Error(`scale pattern targets error ${resp.status}: ${await resp.text()}`);
+  return await resp.json();
+}
+
+// level_id → 표시이름 맵 + 플레이 가능한 레벨 집합 (quiz_level_names 테이블, 소프트코딩)
+//   playable=false 는 아직 미구현 레벨(9·10·11·c3) — 딥링크 대상에서 제외해야 함.
+async function fetchLevelNames(): Promise<{ names: Record<string, string>; playable: Set<string> }> {
+  const resp = await fetch(`${SUPABASE_URL}/rest/v1/quiz_level_names?select=level_id,display_name,playable`, {
+    headers: { 'apikey': SERVICE_ROLE, 'Authorization': `Bearer ${SERVICE_ROLE}` },
+  });
+  if (!resp.ok) throw new Error(`quiz level names error ${resp.status}: ${await resp.text()}`);
+  const rows: { level_id: string; display_name: string; playable: boolean }[] = await resp.json();
+  return {
+    names: Object.fromEntries(rows.map(r => [r.level_id, r.display_name])),
+    playable: new Set(rows.filter(r => r.playable).map(r => r.level_id)),
+  };
+}
+
+// scale_key → 표시이름 맵 (scale_level_names 테이블, 소프트코딩)
+async function fetchScaleLevelNames(): Promise<Record<string, string>> {
+  const resp = await fetch(`${SUPABASE_URL}/rest/v1/scale_level_names?select=scale_key,display_name`, {
+    headers: { 'apikey': SERVICE_ROLE, 'Authorization': `Bearer ${SERVICE_ROLE}` },
+  });
+  if (!resp.ok) throw new Error(`scale level names error ${resp.status}: ${await resp.text()}`);
+  const rows: { scale_key: string; display_name: string }[] = await resp.json();
+  return Object.fromEntries(rows.map(r => [r.scale_key, r.display_name]));
 }
 
 // ── 연동형(3번) 레벨 → 추천 콘텐츠 딥링크 매핑 ──────────────────
@@ -262,18 +356,78 @@ function resolveComboChapter(quizLevel: number): string {
     : pickRandom(['3', '4', '5', '6', '7', '8']);
 }
 
-// level_id → 표시이름 맵 + 플레이 가능한 레벨 집합 (quiz_level_names 테이블, 소프트코딩)
-//   playable=false 는 아직 미구현 레벨(9·10·11·c3) — 딥링크 대상에서 제외해야 함.
-async function fetchLevelNames(): Promise<{ names: Record<string, string>; playable: Set<string> }> {
-  const resp = await fetch(`${SUPABASE_URL}/rest/v1/quiz_level_names?select=level_id,display_name,playable`, {
-    headers: { 'apikey': SERVICE_ROLE, 'Authorization': `Bearer ${SERVICE_ROLE}` },
-  });
-  if (!resp.ok) throw new Error(`quiz level names error ${resp.status}: ${await resp.text()}`);
-  const rows: { level_id: string; display_name: string; playable: boolean }[] = await resp.json();
-  return {
-    names: Object.fromEntries(rows.map(r => [r.level_id, r.display_name])),
-    playable: new Set(rows.filter(r => r.playable).map(r => r.level_id)),
-  };
+// ── 스케일 연동형(3번) 레벨(1~25) → 추천 콘텐츠 딥링크 매핑 ──────
+//   진행/주법은 문구에 레벨 언급이 없어 전체 범위로 고정(합의사항, 2026-07-31).
+const SCALE_LINK_TITLE_CATEGORY: Record<string, string> = {
+  '코드 맞추기':      'scale_link_quiz',
+  '코드 진행 리스트': 'scale_link_progression',
+  '주법 리듬 훈련':   'scale_link_strum',
+  '코드 조합 훈련':   'scale_link_combo',
+};
+
+function resolveQuizFromScaleLevel(scaleLevel: number): string {
+  return scaleLevel <= 5 ? pickRandom(['1', '2', '3', '4'])
+    : scaleLevel <= 10 ? pickRandom(['3', '4', '5', '6', '7', '8'])
+    : pickRandom(['6', '7', '8', 'c1', 'c2']);
+}
+function resolveComboFromScaleLevel(scaleLevel: number): string {
+  return scaleLevel <= 5 ? pickRandom(['1', '2'])
+    : scaleLevel <= 10 ? pickRandom(['1', '2', '3', '4'])
+    : pickRandom(['3', '4', '5', '6', '7', '8']);
+}
+// 문구의 {레벨} 자리에 들어갈 표시값(퀴즈/조합만 레벨 언급, 진행/주법은 미사용)
+function scaleLinkLevelText(chosenType: string, value: string): string {
+  if (chosenType === 'quiz')  return value.startsWith('c') ? `${value} 챌린지` : `레벨${value}`;
+  if (chosenType === 'combo') return `${value}장`;
+  return value;
+}
+
+// 스케일 연동형(3번) 전용 딥링크. quiz/combo 는 스케일 레벨 기준 버킷(위 두 함수),
+// 진행/주법은 레벨 무관 전체 추천(콤마 다중값, 클라이언트가 랜덤 선택).
+function scaleLinkDeeplink(
+  title: string, scaleLevel: number,
+): { data: Record<string, string>; deeplink: string; levelText: string } | null {
+  if (title === '코드 맞추기') {
+    const lv = resolveQuizFromScaleLevel(scaleLevel);
+    return { data: { quizLevel: lv }, deeplink: `quiz:${lv}`, levelText: scaleLinkLevelText('quiz', lv) };
+  }
+  if (title === '코드 진행 리스트') {
+    return { data: { progNo: '1,2,4' }, deeplink: 'progression:1,2,4', levelText: '' };
+  }
+  if (title === '주법 리듬 훈련') {
+    return { data: { strumLv: '1,2,3' }, deeplink: 'strum:1,2,3', levelText: '' };
+  }
+  if (title === '코드 조합 훈련') {
+    const chapter = resolveComboFromScaleLevel(scaleLevel);
+    return {
+      data: { comboChapter: chapter, comboDifficulty: 'low' },
+      deeplink: `combo:${chapter}`, levelText: scaleLinkLevelText('combo', chapter),
+    };
+  }
+  return null;
+}
+
+// 스케일 자신을 목적지로 하는 문구(중단인지형/성적형) 전용 — scale_key 를 이미 알고 있으므로
+// deeplinkByTitle 의 quizLevel 기반 버킷 로직을 거치지 않고 직접 구성.
+function scaleOwnDest(scaleKey: string): { data: Record<string, string>; deeplink: string } {
+  return { data: { scaleKey }, deeplink: `scale:${scaleKey}` };
+}
+
+// 스케일 표시명 — '메이저 스케일' 처럼 이름 자체로 레벨을 특정하기 충분해 따옴표만 감쌈
+// (퀴즈의 levelLabel 은 'N - 이름' 형식이지만 스케일은 이름이 이미 레벨을 특정함).
+function scaleLabel(scaleKey: string, names: Record<string, string>): string {
+  return `'${names[scaleKey] ?? scaleKey}'`;
+}
+
+function fillScalePlaceholders(
+  text: string, scaleKey: string, nextScaleKey: string | null,
+  nickname: string | null, names: Record<string, string>,
+): string {
+  let out = text;
+  out = out.replaceAll('{스케일명}', scaleLabel(scaleKey, names));
+  out = out.replaceAll('{닉네임}', nickname || '회원');
+  if (nextScaleKey) out = out.replaceAll('{다음레벨명}', scaleLabel(nextScaleKey, names));
+  return out;
 }
 
 // user_id → 접속 시간대 그룹('1600'/'2045', get_user_time_slot()). time_slot 필터용.
@@ -396,6 +550,10 @@ const SCALE_SLUG_BY_LEVEL: Record<string, string> = {
   '21': 'lydian-dominant', '22': 'mixolydian-b9b13', '23': 'mixolydian-b13', '24': 'locrian-sharp2',
   '25': 'locrian-sharp6',
 };
+// scale_key → 레벨 숫자(위 맵의 역방향). 스케일 연동형(3번)에서 scale_key → 레벨버킷 계산에 사용.
+const SCALE_LEVEL_BY_KEY: Record<string, number> = Object.fromEntries(
+  Object.entries(SCALE_SLUG_BY_LEVEL).map(([lv, key]) => [key, parseInt(lv, 10)]),
+);
 
 // 일반넛지 딥링크: 훈련 + 레벨범위(push_nudge_persona.levels) → FCM data.
 //   progression/strum/combo 는 콤마 다중값을 클라이언트가 직접 필터·랜덤 처리하므로 그대로 전달
@@ -454,85 +612,149 @@ Deno.serve(async (_req) => {
 
     // 레벨 표시이름(성적형·중단인지형 공용) + 플레이 가능 레벨(일반넛지 딥링크용) — 한 번만 조회
     const { names: levelNames, playable: playableQuiz } = await fetchLevelNames();
+    const scaleNames = await fetchScaleLevelNames();
 
-    // ── 1순위: 코드맞추기 중단인지형 발송 ──────────────────────
-    const abandonedTargetsRaw = await fetchQuizAbandonedTargets();
-    const abandonedTargets = abandonedTargetsRaw.filter(t =>
-      !sentUsers.has(t.user_id) && (!testUserId || t.user_id === testUserId) && matchesTimeSlot(t.user_id));
+    // ── 1순위: 중단인지형 — 퀴즈·스케일 동등 경쟁, 유저당 랜덤 1개 ──
+    type AbandonedCandidate =
+      | { source: 'quiz';  t: QuizAbandonedTarget }
+      | { source: 'scale'; t: ScaleAbandonedTarget };
+
+    const [quizAbandonedRaw, scaleAbandonedRaw] = await Promise.all([
+      fetchQuizAbandonedTargets(), fetchScaleAbandonedTargets(),
+    ]);
+
+    const byUser1 = new Map<string, AbandonedCandidate[]>();
+    let quizAbandonedCount = 0, scaleAbandonedCount = 0;
+    const push1 = (userId: string, c: AbandonedCandidate) => {
+      if (sentUsers.has(userId) || (testUserId && userId !== testUserId) || !matchesTimeSlot(userId)) return;
+      if (c.source === 'quiz') quizAbandonedCount++; else scaleAbandonedCount++;
+      const arr = byUser1.get(userId) ?? [];
+      arr.push(c);
+      byUser1.set(userId, arr);
+    };
+    for (const t of quizAbandonedRaw)  push1(t.user_id, { source: 'quiz',  t });
+    for (const t of scaleAbandonedRaw) push1(t.user_id, { source: 'scale', t });
+
     let aSent = 0, aFailed = 0, aSkipped = 0;
-    for (const t of abandonedTargets) {
-      const msg = await fetchRandomMessage('quiz_abandoned');
-      if (!msg) { aSkipped++; continue; }
-      const body = msg.body.replaceAll('{레벨명}', levelLabel(t.level_id, levelNames));
-      // 중단인지형은 "풀던 레벨로 돌아가기"라 title 은 항상 '코드 맞추기' 고정.
-      // 목적지는 다른 경로와 동일하게 title 에서 파생시켜 불일치 가능성을 없앰.
-      const dest = deeplinkByTitle(msg.title, parseInt(t.level_id, 10), t.level_id);
-      if (!dest) { aSkipped++; continue; }
-      const logId = crypto.randomUUID();
-      const data = { ...dest.data, entry: 'quiz_abandoned', logId };
-      const r = await fcmSend(sa, accessToken, t.token, msg.title, body, data);
-      if (r.ok) {
-        await logPush({
-          id: logId, user_id: t.user_id, push_type: 'quiz_abandoned',
-          category: 'quiz_abandoned', template_id: msg.id,
-          title: msg.title, body, deeplink: dest.deeplink,
-        });
-        sentUsers.add(t.user_id);
-        aSent++;
+    for (const [userId, candidates] of byUser1) {
+      const pick = candidates[Math.floor(Math.random() * candidates.length)];
+      const token = pick.t.token;
+
+      if (pick.source === 'quiz') {
+        const t = pick.t;
+        const msg = await fetchRandomMessage('quiz_abandoned');
+        if (!msg) { aSkipped++; continue; }
+        const body = msg.body.replaceAll('{레벨명}', levelLabel(t.level_id, levelNames));
+        // 중단인지형은 "풀던 레벨로 돌아가기"라 title 은 항상 '코드 맞추기' 고정.
+        // 목적지는 다른 경로와 동일하게 title 에서 파생시켜 불일치 가능성을 없앰.
+        const dest = deeplinkByTitle(msg.title, parseInt(t.level_id, 10), t.level_id);
+        if (!dest) { aSkipped++; continue; }
+        const logId = crypto.randomUUID();
+        const data = { ...dest.data, entry: 'quiz_abandoned', logId };
+        const r = await fcmSend(sa, accessToken, token, msg.title, body, data);
+        if (r.ok) {
+          await logPush({
+            id: logId, user_id: userId, push_type: 'quiz_abandoned',
+            category: 'quiz_abandoned', template_id: msg.id,
+            title: msg.title, body, deeplink: dest.deeplink,
+          });
+          sentUsers.add(userId); aSent++;
+        } else {
+          aFailed++;
+          if (r.status === 404 || /UNREGISTERED|INVALID_ARGUMENT/.test(r.text)) { await deleteToken(token); pruned++; }
+        }
       } else {
-        aFailed++;
-        if (r.status === 404 || /UNREGISTERED|INVALID_ARGUMENT/.test(r.text)) {
-          await deleteToken(t.token);
-          pruned++;
+        const t = pick.t;
+        const msg = await fetchRandomMessage('scale_abandoned');
+        if (!msg) { aSkipped++; continue; }
+        const body = fillScalePlaceholders(msg.body, t.scale_key, null, t.nickname, scaleNames);
+        const dest = scaleOwnDest(t.scale_key);
+        const logId = crypto.randomUUID();
+        const data = { ...dest.data, entry: 'scale_abandoned', logId };
+        const r = await fcmSend(sa, accessToken, token, msg.title, body, data);
+        if (r.ok) {
+          await logPush({
+            id: logId, user_id: userId, push_type: 'scale_abandoned',
+            category: 'scale_abandoned', template_id: msg.id,
+            title: msg.title, body, deeplink: dest.deeplink,
+          });
+          sentUsers.add(userId); aSent++;
+        } else {
+          aFailed++;
+          if (r.status === 404 || /UNREGISTERED|INVALID_ARGUMENT/.test(r.text)) { await deleteToken(token); pruned++; }
         }
       }
     }
 
-    // ── 2순위: 성적형·연동형 — 동등 경쟁, 유저당 랜덤 1개 (중단인지형 받은 유저 제외) ──
-    type Pattern3Candidate =
-      | { source: 'stat';  t: QuizPatternTarget }
-      | { source: 'link';  t: QuizLinkTarget };
+    // ── 2순위: 성적형·연동형 — 퀴즈·스케일 4가지 소스 동등 경쟁, 유저당 랜덤 1개 ──
+    //   (중단인지형 받은 유저 제외). 소스: quizStat/quizLink/scaleStat/scaleLink.
+    type Pattern2Candidate =
+      | { source: 'quizStat';  t: QuizPatternTarget }
+      | { source: 'quizLink';  t: QuizLinkTarget }
+      | { source: 'scaleStat'; t: ScalePatternTarget }
+      | { source: 'scaleLink'; t: ScaleLinkTarget };
 
-    const [quizTargetsRaw, linkTargetsRaw] = await Promise.all([
+    const [quizStatRaw, quizLinkRaw, scaleStatRaw, scaleLinkRaw] = await Promise.all([
       fetchQuizPatternTargets(), fetchQuizLinkTargets(),
+      fetchScalePatternTargets(), fetchScaleLinkTargets(),
     ]);
 
-    const byUser3 = new Map<string, Pattern3Candidate[]>();
-    let quizTargetCount = 0, linkTargetCount = 0;
-    const push3 = (userId: string, c: Pattern3Candidate) => {
+    const byUser2 = new Map<string, Pattern2Candidate[]>();
+    let quizStatCount = 0, quizLinkCount = 0, scaleStatCount = 0, scaleLinkCount = 0;
+    const push2 = (userId: string, c: Pattern2Candidate) => {
       if (sentUsers.has(userId) || (testUserId && userId !== testUserId) || !matchesTimeSlot(userId)) return;
-      if (c.source === 'stat') quizTargetCount++; else linkTargetCount++;
-      const arr = byUser3.get(userId) ?? [];
+      if (c.source === 'quizStat') quizStatCount++;
+      else if (c.source === 'quizLink') quizLinkCount++;
+      else if (c.source === 'scaleStat') scaleStatCount++;
+      else scaleLinkCount++;
+      const arr = byUser2.get(userId) ?? [];
       arr.push(c);
-      byUser3.set(userId, arr);
+      byUser2.set(userId, arr);
     };
-    for (const t of quizTargetsRaw) push3(t.user_id, { source: 'stat', t });
-    for (const t of linkTargetsRaw) push3(t.user_id, { source: 'link', t });
+    for (const t of quizStatRaw)  push2(t.user_id, { source: 'quizStat',  t });
+    for (const t of quizLinkRaw)  push2(t.user_id, { source: 'quizLink',  t });
+    for (const t of scaleStatRaw) push2(t.user_id, { source: 'scaleStat', t });
+    for (const t of scaleLinkRaw) push2(t.user_id, { source: 'scaleLink', t });
 
-    let qSent = 0, qFailed = 0, qSkipped = 0;
-    let lSent = 0, lFailed = 0, lSkipped = 0;
+    let qSent = 0, qFailed = 0, qSkipped = 0;       // quiz_pattern
+    let lSent = 0, lFailed = 0, lSkipped = 0;       // quiz_link
+    let sqSent = 0, sqFailed = 0, sqSkipped = 0;    // scale_pattern
+    let slSent = 0, slFailed = 0, slSkipped = 0;    // scale_link
 
-    for (const [userId, candidates] of byUser3) {
-      const stat = candidates.find(c => c.source === 'stat')?.t as QuizPatternTarget | undefined;
-      const link = candidates.find(c => c.source === 'link')?.t as QuizLinkTarget | undefined;
-      const token = (stat ?? link)!.token;
+    for (const [userId, candidates] of byUser2) {
+      const quizStat  = candidates.find(c => c.source === 'quizStat')?.t  as QuizPatternTarget  | undefined;
+      const quizLink  = candidates.find(c => c.source === 'quizLink')?.t  as QuizLinkTarget     | undefined;
+      const scaleStat = candidates.find(c => c.source === 'scaleStat')?.t as ScalePatternTarget | undefined;
+      const scaleLink = candidates.find(c => c.source === 'scaleLink')?.t as ScaleLinkTarget    | undefined;
+      const token = (quizStat ?? quizLink ?? scaleStat ?? scaleLink)!.token;
 
-      // 콘텐츠 난이도 매핑 기준 레벨: 연동형은 마지막 세션 레벨, 없으면 성적형 기준 레벨
-      const quizLevel = parseInt((link ?? stat)!.level_id, 10);
+      // 콘텐츠 난이도 매핑 기준: 퀴즈 쪽(연동형 우선, 없으면 성적형 레벨) / 스케일 쪽(scale_key→레벨숫자)
+      const quizLevel = quizLink ? parseInt(quizLink.level_id, 10)
+        : quizStat ? parseInt(quizStat.level_id, 10) : null;
+      const scaleLevel = scaleLink ? SCALE_LEVEL_BY_KEY[scaleLink.scale_key]
+        : scaleStat ? SCALE_LEVEL_BY_KEY[scaleStat.scale_key] : null;
+
       // '코드 맞추기'로 뽑혔을 때 이동할 레벨: level_up→다음레벨 / challenge→챌린지 / reinforce→현재
-      const quizTarget = stat
-        ? (stat.category === 'quiz_level_up'   ? stat.next_level_id :
-           stat.category === 'quiz_challenge'  ? stat.challenge_id  :
-           stat.level_id)
+      const quizTarget = quizStat
+        ? (quizStat.category === 'quiz_level_up'   ? quizStat.next_level_id :
+           quizStat.category === 'quiz_challenge'  ? quizStat.challenge_id  :
+           quizStat.level_id)
         : null;
 
       // 이 유저가 받을 자격이 있는 title/category 만 후보로 — 그 안에서 title 균등 랜덤
       const titles: string[] = [];
       const categories: string[] = [];
-      if (stat) { titles.push('코드 맞추기'); categories.push(stat.category); }
-      if (link) {
+      if (quizStat)  { titles.push('코드 맞추기'); categories.push(quizStat.category); }
+      if (scaleStat) { titles.push('스케일 훈련'); categories.push(scaleStat.category); }
+      if (quizLink) {
         for (const [title, category] of Object.entries(LINK_TITLE_CATEGORY)) {
-          if (deeplinkByTitle(title, quizLevel, null) === null) continue; // 레벨9+ 주법 등 제외
+          if (deeplinkByTitle(title, quizLevel!, null) === null) continue; // 레벨9+ 주법 등 제외
+          titles.push(title);
+          categories.push(category);
+        }
+      }
+      if (scaleLink) {
+        for (const [title, category] of Object.entries(SCALE_LINK_TITLE_CATEGORY)) {
           titles.push(title);
           categories.push(category);
         }
@@ -540,19 +762,45 @@ Deno.serve(async (_req) => {
       if (!titles.length) continue;
 
       const msg = await fetchBalancedMessage(titles, categories);
-      if (!msg) { if (stat) qSkipped++; else lSkipped++; continue; }
+      if (!msg) { qSkipped++; continue; }
 
-      // 목적지는 오직 뽑힌 title 로 결정 — 타이틀과 딥링크가 어긋날 수 없음
-      const dest = deeplinkByTitle(msg.title, quizLevel, quizTarget);
-      if (!dest) { if (stat) qSkipped++; else lSkipped++; continue; }
+      let dest: { data: Record<string, string>; deeplink: string } | null = null;
+      let body = '';
+      let pushType = '';
 
-      const isQuizTitle = msg.title === '코드 맞추기';
-      const body = (isQuizTitle && stat)
-        ? fillQuizPlaceholders(msg.body, stat, levelNames)
-        : msg.body.replaceAll('{레벨명}', levelLabel((link ?? stat)!.level_id, levelNames));
+      if (msg.category === 'quiz_level_up' || msg.category === 'quiz_challenge' || msg.category === 'quiz_reinforce') {
+        pushType = 'quiz_pattern';
+        dest = deeplinkByTitle(msg.title, quizLevel!, quizTarget);
+        body = fillQuizPlaceholders(msg.body, quizStat!, levelNames);
+      } else if (msg.category === 'scale_level_up' || msg.category === 'scale_reinforce') {
+        pushType = 'scale_pattern';
+        const destKey = msg.category === 'scale_level_up'
+          ? (scaleStat!.next_scale_key ?? scaleStat!.scale_key)
+          : scaleStat!.scale_key;
+        dest = scaleOwnDest(destKey);
+        body = fillScalePlaceholders(msg.body, scaleStat!.scale_key, scaleStat!.next_scale_key, scaleStat!.nickname, scaleNames);
+      } else if (msg.category.startsWith('scale_link_')) {
+        pushType = 'scale_link';
+        const linkDest = scaleLinkDeeplink(msg.title, scaleLevel!);
+        if (linkDest) {
+          dest = { data: linkDest.data, deeplink: linkDest.deeplink };
+          body = msg.body.replaceAll('{닉네임}', scaleLink!.nickname || '회원').replaceAll('{레벨}', linkDest.levelText);
+        }
+      } else { // quiz_link_*
+        pushType = 'quiz_link';
+        dest = deeplinkByTitle(msg.title, quizLevel!, null);
+        body = msg.body.replaceAll('{레벨명}', levelLabel(quizLink!.level_id, levelNames));
+      }
+
+      if (!dest) {
+        if (pushType === 'quiz_pattern') qSkipped++;
+        else if (pushType === 'scale_pattern') sqSkipped++;
+        else if (pushType === 'scale_link') slSkipped++;
+        else lSkipped++;
+        continue;
+      }
 
       const logId = crypto.randomUUID();
-      const pushType = isQuizTitle ? 'quiz_pattern' : 'quiz_link';
       const data = { ...dest.data, entry: pushType, category: msg.category, logId };
       const r = await fcmSend(sa, accessToken, token, msg.title, body, data);
       if (r.ok) {
@@ -562,9 +810,15 @@ Deno.serve(async (_req) => {
           title: msg.title, body, deeplink: dest.deeplink,
         });
         sentUsers.add(userId);
-        if (isQuizTitle) qSent++; else lSent++;
+        if (pushType === 'quiz_pattern') qSent++;
+        else if (pushType === 'scale_pattern') sqSent++;
+        else if (pushType === 'scale_link') slSent++;
+        else lSent++;
       } else {
-        if (isQuizTitle) qFailed++; else lFailed++;
+        if (pushType === 'quiz_pattern') qFailed++;
+        else if (pushType === 'scale_pattern') sqFailed++;
+        else if (pushType === 'scale_link') slFailed++;
+        else lFailed++;
         if (r.status === 404 || /UNREGISTERED|INVALID_ARGUMENT/.test(r.text)) { await deleteToken(token); pruned++; }
       }
     }
@@ -620,9 +874,11 @@ Deno.serve(async (_req) => {
 
     return new Response(JSON.stringify({
       time_slot: timeSlotParam ?? 'all',
-      quiz_abandoned: { targets: abandonedTargets.length, sent: aSent, failed: aFailed, skipped: aSkipped },
-      quiz_pattern: { targets: quizTargetCount, sent: qSent, failed: qFailed, skipped: qSkipped },
-      quiz_link: { targets: linkTargetCount, sent: lSent, failed: lFailed, skipped: lSkipped },
+      abandoned: { quiz: quizAbandonedCount, scale: scaleAbandonedCount, sent: aSent, failed: aFailed, skipped: aSkipped },
+      quiz_pattern: { targets: quizStatCount, sent: qSent, failed: qFailed, skipped: qSkipped },
+      quiz_link: { targets: quizLinkCount, sent: lSent, failed: lFailed, skipped: lSkipped },
+      scale_pattern: { targets: scaleStatCount, sent: sqSent, failed: sqFailed, skipped: sqSkipped },
+      scale_link: { targets: scaleLinkCount, sent: slSent, failed: slFailed, skipped: slSkipped },
       nudge:   { targets: nudgeTargets.length,   sent: nSent, failed: nFailed, skipped: nSkipped },
       pruned,
     }), { headers: { 'Content-Type': 'application/json' } });
