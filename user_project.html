@@ -208,6 +208,10 @@
             </label>
           </div>
         </div>
+        <label class="meter-applyall">
+          <input type="checkbox" id="row-meter-applyall" />
+          <span>이 설정을 모든 줄에 적용</span>
+        </label>
         <p class="hint" id="row-meter-error" style="color:var(--accent);display:none;"></p>
       </div>
       <div class="modal-footer">
@@ -315,6 +319,18 @@
     </svg>
   </div>
 
+  <!-- ── 튜토리얼 진행 레이어 (home.html과 동일 구조) ── -->
+  <div id="tut-layer" class="hidden">
+    <div id="tut-panel">
+      <button id="tut-skip" onclick="Tutorial.skip()">건너뛰기</button>
+      <h4 id="tut-title"></h4>
+      <p id="tut-text"></p>
+      <button id="tut-next" class="hidden" onclick="Tutorial.next()">다음에 할게요</button>
+    </div>
+  </div>
+
+  <!-- 스와이프 유도 dot — 레이어 밖 body 직속. 어떤 요소에도 안 가리도록 최상위에 둔다 -->
+  <div id="tut-scrollhint" hidden><div class="tut-swipe-dot"></div></div>
 
   <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.js"></script>
   <script src="https://unpkg.com/@phosphor-icons/web"></script>
@@ -328,6 +344,7 @@
   <!-- 코드사전 추가 모달용 코드 데이터 (window.chordsLibrary 제공) -->
   <script src="chord-voicings.js"></script>
   <script src="chords-library.js"></script>
+  <script src="tutorial.js"></script>
   <script src="user_project.js"></script>
 
   <div id="exit-toast"></div>

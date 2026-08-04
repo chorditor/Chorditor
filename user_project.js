@@ -1483,7 +1483,7 @@ async function playAll(projectId, startIndex = 0) {
   let _runCapo = project.capo ?? 0; // 줄 카포 변경점 누적 — 변경점 이후 줄들에 계속 적용
   project.arrangement.forEach(row => {
     if (row.capo != null) _runCapo = row.capo;
-    const meter  = getRowMeter(row);
+    const meter  = getRowMeter(project, row);
     const rowBpm = getRowBpm(project, row);
     const bars   = getRowBars(row);
     const layout = computeRowLayout(bars) || computeRowLayout(2);
@@ -1699,8 +1699,10 @@ async function switchOrient(projectId, mode) {
 const ROW_SLOT_CAP    = { portrait: 4, landscape: 8 }; // 코드슬롯 그리드 최대 칸 수(고정 크기 기준)
 const SLOTS_PER_BAR   = { portrait: 2, landscape: 4 };  // 마디 1개당 슬롯 수(오리엔테이션별 고정)
 
-function getRowMeter(row) {
-  return row?.meter || { num: 4, den: 4 };
+// 줄 → 프로젝트 기본 → 4/4. BPM(getRowBpm)과 같은 3단 폴백으로 통일.
+// project.meter는 마디 정보 수정 모달의 "모든 줄에 적용"에서 설정된다.
+function getRowMeter(project, row) {
+  return row?.meter || project?.meter || { num: 4, den: 4 };
 }
 function getRowBpm(project, row) {
   return row?.bpm ?? project?.bpm ?? 120;
@@ -1847,11 +1849,13 @@ function renderProjectView(projectId) {
 
   // 편집/완료 토글 버튼
   const modeBtn = document.createElement('button');
+  modeBtn.id = 'project-mode-btn'; // 튜토리얼이 지목할 수 있도록
   modeBtn.className = 'project-icon-btn';
   modeBtn.innerHTML = isEditMode ? '<i data-lucide="check"></i>' : '<i data-lucide="pencil"></i>';
   modeBtn.onclick = () => {
     isEditMode = !isEditMode;
     renderProjectView(projectId);
+    window.Tutorial?.notify(`editmode:${isEditMode ? 'on' : 'off'}`);
   };
 
   // 세로/가로 전환 버튼 (동작 미구현 — UI 배치만)
@@ -2332,12 +2336,12 @@ function buildProjectLine(line, project, editMode, prevLine = null, isFirstLine 
   // 박자 레일: row-meta-badge·chord-row-wrapper·project-line-text-row(보조선) 전체를 아우르는
   // 왼쪽 박스로 항상 자리를 예약(그만큼 나머지 콘텐츠 폭이 줄어듦)
   // → 박자가 커스텀일 때만 그 안에 세로 분수(분자/분모)를 표시, 아닐 땐 빈 채로 자리만 유지
-  const rowMeter = getRowMeter(line);
-  const meterCustom = !!line.meter && (rowMeter.num !== 4 || rowMeter.den !== 4);
-  const prevMeter = prevLine ? getRowMeter(prevLine) : null;
-  // 첫 줄은 커스텀 여부와 무관하게 항상 기본세팅값(4/4 등) 박자를 표기
-  // 이후 줄은 앞줄의 실효 박자(기본값 포함)와 같으면 생략
-  const showMeter = isFirstLine || (meterCustom && !(prevMeter && prevMeter.num === rowMeter.num && prevMeter.den === rowMeter.den));
+  const rowMeter  = getRowMeter(project, line);
+  const prevMeter = prevLine ? getRowMeter(project, prevLine) : null;
+  // 첫 줄은 항상 기본세팅값 박자를 표기. 이후 줄은 앞줄의 실효 박자와 다를 때만 표기.
+  // (프로젝트 기본 박자가 생기면서 "line.meter 유무"가 아니라 실효값 비교가 기준이 됐다)
+  const showMeter = isFirstLine ||
+    !!(prevMeter && (prevMeter.num !== rowMeter.num || prevMeter.den !== rowMeter.den));
   const meterRail = document.createElement('div');
   meterRail.className = 'row-meter-rail';
   if (showMeter) {
@@ -2350,13 +2354,13 @@ function buildProjectLine(line, project, editMode, prevLine = null, isFirstLine 
   const bodyContent = document.createElement('div');
   bodyContent.className = 'project-line-content';
 
-  // BPM이 노트 기본값과 다르게 이 줄에서 개별 설정된 경우에만 표시 (마디 수는 보조선 길이로 이미 표현됨)
-  // 단, 바로 앞 줄과 값이 같으면 반복 표기하지 않고 값이 바뀐 첫 줄에서만 표시
-  const bpmCustom = line.bpm != null;
-  const prevBpm = prevLine ? getRowBpm(project, prevLine) : null;
-  // 첫 줄은 커스텀 여부와 무관하게 항상 기본세팅값(노트 전역 BPM) 표기
-  // 이후 줄은 앞줄의 실효 BPM(기본값 포함)과 같으면 생략
-  const showBpm = isFirstLine || (bpmCustom && !(prevLine && prevBpm === getRowBpm(project, line)));
+  // 첫 줄은 항상 기본세팅값(노트 전역 BPM) 표기.
+  // 이후 줄은 앞줄의 실효 BPM과 다를 때만 표기 — 박자와 같은 기준.
+  // ("line.bpm 보유 여부"로 판정하면, 앞줄이 90이고 새 줄이 기본 120으로 떨어져도
+  //  아무 표기가 없어 90이 이어지는 것처럼 보인다)
+  const rowBpm     = getRowBpm(project, line);
+  const prevBpmEff = prevLine ? getRowBpm(project, prevLine) : null;
+  const showBpm    = isFirstLine || (prevBpmEff != null && prevBpmEff !== rowBpm);
   // 카포: 효력 카포가 앞줄과 달라지는 줄(첫 줄 포함)에 템포 우측 표시. 0은 생략.
   const effCapo  = getRowCapo(project, line.id);
   const prevCapo = prevLine ? getRowCapo(project, prevLine.id) : null;
@@ -3010,6 +3014,58 @@ function saveAllLines(projectId, linesEl) {
   });
   p.updatedAt = Date.now();
   updateProject(p);
+  _refreshRowMeta(linesEl, p);
+}
+
+// 줄이 추가·삭제·이동되면 "앞줄과 값이 다른가" 판정이 전부 달라진다.
+// buildProjectLine은 만들어질 당시의 앞줄만 알기 때문에, 새 줄이 기본값(4/4·전역 BPM)으로
+// 생겨도 표기가 없어서 앞줄 값이 이어지는 것처럼 오해하게 된다.
+// arrangement가 DOM과 동기화된 저장 직후에 박자 레일·BPM/카포 배지를 전부 다시 계산한다.
+function _refreshRowMeta(linesEl, project) {
+  let prevMeter = null, prevBpm = null, prevCapo = null;
+
+  linesEl.querySelectorAll('.project-line').forEach((div, i) => {
+    const line    = project.arrangement.find(l => l.id === div.dataset.lineId);
+    const isFirst = i === 0;
+
+    // 박자 레일
+    const m = getRowMeter(project, line);
+    const showMeter = isFirst || !prevMeter || prevMeter.num !== m.num || prevMeter.den !== m.den;
+    const rail = div.querySelector('.row-meter-rail');
+    if (rail) {
+      rail.innerHTML = showMeter
+        ? `<span class="row-meter-rail-num">${m.num}</span>` +
+          `<span class="row-meter-rail-bar"></span>` +
+          `<span class="row-meter-rail-den">${m.den}</span>`
+        : '';
+    }
+
+    // BPM·카포 배지 — 표시될 때만 존재하므로 생성·제거까지 여기서 처리
+    const bpm  = getRowBpm(project, line);
+    const capo = getRowCapo(project, line?.id);
+    const showBpm  = isFirst || (prevBpm != null && prevBpm !== bpm);
+    const showCapo = capo > 0 && (isFirst || prevCapo == null || prevCapo !== capo);
+
+    const content = div.querySelector('.project-line-content');
+    let badge = content?.querySelector('.row-meta-badge');
+    if (showBpm || showCapo) {
+      if (!badge && content) {
+        badge = document.createElement('div');
+        badge.className = 'row-meta-badge';
+        content.insertBefore(badge, content.firstChild);
+      }
+      if (badge) {
+        const parts = [];
+        if (showBpm)  parts.push(`♩=${bpm}`);
+        if (showCapo) parts.push(`${capo} Capo`);
+        badge.textContent = parts.join('  ');
+      }
+    } else if (badge) {
+      badge.remove();
+    }
+
+    prevMeter = m; prevBpm = bpm; prevCapo = capo;
+  });
 }
 
 function insertNewLineAtCursor(linesEl, projectId) {
@@ -3318,10 +3374,13 @@ function openRowMeterModal(projectId, lineId) {
   // 줄에 직접 설정한 값이 있으면 그 값, 없으면 마지막 저장값 프리필 (매번 기본값으로 초기화하지 않음)
   const hasOwn = !!(line.meter || line.barsPerRow || line.bpm != null);
   const src = hasOwn
-    ? { meter: getRowMeter(line), bpm: line.bpm ?? '', bars: getRowBars(line) }
-    : (_rowMeterLast || { meter: getRowMeter(line), bpm: '', bars: getRowBars(line) });
+    ? { meter: getRowMeter(p, line), bpm: line.bpm ?? '', bars: getRowBars(line) }
+    : (_rowMeterLast || { meter: getRowMeter(p, line), bpm: '', bars: getRowBars(line) });
   _rowMeterNum = src.meter.num;
   _rowMeterDen = src.meter.den;
+
+  const applyAllEl = document.getElementById('row-meter-applyall');
+  if (applyAllEl) applyAllEl.checked = false; // 매번 꺼진 상태로 시작 — 실수로 전체가 바뀌지 않게
 
   _rowMeterCapo = getRowCapo(p, lineId); // 이 줄의 효력 카포 (이전 변경점 상속 포함)
   document.getElementById('row-meter-capo-val').textContent = String(_rowMeterCapo);
@@ -3378,10 +3437,25 @@ function confirmRowMeterSave() {
   const bpmRaw = document.getElementById('row-meter-bpm-input').value.trim();
   const bpm = bpmRaw === '' ? undefined : Math.min(240, Math.max(40, parseInt(bpmRaw, 10) || 120));
   pushUndoSnapshot(projectId); // 마디/BPM/박자 변경도 undo 대상 (슬롯 잘림 복구 포함)
-  line.meter = { num, den };
-  line.bpm = bpm;
-  line.barsPerRow = bars;
-  line.slots = _resizeRowSlots(line.slots, layout.landscapeSlots); // 같은 박 순번은 보존, 넘치는 자리만 잘림
+
+  const applyAll = document.getElementById('row-meter-applyall')?.checked;
+  if (applyAll) {
+    // 프로젝트 기본값으로 올리고 줄별 값은 지운다 → 모든 줄이 기본값을 따라감.
+    // (BPM은 헤더 bpm-control과 같은 필드라 여기서 바꾸면 그쪽 표시도 함께 맞춰짐)
+    p.meter = { num, den };
+    if (bpm !== undefined) p.bpm = bpm;
+    p.arrangement.forEach(l => {
+      delete l.meter;
+      delete l.bpm;
+      l.barsPerRow = bars;
+      l.slots = _resizeRowSlots(l.slots, layout.landscapeSlots);
+    });
+  } else {
+    line.meter = { num, den };
+    line.bpm = bpm;
+    line.barsPerRow = bars;
+    line.slots = _resizeRowSlots(line.slots, layout.landscapeSlots); // 같은 박 순번은 보존, 넘치는 자리만 잘림
+  }
   // 카포: 효력 카포와 다르게 바꿨을 때만 이 줄에 변경점 기록 — 이 줄부터 이후 줄에 계속 적용
   if (getRowCapo(p, lineId) !== _rowMeterCapo) {
     line.capo = _rowMeterCapo;
@@ -4533,6 +4607,12 @@ document.addEventListener('DOMContentLoaded', async () => {
     location.href = 'home.html';
     return;
   }
+  // 조회 불가한 id로 들어오면 스피너만 남아 무한 로딩처럼 보인다 → 홈으로 돌려보낸다
+  // (튜토리얼 샌드박스가 해제된 뒤 그 노트로 이동하는 경우 등)
+  if (projectIdParam && !_paramProject) {
+    location.href = 'home.html';
+    return;
+  }
   if (projectIdParam) {
     // 에디터 왕복 복귀: 편집 모드 + 스크롤 위치 복원
     try {
@@ -4555,6 +4635,10 @@ document.addEventListener('DOMContentLoaded', async () => {
     const _cover = document.getElementById('page-cover');
     setTimeout(() => {
       renderProjectView(projectIdParam);
+      // 튜토리얼 진행 중이면 이어받기 — 대상 요소가 생긴 뒤라야 위치가 잡힌다
+      requestAnimationFrame(() => requestAnimationFrame(() => {
+        if (typeof Tutorial !== 'undefined') Tutorial.resume();
+      }));
       setTimeout(() => {
         if (!_cover) return;
         _cover.classList.add('cover-out');

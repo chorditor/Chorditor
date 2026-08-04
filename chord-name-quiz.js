@@ -72,6 +72,21 @@ function drawLibEntry(canvas, entry) {
   });
 }
 
+// 문제 출제 영역(캔버스/코드명) 탭 → 정답 보이싱 사운드 재생
+const _QUIZ_OPEN_MIDI = [64, 59, 55, 50, 45, 40]; // 1번줄→6번줄 개방현 MIDI
+async function _playQuizEntrySound(entry) {
+  if (typeof GuitarAudio === 'undefined' || !entry) return;
+  const midis = [];
+  for (let s = 5; s >= 0; s--) {
+    const f = entry.frets[s];
+    if (f === null) continue;
+    midis.push(_QUIZ_OPEN_MIDI[s] + f);
+  }
+  if (!midis.length) return;
+  if (GuitarAudio.resume) { try { await GuitarAudio.resume(); } catch (e) {} }
+  GuitarAudio.strumNotes(midis, 0.008);
+}
+
 // 이름 표시 버전 (예습 모달용) — voicing-canvas.js 모듈로 드로잉
 function drawLibEntryWithName(canvas, entry, name) {
   VoicingCanvas.draw(canvas, {
@@ -1638,6 +1653,7 @@ function fitQuizToScreen() {
 }
 
 function startCountdown(callback) {
+  if (typeof GuitarAudio !== 'undefined' && GuitarAudio.stop) GuitarAudio.stop();
   updateProgressDots();
 
   const canvas      = document.getElementById('quiz-canvas');
@@ -1782,6 +1798,7 @@ function _fitChordNameDisplay(el) {
 
 function renderQuestion() {
   _answered = false; // 새 문제 — 응답 가드 초기화
+  if (typeof GuitarAudio !== 'undefined' && GuitarAudio.stop) GuitarAudio.stop();
   const { name, entry } = _questions[_current];
 
   // 레벨6·8: 문제마다 샵/플랫 표기 단순 랜덤 (내부 비교는 canonical 유지, 표시만 변환)
@@ -2522,6 +2539,15 @@ document.addEventListener('DOMContentLoaded', () => {
   window.addEventListener('resize', () => {
     if (_currentView === 'quiz') fitQuizToScreen();
   });
+
+  // 문제 출제 영역(캔버스/코드명) 탭 → 정답 코드폼 사운드 재생
+  const _quizQuestionArea = document.querySelector('.quiz-question-area');
+  if (_quizQuestionArea) {
+    _quizQuestionArea.addEventListener('pointerup', () => {
+      const q = _questions[_current];
+      if (q) _playQuizEntrySound(q.entry);
+    });
+  }
 
   // 전일 이전 세션 캐시 → DB 플러시 (백그라운드)
   flushPendingSessions();

@@ -93,13 +93,17 @@ class AnalyticsSDK {
     // push
     push_opened:    'push',
     // session
-    app_open:       'session',
-    app_background: 'session',
-    screen_view:    'session',
+    app_open:        'session',
+    screen_view:     'session',
+    user_engagement: 'session',
   };
 
   // ── 세션 만료 기준 ────────────────────────────────────────
   static SESSION_TIMEOUT_MS = 30 * 60 * 1000; // 30분
+
+  // 화면이 보이는 동안 세션을 살려두는 주기 (GA4 engagement 모델)
+  // 이벤트로 기록되지 않고 _lastActiveAt 갱신만 함
+  static ENGAGEMENT_HEARTBEAT_MS = 60 * 1000; // 1분
 
   // ── 생성자 ─────────────────────────────────────────────────
   constructor({ supabaseUrl, supabaseAnonKey, appVersion, debug = false }) {
@@ -119,8 +123,15 @@ class AnalyticsSDK {
     this._lastActiveAt = _sess.lastActiveAt; // 마지막 활동 시각 (세션 복원값)
     this._platform     = (window.Capacitor?.getPlatform?.() || 'web'); // 'android'|'ios'|'web'
 
+    // engagement 계측 (GA4 방식): 화면이 보이는 동안의 시간을 누적해
+    // 다음 이벤트의 engagement_time_msec 으로 실어 보냄
+    this._engagedMs    = 0;    // 아직 전송되지 않은 누적 engaged 시간
+    this._visibleSince = (typeof document === 'undefined' || document.visibilityState === 'visible')
+      ? Date.now() : null;
+
     this._setupLifecycleListeners();
     this._startFlushInterval();
+    this._startEngagementHeartbeat();
 
     if (this._debug) console.log('[Analytics] SDK 초기화', { anonId: this._anonId, sessionId: this._sessionId });
   }
@@ -148,7 +159,7 @@ class AnalyticsSDK {
         session_id:     this._sessionId,
         event_name:     eventName,
         event_category: AnalyticsSDK.CATEGORY_MAP[eventName] || 'other',
-        properties:     properties,
+        properties:     { ...properties, engagement_time_msec: this._takeEngagementMs() },
         ab_variants:    { ...this._abCache },
         screen:         this._screen,
         plan:           this._getCurrentPlan(),
@@ -365,33 +376,50 @@ class AnalyticsSDK {
     setInterval(() => this._flush(), 8000);
   }
 
-  _setupLifecycleListeners() {
-    // 세션 만료 시간(30분)과 동일한 기준으로 app_background 기록
-    // 30분 미만 이탈 후 복귀는 노이즈로 간주하여 기록하지 않음
-    let _bgTimer = null;
-    let _bgAt    = null; // 백그라운드 진입 시각
+  // 직전 이벤트 이후 쌓인 engaged 시간(ms)을 꺼내고 카운터를 리셋.
+  // 화면이 보이는 중이면 현재 구간까지 정산한다.
+  _takeEngagementMs() {
+    const now = Date.now();
+    if (this._visibleSince !== null) {
+      this._engagedMs += now - this._visibleSince;
+      this._visibleSince = now;
+    }
+    const ms = this._engagedMs;
+    this._engagedMs = 0;
+    return ms;
+  }
 
+  // 화면 이탈 시점에 잔여 engaged 시간을 user_engagement 이벤트로 남긴다.
+  // 남길 시간이 없으면 아무것도 하지 않음(빈 이벤트 방지).
+  _flushEngagement() {
+    if (this._visibleSince !== null) {
+      this._engagedMs += Date.now() - this._visibleSince;
+      this._visibleSince = null;
+    }
+    if (this._engagedMs > 0) this.track('user_engagement', {});
+  }
+
+  // 화면을 보고만 있어도(이벤트 미발생) 세션이 끊기지 않도록 주기적으로
+  // _lastActiveAt 만 갱신한다. 이벤트로 기록하지 않으므로 DB는 늘지 않음.
+  _startEngagementHeartbeat() {
+    setInterval(() => {
+      if (this._visibleSince === null) return; // 백그라운드면 세션 연장 안 함
+      this._lastActiveAt = Date.now();
+      this._persistSession();
+    }, AnalyticsSDK.ENGAGEMENT_HEARTBEAT_MS);
+  }
+
+  _setupLifecycleListeners() {
+    // 이탈 시점은 user_engagement 로 즉시 기록한다.
     const onBackground = () => {
-      if (_bgTimer) clearTimeout(_bgTimer); // 중복 호출 방지
-      _bgAt    = Date.now();
-      _bgTimer = setTimeout(() => {
-        this.track('app_background', {});
-        this._flush(true);
-        _bgTimer = null;
-      }, AnalyticsSDK.SESSION_TIMEOUT_MS);
-      this._flush(true); // 이벤트 큐는 즉시 전송
+      this._flushEngagement(); // 잔여 engaged 시간을 user_engagement 로 기록
+      this._flush(true);       // 이벤트 큐는 즉시 전송
     };
 
     const onForeground = () => {
-      if (_bgTimer) {
-        clearTimeout(_bgTimer);
-        _bgTimer = null;
-      }
+      this._visibleSince = Date.now(); // engagement 계측 재개
       // 복귀 시 마지막 활동 시각 갱신 (track() 내부 세션 만료 체크용)
-      if (_bgAt) {
-        this._lastActiveAt = Date.now();
-        _bgAt = null;
-      }
+      this._lastActiveAt = Date.now();
     };
 
     const isNative = window.Capacitor?.isNativePlatform();
@@ -408,7 +436,11 @@ class AnalyticsSDK {
       });
     }
 
-    window.addEventListener('pagehide', () => this._flush(true));
+    // 페이지 이동(멀티페이지 앱)으로 SDK가 파기되기 전 잔여 engaged 시간 보존
+    window.addEventListener('pagehide', () => {
+      this._flushEngagement();
+      this._flush(true);
+    });
   }
 
   async _recordABAssignment(experimentId, variant) {

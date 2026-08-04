@@ -6,7 +6,7 @@
 // ── 상수 ─────────────────────────────────────────────────────
 const SUPABASE_URL  = 'https://jbvkygeksohlysyvaoab.supabase.co';
 const SUPABASE_ANON = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Impidmt5Z2Vrc29obHlzeXZhb2FiIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzYzOTk5NjgsImV4cCI6MjA5MTk3NTk2OH0.6RSgChy0Yq0H2TJpZPSoMKQ2V-OYfR0XzE1aJBBZkXI';
-const APP_VERSION   = '1.3.2';
+const APP_VERSION   = '1.3.3_dev';
 const SUPABASE_STORAGE_KEY = 'sb-jbvkygeksohlysyvaoab-auth-token';
 
 // ── Analytics SDK ─────────────────────────────────────────────
@@ -159,13 +159,40 @@ function isMobileOrTablet() {
   return window.innerWidth <= 1400;
 }
 
+// ── 튜토리얼 샌드박스 ─────────────────────────────────────────
+// 튜토리얼 중엔 실제 노트·DB를 건드리지 않고 임시 목록 위에서만 동작한다.
+//  · 무료 3개 한도에 안 걸림 (loadProjects().length가 0에서 시작)
+//  · 기존 유저의 노트가 안 보임 → 아무것도 없는 상태로 설명 가능
+//  · 만든 노트는 튜토리얼이 끝나면 사라짐
+// sessionStorage라 user_project.html로 넘어가도 유지되고, 탭을 닫으면 알아서 정리된다.
+const TUT_SANDBOX_KEY = 'chorditor_tut_sandbox';
+
+function isTutorialSandbox() {
+  try { return sessionStorage.getItem(TUT_SANDBOX_KEY) !== null; } catch (e) { return false; }
+}
+function tutorialSandboxStart() {
+  try { sessionStorage.setItem(TUT_SANDBOX_KEY, '[]'); } catch (e) {}
+}
+function tutorialSandboxEnd() {
+  try { sessionStorage.removeItem(TUT_SANDBOX_KEY); } catch (e) {}
+}
+function _sandboxGet() {
+  try { return JSON.parse(sessionStorage.getItem(TUT_SANDBOX_KEY) || '[]'); }
+  catch (e) { return []; }
+}
+function _sandboxSet(projects) {
+  try { sessionStorage.setItem(TUT_SANDBOX_KEY, JSON.stringify(projects)); } catch (e) {}
+}
+
 // ── 프로젝트 스토리지 ─────────────────────────────────────────
 function loadProjects() {
+  if (isTutorialSandbox()) return _sandboxGet();
   try { return JSON.parse(localStorage.getItem('chorditor_projects') || '[]'); }
   catch(e) { return []; }
 }
 
 function saveProjects(projects) {
+  if (isTutorialSandbox()) { _sandboxSet(projects); return; } // 로컬·DB 모두 건드리지 않음
   const prevIds = loadProjects().map(p => p.id); // 덮어쓰기 전에 캡처 — 삭제분 DB 반영용
   safeSave('chorditor_projects', JSON.stringify(projects));
   _syncProjectsToDB(projects, prevIds).catch(() => {}); // 비동기 백그라운드, 로컬 흐름은 그대로 동기

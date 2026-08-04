@@ -543,6 +543,8 @@ function initWheelPicker(scrollEl, getIdx, onPick) {
       if (!total) return;
       const idx = Math.max(0, Math.min(Math.round(scrollEl.scrollTop / PICKER_ITEM_H), total - 1));
       onPick(idx);
+      // 유저가 직접 돌린 경우만 도달(programmatic은 위에서 반환) — 튜토리얼 휠 구간 판정용
+      window.Tutorial?.notify('wheel');
     }, 150);
   }, { signal: _abort.signal });
 
@@ -697,7 +699,9 @@ function renderBassBtns() {
 function toggleAccidental() {
   _playTap();
   const current = document.getElementById('acc-sharp')?.classList.contains('active') ? 'sharp' : 'flat';
-  setAccidental(current === 'sharp' ? 'flat' : 'sharp');
+  const next = current === 'sharp' ? 'flat' : 'sharp';
+  setAccidental(next);
+  window.Tutorial?.notify(`acc:${next}`);
 }
 function toggleLibAccidental() {
   _playTap();
@@ -952,6 +956,17 @@ function toggleFingerNum() {
   document.getElementById('btn-finger-num').classList.toggle('active', fingerNumMode);
   document.getElementById('finger-group').style.opacity = fingerNumMode ? '1' : '0.35';
   draw();
+  window.Tutorial?.notify(`fingermode:${fingerNumMode ? 'on' : 'off'}`);
+}
+
+// 튜토리얼 전용 — 구간 진입 시 편집 상태를 지정값으로 강제 세팅
+function tutorialSetChord(nextDots, nextBarre, nextOpenMute) {
+  dots        = nextDots.map(d => ({ ...d }));
+  barreActive = { ...nextBarre };
+  openMute    = [...nextOpenMute];
+  rootMode    = false;
+  rootIndex   = -1;
+  _syncChordFromCanvas();
 }
 
 function calcRootIndex() {
@@ -1333,6 +1348,7 @@ function updateBarreBtns() {
     }
     const btn = document.createElement('button');
     btn.textContent = 'B';
+    btn.dataset.fret = String(f); // 튜토리얼이 특정 프렛 버튼을 지목할 때 사용
     const left = Math.round((f - 0.5) * FW() * ds) - Math.round(btnSize / 2); // barre-wrap이 nut 기준 시작
     const top  = Math.round((containerH - btnSize) / 2);
     btn.style.cssText = `position:absolute;left:${left}px;top:${top}px;width:${btnSize}px;height:${btnSize}px;
@@ -1353,6 +1369,7 @@ function updateBarreBtns() {
         barreActive[f] = false;
       }
       draw();
+      window.Tutorial?.notify(`barre:${f}:${barreActive[f] ? 'on' : 'off'}`);
     };
     container.appendChild(btn);
   });
@@ -1369,7 +1386,11 @@ canvas.addEventListener('click', e => {
   const si = Math.round((my - TT()) / SH());
   if (si < 0 || si > STRINGS - 1) return;
 
+  // 튜토리얼 진행 중이면 지정된 칸 외 입력은 무시
+  const tutCell = window.Tutorial?.canvasCell();
+
   if (mx >= TL() - 50 && mx < TL()) {
+    if (tutCell) return; // 개방현/뮤트 영역은 허용 대상 아님
     const hasDot = dots.some(d => d.s === si);
     if (hasDot) {
       dots = dots.filter(d => d.s !== si);
@@ -1385,16 +1406,38 @@ canvas.addEventListener('click', e => {
 
   const fi = Math.floor((mx - TL()) / FW()) + 1;
   if (fi < 1 || fi > FRETS) return;
+  if (tutCell && (si !== tutCell.s || fi !== tutCell.f)) return;
 
+  if (!_placeDot(si, fi)) return;
+  if (fingerNumMode) {
+    // 손가락 모드에선 "몇 번으로 바뀌었는가"까지 알려야 튜토리얼이 정확히 판정할 수 있다
+    const d = dots.find(x => x.s === si && x.f === fi);
+    window.Tutorial?.notify(`finger:${si}:${fi}:${d ? d.n : 'x'}`);
+  } else {
+    window.Tutorial?.notify(`dot:${si}:${fi}`);
+  }
+});
+
+// dot 배치 본체 — 캔버스 클릭과 튜토리얼 시뮬레이션이 같은 규칙을 쓰도록 분리.
+// 반환값: 실제로 반영됐으면 true (바레 제약으로 무시된 경우 false)
+function _placeDot(si, fi) {
   // 바레로 커버된 줄은 해당 바레 프렛보다 낮은 곳에 dot 불가
   const barreMapCheck = buildBarreMap(dots, barreActive);
-  if (barreMapCheck[si] !== undefined && fi < barreMapCheck[si]) return;
+  if (barreMapCheck[si] !== undefined && fi < barreMapCheck[si]) return false;
 
   const idx = dots.findIndex(d => d.s === si && d.f === fi);
   if (idx !== -1) {
-    // 같은 위치 토글 오프: 해당 dot만 제거
-    dots.splice(idx, 1);
-    if (!dots.some(d => d.s === si)) openMute[si] = 'open';
+    // 손가락 모드에서 다른 번호를 고른 채 기존 dot을 누르면 = 번호 변경 의도.
+    // 지우지 않고 번호만 바꾼다. 같은 번호일 때만 기존처럼 토글 오프.
+    // (모드가 꺼져 있으면 번호가 안 보여서 "눌러도 반응 없음"으로 보이므로 제외)
+    if (fingerNumMode && dots[idx].n !== selectedFinger) {
+      dots[idx].n = selectedFinger;
+    } else if (window.Tutorial?.canvasCell()) {
+      return false; // 튜토리얼 진행 중 — 지정 칸이 지워져 코드 폼이 깨지는 것 방지
+    } else {
+      dots.splice(idx, 1);
+      if (!dots.some(d => d.s === si)) openMute[si] = 'open';
+    }
   } else {
     // 바레가 이 줄을 커버하고 있고 클릭 프렛이 바레 우측이면 → 바레 dot 유지, 우측 dot만 교체
     const barreF = barreMapCheck[si];
@@ -1410,7 +1453,11 @@ canvas.addEventListener('click', e => {
   }
   if (rootMode) rootIndex = calcRootIndex();
   _syncChordFromCanvas();
-});
+  return true;
+}
+
+// 튜토리얼 전용 — 유저가 직접 찍은 것과 동일한 경로로 dot 하나를 찍는다.
+function tutorialTapDot(si, fi) { return _placeDot(si, fi); }
 
 // ═══════════════════════════════════════════════════════════════
 // PNG 저장
@@ -1520,6 +1567,7 @@ async function onImgSave() {
   closeImgSaveModal();
   if (_imgMode === 'library') await _doExportLibChordImage(_imgScale, _imgTransparent);
   else                        await _doSavePNG(_imgScale, _imgTransparent);
+  window.Tutorial?.notify('imgsave:done');
 }
 
 async function _doSavePNG(scale, transparent = false) {
@@ -1675,6 +1723,7 @@ function strumChord() {
   if (!notes.length) return;
   analytics.track('chord_played', { chord_name: buildChordName(), source: 'editor' });
   GuitarAudio.strumNotes(notes.map(n => n.midi), STRUM_INTERVAL);
+  window.Tutorial?.notify('play');
 }
 
 // 페이지 이탈 시 잔향 하드컷 — 전환 애니메이션 동안 이전 문서가 살아있어
@@ -2133,6 +2182,7 @@ function switchTab(tab, noAnim = false) {
   if (tab === 'home') enterFromHome('home');
   if (tab === 'projects') renderProjectsList();
   if (tab === 'profile') loadProfileFromDB();
+  window.Tutorial?.notify(`tab:${tab}`);
 
   if (typeof analytics !== 'undefined') {
     analytics.setScreen(tab);
@@ -2185,6 +2235,25 @@ function enterFromBlock(e, el, view) {
   function onCancel() { cleanup(); }
 
   // document 레벨에서 수신 — 마우스/터치 모두 안정적으로 동작
+  document.addEventListener('pointerup',     onUp,     { once: true });
+  document.addEventListener('pointercancel', onCancel, { once: true });
+}
+
+// 하단 탭바 진입점 — Android 제스처 네비(하단 엣지에서 위로 스와이프)의 시작점이
+// 탭 버튼 위라 pointerdown만으로 탭이 전환돼버리던 문제. 손가락이 거의 안 움직인
+// 경우(=실제 탭)에만 전환한다. 스와이프로 이어지면 pointerup이 오지 않아 무시됨.
+function navTabPointerDown(e, el, tab) {
+  const sx = e.clientX, sy = e.clientY;
+  const cleanup = () => {
+    document.removeEventListener('pointerup',     onUp);
+    document.removeEventListener('pointercancel', onCancel);
+  };
+  const onUp = (ev) => {
+    cleanup();
+    if (Math.abs(ev.clientX - sx) > 10 || Math.abs(ev.clientY - sy) > 10) return;
+    tapSwitchTab(el, tab);
+  };
+  const onCancel = () => cleanup();
   document.addEventListener('pointerup',     onUp,     { once: true });
   document.addEventListener('pointercancel', onCancel, { once: true });
 }
@@ -2290,6 +2359,7 @@ async function enterFromHome(view, skipAnim = false, reverse = false) {
     document.getElementById('project-edit-bar')?.classList.add('hidden');
     populateProjectSelect();
     requestAnimationFrame(resizeCanvas);
+    window.Tutorial?.notify('view:editor');
     if (isMobileOrTablet() && screen.orientation?.lock) {
       screen.orientation.lock('landscape').catch(() => {});
     }
@@ -2305,6 +2375,7 @@ async function enterFromHome(view, skipAnim = false, reverse = false) {
     renderLibCards(_libRoot);
     const _initEntries = (window.chordsLibrary || {})[_libRoot] || [];
     if (_initEntries.length > 0) selectLibEntry(0, { silent: true });
+    window.Tutorial?.notify('view:library');
     requestAnimationFrame(() => {
       const bottom = document.querySelector('.lib-bottom');
       if (bottom && !bottom.dataset.heightFixed) {
@@ -2779,6 +2850,7 @@ async function promptCreateProject() {
   document.getElementById('modal-create-project').classList.remove('hidden');
   lucide.createIcons();
   requestAnimationFrame(() => input.focus());
+  window.Tutorial?.notify('notecreate:open');
 }
 
 function confirmCreateProject() {
@@ -2814,6 +2886,7 @@ function confirmCreateProject() {
   populateProjectSelect();
   analytics.track('project_created', { total_count: projects.length });
   incrementStat('notes'); // 노트 생성 퀘스트 누적 카운터
+  window.Tutorial?.notify('notecreate:done');
   openProject(newProject.id);
 }
 
@@ -2992,6 +3065,8 @@ function openProjectSheet() {
     list.appendChild(item);
   });
 
+  window.Tutorial?.notify('notesheet:open');
+
   // 새 프로젝트 만들기 카드 — 항상 최하단
   const card = document.createElement('div');
   card.className = 'project-sheet-new-card';
@@ -3014,6 +3089,7 @@ function closeProjectSheet() {
   const overlay = document.getElementById('project-sheet-overlay');
   if (!overlay) return;
   _playTap();
+  window.Tutorial?.notify('notesheet:close');
   overlay.classList.remove('open');
   overlay.classList.add('closing');
   overlay.addEventListener('transitionend', () => {
@@ -4018,9 +4094,14 @@ function meCanvasClick(e) {
 
   const idx = me_dots.findIndex(d => d.s === si && d.f === fi);
   if (idx !== -1) {
-    // 같은 위치 토글 오프: 해당 dot만 제거
-    me_dots.splice(idx, 1);
-    if (!me_dots.some(d => d.s === si)) me_openMute[si] = 'open';
+    // 손가락 모드에서 다른 번호를 고른 채 기존 dot을 누르면 = 번호 변경 의도.
+    // 지우지 않고 번호만 바꾼다. 같은 번호일 때만 기존처럼 토글 오프. (에디터와 동일 규칙)
+    if (me_fingerNumMode && me_dots[idx].n !== me_selectedFinger) {
+      me_dots[idx].n = me_selectedFinger;
+    } else {
+      me_dots.splice(idx, 1);
+      if (!me_dots.some(d => d.s === si)) me_openMute[si] = 'open';
+    }
   } else {
     const meBarreF = meBarreMapCheck[si];
     if (meBarreF !== undefined && fi > meBarreF) {
@@ -4789,7 +4870,9 @@ document.addEventListener('DOMContentLoaded', async () => {
   // ── DEV 빌드: 인증 체크 없이 바로 진입 ──────────────────────
   if (APP_VERSION.includes('_dev')) {
     initSupabase().catch(() => {});
-    if (typeof runDailyAttendanceFlow === 'function') runDailyAttendanceFlow();
+    // 튜토리얼 자동 노출 대상이면 출석·랜덤피크는 건너뛰기 이후로 보류됨
+    if (typeof runHomeEntryFlow === 'function') runHomeEntryFlow();
+    else if (typeof runDailyAttendanceFlow === 'function') runDailyAttendanceFlow();
     _consumePendingShareCode();
     setTimeout(() => checkAndShowNotice(), 800);
     return;
@@ -4809,7 +4892,9 @@ document.addEventListener('DOMContentLoaded', async () => {
       _authReady = true;
       analytics.setUserId(session.user.id);
       analytics.track('app_open', { platform: 'android', project_count: loadProjects().length });
-      if (typeof runDailyAttendanceFlow === 'function') runDailyAttendanceFlow();
+      // 튜토리얼 자동 노출 대상이면 출석·랜덤피크는 건너뛰기 이후로 보류됨
+      if (typeof runHomeEntryFlow === 'function') runHomeEntryFlow();
+      else if (typeof runDailyAttendanceFlow === 'function') runDailyAttendanceFlow();
       analytics.setScreen('home');
       analytics.track('screen_view', { view: 'home' }); // 홈 화면 진입 명시 기록
       syncProjectsOnLogin().catch(() => {}); // 재설치 등 DB 백업 복구 + 로컬 전용 업로드
@@ -4840,7 +4925,9 @@ document.addEventListener('DOMContentLoaded', async () => {
     if (!_hasOAuth && !shareParam) { window.location.replace('onboarding.html'); return; }
   }
   analytics.track('app_open', { platform: 'web', project_count: loadProjects().length });
-  if (typeof runDailyAttendanceFlow === 'function') runDailyAttendanceFlow();
+  // 튜토리얼 자동 노출 대상이면 출석·랜덤피크는 건너뛰기 이후로 보류됨
+  if (typeof runHomeEntryFlow === 'function') runHomeEntryFlow();
+  else if (typeof runDailyAttendanceFlow === 'function') runDailyAttendanceFlow();
   analytics.setScreen('home');
   analytics.track('screen_view', { view: 'home' }); // 홈 화면 진입 명시 기록
   syncProjectsOnLogin().catch(() => {}); // 재설치 등 DB 백업 복구 + 로컬 전용 업로드
@@ -4877,7 +4964,9 @@ function renderLibRootTabs() {
   container.innerHTML = roots.map(r => {
     // 샵/플랫 모드에 따라 하나의 이름만 표시
     const label = useFlat ? (flatMap[r] || r) : r;
+    // data-root: 튜토리얼이 특정 근음 탭을 지목할 때 사용 (표시명은 샵/플랫에 따라 바뀌므로)
     return `<button class="lib-root-item${r === _libRoot ? ' active' : ''}"
+                    data-root="${r}"
                     onclick="selectLibRoot('${r}')">${label}</button>`;
   }).join('');
 }
@@ -4889,6 +4978,8 @@ function selectLibRoot(root) {
   analytics.track('lib_tab_changed', { root_tab: root });
   renderLibRootTabs();
   renderLibCards(root);
+  window.Tutorial?.notify(`libroot:${root}`);
+  window.Tutorial?.repaint(); // 탭이 통째로 교체되므로 허용·하이라이트 표시 복구
 }
 
 function renderLibCards(root) {
@@ -4921,6 +5012,7 @@ function renderLibCards(root) {
     const isActive = sharpName === activeGroupName;
     const multi    = idxList.length > 1;
     html += `<div class="lib-card${isActive ? ' active' : ''}${multi ? ' lib-card-multi' : ''}"
+                  data-chord="${sharpName}"
                   onclick="onLibCardClick(event,'${sharpName.replace(/\\/g,'\\\\').replace(/'/g,"\\'")}')">
                <canvas class="lib-card-canvas" data-gidx="${gi}"
                        width="${LIB_MINI_W}"
@@ -5019,6 +5111,7 @@ function prevLibFingering() {
   _updateFingeringNav();
   const useFlat = accidental === 'flat';
   analytics.track('lib_fingering_changed', { chord_name: useFlat ? _libEntry.flatName : _libEntry.name, to_idx: _libFingeringIdx, total });
+  window.Tutorial?.notify(`libfinger:${_libFingeringIdx}`);
 }
 
 function nextLibFingering() {
@@ -5028,6 +5121,7 @@ function nextLibFingering() {
   _updateFingeringNav();
   const useFlat = accidental === 'flat';
   analytics.track('lib_fingering_changed', { chord_name: useFlat ? _libEntry.flatName : _libEntry.name, to_idx: _libFingeringIdx, total });
+  window.Tutorial?.notify(`libfinger:${_libFingeringIdx}`);
 }
 
 // ── 보이싱 피커 모달 ────────────────────────────────────────────
@@ -5053,6 +5147,7 @@ function onLibCardClick(event, sharpName) {
 
   _playSfx('page.mp3'); // 1차 그리드 펼침(보이싱 모달)
   openVoicingModal(sharpName, cardEl);
+  window.Tutorial?.notify(`libcard:${sharpName}`);
 }
 
 // 보이싱 모달 열기
@@ -5098,10 +5193,12 @@ function _renderVoicingGrid(sharpName) {
     .map((e, i) => ({ e, i }))
     .filter(({ e }) => e.name === sharpName);
 
-  grid.innerHTML = filtered.map(({ e, i }) => {
+  grid.innerHTML = filtered.map(({ e, i }, pos) => {
     const dispName = useFlat ? e.flatName : e.name;
+    // data-vpos: 이 코드 그룹 안에서 몇 번째 보이싱인지. 전역 인덱스는 코드마다 달라 튜토리얼이 못 쓴다.
     return `<div class="lib-card${_libEntry === e ? ' active' : ''}"
-                 onclick="event.stopPropagation(); _playTap(); selectLibEntry(${i});">
+                 data-vpos="${pos}"
+                 onclick="event.stopPropagation(); _playTap(); selectLibEntry(${i}); window.Tutorial?.notify('libvoicing:${pos}');">
                <canvas class="lib-card-canvas" data-vidx="${i}"
                        width="${LIB_MINI_W}"
                        height="${Math.round(BASE_H * LIB_MINI_RATIO)}"></canvas>
@@ -5157,6 +5254,7 @@ function libPlayChord() {
   const useFlat = accidental === 'flat';
   analytics.track('lib_chord_played', { chord_name: useFlat ? _libEntry.flatName : _libEntry.name });
   playChord({ dots: _libEntry.frets.map((f, s) => f !== null && f > 0 ? {s, f} : null).filter(Boolean), openMute: _libEntry.openMute });
+  window.Tutorial?.notify('libplay');
 }
 
 function libSaveImage() {
@@ -5173,7 +5271,9 @@ function _libMatch(name, q) {
   const qSuffix = m[2];                                   // quality 부분 (대소문자 구분)
   const nm = name.match(/^([A-G][#b]?)(.*)/);
   if (!nm) return false;
-  return nm[1] === qRoot && nm[2].includes(qSuffix);
+  // 접두어 일치 — 입력한 글자로 "시작하는" 코드만. includes였을 땐 G7이 GM7까지 잡았다.
+  // G7 → G7 / G7(9) / G7/F / G7sus4 는 걸리고, GM7 은 안 걸린다.
+  return nm[1] === qRoot && nm[2].startsWith(qSuffix);
 }
 
 let _libSearchResults = [];
@@ -5235,6 +5335,8 @@ function showLibSearchModal() {
   }
 
   modal.classList.add('open');
+  // 대소문자 차이로 판정이 갈리지 않게 대문자로 통일해서 알린다
+  window.Tutorial?.notify(`libsearch:open:${q.toUpperCase()}`);
 }
 
 function closeLibSearchModal() {
@@ -5242,6 +5344,7 @@ function closeLibSearchModal() {
   if (modal) modal.classList.remove('open');
   const input = document.getElementById('lib-search');
   if (input) { input.value = ''; _libSearchResults = []; }
+  window.Tutorial?.notify('libsearch:close');
 }
 
 function selectLibSearchResult(idx) {
@@ -5260,6 +5363,7 @@ function selectLibSearchResult(idx) {
   container?.querySelectorAll('.lib-card').forEach((el, i) => {
     el.classList.toggle('active', i === idx);
   });
+  window.Tutorial?.notify(`libsearchpick:${idx}`);
 }
 
 // 라이브러리 저장 버튼 → showScaleDropdown 으로 진입

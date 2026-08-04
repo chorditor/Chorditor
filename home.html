@@ -145,17 +145,17 @@
           </div>
 
           <div class="home-blocks">
-            <div class="home-block" onpointerdown="enterFromBlock(event,this,'editor')">
+            <div class="home-block" id="home-block-editor" onpointerdown="enterFromBlock(event,this,'editor')">
               <div class="home-block-icon"><i class="ph-bold ph-grid-nine"></i></div>
               <div class="home-block-title">코드 에디터</div>
               <div class="home-block-desc">코드표 제작 · 이미지 저장</div>
             </div>
-            <div class="home-block" onpointerdown="enterFromBlock(event,this,'library')">
+            <div class="home-block" id="home-block-library" onpointerdown="enterFromBlock(event,this,'library')">
               <div class="home-block-icon"><i class="ph-bold ph-book-open"></i></div>
               <div class="home-block-title">코드 사전</div>
               <div class="home-block-desc">코드 운지 검색 · 가져오기</div>
             </div>
-            <div class="home-block" onpointerdown="enterFromBlock(event,this,'training')">
+            <div class="home-block" id="home-block-training" onpointerdown="enterFromBlock(event,this,'training')">
               <div class="home-block-icon"><i class="ph-bold ph-barbell"></i></div>
               <div class="home-block-title">훈련소</div>
               <div class="home-block-desc">기타 실력 향상 훈련</div>
@@ -347,10 +347,10 @@
           <div class="lib-canvas-row">
             <canvas id="lib-canvas"></canvas>
             <div class="lib-canvas-side-btns">
-              <button class="canvas-side-btn" onclick="libSaveImage()" title="이미지 저장">
+              <button class="canvas-side-btn" id="lib-btn-save-image" onclick="libSaveImage()" title="이미지 저장">
                 <i data-lucide="image-down"></i>
               </button>
-              <button class="canvas-side-btn" onclick="libPlayChord()" title="재생">
+              <button class="canvas-side-btn" id="lib-btn-play" onclick="libPlayChord()" title="재생">
                 <i data-lucide="play"></i>
               </button>
             </div>
@@ -380,8 +380,8 @@
                 <i class="ph-bold ph-hand"></i>
               </button>
               <span class="ab-spacer"></span>
-              <button class="ab-btn" onclick="libSaveToProject()">노트에 저장</button>
-              <button class="ab-btn ab-btn-primary" onclick="importLibChordToProject()">에디터로</button>
+              <button class="ab-btn" id="lib-btn-save-note" onclick="libSaveToProject()">노트에 저장</button>
+              <button class="ab-btn ab-btn-primary" id="lib-btn-to-editor" onclick="importLibChordToProject()">에디터로</button>
             </div>
           </div><!-- /lib-action-section -->
 
@@ -404,7 +404,7 @@
         <div class="lib-search-modal" id="lib-search-modal">
           <div class="lib-search-modal-header">
             <span class="lib-search-modal-title" id="lib-search-modal-title"></span>
-            <button class="icon-btn" onclick="closeLibSearchModal()">
+            <button class="icon-btn" id="lib-search-close" onclick="closeLibSearchModal()">
               <i data-lucide="x"></i>
             </button>
           </div>
@@ -427,7 +427,7 @@
                 <button class="icon-btn" onclick="_playTap();openPasteShareModal()" title="불러오기">
                   <i data-lucide="clipboard-paste"></i>
                 </button>
-                <button class="icon-btn" onclick="_playTap();promptCreateProject()" title="새 노트">
+                <button class="icon-btn" id="btn-create-note" onclick="_playTap();promptCreateProject()" title="새 노트">
                   <i data-lucide="circle-plus"></i>
                 </button>
               </div>
@@ -548,15 +548,15 @@
 
     <!-- ── 하단 탭바 ── -->
     <nav class="bottom-nav">
-      <button class="bottom-nav-item active" id="nav-home" onpointerdown="tapSwitchTab(this,'home')">
+      <button class="bottom-nav-item active" id="nav-home" onpointerdown="navTabPointerDown(event,this,'home')">
         <i data-lucide="home"></i>
         <span>홈</span>
       </button>
-      <button class="bottom-nav-item" id="nav-projects" onpointerdown="tapSwitchTab(this,'projects')">
+      <button class="bottom-nav-item" id="nav-projects" onpointerdown="navTabPointerDown(event,this,'projects')">
         <i data-lucide="book-open"></i>
         <span>노트</span>
       </button>
-      <button class="bottom-nav-item" id="nav-profile" onpointerdown="tapSwitchTab(this,'profile')">
+      <button class="bottom-nav-item" id="nav-profile" onpointerdown="navTabPointerDown(event,this,'profile')">
         <i data-lucide="user"></i>
         <span>프로필</span>
       </button>
@@ -846,7 +846,7 @@
       </div>
       <div class="modal-footer">
         <button class="btn btn-ghost" onclick="closeModal('modal-create-project')">취소</button>
-        <button class="btn btn-primary" onclick="confirmCreateProject()">만들기</button>
+        <button class="btn btn-primary" id="btn-confirm-create-note" onclick="confirmCreateProject()">만들기</button>
       </div>
     </div>
   </div>
@@ -920,6 +920,49 @@
       <button class="event-modal-btn" onclick="claimEventThanks130()">받기</button>
     </div>
   </div>
+
+  <!-- ── 튜토리얼 시작 안내 모달 ── -->
+  <div class="modal-overlay hidden" id="tutorial-start-overlay">
+    <div class="tutorial-start-modal" onclick="event.stopPropagation()">
+      <img src="image/Chorditor_logo.png" alt="" class="tutorial-start-logo">
+      <h3 class="tutorial-start-title">코디터 사용 튜토리얼</h3>
+      <p class="tutorial-start-message">코디터의 컨텐츠들을 알려드려요!<br>단계별 보상, 완료 시 특별 선물까지!</p>
+      <div class="tutorial-start-actions">
+        <button class="btn btn-ghost" onclick="Tutorial.skip()">건너뛰기</button>
+        <button class="btn btn-primary" onclick="Tutorial.startFromModal()">시작하기</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── 튜토리얼 스텝 완료 모달 ── -->
+  <div class="modal-overlay hidden" id="tutorial-done-overlay">
+    <div class="tutorial-start-modal" onclick="event.stopPropagation()">
+      <img src="image/confetti.png" alt="" class="tutorial-start-logo">
+      <h3 class="tutorial-start-title" id="tutorial-done-title"></h3>
+      <p class="tutorial-start-message" id="tutorial-done-message"></p>
+      <div class="event-modal-reward" id="tutorial-done-reward">
+        <img src="image/gift.png" alt="">
+        <span id="tutorial-done-reward-count"></span>
+      </div>
+      <div class="tutorial-start-actions">
+        <button class="btn btn-ghost" id="tutorial-done-later" onclick="Tutorial.closeDoneModal()">나중에 할게요</button>
+        <button class="btn btn-primary hidden" id="tutorial-done-continue" onclick="Tutorial.continueNext()">다음 스텝 계속하기</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── 튜토리얼 진행 레이어 (딤 + 설명 패널) ── -->
+  <div id="tut-layer" class="hidden">
+    <div id="tut-panel">
+      <button id="tut-skip" onclick="Tutorial.skip()">건너뛰기</button>
+      <h4 id="tut-title"></h4>
+      <p id="tut-text"></p>
+      <button id="tut-next" class="hidden" onclick="Tutorial.next()">다음에 할게요</button>
+    </div>
+  </div>
+
+  <!-- 스와이프 유도 dot — 레이어 밖 body 직속. 어떤 요소에도 안 가리도록 최상위에 둔다 -->
+  <div id="tut-scrollhint" hidden><div class="tut-swipe-dot"></div></div>
 
   <!-- ── 리뷰/평점 유도 모달 ── -->
   <div class="modal-overlay hidden" id="review-modal-overlay" onclick="reviewRespond('later')">
@@ -1009,6 +1052,7 @@
   <script src="shared.js"></script>
   <script src="progression-data.js"></script>
   <script src="voicing-canvas.js"></script>
+  <script src="tutorial.js"></script>
   <script src="home.js"></script>
   <script src="chord-voicings.js"></script>
   <script src="chords-library.js"></script>
