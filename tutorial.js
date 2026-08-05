@@ -293,6 +293,29 @@ const Tutorial = (() => {
     },
   ];
 
+  // ── 노트 편집 화면 셀렉터·헬퍼 ─────────────────────────────
+  // 줄 컨테이너 id가 project-lines-<프로젝트id>라 id를 모르는 상태에서 접두어로 지목한다.
+  const TUT_LINES     = '[id^="project-lines-"]';
+  const TUT_LINE_NTH  = (n) => `${TUT_LINES} > .project-line:nth-of-type(${n + 1})`;
+  const TUT_FIRST_LINE_TEXT = `${TUT_LINE_NTH(0)} .line-text`;
+  // 노트 목록에서 시드 노트를 이름으로 지목 (목록 순서가 중요→즐겨찾기→최근이라 위치로는 못 잡음)
+  const TUT_NOTE_MAIN = '.projects-item[data-name="작은 별"]';
+
+  // n번째 줄에 실제로 입력된 가사 (공백 정리 후)
+  function _lineTextAt(n) {
+    const el = document.querySelector(`${TUT_LINE_NTH(n)} .line-text`);
+    return (el?.innerText || '').replace(/\s+/g, ' ').trim();
+  }
+
+  // 마디 정보 수정 모달이 원하는 값으로 맞춰졌는가 (저장 전 폼 상태 기준)
+  function _meterModalIs({ bpm, num, den, bars }) {
+    const $ = (id) => document.getElementById(id);
+    return $('row-meter-bpm-input')?.value.trim() === bpm
+        && $('row-meter-num-val')?.value.trim()   === num
+        && $('row-meter-den-val')?.textContent.trim() === den
+        && !!document.querySelector(`#row-meter-bars-toggle input[data-bars="${bars}"]`)?.checked;
+  }
+
   // STEP3 — 노트. 구간 단위로 순차 구현 중.
   const STEP3_STEPS = [
     {
@@ -333,6 +356,306 @@ const Tutorial = (() => {
       target: '#project-mode-btn',
       advanceOn: 'editmode:on',
     },
+    {
+      title: '코드 담기',
+      text: '노트에서 쓸 코드를 먼저 담아둬요.\n팔레트의 + 버튼을 눌러 주세요.',
+      panel: 'bottom',
+      target: '#palette-add-btn',
+      advanceOn: 'palettedict:open',
+    },
+    {
+      title: '코드 담기',
+      text: 'STEP2에서 본 코드 사전이 그대로 들어 있어요.\n여기서 바로 골라 담을 수 있어요.',
+      panel: 'top',
+      pulse: '.palette-dict-body',
+      optional: true,
+      nextLabel: '다음',
+    },
+    {
+      title: '직접 만들어 담기',
+      text: '사전에 없는 코드는 에디터에서 직접 만들어 담을 수 있어요.\nSTEP1에서 배운 그 에디터예요.',
+      panel: 'bottom',
+      pulse: '#pd-btn-to-editor',
+      optional: true,
+      nextLabel: '다음',
+    },
+    {
+      title: 'C 코드 담기',
+      text: '먼저 C 코드를 담아 볼게요.\n맨 앞의 C를 눌러 주세요.',
+      panel: 'top',
+      target: '.lib-cards-area',
+      pulse: '.lib-card[data-chord="C"]',
+      advanceOn: 'libcard:C',
+    },
+    {
+      title: 'C 코드 담기',
+      text: '잡는 법을 고르면 팔레트에 담겨요.\n첫 번째를 눌러 주세요.',
+      panel: 'top',
+      target: '#lib-voicing-modal',
+      pulse: '#lib-voicing-grid .lib-card[data-vpos="0"]',
+      advanceOn: 'chordadded:C',
+    },
+    {
+      title: '코드 담기 완료',
+      text: '팔레트에 C가 담겼어요.\n닫기를 눌러 주세요.',
+      panel: 'bottom',
+      target: '.palette-dict-card .modal-header .icon-btn',
+      advanceOn: 'palettedict:close',
+    },
+    {
+      // 가사는 값까지 맞아야 하므로 함수형 조건 사용 (saveAllLines가 'lines:saved'로 알린다)
+      title: '가사 쓰기',
+      text: '가사를 적어 볼게요.\n첫 줄에 "반짝반짝 작은 별"을 입력해 주세요.',
+      panel: 'bottom',
+      target: TUT_FIRST_LINE_TEXT,
+      advanceOn: () => _lineTextAt(0) === '반짝반짝 작은 별',
+    },
+    {
+      // 팔레트 아이템과 첫 줄 코드슬롯을 모두 열어야 드래그가 성립한다.
+      // (모바일은 setupPaletteTouchDrag의 터치 드래그 — 시작 요소가 target이라 통과된다)
+      title: '코드 놓기',
+      text: '팔레트의 C를 첫 번째 코드 칸으로 끌어다 놓아 보세요.',
+      panel: 'bottom',
+      target: ['.chord-palette-item[data-chord-name="C"]', `${TUT_LINE_NTH(0)} .chord-row-wrapper`],
+      pulse: [`.chord-palette-item[data-chord-name="C"]`, `${TUT_LINE_NTH(0)} .chord-slot[data-slot-idx="0"]`],
+      slotCell: { line: 0, slot: 0 }, // 첫 줄 첫 칸에만 놓을 수 있게 제한
+      noNav: true, // 팔레트 아이템을 그냥 탭하면 에디터로 넘어가버리므로 이 구간에선 막는다
+      // 빈 슬롯도 data-chord-id="" 를 항상 갖는다 → 속성 존재가 아니라 값이 있는지로 판정해야 한다
+      advanceOn: () => !!document.querySelector(
+        `${TUT_LINE_NTH(0)} .chord-slot[data-chord-id]:not([data-chord-id=""])`),
+    },
+    {
+      title: '줄 추가',
+      text: '다음 줄을 만들어 볼게요.\n맨 아래 + 버튼을 눌러 주세요.',
+      panel: 'top',
+      target: '.add-line-btn',
+      advanceOn: () => document.querySelectorAll(`${TUT_LINES} > .project-line`).length >= 2,
+    },
+    {
+      title: '가사 쓰기',
+      text: '두 번째 줄에 "아름답게 비치네"를 입력해 주세요.',
+      panel: 'bottom',
+      target: `${TUT_LINE_NTH(1)} .line-text`,
+      advanceOn: () => _lineTextAt(1) === '아름답게 비치네',
+    },
+    {
+      title: '소리 듣기',
+      text: '코드 칸을 누르면 그 코드 소리가 나요.\n방금 놓은 C를 눌러 보세요.',
+      panel: 'bottom',
+      target: `${TUT_LINE_NTH(0)} .chord-row-wrapper`,
+      pulse: `${TUT_LINE_NTH(0)} .chord-slot[data-chord-id]:not([data-chord-id=""])`,
+      advanceOn: 'slot:played',
+    },
+    {
+      title: '메트로놈',
+      text: '박자를 들으면서 연습할 수 있어요.\n메트로놈을 켜 주세요.',
+      panel: 'bottom',
+      target: '#metronome-btn',
+      advanceOn: 'metronome:on',
+    },
+    {
+      // 끝까지 재생돼야 통과 — 중간에 멈추면 stopPlayAll만 되고 알림이 안 간다
+      title: '전체 재생',
+      text: '이제 처음부터 들어 볼게요.\n재생 버튼을 눌러 끝까지 들어 보세요.',
+      panel: 'bottom',
+      target: '#play-all-btn',
+      advanceOn: 'playall:done',
+    },
+    {
+      title: 'STEP3 완료',
+      text: '노트 하나를 처음부터 끝까지 만들어 봤어요!\n다음 STEP4에서는 노트를 더 잘 쓰는 방법을 알려드릴게요.',
+      panel: 'top',
+      pulse: false,
+      optional: true,
+      nextLabel: '보상 받기',
+    },
+  ];
+
+  // STEP4 — 노트 심화. 구간 단위로 순차 구현 중.
+  // 진입 즉시 "작은 별 1절"이 완성된 노트가 열린 상태에서 시작한다
+  // (STEP3를 이어서 하든 중간에 진입하든 동일 — 앞에서 만든 노트와는 무관).
+  const STEP4_STEPS = [
+    {
+      title: 'STEP4 : 노트 더 알아보기',
+      text: '작은 별 한 소절을 미리 만들어 뒀어요.\n이 노트로 편집 기능을 익혀 볼게요.',
+      panel: 'top',
+      pulse: false,
+      optional: true,
+      nextLabel: '시작하기',
+    },
+    {
+      title: '줄 메뉴',
+      text: '줄마다 있는 점 세 개 버튼에 편집 기능이 모여 있어요.\n첫 줄의 버튼을 눌러 주세요.',
+      panel: 'bottom',
+      target: `${TUT_LINE_NTH(0)} .row-menu-btn`,
+      advanceOn: 'rowmenu:open:0',
+    },
+    {
+      // 드롭다운은 body 직속 fixed — 백드롭은 열지 않는다(누르면 닫혀서 흐름이 끊김)
+      title: '줄 복사',
+      text: '같은 줄을 그대로 하나 더 만들 수 있어요.\n"현재 줄 복사"를 눌러 주세요.',
+      panel: 'bottom',
+      target: '.row-menu-dropdown',
+      pulse: '.row-menu-dropdown [data-action="duplicate"]',
+      advanceOn: 'rowmenu:duplicate',
+    },
+    {
+      // 복사본은 맨 아래에 붙는다(insertBefore(addBtn)) — 시드가 2줄이니 세 번째 줄
+      title: '줄 삭제',
+      text: '복사된 줄이 맨 아래에 생겼어요.\n이번엔 그 줄의 점 세 개 버튼을 눌러 주세요.',
+      panel: 'top',
+      target: `${TUT_LINE_NTH(2)} .row-menu-btn`,
+      advanceOn: 'rowmenu:open:2',
+    },
+    {
+      title: '줄 삭제',
+      text: '필요 없는 줄은 여기서 지워요.\n"이 줄 삭제"를 눌러 주세요.',
+      panel: 'bottom',
+      target: '.row-menu-dropdown',
+      pulse: '.row-menu-dropdown [data-action="delete"]',
+      advanceOn: 'rowmenu:delete',
+    },
+    {
+      title: '마디 정보',
+      text: '줄마다 빠르기와 박자를 따로 정할 수 있어요.\n두 번째 줄의 점 세 개 버튼을 눌러 주세요.',
+      panel: 'top',
+      target: `${TUT_LINE_NTH(1)} .row-menu-btn`,
+      advanceOn: 'rowmenu:open:1',
+    },
+    {
+      title: '마디 정보',
+      text: '"마디 정보 수정"을 눌러 주세요.',
+      panel: 'top',
+      target: '.row-menu-dropdown',
+      pulse: '.row-menu-dropdown [data-action="meter"]',
+      advanceOn: 'rowmenu:meter',
+    },
+    {
+      // 값 3개가 모두 맞아야 통과. 입력·스테퍼가 바뀔 때마다 'rowmeter:change'가 온다.
+      title: '값 바꾸기',
+      text: 'BPM은 90, 박자는 6/8, 마디 수는 1마디로 바꿔 주세요.',
+      panel: 'top',
+      target: '#row-meter-overlay .modal',
+      advanceOn: () => _meterModalIs({ bpm: '90', num: '6', den: '8', bars: 1 }),
+    },
+    {
+      title: '값 바꾸기',
+      text: '이 줄만 6/8박자가 됐어요.\n저장을 눌러 확인해 보세요.',
+      panel: 'top',
+      target: '#row-meter-save-btn',
+      advanceOn: 'rowmeter:saved',
+    },
+    {
+      title: '바뀐 박자 듣기',
+      text: '두 번째 줄만 빠르기와 박자가 달라졌어요.\n메트로놈을 켜 뒀으니 재생해서 끝까지 들어 보세요.',
+      panel: 'bottom',
+      target: '#play-all-btn',
+      // 박자 차이는 메트로놈이 있어야 확실히 들린다 — 꺼져 있으면 켜 준다
+      setup: () => {
+        if (typeof metronomeActive !== 'undefined' && !metronomeActive) window.toggleMetronome?.();
+      },
+      advanceOn: 'playall:done',
+    },
+    {
+      title: '되돌리기',
+      text: '편집을 되돌릴 수도 있어요.\n되돌리기 버튼을 눌러 방금 바꾼 마디 정보를 되돌려 보세요.',
+      panel: 'bottom',
+      target: '#project-undo-btn',
+      advanceOn: 'undo:done',
+    },
+    {
+      // 카포 전후를 비교하려면 먼저 원래 소리를 들어봐야 한다. 메트로놈은 방해되니 꺼 준다.
+      title: '카포',
+      text: '카포를 쓰면 같은 운지로 다른 키를 칠 수 있어요.\n먼저 첫 줄의 C를 눌러 지금 소리를 들어 보세요.',
+      panel: 'bottom',
+      target: `${TUT_LINE_NTH(0)} .chord-row-wrapper`,
+      pulse: `${TUT_LINE_NTH(0)} .chord-slot[data-chord-id]:not([data-chord-id=""])`,
+      setup: () => {
+        if (typeof metronomeActive !== 'undefined' && metronomeActive) window.toggleMetronome?.();
+      },
+      advanceOn: 'slot:played',
+    },
+    {
+      title: '카포',
+      text: '카포를 1로 올려 볼게요.\n+ 버튼을 눌러 주세요.',
+      panel: 'bottom',
+      target: '#capo-btn-up',
+      advanceOn: 'capo:1',
+    },
+    {
+      title: '카포',
+      text: '이제 같은 C를 다시 눌러 보세요.\n반음 높아진 소리가 나요.',
+      panel: 'bottom',
+      target: `${TUT_LINE_NTH(0)} .chord-row-wrapper`,
+      pulse: `${TUT_LINE_NTH(0)} .chord-slot[data-chord-id]:not([data-chord-id=""])`,
+      advanceOn: 'slot:played',
+    },
+    {
+      // 전환 확인 모달이 뜨므로 모달도 함께 열어둔다(취소를 눌러도 이 구간에 머무름)
+      title: '가로 모드',
+      text: '화면을 가로로 돌리면 한 줄에 더 많은 코드를 넣을 수 있어요.\n가로 버튼을 눌러 전환해 보세요.',
+      panel: 'bottom',
+      target: ['.col-toggle-btn[data-orient="landscape"]', '#orient-confirm-overlay'],
+      pulse: '.col-toggle-btn[data-orient="landscape"]',
+      advanceOn: 'orient:landscape',
+    },
+    {
+      title: '세로 모드',
+      text: '가로에서는 한 줄에 8칸까지 쓸 수 있어요.\n다시 세로로 돌아가 볼게요.',
+      panel: 'bottom',
+      target: ['.col-toggle-btn[data-orient="portrait"]', '#orient-confirm-overlay'],
+      pulse: '.col-toggle-btn[data-orient="portrait"]',
+      advanceOn: 'orient:portrait',
+    },
+    {
+      // 여기서 home.html?tab=projects 로 페이지가 바뀐다 — resume()이 이어받는다.
+      // 탭 전환 알림은 resume 이전에 이미 지나가므로, 이벤트가 아니라 현재 상태로 판정해야 한다.
+      title: '노트 목록',
+      text: '이제 노트를 정리하는 법을 알려드릴게요.\n왼쪽 위 버튼으로 목록으로 나가 주세요.',
+      panel: 'bottom',
+      target: '#back-btn',
+      advanceOn: () => !!document.getElementById('nav-projects')?.classList.contains('active'),
+    },
+    {
+      title: '노트 분류',
+      text: '노트는 최근 · 즐겨찾기 · 중요 세 가지로 나뉘어요.\n자주 보는 노트는 즐겨찾기로 올려두면 찾기 편해요.',
+      panel: 'bottom',
+      pulse: false,
+      optional: true,
+      nextLabel: '다음',
+    },
+    {
+      title: '무료 플랜',
+      text: '무료 플랜은 노트를 3개까지 쓸 수 있어요.\n구독이 끝나면 중요로 지정한 노트만 잠기지 않아요.',
+      panel: 'bottom',
+      pulse: false,
+      optional: true,
+      nextLabel: '다음',
+    },
+    {
+      // 목록은 중요 → 즐겨찾기 → 최근 순이라 첫 항목이 "작은 별"이 아니다. 이름으로 지목한다.
+      title: '중요로 지정',
+      text: '아끼는 노트는 중요로 옮겨 두세요.\n"작은 별" 오른쪽 점 세 개 버튼을 눌러 주세요.',
+      panel: 'bottom',
+      target: `${TUT_NOTE_MAIN} .projects-item-kebab`,
+      // 액션은 항목의 show-actions 클래스로 펼쳐진다 (offsetParent로는 판정 안 됨)
+      advanceOn: () => !!document.querySelector(`${TUT_NOTE_MAIN}.show-actions`),
+    },
+    {
+      title: '중요로 지정',
+      text: '왕관 버튼을 누르면 중요로 옮겨져요.\n눌러 보세요.',
+      panel: 'bottom',
+      target: `${TUT_NOTE_MAIN} [data-act="important"]`,
+      advanceOn: 'important:true',
+    },
+    {
+      title: 'STEP4 완료',
+      text: '노트를 다루는 방법을 모두 익혔어요!\n이제 직접 곡을 만들어 보세요.',
+      panel: 'top',
+      pulse: false,
+      optional: true,
+      nextLabel: '보상 받기',
+    },
   ];
 
   // 스텝(챕터) 목록. no는 DB의 tutorial_step 값과 1:1로 대응한다.
@@ -365,6 +688,18 @@ const Tutorial = (() => {
       enter:      () => window.switchTab?.('projects', true),
       doneTitle: 'STEP 3 완료!',
       doneDesc:  '노트를 만들어 곡 한 줄을 완성했어요.\n보상을 받아 가세요.',
+      nextLabel: '노트 더 알아보기',
+    },
+    {
+      no: 4,
+      steps: STEP4_STEPS,
+      // 시드 노트는 user_project.js가 만든다(라이브러리 변환 로직이 그쪽에 있음).
+      // ?tutseed=1로 넘기면 거기서 생성·저장하고 편집 모드로 열어준다.
+      onStart:    () => window.tutorialSandboxStart?.(),
+      enterFirst: () => { location.href = 'user_project.html?tutseed=1'; },
+      enter:      () => { location.href = 'user_project.html?tutseed=1'; },
+      doneTitle: 'STEP 4 완료!',
+      doneDesc:  '노트를 자유롭게 다룰 수 있게 됐어요.\n보상을 받아 가세요.',
       nextLabel: '다음 스텝 계속하기',
     },
   ];
@@ -677,12 +1012,54 @@ const Tutorial = (() => {
   }
 
   // ── 구간 렌더 ──────────────────────────────────────────────
+  // ── 펄스 링 ────────────────────────────────────────────────
+  // 대상에 box-shadow를 직접 걸면 조상의 overflow:hidden에 잘린다(팔레트·줄 목록 등).
+  // body 직속 fixed 요소로 그리고 매 프레임 대상 rect를 따라가게 해서 잘림을 원천 차단.
+  let _ringRaf = null;
+  let _ringEls = [];
+
+  function _clearRings() {
+    if (_ringRaf) { cancelAnimationFrame(_ringRaf); _ringRaf = null; }
+    _ringEls.forEach(el => el.remove());
+    _ringEls = [];
+  }
+
+  function _startRings(selectors) {
+    _clearRings();
+    if (!selectors.length) return;
+
+    const items = selectors.map(sel => {
+      const ring = document.createElement('div');
+      ring.className = 'tut-ring';
+      document.body.appendChild(ring);
+      _ringEls.push(ring);
+      return { sel, ring };
+    });
+
+    const follow = () => {
+      items.forEach(({ sel, ring }) => {
+        const el = document.querySelector(sel);
+        const r  = el?.getBoundingClientRect();
+        if (!r || r.width < 1 || r.height < 1) { ring.style.display = 'none'; return; }
+        ring.style.display      = '';
+        ring.style.left         = r.left   + 'px';
+        ring.style.top          = r.top    + 'px';
+        ring.style.width        = r.width  + 'px';
+        ring.style.height       = r.height + 'px';
+        ring.style.borderRadius = getComputedStyle(el).borderRadius; // 대상 모양 그대로
+      });
+      _ringRaf = requestAnimationFrame(follow);
+    };
+    follow();
+  }
+
   function _clearTarget() {
     document.querySelectorAll('.tut-target').forEach(el => {
       el.classList.remove('tut-target');
       if (el.dataset.tutPos) { el.style.position = ''; delete el.dataset.tutPos; }
     });
     document.querySelectorAll('.tut-allow').forEach(el => el.classList.remove('tut-allow'));
+    _clearRings();
   }
 
   // z-index는 static 요소엔 안 먹는다. static일 때만 relative를 인라인으로 부여 —
@@ -703,12 +1080,15 @@ const Tutorial = (() => {
     // 목록·휠피커처럼 스크롤이 필요한 대상이 실제로 움직이게 한다.
     _targetSels(step).forEach(sel => document.querySelector(sel)?.classList.add('tut-allow'));
     if (step.pulse === false) return;
-    // pulse에 셀렉터를 주면 그 대상만, 없으면 허용 대상 전체에 펄스
-    const pulseSels = typeof step.pulse === 'string' ? [step.pulse] : _targetSels(step);
+    // pulse에 셀렉터(또는 배열)를 주면 그 대상만, 없으면 허용 대상 전체에 펄스
+    const pulseSels = step.pulse
+      ? (Array.isArray(step.pulse) ? step.pulse : [step.pulse])
+      : _targetSels(step);
     pulseSels.forEach(sel => {
       const el = document.querySelector(sel);
       if (el) _markTarget(el);
     });
+    _startRings(pulseSels);
   }
 
   // 앱 쪽에서 목록을 다시 그린 뒤 호출 — 교체된 DOM에 하이라이트를 되살린다
@@ -803,6 +1183,9 @@ const Tutorial = (() => {
     _running = true;
     _installGuard();
     _render();
+    // 페이지 로드 중 이미 지나간 변화(탭 전환 등)를 놓치지 않도록 현재 상태를 한 번 재평가.
+    // 함수형 advanceOn을 쓰는 구간은 여기서 곧바로 통과된다.
+    notify('resumed');
     return true;
   }
 
@@ -873,14 +1256,16 @@ const Tutorial = (() => {
     if (!_steps().length) { _returnHomeAndRelease(); return; }
     _chap().onStart?.();
 
+    _idx     = 0;
+    _running = true;
+    _runSave(); // 이동 전에 위치를 남긴다 — enterFirst가 페이지를 옮기면 resume()이 이어받는다
+
     // 앞 스텝이 끝난 화면(에디터 등)에 머물러 있으므로 0번 구간이 있는 화면으로 되돌린다
     if (_chap().enterFirst) {
       await _chap().enterFirst();
       await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
     }
 
-    _idx     = 0;
-    _running = true;
     _installGuard();
     _render();
   }
@@ -893,14 +1278,29 @@ const Tutorial = (() => {
   }
 
   // 앱 쪽에서 상태 변화를 알려주는 창구 (예: notify('view:editor'))
+  // advanceOn은 문자열(이벤트 일치) 또는 함수(조건 판정)를 받는다.
+  // 함수형은 "가사가 정확히 이 문장인가"처럼 값까지 봐야 하는 구간에 쓴다.
   function notify(evt) {
     if (!_running) return;
-    if (_steps()[_idx]?.advanceOn === evt) next();
+    const cond = _steps()[_idx]?.advanceOn;
+    if (!cond) return;
+    if (typeof cond === 'function' ? cond(evt) : cond === evt) next();
   }
 
   // 캔버스 클릭 허용 칸 — home.js 클릭 핸들러가 게이트로 쓴다.
   function canvasCell() {
     return _running ? (_steps()[_idx]?.canvasCell || null) : null;
+  }
+
+  // 코드슬롯 드롭 허용 칸 {line, slot} — user_project.js의 placeChordInSlot이 게이트로 쓴다.
+  function slotCell() {
+    return _running ? (_steps()[_idx]?.slotCell || null) : null;
+  }
+
+  // 이 구간에서 페이지 이탈을 막아야 하는가.
+  // 드래그를 유도하는 구간에서 실수로 탭했을 때 에디터로 나가버리는 걸 방지한다.
+  function blocksNav() {
+    return _running && !!_steps()[_idx]?.noNav;
   }
 
   // 시작 모달에서든 스텝 중간에서든 동일 경로. 진행도(step)는 보존한다.
@@ -930,6 +1330,10 @@ const Tutorial = (() => {
     const steps  = _steps();
     const target = Math.max(0, Math.min(idx, steps.length - 1));
 
+    _idx     = target;
+    _running = true;
+    _runSave(); // 이동 전에 위치 저장 (enter가 페이지를 옮기는 챕터 대비)
+
     // 해당 구간이 있는 화면으로 먼저 이동 — 캔버스·목록이 있어야 좌표가 잡힌다
     const enterFn = target > 0 ? _chap().enter : _chap().enterFirst;
     if (enterFn) {
@@ -942,8 +1346,6 @@ const Tutorial = (() => {
       steps[i].simulate?.forEach(cell => window.tutorialTapDot?.(cell.s, cell.f));
     }
 
-    _idx     = target;
-    _running = true;
     _installGuard();
     _render();
   }
@@ -957,7 +1359,8 @@ const Tutorial = (() => {
   return {
     loadState, getState, setStep, shouldAutoStart,
     runHomeEntryFlow, openStartModal, closeStartModal,
-    startFromModal, start, startAt, resume, isRunning, next, notify, repaint, canvasCell, skip, reset,
+    startFromModal, start, startAt, resume, isRunning, next, notify, repaint,
+    canvasCell, slotCell, blocksNav, skip, reset,
     continueNext, closeDoneModal,
     CHAPTERS,
   };

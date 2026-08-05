@@ -885,6 +885,7 @@ function undoLastAction() {
   updateProject(p);
   renderProjectView(_undoProjectId);
   _refreshUndoBtn();
+  window.Tutorial?.notify('undo:done'); // 재렌더 뒤에 알림
 }
 
 function _refreshUndoBtn() {
@@ -1430,6 +1431,7 @@ function toggleMetronome() {
   analytics.track('metronome_toggled', { active: metronomeActive });
   const btn = document.getElementById('metronome-btn');
   if (btn) btn.classList.toggle('active', metronomeActive);
+  window.Tutorial?.notify(`metronome:${metronomeActive ? 'on' : 'off'}`);
   if (metronomeActive && playbackActive) {
     // 재생 중에 켜면 즉시 싱크 시작
     startMetronome(true);
@@ -1548,7 +1550,8 @@ async function playAll(projectId, startIndex = 0) {
   let _playheadLineId = null;
   async function next() {
     if (!playbackActive) { stopPlayAll(); return; }
-    if (i >= orderedSlots.length) { stopPlayAll(); return; }
+    // 끝까지 재생됨(유저가 멈춘 게 아님) — 튜토리얼 완주 판정용
+    if (i >= orderedSlots.length) { stopPlayAll(); window.Tutorial?.notify('playall:done'); return; }
     const item = orderedSlots[i++];
 
     const slotEl = document.querySelector(`[data-line-id="${item.lineId}"][data-slot-idx="${item.slotIdx}"]`);
@@ -1684,6 +1687,7 @@ async function switchOrient(projectId, mode) {
 
     await _applyOrientLock(mode); // 기기 실제 회전 요청이 반영될 시간 확보
     renderProjectView(projectId); // 레이아웃 재빌드는 가림막 뒤에서 진행
+    window.Tutorial?.notify(`orient:${mode}`); // 재렌더 뒤에 알림
   } finally {
     // 회전 애니메이션이 실제로 끝날 여유시간 확보 후 가림막 제거
     setTimeout(hideCover, 450);
@@ -1935,21 +1939,34 @@ function renderProjectView(projectId) {
   capoLabel.className = 'capo-label';
   capoLabel.textContent = 'Capo';
   const capoDown = document.createElement('button');
+  capoDown.id = 'capo-btn-down'; // 튜토리얼이 지목할 수 있도록
   capoDown.className = 'capo-btn';
   capoDown.textContent = '−';
   const capoVal = document.createElement('span');
+  capoVal.id = 'capo-value';
   capoVal.className = 'capo-value';
   capoVal.textContent = project.capo ?? 0;
   const capoUp = document.createElement('button');
+  capoUp.id = 'capo-btn-up';
   capoUp.className = 'capo-btn';
   capoUp.textContent = '+';
   capoDown.onclick = () => {
     const p = getProject(projectId);
-    if (p && (p.capo ?? 0) > 0) { p.capo = (p.capo ?? 0) - 1; updateProject(p); capoVal.textContent = p.capo; analytics.track('capo_changed', { value: p.capo, direction: 'down', project_id: projectId }); }
+    if (p && (p.capo ?? 0) > 0) {
+      p.capo = (p.capo ?? 0) - 1; updateProject(p); capoVal.textContent = p.capo;
+      analytics.track('capo_changed', { value: p.capo, direction: 'down', project_id: projectId });
+      _refreshRowMetaFor(projectId);
+      window.Tutorial?.notify(`capo:${p.capo}`);
+    }
   };
   capoUp.onclick = () => {
     const p = getProject(projectId);
-    if (p && (p.capo ?? 0) < 12) { p.capo = (p.capo ?? 0) + 1; updateProject(p); capoVal.textContent = p.capo; analytics.track('capo_changed', { value: p.capo, direction: 'up', project_id: projectId }); }
+    if (p && (p.capo ?? 0) < 12) {
+      p.capo = (p.capo ?? 0) + 1; updateProject(p); capoVal.textContent = p.capo;
+      analytics.track('capo_changed', { value: p.capo, direction: 'up', project_id: projectId });
+      _refreshRowMetaFor(projectId);
+      window.Tutorial?.notify(`capo:${p.capo}`);
+    }
   };
   capoWrap.append(capoLabel, capoDown, capoVal, capoUp);
   row2Controls.appendChild(capoWrap);
@@ -1969,7 +1986,11 @@ function renderProjectView(projectId) {
     const val = Math.min(240, Math.max(40, parseInt(bpmInput.value) || 120));
     bpmInput.value = val;
     const p = getProject(projectId);
-    if (p) { p.bpm = val; updateProject(p); analytics.track('bpm_changed', { value: val, project_id: projectId }); }
+    if (p) {
+      p.bpm = val; updateProject(p);
+      analytics.track('bpm_changed', { value: val, project_id: projectId });
+      _refreshRowMetaFor(projectId); // 줄의 ♩= 배지 즉시 반영
+    }
   });
   bpmWrap.append(bpmLabel, bpmInput);
   row2Controls.appendChild(bpmWrap);
@@ -2170,6 +2191,7 @@ function buildChordArea(line, project, editMode = true) {
           } else {
             playChord(chord, getRowCapo(getProject(project.id) || project, line.id));
             analytics.track('project_chord_played', { chord_name: chord.name, project_id: project.id });
+            window.Tutorial?.notify('slot:played');
           }
         });
       }
@@ -2200,6 +2222,7 @@ function buildChordArea(line, project, editMode = true) {
           } else {
             playChord(chord, getRowCapo(getProject(project.id) || project, line.id));
             analytics.track('project_chord_played', { chord_name: chord.name, project_id: project.id });
+            window.Tutorial?.notify('slot:played');
           }
         });
 
@@ -3015,17 +3038,28 @@ function saveAllLines(projectId, linesEl) {
   p.updatedAt = Date.now();
   updateProject(p);
   _refreshRowMeta(linesEl, p);
+  window.Tutorial?.notify('lines:saved'); // 가사·줄 구성 변화 알림 (튜토리얼 조건 판정용)
 }
 
 // 줄이 추가·삭제·이동되면 "앞줄과 값이 다른가" 판정이 전부 달라진다.
 // buildProjectLine은 만들어질 당시의 앞줄만 알기 때문에, 새 줄이 기본값(4/4·전역 BPM)으로
 // 생겨도 표기가 없어서 앞줄 값이 이어지는 것처럼 오해하게 된다.
 // arrangement가 DOM과 동기화된 저장 직후에 박자 레일·BPM/카포 배지를 전부 다시 계산한다.
+// 헤더에서 노트 전역 BPM·카포를 바꿨을 때 줄 배지를 즉시 갱신 (재렌더 없이)
+function _refreshRowMetaFor(projectId) {
+  const linesEl = document.getElementById('project-lines-' + projectId);
+  const p = getProject(projectId);
+  if (linesEl && p) _refreshRowMeta(linesEl, p);
+}
+
 function _refreshRowMeta(linesEl, project) {
   let prevMeter = null, prevBpm = null, prevCapo = null;
 
   linesEl.querySelectorAll('.project-line').forEach((div, i) => {
     const line    = project.arrangement.find(l => l.id === div.dataset.lineId);
+    // arrangement에 아직 없는 div(막 삽입된 줄 등)는 건드리지 않는다.
+    // 여기서 기본값으로 다시 그리면 방금 지정한 박자 표기가 지워진다.
+    if (!line) return;
     const isFirst = i === 0;
 
     // 박자 레일
@@ -3202,7 +3236,10 @@ function _ensureRowMenuEl() {
     <button data-action="delete" class="danger">이 줄 삭제</button>`;
   d.addEventListener('click', e => {
     const btn = e.target.closest('[data-action]');
-    if (btn) _rowMenuAction(btn.dataset.action);
+    if (!btn) return;
+    _rowMenuAction(btn.dataset.action);
+    // 동작이 끝난 뒤(DOM 반영 후) 알려야 튜토리얼 조건 판정이 맞는다
+    window.Tutorial?.notify(`rowmenu:${btn.dataset.action}`);
   });
   document.body.appendChild(d);
   _rowMenuEl = d;
@@ -3239,6 +3276,10 @@ function openRowMenu(e, lineId, projectId) {
   // 마지막 줄이면 "이 줄 삭제" 비활성화
   const lines = _rowMenuLinesEl?.querySelectorAll('.project-line');
   _rowMenuEl.querySelector('[data-action="delete"]').disabled = (lines?.length ?? 0) <= 1;
+
+  // 몇 번째 줄의 메뉴가 열렸는지까지 알려야 튜토리얼이 "첫 줄"을 지정할 수 있다
+  const rowIdx = Array.prototype.indexOf.call(lines || [], lineDiv);
+  window.Tutorial?.notify(`rowmenu:open:${rowIdx}`);
 }
 
 function _closeRowMenu() {
@@ -3344,11 +3385,13 @@ function setRowMeterBars(bars) {
   document.querySelectorAll('#row-meter-bars-toggle input[type="checkbox"]').forEach(cb => {
     cb.checked = Number(cb.dataset.bars) === bars;
   });
+  window.Tutorial?.notify('rowmeter:change');
 }
 
 function _rowMeterRenderSig() {
   document.getElementById('row-meter-num-val').value = String(_rowMeterNum);
   document.getElementById('row-meter-den-val').textContent = String(_rowMeterDen);
+  window.Tutorial?.notify('rowmeter:change');
 }
 
 // 카포 스테퍼 (스티키 바 capo-control과 동일 규칙: 0~12)
@@ -3393,8 +3436,14 @@ function openRowMeterModal(projectId, lineId) {
   bpmInputEl.onblur = () => { bpmInputEl.placeholder = bpmDefaultLabel; };
   _rowMeterRenderSig();
 
+  // addEventListener면 모달을 열 때마다 쌓이므로 프로퍼티 할당으로 덮어쓴다
+  bpmInputEl.oninput = () => window.Tutorial?.notify('rowmeter:change');
+
   const numInputEl = document.getElementById('row-meter-num-val');
-  numInputEl.oninput = () => { _rowMeterNum = parseInt(numInputEl.value, 10) || 1; };
+  numInputEl.oninput = () => {
+    _rowMeterNum = parseInt(numInputEl.value, 10) || 1;
+    window.Tutorial?.notify('rowmeter:change');
+  };
   numInputEl.onblur = () => {
     _rowMeterNum = Math.max(1, Math.min(16, _rowMeterNum));
     numInputEl.value = String(_rowMeterNum);
@@ -3470,6 +3519,7 @@ function confirmRowMeterSave() {
   const linesEl = document.getElementById('project-lines-' + projectId);
   if (linesEl) _pendingEditRestore = { scrollTop: linesEl.scrollTop };
   renderProjectView(projectId); // 슬롯 수·그리드·재생 타이밍이 전부 바뀌므로 전체 재렌더
+  window.Tutorial?.notify('rowmeter:saved'); // 재렌더 뒤에 알림
 }
 
 // 아코디언 접기/펼치기 — 전체 리렌더 없이 body만 접어서 부드럽게 처리
@@ -3502,6 +3552,7 @@ function buildChordPalette(project, editMode = true) {
 
   if (editMode) {
     const addBtn = document.createElement('div');
+    addBtn.id = 'palette-add-btn'; // 튜토리얼이 지목할 수 있도록
     addBtn.className = 'chord-palette-add';
     addBtn.title = '코드 추가';
     addBtn.innerHTML = '+';
@@ -3629,6 +3680,7 @@ function createPaletteItem(chord, idx, projectId, editMode = true) {
   const thumb = document.createElement('div');
   thumb.className = 'chord-palette-item';
   thumb.dataset.chordId = chord.id;
+  thumb.dataset.chordName = chord.name; // 튜토리얼이 특정 코드를 지목할 때 사용(id는 매번 달라짐)
   thumb.dataset.idx = idx;
 
   const cv = document.createElement('canvas');
@@ -3682,6 +3734,7 @@ function createPaletteItem(chord, idx, projectId, editMode = true) {
   thumb.addEventListener('mousemove', () => { mouseDragged = true; });
   thumb.addEventListener('click', async e => {
     if (mouseDragged) return;
+    if (window.Tutorial?.blocksNav?.()) return; // 드래그 유도 구간 — 실수 탭으로 에디터로 나가지 않게
     if (editMode) {
       _saveEditReturnState(projectId);
       await stopPlayAll({ wait: true });
@@ -3797,6 +3850,14 @@ function placeChordInSlot(projectId, rowId, slotIdx, chordId) {
   if (!p) return;
   const row = p.arrangement.find(r => r.id === rowId);
   if (!row) return;
+
+  // 튜토리얼이 특정 칸만 지정했으면 그 칸 외 드롭은 무시.
+  // (HTML5 드래그 이벤트는 터치 가드를 안 타므로 여기서 막아야 한다)
+  const _tutSlot = window.Tutorial?.slotCell?.();
+  if (_tutSlot) {
+    const rowIdx = p.arrangement.findIndex(r => r.id === rowId);
+    if (rowIdx !== _tutSlot.line || slotIdx !== _tutSlot.slot) return;
+  }
   pushUndoSnapshot(projectId);
   if (!row.slots) row.slots = new Array(8).fill(null);
   row.slots[slotIdx] = chordId;
@@ -3805,6 +3866,8 @@ function placeChordInSlot(projectId, rowId, slotIdx, chordId) {
   const chord = p.chords.find(c => c.id === chordId);
   analytics.track('chord_slot_placed', { project_id: projectId, chord_name: chord?.name ?? '' });
   reRenderChordArea(rowId, row, p);
+  // 재렌더 뒤에 알려야 한다 — 튜토리얼이 DOM(슬롯의 data-chord-id)을 보고 판정하므로
+  window.Tutorial?.notify('slot:placed');
   // 드롭 애니메이션
   requestAnimationFrame(() => {
     const slot = document.querySelector(`.project-line[data-line-id="${rowId}"] .chord-slot[data-slot-idx="${slotIdx}"]`);
@@ -3901,11 +3964,13 @@ function openPaletteDictionary(projectId) {
   document.getElementById('palette-dict-modal').classList.remove('hidden');
   lucide.createIcons();
   analytics.track('palette_dict_opened', { project_id: projectId });
+  window.Tutorial?.notify('palettedict:open');
 }
 
 function closePaletteDictionary() {
   closeVoicingModal();
   document.getElementById('palette-dict-modal').classList.add('hidden');
+  window.Tutorial?.notify('palettedict:close');
 }
 
 // "에디터로" — 기존 + 버튼의 에디터 이동 로직 이식
@@ -3971,6 +4036,7 @@ function renderLibCards(root) {
     const dispName = useFlat ? rep.flatName : rep.name;
     const multi    = idxList.length > 1;
     html += `<div class="lib-card${multi ? ' lib-card-multi' : ''}"
+                  data-chord="${sharpName}"
                   onclick="onLibCardClick(event,'${sharpName.replace(/\\/g,'\\\\').replace(/'/g,"\\'")}')">
                <canvas class="lib-card-canvas" data-gidx="${gi}"
                        width="${LIB_MINI_W}"
@@ -4005,6 +4071,7 @@ function onLibCardClick(event, sharpName) {
     return;
   }
   openVoicingModal(sharpName, cardEl);
+  window.Tutorial?.notify(`libcard:${sharpName}`);
 }
 
 // 선택한 코드 다이어그램이 팔레트로 날아가는 애니메이션 (추가 인식 피드백)
@@ -4097,9 +4164,10 @@ function _renderVoicingGrid(sharpName) {
     .map((e, i) => ({ e, i }))
     .filter(({ e }) => e.name === sharpName);
 
-  grid.innerHTML = filtered.map(({ e, i }) => {
+  grid.innerHTML = filtered.map(({ e, i }, pos) => {
     const dispName = useFlat ? e.flatName : e.name;
-    return `<div class="lib-card"
+    // data-vpos: 코드 그룹 안에서 몇 번째 보이싱인지 (전역 인덱스는 코드마다 달라 튜토리얼이 못 쓴다)
+    return `<div class="lib-card" data-vpos="${pos}"
                  onclick="event.stopPropagation(); onVoicingPick(event, ${i});">
                <canvas class="lib-card-canvas" data-vidx="${i}"
                        width="${LIB_MINI_W}"
@@ -4139,6 +4207,97 @@ function toggleLibAccidental() {
 
 // 라이브러리 엔트리 → 프로젝트 코드 객체 변환 후 추가 (home.js libSaveToProject 미러)
 function _pdAddEntryToProject(entry) {
+  const chordData = libEntryToChord(entry);
+  if (!chordData) return;
+  const p = getProject(_pdProjectId);
+  if (!p) return;
+  p.chords.push(chordData);
+  p.updatedAt = Date.now();
+  updateProject(p);
+  reRenderThumbList(_pdProjectId);
+  analytics.track('chord_added', { chord_name: chordData.name, project_id: _pdProjectId, source: 'palette_dict' });
+  window.Tutorial?.notify(`chordadded:${entry.name}`);
+}
+
+// ── 튜토리얼 시드 노트 ────────────────────────────────────────
+// STEP4는 완성된 노트에서 시작한다(작은 별 1절). 샌드박스에만 쓰이므로 실제 노트에 영향 없음.
+// 세로모드는 8칸 배열 중 짝수 인덱스(0·2·4·6)만 표시되므로 그 자리에 배치한다.
+const TUT_SEED_LINES = [
+  { text: '반짝반짝 작은 별', chords: ['C', null, 'F', 'C'] },
+  { text: '아름답게 비치네', chords: ['F', 'C',  'G', 'C'] },
+];
+// 어떤 보이싱을 쓸지 — 코드명 → chordsLibrary 그룹 안 순번
+const TUT_SEED_VOICING = {
+  C: 0, // Open  x32010
+  F: 1, // Open  xx3211 (약식)
+  G: 0, // Open  320003
+};
+
+function _tutFindEntry(name, pos) {
+  const list = ((window.chordsLibrary || {})[name[0]] || []).filter(e => e.name === name);
+  return list[pos] ?? list[0] ?? null;
+}
+
+// 튜토리얼 시드 노트 이름 — 목록에서 지목할 때도 쓰이므로 한 곳에서만 정의
+const TUT_SEED_MAIN_NAME   = '작은 별';
+const TUT_SEED_PINNED_NAME = '연습 중인 곡';
+
+// STEP4 시작 시 깔아둘 노트 목록.
+//   [0] 작은 별   — 최근(기본). 편집 실습 대상
+//   [1] 연습 중인 곡 — 즐겨찾기. 노트 분류를 설명하려면 각 칸에 예시가 있어야 한다
+// 중요 칸은 비워둔다 — 마지막 구간에서 유저가 직접 옮겨 채운다.
+function buildTutorialSeedProjects() {
+  const main = buildTutorialSeedProject();
+  const now  = Date.now();
+  const pinned = {
+    id: genId(),
+    name: TUT_SEED_PINNED_NAME,
+    pinned: true, pinnedOrder: 1,
+    important: false, importantOrder: 0,
+    capo: 0,
+    bpm: 120,
+    createdAt: now - 1000,
+    updatedAt: now - 1000, // 작은 별이 최근 목록 위로 오도록 살짝 과거로
+    chords: [],
+    arrangement: [{ id: genId(), text: '', slots: new Array(8).fill(null) }],
+  };
+  return [main, pinned];
+}
+
+// 작은 별 1절이 완성된 노트를 만들어 반환 (저장은 호출부에서)
+function buildTutorialSeedProject() {
+  const chords = {};
+  ['C', 'F', 'G'].forEach(name => {
+    const chord = libEntryToChord(_tutFindEntry(name, TUT_SEED_VOICING[name]));
+    if (chord) chords[name] = chord;
+  });
+
+  const arrangement = TUT_SEED_LINES.map(line => {
+    const slots = new Array(8).fill(null);
+    line.chords.forEach((name, i) => {
+      if (name && chords[name]) slots[i * 2] = chords[name].id; // 세로 표시 칸 = 짝수 인덱스
+    });
+    return { id: genId(), text: line.text, slots };
+  });
+
+  return {
+    id: genId(),
+    name: TUT_SEED_MAIN_NAME,
+    pinned: false, pinnedOrder: 0,
+    important: false, importantOrder: 0,
+    capo: 0,
+    bpm: 100,
+    createdAt: Date.now(),
+    updatedAt: Date.now(),
+    chords: Object.values(chords),
+    arrangement,
+  };
+}
+
+// 라이브러리 엔트리 → 노트에 담기는 코드 객체. 변환만 하고 저장은 하지 않는다.
+// (팔레트 추가와 튜토리얼 시드 노트가 같은 규칙을 쓰도록 분리)
+function libEntryToChord(entry) {
+  if (!entry) return null;
   const useFlat    = accidental === 'flat';
   const dispName   = useFlat ? entry.flatName : entry.name;
   // 에디터 "슬롯2 = fretNumber" 모델 — pattern: 라벨 r+1/offset r-1, static: 라벨 r/offset r-2 (라벨 최소 2)
@@ -4190,13 +4349,7 @@ function _pdAddEntryToProject(entry) {
     },
   };
 
-  const p = getProject(_pdProjectId);
-  if (!p) return;
-  p.chords.push(chordData);
-  p.updatedAt = Date.now();
-  updateProject(p);
-  reRenderThumbList(_pdProjectId);
-  analytics.track('chord_added', { chord_name: chordData.name, project_id: _pdProjectId, source: 'palette_dict' });
+  return chordData;
 }
 
 // 코드명 → 구성요소 파싱 (home.js parseChordNameToComponents verbatim 복제 — 수정 금지)
@@ -4600,7 +4753,19 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   // URL ?id= 파라미터로 프로젝트 자동 렌더링
   const params = new URLSearchParams(location.search);
-  const projectIdParam = params.get('id');
+  let projectIdParam = params.get('id');
+
+  // 튜토리얼 STEP4 진입 — 작은 별 1절이 완성된 노트를 즉석에서 만들어 그걸로 시작한다.
+  // 샌드박스에만 저장되므로 실제 노트에는 영향이 없고, STEP3 진행 여부와도 무관하다.
+  if (params.get('tutseed')) {
+    const seeds = buildTutorialSeedProjects();
+    saveProjects(seeds);
+    const seed = seeds[0]; // 작은 별 — 편집 실습 대상
+    projectIdParam = seed.id;
+    isEditMode = true; // 편집 모드로 열어 바로 이어갈 수 있게
+    history.replaceState(null, '', location.pathname + '?id=' + seed.id);
+  }
+
   const _allProjects = loadProjects();
   const _paramProject = projectIdParam ? _allProjects.find(p => p.id === projectIdParam) : null;
   if (projectIdParam && _paramProject && isProjectLocked(_paramProject, _allProjects)) {

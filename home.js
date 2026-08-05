@@ -2564,6 +2564,7 @@ function _renderProjectsSection(container, label, projects, showDivider = true, 
     const item = document.createElement('div');
     item.className = 'projects-item';
     item.dataset.id = project.id;
+    item.dataset.name = project.name; // 튜토리얼 지목용 (id는 생성할 때마다 달라짐)
     const isLocked = locked && !project.important;
     if (isLocked) item.classList.add('locked');
 
@@ -2595,6 +2596,7 @@ function _renderProjectsSection(container, label, projects, showDivider = true, 
     pinBtn.addEventListener('pointerup', (e) => { e.stopPropagation(); togglePin(project.id); });
 
     const starBtn = document.createElement('button');
+    starBtn.dataset.act = 'important'; // 튜토리얼 지목용
     starBtn.innerHTML = '<i data-lucide="chess-queen"></i>';
     starBtn.title = project.important ? '중요 해제' : '중요';
     if (project.important) starBtn.classList.add('important');
@@ -2617,6 +2619,7 @@ function _renderProjectsSection(container, label, projects, showDivider = true, 
         if (el !== item) el.classList.remove('show-actions');
       });
       item.classList.toggle('show-actions');
+      window.Tutorial?.notify('noteactions:toggle');
     });
 
     item.appendChild(name);
@@ -2780,6 +2783,7 @@ function toggleImportant(projectId) {
   }
   saveProjects(projects);
   renderProjectsList();
+  window.Tutorial?.notify(`important:${p.important}`); // 목록 재렌더 뒤에 알림
 }
 
 function reorderImportant(dragId, targetId) {

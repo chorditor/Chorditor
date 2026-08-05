@@ -13439,6 +13439,14 @@ body.tut-lock .tut-allow * {
    레이아웃을 깨뜨리기 때문. static인 경우에만 JS가 인라인으로 relative를 부여한다. */
 .tut-target {
   z-index: 1101;
+}
+
+/* 펄스 링 — JS가 body 직속에 만들어 대상 rect를 매 프레임 따라간다.
+   대상에 직접 box-shadow를 걸면 조상의 overflow:hidden에 잘려서 이렇게 분리했다. */
+.tut-ring {
+  position: fixed;
+  pointer-events: none;
+  z-index: 1900;
   animation: tut-pulse 1.4s ease-in-out infinite;
 }
 @keyframes tut-pulse {
