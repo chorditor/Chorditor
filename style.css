@@ -4163,7 +4163,14 @@ canvas {
 }
 
 /* CTA 버튼 */
-.plan-card-btn { width: 100%; }
+/* 결제 CTA — 기본 .btn(약 36px)을 그대로 쓰면 앱의 다른 주요 버튼보다 작다.
+   모달 CTA(.leave-practice-btn)·온보딩 시작 버튼과 같은 48px로 맞춘다. */
+.plan-card-btn {
+  width: 100%;
+  height: 48px;
+  font-size: 15px;
+  font-weight: 700;
+}
 
 /* ?�터 */
 .plan-modal-footer {
