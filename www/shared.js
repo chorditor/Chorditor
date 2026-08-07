@@ -6,7 +6,7 @@
 // ── 상수 ─────────────────────────────────────────────────────
 const SUPABASE_URL  = 'https://jbvkygeksohlysyvaoab.supabase.co';
 const SUPABASE_ANON = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Impidmt5Z2Vrc29obHlzeXZhb2FiIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzYzOTk5NjgsImV4cCI6MjA5MTk3NTk2OH0.6RSgChy0Yq0H2TJpZPSoMKQ2V-OYfR0XzE1aJBBZkXI';
-const APP_VERSION   = '1.3.2.1';
+const APP_VERSION   = '1.3.2.2';
 const SUPABASE_STORAGE_KEY = 'sb-jbvkygeksohlysyvaoab-auth-token';
 
 // ── Analytics SDK ─────────────────────────────────────────────
@@ -1453,26 +1453,6 @@ async function updateSupabasePlan(plan) {
 
 // ── 플랜 바텀시트 & 결제 함수 ────────────────────────────────
 
-let _purchaseConfirmResolve = null;
-
-function showPurchaseConfirm() {
-  return new Promise(resolve => {
-    _purchaseConfirmResolve = resolve;
-    try {
-      const stored = localStorage.getItem(SUPABASE_STORAGE_KEY);
-      const email = stored ? (JSON.parse(stored)?.user?.email ?? '') : '';
-      const emailEl = document.getElementById('purchase-confirm-email');
-      if (emailEl) emailEl.textContent = email || '(이메일 없음)';
-    } catch(e) {}
-    document.getElementById('purchase-confirm-modal')?.classList.remove('hidden');
-  });
-}
-
-function closePurchaseConfirm(confirmed) {
-  document.getElementById('purchase-confirm-modal')?.classList.add('hidden');
-  if (_purchaseConfirmResolve) { _purchaseConfirmResolve(!!confirmed); _purchaseConfirmResolve = null; }
-}
-
 function openBillingFaq() {
   analytics.track('billing_faq_opened', {});
   document.getElementById('billing-faq-modal')?.classList.remove('hidden');
@@ -1489,8 +1469,12 @@ async function purchasePlan(planId) {
     return;
   }
 
-  const confirmed = await showPurchaseConfirm();
-  if (!confirmed) return;
+  // 결제 계정 확인 모달은 제거함(1.3.2.2).
+  //   .modal-overlay(z-index 500) < .plan-sheet(5001) 이라 바텀시트에서 구독하기를 누르면
+  //   모달이 시트 뒤에 완전히 가려졌다. 유저 눈엔 아무 반응이 없고, 여기서 await로 응답을
+  //   기다리므로 결제 자체가 시작되지 않아 매출이 유실됐다.
+  //   안내 내용(Play 결제 계정 ≠ 앱 로그인 계정 주의)은 결제 흐름을 막을 만한 것이 아니라
+  //   모달을 되살리는 대신 그대로 삭제한다. → 구독하기 = 즉시 결제.
 
   analytics.track('plan_upgrade_started', { from_plan: getPlan(), to_plan: planId });
 
@@ -1720,22 +1704,6 @@ function _initPlanSheet() {
   <div class="plan-sheet-footer">
     <button class="btn btn-primary plan-card-btn" id="plan-sheet-btn-pro">구독하기</button>
     <span class="hint">구독은 Google Play에서 언제든지 취소할 수 있습니다.</span>
-  </div>
-</div>
-<div class="modal-overlay hidden" id="purchase-confirm-modal" onclick="closePurchaseConfirm(false)">
-  <div class="modal purchase-confirm-modal" onclick="event.stopPropagation()">
-    <div class="modal-header"><span class="modal-title">결제 전 확인</span></div>
-    <div class="purchase-confirm-body">
-      <div class="purchase-confirm-account">
-        <span class="purchase-confirm-label">결제 계정</span>
-        <span class="purchase-confirm-email" id="purchase-confirm-email">—</span>
-      </div>
-      <p class="purchase-confirm-notice">Google Play 결제 계정과 앱 로그인 계정이 다를 경우, 구독 취소·환불이 어려울 수 있습니다.</p>
-    </div>
-    <div class="modal-footer purchase-confirm-footer">
-      <button class="btn btn-ghost" onclick="closePurchaseConfirm(false)">취소</button>
-      <button class="btn btn-primary" onclick="closePurchaseConfirm(true)">결제 진행</button>
-    </div>
   </div>
 </div>
 <div class="modal-overlay hidden" id="billing-faq-modal" onclick="closeBillingFaq()">

@@ -68,26 +68,6 @@
 
   </div><!-- /app-shell -->
 
-  <!-- 결제 계정 확인 모달 -->
-  <div class="modal-overlay hidden" id="purchase-confirm-modal" onclick="closePurchaseConfirm(false)">
-    <div class="modal purchase-confirm-modal" onclick="event.stopPropagation()">
-      <div class="modal-header">
-        <span class="modal-title">결제 전 확인</span>
-      </div>
-      <div class="purchase-confirm-body">
-        <div class="purchase-confirm-account">
-          <span class="purchase-confirm-label">결제 계정</span>
-          <span class="purchase-confirm-email" id="purchase-confirm-email">—</span>
-        </div>
-        <p class="purchase-confirm-notice">Google Play 결제 계정과 앱 로그인 계정이 다를 경우, 구독 취소·환불이 어려울 수 있습니다.</p>
-      </div>
-      <div class="modal-footer purchase-confirm-footer">
-        <button class="btn btn-ghost" onclick="closePurchaseConfirm(false)">취소</button>
-        <button class="btn btn-primary" onclick="closePurchaseConfirm(true)">결제 진행</button>
-      </div>
-    </div>
-  </div>
-
   <!-- 결제 도움말 (FAQ) 모달 -->
   <div class="modal-overlay hidden" id="billing-faq-modal" onclick="closeBillingFaq()">
     <div class="modal billing-faq-modal" onclick="event.stopPropagation()">
