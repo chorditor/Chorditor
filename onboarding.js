@@ -95,30 +95,14 @@ async function _startOnboardingSteps() {
     _showStep('ob-step1');
     return;
   }
-  try {
-    const stored = localStorage.getItem(SUPABASE_STORAGE_KEY);
-    if (stored) {
-      const session = JSON.parse(stored);
-      const token   = session?.access_token;
-      const userId  = session?.user?.id;
-      if (token && userId) {
-        const resp = await fetch(
-          `${SUPABASE_URL}/rest/v1/subscriptions?user_id=eq.${userId}&select=persona`,
-          { headers: { 'apikey': SUPABASE_ANON, 'Authorization': `Bearer ${token}` } }
-        );
-        if (resp.ok) {
-          const rows = await resp.json();
-          if (rows.length > 0 && rows[0].persona) {
-            localStorage.setItem('onboarding_done', '1');
-            goToHome();
-            return;
-          }
-        }
-      }
-    }
-  } catch (_) {}
+  const { token, userId } = getStoredAuth();
+  if (token && userId && !(await checkNeedsOnboarding(token, userId))) {
+    localStorage.setItem('onboarding_done', '1');
+    goToHome();
+    return;
+  }
 
-  // persona 미입력 사용자 → 온보딩 스텝 표시
+  // persona 미입력(또는 확인 실패) → 온보딩 스텝 표시
   document.getElementById('onboarding-overlay')?.classList.add('hidden');
   _showStep('ob-step1');
 }
@@ -495,33 +479,23 @@ async function _restoreServerData() {
 //  persona 없음 → 바로 persona step 진입 (_obFlow='existing')
 async function _routeAuthedUser() {
   await _restoreServerData(); // 스피너 유지한 채 서버 데이터 복원 완료까지 대기
-  try {
-    const stored = localStorage.getItem(SUPABASE_STORAGE_KEY);
-    const session = JSON.parse(stored || '{}');
-    const token   = session?.access_token;
-    const userId  = session?.user?.id;
-    if (token && userId) {
-      const resp = await fetch(
-        `${SUPABASE_URL}/rest/v1/subscriptions?user_id=eq.${userId}&select=persona`,
-        { headers: { 'apikey': SUPABASE_ANON, 'Authorization': `Bearer ${token}` } }
-      );
-      if (resp.ok) {
-        const rows = await resp.json();
-        if (!(rows.length > 0 && rows[0].persona)) {
-          // 기존 유저 · persona 미입력 → 바로 persona step
-          _obFlow = 'existing';
-          document.getElementById('onboarding-loading')?.classList.add('hidden');
-          document.getElementById('onboarding-overlay')?.classList.add('hidden');
-          _showStep('ob-step1');
-          return;
-        }
-      }
-    }
-  } catch (e) {}
-  // persona 있음(또는 확인 실패) → 시작하기 welcome 표시
+  const { token, userId } = getStoredAuth();
+  if (token && userId && await checkNeedsOnboarding(token, userId)) {
+    // 기존 유저 · persona 미입력 → 바로 persona step
+    // (조회 실패 시에도 여기로 온다 — 통과시키면 프로필 없는 유저가 생긴다)
+    _obFlow = 'existing';
+    document.getElementById('onboarding-loading')?.classList.add('hidden');
+    document.getElementById('onboarding-overlay')?.classList.add('hidden');
+    _showStep('ob-step1');
+    return;
+  }
+  // persona 있음 → 시작하기 welcome 표시
   // 단, 공유 링크·푸시 딥링크로 들어온 경우엔 탭 기다리지 않고 바로 진입
   // (공유는 home.js가 pending code를 이어서 처리, 푸시는 goToHome이 목적지로 보냄)
-  if (sessionStorage.getItem(PENDING_SHARE_CODE_KEY) || _hasPushTarget()) { goToHome(); return; }
+  // 이 지름길은 로그인 + 온보딩 완료 유저 전용. 비로그인은 로그인 화면으로 보낸다.
+  if (token && userId && (sessionStorage.getItem(PENDING_SHARE_CODE_KEY) || _hasPushTarget())) {
+    goToHome(); return;
+  }
   _showOnboardingButtons();
 }
 

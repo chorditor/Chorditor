@@ -2950,7 +2950,7 @@ const TRAINING_STATS_KEY = 'training_stats';
 
 /** 제출 완료 1회: today_sessions / total_completed 갱신 (streak/출석모달은 claimDailyAttendance()로 이전) */
 function _recordScaleSubmit() {
-  const today = new Date().toISOString().slice(0, 10);
+  const today = _kstToday();
   const stats = JSON.parse(localStorage.getItem(TRAINING_STATS_KEY) || '{}');
 
   if (stats.today_date !== today) {
@@ -3149,11 +3149,11 @@ renderFullNeck();
 
   initTestTap();
 
-  // 테스트 시작 버튼 (피크 2개 소모)
+  // 테스트 시작 버튼 (피크 1개 소모)
   document.getElementById('start-test-btn')?.addEventListener('pointerup', async () => {
     _playTap();
     _playSfx('pop.mp3');
-    if (!(await consumePeak(2))) return;
+    if (!(await consumePeak(1))) return;
     analytics.track('scale_test_started', {
       scale_key: _scaleKey,
       root_name: (_useFlat ? KEY_NAMES_FLAT : KEY_NAMES)[_rootNote],
@@ -3170,7 +3170,7 @@ renderFullNeck();
     if (e.currentTarget.disabled) return;
     if (_testSubmitted) {
       _playSfx('pop.mp3');
-      if (!(await consumePeak(2))) return;
+      if (!(await consumePeak(1))) return;
       analytics.track('scale_test_retry', {
         scale_key: _scaleKey,
         root_name: (_useFlat ? KEY_NAMES_FLAT : KEY_NAMES)[_rootNote],

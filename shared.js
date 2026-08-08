@@ -6,8 +6,44 @@
 // ── 상수 ─────────────────────────────────────────────────────
 const SUPABASE_URL  = 'https://jbvkygeksohlysyvaoab.supabase.co';
 const SUPABASE_ANON = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Impidmt5Z2Vrc29obHlzeXZhb2FiIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzYzOTk5NjgsImV4cCI6MjA5MTk3NTk2OH0.6RSgChy0Yq0H2TJpZPSoMKQ2V-OYfR0XzE1aJBBZkXI';
-const APP_VERSION   = '1.3.3_dev';
+const APP_VERSION   = '1.3.3_pre';
 const SUPABASE_STORAGE_KEY = 'sb-jbvkygeksohlysyvaoab-auth-token';
+
+// ── 온보딩 관문 판정 ──────────────────────────────────────────
+// persona 유무가 완료 여부의 유일한 기준. onboarding.html / home.html 양쪽이
+// 같은 판정을 쓰도록 여기 한 곳에만 둔다.
+//
+// ⚠️ fail-closed: 조회가 끝내 실패하면 "온보딩 필요"로 본다. 예전 구현은
+// 실패 시 통과시켜서(fail-open) 네트워크 순단만으로 온보딩을 건너뛴 채
+// 홈에 진입할 수 있었다(프로필 없는 유저 발생 원인).
+// 비로그인은 여기서 판단하지 않는다(호출부가 각자 처리).
+async function checkNeedsOnboarding(token, userId, retries = 2) {
+  if (!token || !userId) return false;
+  for (let i = 0; i <= retries; i++) {
+    try {
+      const resp = await fetch(
+        `${SUPABASE_URL}/rest/v1/subscriptions?user_id=eq.${userId}&select=persona`,
+        { headers: { 'apikey': SUPABASE_ANON, 'Authorization': `Bearer ${token}` } }
+      );
+      if (resp.ok) {
+        const rows = await resp.json();
+        return !(rows.length > 0 && rows[0].persona);
+      }
+    } catch (_) {}
+    if (i < retries) await new Promise(r => setTimeout(r, 400 * (i + 1)));
+  }
+  return true;
+}
+
+// localStorage 세션에서 토큰·유저ID 추출 (Android 네이티브 경로용)
+function getStoredAuth() {
+  try {
+    const session = JSON.parse(localStorage.getItem(SUPABASE_STORAGE_KEY) || '{}');
+    return { token: session?.access_token || null, userId: session?.user?.id || null };
+  } catch (_) {
+    return { token: null, userId: null };
+  }
+}
 
 // ── Analytics SDK ─────────────────────────────────────────────
 const analytics = (typeof AnalyticsSDK !== 'undefined')
@@ -367,9 +403,20 @@ function getPlan() {
   return localStorage.getItem('chorditor_plan') || 'free';
 }
 
+// Pro는 피크가 무제한이라 소모량 표시가 의미 없다 — 루트에 클래스만 걸고
+// 실제 숨김은 CSS(.plan-pro .ldp-peak-cost 등)가 한다. 페이지마다 흩어진
+// 소모량 마크업을 JS로 일일이 찾지 않기 위한 단일 훅 지점.
+function applyPlanClass() {
+  document.documentElement.classList.toggle('plan-pro', getPlan() === 'pro');
+}
+// shared.js는 모든 페이지가 읽으므로 파싱 시점에 한 번 걸어둔다
+// (DB에서 플랜을 받아오기 전에도 localStorage 미러 기준으로 즉시 반영).
+applyPlanClass();
+
 function setPlan(plan) {
   const prev = localStorage.getItem('chorditor_plan');
   localStorage.setItem('chorditor_plan', plan);
+  applyPlanClass();
   if (typeof updateExportScaleOptions === 'function') updateExportScaleOptions();
   if (typeof renderPlanBadge === 'function') renderPlanBadge();
   if (typeof renderPeakBadge === 'function') renderPeakBadge();
@@ -849,9 +896,11 @@ function closePeakReveal() {
   if (typeof cb === 'function') cb();
 }
 
-// 연습 중단 경고 모달 (진행·주법 공통). onConfirm = 실제 나가기 동작.
+// 중단 경고 모달 (진행·주법·튜토리얼 공통). onConfirm = 실제 나가기 동작.
+// opts로 문구만 갈아끼운다 — 디자인은 항상 동일.
 let _leavePracticeOpen = false;
-function showLeavePracticeModal(onConfirm) {
+function showLeavePracticeModal(onConfirm, opts) {
+  opts = opts || {};
   _playSfx('cancel.mp3');
   let ov = document.getElementById('leave-practice-overlay');
   if (!ov) {
@@ -860,15 +909,19 @@ function showLeavePracticeModal(onConfirm) {
     ov.className = 'leave-practice-overlay';
     ov.innerHTML = `
       <div class="leave-practice-modal">
-        <div class="leave-practice-title">연습을 그만두시겠어요?</div>
-        <div class="leave-practice-desc">지금 나가면 다시 연습할 때<br>피크를 사용해야 해요.</div>
+        <div class="leave-practice-title" id="leave-practice-title"></div>
+        <div class="leave-practice-desc" id="leave-practice-desc"></div>
         <div class="leave-practice-actions">
-          <button class="leave-practice-btn leave-practice-btn--ghost" id="leave-practice-stop">그만할래요</button>
-          <button class="leave-practice-btn leave-practice-btn--primary" id="leave-practice-continue">계속할래요</button>
+          <button class="leave-practice-btn leave-practice-btn--ghost" id="leave-practice-stop"></button>
+          <button class="leave-practice-btn leave-practice-btn--primary" id="leave-practice-continue"></button>
         </div>
       </div>`;
     document.body.appendChild(ov);
   }
+  ov.querySelector('#leave-practice-title').textContent = opts.title || '연습을 그만두시겠어요?';
+  ov.querySelector('#leave-practice-desc').innerHTML    = opts.desc  || '지금 나가면 다시 연습할 때<br>피크를 사용해야 해요.';
+  ov.querySelector('#leave-practice-stop').textContent     = opts.stopText     || '그만할래요';
+  ov.querySelector('#leave-practice-continue').textContent = opts.continueText || '계속할래요';
   ov.style.display = 'flex';
   _leavePracticeOpen = true;
   // 통통 튀는 등장 애니메이션 재트리거 (재오픈 시에도 재생)
@@ -1261,6 +1314,9 @@ async function signInWithApple() {
 async function signOutWeb() {
   analytics.track('sign_out', {});
   analytics.clearUserId();
+  // 튜토리얼 로컬 미러(진행도·A/B 배정)는 user_id로 키잉되지 않는다 —
+  // 안 지우면 같은 기기의 다음 계정이 그대로 물려받는다.
+  if (typeof Tutorial !== 'undefined') Tutorial.clearLocal();
   if (window.Capacitor?.isNativePlatform()) {
     try {
       const stored = localStorage.getItem(SUPABASE_STORAGE_KEY);
@@ -1638,7 +1694,7 @@ function openPlanSheet(triggerSource) {
   const sheet   = document.getElementById('plan-sheet');
   if (!sheet) return;
   if (typeof analytics !== 'undefined') {
-    analytics.track('paywall_view', { trigger: triggerSource || 'unknown', ab_group: _peakFunnelGroup() });
+    analytics.track('paywall_viewed', { trigger_source: triggerSource || 'unknown', current_plan: getPlan(), ab_group: _peakFunnelGroup() });
   }
 
   const plan     = getPlan();
@@ -1817,8 +1873,8 @@ function effectiveStreak(stats) {
   if (!stats || !stats.streak) return 0;
   const last = stats.streak_last_counted_date;
   if (!last) return 0;
-  const today     = new Date().toISOString().slice(0, 10);
-  const yesterday = new Date(Date.now() - 86400000).toISOString().slice(0, 10);
+  const today     = _kstToday();
+  const yesterday = _kstYesterday();
   return (last === today || last === yesterday) ? stats.streak : 0;
 }
 
@@ -1957,7 +2013,7 @@ if (typeof window !== 'undefined') window.recordTrainingTime = recordTrainingTim
 // 연속출석(streak)·출석모달은 접속 시 claimDailyAttendance() 로 완전히 분리됨.
 function recordTrainingAttendance() {
   const KEY = 'training_stats';
-  const today = new Date().toISOString().slice(0, 10);
+  const today = _kstToday();
   const stats = JSON.parse(localStorage.getItem(KEY) || '{}');
   if (stats.today_date !== today) {
     stats.today_sessions = 0;
@@ -1975,7 +2031,9 @@ const ATTENDANCE_CAL_DELAY_MS = 300;
 
 // 출석 랜덤상자 모달 표시(접속 시 claimDailyAttendance() 에서만 호출). 모달 DOM은 동적 생성.
 // reward/newBalance 는 이미 서버(또는 폴백)에서 지급 완료된 값 — 상자 클릭 시 피크 등장 연출로 공개.
-function showTrainingAttendanceModal(streak, reward, newBalance) {
+// onDone: 유저가 상자를 열어 피크 등장 연출을 닫았을 때만 불린다(연출 opts.onClose 경유).
+// 상자를 열지 않고 나가면 안 불린다 — 이 체인 뒤에 붙는 건 다 부가적인 것이라 최선 노력이면 충분하다.
+function showTrainingAttendanceModal(streak, reward, newBalance, onDone) {
   setTimeout(function () {
     if (typeof analytics !== 'undefined') analytics.track('training_attendance_achieved', { streak, reward });
     let overlay = document.getElementById('attendance-modal-overlay');
@@ -2002,7 +2060,7 @@ function showTrainingAttendanceModal(streak, reward, newBalance) {
       opened = true;
       _playSfx('peakbox_open.mp3');
       overlay.classList.remove('attendance-modal-overlay--show'); // 상자 모달 닫고
-      showPeakReveal(reward);                                     // 피크 등장 연출 공개
+      showPeakReveal(reward, { onClose: onDone });                // 피크 등장 연출 공개
       // 공개 시점에 잔량 배지 반영
       _peakState = { ..._peakState, balance: newBalance, loaded: true };
       renderPeakBadge();
@@ -2022,14 +2080,16 @@ function closeTrainingAttendanceModal() {
 // ── 출석 체크(접속 시 1일 1회) → 랜덤상자로 일반피크 지급 ─────────
 // home.html 진입(app_open) 시점에만 호출. DB(claim_daily_attendance RPC)가 1일 1회를
 // 서버 기준으로 보장하며, RPC 실패(dev/비로그인) 시 localStorage 폴백으로 동작.
-async function claimDailyAttendance() {
+// onDone: 이 함수가 무엇을 하든(이미 수령/Pro라 모달 생략/정상 진행) 결국 한 번은 불린다 —
+// 상자를 실제로 열어야 불리는 showTrainingAttendanceModal의 onDone과는 성격이 다름에 주의.
+async function claimDailyAttendance(onDone) {
   const KEY = 'training_stats';
-  const today     = new Date().toISOString().slice(0, 10);
-  const yesterday = new Date(Date.now() - 86400000).toISOString().slice(0, 10);
+  const today     = _kstToday();
+  const yesterday = _kstYesterday();
   const stats = JSON.parse(localStorage.getItem(KEY) || '{}');
 
   // 이 기기에서 오늘 이미 처리 — RPC↔폴백 경로 왕복 중복지급 방지
-  if (stats.attendance_claimed_date === today) return;
+  if (stats.attendance_claimed_date === today) { if (typeof onDone === 'function') onDone(); return; }
 
   let reward, newBalance;
   const r = await _peakRpc('claim_daily_attendance');
@@ -2037,6 +2097,7 @@ async function claimDailyAttendance() {
     if (!r.ok) { // 오늘 이미 수령(다른 기기 등) — 로컬에도 기록해 재시도 차단
       stats.attendance_claimed_date = today;
       localStorage.setItem(KEY, JSON.stringify(stats));
+      if (typeof onDone === 'function') onDone();
       return;
     }
     reward     = r.reward;
@@ -2060,8 +2121,8 @@ async function claimDailyAttendance() {
   if (typeof reviewQualify === 'function' && (stats.streak || 0) >= 3) reviewQualify('streak_3');
 
   addXp(BEHAVE_XP.attendance); // 행동형 XP: 일일 출석
-  if (getPlan() === 'pro') return; // Pro: 피크 무제한 — 랜덤피크 모달 불필요
-  showTrainingAttendanceModal(stats.streak, reward, newBalance);
+  if (getPlan() === 'pro') { if (typeof onDone === 'function') onDone(); return; } // Pro: 피크 무제한 — 랜덤피크 모달 불필요
+  showTrainingAttendanceModal(stats.streak, reward, newBalance, onDone);
 }
 
 // ── 출석 달력 (30일 도장판, 순환) ─────────────────────────────
@@ -2074,7 +2135,11 @@ const ATTENDANCE_MAKEUP_MAX = 3;
 let _attState = { day: 0, makeup_left: ATTENDANCE_MAKEUP_MAX, needs_makeup: false, loaded: false };
 
 function _attReward(day) { return ATTENDANCE_MILESTONES[day] || 0; }
+// 앱의 하루 = KST 자정 기준. 서버 SQL(attendance/push/promo)이 모두 Asia/Seoul 기준이므로
+// 클라이언트도 동일하게 맞춘다. new Date().toISOString() 은 UTC라 KST 오전 9시에 날짜가
+// 바뀌어버리므로 날짜 경계 판정에는 절대 쓰지 말 것.
 function _kstToday() { return new Date(Date.now() + 9 * 3600000).toISOString().slice(0, 10); }
+function _kstYesterday() { return new Date(Date.now() + 9 * 3600000 - 86400000).toISOString().slice(0, 10); }
 function _dayDiff(a, b) { return Math.round((Date.parse(b) - Date.parse(a)) / 86400000); }
 
 // dev/비로그인 폴백: training_stats 에 att_day/att_last_date/att_makeup_left 저장
@@ -2122,6 +2187,15 @@ function _localMakeup() {
   return { ok: true, day, makeup_left: mk, reward };
 }
 
+// 보충 안내는 하루 한 번만 — 홈에 다시 들어올 때마다 뜨면 성가시다.
+const ATT_MAKEUP_PROMPT_KEY = 'att_makeup_prompt_date';
+function _makeupPromptShownToday() {
+  return localStorage.getItem(ATT_MAKEUP_PROMPT_KEY) === _kstToday();
+}
+function _markMakeupPrompt() {
+  localStorage.setItem(ATT_MAKEUP_PROMPT_KEY, _kstToday());
+}
+
 // 접속 시 도장 진행 (home 진입에서 claimDailyAttendance 와 병행 호출)
 async function advanceAttendance(onDone) {
   const r = await _peakRpc('advance_attendance');
@@ -2134,8 +2208,28 @@ async function advanceAttendance(onDone) {
   }
   _attState = { day: res.day, makeup_left: res.makeup_left, needs_makeup: !!res.needs_makeup, loaded: true };
   renderPeakboxBadge();
-  // 오늘 도장 실제로 찍힘 → 달력 자동 오픈 + 오늘 칸 도장 애니메이션
-  if (res.advanced) setTimeout(() => openAttendanceCalendar(res.day), ATTENDANCE_CAL_DELAY_MS);
+
+  // ── 분기2: 출석이 비어 보충이 필요한 상태 ────────────────────────
+  // 예전엔 advanced=false라 아무 모달도 안 떠서, 유저가 달력을 직접 열지 않으면
+  // 연속이 끊긴 사실조차 몰랐다(= "그냥 갱신이 안 될 뿐"으로 보이던 원인).
+  // 이제는 달력을 띄워 보충출석을 유도하고, 닫은 뒤에 일일 랜덤피크 모달로 이어간다.
+  // 하루 여러 번 홈에 들어와도 안내는 하루 한 번만.
+  if (res.needs_makeup) {
+    if (!_makeupPromptShownToday()) {
+      _markMakeupPrompt();
+      setTimeout(() => openAttendanceCalendar(null, 'makeup', onDone), ATTENDANCE_CAL_DELAY_MS);
+    } else if (typeof onDone === 'function') {
+      onDone();
+    }
+    return res;
+  }
+
+  // ── 분기1(연속 도장) · 분기3(보충권 소진 → 1일차 리셋) ───────────
+  // 둘 다 오늘 도장이 찍히므로 달력을 열고 애니메이션을 준다. 안내문만 다르다.
+  if (res.advanced) {
+    setTimeout(() => openAttendanceCalendar(res.day, res.reset ? 'reset' : 'stamp'),
+               ATTENDANCE_CAL_DELAY_MS);
+  }
 
   // 마일스톤(보상칸) 도장 → 애니메이션 후 피크상자 수령 모달 자동 표시 (호출 경로 무관)
   // onDone: 모달 닫힘(보상 없으면 즉시) 후 이어질 콜백 — 홈 플로우의 랜덤피크 모달 연결용
@@ -2152,12 +2246,29 @@ async function advanceAttendance(onDone) {
 
 // 접속 시 출석 플로우 오케스트레이터 (home 진입에서 호출).
 // 순서: ① 출석도장(달력 자동오픈+애니메이션) → ② 마일스톤 상자모달 → ③ 매일 랜덤피크 모달
-async function runDailyAttendanceFlow() {
-  advanceAttendance(() => { claimDailyAttendance(); });
+// onAllDone: ③까지(유저가 상자를 열어야) 전부 끝났을 때만 불린다 — 없어도 이 플로우 자체는 그대로 동작.
+async function runDailyAttendanceFlow(onAllDone) {
+  advanceAttendance(() => { claimDailyAttendance(onAllDone); });
 }
 
+// 달력 상단 안내문 — 접속 시 세 갈래를 여기서 구분해 알린다.
+//   stamp  : 연속 유지 → 오늘 도장이 찍힘
+//   makeup : 하루 이상 비어 보충출석이 필요함(보충권이 남아 있는 상태)
+//   reset  : 보충권까지 소진돼 1일차로 되돌아감
+const ATT_CAL_SUB = {
+  stamp:  '5일마다 피크상자를 받아요 · 30일 순환',
+  makeup: '출석이 비었어요! 보충출석으로 이어갈 수 있어요',
+  reset:  '연속이 끊겨 1일차부터 다시 시작해요',
+};
+
+// 달력이 닫힐 때 이어서 할 일(보충 안내 → 일일 랜덤피크 모달 연결용). 1회성.
+let _attCalOnClose = null;
+
 // animateDay: 해당 칸 도장에 찍힘 애니메이션 부여(방금 찍힌 오늘 칸). 없으면 정적 렌더.
-function openAttendanceCalendar(animateDay) {
+// mode: ATT_CAL_SUB 키. 생략하면 기본 안내문.
+// onClose: 넘긴 경우에만 교체(보충출석으로 재렌더될 때 콜백이 날아가지 않게).
+function openAttendanceCalendar(animateDay, mode, onClose) {
+  if (onClose !== undefined) _attCalOnClose = onClose;
   const grid = document.getElementById('attend-cal-grid');
   const overlay = document.getElementById('attend-cal-overlay');
   if (!grid || !overlay) return;
@@ -2192,10 +2303,18 @@ function openAttendanceCalendar(animateDay) {
       () => setTimeout(() => _playSfx('stamp.mp3'), STAMP_IMPACT_OFFSET_MS), { once: true });
   }
 
+  const subEl = document.getElementById('attend-cal-sub');
+  if (subEl) subEl.textContent = ATT_CAL_SUB[mode] || ATT_CAL_SUB.stamp;
+
   const mkCountEl = document.getElementById('attend-cal-makeup-count');
   if (mkCountEl) mkCountEl.textContent = st.makeup_left;
   const mkBtn = document.getElementById('attend-cal-makeup');
-  if (mkBtn) mkBtn.disabled = !(st.needs_makeup && st.makeup_left > 0);
+  if (mkBtn) {
+    const canMakeup = !!(st.needs_makeup && st.makeup_left > 0);
+    mkBtn.disabled = !canMakeup;
+    // 지금 눌러야 할 상황(분기2)에서만 강조 — 홈 배너로 그냥 열어본 경우엔 붙이지 않는다
+    mkBtn.classList.toggle('attend-cal-makeup--urge', canMakeup && mode === 'makeup');
+  }
 
   overlay.classList.add('attend-cal-overlay--show');
   // 도장 찍는 경로(일일 첫 접속·보충)=attendance.mp3, 홈배너 열람(animateDay 없음)=page.mp3
@@ -2206,6 +2325,10 @@ function openAttendanceCalendar(animateDay) {
 function closeAttendanceCalendar() {
   const overlay = document.getElementById('attend-cal-overlay');
   if (overlay) overlay.classList.remove('attend-cal-overlay--show');
+  // 보충 안내로 열렸던 경우, 닫은 뒤에 일일 랜덤피크 모달을 이어 띄운다(모달 겹침 방지)
+  const cb = _attCalOnClose;
+  _attCalOnClose = null;
+  if (typeof cb === 'function') setTimeout(cb, 250);
 }
 
 // ── 퀘스트 XP 보상 (레벨 경험치, 상자 개수와 무관하게 티어별 개별 설정) ──
@@ -3820,6 +3943,75 @@ function _consumePushTarget() {
     return url;
   } catch (_) { return null; }
 }
+
+// ── 온보딩 라우트 가드 ────────────────────────────────────────
+// 정책: 기본 차단(secure by default). 아래 면제 목록에 없는 모든 페이지는
+// "로그인 + 온보딩 완료"를 요구한다. 새 페이지를 추가해도 별도 작업 없이
+// 보호되고, 빠뜨려서 뚫리는 일이 생기지 않는다.
+//
+//   index.html      : onboarding.html 로 보내는 리다이렉트 전용
+//   onboarding.html : 관문 그 자체
+//   home.html       : 결제 초기화·OAuth 콜백·DEV 우회가 얽혀 있어 자체 검사
+const ONBOARDING_GATE_EXEMPT = ['index.html', 'onboarding.html', 'home.html'];
+
+function _currentPageName() {
+  return location.pathname.split('/').pop() || 'index.html';
+}
+
+// 관문 통과 캐시. persona는 한 번 채워지면 다시 비지 않으므로, 통과 이력이 있으면
+// 페이지마다 subscriptions를 다시 조회할 필요가 없다(진입 1회당 REST 1~3회 절약).
+// user_id를 값으로 저장해 계정이 바뀌면 캐시가 자동으로 무효화되게 한다.
+// 캐시를 위조해도 실제 데이터는 RLS가 막으므로 보호 수준은 내려가지 않는다.
+const ONBOARDED_KEY = 'chorditor_onboarded';
+
+function _onboardedCached(userId) {
+  try { return !!userId && localStorage.getItem(ONBOARDED_KEY) === userId; } catch (_) { return false; }
+}
+function _setOnboardedCache(userId) {
+  try { if (userId) localStorage.setItem(ONBOARDED_KEY, userId); } catch (_) {}
+}
+
+// 관문 검사 중 화면 가리기.
+//   enforceOnboardingGate()는 await 없이 호출된다(고전 스크립트라 top-level await 불가).
+//   가리지 않으면 검사가 끝날 때까지 보호 페이지가 그대로 보이고 조작되며,
+//   그 사이 analytics 이벤트까지 나가 분석 데이터가 오염된다.
+let _gateRevealTimer = null;
+function _hideUntilGate() {
+  try {
+    document.documentElement.style.visibility = 'hidden';
+    // 안전장치 — 조회가 비정상적으로 길어져도 화면이 영영 안 보이는 일은 없게 한다
+    _gateRevealTimer = setTimeout(_revealAfterGate, 8000);
+  } catch (_) {}
+}
+function _revealAfterGate() {
+  try {
+    if (_gateRevealTimer) { clearTimeout(_gateRevealTimer); _gateRevealTimer = null; }
+    document.documentElement.style.visibility = '';
+  } catch (_) {}
+}
+
+// 통과하면 true. 막히면 원래 목적지를 보관하고 온보딩으로 보낸 뒤 false.
+// 보관에 PUSH_TARGET_KEY 를 재사용한다 — 온보딩을 마친 goToHome() 이
+// 이 값을 소비해 사용자를 원래 가려던 페이지로 되돌려준다.
+async function enforceOnboardingGate() {
+  if (APP_VERSION.includes('_dev')) return true; // DEV 빌드 우회 (home.js와 동일 정책)
+  if (ONBOARDING_GATE_EXEMPT.includes(_currentPageName())) return true;
+
+  const { token, userId } = getStoredAuth();
+  if (_onboardedCached(userId) && token) return true; // 통과 이력 있음 — 조회 생략
+
+  _hideUntilGate();
+  if (!token || !userId || await checkNeedsOnboarding(token, userId)) {
+    _setPushTarget(_currentPageName() + location.search);
+    location.replace('onboarding.html'); // 이동하므로 여기서는 화면을 되돌리지 않는다
+    return false;
+  }
+  _setOnboardedCache(userId);
+  _revealAfterGate();
+  return true;
+}
+
+enforceOnboardingGate();
 
 function initPushNotifications() {
   const PN = window.Capacitor?.Plugins?.PushNotifications;

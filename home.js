@@ -522,6 +522,46 @@ function initWheelPicker(scrollEl, getIdx, onPick) {
 
   let timer, programmatic = false, _rafId = null;
 
+  // ── 정지 판정 ─────────────────────────────────────────────
+  // 예전엔 "마지막 scroll 이벤트 + 150ms"만으로 onPick을 불렀다. 빠르게 튕기면 그 시점에
+  // 관성·scroll-snap이 아직 끝나지 않아 scrollTop이 칸 경계에 걸쳐 있었고, 반올림한 idx로
+  // onPick → 목록 재생성(renderRootBtns)이 일어나면서 스크롤이 중간에 멎어 버렸다.
+  // 이제는 (1) 위치가 더 안 움직이고 (2) 칸 격자에 정확히 붙었을 때만 onPick을 부른다.
+  const SETTLE_MS  = 120;  // 정지 여부를 다시 확인하는 간격
+  const SETTLE_TOL = 0.5;  // 격자에 붙었다고 볼 오차(px)
+  const SETTLE_MAX = 12;   // 최대 관찰 횟수 — 스냅이 끝내 안 끝나도 약 1.4초 뒤엔 확정
+  let _settleTop = null, _settleTries = 0;
+
+  function _cancelSettle() { clearTimeout(timer); _settleTop = null; _settleTries = 0; }
+
+  function _checkSettled() {
+    if (scrollEl._pickerGen !== _gen) return; // 낡은 타이머: 무시
+    const total = scrollEl.children.length;
+    if (!total) return;
+
+    const top     = scrollEl.scrollTop;
+    const idx     = Math.max(0, Math.min(Math.round(top / PICKER_ITEM_H), total - 1));
+    const snapped = Math.abs(top - idx * PICKER_ITEM_H) <= SETTLE_TOL;
+    const moved   = _settleTop === null || Math.abs(top - _settleTop) > SETTLE_TOL;
+    _settleTop = top;
+
+    // 아직 움직이는 중이거나 격자에서 벗어나 있으면 확정하지 않고 더 기다린다
+    if ((moved || !snapped) && ++_settleTries < SETTLE_MAX) {
+      timer = setTimeout(_checkSettled, SETTLE_MS);
+      return;
+    }
+    // 한계까지 기다렸는데도 격자에 안 붙었으면(스냅 실패) 직접 맞춰서 화면과 값을 일치시킨다
+    if (!snapped) {
+      programmatic = true;
+      scrollEl.scrollTop = idx * PICKER_ITEM_H;
+      setTimeout(() => { programmatic = false; }, 30);
+    }
+    _settleTop = null; _settleTries = 0;
+    onPick(idx);
+    // 유저가 직접 돌린 경우만 도달(programmatic은 scroll 핸들러에서 반환) — 튜토리얼 휠 구간 판정용
+    window.Tutorial?.notify('wheel');
+  }
+
   function updateItemStyles() {
     const btns = Array.from(scrollEl.children);
     if (!btns.length) return;
@@ -536,19 +576,14 @@ function initWheelPicker(scrollEl, getIdx, onPick) {
   scrollEl.addEventListener('scroll', () => {
     updateItemStyles();
     if (programmatic) return;
-    clearTimeout(timer);
-    timer = setTimeout(() => {
-      if (scrollEl._pickerGen !== _gen) return; // 낡은 타이머: 무시
-      const total = scrollEl.children.length;
-      if (!total) return;
-      const idx = Math.max(0, Math.min(Math.round(scrollEl.scrollTop / PICKER_ITEM_H), total - 1));
-      onPick(idx);
-      // 유저가 직접 돌린 경우만 도달(programmatic은 위에서 반환) — 튜토리얼 휠 구간 판정용
-      window.Tutorial?.notify('wheel');
-    }, 150);
+    // 스크롤이 이어지는 동안엔 판정을 계속 미룬다
+    _cancelSettle();
+    timer = setTimeout(_checkSettled, SETTLE_MS);
   }, { signal: _abort.signal });
 
   scrollEl._scrollToIdx = (idx, smooth = false) => {
+    // 유저 스크롤에서 걸어둔 정지 판정이 남아 있으면 프로그램 이동 뒤에 엉뚱한 onPick이 터진다
+    _cancelSettle();
     // 진행 중인 애니메이션 즉시 중단 + snap 복원
     if (_rafId !== null) { cancelAnimationFrame(_rafId); _rafId = null; scrollEl.style.scrollSnapType = ''; }
     programmatic = true;
@@ -1488,6 +1523,7 @@ function openImgSaveModal(mode) {
 
   if (backdrop) backdrop.classList.add('open');
   modal.classList.add('open');
+  window.Tutorial?.notify('imgsave:open'); // 시트가 열린 뒤에 알림
 }
 
 function closeImgSaveModal() {
@@ -1723,7 +1759,9 @@ function strumChord() {
   if (!notes.length) return;
   analytics.track('chord_played', { chord_name: buildChordName(), source: 'editor' });
   GuitarAudio.strumNotes(notes.map(n => n.midi), STRUM_INTERVAL);
-  window.Tutorial?.notify('play');
+  // 튜토리얼: 자동으로 다음 구간으로 넘기지 않는다. 1초 뒤 '다음' 버튼만 눌러도 되게 풀어주고,
+  // 끝까지 듣고 싶으면 유저가 원하는 만큼 기다렸다가 직접 버튼을 누르게 한다.
+  setTimeout(() => window.Tutorial?.enableNext?.(), 1000);
 }
 
 // 페이지 이탈 시 잔향 하드컷 — 전환 애니메이션 동안 이전 문서가 살아있어
@@ -2172,6 +2210,9 @@ function switchTab(tab, noAnim = false) {
 
   // 설정(톱니) 버튼: 프로필 탭에서만 노출
   document.getElementById('settings-btn')?.classList.toggle('hidden', tab !== 'profile');
+  // 튜토리얼 재진입 아이콘은 홈 탭에서만
+  document.getElementById('tutorial-entry-btn')?.classList.toggle('hidden', tab !== 'home');
+  if (tab === 'home') window.Tutorial?.refreshEntryDot?.(); // 남은 스텝 강조 dot 갱신
 
   // 레벨 위젯: 홈 탭에서만 노출
   document.getElementById('topbar-level')?.classList.toggle('hidden', tab !== 'home');
@@ -2216,6 +2257,8 @@ function enterFromBlock(e, el, view) {
       // training은 실제 페이지 이동(언로드가 재생을 끊음) → 재생 시작 확인 후 어택 확보하고 이동.
       // 폴백: 재생이 차단/지연돼도 300ms 내 반드시 이동(전환이 멈추지 않도록).
       if (view === 'training') {
+        // 페이지가 넘어가기 전에 알린다 — 문자열 조건이라 즉시 판정되고 진행 위치가 저장된다
+        window.Tutorial?.notify('view:training');
         let _navd = false;
         const _go = () => { if (!_navd) { _navd = true; location.href = 'training.html'; } };
         _tapP.then(() => setTimeout(_go, 240)); // 트림된 tap(~260ms) 온전 재생 후 이동 → 깨짐 방지
@@ -2720,6 +2763,11 @@ function openDeleteConfirm(projectId) {
   const confirmBtn = document.getElementById('delete-confirm-btn');
   confirmBtn.onclick = () => { closeDeleteConfirm(); _deleteProjectFromList(projectId); };
   overlay.classList.remove('hidden');
+  // 이 모달은 pointerup에서 열린다. 브라우저는 곧이어 같은 좌표로 click을 발생시키는데,
+  // 그때 그 자리의 최상단 요소는 이미 이 오버레이라 백드롭 클릭으로 오인돼 바로 닫혀 버린다.
+  // → 열린 직후 한 틱 동안은 백드롭 닫기를 무시한다.
+  overlay.dataset.justOpened = '1';
+  setTimeout(() => { delete overlay.dataset.justOpened; }, 0);
   requestAnimationFrame(() => {
     overlay.classList.add('open');
     modal.style.animation = 'deleteConfirmIn 0.38s cubic-bezier(0.34, 1.56, 0.64, 1) forwards';
@@ -2729,6 +2777,7 @@ function openDeleteConfirm(projectId) {
 function closeDeleteConfirm() {
   const overlay = document.getElementById('delete-confirm-overlay');
   if (!overlay) return;
+  if (overlay.dataset.justOpened) return; // 여는 제스처의 잔여 click — 무시
   const modal = overlay.querySelector('.delete-confirm-modal');
   modal.style.animation = 'deleteConfirmOut 0.22s cubic-bezier(0.4, 0, 1, 1) forwards';
   setTimeout(() => {
@@ -3157,6 +3206,39 @@ function showTextToast(msg) {
 
 // ── 내 초대코드 (박스 탭 = 복사) ──
 let _myInviteCode = null;
+
+// ── 친구 초대 공지 모달 ──────────────────────────────────────────
+// DB notices 테이블은 정적 텍스트만 다루므로(모든 유저 공통 문구), 유저별로 다른
+// 내 초대코드를 보여줘야 하는 이 공지는 별도 모달로 둔다.
+//
+// 트리거: 튜토리얼을 완주했거나 건너뛴 순간, 그날의 출석·랜덤피크 체인까지 전부 끝난 뒤
+// (tutorial.js _releaseHomeFlow → runDailyAttendanceFlow의 onAllDone 경유). 평범한 홈
+// 재진입에서는 안 뜬다 — 그건 checkAndShowNotice()의 몫이라 여기서 겹치게 두지 않는다.
+const REFERRAL_NOTICE_SEEN_KEY = 'chorditor_referral_notice_seen';
+function maybeShowReferralNotice() {
+  if (localStorage.getItem(REFERRAL_NOTICE_SEEN_KEY)) return; // 평생 1회
+  localStorage.setItem(REFERRAL_NOTICE_SEEN_KEY, '1'); // 모달이 실제로 뜨는지와 무관하게 먼저 마킹(중복 트리거 방지)
+  openReferralNoticeModal();
+}
+
+async function openReferralNoticeModal() {
+  if (!_myInviteCode) await loadProfileFromDB().catch(() => {});
+  if (!_myInviteCode) return; // 코드를 못 받아왔으면 빈 코드로 띄우지 않는다
+  document.getElementById('referral-notice-code').textContent = _myInviteCode;
+  document.getElementById('referral-notice-overlay')?.classList.remove('hidden');
+  if (typeof lucide !== 'undefined') lucide.createIcons();
+  if (typeof _playSfx === 'function') _playSfx('page.mp3');
+  analytics.track('referral_notice_viewed');
+}
+
+function closeReferralNotice() {
+  document.getElementById('referral-notice-overlay')?.classList.add('hidden');
+}
+
+function copyReferralNoticeCode() {
+  analytics.track('referral_notice_code_copied');
+  copyMyInviteCode();
+}
 
 function copyMyInviteCode() {
   if (!_myInviteCode) return;
@@ -4425,22 +4507,20 @@ function onAuthSignedIn() {
 
 // 웹: 로그인됐지만 persona 미입력이면 온보딩 필요 (true 반환)
 async function _webNeedsOnboarding() {
-  try {
-    let token = null, userId = null;
-    if (_supabase) {
+  let token = null, userId = null;
+  if (_supabase) {
+    try {
       const { data } = await _supabase.auth.getSession();
       token  = data?.session?.access_token;
       userId = data?.session?.user?.id;
-    }
-    if (!token || !userId) return false; // 비로그인 → 온보딩 강제 안 함
-    const resp = await fetch(
-      `${SUPABASE_URL}/rest/v1/subscriptions?user_id=eq.${userId}&select=persona`,
-      { headers: { 'apikey': SUPABASE_ANON, 'Authorization': `Bearer ${token}` } }
-    );
-    if (!resp.ok) return false;
-    const rows = await resp.json();
-    return !(rows.length > 0 && rows[0].persona);
-  } catch (_) { return false; }
+    } catch (_) {}
+  }
+  // 세션이 이미 복원된 상태(_authReady)인데 토큰을 못 얻었다면 조회가 실패한 것이다.
+  // checkNeedsOnboarding은 토큰이 없으면 false(=통과)를 주므로 그대로 넘기면
+  // 온보딩 검사를 한 번도 안 거친 채 홈에 진입한다(fail-open). 관문 정책대로 막는다.
+  // 비로그인(_authReady=false)은 아래 별도 분기(공유링크·OAuth 콜백)에서 처리한다.
+  if (!token || !userId) return _authReady;
+  return checkNeedsOnboarding(token, userId);
 }
 
 // ═══════════════════════════════════════════════════════════════
@@ -4893,7 +4973,13 @@ document.addEventListener('DOMContentLoaded', async () => {
       if (!session.user || (session.expires_at && session.expires_at < now - 300)) {
         window.location.replace('onboarding.html'); return;
       }
+      // 온보딩 미완료(persona 없음)면 어떤 경로로 들어왔든 홈 진입 차단.
+      // 푸시 딥링크·공유링크로 home.html에 직접 도달하는 경우도 여기서 막힌다.
+      if (await checkNeedsOnboarding(session.access_token, session.user.id)) {
+        window.location.replace('onboarding.html'); return;
+      }
       _authReady = true;
+      _setOnboardedCache(session.user.id); // 다른 페이지의 관문이 재조회를 건너뛰도록
       analytics.setUserId(session.user.id);
       analytics.track('app_open', { platform: 'android', project_count: loadProjects().length });
       // 튜토리얼 자동 노출 대상이면 출석·랜덤피크는 건너뛰기 이후로 보류됨
@@ -4922,12 +5008,14 @@ document.addEventListener('DOMContentLoaded', async () => {
   if (await _webNeedsOnboarding()) { window.location.replace('onboarding.html'); return; }
   // 비로그인 첫 방문자 → 온보딩(로그인+페르소나)으로 유도. 카카오톡 등 인앱브라우저
   // 외부전환 로직도 onboarding.html에만 있으므로 여기서 보내야 함.
-  // 단 OAuth 콜백(토큰이 URL에 옴)·공유링크(?share=)는 home에서 처리해야 하므로 제외.
+  // OAuth 콜백(토큰이 URL에 옴)만 예외 — 로그인 처리 중이라 되돌리면 안 됨.
+  // 공유링크(?share=)는 예외가 아니다: 코드는 이미 sessionStorage에 보관돼 있고
+  // 온보딩을 마친 뒤 _consumePendingShareCode()가 이어서 처리한다.
   if (!_authReady) {
-    // shareParam은 위에서 replaceState로 이미 URL에서 제거되므로 캡처된 변수로 판정
     const _hasOAuth = /access_token|[?&]code=/.test(location.hash + location.search);
-    if (!_hasOAuth && !shareParam) { window.location.replace('onboarding.html'); return; }
+    if (!_hasOAuth) { window.location.replace('onboarding.html'); return; }
   }
+  _setOnboardedCache(getStoredAuth().userId); // 다른 페이지의 관문이 재조회를 건너뛰도록
   analytics.track('app_open', { platform: 'web', project_count: loadProjects().length });
   // 튜토리얼 자동 노출 대상이면 출석·랜덤피크는 건너뛰기 이후로 보류됨
   if (typeof runHomeEntryFlow === 'function') runHomeEntryFlow();
@@ -5182,6 +5270,8 @@ function openVoicingModal(sharpName, cardEl) {
 
 // 보이싱 모달 닫기
 function closeVoicingModal() {
+  // 튜토리얼이 이 구간에서 목록을 잠갔으면 무시한다(모달 여백·오버레이 오터치 방지)
+  if (window.Tutorial?.locksVoicing?.()) return;
   document.getElementById('lib-voicing-modal')?.classList.remove('open');
   document.getElementById('lib-voicing-overlay')?.classList.remove('open');
   _voicingModalChord = null;
@@ -5259,6 +5349,8 @@ function libPlayChord() {
   analytics.track('lib_chord_played', { chord_name: useFlat ? _libEntry.flatName : _libEntry.name });
   playChord({ dots: _libEntry.frets.map((f, s) => f !== null && f > 0 ? {s, f} : null).filter(Boolean), openMute: _libEntry.openMute });
   window.Tutorial?.notify('libplay');
+  // 튜토리얼: 자동으로 넘기지 않는다(STEP1 소리 듣기와 동일). 1초 뒤 '다음' 버튼만 풀어준다.
+  setTimeout(() => window.Tutorial?.enableNext?.(), 1000);
 }
 
 function libSaveImage() {
@@ -5283,7 +5375,8 @@ function _libMatch(name, q) {
 let _libSearchResults = [];
 
 function onLibSearch(query) {
-  closeVoicingModal();
+  // 여기서 closeVoicingModal()을 부르면 안 된다 — oninput이라 한 글자 칠 때마다
+  // 열려 있던 보이싱 목록이 툭 닫힌다. 닫기는 showLibSearchModal()에서 한 번만.
   const q = (query || '').trim();
   if (!q) { _libSearchResults = []; return; }
 
@@ -5303,6 +5396,9 @@ function showLibSearchModal() {
   const container = document.getElementById('lib-search-cards');
   const titleEl = document.getElementById('lib-search-modal-title');
   if (!modal || !container) return;
+
+  // 검색 결과가 실제로 뜨는 이 시점에만 보이싱 목록을 정리한다
+  closeVoicingModal();
 
   // 모달 상단 위치: lib-action-bar 상단에서 시작
   const actionBar = document.querySelector('#view-library .lib-action-bar');

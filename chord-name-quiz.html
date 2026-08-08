@@ -91,14 +91,14 @@
 
         <div class="mode-cards">
 
-            <div class="mode-card mode-card--active" onpointerup="startQuiz('name-from-diagram')">
+            <div class="mode-card mode-card--active" data-mode="name-from-diagram" onpointerup="startQuiz('name-from-diagram')">
               <div class="mode-card-icon"><i class="ph ph-grid-nine"></i></div>
               <div class="mode-card-info">
                 <span class="mode-card-title">코드 보고 이름 맞추기</span>
               </div>
             </div>
 
-            <div class="mode-card mode-card--active" onpointerup="startQuiz('diagram-from-name')">
+            <div class="mode-card mode-card--active" data-mode="diagram-from-name" onpointerup="startQuiz('diagram-from-name')">
               <div class="mode-card-icon mode-card-icon--text">Am</div>
               <div class="mode-card-info">
                 <span class="mode-card-title">이름 보고 운지 맞추기</span>
@@ -241,6 +241,19 @@
     </div>
   </div>
 
+  <!-- ── 튜토리얼 진행 레이어 (home.html과 동일 구조) ── -->
+  <div id="tut-layer" class="hidden">
+    <div id="tut-panel">
+      <button id="tut-skip" onclick="Tutorial.confirmSkip()">건너뛰기</button>
+      <h4 id="tut-title"></h4>
+      <p id="tut-text"></p>
+      <button id="tut-next" disabled onclick="Tutorial.next()">다음</button>
+    </div>
+  </div>
+
+  <!-- 스와이프 유도 dot — 레이어 밖 body 직속. 어떤 요소에도 안 가리도록 최상위에 둔다 -->
+  <div id="tut-scrollhint" hidden><div class="tut-swipe-dot"></div></div>
+
   <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.js"></script>
   <script src="https://unpkg.com/@phosphor-icons/web"></script>
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4/dist/chart.umd.min.js"></script>
@@ -252,6 +265,8 @@
   <script src="guitar-samples.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/tone/14.8.49/Tone.js"></script>
   <script src="guitar-audio.js"></script>
+  <script src="tutorial-steps.js"></script>
+  <script src="tutorial.js"></script>
   <script src="chord-name-quiz.js"></script>
 </body>
 </html>

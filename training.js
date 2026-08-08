@@ -149,7 +149,16 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     card.addEventListener('pointerup', () => {
-      if (!_moved) { _playTap(); onTrainingCardTap(card.dataset.key); }
+      if (!_moved) {
+        _playTap();
+        window.Tutorial?.notify(`trainingcard:${card.dataset.key}`);
+        onTrainingCardTap(card.dataset.key);
+      }
     });
   });
+
+  // 튜토리얼 진행 중이면 이어받기 — 통계·카드가 다 그려진 뒤라야 대상 위치가 잡힌다
+  requestAnimationFrame(() => requestAnimationFrame(() => {
+    if (typeof Tutorial !== 'undefined') Tutorial.resume();
+  }));
 });

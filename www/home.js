@@ -522,6 +522,46 @@ function initWheelPicker(scrollEl, getIdx, onPick) {
 
   let timer, programmatic = false, _rafId = null;
 
+  // ── 정지 판정 ─────────────────────────────────────────────
+  // 예전엔 "마지막 scroll 이벤트 + 150ms"만으로 onPick을 불렀다. 빠르게 튕기면 그 시점에
+  // 관성·scroll-snap이 아직 끝나지 않아 scrollTop이 칸 경계에 걸쳐 있었고, 반올림한 idx로
+  // onPick → 목록 재생성(renderRootBtns)이 일어나면서 스크롤이 중간에 멎어 버렸다.
+  // 이제는 (1) 위치가 더 안 움직이고 (2) 칸 격자에 정확히 붙었을 때만 onPick을 부른다.
+  const SETTLE_MS  = 120;  // 정지 여부를 다시 확인하는 간격
+  const SETTLE_TOL = 0.5;  // 격자에 붙었다고 볼 오차(px)
+  const SETTLE_MAX = 12;   // 최대 관찰 횟수 — 스냅이 끝내 안 끝나도 약 1.4초 뒤엔 확정
+  let _settleTop = null, _settleTries = 0;
+
+  function _cancelSettle() { clearTimeout(timer); _settleTop = null; _settleTries = 0; }
+
+  function _checkSettled() {
+    if (scrollEl._pickerGen !== _gen) return; // 낡은 타이머: 무시
+    const total = scrollEl.children.length;
+    if (!total) return;
+
+    const top     = scrollEl.scrollTop;
+    const idx     = Math.max(0, Math.min(Math.round(top / PICKER_ITEM_H), total - 1));
+    const snapped = Math.abs(top - idx * PICKER_ITEM_H) <= SETTLE_TOL;
+    const moved   = _settleTop === null || Math.abs(top - _settleTop) > SETTLE_TOL;
+    _settleTop = top;
+
+    // 아직 움직이는 중이거나 격자에서 벗어나 있으면 확정하지 않고 더 기다린다
+    if ((moved || !snapped) && ++_settleTries < SETTLE_MAX) {
+      timer = setTimeout(_checkSettled, SETTLE_MS);
+      return;
+    }
+    // 한계까지 기다렸는데도 격자에 안 붙었으면(스냅 실패) 직접 맞춰서 화면과 값을 일치시킨다
+    if (!snapped) {
+      programmatic = true;
+      scrollEl.scrollTop = idx * PICKER_ITEM_H;
+      setTimeout(() => { programmatic = false; }, 30);
+    }
+    _settleTop = null; _settleTries = 0;
+    onPick(idx);
+    // 유저가 직접 돌린 경우만 도달(programmatic은 scroll 핸들러에서 반환) — 튜토리얼 휠 구간 판정용
+    window.Tutorial?.notify('wheel');
+  }
+
   function updateItemStyles() {
     const btns = Array.from(scrollEl.children);
     if (!btns.length) return;
@@ -536,17 +576,14 @@ function initWheelPicker(scrollEl, getIdx, onPick) {
   scrollEl.addEventListener('scroll', () => {
     updateItemStyles();
     if (programmatic) return;
-    clearTimeout(timer);
-    timer = setTimeout(() => {
-      if (scrollEl._pickerGen !== _gen) return; // 낡은 타이머: 무시
-      const total = scrollEl.children.length;
-      if (!total) return;
-      const idx = Math.max(0, Math.min(Math.round(scrollEl.scrollTop / PICKER_ITEM_H), total - 1));
-      onPick(idx);
-    }, 150);
+    // 스크롤이 이어지는 동안엔 판정을 계속 미룬다
+    _cancelSettle();
+    timer = setTimeout(_checkSettled, SETTLE_MS);
   }, { signal: _abort.signal });
 
   scrollEl._scrollToIdx = (idx, smooth = false) => {
+    // 유저 스크롤에서 걸어둔 정지 판정이 남아 있으면 프로그램 이동 뒤에 엉뚱한 onPick이 터진다
+    _cancelSettle();
     // 진행 중인 애니메이션 즉시 중단 + snap 복원
     if (_rafId !== null) { cancelAnimationFrame(_rafId); _rafId = null; scrollEl.style.scrollSnapType = ''; }
     programmatic = true;
@@ -697,7 +734,9 @@ function renderBassBtns() {
 function toggleAccidental() {
   _playTap();
   const current = document.getElementById('acc-sharp')?.classList.contains('active') ? 'sharp' : 'flat';
-  setAccidental(current === 'sharp' ? 'flat' : 'sharp');
+  const next = current === 'sharp' ? 'flat' : 'sharp';
+  setAccidental(next);
+  window.Tutorial?.notify(`acc:${next}`);
 }
 function toggleLibAccidental() {
   _playTap();
@@ -952,6 +991,17 @@ function toggleFingerNum() {
   document.getElementById('btn-finger-num').classList.toggle('active', fingerNumMode);
   document.getElementById('finger-group').style.opacity = fingerNumMode ? '1' : '0.35';
   draw();
+  window.Tutorial?.notify(`fingermode:${fingerNumMode ? 'on' : 'off'}`);
+}
+
+// 튜토리얼 전용 — 구간 진입 시 편집 상태를 지정값으로 강제 세팅
+function tutorialSetChord(nextDots, nextBarre, nextOpenMute) {
+  dots        = nextDots.map(d => ({ ...d }));
+  barreActive = { ...nextBarre };
+  openMute    = [...nextOpenMute];
+  rootMode    = false;
+  rootIndex   = -1;
+  _syncChordFromCanvas();
 }
 
 function calcRootIndex() {
@@ -1333,6 +1383,7 @@ function updateBarreBtns() {
     }
     const btn = document.createElement('button');
     btn.textContent = 'B';
+    btn.dataset.fret = String(f); // 튜토리얼이 특정 프렛 버튼을 지목할 때 사용
     const left = Math.round((f - 0.5) * FW() * ds) - Math.round(btnSize / 2); // barre-wrap이 nut 기준 시작
     const top  = Math.round((containerH - btnSize) / 2);
     btn.style.cssText = `position:absolute;left:${left}px;top:${top}px;width:${btnSize}px;height:${btnSize}px;
@@ -1353,6 +1404,7 @@ function updateBarreBtns() {
         barreActive[f] = false;
       }
       draw();
+      window.Tutorial?.notify(`barre:${f}:${barreActive[f] ? 'on' : 'off'}`);
     };
     container.appendChild(btn);
   });
@@ -1369,7 +1421,11 @@ canvas.addEventListener('click', e => {
   const si = Math.round((my - TT()) / SH());
   if (si < 0 || si > STRINGS - 1) return;
 
+  // 튜토리얼 진행 중이면 지정된 칸 외 입력은 무시
+  const tutCell = window.Tutorial?.canvasCell();
+
   if (mx >= TL() - 50 && mx < TL()) {
+    if (tutCell) return; // 개방현/뮤트 영역은 허용 대상 아님
     const hasDot = dots.some(d => d.s === si);
     if (hasDot) {
       dots = dots.filter(d => d.s !== si);
@@ -1385,16 +1441,38 @@ canvas.addEventListener('click', e => {
 
   const fi = Math.floor((mx - TL()) / FW()) + 1;
   if (fi < 1 || fi > FRETS) return;
+  if (tutCell && (si !== tutCell.s || fi !== tutCell.f)) return;
 
+  if (!_placeDot(si, fi)) return;
+  if (fingerNumMode) {
+    // 손가락 모드에선 "몇 번으로 바뀌었는가"까지 알려야 튜토리얼이 정확히 판정할 수 있다
+    const d = dots.find(x => x.s === si && x.f === fi);
+    window.Tutorial?.notify(`finger:${si}:${fi}:${d ? d.n : 'x'}`);
+  } else {
+    window.Tutorial?.notify(`dot:${si}:${fi}`);
+  }
+});
+
+// dot 배치 본체 — 캔버스 클릭과 튜토리얼 시뮬레이션이 같은 규칙을 쓰도록 분리.
+// 반환값: 실제로 반영됐으면 true (바레 제약으로 무시된 경우 false)
+function _placeDot(si, fi) {
   // 바레로 커버된 줄은 해당 바레 프렛보다 낮은 곳에 dot 불가
   const barreMapCheck = buildBarreMap(dots, barreActive);
-  if (barreMapCheck[si] !== undefined && fi < barreMapCheck[si]) return;
+  if (barreMapCheck[si] !== undefined && fi < barreMapCheck[si]) return false;
 
   const idx = dots.findIndex(d => d.s === si && d.f === fi);
   if (idx !== -1) {
-    // 같은 위치 토글 오프: 해당 dot만 제거
-    dots.splice(idx, 1);
-    if (!dots.some(d => d.s === si)) openMute[si] = 'open';
+    // 손가락 모드에서 다른 번호를 고른 채 기존 dot을 누르면 = 번호 변경 의도.
+    // 지우지 않고 번호만 바꾼다. 같은 번호일 때만 기존처럼 토글 오프.
+    // (모드가 꺼져 있으면 번호가 안 보여서 "눌러도 반응 없음"으로 보이므로 제외)
+    if (fingerNumMode && dots[idx].n !== selectedFinger) {
+      dots[idx].n = selectedFinger;
+    } else if (window.Tutorial?.canvasCell()) {
+      return false; // 튜토리얼 진행 중 — 지정 칸이 지워져 코드 폼이 깨지는 것 방지
+    } else {
+      dots.splice(idx, 1);
+      if (!dots.some(d => d.s === si)) openMute[si] = 'open';
+    }
   } else {
     // 바레가 이 줄을 커버하고 있고 클릭 프렛이 바레 우측이면 → 바레 dot 유지, 우측 dot만 교체
     const barreF = barreMapCheck[si];
@@ -1410,7 +1488,11 @@ canvas.addEventListener('click', e => {
   }
   if (rootMode) rootIndex = calcRootIndex();
   _syncChordFromCanvas();
-});
+  return true;
+}
+
+// 튜토리얼 전용 — 유저가 직접 찍은 것과 동일한 경로로 dot 하나를 찍는다.
+function tutorialTapDot(si, fi) { return _placeDot(si, fi); }
 
 // ═══════════════════════════════════════════════════════════════
 // PNG 저장
@@ -1441,6 +1523,7 @@ function openImgSaveModal(mode) {
 
   if (backdrop) backdrop.classList.add('open');
   modal.classList.add('open');
+  window.Tutorial?.notify('imgsave:open'); // 시트가 열린 뒤에 알림
 }
 
 function closeImgSaveModal() {
@@ -1520,6 +1603,7 @@ async function onImgSave() {
   closeImgSaveModal();
   if (_imgMode === 'library') await _doExportLibChordImage(_imgScale, _imgTransparent);
   else                        await _doSavePNG(_imgScale, _imgTransparent);
+  window.Tutorial?.notify('imgsave:done');
 }
 
 async function _doSavePNG(scale, transparent = false) {
@@ -1675,6 +1759,9 @@ function strumChord() {
   if (!notes.length) return;
   analytics.track('chord_played', { chord_name: buildChordName(), source: 'editor' });
   GuitarAudio.strumNotes(notes.map(n => n.midi), STRUM_INTERVAL);
+  // 튜토리얼: 자동으로 다음 구간으로 넘기지 않는다. 1초 뒤 '다음' 버튼만 눌러도 되게 풀어주고,
+  // 끝까지 듣고 싶으면 유저가 원하는 만큼 기다렸다가 직접 버튼을 누르게 한다.
+  setTimeout(() => window.Tutorial?.enableNext?.(), 1000);
 }
 
 // 페이지 이탈 시 잔향 하드컷 — 전환 애니메이션 동안 이전 문서가 살아있어
@@ -2123,6 +2210,9 @@ function switchTab(tab, noAnim = false) {
 
   // 설정(톱니) 버튼: 프로필 탭에서만 노출
   document.getElementById('settings-btn')?.classList.toggle('hidden', tab !== 'profile');
+  // 튜토리얼 재진입 아이콘은 홈 탭에서만
+  document.getElementById('tutorial-entry-btn')?.classList.toggle('hidden', tab !== 'home');
+  if (tab === 'home') window.Tutorial?.refreshEntryDot?.(); // 남은 스텝 강조 dot 갱신
 
   // 레벨 위젯: 홈 탭에서만 노출
   document.getElementById('topbar-level')?.classList.toggle('hidden', tab !== 'home');
@@ -2133,6 +2223,7 @@ function switchTab(tab, noAnim = false) {
   if (tab === 'home') enterFromHome('home');
   if (tab === 'projects') renderProjectsList();
   if (tab === 'profile') loadProfileFromDB();
+  window.Tutorial?.notify(`tab:${tab}`);
 
   if (typeof analytics !== 'undefined') {
     analytics.setScreen(tab);
@@ -2166,6 +2257,8 @@ function enterFromBlock(e, el, view) {
       // training은 실제 페이지 이동(언로드가 재생을 끊음) → 재생 시작 확인 후 어택 확보하고 이동.
       // 폴백: 재생이 차단/지연돼도 300ms 내 반드시 이동(전환이 멈추지 않도록).
       if (view === 'training') {
+        // 페이지가 넘어가기 전에 알린다 — 문자열 조건이라 즉시 판정되고 진행 위치가 저장된다
+        window.Tutorial?.notify('view:training');
         let _navd = false;
         const _go = () => { if (!_navd) { _navd = true; location.href = 'training.html'; } };
         _tapP.then(() => setTimeout(_go, 240)); // 트림된 tap(~260ms) 온전 재생 후 이동 → 깨짐 방지
@@ -2185,6 +2278,25 @@ function enterFromBlock(e, el, view) {
   function onCancel() { cleanup(); }
 
   // document 레벨에서 수신 — 마우스/터치 모두 안정적으로 동작
+  document.addEventListener('pointerup',     onUp,     { once: true });
+  document.addEventListener('pointercancel', onCancel, { once: true });
+}
+
+// 하단 탭바 진입점 — Android 제스처 네비(하단 엣지에서 위로 스와이프)의 시작점이
+// 탭 버튼 위라 pointerdown만으로 탭이 전환돼버리던 문제. 손가락이 거의 안 움직인
+// 경우(=실제 탭)에만 전환한다. 스와이프로 이어지면 pointerup이 오지 않아 무시됨.
+function navTabPointerDown(e, el, tab) {
+  const sx = e.clientX, sy = e.clientY;
+  const cleanup = () => {
+    document.removeEventListener('pointerup',     onUp);
+    document.removeEventListener('pointercancel', onCancel);
+  };
+  const onUp = (ev) => {
+    cleanup();
+    if (Math.abs(ev.clientX - sx) > 10 || Math.abs(ev.clientY - sy) > 10) return;
+    tapSwitchTab(el, tab);
+  };
+  const onCancel = () => cleanup();
   document.addEventListener('pointerup',     onUp,     { once: true });
   document.addEventListener('pointercancel', onCancel, { once: true });
 }
@@ -2290,6 +2402,7 @@ async function enterFromHome(view, skipAnim = false, reverse = false) {
     document.getElementById('project-edit-bar')?.classList.add('hidden');
     populateProjectSelect();
     requestAnimationFrame(resizeCanvas);
+    window.Tutorial?.notify('view:editor');
     if (isMobileOrTablet() && screen.orientation?.lock) {
       screen.orientation.lock('landscape').catch(() => {});
     }
@@ -2305,6 +2418,7 @@ async function enterFromHome(view, skipAnim = false, reverse = false) {
     renderLibCards(_libRoot);
     const _initEntries = (window.chordsLibrary || {})[_libRoot] || [];
     if (_initEntries.length > 0) selectLibEntry(0, { silent: true });
+    window.Tutorial?.notify('view:library');
     requestAnimationFrame(() => {
       const bottom = document.querySelector('.lib-bottom');
       if (bottom && !bottom.dataset.heightFixed) {
@@ -2493,6 +2607,7 @@ function _renderProjectsSection(container, label, projects, showDivider = true, 
     const item = document.createElement('div');
     item.className = 'projects-item';
     item.dataset.id = project.id;
+    item.dataset.name = project.name; // 튜토리얼 지목용 (id는 생성할 때마다 달라짐)
     const isLocked = locked && !project.important;
     if (isLocked) item.classList.add('locked');
 
@@ -2524,6 +2639,7 @@ function _renderProjectsSection(container, label, projects, showDivider = true, 
     pinBtn.addEventListener('pointerup', (e) => { e.stopPropagation(); togglePin(project.id); });
 
     const starBtn = document.createElement('button');
+    starBtn.dataset.act = 'important'; // 튜토리얼 지목용
     starBtn.innerHTML = '<i data-lucide="chess-queen"></i>';
     starBtn.title = project.important ? '중요 해제' : '중요';
     if (project.important) starBtn.classList.add('important');
@@ -2546,6 +2662,7 @@ function _renderProjectsSection(container, label, projects, showDivider = true, 
         if (el !== item) el.classList.remove('show-actions');
       });
       item.classList.toggle('show-actions');
+      window.Tutorial?.notify('noteactions:toggle');
     });
 
     item.appendChild(name);
@@ -2646,6 +2763,11 @@ function openDeleteConfirm(projectId) {
   const confirmBtn = document.getElementById('delete-confirm-btn');
   confirmBtn.onclick = () => { closeDeleteConfirm(); _deleteProjectFromList(projectId); };
   overlay.classList.remove('hidden');
+  // 이 모달은 pointerup에서 열린다. 브라우저는 곧이어 같은 좌표로 click을 발생시키는데,
+  // 그때 그 자리의 최상단 요소는 이미 이 오버레이라 백드롭 클릭으로 오인돼 바로 닫혀 버린다.
+  // → 열린 직후 한 틱 동안은 백드롭 닫기를 무시한다.
+  overlay.dataset.justOpened = '1';
+  setTimeout(() => { delete overlay.dataset.justOpened; }, 0);
   requestAnimationFrame(() => {
     overlay.classList.add('open');
     modal.style.animation = 'deleteConfirmIn 0.38s cubic-bezier(0.34, 1.56, 0.64, 1) forwards';
@@ -2655,6 +2777,7 @@ function openDeleteConfirm(projectId) {
 function closeDeleteConfirm() {
   const overlay = document.getElementById('delete-confirm-overlay');
   if (!overlay) return;
+  if (overlay.dataset.justOpened) return; // 여는 제스처의 잔여 click — 무시
   const modal = overlay.querySelector('.delete-confirm-modal');
   modal.style.animation = 'deleteConfirmOut 0.22s cubic-bezier(0.4, 0, 1, 1) forwards';
   setTimeout(() => {
@@ -2709,6 +2832,7 @@ function toggleImportant(projectId) {
   }
   saveProjects(projects);
   renderProjectsList();
+  window.Tutorial?.notify(`important:${p.important}`); // 목록 재렌더 뒤에 알림
 }
 
 function reorderImportant(dragId, targetId) {
@@ -2779,6 +2903,7 @@ async function promptCreateProject() {
   document.getElementById('modal-create-project').classList.remove('hidden');
   lucide.createIcons();
   requestAnimationFrame(() => input.focus());
+  window.Tutorial?.notify('notecreate:open');
 }
 
 function confirmCreateProject() {
@@ -2814,6 +2939,7 @@ function confirmCreateProject() {
   populateProjectSelect();
   analytics.track('project_created', { total_count: projects.length });
   incrementStat('notes'); // 노트 생성 퀘스트 누적 카운터
+  window.Tutorial?.notify('notecreate:done');
   openProject(newProject.id);
 }
 
@@ -2992,6 +3118,8 @@ function openProjectSheet() {
     list.appendChild(item);
   });
 
+  window.Tutorial?.notify('notesheet:open');
+
   // 새 프로젝트 만들기 카드 — 항상 최하단
   const card = document.createElement('div');
   card.className = 'project-sheet-new-card';
@@ -3014,6 +3142,7 @@ function closeProjectSheet() {
   const overlay = document.getElementById('project-sheet-overlay');
   if (!overlay) return;
   _playTap();
+  window.Tutorial?.notify('notesheet:close');
   overlay.classList.remove('open');
   overlay.classList.add('closing');
   overlay.addEventListener('transitionend', () => {
@@ -3077,6 +3206,39 @@ function showTextToast(msg) {
 
 // ── 내 초대코드 (박스 탭 = 복사) ──
 let _myInviteCode = null;
+
+// ── 친구 초대 공지 모달 ──────────────────────────────────────────
+// DB notices 테이블은 정적 텍스트만 다루므로(모든 유저 공통 문구), 유저별로 다른
+// 내 초대코드를 보여줘야 하는 이 공지는 별도 모달로 둔다.
+//
+// 트리거: 튜토리얼을 완주했거나 건너뛴 순간, 그날의 출석·랜덤피크 체인까지 전부 끝난 뒤
+// (tutorial.js _releaseHomeFlow → runDailyAttendanceFlow의 onAllDone 경유). 평범한 홈
+// 재진입에서는 안 뜬다 — 그건 checkAndShowNotice()의 몫이라 여기서 겹치게 두지 않는다.
+const REFERRAL_NOTICE_SEEN_KEY = 'chorditor_referral_notice_seen';
+function maybeShowReferralNotice() {
+  if (localStorage.getItem(REFERRAL_NOTICE_SEEN_KEY)) return; // 평생 1회
+  localStorage.setItem(REFERRAL_NOTICE_SEEN_KEY, '1'); // 모달이 실제로 뜨는지와 무관하게 먼저 마킹(중복 트리거 방지)
+  openReferralNoticeModal();
+}
+
+async function openReferralNoticeModal() {
+  if (!_myInviteCode) await loadProfileFromDB().catch(() => {});
+  if (!_myInviteCode) return; // 코드를 못 받아왔으면 빈 코드로 띄우지 않는다
+  document.getElementById('referral-notice-code').textContent = _myInviteCode;
+  document.getElementById('referral-notice-overlay')?.classList.remove('hidden');
+  if (typeof lucide !== 'undefined') lucide.createIcons();
+  if (typeof _playSfx === 'function') _playSfx('page.mp3');
+  analytics.track('referral_notice_viewed');
+}
+
+function closeReferralNotice() {
+  document.getElementById('referral-notice-overlay')?.classList.add('hidden');
+}
+
+function copyReferralNoticeCode() {
+  analytics.track('referral_notice_code_copied');
+  copyMyInviteCode();
+}
 
 function copyMyInviteCode() {
   if (!_myInviteCode) return;
@@ -4018,9 +4180,14 @@ function meCanvasClick(e) {
 
   const idx = me_dots.findIndex(d => d.s === si && d.f === fi);
   if (idx !== -1) {
-    // 같은 위치 토글 오프: 해당 dot만 제거
-    me_dots.splice(idx, 1);
-    if (!me_dots.some(d => d.s === si)) me_openMute[si] = 'open';
+    // 손가락 모드에서 다른 번호를 고른 채 기존 dot을 누르면 = 번호 변경 의도.
+    // 지우지 않고 번호만 바꾼다. 같은 번호일 때만 기존처럼 토글 오프. (에디터와 동일 규칙)
+    if (me_fingerNumMode && me_dots[idx].n !== me_selectedFinger) {
+      me_dots[idx].n = me_selectedFinger;
+    } else {
+      me_dots.splice(idx, 1);
+      if (!me_dots.some(d => d.s === si)) me_openMute[si] = 'open';
+    }
   } else {
     const meBarreF = meBarreMapCheck[si];
     if (meBarreF !== undefined && fi > meBarreF) {
@@ -4340,22 +4507,20 @@ function onAuthSignedIn() {
 
 // 웹: 로그인됐지만 persona 미입력이면 온보딩 필요 (true 반환)
 async function _webNeedsOnboarding() {
-  try {
-    let token = null, userId = null;
-    if (_supabase) {
+  let token = null, userId = null;
+  if (_supabase) {
+    try {
       const { data } = await _supabase.auth.getSession();
       token  = data?.session?.access_token;
       userId = data?.session?.user?.id;
-    }
-    if (!token || !userId) return false; // 비로그인 → 온보딩 강제 안 함
-    const resp = await fetch(
-      `${SUPABASE_URL}/rest/v1/subscriptions?user_id=eq.${userId}&select=persona`,
-      { headers: { 'apikey': SUPABASE_ANON, 'Authorization': `Bearer ${token}` } }
-    );
-    if (!resp.ok) return false;
-    const rows = await resp.json();
-    return !(rows.length > 0 && rows[0].persona);
-  } catch (_) { return false; }
+    } catch (_) {}
+  }
+  // 세션이 이미 복원된 상태(_authReady)인데 토큰을 못 얻었다면 조회가 실패한 것이다.
+  // checkNeedsOnboarding은 토큰이 없으면 false(=통과)를 주므로 그대로 넘기면
+  // 온보딩 검사를 한 번도 안 거친 채 홈에 진입한다(fail-open). 관문 정책대로 막는다.
+  // 비로그인(_authReady=false)은 아래 별도 분기(공유링크·OAuth 콜백)에서 처리한다.
+  if (!token || !userId) return _authReady;
+  return checkNeedsOnboarding(token, userId);
 }
 
 // ═══════════════════════════════════════════════════════════════
@@ -4789,7 +4954,9 @@ document.addEventListener('DOMContentLoaded', async () => {
   // ── DEV 빌드: 인증 체크 없이 바로 진입 ──────────────────────
   if (APP_VERSION.includes('_dev')) {
     initSupabase().catch(() => {});
-    if (typeof runDailyAttendanceFlow === 'function') runDailyAttendanceFlow();
+    // 튜토리얼 자동 노출 대상이면 출석·랜덤피크는 건너뛰기 이후로 보류됨
+    if (typeof runHomeEntryFlow === 'function') runHomeEntryFlow();
+    else if (typeof runDailyAttendanceFlow === 'function') runDailyAttendanceFlow();
     _consumePendingShareCode();
     setTimeout(() => checkAndShowNotice(), 800);
     return;
@@ -4806,10 +4973,18 @@ document.addEventListener('DOMContentLoaded', async () => {
       if (!session.user || (session.expires_at && session.expires_at < now - 300)) {
         window.location.replace('onboarding.html'); return;
       }
+      // 온보딩 미완료(persona 없음)면 어떤 경로로 들어왔든 홈 진입 차단.
+      // 푸시 딥링크·공유링크로 home.html에 직접 도달하는 경우도 여기서 막힌다.
+      if (await checkNeedsOnboarding(session.access_token, session.user.id)) {
+        window.location.replace('onboarding.html'); return;
+      }
       _authReady = true;
+      _setOnboardedCache(session.user.id); // 다른 페이지의 관문이 재조회를 건너뛰도록
       analytics.setUserId(session.user.id);
       analytics.track('app_open', { platform: 'android', project_count: loadProjects().length });
-      if (typeof runDailyAttendanceFlow === 'function') runDailyAttendanceFlow();
+      // 튜토리얼 자동 노출 대상이면 출석·랜덤피크는 건너뛰기 이후로 보류됨
+      if (typeof runHomeEntryFlow === 'function') runHomeEntryFlow();
+      else if (typeof runDailyAttendanceFlow === 'function') runDailyAttendanceFlow();
       analytics.setScreen('home');
       analytics.track('screen_view', { view: 'home' }); // 홈 화면 진입 명시 기록
       syncProjectsOnLogin().catch(() => {}); // 재설치 등 DB 백업 복구 + 로컬 전용 업로드
@@ -4833,14 +5008,18 @@ document.addEventListener('DOMContentLoaded', async () => {
   if (await _webNeedsOnboarding()) { window.location.replace('onboarding.html'); return; }
   // 비로그인 첫 방문자 → 온보딩(로그인+페르소나)으로 유도. 카카오톡 등 인앱브라우저
   // 외부전환 로직도 onboarding.html에만 있으므로 여기서 보내야 함.
-  // 단 OAuth 콜백(토큰이 URL에 옴)·공유링크(?share=)는 home에서 처리해야 하므로 제외.
+  // OAuth 콜백(토큰이 URL에 옴)만 예외 — 로그인 처리 중이라 되돌리면 안 됨.
+  // 공유링크(?share=)는 예외가 아니다: 코드는 이미 sessionStorage에 보관돼 있고
+  // 온보딩을 마친 뒤 _consumePendingShareCode()가 이어서 처리한다.
   if (!_authReady) {
-    // shareParam은 위에서 replaceState로 이미 URL에서 제거되므로 캡처된 변수로 판정
     const _hasOAuth = /access_token|[?&]code=/.test(location.hash + location.search);
-    if (!_hasOAuth && !shareParam) { window.location.replace('onboarding.html'); return; }
+    if (!_hasOAuth) { window.location.replace('onboarding.html'); return; }
   }
+  _setOnboardedCache(getStoredAuth().userId); // 다른 페이지의 관문이 재조회를 건너뛰도록
   analytics.track('app_open', { platform: 'web', project_count: loadProjects().length });
-  if (typeof runDailyAttendanceFlow === 'function') runDailyAttendanceFlow();
+  // 튜토리얼 자동 노출 대상이면 출석·랜덤피크는 건너뛰기 이후로 보류됨
+  if (typeof runHomeEntryFlow === 'function') runHomeEntryFlow();
+  else if (typeof runDailyAttendanceFlow === 'function') runDailyAttendanceFlow();
   analytics.setScreen('home');
   analytics.track('screen_view', { view: 'home' }); // 홈 화면 진입 명시 기록
   syncProjectsOnLogin().catch(() => {}); // 재설치 등 DB 백업 복구 + 로컬 전용 업로드
@@ -4877,7 +5056,9 @@ function renderLibRootTabs() {
   container.innerHTML = roots.map(r => {
     // 샵/플랫 모드에 따라 하나의 이름만 표시
     const label = useFlat ? (flatMap[r] || r) : r;
+    // data-root: 튜토리얼이 특정 근음 탭을 지목할 때 사용 (표시명은 샵/플랫에 따라 바뀌므로)
     return `<button class="lib-root-item${r === _libRoot ? ' active' : ''}"
+                    data-root="${r}"
                     onclick="selectLibRoot('${r}')">${label}</button>`;
   }).join('');
 }
@@ -4889,6 +5070,8 @@ function selectLibRoot(root) {
   analytics.track('lib_tab_changed', { root_tab: root });
   renderLibRootTabs();
   renderLibCards(root);
+  window.Tutorial?.notify(`libroot:${root}`);
+  window.Tutorial?.repaint(); // 탭이 통째로 교체되므로 허용·하이라이트 표시 복구
 }
 
 function renderLibCards(root) {
@@ -4921,6 +5104,7 @@ function renderLibCards(root) {
     const isActive = sharpName === activeGroupName;
     const multi    = idxList.length > 1;
     html += `<div class="lib-card${isActive ? ' active' : ''}${multi ? ' lib-card-multi' : ''}"
+                  data-chord="${sharpName}"
                   onclick="onLibCardClick(event,'${sharpName.replace(/\\/g,'\\\\').replace(/'/g,"\\'")}')">
                <canvas class="lib-card-canvas" data-gidx="${gi}"
                        width="${LIB_MINI_W}"
@@ -5019,6 +5203,7 @@ function prevLibFingering() {
   _updateFingeringNav();
   const useFlat = accidental === 'flat';
   analytics.track('lib_fingering_changed', { chord_name: useFlat ? _libEntry.flatName : _libEntry.name, to_idx: _libFingeringIdx, total });
+  window.Tutorial?.notify(`libfinger:${_libFingeringIdx}`);
 }
 
 function nextLibFingering() {
@@ -5028,6 +5213,7 @@ function nextLibFingering() {
   _updateFingeringNav();
   const useFlat = accidental === 'flat';
   analytics.track('lib_fingering_changed', { chord_name: useFlat ? _libEntry.flatName : _libEntry.name, to_idx: _libFingeringIdx, total });
+  window.Tutorial?.notify(`libfinger:${_libFingeringIdx}`);
 }
 
 // ── 보이싱 피커 모달 ────────────────────────────────────────────
@@ -5053,6 +5239,7 @@ function onLibCardClick(event, sharpName) {
 
   _playSfx('page.mp3'); // 1차 그리드 펼침(보이싱 모달)
   openVoicingModal(sharpName, cardEl);
+  window.Tutorial?.notify(`libcard:${sharpName}`);
 }
 
 // 보이싱 모달 열기
@@ -5083,6 +5270,8 @@ function openVoicingModal(sharpName, cardEl) {
 
 // 보이싱 모달 닫기
 function closeVoicingModal() {
+  // 튜토리얼이 이 구간에서 목록을 잠갔으면 무시한다(모달 여백·오버레이 오터치 방지)
+  if (window.Tutorial?.locksVoicing?.()) return;
   document.getElementById('lib-voicing-modal')?.classList.remove('open');
   document.getElementById('lib-voicing-overlay')?.classList.remove('open');
   _voicingModalChord = null;
@@ -5098,10 +5287,12 @@ function _renderVoicingGrid(sharpName) {
     .map((e, i) => ({ e, i }))
     .filter(({ e }) => e.name === sharpName);
 
-  grid.innerHTML = filtered.map(({ e, i }) => {
+  grid.innerHTML = filtered.map(({ e, i }, pos) => {
     const dispName = useFlat ? e.flatName : e.name;
+    // data-vpos: 이 코드 그룹 안에서 몇 번째 보이싱인지. 전역 인덱스는 코드마다 달라 튜토리얼이 못 쓴다.
     return `<div class="lib-card${_libEntry === e ? ' active' : ''}"
-                 onclick="event.stopPropagation(); _playTap(); selectLibEntry(${i});">
+                 data-vpos="${pos}"
+                 onclick="event.stopPropagation(); _playTap(); selectLibEntry(${i}); window.Tutorial?.notify('libvoicing:${pos}');">
                <canvas class="lib-card-canvas" data-vidx="${i}"
                        width="${LIB_MINI_W}"
                        height="${Math.round(BASE_H * LIB_MINI_RATIO)}"></canvas>
@@ -5157,6 +5348,9 @@ function libPlayChord() {
   const useFlat = accidental === 'flat';
   analytics.track('lib_chord_played', { chord_name: useFlat ? _libEntry.flatName : _libEntry.name });
   playChord({ dots: _libEntry.frets.map((f, s) => f !== null && f > 0 ? {s, f} : null).filter(Boolean), openMute: _libEntry.openMute });
+  window.Tutorial?.notify('libplay');
+  // 튜토리얼: 자동으로 넘기지 않는다(STEP1 소리 듣기와 동일). 1초 뒤 '다음' 버튼만 풀어준다.
+  setTimeout(() => window.Tutorial?.enableNext?.(), 1000);
 }
 
 function libSaveImage() {
@@ -5173,13 +5367,16 @@ function _libMatch(name, q) {
   const qSuffix = m[2];                                   // quality 부분 (대소문자 구분)
   const nm = name.match(/^([A-G][#b]?)(.*)/);
   if (!nm) return false;
-  return nm[1] === qRoot && nm[2].includes(qSuffix);
+  // 접두어 일치 — 입력한 글자로 "시작하는" 코드만. includes였을 땐 G7이 GM7까지 잡았다.
+  // G7 → G7 / G7(9) / G7/F / G7sus4 는 걸리고, GM7 은 안 걸린다.
+  return nm[1] === qRoot && nm[2].startsWith(qSuffix);
 }
 
 let _libSearchResults = [];
 
 function onLibSearch(query) {
-  closeVoicingModal();
+  // 여기서 closeVoicingModal()을 부르면 안 된다 — oninput이라 한 글자 칠 때마다
+  // 열려 있던 보이싱 목록이 툭 닫힌다. 닫기는 showLibSearchModal()에서 한 번만.
   const q = (query || '').trim();
   if (!q) { _libSearchResults = []; return; }
 
@@ -5199,6 +5396,9 @@ function showLibSearchModal() {
   const container = document.getElementById('lib-search-cards');
   const titleEl = document.getElementById('lib-search-modal-title');
   if (!modal || !container) return;
+
+  // 검색 결과가 실제로 뜨는 이 시점에만 보이싱 목록을 정리한다
+  closeVoicingModal();
 
   // 모달 상단 위치: lib-action-bar 상단에서 시작
   const actionBar = document.querySelector('#view-library .lib-action-bar');
@@ -5235,6 +5435,8 @@ function showLibSearchModal() {
   }
 
   modal.classList.add('open');
+  // 대소문자 차이로 판정이 갈리지 않게 대문자로 통일해서 알린다
+  window.Tutorial?.notify(`libsearch:open:${q.toUpperCase()}`);
 }
 
 function closeLibSearchModal() {
@@ -5242,6 +5444,7 @@ function closeLibSearchModal() {
   if (modal) modal.classList.remove('open');
   const input = document.getElementById('lib-search');
   if (input) { input.value = ''; _libSearchResults = []; }
+  window.Tutorial?.notify('libsearch:close');
 }
 
 function selectLibSearchResult(idx) {
@@ -5260,6 +5463,7 @@ function selectLibSearchResult(idx) {
   container?.querySelectorAll('.lib-card').forEach((el, i) => {
     el.classList.toggle('active', i === idx);
   });
+  window.Tutorial?.notify(`libsearchpick:${idx}`);
 }
 
 // 라이브러리 저장 버튼 → showScaleDropdown 으로 진입

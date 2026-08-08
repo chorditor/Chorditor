@@ -1304,6 +1304,17 @@ let metronomeNextBeatTime = 0;
 let metronomeBeatCount = 0;
 let playbackStartAudioTime = 0;
 let playbackEndAudioTime = 0;   // 곡 종료 오디오 시각 (0 = 제한 없음)
+// 코드 재생이 쓰는 시계(performance.now)의 '곡 0ms' 지점. 메트로놈도 이 값을 기준으로 붙는다.
+// 예전엔 메트로놈만 audioCtx.currentTime으로 따로 원점을 잡아 두 시계가 어긋났다.
+let playbackStartWallTime = 0;
+let playbackTotalMs = 0;        // 곡 전체 길이(ms) — 메트로놈 종료 시각 계산용
+
+// 스트로크 보정 — 코드는 한 점이 아니라 6줄을 STRUM_INTERVAL(8ms) 간격으로 훑는 소리다(총 ~40ms).
+// 첫 음(6번줄)을 정박에 정확히 맞추면 귀가 느끼는 무게중심이 뒤에 있어 코드가 밀려 들린다.
+// 실제 연주자도 정박보다 살짝 먼저 스트로크를 시작한다.
+// 코드 재생 타이밍(refWallTime 체인)은 그대로 두고 메트로놈 원점만 이만큼 뒤로 미룬다
+// — 상대적으로 코드가 먼저 시작되는 것과 같고, 재생 로직은 건드리지 않아 안전하다.
+const STRUM_LEAD_MS = 20;
 
 // 설정>사운드 마스터 볼륨용 최종 게인(엔벨로프 뒤 → 낮은 볼륨서도 클릭 없음)
 let _upSfxMaster = null;
@@ -1315,6 +1326,10 @@ function _getUpSfxBus() {
   _upSfxMaster.gain.value = (typeof _getSfxMasterVolume === 'function') ? _getSfxMasterVolume() : 1;
   return _upSfxMaster;
 }
+
+// 룩어헤드로 미리 예약해 둔 클릭 노드들. 재생이 멈추면 이걸 전부 꺼야 한다 —
+// 타이머만 끄면 이미 예약된 최대 150ms 분량이 그대로 울리고, 페이지를 떠나도 따라온다.
+let _metronomeNodes = [];
 
 function metronomeClick(time, isDownbeat) {
   if (!audioCtx) return;
@@ -1333,19 +1348,35 @@ function metronomeClick(time, isDownbeat) {
   osc.type = 'sine';
   osc.frequency.value = isDownbeat ? 740 : 520;
 
+  // 스케줄러가 늦게 깨어나면 이미 지난 시각이 들어올 수 있다. 과거 시각은 파라미터 예약이
+  // 무시되거나 순서가 뒤집혀 클릭이 뭉치므로 현재 시각으로 끌어올린다.
+  if (time < audioCtx.currentTime) time = audioCtx.currentTime;
+
   const vol = isDownbeat ? 0.38 : 0.22;
   gain.gain.setValueAtTime(vol, time);
   gain.gain.exponentialRampToValueAtTime(0.0001, time + 0.055);
 
   osc.start(time);
   osc.stop(time + 0.06);
+
+  _metronomeNodes.push({ osc, gain });
+  osc.onended = () => {
+    _metronomeNodes = _metronomeNodes.filter(n => n.osc !== osc);
+    try { gain.disconnect(); } catch (_) {}
+  };
 }
+
+// 룩어헤드 스케줄러 — 소리 시각은 audioCtx 시계로 미리 예약하고, setTimeout은 "언제 다음
+// 예약을 짤지" 깨우는 용도로만 쓴다. 주기를 룩어헤드보다 충분히 짧게 둬야 타이머가 한두 번
+// 늦어도 구멍이 안 난다(50ms였을 땐 여유가 70ms뿐이라 스크롤·재렌더 한 번에 밀렸다).
+const METRONOME_LOOKAHEAD = 0.15; // 미리 예약해 둘 범위(초)
+const METRONOME_TICK_MS   = 25;   // 스케줄러 깨우는 주기
 
 function scheduleMetronome() {
   if (!metronomeActive || !playbackActive || !audioCtx) return;
   const now = audioCtx.currentTime;
 
-  while (metronomeNextBeatTime < now + 0.12) {
+  while (metronomeNextBeatTime < now + METRONOME_LOOKAHEAD) {
     if (playbackEndAudioTime > 0 && metronomeNextBeatTime >= playbackEndAudioTime) break;
     if (metronomeBeatCount >= metronomeBeats.length) break; // 스케줄 끝(곡 종료)
     const beat = metronomeBeats[metronomeBeatCount];
@@ -1353,70 +1384,59 @@ function scheduleMetronome() {
     metronomeNextBeatTime += beat.ms / 1000;
     metronomeBeatCount++;
   }
-  metronomeSchedulerTimeout = setTimeout(scheduleMetronome, 50);
+  metronomeSchedulerTimeout = setTimeout(scheduleMetronome, METRONOME_TICK_MS);
 }
 
-// metronomeBeats 누적시간(ms)을 targetMs와 대조해 그 시점에 해당하는 박 인덱스를 찾음.
-// (줄마다 박 길이·박자가 다를 수 있어 고정 나눗셈이 아니라 누적합으로 계산)
-// targetMs가 박 중간(이미 진행 중인 박)이면 그 박은 건너뛰고 아직 시작 안 한 다음 박(미래 경계)을 반환
-// — 그대로 두면 이미 지난 시각으로 스케줄돼 늦게/어긋나게 울림.
+// metronomeBeats(줄마다 길이·강세가 다름)의 누적시간을 훑어, targetMs 이후에 오는 첫 박 경계를
+// 찾는다. 줄마다 BPM·박자가 바뀌므로 고정 나눗셈이 아니라 누적합으로만 구할 수 있다.
+// 반환 accMs는 그 박이 시작하는 곡 기준 시각(ms), idx는 그 박의 번호.
+// targetMs가 박 중간이면 진행 중인 박은 건너뛴다 — 이미 지난 시각으로 예약하면 늦게 울린다.
 function _metronomeIndexAtMs(targetMs) {
   let accMs = 0, idx = 0;
-  while (idx < metronomeBeats.length && accMs + metronomeBeats[idx].ms <= targetMs) {
-    accMs += metronomeBeats[idx].ms;
-    idx++;
-  }
-  if (idx < metronomeBeats.length && targetMs > accMs) {
+  while (idx < metronomeBeats.length && accMs < targetMs) {
     accMs += metronomeBeats[idx].ms;
     idx++;
   }
   return { idx, accMs };
 }
 
+// 메트로놈을 "지금 이 순간"의 코드 재생 위치에 붙인다.
+// 기준은 코드 재생과 같은 시계(performance.now / playbackStartWallTime)로 잡고,
+// 남은 시간만 오디오 시계로 옮긴다. 두 시계의 원점이 달라도 어긋날 수 없는 구조.
+// → 재생 도중 껐다 켜도, 그 지점이 몇 번째 줄이든(다른 BPM·박자여도) 정확한 박에 재합류한다.
 function syncMetronomeToPlayback() {
-  // 재생 중이면 playbackStartAudioTime 기준 경과시간을 조회해 현재 박 위치를 찾음.
-  // (메트로놈 on/off처럼 "지금 이 순간"에 재합류하는 경우 전용 — audioCtx.currentTime을 다시
-  //  읽어 경과시간을 역산하므로, 정확한 목표 지점을 이미 알고 있는 경우(줄 점프)엔 그 사이
-  //  await로 시간이 흘러 역산이 어긋날 수 있어 쓰지 않음 → playAll은 syncMetronomeToMs 사용)
-  if (playbackActive && playbackStartAudioTime > 0) {
-    const now = audioCtx.currentTime;
-    const elapsedMs = Math.max(0, (now - playbackStartAudioTime) * 1000);
-    const { idx, accMs } = _metronomeIndexAtMs(elapsedMs);
-    metronomeBeatCount = idx;
-    metronomeNextBeatTime = playbackStartAudioTime + accMs / 1000;
-  } else {
+  if (!(playbackActive && playbackStartWallTime > 0)) {
     metronomeBeatCount = 0;
     metronomeNextBeatTime = audioCtx.currentTime + 0.05;
+    return;
   }
-}
-
-// 줄 점프(playAll) 전용 재동기화 — audioCtx.currentTime을 다시 읽는 대신, 이미 정확히 계산된
-// targetMs(elapsedMsAtStart)를 그대로 써서 목표 줄의 박자/펄스로 확실히 전환되게 함.
-// (시계 재역산 방식은 그 사이 await로 시간이 흘러버리면 이전 줄의 박에 걸려 새 박자(예: 6/8)로
-//  안 바뀌고 이전 박자(4/4) 그대로 재생되는 버그가 있었음)
-function syncMetronomeToMs(targetMs) {
-  const { idx, accMs } = _metronomeIndexAtMs(targetMs);
+  const elapsedMs = Math.max(0, performance.now() - playbackStartWallTime);
+  const { idx, accMs } = _metronomeIndexAtMs(elapsedMs);
   metronomeBeatCount = idx;
-  metronomeNextBeatTime = playbackStartAudioTime + accMs / 1000;
+  // (accMs - elapsedMs) = 다음 박까지 남은 시간. 이걸 그대로 오디오 시계에 얹는다.
+  metronomeNextBeatTime = audioCtx.currentTime + (accMs - elapsedMs) / 1000;
+  playbackEndAudioTime  = audioCtx.currentTime + (playbackTotalMs - elapsedMs) / 1000;
 }
 
-async function startMetronome(synced = false, targetMs = null) {
+async function startMetronome() {
   if (!audioCtx) audioCtx = new AudioCtx();
   if (audioCtx.state === 'suspended') await audioCtx.resume();
   if (metronomeSchedulerTimeout) { clearTimeout(metronomeSchedulerTimeout); metronomeSchedulerTimeout = null; }
-  if (targetMs !== null) {
-    syncMetronomeToMs(targetMs);
-  } else if (synced) {
-    syncMetronomeToPlayback();
-  } else {
-    metronomeBeatCount = 0;
-    metronomeNextBeatTime = audioCtx.currentTime + 0.05;
-  }
+  syncMetronomeToPlayback();
   scheduleMetronome();
 }
 
 function _stopMetronomeAudio() {
   if (metronomeSchedulerTimeout) { clearTimeout(metronomeSchedulerTimeout); metronomeSchedulerTimeout = null; }
+  // 이미 예약된 클릭까지 즉시 끊는다. 타이머만 끄면 룩어헤드 분량이 그대로 울린다.
+  const nodes = _metronomeNodes;
+  _metronomeNodes = [];
+  nodes.forEach(({ osc, gain }) => {
+    try { osc.onended = null; } catch (_) {}
+    try { gain.gain.cancelScheduledValues(0); gain.gain.value = 0; } catch (_) {}
+    try { osc.stop(); } catch (_) {}   // 아직 시작 전이면 예약 자체가 취소된다
+    try { gain.disconnect(); } catch (_) {}
+  });
 }
 
 function stopMetronome() {
@@ -1433,8 +1453,8 @@ function toggleMetronome() {
   if (btn) btn.classList.toggle('active', metronomeActive);
   window.Tutorial?.notify(`metronome:${metronomeActive ? 'on' : 'off'}`);
   if (metronomeActive && playbackActive) {
-    // 재생 중에 켜면 즉시 싱크 시작
-    startMetronome(true);
+    // 재생 중에 켜면 지금 위치의 박에 맞춰 즉시 재합류
+    startMetronome();
   } else if (!metronomeActive) {
     // 끄면 오디오 즉시 중단
     _stopMetronomeAudio();
@@ -1519,17 +1539,12 @@ async function playAll(projectId, startIndex = 0) {
   for (let k = 0; k < startIndex && k < orderedSlots.length; k++) elapsedMsAtStart += orderedSlots[k].slotMs;
   playbackStartAudioTime = audioCtx.currentTime + 0.05 - elapsedMsAtStart / 1000;
 
-  const totalMs = orderedSlots.reduce((s, o) => s + o.slotMs, 0);
-  playbackEndAudioTime = playbackStartAudioTime + totalMs / 1000;
+  playbackTotalMs = orderedSlots.reduce((s, o) => s + o.slotMs, 0);
+  playbackEndAudioTime = playbackStartAudioTime + playbackTotalMs / 1000;
   playbackActive = true;
   analytics.track('playall_started', { project_id: projectId, bpm: project.bpm ?? 120, start_index: startIndex });
   const btn = document.getElementById('play-all-btn');
   if (btn) { btn.innerHTML = '<i data-lucide="square"></i>'; lucide.createIcons(); }
-
-  // 메트로놈이 켜져 있으면 이번 재생 시작 지점(elapsedMsAtStart)에 맞춰 재동기화.
-  // 줄마다 박자/BPM이 달라도 metronomeBeats가 줄별로 이미 반영돼 있으므로,
-  // 시계 재역산 대신 elapsedMsAtStart를 그대로 넘겨 목표 줄의 박자로 확실히 전환되게 함.
-  if (metronomeActive) await startMetronome(false, elapsedMsAtStart);
 
   // 자동스크롤 상태 초기화 + 사용자 스크롤 감지 리스너 (스크롤 컨테이너당 1회만 부착)
   _autoScrollLineId = null;
@@ -1542,8 +1557,12 @@ async function playAll(projectId, startIndex = 0) {
     scrollHostEl.addEventListener('touchmove', markUserScroll, { passive: true });
   }
 
-  // 드리프트 방지: startIndex 슬롯이 재생됐어야 할 절대 기준 시각
+  // 드리프트 방지: startIndex 슬롯이 재생됐어야 할 절대 기준 시각.
+  // 메트로놈도 이 값을 원점으로 삼는다(playbackStartWallTime) — 여기서 두 시계가 하나로 묶인다.
+  // analytics·lucide.createIcons 뒤에 잡아야 첫 코드가 실제로 울리는 시점과 원점이 일치한다.
   const refWallTime = performance.now() - elapsedMsAtStart;
+  // 메트로놈만 STRUM_LEAD_MS 만큼 뒤로 — 코드 스트로크가 정박보다 살짝 먼저 시작되게 한다
+  playbackStartWallTime = refWallTime + STRUM_LEAD_MS;
   let i = startIndex;
   let _accMs = elapsedMsAtStart;
   let _playheadEl = null;
@@ -1551,7 +1570,13 @@ async function playAll(projectId, startIndex = 0) {
   async function next() {
     if (!playbackActive) { stopPlayAll(); return; }
     // 끝까지 재생됨(유저가 멈춘 게 아님) — 튜토리얼 완주 판정용
-    if (i >= orderedSlots.length) { stopPlayAll(); window.Tutorial?.notify('playall:done'); return; }
+    if (i >= orderedSlots.length) {
+      stopPlayAll();
+      window.Tutorial?.notify('playall:done');
+      // 튜토리얼: 끝까지 들었으면 '다음' 버튼만 풀어준다. 자동으로 넘기지 않는다.
+      window.Tutorial?.enableNext?.();
+      return;
+    }
     const item = orderedSlots[i++];
 
     const slotEl = document.querySelector(`[data-line-id="${item.lineId}"][data-slot-idx="${item.slotIdx}"]`);
@@ -1606,6 +1631,10 @@ async function playAll(projectId, startIndex = 0) {
     const delay = Math.max(0, nextExpected - performance.now());
     currentPlayTimeout = setTimeout(next, delay);
   }
+
+  // 메트로놈은 원점(playbackStartWallTime)이 확정된 뒤, 코드 재생과 같은 순간에 붙인다.
+  // 예전엔 이 호출이 lucide.createIcons() 앞에 있어 두 시계의 원점이 수십 ms 어긋났다.
+  if (metronomeActive) startMetronome();
   next();
 }
 
@@ -1925,6 +1954,8 @@ function renderProjectView(projectId) {
     const p = getProject(projectId);
     if (p) { p.slotsHidden = !slotsHidden; updateProject(p); }
     renderProjectView(projectId);
+    // 튜토리얼 뷰 모드 구간 — 숨김/표시 두 방향을 각각 판정한다
+    window.Tutorial?.notify(`slotshidden:${!slotsHidden}`);
   };
   headerRow2.appendChild(slotToggleBtn);
 
@@ -2192,6 +2223,8 @@ function buildChordArea(line, project, editMode = true) {
             playChord(chord, getRowCapo(getProject(project.id) || project, line.id));
             analytics.track('project_chord_played', { chord_name: chord.name, project_id: project.id });
             window.Tutorial?.notify('slot:played');
+            // 튜토리얼: 자동으로 넘기지 않는다(STEP1 소리 듣기와 동일). 1초 뒤 '다음' 버튼만 풀어준다.
+            setTimeout(() => window.Tutorial?.enableNext?.(), 1000);
           }
         });
       }
@@ -2223,6 +2256,8 @@ function buildChordArea(line, project, editMode = true) {
             playChord(chord, getRowCapo(getProject(project.id) || project, line.id));
             analytics.track('project_chord_played', { chord_name: chord.name, project_id: project.id });
             window.Tutorial?.notify('slot:played');
+            // 튜토리얼: 자동으로 넘기지 않는다(STEP1 소리 듣기와 동일). 1초 뒤 '다음' 버튼만 풀어준다.
+            setTimeout(() => window.Tutorial?.enableNext?.(), 1000);
           }
         });
 
@@ -4150,6 +4185,8 @@ function openVoicingModal(sharpName, cardEl) {
 }
 
 function closeVoicingModal() {
+  // 튜토리얼이 이 구간에서 목록을 잠갔으면 무시한다(모달 여백·오버레이 오터치 방지)
+  if (window.Tutorial?.locksVoicing?.()) return;
   document.getElementById('lib-voicing-modal')?.classList.remove('open');
   document.getElementById('lib-voicing-overlay')?.classList.remove('open');
   _voicingModalChord = null;
@@ -4232,6 +4269,52 @@ const TUT_SEED_VOICING = {
   F: 1, // Open  xx3211 (약식)
   G: 0, // Open  320003
 };
+
+// ── STEP4 완료 선물: 완성된 '작은 별' 노트 ────────────────────
+// 튜토리얼 시드(2줄 실습용)와는 별개다. 1절 전체가 완성된 악보를 그대로 준다.
+// null = 앞 코드가 이어짐(악보의 % 표기) → 슬롯을 비운다.
+const GIFT_SONG_NAME  = '작은 별';
+const GIFT_SONG_KEY   = 'chorditor_tut_gift';
+const GIFT_SONG_LINES = [
+  { text: '반짝반짝 작은 별', chords: ['C', null, 'F', 'C'] },
+  { text: '아름답게 비치네', chords: ['F', 'C',  'G', 'C'] },
+  { text: '동쪽 하늘에서도', chords: ['G', null, 'G', null] },
+  { text: '서쪽 하늘에서도', chords: ['G', null, 'G', null] },
+  { text: '반짝반짝 작은 별', chords: ['C', null, 'F', 'C'] },
+  { text: '아름답게 비치네', chords: ['F', 'C',  'G', 'C'] },
+];
+
+// 선물 노트를 만들어 sessionStorage에 보관한다.
+// STEP4 완료 판정은 home.html에서 일어나는데 거기엔 라이브러리 변환 로직이 없어서,
+// 시드를 만드는 이 자리에서 미리 만들어 넘겨준다(tutorial.js acceptGift가 꺼내 쓴다).
+function stashTutorialGiftSong() {
+  const chords = {};
+  ['C', 'F', 'G'].forEach(name => {
+    const chord = libEntryToChord(_tutFindEntry(name, TUT_SEED_VOICING[name]));
+    if (chord) chords[name] = chord;
+  });
+  const arrangement = GIFT_SONG_LINES.map(line => {
+    const slots = new Array(8).fill(null);
+    line.chords.forEach((name, i) => {
+      if (name && chords[name]) slots[i * 2] = chords[name].id; // 세로 표시 칸 = 짝수 인덱스
+    });
+    return { id: genId(), text: line.text, slots };
+  });
+  const note = {
+    id: genId(),
+    name: GIFT_SONG_NAME,
+    pinned: false, pinnedOrder: 0,
+    important: false, importantOrder: 0,
+    capo: 0,
+    bpm: 100,
+    meter: { num: 4, den: 4 },
+    createdAt: Date.now(),
+    updatedAt: Date.now(),
+    chords: Object.values(chords),
+    arrangement,
+  };
+  try { sessionStorage.setItem(GIFT_SONG_KEY, JSON.stringify(note)); } catch (_) {}
+}
 
 function _tutFindEntry(name, pos) {
   const list = ((window.chordsLibrary || {})[name[0]] || []).filter(e => e.name === name);
@@ -4760,6 +4843,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   if (params.get('tutseed')) {
     const seeds = buildTutorialSeedProjects();
     saveProjects(seeds);
+    stashTutorialGiftSong(); // STEP4 완료 시 줄 완성본을 미리 만들어 둔다
     const seed = seeds[0]; // 작은 별 — 편집 실습 대상
     projectIdParam = seed.id;
     isEditMode = true; // 편집 모드로 열어 바로 이어갈 수 있게
