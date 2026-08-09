@@ -3300,39 +3300,29 @@ function _ensureRowMenuEl() {
   _rowMenuEl = d;
 }
 
-function openRowMenu(e, lineId, projectId) {
-  // 가사 입력 중(커서가 살아 있는 상태)에 메뉴를 열면 안드로이드가 포커스를 이유로
-  // 키보드를 다시 올려버린다 — 메뉴가 가려지고, 튜토리얼 중에는 진행이 막힌다.
-  // 케밥 버튼의 touchstart 처리는 "같은 줄"만 막으므로, 다른 줄·제목에서 온 포커스는 여기서 끊는다.
-  _blurActiveEditable();
+// 메뉴를 띄운 케밥 버튼. 리사이즈 때 다시 재기 위해 들고 있는다.
+let _rowMenuAnchor = null;
 
-  _ensureRowMenuEl();
-  _rowMenuLineId  = lineId;
-  _rowMenuProjId  = projectId;
-  const lineDiv   = e.currentTarget.closest('.project-line');
-  _rowMenuLinesEl = lineDiv?.parentElement ?? null;
+// 드롭다운 위치 계산. position:fixed라 좌표는 뷰포트 기준이지만, 가둬야 하는 경계는
+// 뷰포트가 아니라 "앱 프레임"과 "튜토리얼 설명창이 비켜준 영역"이다.
+function _positionRowMenu() {
+  if (!_rowMenuEl || !_rowMenuAnchor?.isConnected) return;
+  const rect = _rowMenuAnchor.getBoundingClientRect();
 
-  // position: fixed → 뷰포트 기준 좌표 (내부 스크롤 무관)
-  const rect = e.currentTarget.getBoundingClientRect();
-
+  // ── 세로 ──────────────────────────────────────────────────
   // 튜토리얼 설명창이 떠 있으면 그만큼 쓸 수 있는 세로 폭이 줄어든다.
   // 이걸 빼지 않으면 "화면 기준으론 들어가니까" 아래로 펼쳐 놓고 마지막 항목
   // ('이 줄 삭제')이 하단 설명창에 덮여 튜토리얼 진행이 막힌다(리뷰 제보).
   // 브라우저는 주소창·하단탭까지 있어 여백이 더 빠듯하다.
   // 튜토리얼이 아닐 땐 두 값 모두 0이라 기존 동작 그대로다.
-  const _inset = n =>
+  const inset = n =>
     parseFloat(getComputedStyle(document.documentElement).getPropertyValue(n)) || 0;
 
-  // 실제 높이를 재서 쓴다 — 항목 수·폰트·글자 크기에 따라 달라지는데 상수로 어림하면
-  // 살짝 모자랄 때 마지막 항목만 화면 밖으로 나간다. display:none이면 못 재므로
-  // 먼저 펼치되 그리기 전에 재고 위치를 잡는다(같은 프레임 안이라 깜빡임 없음).
-  _rowMenuEl.style.visibility = 'hidden';
-  _rowMenuEl.classList.remove('hidden');
-  const menuH = _rowMenuEl.offsetHeight || 256;
-
-  const viewH  = window.innerHeight;
-  const topLim = _inset('--tut-top-inset') + 4;     // 이 아래로만 그릴 수 있다
-  const botLim = viewH - _inset('--tut-bottom-inset') - 4; // 이 위로만 그릴 수 있다
+  // 높이도 상수로 어림하지 않고 실제로 잰다 — 항목 수·글자 크기에 따라 달라지는데
+  // 어림값이 모자라면 마지막 항목만 화면 밖으로 나간다.
+  const menuH  = _rowMenuEl.offsetHeight || 256;
+  const topLim = inset('--tut-top-inset') + 4;              // 이 아래로만 그릴 수 있다
+  const botLim = window.innerHeight - inset('--tut-bottom-inset') - 4; // 이 위로만
 
   const below = rect.bottom + 4;      // 버튼 아래에 펼칠 때의 상단 y
   const above = rect.top - 4 - menuH; // 버튼 위로 뒤집을 때의 상단 y
@@ -3346,14 +3336,50 @@ function openRowMenu(e, lineId, projectId) {
     _rowMenuEl.style.top = Math.max(topLim, botLim - menuH) + 'px';
   }
   _rowMenuEl.style.bottom = 'auto';
-  _rowMenuEl.style.right  = (window.innerWidth - rect.right) + 'px';
-  _rowMenuEl.style.left   = 'auto';
+
+  // ── 가로 ──────────────────────────────────────────────────
+  // 뷰포트가 아니라 .app-shell(태블릿·데스크톱에서 400px로 캡되고 가운데 정렬)을 기준으로
+  // 가둔다. 뷰포트 기준으로 잡으면 넓은 화면에서 메뉴만 프레임 바깥 빈 공간에 떠버린다.
+  const shell  = document.querySelector('.app-shell')?.getBoundingClientRect();
+  const frameL = shell ? shell.left  : 0;
+  const frameR = shell ? shell.right : window.innerWidth;
+  const menuW  = _rowMenuEl.offsetWidth;
+
+  // 기본은 버튼 오른쪽 끝에 맞추고, 프레임을 벗어나면 안쪽으로 당긴다.
+  let left = rect.right - menuW;
+  left = Math.min(left, frameR - 4 - menuW);
+  left = Math.max(left, frameL + 4);
+  _rowMenuEl.style.left  = left + 'px';
+  _rowMenuEl.style.right = 'auto';
+}
+
+function openRowMenu(e, lineId, projectId) {
+  // 가사 입력 중(커서가 살아 있는 상태)에 메뉴를 열면 안드로이드가 포커스를 이유로
+  // 키보드를 다시 올려버린다 — 메뉴가 가려지고, 튜토리얼 중에는 진행이 막힌다.
+  // 케밥 버튼의 touchstart 처리는 "같은 줄"만 막으므로, 다른 줄·제목에서 온 포커스는 여기서 끊는다.
+  _blurActiveEditable();
+
+  _ensureRowMenuEl();
+  _rowMenuLineId  = lineId;
+  _rowMenuProjId  = projectId;
+  const lineDiv   = e.currentTarget.closest('.project-line');
+  _rowMenuLinesEl = lineDiv?.parentElement ?? null;
+
+  _rowMenuAnchor = e.currentTarget;
+
+  // display:none이면 크기를 못 재므로 먼저 펼치되, 그리기 전에 재고 위치를 잡는다
+  // (같은 프레임 안이라 깜빡임 없음).
+  _rowMenuEl.style.visibility = 'hidden';
+  _rowMenuEl.classList.remove('hidden');
+  _positionRowMenu();
 
   _backdropEl.classList.remove('hidden');
   _rowMenuEl.style.visibility = '';
 
   // 내부 스크롤 발생 시 자동 닫기
   _rowMenuLinesEl?.addEventListener('scroll', _closeRowMenu, { once: true });
+  // 창 크기·회전이 바뀌면 열어둔 좌표가 그대로 남아 프레임 밖으로 튄다 → 다시 계산.
+  window.addEventListener('resize', _positionRowMenu);
 
   // 마지막 줄이면 "이 줄 삭제" 비활성화
   const lines = _rowMenuLinesEl?.querySelectorAll('.project-line');
@@ -3367,6 +3393,8 @@ function openRowMenu(e, lineId, projectId) {
 function _closeRowMenu() {
   _rowMenuEl?.classList.add('hidden');
   _backdropEl?.classList.add('hidden');
+  window.removeEventListener('resize', _positionRowMenu);
+  _rowMenuAnchor = null;
   // 메뉴 닫힐 때 line-text contentEditable 복원 (터치로 열었을 때 비활성화됐던 것)
   if (_rowMenuLinesEl) {
     _rowMenuLinesEl.querySelectorAll('.line-text').forEach(lt => {
