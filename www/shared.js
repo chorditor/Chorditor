@@ -195,6 +195,33 @@ function isMobileOrTablet() {
   return window.innerWidth <= 1400;
 }
 
+// ── 안드로이드 네이티브 뒤로가기 (기본 동작) ──────────────────
+// MainActivity가 뒤로가기를 받으면 이 함수를 부른다.
+// 기본 규칙: **화면의 뒤로가기 버튼을 누른 것과 똑같이 동작한다.**
+// 페이지마다 뒤로 가는 방법이 다르지만(closeTrainingPage·handleBack·requestBack …)
+// 전부 #back-btn 에 인라인 핸들러로 붙어 있으므로, 그 버튼에 이벤트를 보내면
+// 페이지가 자기 방식대로 알아서 처리한다. 페이지마다 같은 코드를 복붙하지 않는 이유다.
+//   home.js / user_project.js 처럼 단계가 여러 겹인 페이지는 이 함수를 재정의한다
+//   (shared.js가 먼저 로드되므로 나중 선언이 이긴다).
+function handleNativeBack() {
+  const btn = document.getElementById('back-btn');
+  // getClientRects: position:fixed 버튼은 offsetParent가 null이라 판정에 못 쓴다
+  if (btn && btn.getClientRects().length) {
+    // 인라인 핸들러가 걸린 이벤트 종류로 보낸다. 페이지들의 back 함수는 인자를 받지 않아
+    // 합성 이벤트로도 안전하다.
+    for (const type of ['pointerup', 'pointerdown', 'click']) {
+      if (btn.hasAttribute('on' + type)) {
+        btn.dispatchEvent(new PointerEvent(type, { bubbles: true, cancelable: true }));
+        return;
+      }
+    }
+    btn.click(); // addEventListener로 붙은 경우
+    return;
+  }
+  // 뒤로가기 버튼이 없는(또는 숨겨진) 화면 → 브라우저 히스토리로 물러난다
+  history.back();
+}
+
 // ── iOS 입력 포커스 자동 확대 방지 ────────────────────────────
 // iOS(사파리·iOS 크롬 전부 WebKit)는 폰트가 16px보다 작은 입력칸에 포커스가 가면
 // 화면을 저절로 확대한다. 유저는 칸을 탭했을 뿐인데 화면이 커지고, 되돌리려면

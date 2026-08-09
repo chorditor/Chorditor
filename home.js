@@ -2434,10 +2434,30 @@ async function enterFromHome(view, skipAnim = false, reverse = false) {
   }
 }
 
-// ─── Android 네이티브 뒤로가기 (double-back to exit) ──────────
+// ─── Android 네이티브 뒤로가기 ────────────────────────────────
+// 화면의 뒤로가기 버튼과 똑같이 한 단계씩 물러난다.
+// 계속 눌러 **홈 탭 최상위에 도달했을 때만** 두 번 눌러 앱을 종료한다.
+// (예전엔 어디서 누르든 곧장 종료 토스트가 떠서, 에디터·코드사전에서도 앱이 꺼졌다)
 let _backPressTimestamp = 0;
 
 function handleNativeBack() {
+  // 튜토리얼 중엔 화면을 옮기면 진행이 깨진다 → 그만둘지 묻는다(건너뛰기 버튼과 같은 경로).
+  if (window.Tutorial?.isRunning?.()) { window.Tutorial.confirmSkip(); return; }
+
+  // user_project → 에디터로 들어온 모드: 화면 버튼이 없으므로 노트로 돌려보낸다
+  if (_isFromProject && _editorReturnProjectId) {
+    _returnToProject(_editorReturnProjectId);
+    return;
+  }
+
+  // 탭 안의 서브뷰(에디터·코드사전 / 노트 상세) → 그 탭의 최상위로
+  if (_activeTab === 'home' && _homeSubView !== 'home') { enterFromHome('home'); return; }
+  if (_activeTab === 'projects' && _projectsSubView !== 'list') { switchTab('projects'); return; }
+
+  // 홈이 아닌 탭 → 홈 탭으로
+  if (_activeTab !== 'home') { switchTab('home'); return; }
+
+  // 여기부터가 홈 탭 최상위 — 두 번 눌러야 종료
   const now = Date.now();
   if (now - _backPressTimestamp < 2000) {
     window.Capacitor?.Plugins?.App?.exitApp?.();

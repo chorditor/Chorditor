@@ -900,25 +900,13 @@ function _refreshUndoBtn() {
 // (let 선언은 TDZ로 인해 선언 전 접근 시 ReferenceError 발생)
 
 
-// ─── Android 네이티브 뒤로가기 (double-back to exit) ──────────
-let _backPressTimestamp = 0;
-
+// ─── Android 네이티브 뒤로가기 ────────────────────────────────
+// 노트 페이지는 홈이 아니므로 종료하지 않는다 — 화면의 뒤로가기 버튼과 똑같이
+// 노트 목록으로 물러난다. 앱 종료는 홈 탭 최상위(home.js)에서만 일어난다.
 function handleNativeBack() {
-  const now = Date.now();
-  if (now - _backPressTimestamp < 2000) {
-    window.Capacitor?.Plugins?.App?.exitApp?.();
-    return;
-  }
-  _backPressTimestamp = now;
-  const toast = document.getElementById('exit-toast');
-  if (!toast) return;
-  toast.textContent = '한 번 더 누르면 앱이 종료됩니다';
-  toast.classList.remove('visible');
-  clearTimeout(toast._hideTimer);
-  requestAnimationFrame(() => {
-    toast.classList.add('visible');
-    toast._hideTimer = setTimeout(() => toast.classList.remove('visible'), 2000);
-  });
+  // 튜토리얼 중엔 화면을 옮기면 진행이 깨진다 → 그만둘지 묻는다(건너뛰기 버튼과 같은 경로).
+  if (window.Tutorial?.isRunning?.()) { window.Tutorial.confirmSkip(); return; }
+  closeProjectPage();
 }
 
 function _updateBackBtn() {
