@@ -13442,9 +13442,12 @@ body.tut-lock .preview-modal {
 /* 앱 표준 모달(.modal-overlay)은 inset:0 + align-items:center 라, 키보드가 올라와
    뷰포트가 줄면 위로 재중앙정렬되며 상단 설명창 밑으로 파고든다(마디 정보 수정 등).
    설명창 높이만큼 위쪽을 비워 그 아래에서만 중앙정렬되게 한다.
-   상단 패널이 아닌 구간에선 --tut-top-inset 이 0이라 아무 영향이 없다. */
+   아래쪽도 같이 비운다 — 하단 설명창을 쓰는 구간에도 이 모달이 뜬다(화면 방향 전환 확인 등).
+   상하로 좁은 화면에선 모달 아래쪽 버튼이 설명창에 덮여 진행이 막힌다.
+   해당 패널이 아닌 구간에선 --tut-*-inset 이 0이라 아무 영향이 없다. */
 body.tut-lock .modal-overlay {
-  padding-top: calc(16px + var(--tut-top-inset, 0px));
+  padding-top:    calc(16px + var(--tut-top-inset, 0px));
+  padding-bottom: calc(16px + var(--tut-bottom-inset, 0px));
 }
 
 /* 구간 전환 — 패널 하나로 out → (내용 교체) → in.
