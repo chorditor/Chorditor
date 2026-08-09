@@ -72,6 +72,21 @@ function drawLibEntry(canvas, entry) {
   });
 }
 
+// 문제 출제 영역(캔버스/코드명) 탭 → 정답 보이싱 사운드 재생
+const _QUIZ_OPEN_MIDI = [64, 59, 55, 50, 45, 40]; // 1번줄→6번줄 개방현 MIDI
+async function _playQuizEntrySound(entry) {
+  if (typeof GuitarAudio === 'undefined' || !entry) return;
+  const midis = [];
+  for (let s = 5; s >= 0; s--) {
+    const f = entry.frets[s];
+    if (f === null) continue;
+    midis.push(_QUIZ_OPEN_MIDI[s] + f);
+  }
+  if (!midis.length) return;
+  if (GuitarAudio.resume) { try { await GuitarAudio.resume(); } catch (e) {} }
+  GuitarAudio.strumNotes(midis, 0.008);
+}
+
 // 이름 표시 버전 (예습 모달용) — voicing-canvas.js 모듈로 드로잉
 function drawLibEntryWithName(canvas, entry, name) {
   VoicingCanvas.draw(canvas, {
@@ -124,8 +139,10 @@ function formatCount(n) {
 function loadLevelStats(levelId) {
   const raw = JSON.parse(localStorage.getItem(`quiz_stats_level${levelId}`) || 'null') || {};
   return {
-    'name-from-diagram': raw['name-from-diagram'] ?? _MODE_DEFAULT(),
-    'diagram-from-name': raw['diagram-from-name'] ?? _MODE_DEFAULT(),
+    // 스프레드로 병합 — 옛 레코드에 필드가 빠져 있어도 기본값이 채워진다.
+    // (?? 만 쓰면 객체가 있는 순간 기본값을 통째로 건너뛰어 undefined가 새어 나온다)
+    'name-from-diagram': { ..._MODE_DEFAULT(), ...(raw['name-from-diagram'] || {}) },
+    'diagram-from-name': { ..._MODE_DEFAULT(), ...(raw['diagram-from-name'] || {}) },
   };
 }
 
@@ -143,7 +160,7 @@ function updateLevelCardStats(levelId) {
     const bestEl = panel.querySelector(`[data-stat-best="${key}"]`);
     const accEl  = panel.querySelector(`[data-stat-acc="${key}"]`);
     const pct    = s.totalPlayed > 0 ? (s.totalCorrect / s.totalPlayed * 100).toFixed(1) : null;
-    if (bestEl) bestEl.textContent = s.bestSpeedSec !== null ? `${s.bestSpeedSec.toFixed(2)}s` : '—';
+    if (bestEl) bestEl.textContent = s.bestSpeedSec != null ? `${s.bestSpeedSec.toFixed(2)}s` : '—';
     if (accEl) accEl.textContent = pct !== null
       ? `${formatCount(s.totalCorrect)}/${formatCount(s.totalPlayed)}`
       : '0/0';
@@ -454,6 +471,7 @@ function openPreviewModal(levelId) {
     `${badge} · ${_previewPool.length}개`;
 
   document.getElementById('preview-modal-overlay').classList.add('preview-modal-overlay--show');
+  window.Tutorial?.notify('preview:open'); // 모달이 뜬 뒤에 알림
   lucide.createIcons();
 
   _renderPreviewGrid();
@@ -543,6 +561,7 @@ function _renderPreviewGrid() {
 
 function closePreviewModal() {
   document.getElementById('preview-modal-overlay').classList.remove('preview-modal-overlay--show');
+  window.Tutorial?.notify('preview:close');
 }
 
 function setPreviewAccidental(mode) {
@@ -1402,11 +1421,6 @@ function selectDiagramChoice(selectedName, correctName) {
   const isCorrect = selectedName === correctName;
   playSound(isCorrect ? 'correct' : 'wrong');
   _results.push({ name: correctName, isCorrect, speedSec });
-  analytics.track('quiz_answer_given', {
-    level_id: _currentLevel, mode: _currentMode,
-    chord_name: correctName, is_correct: isCorrect,
-    speed_sec: speedSec, question_no: _current + 1,
-  });
 
   // 피드백 메세지
   showFeedbackMsg(pickFeedbackMsg(isCorrect, speedSec));
@@ -1442,6 +1456,7 @@ let _newRecordSpeed     = null;  // 신기록 달성 시 기록값 (null이면 �
 let _timerTimeout       = null;  // 문제 타임어택 타이머 ID
 let _countdownTimers    = [];    // 카운트다운 setTimeout ID 목록
 let _answered           = false; // 현재 문제 응답 처리 여부 — 타임아웃/클릭 경쟁 방지
+let _abandonSent        = false; // quiz_abandoned 중복 발화 방지
 
 const TRAINING_STATS_KEY = 'training_stats';
 
@@ -1579,11 +1594,7 @@ function handleTimeout() {
   // 제한시간 값 그대로 기록 (오답)
   const _lvCfg  = LEVEL_CONFIGS.find(c => c.id === _currentLevel);
   const timeSec = _lvCfg?.timeSec ?? 0;
-  _results.push({ name, isCorrect: false, speedSec: timeSec });
-  analytics.track('quiz_timeout', {
-    level_id: _currentLevel, mode: _currentMode,
-    chord_name: name, question_no: _current + 1,
-  });
+  _results.push({ name, isCorrect: false, speedSec: timeSec, isTimeout: true });
 
   playSound('wrong');
   document.getElementById('quiz-speed').textContent = '시간 초과';
@@ -1638,6 +1649,7 @@ function fitQuizToScreen() {
 }
 
 function startCountdown(callback) {
+  if (typeof GuitarAudio !== 'undefined' && GuitarAudio.stop) GuitarAudio.stop();
   updateProgressDots();
 
   const canvas      = document.getElementById('quiz-canvas');
@@ -1680,11 +1692,18 @@ function startCountdown(callback) {
 
   const el = document.getElementById('quiz-countdown');
 
+  // countdown-pop은 forwards라 끝나면 opacity:0으로 멈춘다.
+  // 예전 코드는 display:none인 상태(.active 제거 직후)에서 offsetWidth를 읽어 reflow를 유도했는데,
+  // 레이아웃 박스가 없는 요소는 iOS Safari에서 이 읽기가 애니메이션 재시작으로 이어지지 않는다.
+  // 그러면 두 번째 판부터 이전 실행의 끝 상태(opacity:0)가 그대로 남아 숫자가 안 보인다.
+  // → 박스를 먼저 만들고(animation:none) 그 상태에서 reflow한 뒤 애니메이션을 새로 건다.
   const showNum = (n) => {
-    el.style.display = ''; // 인라인 스타일 초기화 (재시작 시 대비)
     el.classList.remove('active');
-    void el.offsetWidth; // reflow → 애니메이션 재시작
-    el.textContent = String(n);
+    el.style.display   = 'flex'; // 먼저 레이아웃 박스를 만든다
+    el.style.animation = 'none'; // 이전 실행을 확실히 끊는다
+    el.textContent     = String(n);
+    void el.offsetWidth;         // 박스가 있는 상태에서 reflow
+    el.style.animation = '';     // 클래스 쪽 애니메이션을 처음부터 재생
     el.classList.add('active');
   };
 
@@ -1699,7 +1718,8 @@ function startCountdown(callback) {
   _countdownTimers.push(setTimeout(() => {
     _countdownTimers = [];
     el.classList.remove('active');
-    el.style.display = 'none';
+    el.style.animation = ''; // 다음 판을 위해 인라인 잔재를 남기지 않는다
+    el.style.display   = 'none';
     _playBell(1046.50, 0, 0.20);
     callback();
   }, 3000));
@@ -1725,6 +1745,7 @@ function initQuiz() {
     _questions        = deduped.slice(0, quizCount);
     _current          = 0;
     _results          = [];
+    _abandonSent      = false;
     _sessionStartTime = Date.now(); // 훈련 시간 측정 시작
     _hideQuizLoading();
     startCountdown(() => renderQuestion());
@@ -1782,6 +1803,7 @@ function _fitChordNameDisplay(el) {
 
 function renderQuestion() {
   _answered = false; // 새 문제 — 응답 가드 초기화
+  if (typeof GuitarAudio !== 'undefined' && GuitarAudio.stop) GuitarAudio.stop();
   const { name, entry } = _questions[_current];
 
   // 레벨6·8: 문제마다 샵/플랫 표기 단순 랜덤 (내부 비교는 canonical 유지, 표시만 변환)
@@ -1896,11 +1918,6 @@ function selectChoice(selected, correct) {
 
   // 결과 기록
   _results.push({ name: correct, isCorrect, speedSec: speedMs / 1000 });
-  analytics.track('quiz_answer_given', {
-    level_id: _currentLevel, mode: _currentMode,
-    chord_name: correct, is_correct: isCorrect,
-    speed_sec: speedMs / 1000, question_no: _current + 1,
-  });
 
   // 피드백 메세지
   showFeedbackMsg(pickFeedbackMsg(isCorrect, speedMs / 1000));
@@ -1954,7 +1971,7 @@ function saveSessionStats() {
   if (isPerfect && ['c1', 'c2', 'c3'].includes(String(levelId)) && typeof incrementChallengePerfect === 'function') {
     incrementChallengePerfect(String(levelId));
   }
-  if (isPerfect && sessionAvg !== null && (stats.bestSpeedSec === null || sessionAvg < stats.bestSpeedSec)) {
+  if (isPerfect && sessionAvg !== null && (stats.bestSpeedSec == null || sessionAvg < stats.bestSpeedSec)) {
     stats.bestSpeedSec = sessionAvg;
     _newRecordSpeed    = sessionAvg;
   }
@@ -1982,7 +1999,7 @@ function saveSessionStats() {
 
 // ── 훈련소 전체 통계 갱신 ────────────────────────────────────
 function updateTrainingOverviewStats(durationMin) {
-  const today = new Date().toISOString().slice(0, 10);
+  const today = _kstToday();
   const raw   = localStorage.getItem(TRAINING_STATS_KEY);
   const stats = raw ? JSON.parse(raw) : {};
 
@@ -2034,7 +2051,7 @@ function _getAuthInfo() {
 /** 이번 세션 결과를 pending 캐시에 추가 */
 function cacheSessionRecord() {
   const { userId } = _getAuthInfo();
-  const today          = new Date().toISOString().slice(0, 10);
+  const today          = _kstToday();
   const correctResults = _results.filter(r => r.isCorrect);
   const correctSpeeds  = correctResults.map(r => r.speedSec);
   const avg  = correctSpeeds.length > 0
@@ -2065,7 +2082,7 @@ function appendSessionHistory(avgSpeed) {
     avg_speed: avgSpeed,
     correct:   _results.filter(r => r.isCorrect).length,
     total:     _results.length,
-    date:      new Date().toISOString().slice(0, 10),
+    date:      _kstToday(),
     ts:        Date.now(),
   };
   const history = JSON.parse(localStorage.getItem(QUIZ_HISTORY_KEY) || '[]');
@@ -2187,7 +2204,7 @@ async function flushPendingSessions() {
   const cache = JSON.parse(localStorage.getItem(QUIZ_PENDING_KEY) || '[]');
   if (cache.length === 0) return;
 
-  const today     = new Date().toISOString().slice(0, 10);
+  const today     = _kstToday();
   const toFlushRaw = cache.filter(r => r.created_at < today);
   if (toFlushRaw.length === 0) return;
 
@@ -2222,8 +2239,24 @@ async function flushPendingSessions() {
   }
 }
 
+// 문항별 결과를 이벤트 properties용 배열로 변환.
+// 개별 quiz_answer_given / quiz_timeout 행을 대체한다(세션당 1행으로 통합).
+function _answersPayload() {
+  return _results.map((r, i) => {
+    const a = {
+      no:   i + 1,
+      name: r.name,
+      ok:   r.isCorrect,
+      sec:  Math.round(r.speedSec * 100) / 100,
+    };
+    if (r.isTimeout) a.timeout = true;
+    return a;
+  });
+}
+
 // ── 결과 모달 ────────────────────────────────────────────────
 function showResultModal() {
+  _abandonSent = true; // 완주 세션 — 이후 페이지 이탈을 abandon으로 잡지 않는다
   saveSessionStats();
 
   const correctResults = _results.filter(r => r.isCorrect);
@@ -2239,6 +2272,7 @@ function showResultModal() {
     avg_speed_sec: avgSec !== null ? Math.round(avgSec * 1000) / 1000 : null,
     is_perfect:    correctCount === _results.length,
     is_new_record: _newRecordSpeed !== null,
+    answers:       _answersPayload(),
   });
 
   document.getElementById('result-modal-score').textContent =
@@ -2263,6 +2297,7 @@ function showResultModal() {
   if (retryCostEl) retryCostEl.textContent = 'x' + _quizPeakCost(_currentLevel);
 
   document.getElementById('result-modal-overlay').classList.add('result-modal-overlay--show');
+  window.Tutorial?.notify('quiz:result'); // 결과 모달이 뜬 뒤에 알림
 
   // 결과 코드이름 1줄 자동맞춤 (레이아웃 확정 후)
   requestAnimationFrame(() => requestAnimationFrame(() => {
@@ -2309,15 +2344,31 @@ function closeNewRecordModal() {
   if (overlay) overlay.classList.remove('newrecord-modal-overlay--show');
 }
 
+// 미완주 세션의 문항 결과 기록. 완주 세션은 quiz_completed가 담당한다.
+// 세션당 1회만 발화 (뒤로가기 → 페이지 이탈 중복 방지).
+function trackQuizAbandon(exitVia) {
+  if (_abandonSent || _currentView !== 'quiz' || _results.length === 0) return;
+  _abandonSent = true;
+  analytics.track('quiz_abandoned', {
+    level_id:           _currentLevel,
+    mode:               _currentMode,
+    questions_answered: _results.length,
+    total:              _questions.length,
+    exit_via:           exitVia,
+    answers:            _answersPayload(),
+  });
+  // SDK의 pagehide 플러시보다 늦게 큐에 들어가므로 직접 전송한다.
+  analytics._flush(true);
+}
+
+// 하드웨어 백·앱 종료·페이지 이동으로 퀴즈를 벗어나는 경로 (퀴즈 중엔 back 버튼이 숨겨져 있음)
+window.addEventListener('pagehide', () => trackQuizAbandon('pagehide'));
+
 // ── 뒤로 가기 ────────────────────────────────────────────────
 function handleBack() {
   _playTap();
   if (_currentView === 'quiz') {
-    analytics.track('quiz_abandoned', {
-      level_id:          _currentLevel,
-      mode:              _currentMode,
-      questions_answered: _results.length,
-    });
+    trackQuizAbandon('back_btn');
     showModeSelect();
   } else if (_currentView === 'mode-select') {
     showLevelSelect();
@@ -2384,13 +2435,13 @@ function startLevel(levelId) {
   vsEl.classList.add('quiz-view--left');
   vmEl.classList.remove('quiz-view--right');
   updateTopBar('mode-select');
+  window.Tutorial?.notify(`quizlevel:${levelId}`); // 뷰 전환이 반영된 뒤에 알림
 }
 
-// 레벨별 피크 소모량: 1~5=2 / 6~11=3 / 챌린지(c1~c3)=5
+// 레벨별 피크 소모량: 일반 레벨 전체 1 / 챌린지(c1~c3)만 2
 function _quizPeakCost(levelId) {
-  if (levelId === 'c1' || levelId === 'c2' || levelId === 'c3') return 5;
-  const n = parseInt(levelId, 10);
-  return n >= 6 ? 3 : 2;
+  if (levelId === 'c1' || levelId === 'c2' || levelId === 'c3') return 2;
+  return 1;
 }
 
 // 모드 선택 → 퀴즈 시작
@@ -2406,6 +2457,7 @@ async function startQuiz(mode) {
   vqEl.classList.remove('quiz-view--right');
   updateTopBar('quiz');
   initQuiz();
+  window.Tutorial?.notify('quiz:started'); // 문제가 그려진 뒤에 알림
 }
 
 // 진행 dots 업데이트
@@ -2523,6 +2575,20 @@ document.addEventListener('DOMContentLoaded', () => {
     if (_currentView === 'quiz') fitQuizToScreen();
   });
 
+  // 문제 출제 영역(캔버스/코드명) 탭 → 정답 코드폼 사운드 재생
+  const _quizQuestionArea = document.querySelector('.quiz-question-area');
+  if (_quizQuestionArea) {
+    _quizQuestionArea.addEventListener('pointerup', () => {
+      const q = _questions[_current];
+      if (q) _playQuizEntrySound(q.entry);
+    });
+  }
+
   // 전일 이전 세션 캐시 → DB 플러시 (백그라운드)
   flushPendingSessions();
+
+  // 튜토리얼 진행 중이면 이어받기 — 레벨 목록이 그려진 뒤라야 대상 위치가 잡힌다
+  requestAnimationFrame(() => requestAnimationFrame(() => {
+    if (typeof Tutorial !== 'undefined') Tutorial.resume();
+  }));
 });

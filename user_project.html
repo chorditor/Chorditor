@@ -169,11 +169,11 @@
       </div>
       <div class="modal-body meter-modal-body">
         <div class="meter-top-row">
-          <div class="meter-box">
+          <div class="meter-box" id="row-meter-bpm-box">
             <div class="meter-box-label">BPM</div>
             <input type="number" id="row-meter-bpm-input" class="meter-bpm-input" min="40" max="240" placeholder="기본값" />
           </div>
-          <div class="meter-box">
+          <div class="meter-box" id="row-meter-sig-box">
             <div class="meter-box-label">박자</div>
             <div class="meter-sig">
               <div class="meter-sig-row">
@@ -208,6 +208,10 @@
             </label>
           </div>
         </div>
+        <label class="meter-applyall">
+          <input type="checkbox" id="row-meter-applyall" />
+          <span>이 설정을 모든 줄에 적용</span>
+        </label>
         <p class="hint" id="row-meter-error" style="color:var(--accent);display:none;"></p>
       </div>
       <div class="modal-footer">
@@ -281,7 +285,7 @@
                 <button class="acc-btn" id="lib-acc-flat">b</button>
               </div>
               <span class="ab-spacer"></span>
-              <button class="ab-btn ab-btn-primary" onclick="paletteDictToEditor()">에디터로</button>
+              <button class="ab-btn ab-btn-primary" id="pd-btn-to-editor" onclick="paletteDictToEditor()">에디터로</button>
             </div>
           </div><!-- /lib-action-section -->
 
@@ -315,6 +319,37 @@
     </svg>
   </div>
 
+  <!-- ── 튜토리얼 진행 레이어 (home.html과 동일 구조) ── -->
+  <div id="tut-layer" class="hidden">
+    <div id="tut-panel">
+      <button id="tut-skip" onclick="Tutorial.confirmSkip()">건너뛰기</button>
+      <h4 id="tut-title"></h4>
+      <p id="tut-text"></p>
+      <button id="tut-next" disabled onclick="Tutorial.next()">다음</button>
+    </div>
+  </div>
+
+  <!-- 스와이프 유도 dot — 레이어 밖 body 직속. 어떤 요소에도 안 가리도록 최상위에 둔다 -->
+  <div id="tut-scrollhint" hidden><div class="tut-swipe-dot"></div></div>
+
+  <!-- ── 튜토리얼 스텝 완료 모달 (home.html과 동일 구조) ──
+       STEP3·STEP4는 이 페이지에서 끝나므로 여기에도 있어야 한다.
+       없으면 _openDoneModal이 오버레이를 못 찾고 그냥 홈으로 빠진다. -->
+  <div class="modal-overlay hidden" id="tutorial-done-overlay">
+    <div class="tutorial-start-modal" onclick="event.stopPropagation()">
+      <img src="image/confetti.png" alt="" class="tutorial-start-logo">
+      <h3 class="tutorial-start-title" id="tutorial-done-title"></h3>
+      <p class="tutorial-start-message" id="tutorial-done-message"></p>
+      <div class="event-modal-reward" id="tutorial-done-reward">
+        <img src="image/gift.png" alt="">
+        <span id="tutorial-done-reward-count"></span>
+      </div>
+      <div class="tutorial-start-actions">
+        <button class="btn btn-ghost" id="tutorial-done-later" onclick="Tutorial.closeDoneModal()">나중에 할게요</button>
+        <button class="btn btn-primary hidden" id="tutorial-done-continue" onclick="Tutorial.continueNext()">다음 스텝 계속하기</button>
+      </div>
+    </div>
+  </div>
 
   <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.js"></script>
   <script src="https://unpkg.com/@phosphor-icons/web"></script>
@@ -328,6 +363,8 @@
   <!-- 코드사전 추가 모달용 코드 데이터 (window.chordsLibrary 제공) -->
   <script src="chord-voicings.js"></script>
   <script src="chords-library.js"></script>
+  <script src="tutorial-steps.js"></script>
+  <script src="tutorial.js"></script>
   <script src="user_project.js"></script>
 
   <div id="exit-toast"></div>

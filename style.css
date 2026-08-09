@@ -37,6 +37,13 @@ body {
   overflow: hidden;
 }
 
+/* 폼 컨트롤은 font-family를 상속하지 않고 브라우저 기본 UI 폰트를 쓴다.
+   새 버튼을 만들 때마다 Pretendard를 빠뜨리는 사고가 반복돼 전역으로 상속시킨다.
+   다른 폰트가 필요한 곳은 개별 선언이 뒤에 오므로 그대로 이긴다. */
+button, input, select, textarea {
+  font-family: inherit;
+}
+
 /* ?�?� ?????�?� */
 .app-shell {
   display: flex;
@@ -361,6 +368,10 @@ body {
   align-items: center;
   gap: 2px;
 }
+/* 튜토리얼 하이라이트 링이 이 둥글기를 그대로 복사한다 — 알약 모양 카드 좌우 끝에 맞춤.
+   padding+음수 margin으로 실제 배치는 그대로 두고 경계(rect)만 컨테이너 패딩(10px)만큼 바깥으로 넓힌다. */
+.currency-item:first-child { border-radius: 999px 0 0 999px; padding-left:  10px; margin-left:  -10px; }
+.currency-item:last-child  { border-radius: 0 999px 999px 0; padding-right: 10px; margin-right: -10px; }
 
 .currency-item--clickable {
   cursor: pointer;
@@ -412,13 +423,18 @@ body {
   align-items: center;
   justify-content: center;
   padding: 8px;
-  border-radius: var(--radius);
+  /* 배경이 없어 겉보기는 같지만, 튜토리얼 펄스 링이 이 값을 그대로 따라 그린다.
+     50%로 둬야 링이 사각형이 아니라 원으로 나온다(패딩 8 + 아이콘 26 = 42px 정사각). */
+  border-radius: 50%;
   transition: transform 0.2s cubic-bezier(0.34, 1.56, 0.64, 1);
 }
 #back-btn svg { width: 26px; height: 26px; }
 #back-btn:active { transform: scale(0.92); }
 #back-btn.hidden { display: none; }
 #settings-btn.hidden { display: none; }
+/* .hidden은 전역 규칙이 아니라 컴포넌트별로 선언한다 — 여기 없으면 JS가 클래스를 붙여도 계속 보인다.
+   튜토리얼 아이콘은 홈 탭 최상위에서만 떠야 한다(노트·프로필 탭, 에디터·코드사전에선 숨김). */
+#tutorial-entry-btn.hidden { display: none; }
 .top-bar-title.hidden { display: none; }
 
 .top-bar-version {
@@ -1453,6 +1469,26 @@ body {
   accent-color: var(--text-primary);
   cursor: pointer;
 }
+/* "모든 줄에 적용" — 켜면 프로젝트 기본 박자/BPM으로 올리고 줄별 값은 지운다 */
+.meter-applyall {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 4px;
+  padding-top: 12px;
+  border-top: 1px solid var(--border);
+  color: var(--text-secondary);
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+}
+.meter-applyall input[type="checkbox"] {
+  width: 16px;
+  height: 16px;
+  accent-color: var(--text-primary);
+  cursor: pointer;
+}
+
 .meter-big {
   font-size: 40px;
   font-weight: 700;
@@ -1613,7 +1649,9 @@ body {
 /* 코드�?미리보기 */
 .chord-preview {
   display: flex;
-  align-items: flex-end;
+  /* center: 추천 코드명이 두 줄로 접히면 flex-end는 코드명을 '마지막 줄' 바닥까지 끌어내린다.
+     줄 수가 몇이든 코드명이 추천 블록 높이의 가운데에 놓이도록 중앙정렬로 둔다. */
+  align-items: center;
   gap: 12px;
 }
 .preview-label {
@@ -1745,6 +1783,14 @@ body {
 }
 #btn-finger-num i { font-size: 20px; }
 #lib-finger-btn i { font-size: 18px; }
+/* 액션바 손가락 버튼은 원형 — 옆 #/b 토글(32px)과 지름·높이를 맞춘다.
+   border-radius를 50%로 둬야 튜토리얼 펄스 링도 원으로 그려진다. */
+#lib-finger-btn {
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  border-radius: 50%;
+}
 .finger-btn:hover { border-color: var(--text-secondary); color: var(--text-primary); }
 .finger-btn.selected,
 .finger-btn.active {
@@ -2427,7 +2473,9 @@ canvas {
 
 .project-title-bar {
   width: 100%;
-  height: 44px;
+  /* border-box라 콘텐츠 높이 = height - padding-top.
+     44px면 콘텐츠가 24px뿐이라 28px 버튼이 위아래로 삐져나와 아래 간격을 먹어버렸다. */
+  height: 48px;
   flex-shrink: 0;
   display: flex;
   align-items: center;
@@ -2473,7 +2521,10 @@ canvas {
 .project-header {
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  /* 세로 간격 균형: 체크↔되돌리기 = margin-top 8 + row1 pad 2 = 10px
+     되돌리기↔재생 = row1 pad 2 + gap 8 + row2 pad 2 = 12px */
+  gap: 8px;
+  margin-top: 8px;
   margin-bottom: 10px;
   width: 100%;
   min-width: 0;
@@ -2488,7 +2539,8 @@ canvas {
   width: 100%;
   min-width: 0;
   overflow: hidden;
-  padding: 2px 2px;
+  /* 좌우 0 — row2·타이틀바와 같은 기준선. 2px가 있으면 되돌리기 버튼만 안쪽으로 들어간다 */
+  padding: 2px 0;
 }
 
 .project-header-row1-right {
@@ -2621,6 +2673,12 @@ canvas {
   transition: all .15s;
   font-family: 'Pretendard', sans-serif;
 }
+/* 토글은 .col-toggle의 radius + overflow:hidden으로 잘려 반쪽만 둥글게 보인다.
+   버튼 자체엔 radius가 없어 튜토리얼 펄스 링이 각진 직사각형으로 나오므로,
+   보이는 모양대로 각 버튼에 반쪽 radius를 준다(겉보기 변화 없음). */
+.col-toggle-btn:first-child { border-radius: var(--radius) 0 0 var(--radius); }
+.col-toggle-btn:last-child  { border-radius: 0 var(--radius) var(--radius) 0; }
+
 .col-toggle-btn.active {
   background: var(--text-primary);
   color: #fff;
@@ -2858,6 +2916,17 @@ canvas {
   transition: left 0.06s linear;
   box-shadow: 0 1px 4px rgba(0,0,0,0.18);
 }
+/* 튜토리얼: 도트가 옆으로 미끄러진다는 것만 가볍게 알린다.
+   left는 JS(initPaletteScrollbar)가 잡으므로 transform으로만 움직인다.
+   기본 transform이 translateY(-50%)라 데모 키프레임도 그걸 유지해야 세로 중앙이 안 틀어진다. */
+.palette-scrollbar-dot--demo {
+  animation: pal-dot-demo 1.2s ease-in-out 3;
+}
+@keyframes pal-dot-demo {
+  0%, 100% { transform: translate(0, -50%); }
+  50%      { transform: translate(26px, -50%); }
+}
+
 .palette-scrollbar-dot::before {
   content: '';
   position: absolute;
@@ -3607,10 +3676,13 @@ canvas {
   }
 
   /* ?�?� 7. ?�거 버튼 ?�?� */
+  /* flex-shrink:0 필수 — .finger-group이 flex row라 폭이 모자라면 가로만 줄어들어
+     정원이 세로로 긴 타원이 된다. 위 원형 버튼들과 같은 처리. */
   .finger-btn {
     width: clamp(35px, 10.5vw, 43px);
     height: clamp(35px, 10.5vw, 43px);
     font-size: clamp(13px, 4vw, 16px);
+    flex-shrink: 0;
   }
 
   /* ?�?� 8. 코드 빌더 ?�커 ?�?� */
@@ -3905,7 +3977,10 @@ canvas {
 .row-menu-btn {
   flex-shrink: 0;
   width: auto; height: auto;
-  margin: 0 0 0 auto; padding: 0;
+  /* 패딩·라운드는 목록 케밥(.projects-item-kebab)과 같은 값 —
+     튜토리얼 펄스 링이 이 모양을 그대로 따라 그리므로 각지면 링도 각진다 */
+  margin: 0 0 0 auto; padding: 4px;
+  border-radius: 8px;
   background: transparent;
   border: none;
   color: var(--text-secondary);
@@ -6274,6 +6349,15 @@ canvas {
 .notice-modal-btn:hover { opacity: 0.85; }
 .notice-modal-btn:active { transform: scale(0.98); }
 
+/* ── 친구 초대 공지 모달 — .profile-invite-box를 재사용하되 모달 폭(.event-modal 300px)에 맞게 보정 ── */
+.profile-invite-box.referral-notice-code-box { width: 100%; margin-bottom: 8px; }
+/* 프로필 카드 안에선 11px지만 모달에선 본문급 안내라 키운다.
+   .profile-invite-hint 정의가 이 파일 뒤쪽(7241)에 있어 같은 특정도로는 지므로 클래스를 겹쳐 올린다. */
+.profile-invite-hint.referral-notice-hint { font-size: 12px; margin-bottom: 24px; }
+/* .event-modal-icon은 img가 28px 고정이라 gift.png가 tutorial-start-logo보다 작게 나온다 —
+   여기선 배지 느낌을 살리기 위해 원래 크기를 좀 더 키운다 */
+#referral-notice-overlay .event-modal-icon img { width: 32px; height: 32px; }
+
 /* ── 코드 입력 결과 모달 (성공/실패/네트워크오류) ── */
 .code-result-modal {
   position: relative;
@@ -6404,6 +6488,7 @@ canvas {
   margin-bottom: 24px;
 }
 .event-modal-reward img { width: 16px; height: 16px; object-fit: contain; }
+.event-modal-reward svg { width: 16px; height: 16px; stroke: #0c447c; }
 .event-modal-reward span {
   font-size: 18px;
   font-weight: 500;
@@ -9080,6 +9165,22 @@ canvas {
   background: #bbb;
 }
 
+/* 보충 필요 상태(분기2)에서만 — 지금 눌러야 할 버튼임을 알린다.
+   연한 파랑 → 꽉 찬 파랑으로 반전시키고 물결 링을 얹는다. */
+.attend-cal-makeup--urge {
+  background: #4f7cff;
+  color: #fff;
+  animation: attend-makeup-urge 1.6s ease-in-out infinite;
+}
+.attend-cal-makeup--urge .attend-cal-makeup-count {
+  background: #fff;
+  color: #4f7cff;
+}
+@keyframes attend-makeup-urge {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(79, 124, 255, 0.45); }
+  60%      { box-shadow: 0 0 0 7px rgba(79, 124, 255, 0); }
+}
+
 .attend-cal-sub {
   font-size: 12px;
   color: #999;
@@ -11623,6 +11724,13 @@ canvas {
   opacity: 0.85;
 }
 
+/* Pro는 피크가 무제한이라 소모량 표시를 감춘다 (클래스는 shared.js applyPlanClass가 건다).
+   소모량 요소를 여닫는 코드가 인라인 style.display를 쓰는 자리가 있어(scale-level.js 등)
+   !important 로 덮어야 한다. */
+.plan-pro .ldp-peak-cost,
+.plan-pro .stt-peak-cost,
+.plan-pro .practice-gate-cost { display: none !important; }
+
 .practice-gate-icon {
   width: 11px;
   height: 14px;
@@ -13205,4 +13313,566 @@ canvas {
   width: 10px;
   height: 10px;
 }
+
+/* ── 튜토리얼 시작 안내 모달 ───────────────────────────────── */
+.tutorial-start-modal {
+  background: var(--surface);
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--border);
+  width: calc(100% - 32px);
+  max-width: 300px;
+  padding: 32px 24px 24px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+}
+
+.tutorial-start-logo {
+  width: 64px;
+  height: 64px;
+  object-fit: contain;
+  margin-bottom: 18px;
+}
+
+.tutorial-start-title {
+  font-family: 'Pretendard', sans-serif;
+  font-size: 20px;
+  font-weight: 700;
+  color: var(--text-primary);
+  line-height: 1.35;
+  margin: 0 0 10px;
+}
+
+.tutorial-start-message {
+  font-size: 14px;
+  color: var(--text-secondary);
+  line-height: 1.7;
+  margin: 0 0 22px;
+}
+
+/* 완료 모달은 문구를 JS(textContent)로 넣어 \n 을 줄바꿈으로 살린다 */
+#tutorial-done-message { white-space: pre-line; }
+
+/* .hidden 은 전역 규칙이 아니라 컴포넌트별로 선언돼 있어 여기서도 따로 잡아준다 */
+#tutorial-done-reward.hidden,
+#tutorial-done-promo.hidden,
+#tutorial-done-continue.hidden { display: none; }
+
+/* .modal-overlay 기본 z-index(500)는 노트 추가·이미지 저장 시트(1000)보다 낮다.
+   완료 모달은 시트가 닫히는 도중에 뜨므로 그 위로 올려야 가려지지 않는다. */
+#tutorial-done-overlay { z-index: 100110; }
+
+.tutorial-start-actions {
+  display: flex;
+  gap: 8px;
+  width: 100%;
+}
+/* 중앙정렬 모달 스케일 — .event-modal-btn 과 동일한 크기감 */
+.tutorial-start-actions .btn {
+  flex: 1;
+  padding: 13px;
+  border-radius: 12px;
+  font-size: 14px;
+}
+
+/* ── 튜토리얼 진행 레이어 ──────────────────────────────────── */
+/* 터치 차단은 JS capture 리스너가 담당한다. 이 레이어는 시각 전용이라
+   pointer-events:none — 패널만 opt-in 해서 버튼을 살린다. */
+/* 노트 추가 시트·이미지 저장 시트(z-index 1000)보다 위여야 설명 패널이 안 가려진다 */
+/* ── 튜토리얼 z-index 대역 ─────────────────────────────────────
+   튜토리얼 UI는 앱의 어떤 오버레이보다도 위에 있어야 한다.
+   앱 최고값이 100000(.peak-reveal-overlay)이라 그 위로 대역을 잡는다.
+   특히 이미지 저장 시트의 백드롭(9998)이 설명 패널을 덮어 어둡게 만든 사고가 있었다.
+     100100 진행 레이어(설명 패널)  /  100101 펄스 링·요소 화살표
+     100102 스크롤 힌트             /  100110 스텝 완료 모달
+     100120 건너뛰기 확인
+   ───────────────────────────────────────────────────────────── */
+#tut-layer {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  /* 평소엔 뷰포트 전체. 입력 중(키보드)에는 tutorial.js가 --tut-layer-h 로 높이를 고정해
+     레이어가 키보드에 밀려 올라가지 않게 한다 — 설명창은 키보드 아래에 그대로 덮인다. */
+  height: var(--tut-layer-h, 100%);
+  z-index: 100100;
+  pointer-events: none;
+}
+#tut-layer.hidden { display: none; }
+
+/* 앱 표준 모달(.modal / .event-modal)과 동일한 표면 — 흰 배경 + 테두리 + 라운드 */
+#tut-panel {
+  position: absolute;
+  left: 16px;
+  right: 16px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  box-shadow: 0 8px 32px rgba(0,0,0,0.18);
+  padding: 20px 18px;
+  pointer-events: auto;
+}
+#tut-panel.tut-panel--top,
+#tut-panel.tut-panel--card-top { top: calc(12px + env(safe-area-inset-top)); }
+#tut-panel.tut-panel--bottom   { bottom: calc(12px + env(safe-area-inset-bottom)); }
+/* hidePanel 구간 — 설명창만 감춘다(오버레이·허용 대상은 그대로) */
+#tut-panel.hidden { display: none !important; }
+
+/* 하단 설명창이 예습 모달 아래를 덮어 마지막 줄이 영영 안 보이던 문제.
+   --tut-bottom-inset 은 tutorial.js가 패널 실제 높이를 재서 넣는다(하단 패널일 때만 > 0).
+   여백만 벌리면 모달이 위로 넘칠 수 있어 최대 높이도 같이 줄인다 — 넘친 만큼은 스크롤로 닿는다. */
+body.tut-lock .preview-modal-overlay {
+  padding-bottom: calc(24px + var(--tut-bottom-inset, 0px));
+}
+body.tut-lock .preview-modal {
+  max-height: calc(80vh - var(--tut-bottom-inset, 0px));
+}
+
+/* 앱 표준 모달(.modal-overlay)은 inset:0 + align-items:center 라, 키보드가 올라와
+   뷰포트가 줄면 위로 재중앙정렬되며 상단 설명창 밑으로 파고든다(마디 정보 수정 등).
+   설명창 높이만큼 위쪽을 비워 그 아래에서만 중앙정렬되게 한다.
+   상단 패널이 아닌 구간에선 --tut-top-inset 이 0이라 아무 영향이 없다. */
+body.tut-lock .modal-overlay {
+  padding-top: calc(16px + var(--tut-top-inset, 0px));
+}
+
+/* 구간 전환 — 패널 하나로 out → (내용 교체) → in.
+   패널을 복제하지 않는다: 추가 DOM 없이 전환 딜레이를 그대로 활용한다.
+   키프레임은 앱 표준(modal-scale-in / deleteConfirmOut) 재사용. */
+#tut-panel.tut-panel--pop {
+  animation: modal-scale-in 0.28s cubic-bezier(0.34, 1.56, 0.64, 1) both;
+}
+#tut-panel.tut-panel--out {
+  animation: deleteConfirmOut 0.2s cubic-bezier(0.4, 0, 1, 1) both;
+}
+
+/* 캔버스 위 유도 dot — 찍어야 할 자리에서 깜빡인다 */
+#tut-ghost {
+  position: absolute;
+  border-radius: 50%;
+  /* 다른 튜토리얼 하이라이트(펄스 링·화살표)와 같은 블루로 통일 */
+  background: rgba(79,124,255,0.35);
+  border: 2px solid rgba(79,124,255,0.85);
+  box-sizing: border-box;
+  pointer-events: none;
+  z-index: 3;
+  animation: tut-ghost-blink 1s ease-in-out infinite;
+}
+@keyframes tut-ghost-blink {
+  0%, 100% { opacity: 0.25; }
+  50%      { opacity: 1; }
+}
+
+/* 이미 찍힌(어두운) dot을 가리키는 화살표 — dot 바로 우측, 왼쪽을 가리키는 삼각형.
+   좌우로 살짝 튕겨 dot 쪽을 툭툭 찌르는 느낌을 준다. */
+#tut-arrow {
+  position: absolute;
+  width: 0;
+  height: 0;
+  border-top: 7px solid transparent;
+  border-bottom: 7px solid transparent;
+  border-right: 11px solid #4F7CFF;
+  filter: drop-shadow(0 1px 2px rgba(0,0,0,0.25));
+  transform: translateY(-50%);
+  pointer-events: none;
+  z-index: 3;
+  animation: tut-arrow-nudge 0.9s ease-in-out infinite;
+}
+@keyframes tut-arrow-nudge {
+  0%, 100% { transform: translate(4px, -50%); }
+  50%      { transform: translate(0, -50%); }
+}
+
+/* DOM 요소용 화살표 — 어두운 버튼처럼 펄스 링이 잘 안 보이는 대상에 쓴다.
+   펄스 링과 같은 이유로 body 직속 fixed(조상 overflow에 안 잘림), JS가 rAF로 위치를 따라간다. */
+.tut-el-arrow {
+  position: fixed;
+  width: 0;
+  height: 0;
+  filter: drop-shadow(0 1px 2px rgba(0,0,0,0.25));
+  pointer-events: none;
+  z-index: 100101;
+}
+/* 대상 위에서 아래를 가리킨다 */
+.tut-el-arrow--top {
+  border-left: 7px solid transparent;
+  border-right: 7px solid transparent;
+  border-top: 11px solid #4F7CFF;
+  animation: tut-el-arrow-down 0.9s ease-in-out infinite;
+}
+@keyframes tut-el-arrow-down {
+  0%, 100% { transform: translate(-50%, calc(-100% - 4px)); }
+  50%      { transform: translate(-50%, -100%); }
+}
+/* 대상 아래에서 위를 가리킨다 */
+.tut-el-arrow--bottom {
+  border-left: 7px solid transparent;
+  border-right: 7px solid transparent;
+  border-bottom: 11px solid #4F7CFF;
+  animation: tut-el-arrow-up 0.9s ease-in-out infinite;
+}
+@keyframes tut-el-arrow-up {
+  0%, 100% { transform: translate(-50%, 4px); }
+  50%      { transform: translate(-50%, 0); }
+}
+.tut-el-arrow--left {
+  border-top: 7px solid transparent;
+  border-bottom: 7px solid transparent;
+  border-left: 11px solid #4F7CFF;
+  animation: tut-el-arrow-toright 0.9s ease-in-out infinite;
+}
+@keyframes tut-el-arrow-toright {
+  0%, 100% { transform: translate(calc(-100% - 4px), -50%); }
+  50%      { transform: translate(-100%, -50%); }
+}
+.tut-el-arrow--right {
+  border-top: 7px solid transparent;
+  border-bottom: 7px solid transparent;
+  border-right: 11px solid #4F7CFF;
+  animation: tut-el-arrow-toleft 0.9s ease-in-out infinite;
+}
+@keyframes tut-el-arrow-toleft {
+  0%, 100% { transform: translate(4px, -50%); }
+  50%      { transform: translate(0, -50%); }
+}
+
+/* 대상 왼쪽에 붙는 변형 — 삼각형이 오른쪽(대상 쪽)을 가리키고, 자기 폭만큼 왼쪽으로 물러난다 */
+#tut-arrow.tut-arrow--left {
+  border-right: none;
+  border-left: 11px solid #4F7CFF;
+  animation-name: tut-arrow-nudge-left;
+}
+@keyframes tut-arrow-nudge-left {
+  0%, 100% { transform: translate(calc(-100% - 4px), -50%); }
+  50%      { transform: translate(-100%, -50%); }
+}
+
+/* 너트 왼쪽 개방현/뮤트 아이콘보다 더 왼쪽에 고정 표시하는 "1번줄"~"6번줄" 라벨.
+   좁은 여백에 6줄이 들어가야 해서 예외적으로 11px 사용(사용자 승인).
+   등장할 때 한 번 튀어 들어오는 스프링 애니메이션 — hidden 토글마다 새로 재생된다. */
+/* 왼쪽에서 슬라이드해 들어온다 — 각 줄 라벨의 animation-delay는 JS가 순서대로 매긴다 */
+@keyframes tut-string-num-in {
+  from { opacity: 0; transform: translate(calc(-100% - 8px), -50%); }
+  to   { opacity: 1; transform: translate(-100%, -50%); }
+}
+.tut-string-num {
+  position: absolute;
+  transform: translate(-100%, -50%); /* 아이콘 왼쪽 끝에 오른쪽 정렬 */
+  white-space: nowrap;
+  font-family: 'Pretendard', sans-serif;
+  font-size: 11px;
+  font-weight: 400;
+  color: #000;
+  pointer-events: none;
+  z-index: 3;
+  animation: tut-string-num-in 0.25s cubic-bezier(0.34, 1.56, 0.64, 1) both;
+}
+
+/* 프렛번호 옆 "← 프렛 번호" 설명 라벨 — #fret-ctrl 오른쪽에 붙는다. 줄 번호와 같은 슬라이드 등장. */
+@keyframes tut-fret-label-in {
+  from { opacity: 0; transform: translateY(-50%) translateX(-8px); }
+  to   { opacity: 1; transform: translateY(-50%) translateX(0); }
+}
+.tut-fret-label {
+  position: absolute;
+  transform: translateY(-50%);
+  white-space: nowrap;
+  font-family: 'Pretendard', sans-serif;
+  font-size: 11px;
+  font-weight: 400;
+  color: #000;
+  pointer-events: none;
+  z-index: 3;
+  animation: tut-fret-label-in 0.25s cubic-bezier(0.34, 1.56, 0.64, 1) both;
+}
+
+/* 세로 스와이프 유도 — 손가락 자리(dot)가 아래로 미끄러지고,
+   지나온 자리는 꼬리로 남아 위로 갈수록 투명해진다. 실제 스와이프 자취의 느낌. */
+/* JS가 left/top에 스트립 중심 좌표를 넣는다. body 직속 + 최상위 z-index라 무엇에도 안 가린다 */
+#tut-scrollhint {
+  position: fixed;
+  z-index: 100102;
+  pointer-events: none;
+}
+#tut-scrollhint[hidden] { display: none; }
+
+.tut-swipe-dot {
+  position: absolute;
+  left: -9px;   /* 중심 좌표 기준으로 dot을 가운데 맞춤 */
+  top: -9px;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: rgba(79, 124, 255, 0.9);
+  box-shadow: 0 0 0 6px rgba(79, 124, 255, 0.16);
+  animation: tut-swipe-move 1.7s cubic-bezier(.45, 0, .2, 1) infinite;
+}
+
+/* 자취 — dot 위쪽으로 뻗고 끝으로 갈수록 사라진다 */
+.tut-swipe-dot::before {
+  content: '';
+  position: absolute;
+  left: 50%;
+  bottom: 50%;
+  transform: translateX(-50%);
+  width: 12px;
+  height: 44px;
+  border-radius: 6px;
+  background: linear-gradient(to top, rgba(79, 124, 255, 0.5), rgba(79, 124, 255, 0));
+}
+
+@keyframes tut-swipe-move {
+  0%   { transform: translateY(-26px); opacity: 0; }
+  22%  { transform: translateY(-18px); opacity: 1; }
+  78%  { transform: translateY(22px);  opacity: 1; }
+  100% { transform: translateY(30px);  opacity: 0; }
+}
+
+#tut-skip {
+  position: absolute;
+  top: 12px;
+  right: 14px;
+  background: none;
+  border: none;
+  padding: 6px;
+  font-family: 'Pretendard', sans-serif;
+  font-size: 12px;
+  color: var(--text-muted);
+  cursor: pointer;
+}
+
+#tut-title {
+  font-family: 'Pretendard', sans-serif;
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--text-primary);
+  margin: 0 0 8px;
+  padding-right: 56px; /* 건너뛰기 버튼 자리 */
+}
+
+#tut-text {
+  font-size: 14px;
+  line-height: 1.65;
+  white-space: pre-line;
+  color: var(--text-secondary);
+  margin: 0;
+}
+
+/* 선택 구간에서만 노출 — 이 구간만 넘기고 튜토리얼은 계속 진행 */
+#tut-next {
+  display: block;
+  margin: 14px 0 0 auto;
+  padding: 8px 14px;
+  /* 앱 표준 primary 컬러(.btn-primary와 동일한 var(--blue)) — 활성 상태가 한눈에 띄어야 한다 */
+  background: var(--blue);
+  border: 1px solid var(--blue);
+  border-radius: 999px;
+  font-family: 'Pretendard', sans-serif;
+  font-size: 13px;
+  font-weight: 600;
+  color: #fff;
+  cursor: pointer;
+  transition: opacity .15s;
+}
+#tut-next:active { opacity: 0.6; }
+/* 필요 없는 구간에서도 항상 자리를 차지한다 — 클릭만 막고 흐릿하게(display:none 대신 :disabled) */
+#tut-next:disabled {
+  opacity: 0.35;
+  cursor: default;
+  pointer-events: none;
+}
+
+/* 튜토리얼 진행 중 전역 잠금 — 스크롤·핀치줌·텍스트선택 차단.
+   탭 자체는 막지 않는다(허용 대상은 눌려야 하므로). 실제 차단은 JS capture 가드가 담당. */
+body.tut-lock {
+  touch-action: none;
+  overscroll-behavior: none;
+  -webkit-user-select: none;
+  user-select: none;
+}
+/* 현재 구간의 허용 대상만 제스처를 되살린다 (휠피커 스크롤 등).
+   user-select도 함께 풀어야 가사 줄을 길게 눌러 붙여넣기 메뉴를 띄울 수 있다. */
+body.tut-lock .tut-allow,
+body.tut-lock .tut-allow * {
+  touch-action: auto;
+  -webkit-user-select: text;
+  user-select: text;
+}
+
+/* 조작 유도 대상 — 딤 위로 떠오르며 펄스.
+   position은 여기서 건드리지 않는다. absolute/fixed로 배치된 대상(샵플랫 오버레이 등)의
+   레이아웃을 깨뜨리기 때문. static인 경우에만 JS가 인라인으로 relative를 부여한다. */
+.tut-target {
+  z-index: 1101;
+}
+
+/* 펄스 링 — JS가 body 직속에 만들어 대상 rect를 매 프레임 따라간다.
+   대상에 직접 box-shadow를 걸면 조상의 overflow:hidden에 잘려서 이렇게 분리했다. */
+.tut-ring {
+  position: fixed;
+  pointer-events: none;
+  z-index: 100101;
+  animation: tut-pulse 1.4s ease-in-out infinite;
+}
+@keyframes tut-pulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(79,124,255,0.55); }
+  50%      { box-shadow: 0 0 0 10px rgba(79,124,255,0); }
+}
+
+/* 손가락번호 버튼처럼 촘촘히 붙은 대상 전용 — 파동 확산 폭을 줄여 옆 버튼을 안 건드린다.
+   .tut-ring 뒤에 와야 한다: 특이성이 같아 캐스케이드 순서로 이겨야 적용된다. */
+.tut-ring--tight {
+  animation: tut-pulse-tight 1.4s ease-in-out infinite;
+}
+@keyframes tut-pulse-tight {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(79,124,255,0.55); }
+  50%      { box-shadow: 0 0 0 4px rgba(79,124,255,0); }
+}
+
+/* 휠피커는 자체 라운드가 없어 펄스 링이 각지게 나온다 — 대상일 때만 둥글게.
+   overflow-x:auto(가로 스크롤)는 그대로 둔다. 자기 box-shadow는 자기 overflow에 안 잘림. */
+.wheel-picker.tut-target {
+  border-radius: var(--radius);
+}
+
+/* 노트 시트 닫기 버튼은 각진 텍스트 버튼이라 하이라이트만 원형으로 보정.
+   버튼 자체 모양은 그대로 둔다 — 링은 계산된 border-radius를 그대로 따라가므로 여기서만 덮어쓴다. */
+.project-sheet-close.tut-target {
+  border-radius: 50%;
+}
+
+/* 건너뛰기 확인은 앱 표준 showLeavePracticeModal()을 그대로 쓴다.
+   튜토리얼 진행 중엔 펄스링(1900)보다 위로 떠야 하므로 z-index만 끌어올린다. */
+.leave-practice-overlay { z-index: 100120; }
+
+/* ═══════════════════════════════════════════════════════════════
+   튜토리얼 재진입 — 우상단 아이콘 + 모달
+   모달 규격은 퀘스트 모달(.quest-modal)과 동일하게 맞춘다.
+   ═══════════════════════════════════════════════════════════════ */
+
+/* 강조 dot — 아직 안 본 스텝이 있을 때만 노출 */
+#tutorial-entry-btn {
+  position: relative;
+}
+.tut-entry-dot {
+  position: absolute;
+  top: 2px;
+  right: 2px;
+  width: 7px;
+  height: 7px;
+  border-radius: 999px;
+  background: var(--blue);
+  /* 아이콘 획과 dot이 맞닿아 뭉개지지 않게 배경색 테두리로 띄운다.
+     box-shadow라 테두리가 레이아웃(7px 크기)에 영향을 주지 않는다. */
+  box-shadow: 0 0 0 1.5px var(--bg);
+}
+
+.tutorial-modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.5);
+  z-index: 320;
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding: 24px;
+  box-sizing: border-box;
+  overflow-y: auto;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.22s;
+}
+
+.tutorial-modal-overlay--show {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.tutorial-modal {
+  width: 100%;
+  max-width: 360px;
+  max-height: 85vh;
+  margin: auto; /* 오버레이 스크롤 시에도 중앙 정렬 */
+  display: flex;
+  flex-direction: column;
+  background: #EEF2F6;
+  border-radius: 24px;
+  padding: 20px;
+  box-sizing: border-box;
+  transform: scale(0.9);
+  transition: transform 0.3s cubic-bezier(0.34, 1.5, 0.64, 1);
+}
+
+.tutorial-modal-overlay--show .tutorial-modal {
+  transform: scale(1);
+}
+
+.tutorial-modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.tutorial-modal-title {
+  font-size: 18px;
+  font-weight: 800;
+  color: #1a1a1a;
+}
+
+.tutorial-modal-body {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  margin-top: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+/* 스텝 한 줄 — 좌측 타이틀 / 우측 시작 버튼 */
+.tut-list-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  background: #FFFFFF;
+  border-radius: 12px;
+  padding: 14px 16px;
+}
+
+.tut-list-title {
+  font-size: 14px;
+  font-weight: 700;
+  color: #1a1a1a;
+}
+
+.tut-list-btn {
+  flex-shrink: 0;
+  border: none;
+  background: var(--blue);
+  color: #FFFFFF;
+  font-size: 12px;
+  font-weight: 700;
+  border-radius: 8px;
+  padding: 8px 16px;
+  cursor: pointer;
+}
+.tut-list-btn:active { transform: scale(0.97); }
+
+/* 이미 완료한 스텝 — 다시 보기 */
+.tut-list-btn--again {
+  background: transparent;
+  color: var(--text-secondary);
+  border: 1px solid var(--border);
+}
+
+/* 앞 스텝 미완료 → 잠금 */
+.tut-list-row--locked { opacity: 0.45; }
+.tut-list-btn--locked {
+  background: var(--border);
+  color: var(--text-muted);
+  cursor: default;
+}
+.tut-list-btn--locked:active { transform: none; }
 

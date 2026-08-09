@@ -100,14 +100,14 @@ function closeChordCombo() {
   }
 }
 
-// ── 시작하기 (피크 3 소모 → 퀴즈 뷰 진입) ───────────────────
+// ── 시작하기 (피크 1 소모 → 퀴즈 뷰 진입) ───────────────────
 // 1~8장 지원 (1~6장 알고리즘 생성, 7·8장은 손으로 뽑은 20개 진행 중 랜덤).
 async function comboStartTraining(e) {
   const card = e?.target.closest('.combo-card');
   const chapter = card?.dataset.chapter || '1';
   if (!['1', '2', '3', '4', '5', '6', '7', '8'].includes(chapter)) return;
   _playSfx('pop.mp3');
-  if (!(await consumePeak(3))) return;
+  if (!(await consumePeak(1))) return;
   const activeCard = card.querySelector('.combo-difficulty-card.active');
   const difficulty = activeCard?.dataset.difficulty === 'high' ? 'high'
     : activeCard?.dataset.difficulty === 'mid' ? 'mid' : 'low';
@@ -703,7 +703,7 @@ function _comboShowResultModal() {
             <span>다시할래요</span>
             <span class="practice-gate-cost">
               <img src="image/white_peak.svg" alt="" class="practice-gate-icon">
-              <span>x3</span>
+              <span>x1</span>
             </span>
           </button>
         </div>
@@ -712,7 +712,7 @@ function _comboShowResultModal() {
     ov.querySelector('#combo-result-exit').onclick  = () => { ov.style.display = 'none'; exitComboQuiz(); };
     ov.querySelector('#combo-result-retry').onclick = async () => {
       _playSfx('pop.mp3');
-      if (!(await consumePeak(3))) return;
+      if (!(await consumePeak(1))) return;
       ov.style.display = 'none';
       enterComboQuiz(_comboDifficulty, _comboChapter);
     };

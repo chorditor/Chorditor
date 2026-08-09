@@ -31,6 +31,11 @@ android/lint/
 # ========================
 # 키스토어 (보안상 절대 올리면 안 됨)
 # ========================
+# ⚠ 이 규칙은 git만 막는다. capacitor.config.json의 webDir가 "www"라
+#   npx cap sync는 www/ 안의 모든 파일을 확장자 무관 assets/public/으로 복사하고,
+#   그게 그대로 AAB에 실린다 — gitignore로는 앱 패키징을 막을 수 없다.
+#   2026-07-11~07-31 실제로 chorditor.jks가 www/에 있어 출시본에 포함됐다.
+#   www/ 에는 *.html *.js *.css image/ sound/ capacitor.config.json 외에는 절대 두지 말 것.
 *.jks
 *.keystore
 

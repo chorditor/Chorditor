@@ -125,7 +125,7 @@ class AnalyticsSDK {
 
     // engagement 계측 (GA4 방식): 화면이 보이는 동안의 시간을 누적해
     // 다음 이벤트의 engagement_time_msec 으로 실어 보냄
-    this._engagedMs    = 0;    // 아직 전송되지 않은 누적 engaged 시간
+    this._engagedMs    = this._restoreEngagementMs(); // 직전 페이지에서 넘어온 잔여분 포함
     this._visibleSince = (typeof document === 'undefined' || document.visibilityState === 'visible')
       ? Date.now() : null;
 
@@ -153,6 +153,10 @@ class AnalyticsSDK {
       }
       this._lastActiveAt = now;
       this._persistSession(); // 페이지 이동 후에도 session_id 유지
+
+      // app_open은 세션당 1회. 멀티페이지 앱이라 페이지 로드마다 호출되지만
+      // "앱 실행" 의미를 유지하려면 세션 단위로 눌러야 한다.
+      if (eventName === 'app_open' && !this._claimAppOpen()) return;
 
       const event = {
         anon_id:        this._anonId,
@@ -291,6 +295,16 @@ class AnalyticsSDK {
     return { sessionId: sid, lastActiveAt: now };
   }
 
+  // 현 세션에서 app_open을 아직 안 찍었으면 선점하고 true, 이미 찍었으면 false.
+  _claimAppOpen() {
+    const KEY = 'chorditor_session_appopen';
+    try {
+      if (localStorage.getItem(KEY) === this._sessionId) return false;
+      localStorage.setItem(KEY, this._sessionId);
+    } catch (_) {}
+    return true;
+  }
+
   _persistSession() {
     try {
       localStorage.setItem('chorditor_session_id', this._sessionId);
@@ -386,17 +400,51 @@ class AnalyticsSDK {
     }
     const ms = this._engagedMs;
     this._engagedMs = 0;
+    if (ms > 0) this._persistEngagementMs(0); // 이벤트에 실렸으므로 백업분 폐기
     return ms;
   }
 
-  // 화면 이탈 시점에 잔여 engaged 시간을 user_engagement 이벤트로 남긴다.
-  // 남길 시간이 없으면 아무것도 하지 않음(빈 이벤트 방지).
+  // 화면 이탈 시점의 잔여 engaged 시간 처리. 독립 행을 만들지 않는다.
+  // 큐에 대기 중인 이벤트가 있으면 거기에 얹고, 없으면 localStorage에 넘겨
+  // 다음 페이지의 첫 이벤트가 싣고 가게 한다(멀티페이지 앱 대응).
   _flushEngagement() {
     if (this._visibleSince !== null) {
       this._engagedMs += Date.now() - this._visibleSince;
       this._visibleSince = null;
     }
-    if (this._engagedMs > 0) this.track('user_engagement', {});
+    if (this._engagedMs <= 0) return;
+
+    const last = this._queue[this._queue.length - 1];
+    if (last) {
+      last.properties.engagement_time_msec =
+        (last.properties.engagement_time_msec || 0) + this._engagedMs;
+      this._engagedMs = 0;
+      this._persistEngagementMs(0);
+      return;
+    }
+    // 실어 보낼 이벤트가 없음 → 메모리에 유지하되 페이지 파기 대비 백업
+    this._persistEngagementMs(this._engagedMs);
+  }
+
+  // 페이지 이동으로 SDK가 파기돼도 잔여 engaged 시간이 살아남게 한다.
+  _persistEngagementMs(ms) {
+    try {
+      if (ms > 0) localStorage.setItem('chorditor_engaged_ms', `${ms}|${Date.now()}`);
+      else        localStorage.removeItem('chorditor_engaged_ms');
+    } catch (_) {}
+  }
+
+  // 세션이 살아있는 동안 넘어온 잔여분만 이어받는다. 만료분은 버린다.
+  _restoreEngagementMs() {
+    try {
+      const raw = localStorage.getItem('chorditor_engaged_ms');
+      localStorage.removeItem('chorditor_engaged_ms');
+      if (!raw) return 0;
+      const [ms, at] = raw.split('|').map(Number);
+      if (!ms || !at) return 0;
+      if (Date.now() - at >= AnalyticsSDK.SESSION_TIMEOUT_MS) return 0;
+      return ms;
+    } catch (_) { return 0; }
   }
 
   // 화면을 보고만 있어도(이벤트 미발생) 세션이 끊기지 않도록 주기적으로
@@ -410,9 +458,9 @@ class AnalyticsSDK {
   }
 
   _setupLifecycleListeners() {
-    // 이탈 시점은 user_engagement 로 즉시 기록한다.
+    // 이탈 시점의 잔여 engaged 시간은 행을 추가하지 않고 이월시킨다.
     const onBackground = () => {
-      this._flushEngagement(); // 잔여 engaged 시간을 user_engagement 로 기록
+      this._flushEngagement(); // 잔여 engaged 시간을 큐/localStorage 로 이월
       this._flush(true);       // 이벤트 큐는 즉시 전송
     };
 

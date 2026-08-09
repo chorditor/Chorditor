@@ -885,6 +885,7 @@ function undoLastAction() {
   updateProject(p);
   renderProjectView(_undoProjectId);
   _refreshUndoBtn();
+  window.Tutorial?.notify('undo:done'); // 재렌더 뒤에 알림
 }
 
 function _refreshUndoBtn() {
@@ -1303,6 +1304,17 @@ let metronomeNextBeatTime = 0;
 let metronomeBeatCount = 0;
 let playbackStartAudioTime = 0;
 let playbackEndAudioTime = 0;   // 곡 종료 오디오 시각 (0 = 제한 없음)
+// 코드 재생이 쓰는 시계(performance.now)의 '곡 0ms' 지점. 메트로놈도 이 값을 기준으로 붙는다.
+// 예전엔 메트로놈만 audioCtx.currentTime으로 따로 원점을 잡아 두 시계가 어긋났다.
+let playbackStartWallTime = 0;
+let playbackTotalMs = 0;        // 곡 전체 길이(ms) — 메트로놈 종료 시각 계산용
+
+// 스트로크 보정 — 코드는 한 점이 아니라 6줄을 STRUM_INTERVAL(8ms) 간격으로 훑는 소리다(총 ~40ms).
+// 첫 음(6번줄)을 정박에 정확히 맞추면 귀가 느끼는 무게중심이 뒤에 있어 코드가 밀려 들린다.
+// 실제 연주자도 정박보다 살짝 먼저 스트로크를 시작한다.
+// 코드 재생 타이밍(refWallTime 체인)은 그대로 두고 메트로놈 원점만 이만큼 뒤로 미룬다
+// — 상대적으로 코드가 먼저 시작되는 것과 같고, 재생 로직은 건드리지 않아 안전하다.
+const STRUM_LEAD_MS = 20;
 
 // 설정>사운드 마스터 볼륨용 최종 게인(엔벨로프 뒤 → 낮은 볼륨서도 클릭 없음)
 let _upSfxMaster = null;
@@ -1314,6 +1326,10 @@ function _getUpSfxBus() {
   _upSfxMaster.gain.value = (typeof _getSfxMasterVolume === 'function') ? _getSfxMasterVolume() : 1;
   return _upSfxMaster;
 }
+
+// 룩어헤드로 미리 예약해 둔 클릭 노드들. 재생이 멈추면 이걸 전부 꺼야 한다 —
+// 타이머만 끄면 이미 예약된 최대 150ms 분량이 그대로 울리고, 페이지를 떠나도 따라온다.
+let _metronomeNodes = [];
 
 function metronomeClick(time, isDownbeat) {
   if (!audioCtx) return;
@@ -1332,19 +1348,35 @@ function metronomeClick(time, isDownbeat) {
   osc.type = 'sine';
   osc.frequency.value = isDownbeat ? 740 : 520;
 
+  // 스케줄러가 늦게 깨어나면 이미 지난 시각이 들어올 수 있다. 과거 시각은 파라미터 예약이
+  // 무시되거나 순서가 뒤집혀 클릭이 뭉치므로 현재 시각으로 끌어올린다.
+  if (time < audioCtx.currentTime) time = audioCtx.currentTime;
+
   const vol = isDownbeat ? 0.38 : 0.22;
   gain.gain.setValueAtTime(vol, time);
   gain.gain.exponentialRampToValueAtTime(0.0001, time + 0.055);
 
   osc.start(time);
   osc.stop(time + 0.06);
+
+  _metronomeNodes.push({ osc, gain });
+  osc.onended = () => {
+    _metronomeNodes = _metronomeNodes.filter(n => n.osc !== osc);
+    try { gain.disconnect(); } catch (_) {}
+  };
 }
+
+// 룩어헤드 스케줄러 — 소리 시각은 audioCtx 시계로 미리 예약하고, setTimeout은 "언제 다음
+// 예약을 짤지" 깨우는 용도로만 쓴다. 주기를 룩어헤드보다 충분히 짧게 둬야 타이머가 한두 번
+// 늦어도 구멍이 안 난다(50ms였을 땐 여유가 70ms뿐이라 스크롤·재렌더 한 번에 밀렸다).
+const METRONOME_LOOKAHEAD = 0.15; // 미리 예약해 둘 범위(초)
+const METRONOME_TICK_MS   = 25;   // 스케줄러 깨우는 주기
 
 function scheduleMetronome() {
   if (!metronomeActive || !playbackActive || !audioCtx) return;
   const now = audioCtx.currentTime;
 
-  while (metronomeNextBeatTime < now + 0.12) {
+  while (metronomeNextBeatTime < now + METRONOME_LOOKAHEAD) {
     if (playbackEndAudioTime > 0 && metronomeNextBeatTime >= playbackEndAudioTime) break;
     if (metronomeBeatCount >= metronomeBeats.length) break; // 스케줄 끝(곡 종료)
     const beat = metronomeBeats[metronomeBeatCount];
@@ -1352,70 +1384,59 @@ function scheduleMetronome() {
     metronomeNextBeatTime += beat.ms / 1000;
     metronomeBeatCount++;
   }
-  metronomeSchedulerTimeout = setTimeout(scheduleMetronome, 50);
+  metronomeSchedulerTimeout = setTimeout(scheduleMetronome, METRONOME_TICK_MS);
 }
 
-// metronomeBeats 누적시간(ms)을 targetMs와 대조해 그 시점에 해당하는 박 인덱스를 찾음.
-// (줄마다 박 길이·박자가 다를 수 있어 고정 나눗셈이 아니라 누적합으로 계산)
-// targetMs가 박 중간(이미 진행 중인 박)이면 그 박은 건너뛰고 아직 시작 안 한 다음 박(미래 경계)을 반환
-// — 그대로 두면 이미 지난 시각으로 스케줄돼 늦게/어긋나게 울림.
+// metronomeBeats(줄마다 길이·강세가 다름)의 누적시간을 훑어, targetMs 이후에 오는 첫 박 경계를
+// 찾는다. 줄마다 BPM·박자가 바뀌므로 고정 나눗셈이 아니라 누적합으로만 구할 수 있다.
+// 반환 accMs는 그 박이 시작하는 곡 기준 시각(ms), idx는 그 박의 번호.
+// targetMs가 박 중간이면 진행 중인 박은 건너뛴다 — 이미 지난 시각으로 예약하면 늦게 울린다.
 function _metronomeIndexAtMs(targetMs) {
   let accMs = 0, idx = 0;
-  while (idx < metronomeBeats.length && accMs + metronomeBeats[idx].ms <= targetMs) {
-    accMs += metronomeBeats[idx].ms;
-    idx++;
-  }
-  if (idx < metronomeBeats.length && targetMs > accMs) {
+  while (idx < metronomeBeats.length && accMs < targetMs) {
     accMs += metronomeBeats[idx].ms;
     idx++;
   }
   return { idx, accMs };
 }
 
+// 메트로놈을 "지금 이 순간"의 코드 재생 위치에 붙인다.
+// 기준은 코드 재생과 같은 시계(performance.now / playbackStartWallTime)로 잡고,
+// 남은 시간만 오디오 시계로 옮긴다. 두 시계의 원점이 달라도 어긋날 수 없는 구조.
+// → 재생 도중 껐다 켜도, 그 지점이 몇 번째 줄이든(다른 BPM·박자여도) 정확한 박에 재합류한다.
 function syncMetronomeToPlayback() {
-  // 재생 중이면 playbackStartAudioTime 기준 경과시간을 조회해 현재 박 위치를 찾음.
-  // (메트로놈 on/off처럼 "지금 이 순간"에 재합류하는 경우 전용 — audioCtx.currentTime을 다시
-  //  읽어 경과시간을 역산하므로, 정확한 목표 지점을 이미 알고 있는 경우(줄 점프)엔 그 사이
-  //  await로 시간이 흘러 역산이 어긋날 수 있어 쓰지 않음 → playAll은 syncMetronomeToMs 사용)
-  if (playbackActive && playbackStartAudioTime > 0) {
-    const now = audioCtx.currentTime;
-    const elapsedMs = Math.max(0, (now - playbackStartAudioTime) * 1000);
-    const { idx, accMs } = _metronomeIndexAtMs(elapsedMs);
-    metronomeBeatCount = idx;
-    metronomeNextBeatTime = playbackStartAudioTime + accMs / 1000;
-  } else {
+  if (!(playbackActive && playbackStartWallTime > 0)) {
     metronomeBeatCount = 0;
     metronomeNextBeatTime = audioCtx.currentTime + 0.05;
+    return;
   }
-}
-
-// 줄 점프(playAll) 전용 재동기화 — audioCtx.currentTime을 다시 읽는 대신, 이미 정확히 계산된
-// targetMs(elapsedMsAtStart)를 그대로 써서 목표 줄의 박자/펄스로 확실히 전환되게 함.
-// (시계 재역산 방식은 그 사이 await로 시간이 흘러버리면 이전 줄의 박에 걸려 새 박자(예: 6/8)로
-//  안 바뀌고 이전 박자(4/4) 그대로 재생되는 버그가 있었음)
-function syncMetronomeToMs(targetMs) {
-  const { idx, accMs } = _metronomeIndexAtMs(targetMs);
+  const elapsedMs = Math.max(0, performance.now() - playbackStartWallTime);
+  const { idx, accMs } = _metronomeIndexAtMs(elapsedMs);
   metronomeBeatCount = idx;
-  metronomeNextBeatTime = playbackStartAudioTime + accMs / 1000;
+  // (accMs - elapsedMs) = 다음 박까지 남은 시간. 이걸 그대로 오디오 시계에 얹는다.
+  metronomeNextBeatTime = audioCtx.currentTime + (accMs - elapsedMs) / 1000;
+  playbackEndAudioTime  = audioCtx.currentTime + (playbackTotalMs - elapsedMs) / 1000;
 }
 
-async function startMetronome(synced = false, targetMs = null) {
+async function startMetronome() {
   if (!audioCtx) audioCtx = new AudioCtx();
   if (audioCtx.state === 'suspended') await audioCtx.resume();
   if (metronomeSchedulerTimeout) { clearTimeout(metronomeSchedulerTimeout); metronomeSchedulerTimeout = null; }
-  if (targetMs !== null) {
-    syncMetronomeToMs(targetMs);
-  } else if (synced) {
-    syncMetronomeToPlayback();
-  } else {
-    metronomeBeatCount = 0;
-    metronomeNextBeatTime = audioCtx.currentTime + 0.05;
-  }
+  syncMetronomeToPlayback();
   scheduleMetronome();
 }
 
 function _stopMetronomeAudio() {
   if (metronomeSchedulerTimeout) { clearTimeout(metronomeSchedulerTimeout); metronomeSchedulerTimeout = null; }
+  // 이미 예약된 클릭까지 즉시 끊는다. 타이머만 끄면 룩어헤드 분량이 그대로 울린다.
+  const nodes = _metronomeNodes;
+  _metronomeNodes = [];
+  nodes.forEach(({ osc, gain }) => {
+    try { osc.onended = null; } catch (_) {}
+    try { gain.gain.cancelScheduledValues(0); gain.gain.value = 0; } catch (_) {}
+    try { osc.stop(); } catch (_) {}   // 아직 시작 전이면 예약 자체가 취소된다
+    try { gain.disconnect(); } catch (_) {}
+  });
 }
 
 function stopMetronome() {
@@ -1430,9 +1451,10 @@ function toggleMetronome() {
   analytics.track('metronome_toggled', { active: metronomeActive });
   const btn = document.getElementById('metronome-btn');
   if (btn) btn.classList.toggle('active', metronomeActive);
+  window.Tutorial?.notify(`metronome:${metronomeActive ? 'on' : 'off'}`);
   if (metronomeActive && playbackActive) {
-    // 재생 중에 켜면 즉시 싱크 시작
-    startMetronome(true);
+    // 재생 중에 켜면 지금 위치의 박에 맞춰 즉시 재합류
+    startMetronome();
   } else if (!metronomeActive) {
     // 끄면 오디오 즉시 중단
     _stopMetronomeAudio();
@@ -1483,7 +1505,7 @@ async function playAll(projectId, startIndex = 0) {
   let _runCapo = project.capo ?? 0; // 줄 카포 변경점 누적 — 변경점 이후 줄들에 계속 적용
   project.arrangement.forEach(row => {
     if (row.capo != null) _runCapo = row.capo;
-    const meter  = getRowMeter(row);
+    const meter  = getRowMeter(project, row);
     const rowBpm = getRowBpm(project, row);
     const bars   = getRowBars(row);
     const layout = computeRowLayout(bars) || computeRowLayout(2);
@@ -1517,17 +1539,12 @@ async function playAll(projectId, startIndex = 0) {
   for (let k = 0; k < startIndex && k < orderedSlots.length; k++) elapsedMsAtStart += orderedSlots[k].slotMs;
   playbackStartAudioTime = audioCtx.currentTime + 0.05 - elapsedMsAtStart / 1000;
 
-  const totalMs = orderedSlots.reduce((s, o) => s + o.slotMs, 0);
-  playbackEndAudioTime = playbackStartAudioTime + totalMs / 1000;
+  playbackTotalMs = orderedSlots.reduce((s, o) => s + o.slotMs, 0);
+  playbackEndAudioTime = playbackStartAudioTime + playbackTotalMs / 1000;
   playbackActive = true;
   analytics.track('playall_started', { project_id: projectId, bpm: project.bpm ?? 120, start_index: startIndex });
   const btn = document.getElementById('play-all-btn');
   if (btn) { btn.innerHTML = '<i data-lucide="square"></i>'; lucide.createIcons(); }
-
-  // 메트로놈이 켜져 있으면 이번 재생 시작 지점(elapsedMsAtStart)에 맞춰 재동기화.
-  // 줄마다 박자/BPM이 달라도 metronomeBeats가 줄별로 이미 반영돼 있으므로,
-  // 시계 재역산 대신 elapsedMsAtStart를 그대로 넘겨 목표 줄의 박자로 확실히 전환되게 함.
-  if (metronomeActive) await startMetronome(false, elapsedMsAtStart);
 
   // 자동스크롤 상태 초기화 + 사용자 스크롤 감지 리스너 (스크롤 컨테이너당 1회만 부착)
   _autoScrollLineId = null;
@@ -1540,15 +1557,26 @@ async function playAll(projectId, startIndex = 0) {
     scrollHostEl.addEventListener('touchmove', markUserScroll, { passive: true });
   }
 
-  // 드리프트 방지: startIndex 슬롯이 재생됐어야 할 절대 기준 시각
+  // 드리프트 방지: startIndex 슬롯이 재생됐어야 할 절대 기준 시각.
+  // 메트로놈도 이 값을 원점으로 삼는다(playbackStartWallTime) — 여기서 두 시계가 하나로 묶인다.
+  // analytics·lucide.createIcons 뒤에 잡아야 첫 코드가 실제로 울리는 시점과 원점이 일치한다.
   const refWallTime = performance.now() - elapsedMsAtStart;
+  // 메트로놈만 STRUM_LEAD_MS 만큼 뒤로 — 코드 스트로크가 정박보다 살짝 먼저 시작되게 한다
+  playbackStartWallTime = refWallTime + STRUM_LEAD_MS;
   let i = startIndex;
   let _accMs = elapsedMsAtStart;
   let _playheadEl = null;
   let _playheadLineId = null;
   async function next() {
     if (!playbackActive) { stopPlayAll(); return; }
-    if (i >= orderedSlots.length) { stopPlayAll(); return; }
+    // 끝까지 재생됨(유저가 멈춘 게 아님) — 튜토리얼 완주 판정용
+    if (i >= orderedSlots.length) {
+      stopPlayAll();
+      window.Tutorial?.notify('playall:done');
+      // 튜토리얼: 끝까지 들었으면 '다음' 버튼만 풀어준다. 자동으로 넘기지 않는다.
+      window.Tutorial?.enableNext?.();
+      return;
+    }
     const item = orderedSlots[i++];
 
     const slotEl = document.querySelector(`[data-line-id="${item.lineId}"][data-slot-idx="${item.slotIdx}"]`);
@@ -1603,6 +1631,10 @@ async function playAll(projectId, startIndex = 0) {
     const delay = Math.max(0, nextExpected - performance.now());
     currentPlayTimeout = setTimeout(next, delay);
   }
+
+  // 메트로놈은 원점(playbackStartWallTime)이 확정된 뒤, 코드 재생과 같은 순간에 붙인다.
+  // 예전엔 이 호출이 lucide.createIcons() 앞에 있어 두 시계의 원점이 수십 ms 어긋났다.
+  if (metronomeActive) startMetronome();
   next();
 }
 
@@ -1624,16 +1656,22 @@ function openOrientConfirm(mode) {
   document.getElementById('orient-confirm-box2-line1').textContent = beatLine;
   document.getElementById('orient-confirm-overlay').classList.remove('hidden');
   document.getElementById('orient-confirm-btn').onclick = confirmOrientSwitch;
+  // 튜토리얼 화면 방향 구간은 설명창이 하단에 있는데, 가로에서는 화면이 짧아
+  // 이 모달의 확인 버튼과 겹쳐 누를 수가 없다 → 모달이 떠 있는 동안만 설명창을 내린다.
+  // 튜토리얼 중이 아니면 아무 일도 하지 않는다.
+  window.Tutorial?.suppressPanel?.(true);
   return new Promise(resolve => { _orientConfirmResolve = resolve; });
 }
 
 function closeOrientConfirm() {
   document.getElementById('orient-confirm-overlay').classList.add('hidden');
+  window.Tutorial?.suppressPanel?.(false);
   if (_orientConfirmResolve) { _orientConfirmResolve(false); _orientConfirmResolve = null; }
 }
 
 function confirmOrientSwitch() {
   document.getElementById('orient-confirm-overlay').classList.add('hidden');
+  window.Tutorial?.suppressPanel?.(false);
   const resolve = _orientConfirmResolve;
   _orientConfirmResolve = null;
   if (resolve) resolve(true);
@@ -1684,6 +1722,7 @@ async function switchOrient(projectId, mode) {
 
     await _applyOrientLock(mode); // 기기 실제 회전 요청이 반영될 시간 확보
     renderProjectView(projectId); // 레이아웃 재빌드는 가림막 뒤에서 진행
+    window.Tutorial?.notify(`orient:${mode}`); // 재렌더 뒤에 알림
   } finally {
     // 회전 애니메이션이 실제로 끝날 여유시간 확보 후 가림막 제거
     setTimeout(hideCover, 450);
@@ -1699,8 +1738,10 @@ async function switchOrient(projectId, mode) {
 const ROW_SLOT_CAP    = { portrait: 4, landscape: 8 }; // 코드슬롯 그리드 최대 칸 수(고정 크기 기준)
 const SLOTS_PER_BAR   = { portrait: 2, landscape: 4 };  // 마디 1개당 슬롯 수(오리엔테이션별 고정)
 
-function getRowMeter(row) {
-  return row?.meter || { num: 4, den: 4 };
+// 줄 → 프로젝트 기본 → 4/4. BPM(getRowBpm)과 같은 3단 폴백으로 통일.
+// project.meter는 마디 정보 수정 모달의 "모든 줄에 적용"에서 설정된다.
+function getRowMeter(project, row) {
+  return row?.meter || project?.meter || { num: 4, den: 4 };
 }
 function getRowBpm(project, row) {
   return row?.bpm ?? project?.bpm ?? 120;
@@ -1847,11 +1888,13 @@ function renderProjectView(projectId) {
 
   // 편집/완료 토글 버튼
   const modeBtn = document.createElement('button');
+  modeBtn.id = 'project-mode-btn'; // 튜토리얼이 지목할 수 있도록
   modeBtn.className = 'project-icon-btn';
   modeBtn.innerHTML = isEditMode ? '<i data-lucide="check"></i>' : '<i data-lucide="pencil"></i>';
   modeBtn.onclick = () => {
     isEditMode = !isEditMode;
     renderProjectView(projectId);
+    window.Tutorial?.notify(`editmode:${isEditMode ? 'on' : 'off'}`);
   };
 
   // 세로/가로 전환 버튼 (동작 미구현 — UI 배치만)
@@ -1917,6 +1960,8 @@ function renderProjectView(projectId) {
     const p = getProject(projectId);
     if (p) { p.slotsHidden = !slotsHidden; updateProject(p); }
     renderProjectView(projectId);
+    // 튜토리얼 뷰 모드 구간 — 숨김/표시 두 방향을 각각 판정한다
+    window.Tutorial?.notify(`slotshidden:${!slotsHidden}`);
   };
   headerRow2.appendChild(slotToggleBtn);
 
@@ -1931,21 +1976,34 @@ function renderProjectView(projectId) {
   capoLabel.className = 'capo-label';
   capoLabel.textContent = 'Capo';
   const capoDown = document.createElement('button');
+  capoDown.id = 'capo-btn-down'; // 튜토리얼이 지목할 수 있도록
   capoDown.className = 'capo-btn';
   capoDown.textContent = '−';
   const capoVal = document.createElement('span');
+  capoVal.id = 'capo-value';
   capoVal.className = 'capo-value';
   capoVal.textContent = project.capo ?? 0;
   const capoUp = document.createElement('button');
+  capoUp.id = 'capo-btn-up';
   capoUp.className = 'capo-btn';
   capoUp.textContent = '+';
   capoDown.onclick = () => {
     const p = getProject(projectId);
-    if (p && (p.capo ?? 0) > 0) { p.capo = (p.capo ?? 0) - 1; updateProject(p); capoVal.textContent = p.capo; analytics.track('capo_changed', { value: p.capo, direction: 'down', project_id: projectId }); }
+    if (p && (p.capo ?? 0) > 0) {
+      p.capo = (p.capo ?? 0) - 1; updateProject(p); capoVal.textContent = p.capo;
+      analytics.track('capo_changed', { value: p.capo, direction: 'down', project_id: projectId });
+      _refreshRowMetaFor(projectId);
+      window.Tutorial?.notify(`capo:${p.capo}`);
+    }
   };
   capoUp.onclick = () => {
     const p = getProject(projectId);
-    if (p && (p.capo ?? 0) < 12) { p.capo = (p.capo ?? 0) + 1; updateProject(p); capoVal.textContent = p.capo; analytics.track('capo_changed', { value: p.capo, direction: 'up', project_id: projectId }); }
+    if (p && (p.capo ?? 0) < 12) {
+      p.capo = (p.capo ?? 0) + 1; updateProject(p); capoVal.textContent = p.capo;
+      analytics.track('capo_changed', { value: p.capo, direction: 'up', project_id: projectId });
+      _refreshRowMetaFor(projectId);
+      window.Tutorial?.notify(`capo:${p.capo}`);
+    }
   };
   capoWrap.append(capoLabel, capoDown, capoVal, capoUp);
   row2Controls.appendChild(capoWrap);
@@ -1965,7 +2023,11 @@ function renderProjectView(projectId) {
     const val = Math.min(240, Math.max(40, parseInt(bpmInput.value) || 120));
     bpmInput.value = val;
     const p = getProject(projectId);
-    if (p) { p.bpm = val; updateProject(p); analytics.track('bpm_changed', { value: val, project_id: projectId }); }
+    if (p) {
+      p.bpm = val; updateProject(p);
+      analytics.track('bpm_changed', { value: val, project_id: projectId });
+      _refreshRowMetaFor(projectId); // 줄의 ♩= 배지 즉시 반영
+    }
   });
   bpmWrap.append(bpmLabel, bpmInput);
   row2Controls.appendChild(bpmWrap);
@@ -2166,6 +2228,9 @@ function buildChordArea(line, project, editMode = true) {
           } else {
             playChord(chord, getRowCapo(getProject(project.id) || project, line.id));
             analytics.track('project_chord_played', { chord_name: chord.name, project_id: project.id });
+            window.Tutorial?.notify('slot:played');
+            // 튜토리얼: 자동으로 넘기지 않는다(STEP1 소리 듣기와 동일). 1초 뒤 '다음' 버튼만 풀어준다.
+            setTimeout(() => window.Tutorial?.enableNext?.(), 1000);
           }
         });
       }
@@ -2196,6 +2261,9 @@ function buildChordArea(line, project, editMode = true) {
           } else {
             playChord(chord, getRowCapo(getProject(project.id) || project, line.id));
             analytics.track('project_chord_played', { chord_name: chord.name, project_id: project.id });
+            window.Tutorial?.notify('slot:played');
+            // 튜토리얼: 자동으로 넘기지 않는다(STEP1 소리 듣기와 동일). 1초 뒤 '다음' 버튼만 풀어준다.
+            setTimeout(() => window.Tutorial?.enableNext?.(), 1000);
           }
         });
 
@@ -2283,6 +2351,10 @@ function buildChordArea(line, project, editMode = true) {
         _btnTouchPending = false;
         openRowMenu({ currentTarget: menuBtn }, line.id, project.id);
       }
+      // touchcancel에만 있던 복원을 여기에도 둔다 — 없으면 메뉴를 한 번 연 줄은
+      // contentEditable=false 인 채 남아 그 줄만 영영 입력이 안 된다.
+      // 메뉴는 이미 열렸고 포커스도 끊긴 뒤라 여기서 되돌려도 키보드가 다시 뜨지 않는다.
+      if (_activeLineText) { _activeLineText.contentEditable = 'true'; _activeLineText = null; }
     }, { passive: false });
     menuBtn.addEventListener('touchcancel', () => {
       _btnTouchPending = false;
@@ -2332,12 +2404,12 @@ function buildProjectLine(line, project, editMode, prevLine = null, isFirstLine 
   // 박자 레일: row-meta-badge·chord-row-wrapper·project-line-text-row(보조선) 전체를 아우르는
   // 왼쪽 박스로 항상 자리를 예약(그만큼 나머지 콘텐츠 폭이 줄어듦)
   // → 박자가 커스텀일 때만 그 안에 세로 분수(분자/분모)를 표시, 아닐 땐 빈 채로 자리만 유지
-  const rowMeter = getRowMeter(line);
-  const meterCustom = !!line.meter && (rowMeter.num !== 4 || rowMeter.den !== 4);
-  const prevMeter = prevLine ? getRowMeter(prevLine) : null;
-  // 첫 줄은 커스텀 여부와 무관하게 항상 기본세팅값(4/4 등) 박자를 표기
-  // 이후 줄은 앞줄의 실효 박자(기본값 포함)와 같으면 생략
-  const showMeter = isFirstLine || (meterCustom && !(prevMeter && prevMeter.num === rowMeter.num && prevMeter.den === rowMeter.den));
+  const rowMeter  = getRowMeter(project, line);
+  const prevMeter = prevLine ? getRowMeter(project, prevLine) : null;
+  // 첫 줄은 항상 기본세팅값 박자를 표기. 이후 줄은 앞줄의 실효 박자와 다를 때만 표기.
+  // (프로젝트 기본 박자가 생기면서 "line.meter 유무"가 아니라 실효값 비교가 기준이 됐다)
+  const showMeter = isFirstLine ||
+    !!(prevMeter && (prevMeter.num !== rowMeter.num || prevMeter.den !== rowMeter.den));
   const meterRail = document.createElement('div');
   meterRail.className = 'row-meter-rail';
   if (showMeter) {
@@ -2350,13 +2422,13 @@ function buildProjectLine(line, project, editMode, prevLine = null, isFirstLine 
   const bodyContent = document.createElement('div');
   bodyContent.className = 'project-line-content';
 
-  // BPM이 노트 기본값과 다르게 이 줄에서 개별 설정된 경우에만 표시 (마디 수는 보조선 길이로 이미 표현됨)
-  // 단, 바로 앞 줄과 값이 같으면 반복 표기하지 않고 값이 바뀐 첫 줄에서만 표시
-  const bpmCustom = line.bpm != null;
-  const prevBpm = prevLine ? getRowBpm(project, prevLine) : null;
-  // 첫 줄은 커스텀 여부와 무관하게 항상 기본세팅값(노트 전역 BPM) 표기
-  // 이후 줄은 앞줄의 실효 BPM(기본값 포함)과 같으면 생략
-  const showBpm = isFirstLine || (bpmCustom && !(prevLine && prevBpm === getRowBpm(project, line)));
+  // 첫 줄은 항상 기본세팅값(노트 전역 BPM) 표기.
+  // 이후 줄은 앞줄의 실효 BPM과 다를 때만 표기 — 박자와 같은 기준.
+  // ("line.bpm 보유 여부"로 판정하면, 앞줄이 90이고 새 줄이 기본 120으로 떨어져도
+  //  아무 표기가 없어 90이 이어지는 것처럼 보인다)
+  const rowBpm     = getRowBpm(project, line);
+  const prevBpmEff = prevLine ? getRowBpm(project, prevLine) : null;
+  const showBpm    = isFirstLine || (prevBpmEff != null && prevBpmEff !== rowBpm);
   // 카포: 효력 카포가 앞줄과 달라지는 줄(첫 줄 포함)에 템포 우측 표시. 0은 생략.
   const effCapo  = getRowCapo(project, line.id);
   const prevCapo = prevLine ? getRowCapo(project, prevLine.id) : null;
@@ -3010,6 +3082,69 @@ function saveAllLines(projectId, linesEl) {
   });
   p.updatedAt = Date.now();
   updateProject(p);
+  _refreshRowMeta(linesEl, p);
+  window.Tutorial?.notify('lines:saved'); // 가사·줄 구성 변화 알림 (튜토리얼 조건 판정용)
+}
+
+// 줄이 추가·삭제·이동되면 "앞줄과 값이 다른가" 판정이 전부 달라진다.
+// buildProjectLine은 만들어질 당시의 앞줄만 알기 때문에, 새 줄이 기본값(4/4·전역 BPM)으로
+// 생겨도 표기가 없어서 앞줄 값이 이어지는 것처럼 오해하게 된다.
+// arrangement가 DOM과 동기화된 저장 직후에 박자 레일·BPM/카포 배지를 전부 다시 계산한다.
+// 헤더에서 노트 전역 BPM·카포를 바꿨을 때 줄 배지를 즉시 갱신 (재렌더 없이)
+function _refreshRowMetaFor(projectId) {
+  const linesEl = document.getElementById('project-lines-' + projectId);
+  const p = getProject(projectId);
+  if (linesEl && p) _refreshRowMeta(linesEl, p);
+}
+
+function _refreshRowMeta(linesEl, project) {
+  let prevMeter = null, prevBpm = null, prevCapo = null;
+
+  linesEl.querySelectorAll('.project-line').forEach((div, i) => {
+    const line    = project.arrangement.find(l => l.id === div.dataset.lineId);
+    // arrangement에 아직 없는 div(막 삽입된 줄 등)는 건드리지 않는다.
+    // 여기서 기본값으로 다시 그리면 방금 지정한 박자 표기가 지워진다.
+    if (!line) return;
+    const isFirst = i === 0;
+
+    // 박자 레일
+    const m = getRowMeter(project, line);
+    const showMeter = isFirst || !prevMeter || prevMeter.num !== m.num || prevMeter.den !== m.den;
+    const rail = div.querySelector('.row-meter-rail');
+    if (rail) {
+      rail.innerHTML = showMeter
+        ? `<span class="row-meter-rail-num">${m.num}</span>` +
+          `<span class="row-meter-rail-bar"></span>` +
+          `<span class="row-meter-rail-den">${m.den}</span>`
+        : '';
+    }
+
+    // BPM·카포 배지 — 표시될 때만 존재하므로 생성·제거까지 여기서 처리
+    const bpm  = getRowBpm(project, line);
+    const capo = getRowCapo(project, line?.id);
+    const showBpm  = isFirst || (prevBpm != null && prevBpm !== bpm);
+    const showCapo = capo > 0 && (isFirst || prevCapo == null || prevCapo !== capo);
+
+    const content = div.querySelector('.project-line-content');
+    let badge = content?.querySelector('.row-meta-badge');
+    if (showBpm || showCapo) {
+      if (!badge && content) {
+        badge = document.createElement('div');
+        badge.className = 'row-meta-badge';
+        content.insertBefore(badge, content.firstChild);
+      }
+      if (badge) {
+        const parts = [];
+        if (showBpm)  parts.push(`♩=${bpm}`);
+        if (showCapo) parts.push(`${capo} Capo`);
+        badge.textContent = parts.join('  ');
+      }
+    } else if (badge) {
+      badge.remove();
+    }
+
+    prevMeter = m; prevBpm = bpm; prevCapo = capo;
+  });
 }
 
 function insertNewLineAtCursor(linesEl, projectId) {
@@ -3122,6 +3257,16 @@ let _rowMenuLineId  = null;
 let _rowMenuProjId  = null;
 let _rowMenuLinesEl = null;
 
+// 포커스가 남은 입력 요소를 끊어 키보드를 내린다.
+// 안드로이드는 편집 가능한 요소가 포커스를 쥐고 있으면, 화면 어디를 눌러도 키보드를 다시 올린다.
+// (커서만 깜빡이고 키보드는 내려간 상태에서 다른 걸 누를 때 특히 티가 난다)
+function _blurActiveEditable() {
+  const el = document.activeElement;
+  if (!el) return;
+  const editable = el.tagName === 'INPUT' || el.tagName === 'TEXTAREA' || el.isContentEditable;
+  if (editable && typeof el.blur === 'function') el.blur();
+}
+
 function _ensureRowMenuEl() {
   if (_rowMenuEl) return;
   // 백드롭: 투명 전체화면 → 터치/클릭 시 메뉴 닫기
@@ -3146,13 +3291,21 @@ function _ensureRowMenuEl() {
     <button data-action="delete" class="danger">이 줄 삭제</button>`;
   d.addEventListener('click', e => {
     const btn = e.target.closest('[data-action]');
-    if (btn) _rowMenuAction(btn.dataset.action);
+    if (!btn) return;
+    _rowMenuAction(btn.dataset.action);
+    // 동작이 끝난 뒤(DOM 반영 후) 알려야 튜토리얼 조건 판정이 맞는다
+    window.Tutorial?.notify(`rowmenu:${btn.dataset.action}`);
   });
   document.body.appendChild(d);
   _rowMenuEl = d;
 }
 
 function openRowMenu(e, lineId, projectId) {
+  // 가사 입력 중(커서가 살아 있는 상태)에 메뉴를 열면 안드로이드가 포커스를 이유로
+  // 키보드를 다시 올려버린다 — 메뉴가 가려지고, 튜토리얼 중에는 진행이 막힌다.
+  // 케밥 버튼의 touchstart 처리는 "같은 줄"만 막으므로, 다른 줄·제목에서 온 포커스는 여기서 끊는다.
+  _blurActiveEditable();
+
   _ensureRowMenuEl();
   _rowMenuLineId  = lineId;
   _rowMenuProjId  = projectId;
@@ -3183,6 +3336,10 @@ function openRowMenu(e, lineId, projectId) {
   // 마지막 줄이면 "이 줄 삭제" 비활성화
   const lines = _rowMenuLinesEl?.querySelectorAll('.project-line');
   _rowMenuEl.querySelector('[data-action="delete"]').disabled = (lines?.length ?? 0) <= 1;
+
+  // 몇 번째 줄의 메뉴가 열렸는지까지 알려야 튜토리얼이 "첫 줄"을 지정할 수 있다
+  const rowIdx = Array.prototype.indexOf.call(lines || [], lineDiv);
+  window.Tutorial?.notify(`rowmenu:open:${rowIdx}`);
 }
 
 function _closeRowMenu() {
@@ -3288,11 +3445,13 @@ function setRowMeterBars(bars) {
   document.querySelectorAll('#row-meter-bars-toggle input[type="checkbox"]').forEach(cb => {
     cb.checked = Number(cb.dataset.bars) === bars;
   });
+  window.Tutorial?.notify('rowmeter:change');
 }
 
 function _rowMeterRenderSig() {
   document.getElementById('row-meter-num-val').value = String(_rowMeterNum);
   document.getElementById('row-meter-den-val').textContent = String(_rowMeterDen);
+  window.Tutorial?.notify('rowmeter:change');
 }
 
 // 카포 스테퍼 (스티키 바 capo-control과 동일 규칙: 0~12)
@@ -3318,10 +3477,13 @@ function openRowMeterModal(projectId, lineId) {
   // 줄에 직접 설정한 값이 있으면 그 값, 없으면 마지막 저장값 프리필 (매번 기본값으로 초기화하지 않음)
   const hasOwn = !!(line.meter || line.barsPerRow || line.bpm != null);
   const src = hasOwn
-    ? { meter: getRowMeter(line), bpm: line.bpm ?? '', bars: getRowBars(line) }
-    : (_rowMeterLast || { meter: getRowMeter(line), bpm: '', bars: getRowBars(line) });
+    ? { meter: getRowMeter(p, line), bpm: line.bpm ?? '', bars: getRowBars(line) }
+    : (_rowMeterLast || { meter: getRowMeter(p, line), bpm: '', bars: getRowBars(line) });
   _rowMeterNum = src.meter.num;
   _rowMeterDen = src.meter.den;
+
+  const applyAllEl = document.getElementById('row-meter-applyall');
+  if (applyAllEl) applyAllEl.checked = false; // 매번 꺼진 상태로 시작 — 실수로 전체가 바뀌지 않게
 
   _rowMeterCapo = getRowCapo(p, lineId); // 이 줄의 효력 카포 (이전 변경점 상속 포함)
   document.getElementById('row-meter-capo-val').textContent = String(_rowMeterCapo);
@@ -3334,8 +3496,14 @@ function openRowMeterModal(projectId, lineId) {
   bpmInputEl.onblur = () => { bpmInputEl.placeholder = bpmDefaultLabel; };
   _rowMeterRenderSig();
 
+  // addEventListener면 모달을 열 때마다 쌓이므로 프로퍼티 할당으로 덮어쓴다
+  bpmInputEl.oninput = () => window.Tutorial?.notify('rowmeter:change');
+
   const numInputEl = document.getElementById('row-meter-num-val');
-  numInputEl.oninput = () => { _rowMeterNum = parseInt(numInputEl.value, 10) || 1; };
+  numInputEl.oninput = () => {
+    _rowMeterNum = parseInt(numInputEl.value, 10) || 1;
+    window.Tutorial?.notify('rowmeter:change');
+  };
   numInputEl.onblur = () => {
     _rowMeterNum = Math.max(1, Math.min(16, _rowMeterNum));
     numInputEl.value = String(_rowMeterNum);
@@ -3378,10 +3546,25 @@ function confirmRowMeterSave() {
   const bpmRaw = document.getElementById('row-meter-bpm-input').value.trim();
   const bpm = bpmRaw === '' ? undefined : Math.min(240, Math.max(40, parseInt(bpmRaw, 10) || 120));
   pushUndoSnapshot(projectId); // 마디/BPM/박자 변경도 undo 대상 (슬롯 잘림 복구 포함)
-  line.meter = { num, den };
-  line.bpm = bpm;
-  line.barsPerRow = bars;
-  line.slots = _resizeRowSlots(line.slots, layout.landscapeSlots); // 같은 박 순번은 보존, 넘치는 자리만 잘림
+
+  const applyAll = document.getElementById('row-meter-applyall')?.checked;
+  if (applyAll) {
+    // 프로젝트 기본값으로 올리고 줄별 값은 지운다 → 모든 줄이 기본값을 따라감.
+    // (BPM은 헤더 bpm-control과 같은 필드라 여기서 바꾸면 그쪽 표시도 함께 맞춰짐)
+    p.meter = { num, den };
+    if (bpm !== undefined) p.bpm = bpm;
+    p.arrangement.forEach(l => {
+      delete l.meter;
+      delete l.bpm;
+      l.barsPerRow = bars;
+      l.slots = _resizeRowSlots(l.slots, layout.landscapeSlots);
+    });
+  } else {
+    line.meter = { num, den };
+    line.bpm = bpm;
+    line.barsPerRow = bars;
+    line.slots = _resizeRowSlots(line.slots, layout.landscapeSlots); // 같은 박 순번은 보존, 넘치는 자리만 잘림
+  }
   // 카포: 효력 카포와 다르게 바꿨을 때만 이 줄에 변경점 기록 — 이 줄부터 이후 줄에 계속 적용
   if (getRowCapo(p, lineId) !== _rowMeterCapo) {
     line.capo = _rowMeterCapo;
@@ -3396,6 +3579,7 @@ function confirmRowMeterSave() {
   const linesEl = document.getElementById('project-lines-' + projectId);
   if (linesEl) _pendingEditRestore = { scrollTop: linesEl.scrollTop };
   renderProjectView(projectId); // 슬롯 수·그리드·재생 타이밍이 전부 바뀌므로 전체 재렌더
+  window.Tutorial?.notify('rowmeter:saved'); // 재렌더 뒤에 알림
 }
 
 // 아코디언 접기/펼치기 — 전체 리렌더 없이 body만 접어서 부드럽게 처리
@@ -3428,6 +3612,7 @@ function buildChordPalette(project, editMode = true) {
 
   if (editMode) {
     const addBtn = document.createElement('div');
+    addBtn.id = 'palette-add-btn'; // 튜토리얼이 지목할 수 있도록
     addBtn.className = 'chord-palette-add';
     addBtn.title = '코드 추가';
     addBtn.innerHTML = '+';
@@ -3555,6 +3740,7 @@ function createPaletteItem(chord, idx, projectId, editMode = true) {
   const thumb = document.createElement('div');
   thumb.className = 'chord-palette-item';
   thumb.dataset.chordId = chord.id;
+  thumb.dataset.chordName = chord.name; // 튜토리얼이 특정 코드를 지목할 때 사용(id는 매번 달라짐)
   thumb.dataset.idx = idx;
 
   const cv = document.createElement('canvas');
@@ -3608,6 +3794,7 @@ function createPaletteItem(chord, idx, projectId, editMode = true) {
   thumb.addEventListener('mousemove', () => { mouseDragged = true; });
   thumb.addEventListener('click', async e => {
     if (mouseDragged) return;
+    if (window.Tutorial?.blocksNav?.()) return; // 드래그 유도 구간 — 실수 탭으로 에디터로 나가지 않게
     if (editMode) {
       _saveEditReturnState(projectId);
       await stopPlayAll({ wait: true });
@@ -3723,6 +3910,14 @@ function placeChordInSlot(projectId, rowId, slotIdx, chordId) {
   if (!p) return;
   const row = p.arrangement.find(r => r.id === rowId);
   if (!row) return;
+
+  // 튜토리얼이 특정 칸만 지정했으면 그 칸 외 드롭은 무시.
+  // (HTML5 드래그 이벤트는 터치 가드를 안 타므로 여기서 막아야 한다)
+  const _tutSlot = window.Tutorial?.slotCell?.();
+  if (_tutSlot) {
+    const rowIdx = p.arrangement.findIndex(r => r.id === rowId);
+    if (rowIdx !== _tutSlot.line || slotIdx !== _tutSlot.slot) return;
+  }
   pushUndoSnapshot(projectId);
   if (!row.slots) row.slots = new Array(8).fill(null);
   row.slots[slotIdx] = chordId;
@@ -3731,6 +3926,8 @@ function placeChordInSlot(projectId, rowId, slotIdx, chordId) {
   const chord = p.chords.find(c => c.id === chordId);
   analytics.track('chord_slot_placed', { project_id: projectId, chord_name: chord?.name ?? '' });
   reRenderChordArea(rowId, row, p);
+  // 재렌더 뒤에 알려야 한다 — 튜토리얼이 DOM(슬롯의 data-chord-id)을 보고 판정하므로
+  window.Tutorial?.notify('slot:placed');
   // 드롭 애니메이션
   requestAnimationFrame(() => {
     const slot = document.querySelector(`.project-line[data-line-id="${rowId}"] .chord-slot[data-slot-idx="${slotIdx}"]`);
@@ -3827,11 +4024,13 @@ function openPaletteDictionary(projectId) {
   document.getElementById('palette-dict-modal').classList.remove('hidden');
   lucide.createIcons();
   analytics.track('palette_dict_opened', { project_id: projectId });
+  window.Tutorial?.notify('palettedict:open');
 }
 
 function closePaletteDictionary() {
   closeVoicingModal();
   document.getElementById('palette-dict-modal').classList.add('hidden');
+  window.Tutorial?.notify('palettedict:close');
 }
 
 // "에디터로" — 기존 + 버튼의 에디터 이동 로직 이식
@@ -3897,6 +4096,7 @@ function renderLibCards(root) {
     const dispName = useFlat ? rep.flatName : rep.name;
     const multi    = idxList.length > 1;
     html += `<div class="lib-card${multi ? ' lib-card-multi' : ''}"
+                  data-chord="${sharpName}"
                   onclick="onLibCardClick(event,'${sharpName.replace(/\\/g,'\\\\').replace(/'/g,"\\'")}')">
                <canvas class="lib-card-canvas" data-gidx="${gi}"
                        width="${LIB_MINI_W}"
@@ -3931,6 +4131,7 @@ function onLibCardClick(event, sharpName) {
     return;
   }
   openVoicingModal(sharpName, cardEl);
+  window.Tutorial?.notify(`libcard:${sharpName}`);
 }
 
 // 선택한 코드 다이어그램이 팔레트로 날아가는 애니메이션 (추가 인식 피드백)
@@ -4009,6 +4210,8 @@ function openVoicingModal(sharpName, cardEl) {
 }
 
 function closeVoicingModal() {
+  // 튜토리얼이 이 구간에서 목록을 잠갔으면 무시한다(모달 여백·오버레이 오터치 방지)
+  if (window.Tutorial?.locksVoicing?.()) return;
   document.getElementById('lib-voicing-modal')?.classList.remove('open');
   document.getElementById('lib-voicing-overlay')?.classList.remove('open');
   _voicingModalChord = null;
@@ -4023,9 +4226,10 @@ function _renderVoicingGrid(sharpName) {
     .map((e, i) => ({ e, i }))
     .filter(({ e }) => e.name === sharpName);
 
-  grid.innerHTML = filtered.map(({ e, i }) => {
+  grid.innerHTML = filtered.map(({ e, i }, pos) => {
     const dispName = useFlat ? e.flatName : e.name;
-    return `<div class="lib-card"
+    // data-vpos: 코드 그룹 안에서 몇 번째 보이싱인지 (전역 인덱스는 코드마다 달라 튜토리얼이 못 쓴다)
+    return `<div class="lib-card" data-vpos="${pos}"
                  onclick="event.stopPropagation(); onVoicingPick(event, ${i});">
                <canvas class="lib-card-canvas" data-vidx="${i}"
                        width="${LIB_MINI_W}"
@@ -4065,6 +4269,143 @@ function toggleLibAccidental() {
 
 // 라이브러리 엔트리 → 프로젝트 코드 객체 변환 후 추가 (home.js libSaveToProject 미러)
 function _pdAddEntryToProject(entry) {
+  const chordData = libEntryToChord(entry);
+  if (!chordData) return;
+  const p = getProject(_pdProjectId);
+  if (!p) return;
+  p.chords.push(chordData);
+  p.updatedAt = Date.now();
+  updateProject(p);
+  reRenderThumbList(_pdProjectId);
+  analytics.track('chord_added', { chord_name: chordData.name, project_id: _pdProjectId, source: 'palette_dict' });
+  window.Tutorial?.notify(`chordadded:${entry.name}`);
+}
+
+// ── 튜토리얼 시드 노트 ────────────────────────────────────────
+// STEP4는 완성된 노트에서 시작한다(작은 별 1절). 샌드박스에만 쓰이므로 실제 노트에 영향 없음.
+// 세로모드는 8칸 배열 중 짝수 인덱스(0·2·4·6)만 표시되므로 그 자리에 배치한다.
+const TUT_SEED_LINES = [
+  { text: '반짝반짝 작은 별', chords: ['C', null, 'F', 'C'] },
+  { text: '아름답게 비치네', chords: ['F', 'C',  'G', 'C'] },
+];
+// 어떤 보이싱을 쓸지 — 코드명 → chordsLibrary 그룹 안 순번
+const TUT_SEED_VOICING = {
+  C: 0, // Open  x32010
+  F: 1, // Open  xx3211 (약식)
+  G: 0, // Open  320003
+};
+
+// ── STEP4 완료 선물: 완성된 '작은 별' 노트 ────────────────────
+// 튜토리얼 시드(2줄 실습용)와는 별개다. 1절 전체가 완성된 악보를 그대로 준다.
+// null = 앞 코드가 이어짐(악보의 % 표기) → 슬롯을 비운다.
+const GIFT_SONG_NAME  = '작은 별';
+const GIFT_SONG_KEY   = 'chorditor_tut_gift';
+const GIFT_SONG_LINES = [
+  { text: '반짝반짝 작은 별', chords: ['C', null, 'F', 'C'] },
+  { text: '아름답게 비치네', chords: ['F', 'C',  'G', 'C'] },
+  { text: '동쪽 하늘에서도', chords: ['G', null, 'G', null] },
+  { text: '서쪽 하늘에서도', chords: ['G', null, 'G', null] },
+  { text: '반짝반짝 작은 별', chords: ['C', null, 'F', 'C'] },
+  { text: '아름답게 비치네', chords: ['F', 'C',  'G', 'C'] },
+];
+
+// 선물 노트를 만들어 sessionStorage에 보관한다.
+// STEP4 완료 판정은 home.html에서 일어나는데 거기엔 라이브러리 변환 로직이 없어서,
+// 시드를 만드는 이 자리에서 미리 만들어 넘겨준다(tutorial.js acceptGift가 꺼내 쓴다).
+function stashTutorialGiftSong() {
+  const chords = {};
+  ['C', 'F', 'G'].forEach(name => {
+    const chord = libEntryToChord(_tutFindEntry(name, TUT_SEED_VOICING[name]));
+    if (chord) chords[name] = chord;
+  });
+  const arrangement = GIFT_SONG_LINES.map(line => {
+    const slots = new Array(8).fill(null);
+    line.chords.forEach((name, i) => {
+      if (name && chords[name]) slots[i * 2] = chords[name].id; // 세로 표시 칸 = 짝수 인덱스
+    });
+    return { id: genId(), text: line.text, slots };
+  });
+  const note = {
+    id: genId(),
+    name: GIFT_SONG_NAME,
+    pinned: false, pinnedOrder: 0,
+    important: false, importantOrder: 0,
+    capo: 0,
+    bpm: 100,
+    meter: { num: 4, den: 4 },
+    createdAt: Date.now(),
+    updatedAt: Date.now(),
+    chords: Object.values(chords),
+    arrangement,
+  };
+  try { sessionStorage.setItem(GIFT_SONG_KEY, JSON.stringify(note)); } catch (_) {}
+}
+
+function _tutFindEntry(name, pos) {
+  const list = ((window.chordsLibrary || {})[name[0]] || []).filter(e => e.name === name);
+  return list[pos] ?? list[0] ?? null;
+}
+
+// 튜토리얼 시드 노트 이름 — 목록에서 지목할 때도 쓰이므로 한 곳에서만 정의
+const TUT_SEED_MAIN_NAME   = '작은 별';
+const TUT_SEED_PINNED_NAME = '연습 중인 곡';
+
+// STEP4 시작 시 깔아둘 노트 목록.
+//   [0] 작은 별   — 최근(기본). 편집 실습 대상
+//   [1] 연습 중인 곡 — 즐겨찾기. 노트 분류를 설명하려면 각 칸에 예시가 있어야 한다
+// 중요 칸은 비워둔다 — 마지막 구간에서 유저가 직접 옮겨 채운다.
+function buildTutorialSeedProjects() {
+  const main = buildTutorialSeedProject();
+  const now  = Date.now();
+  const pinned = {
+    id: genId(),
+    name: TUT_SEED_PINNED_NAME,
+    pinned: true, pinnedOrder: 1,
+    important: false, importantOrder: 0,
+    capo: 0,
+    bpm: 120,
+    createdAt: now - 1000,
+    updatedAt: now - 1000, // 작은 별이 최근 목록 위로 오도록 살짝 과거로
+    chords: [],
+    arrangement: [{ id: genId(), text: '', slots: new Array(8).fill(null) }],
+  };
+  return [main, pinned];
+}
+
+// 작은 별 1절이 완성된 노트를 만들어 반환 (저장은 호출부에서)
+function buildTutorialSeedProject() {
+  const chords = {};
+  ['C', 'F', 'G'].forEach(name => {
+    const chord = libEntryToChord(_tutFindEntry(name, TUT_SEED_VOICING[name]));
+    if (chord) chords[name] = chord;
+  });
+
+  const arrangement = TUT_SEED_LINES.map(line => {
+    const slots = new Array(8).fill(null);
+    line.chords.forEach((name, i) => {
+      if (name && chords[name]) slots[i * 2] = chords[name].id; // 세로 표시 칸 = 짝수 인덱스
+    });
+    return { id: genId(), text: line.text, slots };
+  });
+
+  return {
+    id: genId(),
+    name: TUT_SEED_MAIN_NAME,
+    pinned: false, pinnedOrder: 0,
+    important: false, importantOrder: 0,
+    capo: 0,
+    bpm: 100,
+    createdAt: Date.now(),
+    updatedAt: Date.now(),
+    chords: Object.values(chords),
+    arrangement,
+  };
+}
+
+// 라이브러리 엔트리 → 노트에 담기는 코드 객체. 변환만 하고 저장은 하지 않는다.
+// (팔레트 추가와 튜토리얼 시드 노트가 같은 규칙을 쓰도록 분리)
+function libEntryToChord(entry) {
+  if (!entry) return null;
   const useFlat    = accidental === 'flat';
   const dispName   = useFlat ? entry.flatName : entry.name;
   // 에디터 "슬롯2 = fretNumber" 모델 — pattern: 라벨 r+1/offset r-1, static: 라벨 r/offset r-2 (라벨 최소 2)
@@ -4116,13 +4457,7 @@ function _pdAddEntryToProject(entry) {
     },
   };
 
-  const p = getProject(_pdProjectId);
-  if (!p) return;
-  p.chords.push(chordData);
-  p.updatedAt = Date.now();
-  updateProject(p);
-  reRenderThumbList(_pdProjectId);
-  analytics.track('chord_added', { chord_name: chordData.name, project_id: _pdProjectId, source: 'palette_dict' });
+  return chordData;
 }
 
 // 코드명 → 구성요소 파싱 (home.js parseChordNameToComponents verbatim 복제 — 수정 금지)
@@ -4526,10 +4861,29 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   // URL ?id= 파라미터로 프로젝트 자동 렌더링
   const params = new URLSearchParams(location.search);
-  const projectIdParam = params.get('id');
+  let projectIdParam = params.get('id');
+
+  // 튜토리얼 STEP4 진입 — 작은 별 1절이 완성된 노트를 즉석에서 만들어 그걸로 시작한다.
+  // 샌드박스에만 저장되므로 실제 노트에는 영향이 없고, STEP3 진행 여부와도 무관하다.
+  if (params.get('tutseed')) {
+    const seeds = buildTutorialSeedProjects();
+    saveProjects(seeds);
+    stashTutorialGiftSong(); // STEP4 완료 시 줄 완성본을 미리 만들어 둔다
+    const seed = seeds[0]; // 작은 별 — 편집 실습 대상
+    projectIdParam = seed.id;
+    isEditMode = true; // 편집 모드로 열어 바로 이어갈 수 있게
+    history.replaceState(null, '', location.pathname + '?id=' + seed.id);
+  }
+
   const _allProjects = loadProjects();
   const _paramProject = projectIdParam ? _allProjects.find(p => p.id === projectIdParam) : null;
   if (projectIdParam && _paramProject && isProjectLocked(_paramProject, _allProjects)) {
+    location.href = 'home.html';
+    return;
+  }
+  // 조회 불가한 id로 들어오면 스피너만 남아 무한 로딩처럼 보인다 → 홈으로 돌려보낸다
+  // (튜토리얼 샌드박스가 해제된 뒤 그 노트로 이동하는 경우 등)
+  if (projectIdParam && !_paramProject) {
     location.href = 'home.html';
     return;
   }
@@ -4555,6 +4909,10 @@ document.addEventListener('DOMContentLoaded', async () => {
     const _cover = document.getElementById('page-cover');
     setTimeout(() => {
       renderProjectView(projectIdParam);
+      // 튜토리얼 진행 중이면 이어받기 — 대상 요소가 생긴 뒤라야 위치가 잡힌다
+      requestAnimationFrame(() => requestAnimationFrame(() => {
+        if (typeof Tutorial !== 'undefined') Tutorial.resume();
+      }));
       setTimeout(() => {
         if (!_cover) return;
         _cover.classList.add('cover-out');
