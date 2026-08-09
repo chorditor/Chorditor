@@ -1660,6 +1660,8 @@ function adjustFretNumber(delta) {
   const el = document.getElementById('fret-number-display');
   if (el) el.textContent = currentFretNumber;
   _syncChordFromCanvas();
+  // 코드 이름이 다시 계산된 뒤에 알린다 — 튜토리얼이 "몇 프렛이 됐나"로 진행을 판정한다
+  window.Tutorial?.notify(`fretnum:${currentFretNumber}`);
 }
 
 // ═══════════════════════════════════════════════════════════════
@@ -2210,8 +2212,9 @@ function switchTab(tab, noAnim = false) {
 
   // 설정(톱니) 버튼: 프로필 탭에서만 노출
   document.getElementById('settings-btn')?.classList.toggle('hidden', tab !== 'profile');
-  // 튜토리얼 재진입 아이콘은 홈 탭에서만
-  document.getElementById('tutorial-entry-btn')?.classList.toggle('hidden', tab !== 'home');
+  // 튜토리얼 재진입 아이콘은 홈 화면에서만 — 탭뿐 아니라 서브뷰(에디터·코드사전)도 봐야 한다.
+  // 서브뷰 전환은 switchTab을 안 거치므로 enterFromHome에서도 같은 판정을 한다.
+  _updateTutorialEntryBtn();
   if (tab === 'home') window.Tutorial?.refreshEntryDot?.(); // 남은 스텝 강조 dot 갱신
 
   // 레벨 위젯: 홈 탭에서만 노출
@@ -2386,6 +2389,7 @@ async function enterFromHome(view, skipAnim = false, reverse = false) {
   }
 
   _updateBackBtn();
+  _updateTutorialEntryBtn(); // 서브뷰(에디터·코드사전)로 들어가면 튜토리얼 아이콘도 같이 내린다
 
   // 탑바 타이틀: 홈 화면에서만 표시
   const topBarTitle = document.querySelector('.top-bar-title');
@@ -2449,6 +2453,14 @@ function handleNativeBack() {
     toast.classList.add('visible');
     toast._hideTimer = setTimeout(() => toast.classList.remove('visible'), 2000);
   });
+}
+
+// 튜토리얼 재진입 아이콘 노출 판정 — 홈 탭의 최상위 화면에서만 보인다.
+// 에디터·코드사전에서도 떠 있으면 그 화면에서 튜토리얼을 시작했을 때
+// 시작 지점(홈)과 현재 화면이 어긋난다.
+function _updateTutorialEntryBtn() {
+  const show = _activeTab === 'home' && _homeSubView === 'home' && !_isFromProject;
+  document.getElementById('tutorial-entry-btn')?.classList.toggle('hidden', !show);
 }
 
 function _updateBackBtn() {

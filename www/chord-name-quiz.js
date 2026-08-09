@@ -1421,11 +1421,6 @@ function selectDiagramChoice(selectedName, correctName) {
   const isCorrect = selectedName === correctName;
   playSound(isCorrect ? 'correct' : 'wrong');
   _results.push({ name: correctName, isCorrect, speedSec });
-  analytics.track('quiz_answer_given', {
-    level_id: _currentLevel, mode: _currentMode,
-    chord_name: correctName, is_correct: isCorrect,
-    speed_sec: speedSec, question_no: _current + 1,
-  });
 
   // 피드백 메세지
   showFeedbackMsg(pickFeedbackMsg(isCorrect, speedSec));
@@ -1461,6 +1456,7 @@ let _newRecordSpeed     = null;  // 신기록 달성 시 기록값 (null이면 �
 let _timerTimeout       = null;  // 문제 타임어택 타이머 ID
 let _countdownTimers    = [];    // 카운트다운 setTimeout ID 목록
 let _answered           = false; // 현재 문제 응답 처리 여부 — 타임아웃/클릭 경쟁 방지
+let _abandonSent        = false; // quiz_abandoned 중복 발화 방지
 
 const TRAINING_STATS_KEY = 'training_stats';
 
@@ -1598,11 +1594,7 @@ function handleTimeout() {
   // 제한시간 값 그대로 기록 (오답)
   const _lvCfg  = LEVEL_CONFIGS.find(c => c.id === _currentLevel);
   const timeSec = _lvCfg?.timeSec ?? 0;
-  _results.push({ name, isCorrect: false, speedSec: timeSec });
-  analytics.track('quiz_timeout', {
-    level_id: _currentLevel, mode: _currentMode,
-    chord_name: name, question_no: _current + 1,
-  });
+  _results.push({ name, isCorrect: false, speedSec: timeSec, isTimeout: true });
 
   playSound('wrong');
   document.getElementById('quiz-speed').textContent = '시간 초과';
@@ -1753,6 +1745,7 @@ function initQuiz() {
     _questions        = deduped.slice(0, quizCount);
     _current          = 0;
     _results          = [];
+    _abandonSent      = false;
     _sessionStartTime = Date.now(); // 훈련 시간 측정 시작
     _hideQuizLoading();
     startCountdown(() => renderQuestion());
@@ -1925,11 +1918,6 @@ function selectChoice(selected, correct) {
 
   // 결과 기록
   _results.push({ name: correct, isCorrect, speedSec: speedMs / 1000 });
-  analytics.track('quiz_answer_given', {
-    level_id: _currentLevel, mode: _currentMode,
-    chord_name: correct, is_correct: isCorrect,
-    speed_sec: speedMs / 1000, question_no: _current + 1,
-  });
 
   // 피드백 메세지
   showFeedbackMsg(pickFeedbackMsg(isCorrect, speedMs / 1000));
@@ -2251,8 +2239,24 @@ async function flushPendingSessions() {
   }
 }
 
+// 문항별 결과를 이벤트 properties용 배열로 변환.
+// 개별 quiz_answer_given / quiz_timeout 행을 대체한다(세션당 1행으로 통합).
+function _answersPayload() {
+  return _results.map((r, i) => {
+    const a = {
+      no:   i + 1,
+      name: r.name,
+      ok:   r.isCorrect,
+      sec:  Math.round(r.speedSec * 100) / 100,
+    };
+    if (r.isTimeout) a.timeout = true;
+    return a;
+  });
+}
+
 // ── 결과 모달 ────────────────────────────────────────────────
 function showResultModal() {
+  _abandonSent = true; // 완주 세션 — 이후 페이지 이탈을 abandon으로 잡지 않는다
   saveSessionStats();
 
   const correctResults = _results.filter(r => r.isCorrect);
@@ -2268,6 +2272,7 @@ function showResultModal() {
     avg_speed_sec: avgSec !== null ? Math.round(avgSec * 1000) / 1000 : null,
     is_perfect:    correctCount === _results.length,
     is_new_record: _newRecordSpeed !== null,
+    answers:       _answersPayload(),
   });
 
   document.getElementById('result-modal-score').textContent =
@@ -2339,15 +2344,31 @@ function closeNewRecordModal() {
   if (overlay) overlay.classList.remove('newrecord-modal-overlay--show');
 }
 
+// 미완주 세션의 문항 결과 기록. 완주 세션은 quiz_completed가 담당한다.
+// 세션당 1회만 발화 (뒤로가기 → 페이지 이탈 중복 방지).
+function trackQuizAbandon(exitVia) {
+  if (_abandonSent || _currentView !== 'quiz' || _results.length === 0) return;
+  _abandonSent = true;
+  analytics.track('quiz_abandoned', {
+    level_id:           _currentLevel,
+    mode:               _currentMode,
+    questions_answered: _results.length,
+    total:              _questions.length,
+    exit_via:           exitVia,
+    answers:            _answersPayload(),
+  });
+  // SDK의 pagehide 플러시보다 늦게 큐에 들어가므로 직접 전송한다.
+  analytics._flush(true);
+}
+
+// 하드웨어 백·앱 종료·페이지 이동으로 퀴즈를 벗어나는 경로 (퀴즈 중엔 back 버튼이 숨겨져 있음)
+window.addEventListener('pagehide', () => trackQuizAbandon('pagehide'));
+
 // ── 뒤로 가기 ────────────────────────────────────────────────
 function handleBack() {
   _playTap();
   if (_currentView === 'quiz') {
-    analytics.track('quiz_abandoned', {
-      level_id:          _currentLevel,
-      mode:              _currentMode,
-      questions_answered: _results.length,
-    });
+    trackQuizAbandon('back_btn');
     showModeSelect();
   } else if (_currentView === 'mode-select') {
     showLevelSelect();

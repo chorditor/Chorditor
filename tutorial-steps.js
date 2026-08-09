@@ -105,10 +105,11 @@ const TUTORIAL_CHAPTERS = (() => {
       },
     },
     {
+      // target을 주면 안 된다 — 캔버스가 통째로 열려 설명을 듣는 중에 눌러 A 코드가 바뀐다.
+      // 이후 구간들이 전부 "화면의 A 코드"를 전제로 쓰여 있어 한 번 깨지면 설명과 화면이 어긋난다.
       title: '코드 에디터',
       text: '화면에 보이는 코드는 A 코드로 설명할게요.',
       panel: 'top',
-      target: '#c',
       pulse: false,
       optional: true,
       nextLabel: '다음',
@@ -119,10 +120,11 @@ const TUTORIAL_CHAPTERS = (() => {
       // 줄과 프렛을 각각 자기 설명과 짝지어 보여주려고 구간을 둘로 나눴다.
       // optional을 빼서 기본 비활성 상태로 시작 — 라벨이 전부 등장한 뒤 engine이
       // enableNext()로 풀어준다. 다 뜨기 전에 넘기지 못하게 막는 것.
+      // 개방현·뮤트 구간과 같은 이유로 target을 주지 않는다 — 캔버스가 열리면
+      // 설명만 듣는 중에 눌러서 코드가 바뀐다. 라벨은 캔버스 좌표로 직접 그려 target이 필요 없다.
       title: '줄',
       text: '가로선은 기타 줄이에요.\n가장 얇은 줄이 1번, 가장 두꺼운 줄이 6번이에요.',
       panel: 'top',
-      target: '#c',
       pulse: false,
       stringNumbers: true,
       nextLabel: '다음',
@@ -131,7 +133,6 @@ const TUTORIAL_CHAPTERS = (() => {
       title: '프렛',
       text: '세로선은 프렛이에요.\n몇 번째 칸인지 세는 거라고 보면 돼요.',
       panel: 'top',
-      target: '#c',
       pulse: false,
       fretNumArrow: true,
       nextLabel: '다음',
@@ -141,10 +142,11 @@ const TUTORIAL_CHAPTERS = (() => {
       // 설명 순서와 화살표가 어긋나지 않게 개방현·뮤트를 각각 짚는다.
       // 화살표는 왼쪽에 붙인다(오른쪽은 프렛보드라 시선이 안쪽으로 쏠린다).
       // A 코드 기준 5번줄(s:4)이 개방현, 6번줄(s:5)이 뮤트 — 붙어 있어 시선이 아래로 이어진다.
+      // target을 주면 안 된다 — 캔버스가 통째로 열려 ○/✕ 영역을 눌러 A 코드가 바뀌어 버린다.
+      // 설명만 하는 구간이라 조작은 잠그고 화살표로만 짚는다(arrowString은 target 없이도 그려진다).
       title: '개방현',
       text: '○는 개방현이에요.\n누르지 않고 그대로 치는, 0프렛이라고 보면 돼요.',
       panel: 'top',
-      target: '#c',
       pulse: false,
       arrowString: { s: 4, side: 'left' },
       optional: true,
@@ -154,7 +156,17 @@ const TUTORIAL_CHAPTERS = (() => {
       title: '뮤트',
       text: '✕는 뮤트예요.\n소리를 내지 않는 줄이에요.',
       panel: 'top',
-      target: '#c',
+      pulse: false,
+      arrowString: { s: 5, side: 'left' },
+      optional: true,
+      nextLabel: '다음',
+    },
+    {
+      // 바꾸는 법도 알려준다 — 앞 두 구간이 기호의 뜻만 설명해서, 유저가 직접 눌러보다
+      // 코드를 망가뜨리는 경로가 실제로 있었다. 여기서도 조작은 잠근 채 설명만 한다.
+      title: '개방현 · 뮤트 바꾸기',
+      text: '○와 ✕는 눌러서 서로 바꿀 수 있어요.\n지금은 그대로 두고 넘어갈게요!',
+      panel: 'top',
       pulse: false,
       arrowString: { s: 5, side: 'left' },
       optional: true,
@@ -236,10 +248,32 @@ const TUTORIAL_CHAPTERS = (() => {
       advanceOn: 'acc:flat',
     },
     {
-      // 버퍼 구간 — 바레·샵플랫까지 끝낸 걸 짚어주고 손가락 번호로 넘어간다.
+      // 버퍼 구간 — 바레·샵플랫까지 끝낸 걸 짚어주고 프렛 번호로 넘어간다.
       // 앞 구간에서 b 표기로 바꿨으므로 여기서는 Bb로 부르는 게 화면과 일치한다.
       title: '# / b 바꾸기',
       text: '잘하셨어요! Bb 코드를 완성했네요!',
+      panel: 'card-top',
+      pulse: false,
+      optional: true,
+      nextLabel: '다음',
+    },
+    // ── 프렛 번호 ──
+    // 바레 폼을 그대로 위로 옮기면 다른 코드가 된다는 걸 보여주는 자리.
+    // 에디터 모델상 currentFretNumber는 2에서 시작하고 calcActualFret(f) = (n-2)+f 이므로
+    // 2 → 4 가 되면 실제 프렛이 1·3 에서 3·5 로 밀린다 = Bb(1프렛 바레) → C(3프렛 바레).
+    {
+      // fretNumArrow를 여기 쓰면 안 된다 — 그 처리는 라벨 등장 후 enableNext()를 부르는데,
+      // advanceOn이 있는 이 구간에서는 조작 없이 넘어갈 수 있게 열려 버린다.
+      title: '프렛 번호',
+      text: '이번엔 프렛 번호를 조작해볼게요.\n▶ 버튼을 두 번 눌러 4로 만들어 주세요!',
+      panel: 'card-top',
+      target: '#fret-ctrl',
+      pulse: '#fret-ctrl',
+      advanceOn: 'fretnum:4',
+    },
+    {
+      title: '프렛 번호',
+      text: '손 모양은 그대로지만 C 코드를 만들 수 있어요!',
       panel: 'card-top',
       pulse: false,
       optional: true,
@@ -299,10 +333,13 @@ const TUTORIAL_CHAPTERS = (() => {
     // 시트가 올라온 상태에서 설명 3구간 — 패널을 상단으로 올려 시트를 가리지 않는다.
     // 시트 요소를 target에 넣어 터치 가드에서 열어두되, 펄스는 각 구간이 가리키는 곳에만.
     {
+      // target으로 시트 전체를 열면 안 된다 — 안에 있는 배율 슬라이더·투명배경 토글까지
+      // 조작 가능해져서, 유저가 건드리면 미리보기가 가려지거나 설명과 화면이 어긋난다.
+      // 설명만 하는 구간이라 조작은 전부 잠그고 pulse로만 짚는다.
+      // (시트는 다음 '코드 이름 바꾸기' 구간의 setup에서 closeImgSaveModal()로 닫는다)
       title: '이미지 저장',
       text: '이곳에선 아래에서 저장될 이미지를 미리 볼 수 있어요.',
       panel: 'top',
-      target: ['#img-save-modal', '#img-save-backdrop', '#plan-sheet', '#plan-sheet-overlay'],
       pulse: '#img-preview-canvas',
       optional: true,
       nextLabel: '다음',
@@ -311,7 +348,6 @@ const TUTORIAL_CHAPTERS = (() => {
       title: '이미지 저장',
       text: '저장한 이미지는 개인 노트나 자료 제작에 쓰거나,\n지인들에게 코드를 알려줄 때도 활용할 수 있겠죠?',
       panel: 'top',
-      target: ['#img-save-modal', '#img-save-backdrop', '#plan-sheet', '#plan-sheet-overlay'],
       pulse: false,
       optional: true,
       nextLabel: '다음',
@@ -427,7 +463,10 @@ const TUTORIAL_CHAPTERS = (() => {
       title: '코드 고르기',
       text: '이렇게 G를 근음으로 하는 코드들이 나와요.\n첫 번째 G 코드를 눌러볼까요?',
       panel: 'top',
-      target: '.lib-cards-area',
+      // 보이싱 오버레이도 함께 열어야 한다 — G가 아닌 카드를 잘못 누르면 그 코드의 보이싱 모달이
+      // 뜨는데, 오버레이가 잠겨 있으면 닫지도 못하고 그 아래 G 카드도 못 눌러 진행이 막힌다.
+      // (이 구간은 lockVoicing이 아니라서 여백을 누르면 닫힌다 → 다시 G를 고를 수 있다)
+      target: ['.lib-cards-area', '#lib-voicing-overlay'],
       pulse: '.lib-card[data-chord="G"]',
       advanceOn: 'libcard:G',
     },
@@ -630,7 +669,8 @@ const TUTORIAL_CHAPTERS = (() => {
       title: 'C 코드 담기',
       text: '그럼 C 코드를 담아 볼까요?\n맨 앞의 C를 눌러 주세요!',
       panel: 'top',
-      target: '.lib-cards-area',
+      // STEP2 '코드 고르기'와 같은 이유로 보이싱 오버레이를 함께 연다(오탭 복구 경로)
+      target: ['.lib-cards-area', '#lib-voicing-overlay'],
       pulse: '.lib-card[data-chord="C"]',
       advanceOn: 'libcard:C',
     },
@@ -723,6 +763,10 @@ const TUTORIAL_CHAPTERS = (() => {
       setup: () => _copyToClipboard(TUT_LYRICS_2),
       advanceOn: () => _lineTextAt(1) === '반짝반짝 작은 별'
                     && _lineTextAt(2) === '아름답게 비치네',
+      // 붙여넣기가 어긋나면(엉뚱한 내용이 들어가거나 줄이 밀리면) 열린 곳이 둘째 줄뿐이라
+      // 스스로 되돌릴 수 없다 → 빠져나갈 문을 남긴다. 건너뛰어도 뒤 구간(줄 지우기·코드 놓기)은
+      // 첫 줄만 쓰므로 그대로 성립한다.
+      optional: true,
     },
     {
       // 첫 줄이 붙여넣은 둘째 줄과 겹치므로 여기서 줄 삭제를 배운다(STEP4에서 다시 쓴다)
@@ -734,11 +778,13 @@ const TUTORIAL_CHAPTERS = (() => {
     },
     {
       // 드롭다운은 body 직속 fixed — 백드롭은 열지 않는다(누르면 닫혀서 흐름이 끊김)
+      // ⚠ target으로 드롭다운 전체를 열면 안 된다 — 다른 항목(줄 추가·복사·슬롯 초기화·마디 수정)을
+      //   누르면 메뉴가 닫히면서 advanceOn이 갈 곳을 잃어 진행이 완전히 막힌다.
+      //   지목한 항목 하나만 연다. 나머지는 가드가 막으므로 오탭 자체가 일어나지 않는다.
       title: '줄 지우기',
       text: '다행히 지울 수 있는 버튼이 있었네요!\n"이 줄 삭제"를 눌러 주세요.',
       panel: 'bottom',
-      target: '.row-menu-dropdown',
-      pulse: '.row-menu-dropdown [data-action="delete"]',
+      target: '.row-menu-dropdown [data-action="delete"]',
       advanceOn: 'rowmenu:delete',
     },
     {
@@ -779,7 +825,9 @@ const TUTORIAL_CHAPTERS = (() => {
       title: '소리 듣기',
       text: '반짝이는 C 코드를 한 번 눌러볼까요?',
       panel: 'bottom',
-      target: `${TUT_LINE_NTH(0)} .chord-row-wrapper`,
+      // ⚠ 줄 전체(.chord-row-wrapper)를 열면 안 된다 — 편집 모드의 슬롯에는 ✕ 삭제 버튼이 붙어 있어
+      //   그걸 누르면 방금 놓은 C가 사라지고, 재생할 대상이 없어져 '다음'이 영영 안 풀린다.
+      target: `${TUT_LINE_NTH(0)} .chord-slot-img`,
       pulse: `${TUT_LINE_NTH(0)} .chord-slot[data-chord-id]:not([data-chord-id=""])`,
       nextLabel: '다음',
     },
@@ -871,10 +919,11 @@ const TUTORIAL_CHAPTERS = (() => {
     {
       // 드롭다운은 body 직속 fixed — 백드롭은 열지 않는다(누르면 닫혀서 흐름이 끊김)
       title: '줄 복사',
+      // 지목한 항목만 연다(STEP3 '줄 지우기' 주석 참고) — 특히 여기서 "이 줄 삭제"가 열려 있으면
+      // 시드 줄이 사라진 채 진행이 막힌다.
       text: '"현재 줄 복사"를 눌러 주세요.',
       panel: 'bottom',
-      target: '.row-menu-dropdown',
-      pulse: '.row-menu-dropdown [data-action="duplicate"]',
+      target: '.row-menu-dropdown [data-action="duplicate"]',
       advanceOn: 'rowmenu:duplicate',
     },
     {
@@ -893,7 +942,7 @@ const TUTORIAL_CHAPTERS = (() => {
       title: '줄 복사',
       text: '다음 설명을 위해 방금 만든 줄을 삭제합시다.\n버튼을 눌러서 삭제해주세요!',
       panel: 'top',
-      target: [`${TUT_LINE_NTH(2)} .row-menu-btn`, '.row-menu-dropdown'],
+      target: [`${TUT_LINE_NTH(2)} .row-menu-btn`, '.row-menu-dropdown [data-action="delete"]'],
       pulse: [`${TUT_LINE_NTH(2)} .row-menu-btn`, '.row-menu-dropdown [data-action="delete"]'],
       advanceOn: 'rowmenu:delete',
     },
@@ -917,18 +966,20 @@ const TUTORIAL_CHAPTERS = (() => {
       title: '마디 수정',
       text: '"마디 정보 수정"을 눌러 주세요.',
       panel: 'top',
-      target: '.row-menu-dropdown',
-      pulse: '.row-menu-dropdown [data-action="meter"]',
+      // 지목한 항목만 연다(STEP3 '줄 지우기' 주석 참고)
+      target: '.row-menu-dropdown [data-action="meter"]',
       advanceOn: 'rowmenu:meter',
     },
     {
       // 값 세 개를 한 번에 시키면 부담이 크다 → 항목별로 나누되 모달은 계속 열어둬
       // 끊김 없이 연속으로 입력하게 한다. 입력·스테퍼가 바뀔 때마다 'rowmeter:change'가 온다.
+      // ⚠ target에 모달 전체('#row-meter-overlay .modal')를 주면 안 된다 — 저장·취소·X까지 열려서
+      //   미리 저장을 눌러버리면 모달이 닫힌 채로 advanceOn이 사라진 입력칸을 계속 보게 되어
+      //   영영 다음으로 못 넘어간다(실제 발생). 각 구간은 그 구간이 시키는 칸만 연다.
       title: '마디 수정',
       text: 'BPM은 곡의 빠르기예요.\n확실히 느려지도록 60으로 낮춰 볼까요?',
       panel: 'top',
-      target: '#row-meter-overlay .modal',
-      pulse: '#row-meter-bpm-box',
+      target: '#row-meter-bpm-box',
       advanceOn: () => document.getElementById('row-meter-bpm-input')?.value.trim() === '60',
     },
     {
@@ -936,8 +987,7 @@ const TUTORIAL_CHAPTERS = (() => {
       title: '마디 수정',
       text: '아래 숫자는 누를 때마다 정해진 값으로 바뀌고\n위 숫자는 직접 입력해요. 6/8로 만들어 볼까요?',
       panel: 'top',
-      target: '#row-meter-overlay .modal',
-      pulse: '#row-meter-sig-box',
+      target: '#row-meter-sig-box',
       advanceOn: () => document.getElementById('row-meter-num-val')?.value.trim() === '6'
                     && document.getElementById('row-meter-den-val')?.textContent.trim() === '8',
     },
@@ -945,7 +995,9 @@ const TUTORIAL_CHAPTERS = (() => {
       title: '마디 수정',
       text: '마디 수는 한 줄에 담을 마디 개수예요.\n1마디를 골라 주세요.',
       panel: 'top',
-      target: '#row-meter-overlay .modal',
+      // 라벨(.meter-bars-check)이 감싸고 있어 체크박스만 열면 라벨 탭이 막힌다 → 토글 묶음까지 연다.
+      // 2마디를 눌러도 되돌릴 수 있으므로 이 범위는 막다른 길이 되지 않는다.
+      target: '#row-meter-bars-toggle',
       pulse: '#row-meter-bars-toggle input[data-bars="1"]',
       advanceOn: () => !!document.querySelector('#row-meter-bars-toggle input[data-bars="1"]')?.checked,
     },
@@ -954,7 +1006,15 @@ const TUTORIAL_CHAPTERS = (() => {
       text: '이 줄만 느려지고 6/8박자가 됐어요.\n저장을 눌러볼까요?',
       panel: 'top',
       target: '#row-meter-save-btn',
-      advanceOn: 'rowmeter:saved',
+      // 'rowmeter:saved' 문자열로 잡지 않는다 — 그 알림은 딱 한 번만 오고, 구간 전환 딜레이
+      // (ADVANCE_DELAY_MS) 중에 저장이 눌리면 next()가 _advanceTimer에 막혀 통째로 버려진다.
+      // 그러면 저장 구간이 뜬 시점엔 모달도 알림도 이미 없어 영영 못 넘어간다(실제 발생).
+      // 상태로 판정하면 어느 시점에 저장됐든, 이후 아무 알림에서나 되살아난다.
+      advanceOn: () => {
+        const ov = document.getElementById('row-meter-overlay');
+        return !!ov?.classList.contains('hidden')
+            && document.querySelector(TUT_LINE_NTH(1))?.dataset.rowBpm === '60';
+      },
     },
     {
       // 넘김 방식은 STEP1~3과 동일 — 끝까지 재생되면 enableNext(user_project.js)로 버튼만 풀린다.
@@ -1007,7 +1067,8 @@ const TUTORIAL_CHAPTERS = (() => {
       title: '카포',
       text: '먼저 적용하기 전의 C 코드를 들어볼까요?',
       panel: 'bottom',
-      target: `${TUT_LINE_NTH(0)} .chord-row-wrapper`,
+      // 슬롯 ✕ 삭제 버튼이 열리지 않도록 이미지만 연다(STEP3 '소리 듣기' 주석 참고)
+      target: `${TUT_LINE_NTH(0)} .chord-slot-img`,
       pulse: `${TUT_LINE_NTH(0)} .chord-slot[data-chord-id]:not([data-chord-id=""])`,
       setup: () => {
         if (typeof metronomeActive !== 'undefined' && metronomeActive) window.toggleMetronome?.();
@@ -1025,7 +1086,7 @@ const TUTORIAL_CHAPTERS = (() => {
       title: '카포',
       text: '다시 한 번 C 코드를 들어봅시다.',
       panel: 'bottom',
-      target: `${TUT_LINE_NTH(0)} .chord-row-wrapper`,
+      target: `${TUT_LINE_NTH(0)} .chord-slot-img`,
       pulse: `${TUT_LINE_NTH(0)} .chord-slot[data-chord-id]:not([data-chord-id=""])`,
       nextLabel: '다음',
     },
@@ -1251,7 +1312,8 @@ const TUTORIAL_CHAPTERS = (() => {
       title: '훈련 목록',
       text: '기타 연습을 더 재미있고 쉽게 할 수 있도록\n여러 가지 훈련 컨텐츠를 만들어 두었어요!',
       panel: 'top',
-      target: '.training-grid',
+      // target을 주면 안 된다 — 카드가 전부 열려서 아무 훈련이나 눌러 다른 페이지로 나가버리고,
+      // 그쪽엔 튜토리얼을 이어받을 자리가 없어 진행이 끊긴다. 설명만 하는 구간이라 pulse로만 짚는다.
       pulse: '.training-grid',
       optional: true,
       nextLabel: '다음',
@@ -1301,19 +1363,25 @@ const TUTORIAL_CHAPTERS = (() => {
       advanceOn: 'preview:open',
     },
     {
+      // 오버레이 전체가 아니라 스크롤 영역만 연다 — 오버레이를 열면 바깥 여백을 눌러
+      // 모달이 닫히면서 다음 구간(닫기 유도)이 갈 곳을 잃는다.
       title: '코드 맞추기',
       text: '이 레벨에서 나올 코드들이에요.\n미리 보고 나서 시작할 수 있어요.',
       panel: 'bottom',
-      target: '#preview-modal-overlay',
+      target: '#preview-modal-grid',
       pulse: false,
       optional: true,
       nextLabel: '다음',
     },
     {
+      // 목록을 끝까지 훑어볼 수 있어야 하므로 스크롤 영역도 함께 연다.
+      // 여기 담기는 건 읽기 전용 코드 카드라 열어도 상태가 바뀌지 않는다
+      // (조작 가능한 컨트롤이 들어 있는 시트를 통째로 여는 것과는 다른 경우).
       title: '코드 맞추기',
       text: '충분히 보신 다음에 닫아주세요!',
       panel: 'bottom',
-      target: '.preview-modal-header .icon-btn',
+      target: ['.preview-modal-header .icon-btn', '#preview-modal-grid'],
+      pulse: '.preview-modal-header .icon-btn',
       advanceOn: 'preview:close',
     },
     {
@@ -1345,7 +1413,9 @@ const TUTORIAL_CHAPTERS = (() => {
       title: '코드 맞추기',
       text: '수고했어요!\n방금 한 판이 어떻게 남았는지 볼까요?',
       panel: 'top',
-      target: '#result-modal-overlay',
+      // 오답 목록만 훑어볼 수 있게 스크롤 영역만 연다 — 오버레이를 통째로 열면
+      // '다시하기'가 눌려 피크가 또 소모되고 새 판이 시작돼 다음 구간과 어긋난다.
+      target: '#result-items',
       pulse: false,
       optional: true,
       nextLabel: '다음',

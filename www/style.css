@@ -432,6 +432,9 @@ button, input, select, textarea {
 #back-btn:active { transform: scale(0.92); }
 #back-btn.hidden { display: none; }
 #settings-btn.hidden { display: none; }
+/* .hidden은 전역 규칙이 아니라 컴포넌트별로 선언한다 — 여기 없으면 JS가 클래스를 붙여도 계속 보인다.
+   튜토리얼 아이콘은 홈 탭 최상위에서만 떠야 한다(노트·프로필 탭, 에디터·코드사전에선 숨김). */
+#tutorial-entry-btn.hidden { display: none; }
 .top-bar-title.hidden { display: none; }
 
 .top-bar-version {
@@ -3673,10 +3676,13 @@ canvas {
   }
 
   /* ?�?� 7. ?�거 버튼 ?�?� */
+  /* flex-shrink:0 필수 — .finger-group이 flex row라 폭이 모자라면 가로만 줄어들어
+     정원이 세로로 긴 타원이 된다. 위 원형 버튼들과 같은 처리. */
   .finger-btn {
     width: clamp(35px, 10.5vw, 43px);
     height: clamp(35px, 10.5vw, 43px);
     font-size: clamp(13px, 4vw, 16px);
+    flex-shrink: 0;
   }
 
   /* ?�?� 8. 코드 빌더 ?�커 ?�?� */
@@ -13377,7 +13383,12 @@ canvas {
    ───────────────────────────────────────────────────────────── */
 #tut-layer {
   position: fixed;
-  inset: 0;
+  top: 0;
+  left: 0;
+  right: 0;
+  /* 평소엔 뷰포트 전체. 입력 중(키보드)에는 tutorial.js가 --tut-layer-h 로 높이를 고정해
+     레이어가 키보드에 밀려 올라가지 않게 한다 — 설명창은 키보드 아래에 그대로 덮인다. */
+  height: var(--tut-layer-h, 100%);
   z-index: 100100;
   pointer-events: none;
 }
@@ -13400,6 +13411,24 @@ canvas {
 #tut-panel.tut-panel--bottom   { bottom: calc(12px + env(safe-area-inset-bottom)); }
 /* hidePanel 구간 — 설명창만 감춘다(오버레이·허용 대상은 그대로) */
 #tut-panel.hidden { display: none !important; }
+
+/* 하단 설명창이 예습 모달 아래를 덮어 마지막 줄이 영영 안 보이던 문제.
+   --tut-bottom-inset 은 tutorial.js가 패널 실제 높이를 재서 넣는다(하단 패널일 때만 > 0).
+   여백만 벌리면 모달이 위로 넘칠 수 있어 최대 높이도 같이 줄인다 — 넘친 만큼은 스크롤로 닿는다. */
+body.tut-lock .preview-modal-overlay {
+  padding-bottom: calc(24px + var(--tut-bottom-inset, 0px));
+}
+body.tut-lock .preview-modal {
+  max-height: calc(80vh - var(--tut-bottom-inset, 0px));
+}
+
+/* 앱 표준 모달(.modal-overlay)은 inset:0 + align-items:center 라, 키보드가 올라와
+   뷰포트가 줄면 위로 재중앙정렬되며 상단 설명창 밑으로 파고든다(마디 정보 수정 등).
+   설명창 높이만큼 위쪽을 비워 그 아래에서만 중앙정렬되게 한다.
+   상단 패널이 아닌 구간에선 --tut-top-inset 이 0이라 아무 영향이 없다. */
+body.tut-lock .modal-overlay {
+  padding-top: calc(16px + var(--tut-top-inset, 0px));
+}
 
 /* 구간 전환 — 패널 하나로 out → (내용 교체) → in.
    패널을 복제하지 않는다: 추가 DOM 없이 전환 딜레이를 그대로 활용한다.

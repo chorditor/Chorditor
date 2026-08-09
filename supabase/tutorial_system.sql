@@ -95,15 +95,13 @@ as $$
 declare
   v_completed timestamptz;
   v_step      integer;
-  v_was_new   boolean;
   v_promo     json;
 begin
   insert into public.subscriptions as s (user_id, plan, status)
   values (auth.uid(), 'free', 'active')
   on conflict (user_id) do nothing;
 
-  select coalesce(tutorial_step, 0), tutorial_completed_at is null
-    into v_step, v_was_new
+  select coalesce(tutorial_step, 0) into v_step
     from public.subscriptions where user_id = auth.uid();
 
   -- 마지막 스텝까지 실제로 통과한 유저만 완주로 인정한다.
@@ -118,11 +116,13 @@ begin
     where user_id = auth.uid()
     returning tutorial_completed_at into v_completed;
 
-  -- redeem_promo_code 안에서 promo_redemptions(code, user_id) PK로도 재지급을 막으므로
-  -- v_was_new 오판(동시 요청 등)이 있어도 이중 지급은 없다 — v_was_new는 불필요한 호출만 줄인다.
-  if coalesce(v_was_new, false) then
-    v_promo := public.redeem_promo_code('__TUTORIAL_COMPLETE_5f8a2c__');
-  end if;
+  -- ⚠ 조건 없이 매번 부른다. 재지급은 redeem_promo_code 안의
+  --   promo_redemptions(code, user_id) PK가 막으므로 이중 지급이 불가능하고,
+  --   반대로 어떤 이유로든 지급이 한 번 실패했을 때(코드 미seed·일시 오류 등)
+  --   다음 호출에서 스스로 복구된다.
+  --   예전엔 "완주 시각이 null이었나"로 게이트했는데, 그러면 시각만 먼저 기록되고
+  --   지급이 실패한 경우 영영 재시도가 안 되는 막다른 상태가 된다(실제로 발생).
+  v_promo := public.redeem_promo_code('__TUTORIAL_COMPLETE_5F8A2C__');
 
   return json_build_object('ok', true, 'completed', v_completed, 'promo', v_promo);
 end;
@@ -226,7 +226,9 @@ grant execute on function public.complete_tutorial_step(integer) to authenticate
 --   promo_codes 행을 직접 심어서 complete_tutorial()이 내부적으로만 태운다.
 --   클라에는 절대 이 코드를 넘기지 않는다 — 쿠폰 입력창에 이 값을 쳐서 부정 수령하는 걸
 --   막기 위해 무작위 문자열로 두고(추측 불가), promo_codes 자체도 RLS로 클라 직접 조회가 막혀 있다.
+--   ⚠ 코드에 소문자를 쓰면 안 된다. redeem_promo_code가 upper(trim(p_code))로 조회하므로
+--   저장값에 소문자가 섞이면 영원히 매칭되지 않는다(실제로 5f8a2c 로 심었다가 invalid로 계속 튕겼다).
 insert into public.promo_codes (code, peakbox_amount, pro_days, max_uses, expires_at, active, memo)
-values ('__TUTORIAL_COMPLETE_5f8a2c__', 0, 7, null, null, true,
+values ('__TUTORIAL_COMPLETE_5F8A2C__', 0, 7, null, null, true,
         '튜토리얼 전체 완주 보상 — complete_tutorial() 내부 전용, 유저 미노출/미입력')
 on conflict (code) do nothing;

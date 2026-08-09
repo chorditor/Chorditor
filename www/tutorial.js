@@ -265,13 +265,48 @@ const Tutorial = (() => {
     if (e.cancelable) e.preventDefault();
   }
 
+  // ── 키보드 대응 ────────────────────────────────────────────
+  // 안드로이드는 키보드가 올라오면 웹뷰 높이 자체가 줄어든다(adjustResize).
+  // #tut-layer가 뷰포트에 그대로 묶여 있으면 같이 줄어들면서 하단 설명창이 키보드 위로
+  // 딸려 올라가 입력 중인 글자를 가리고, 하이라이트만 원래 자리에 남아 어긋나 보인다.
+  // → 입력이 시작되는 순간의 높이를 고정해 레이어를 제자리에 두고, 키보드가 그 위를 덮게 한다.
+  //   높이를 "튜토리얼 시작 시점"이 아니라 "입력 시작 시점"에 재는 이유는 회전 때문 —
+  //   STEP1은 에디터에서 가로로 눕히므로 시작값을 고정하면 그쪽이 어긋난다.
+  let _frozenLayerH = 0;
+
+  function _isEditable(el) {
+    if (!el) return false;
+    return el.tagName === 'INPUT' || el.tagName === 'TEXTAREA' || el.isContentEditable;
+  }
+  function _onFocusIn(e) {
+    if (!_running || _frozenLayerH || !_isEditable(e.target)) return;
+    _frozenLayerH = window.innerHeight;
+    document.documentElement.style.setProperty('--tut-layer-h', _frozenLayerH + 'px');
+  }
+  function _onFocusOut() {
+    // 입력칸 사이를 옮겨 다닐 땐 계속 고정해 둔다 — focusout이 focusin보다 먼저 와서 한 박자 미룬다.
+    setTimeout(() => {
+      if (_isEditable(document.activeElement)) return;
+      _unfreezeLayerHeight();
+    }, 0);
+  }
+  function _unfreezeLayerHeight() {
+    _frozenLayerH = 0;
+    document.documentElement.style.removeProperty('--tut-layer-h');
+  }
+
   function _installGuard() {
     _GUARD_EVENTS.forEach(ev => document.addEventListener(ev, _guard, _GUARD_OPTS));
+    document.addEventListener('focusin',  _onFocusIn);
+    document.addEventListener('focusout', _onFocusOut);
     // 네이티브 스크롤·핀치줌은 이벤트 취소만으론 새는 경로가 있어 CSS로도 잠근다.
     document.body.classList.add('tut-lock');
   }
   function _removeGuard() {
     _GUARD_EVENTS.forEach(ev => document.removeEventListener(ev, _guard, true));
+    document.removeEventListener('focusin',  _onFocusIn);
+    document.removeEventListener('focusout', _onFocusOut);
+    _unfreezeLayerHeight();
     document.body.classList.remove('tut-lock');
   }
 
@@ -614,9 +649,17 @@ const Tutorial = (() => {
 
         let w = r.width, h = r.height, left = r.left, top = r.top;
         const radius = getComputedStyle(el).borderRadius;
-        // 원형 의도(50%)인데 가로세로가 다르면 그대로 못생긴 타원이 된다.
+        // 원형 의도(50%)인데 가로세로가 살짝 다르면 그대로 못생긴 타원이 된다.
         // 긴 변 기준 정사각형으로 맞추고 중앙을 유지해 완전한 원으로 그린다.
-        if (radius.includes('50%') && w !== h) {
+        //
+        // ⚠ 판정은 '50%'(비율 지정)로만 한다. px 값으로 넓게 잡으면 알약 모양이 걸려든다 —
+        //   .accidental-toggle 같은 radius:999px 요소는 "짧은 변의 절반 이상" 조건을 항상 만족해
+        //   가로 폭만큼 정사각형으로 부풀어 버린다(#/b 토글이 거대한 원이 되던 원인).
+        // ⚠ 가로세로 비가 크게 벌어진 요소도 제외한다. 이 보정은 "원이 눌린 것"을 되돌리는 용도라
+        //   진짜로 길쭉한 대상까지 정사각형으로 만들면 하이라이트가 대상과 전혀 달라진다.
+        const ratio    = Math.max(w, h) / Math.max(1, Math.min(w, h));
+        const isCircle = radius.includes('50%') && ratio < 1.5;
+        if (isCircle && w !== h) {
           const s = Math.max(w, h);
           left -= (s - w) / 2;
           top  -= (s - h) / 2;
@@ -624,11 +667,14 @@ const Tutorial = (() => {
         }
 
         // 서브픽셀 값이면 브라우저마다 반올림 방향이 달라 대상과 1px씩 어긋나 보인다 — 정수로 고정.
+        // 단 left와 width를 따로 반올림하면 우측 경계가 최대 1px 밀린다(대상보다 한쪽만 넓어 보임).
+        // 양쪽 경계를 각각 반올림한 뒤 그 차이를 폭으로 쓴다 — 좌우가 항상 대칭이 된다.
+        const l = Math.round(left), t = Math.round(top);
         ring.style.display      = '';
-        ring.style.left         = Math.round(left) + 'px';
-        ring.style.top          = Math.round(top)  + 'px';
-        ring.style.width        = Math.round(w)     + 'px';
-        ring.style.height       = Math.round(h)     + 'px';
+        ring.style.left         = l + 'px';
+        ring.style.top          = t + 'px';
+        ring.style.width        = (Math.round(left + w) - l) + 'px';
+        ring.style.height       = (Math.round(top  + h) - t) + 'px';
         ring.style.borderRadius = radius; // 대상 모양 그대로 (원형 보정 후에도 50% 유지)
       });
       _ringRaf = requestAnimationFrame(follow);
@@ -691,6 +737,37 @@ const Tutorial = (() => {
     if (step) _applyTargets(step);
   }
 
+  // 설명창이 가리는 높이를 --tut-top-inset / --tut-bottom-inset 으로 내보낸다.
+  // 쓰는 쪽은 style.css의 body.tut-lock 규칙들 — 그 아래(위)로 밀려난 내용이 영영 안 보이는 걸 막는다.
+  //   하단: 예습 목록 마지막 줄이 설명창에 덮이던 문제
+  //   상단: 키보드가 올라오면 모달이 위로 재중앙정렬되며 설명창 밑으로 파고들던 문제
+  // 문구 줄 수·기기마다 높이가 달라 상수로 박으면 어긋나므로 매번 실측한다.
+  // 패널은 문구를 넣은 뒤에야 최종 높이가 나오므로 한 프레임 뒤에 잰다.
+  // 앱이 띄운 모달이 설명창과 겹칠 때 잠깐 내려달라고 요청하는 창구.
+  // 구간 데이터(hidePanel)는 그대로 두고 표시만 눌러둔다 — 모달이 닫히면 원래대로 돌아온다.
+  // (가로/세로 전환 확인 모달의 확인 버튼이 설명창에 가려 누를 수 없던 문제)
+  let _panelSuppressed = false;
+  function suppressPanel(on) {
+    _panelSuppressed = !!on;
+    const panel = document.getElementById('tut-panel');
+    if (panel) panel.classList.toggle('hidden', _panelSuppressed || !!_cur()?.hidePanel);
+  }
+
+  const PANEL_INSET_GAP = 24; // 패널과 내용 사이 최소 간격
+  function _publishPanelInsets(step, panel) {
+    const set = (name, px) => document.documentElement.style.setProperty(name, px + 'px');
+    const atTop    = step.panel === 'top' || step.panel === 'card-top';
+    const atBottom = step.panel === 'bottom';
+    if (step.hidePanel || (!atTop && !atBottom)) { set('--tut-top-inset', 0); set('--tut-bottom-inset', 0); return; }
+    requestAnimationFrame(() => {
+      if (!_running || _steps()[_idx] !== step) return; // 재는 사이 구간이 바뀌었으면 폐기
+      const h = panel.getBoundingClientRect().height;
+      const v = h > 0 ? Math.ceil(h) + PANEL_INSET_GAP : 0;
+      set('--tut-top-inset',    atTop    ? v : 0);
+      set('--tut-bottom-inset', atBottom ? v : 0);
+    });
+  }
+
   function _render() {
     const step  = _steps()[_idx];
     const layer = document.getElementById('tut-layer');
@@ -702,10 +779,14 @@ const Tutorial = (() => {
     const panel = document.getElementById('tut-panel');
     // hidePanel — 유저가 화면에 집중해야 하는 구간(퀴즈 풀이 등)은 설명창을 아예 감춘다.
     // 오버레이·허용 대상은 그대로 두어 조작은 계속 가능하다.
-    panel.classList.toggle('hidden', !!step.hidePanel);
+    // _panelSuppressed — 앱이 잠깐 내려달라고 요청한 상태(가로/세로 전환 확인 모달 등).
+    // 여기서도 같이 봐야 그 사이에 구간이 다시 그려져도 설명창이 되살아나지 않는다.
+    panel.classList.toggle('hidden', !!step.hidePanel || _panelSuppressed);
     panel.classList.toggle('tut-panel--top',      step.panel === 'top');
     panel.classList.toggle('tut-panel--card-top', step.panel === 'card-top');
     panel.classList.toggle('tut-panel--bottom',   step.panel === 'bottom');
+
+    _publishPanelInsets(step, panel);
 
     // 구간 타이틀의 {S}는 챕터가 몇 번째 자리인지로 채운다 —
     // A/B 변형에 따라 같은 챕터가 다른 번호에 오므로 문구에 번호를 굳혀두지 않는다.
@@ -798,6 +879,7 @@ const Tutorial = (() => {
 
   function _teardown() {
     _running = false;
+    _panelSuppressed = false; // 다음 시작 때 설명창이 눌린 채로 남지 않게 한다
     _runClear();
     // 샌드박스는 튜토리얼이 멈추는 순간 반드시 해제 — 남으면 실제 노트 목록이 빈 것처럼 보인다
     if (typeof tutorialSandboxEnd === 'function') tutorialSandboxEnd();
@@ -811,6 +893,9 @@ const Tutorial = (() => {
     _hideStringNumbers();
     _hideFretNumLabel();
     _hideScrollHint();
+    // 안 지우면 튜토리얼이 끝난 뒤에도 모달들에 여백이 남는다
+    document.documentElement.style.setProperty('--tut-top-inset', '0px');
+    document.documentElement.style.setProperty('--tut-bottom-inset', '0px');
     document.getElementById('tut-layer')?.classList.add('hidden');
   }
 
@@ -921,7 +1006,10 @@ const Tutorial = (() => {
   function _canOfferGift() {
     if (!_giftNote) return false;
     if (typeof loadProjects !== 'function') return false;
-    const isPro = (typeof getPlan === 'function') && getPlan() === 'pro';
+    // _donePromo = 이번 완주로 7일 Pro 체험이 실제 지급됐다는 서버 응답을 받은 상태.
+    // localStorage의 plan 미러는 fetchWebPlan이 비동기로 갱신하므로 이 시점엔 아직 free다 —
+    // 그 틈에 무료 노트 3개 한도에 걸려 정작 체험권을 받은 유저에게 선물이 안 뜨던 문제를 막는다.
+    const isPro = _donePromo || ((typeof getPlan === 'function') && getPlan() === 'pro');
     if (isPro) return true;
     try { return (loadProjects() || []).length < GIFT_FREE_LIMIT; } catch (_) { return false; }
   }
@@ -968,8 +1056,11 @@ const Tutorial = (() => {
   // ── 스텝 완료 ──────────────────────────────────────────────
   async function _finishStep() {
     const chap = _chap();
-    // 선물 노트는 '노트 더 알아보기' 챕터에 붙어 있다 — 자리 번호(no)는 변형마다 달라지므로 key로 판별한다
+    // 선물 노트는 '노트 더 알아보기' 챕터에 붙어 있다 — 자리 번호(no)는 변형마다 달라지므로 key로 판별한다.
+    // 다른 챕터에서는 반드시 비운다 — 한도 초과 등으로 지급이 보류된 값이 남아 있으면
+    // 엉뚱한 스텝의 완료 화면에서 뒤늦게 선물 모달이 뜬다.
     if (chap.key === 'note-edit') _snapshotGiftNote(); // _teardown() 전에 떠야 한다
+    else _giftNote = null;
     _teardown();
     // 변형마다 번호↔챕터 매핑이 다르므로 key를 함께 남긴다(번호만으론 어떤 스텝인지 알 수 없다).
     if (typeof analytics !== 'undefined') analytics.track('tutorial_step_completed', { step: chap.no, chapter: chap.key });
@@ -980,28 +1071,53 @@ const Tutorial = (() => {
     _localSet(merged);
     refreshEntryDot(); // 마지막 스텝을 끝냈으면 강조 dot도 여기서 꺼진다
 
-    // 선물이 있으면 완료 모달보다 먼저 묻고, 답하면 완료 모달로 이어진다.
-    // 완료 모달은 서버 응답이 늦거나 실패해도 반드시 뜬다.
     _doneReward = 0;
     _donePromo  = false;
-    if (!_maybeOfferGift(() => _openDoneModal(chap))) _openDoneModal(chap);
 
-    // 보상 금액은 서버가 정한다(클라가 액수를 보내지 않음). 재지급은 서버에서 차단.
-    if (typeof _peakRpc === 'function') {
-      const r = await _peakRpc('complete_tutorial_step', { p_step: chap.no });
-      if (r?.ok && r.reward > 0) _showDoneReward(r.reward);
-      // 마지막 챕터를 끝냈으면 전체 완료 시각을 남긴다 — 완주 보상(7일 Pro 체험)의 만료 기준이 된다.
-      // _teardown()은 _chapter를 건드리지 않으므로 여기서도 _hasNextChapter()가 유효하다.
-      // 서버가 이 스텝을 실제로 반영했을 때만 기록한다 — 순서가 어긋나 거절된 채로 기록하면
-      // tutorial_step이 끝까지 올라가 밀린 스텝의 보상이 사라진다(loadState의 재전송도 막힌다).
-      if (!_hasNextChapter() && (r?.ok || r?.reason === 'already_claimed')) {
-        const r2 = await _peakRpc('complete_tutorial', { p_step: chap.no });
-        // 7일 Pro 체험은 유저가 코드를 입력하지 않는다 — complete_tutorial 안에서
-        // 서버가 알아서 태운다(redeem_promo_code 내부 호출, 최초 완료 1회만).
-        if (r2?.promo?.ok && r2.promo.plan === 'pro') {
-          _showDonePromo();
-          if (typeof fetchWebPlan === 'function') fetchWebPlan().catch(() => {});
-        }
+    // 이 스텝에 보상이 붙을 수 있는지 먼저 로컬 상태로 판정한다.
+    //   s는 갱신 전 상태 — 이미 지나온 스텝(다시 보기)이면 서버도 already_claimed로 되돌려주므로
+    //   응답을 기다릴 이유가 없다. 완주 보상도 이미 완료한 유저면 다시 지급되지 않는다.
+    // 서버 판정이 최종이고 이건 "기다릴지 말지"만 정한다 — 틀려도 지급에는 영향이 없다.
+    const mayReward = chap.no > (s.step || 0);
+    const mayPromo  = !_hasNextChapter() && !s.completed;
+
+    // catch 필수 — race와 await 양쪽에 걸리므로 실패가 그대로 새면 완료 처리가 통째로 끊긴다.
+    const claim = (typeof _peakRpc === 'function')
+      ? _claimStepRewards(chap).catch(() => {})
+      : Promise.resolve();
+
+    // 완료 모달(보상 · 7일 체험권)이 먼저다. 선물은 이 모달을 닫은 뒤에 묻는다
+    // (closeDoneModal / continueNext에서 이어받는다) — 보상을 받고 나서 선물을 고르는 순서.
+    // 보상이 붙을 스텝이면 응답을 잠깐 기다렸다가 연다.
+    // 안 그러면 모달이 먼저 뜨고 보상 아이콘이 뒤늦게 툭 튀어나온다.
+    // 느린 네트워크에서 모달까지 막히면 안 되므로 상한을 두고, 넘으면 기존처럼 나중에 채워진다.
+    if (mayReward || mayPromo) await Promise.race([claim, _sleep(REWARD_WAIT_MS)]);
+    _openDoneModal(chap);
+
+    await claim;
+  }
+
+  // 보상 아이콘이 뜨기까지 완료 모달을 미루는 상한. 넘으면 모달을 먼저 열고 나중에 채운다.
+  const REWARD_WAIT_MS = 700;
+  const _sleep = ms => new Promise(r => setTimeout(r, ms));
+
+  // 스텝 완료를 서버에 반영하고 보상을 받아 화면에 꽂는다.
+  // 보상 금액은 서버가 정한다(클라가 액수를 보내지 않음). 재지급도 서버에서 차단.
+  async function _claimStepRewards(chap) {
+    const r = await _peakRpc('complete_tutorial_step', { p_step: chap.no });
+    if (r?.ok && r.reward > 0) _showDoneReward(r.reward);
+
+    // 마지막 챕터를 끝냈으면 전체 완료 시각을 남긴다 — 완주 보상(7일 Pro 체험)의 만료 기준이 된다.
+    // _teardown()은 _chapter를 건드리지 않으므로 여기서도 _hasNextChapter()가 유효하다.
+    // 서버가 이 스텝을 실제로 반영했을 때만 기록한다 — 순서가 어긋나 거절된 채로 기록하면
+    // tutorial_step이 끝까지 올라가 밀린 스텝의 보상이 사라진다(loadState의 재전송도 막힌다).
+    if (!_hasNextChapter() && (r?.ok || r?.reason === 'already_claimed')) {
+      const r2 = await _peakRpc('complete_tutorial', { p_step: chap.no });
+      // 7일 Pro 체험은 유저가 코드를 입력하지 않는다 — complete_tutorial 안에서
+      // 서버가 알아서 태운다(redeem_promo_code 내부 호출, 최초 완료 1회만).
+      if (r2?.promo?.ok && r2.promo.plan === 'pro') {
+        _showDonePromo();
+        if (typeof fetchWebPlan === 'function') fetchWebPlan().catch(() => {});
       }
     }
   }
@@ -1014,7 +1130,7 @@ const Tutorial = (() => {
     document.getElementById('tutorial-done-message').textContent = chap.doneDesc;
 
     // 보상 줄은 서버 응답이 오면 그때 채운다 (이미 받은 스텝이면 끝까지 감춰짐).
-    // 선물 모달을 먼저 띄운 경우 응답이 이 모달보다 먼저 올 수 있으므로, 받아둔 값을 여기서 복원한다.
+    // 응답이 이 모달보다 먼저 도착했을 수 있으므로(대기 상한 안에 들어온 경우) 받아둔 값을 여기서 복원한다.
     document.getElementById('tutorial-done-reward').classList.add('hidden');
     if (_doneReward > 0) _showDoneReward(_doneReward);
 
@@ -1037,7 +1153,7 @@ const Tutorial = (() => {
   }
 
   // 선물 모달엔 보상 표시가 없다 — 보상은 항상 완료 모달에서만 보여준다.
-  // 서버 응답이 완료 모달보다 먼저(선물 모달이 떠 있는 동안) 올 수 있어 값을 보관해 둔다.
+  // 서버 응답이 완료 모달이 열린 뒤에 도착할 수 있어 값을 보관해 둔다(모달 재구성 시 복원용).
   let _doneReward = 0;
 
   function _showDoneReward(reward) {
@@ -1060,9 +1176,15 @@ const Tutorial = (() => {
     if (typeof renderPeakboxBadge === 'function') renderPeakboxBadge();
   }
 
-  // 완료 모달 → 다음 스텝 바로 이어가기
+  // 완료 모달 → 다음 스텝 바로 이어가기.
+  // 선물이 걸린 스텝이면 먼저 받을지 묻고, 정하고 나서 다음 스텝으로 넘어간다.
   async function continueNext() {
     _hideDoneModal();
+    if (_maybeOfferGift(() => { _continueNextNow(); })) return;
+    await _continueNextNow();
+  }
+
+  async function _continueNextNow() {
     // 변형마다 번호↔챕터 매핑이 다르므로 key를 함께 남긴다.
     if (typeof analytics !== 'undefined') analytics.track('tutorial_step_continued', { step: _chap().no, chapter: _chap().key });
     _chapter++;
@@ -1090,6 +1212,9 @@ const Tutorial = (() => {
     // 있으므로, 다음 챕터가 없다(=완주) 여부를 여기서 정확히 알 수 있다.
     const wasLast = !_hasNextChapter();
     _hideDoneModal();
+    // 선물은 완료 모달을 닫은 뒤에 묻는다. 홈 진입 플로우(출석·공지)는 선물을
+    // 받을지 정하고 나서야 풀린다 — 안 그러면 선물 모달 위로 출석 모달이 겹친다.
+    if (_maybeOfferGift(() => _returnHomeAndRelease(wasLast))) return;
     _returnHomeAndRelease(wasLast);
   }
 
@@ -1300,7 +1425,7 @@ const Tutorial = (() => {
   return {
     loadState, getState, shouldAutoStart,
     runHomeEntryFlow, openStartModal, closeStartModal,
-    startFromModal, start, startAt, resume, isRunning, next, notify, repaint,
+    startFromModal, start, startAt, resume, isRunning, next, notify, repaint, suppressPanel,
     canvasCell, slotCell, blocksNav, locksVoicing, enableNext, skip, confirmSkip, reset, clearLocal,
     continueNext, closeDoneModal,
     openTutorialModal, closeTutorialModal, refreshEntryDot,

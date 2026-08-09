@@ -1656,16 +1656,22 @@ function openOrientConfirm(mode) {
   document.getElementById('orient-confirm-box2-line1').textContent = beatLine;
   document.getElementById('orient-confirm-overlay').classList.remove('hidden');
   document.getElementById('orient-confirm-btn').onclick = confirmOrientSwitch;
+  // 튜토리얼 화면 방향 구간은 설명창이 하단에 있는데, 가로에서는 화면이 짧아
+  // 이 모달의 확인 버튼과 겹쳐 누를 수가 없다 → 모달이 떠 있는 동안만 설명창을 내린다.
+  // 튜토리얼 중이 아니면 아무 일도 하지 않는다.
+  window.Tutorial?.suppressPanel?.(true);
   return new Promise(resolve => { _orientConfirmResolve = resolve; });
 }
 
 function closeOrientConfirm() {
   document.getElementById('orient-confirm-overlay').classList.add('hidden');
+  window.Tutorial?.suppressPanel?.(false);
   if (_orientConfirmResolve) { _orientConfirmResolve(false); _orientConfirmResolve = null; }
 }
 
 function confirmOrientSwitch() {
   document.getElementById('orient-confirm-overlay').classList.add('hidden');
+  window.Tutorial?.suppressPanel?.(false);
   const resolve = _orientConfirmResolve;
   _orientConfirmResolve = null;
   if (resolve) resolve(true);
@@ -2345,6 +2351,10 @@ function buildChordArea(line, project, editMode = true) {
         _btnTouchPending = false;
         openRowMenu({ currentTarget: menuBtn }, line.id, project.id);
       }
+      // touchcancel에만 있던 복원을 여기에도 둔다 — 없으면 메뉴를 한 번 연 줄은
+      // contentEditable=false 인 채 남아 그 줄만 영영 입력이 안 된다.
+      // 메뉴는 이미 열렸고 포커스도 끊긴 뒤라 여기서 되돌려도 키보드가 다시 뜨지 않는다.
+      if (_activeLineText) { _activeLineText.contentEditable = 'true'; _activeLineText = null; }
     }, { passive: false });
     menuBtn.addEventListener('touchcancel', () => {
       _btnTouchPending = false;
@@ -3247,6 +3257,16 @@ let _rowMenuLineId  = null;
 let _rowMenuProjId  = null;
 let _rowMenuLinesEl = null;
 
+// 포커스가 남은 입력 요소를 끊어 키보드를 내린다.
+// 안드로이드는 편집 가능한 요소가 포커스를 쥐고 있으면, 화면 어디를 눌러도 키보드를 다시 올린다.
+// (커서만 깜빡이고 키보드는 내려간 상태에서 다른 걸 누를 때 특히 티가 난다)
+function _blurActiveEditable() {
+  const el = document.activeElement;
+  if (!el) return;
+  const editable = el.tagName === 'INPUT' || el.tagName === 'TEXTAREA' || el.isContentEditable;
+  if (editable && typeof el.blur === 'function') el.blur();
+}
+
 function _ensureRowMenuEl() {
   if (_rowMenuEl) return;
   // 백드롭: 투명 전체화면 → 터치/클릭 시 메뉴 닫기
@@ -3281,6 +3301,11 @@ function _ensureRowMenuEl() {
 }
 
 function openRowMenu(e, lineId, projectId) {
+  // 가사 입력 중(커서가 살아 있는 상태)에 메뉴를 열면 안드로이드가 포커스를 이유로
+  // 키보드를 다시 올려버린다 — 메뉴가 가려지고, 튜토리얼 중에는 진행이 막힌다.
+  // 케밥 버튼의 touchstart 처리는 "같은 줄"만 막으므로, 다른 줄·제목에서 온 포커스는 여기서 끊는다.
+  _blurActiveEditable();
+
   _ensureRowMenuEl();
   _rowMenuLineId  = lineId;
   _rowMenuProjId  = projectId;

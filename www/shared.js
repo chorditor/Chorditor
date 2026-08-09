@@ -6,7 +6,7 @@
 // ── 상수 ─────────────────────────────────────────────────────
 const SUPABASE_URL  = 'https://jbvkygeksohlysyvaoab.supabase.co';
 const SUPABASE_ANON = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Impidmt5Z2Vrc29obHlzeXZhb2FiIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzYzOTk5NjgsImV4cCI6MjA5MTk3NTk2OH0.6RSgChy0Yq0H2TJpZPSoMKQ2V-OYfR0XzE1aJBBZkXI';
-const APP_VERSION   = '1.3.3_pre';
+const APP_VERSION   = '1.3.3';
 const SUPABASE_STORAGE_KEY = 'sb-jbvkygeksohlysyvaoab-auth-token';
 
 // ── 온보딩 관문 판정 ──────────────────────────────────────────
@@ -355,6 +355,10 @@ async function _fetchSharedPayload(code) {
 // 로그인 시 로컬↔DB 병합: DB에만 있는 프로젝트(재설치/새 기기)는 로컬로 복구,
 // 로컬에만 있는 프로젝트(아직 한 번도 동기화 안 됨)는 DB로 업로드.
 async function syncProjectsOnLogin() {
+  // 튜토리얼 샌드박스 중엔 절대 돌리면 안 됨 — loadProjects()가 시드를 반환해
+  // 그걸 실제 DB(projects 테이블)에 업로드해버린다. 샌드박스가 끝난 뒤에도
+  // 그 DB row가 남아 다음 로그인 때 로컬로 복구되어 영구 오염된다.
+  if (typeof isTutorialSandbox === 'function' && isTutorialSandbox()) return;
   const session = _authSessionSync();
   if (!session) return;
   const headers = { apikey: SUPABASE_ANON, Authorization: 'Bearer ' + session.access_token };
@@ -953,6 +957,12 @@ function getStats() {
 
 function incrementStat(key) {
   if (key !== 'images' && key !== 'shares' && key !== 'notes') return;
+  // 튜토리얼 중 만든 노트·저장한 이미지는 실습이라 누적 통계에 넣지 않는다.
+  // 넣으면 노트 생성 퀘스트가 유저가 아무것도 안 만들었는데 달성되고,
+  // 프로필의 누적 수치도 실제와 어긋난다. 샌드박스는 튜토리얼이 끝나면 사라지므로
+  // 여기서 세어둔 값과 실제 노트 목록이 영영 맞지 않게 된다.
+  // XP도 같이 건너뛴다 — 실습 행동에 보상을 주는 자리가 아니다(보상은 스텝 완료로 준다).
+  if (typeof isTutorialSandbox === 'function' && isTutorialSandbox()) return;
   try {
     const s = getStats();
     s[key] = (s[key] || 0) + 1;
