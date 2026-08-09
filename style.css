@@ -12079,6 +12079,13 @@ canvas {
     margin-inline: auto;
   }
 
+  /* 튜토리얼 설명창(fixed left:0/right:0 기반) — .plan-sheet와 동일 이유로
+     데스크톱 웹에서 뷰포트 전체 폭이 아니라 앱 프레임(400px) 기준으로 맞춘다. */
+  #tut-layer {
+    max-width: 400px;
+    margin-inline: auto;
+  }
+
   /* ?�토리얼 모달: display:block ?�체?�면 ??flex ?�터 */
   #modal-tutorial {
     display: flex;
