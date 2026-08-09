@@ -839,6 +839,36 @@ const Tutorial = (() => {
     if (panel) panel.classList.toggle('hidden', _panelSuppressed || !!_cur()?.hidePanel);
   }
 
+  // ── 대상 자동 노출 ────────────────────────────────────────
+  // 튜토리얼은 스크롤을 잠그므로, 눌러야 할 대상이 접힌 화면 아래에 있으면
+  // 유저가 스스로 끌어올 방법이 없어 그대로 진행이 막힌다
+  // (홈 화면의 훈련소 블록 — 실제 제보). 안 보이면 여기서 끌어온다.
+  //   이미 다 보이는 구간에서는 아무것도 하지 않는다 — 캔버스처럼 스크롤이
+  //   끼어들면 곤란한 구간을 건드리지 않기 위해서다.
+  const VISIBLE_PAD = 12;
+
+  function _ensureTargetVisible(step) {
+    // 누를 대상이 우선이고, 없으면 짚어주는 대상(pulse)이라도 보이게 한다.
+    const pulse = Array.isArray(step.pulse) ? step.pulse[0] : step.pulse;
+    const sel   = _targetSels(step)[0] || (typeof pulse === 'string' ? pulse : null);
+    if (!sel) return;
+    const el = document.querySelector(sel);
+    if (!el) return;
+
+    const inset = n =>
+      parseFloat(getComputedStyle(document.documentElement).getPropertyValue(n)) || 0;
+    // 설명창에 덮이는 영역은 "보인다"로 치지 않는다.
+    const top = inset('--tut-top-inset') + VISIBLE_PAD;
+    const bot = window.innerHeight - inset('--tut-bottom-inset') - VISIBLE_PAD;
+
+    const r = el.getBoundingClientRect();
+    if (r.height < 1) return;              // 아직 안 그려짐
+    if (r.top >= top && r.bottom <= bot) return; // 이미 다 보인다
+
+    // 스크롤 컨테이너가 어디인지 따지지 않는다 — scrollIntoView가 조상 전부를 맞춰준다.
+    el.scrollIntoView({ block: 'center', behavior: 'smooth' });
+  }
+
   const PANEL_INSET_GAP = 24; // 패널과 내용 사이 최소 간격
   function _publishPanelInsets(step, panel) {
     const set = (name, px) => document.documentElement.style.setProperty(name, px + 'px');
@@ -895,6 +925,12 @@ const Tutorial = (() => {
     _applyTargets(step);
 
     step.setup?.();
+
+    // 대상이 접힌 화면 아래에 있으면 여기서 끌어온다. 설명창 높이(--tut-*-inset)가
+    // rAF 뒤에 정해지므로 그 뒤에 판정한다.
+    requestAnimationFrame(() => requestAnimationFrame(() => {
+      if (_running && _steps()[_idx] === step) _ensureTargetVisible(step);
+    }));
 
     // 캔버스 리사이즈(rAF)가 끝난 뒤라야 좌표가 맞는다
     _clearSim();
