@@ -13401,8 +13401,11 @@ canvas {
   left: 0;
   right: 0;
   /* 평소엔 뷰포트 전체. 입력 중(키보드)에는 tutorial.js가 --tut-layer-h 로 높이를 고정해
-     레이어가 키보드에 밀려 올라가지 않게 한다 — 설명창은 키보드 아래에 그대로 덮인다. */
-  height: var(--tut-layer-h, 100%);
+     레이어가 키보드에 밀려 올라가지 않게 한다 — 설명창은 키보드 아래에 그대로 덮인다.
+     기본값은 100%가 아니라 100dvh다: fixed의 100%는 레이아웃 뷰포트(=주소창을 뺀 큰 뷰포트)
+     기준이라, 주소창이 보이는 iOS Safari에서 body(.app-shell)의 100dvh보다 커져
+     하단 설명창이 툴바 밑으로 내려간다. 앱 본체와 같은 단위를 쓴다. */
+  height: var(--tut-layer-h, 100dvh);
   z-index: 100100;
   pointer-events: none;
 }

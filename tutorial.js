@@ -265,13 +265,42 @@ const Tutorial = (() => {
     if (e.cancelable) e.preventDefault();
   }
 
+  // ── 고정 오버레이 기준점 실측 ──────────────────────────────
+  // 링·화살표·스크롤힌트는 position:fixed로 그리고 좌표는 getBoundingClientRect()로 잡는다.
+  // 보통은 둘 다 레이아웃 뷰포트 기준이라 정확히 겹치지만, iOS Safari는 키보드가 올라오면
+  // fixed를 비주얼 뷰포트에 붙여버린다. 그 순간 rect(레이아웃 기준)와 fixed(비주얼 기준)가
+  // 어긋나 하이라이트만 대상에서 밀린다.
+  //   UA로 분기하지 않는다 — 실기기 검증 수단이 없어 추측이 그대로 버그가 된다.
+  //   대신 fixed 프로브를 하나 띄워 "지금 이 브라우저에서 fixed의 원점이 rect 좌표계로
+  //   어디인가"를 매 프레임 실측한다. 어긋남이 없는 환경에선 항상 (0,0)이라 무해하다.
+  let _probeEl = null;
+  function _fixedOrigin() {
+    if (!_probeEl || !_probeEl.isConnected) {
+      _probeEl = document.createElement('div');
+      _probeEl.style.cssText =
+        'position:fixed;top:0;left:0;width:1px;height:1px;pointer-events:none;visibility:hidden;';
+      document.body.appendChild(_probeEl);
+    }
+    const r = _probeEl.getBoundingClientRect();
+    return { x: r.left, y: r.top };
+  }
+  function _removeProbe() {
+    _probeEl?.remove();
+    _probeEl = null;
+  }
+
   // ── 키보드 대응 ────────────────────────────────────────────
-  // 안드로이드는 키보드가 올라오면 웹뷰 높이 자체가 줄어든다(adjustResize).
-  // #tut-layer가 뷰포트에 그대로 묶여 있으면 같이 줄어들면서 하단 설명창이 키보드 위로
-  // 딸려 올라가 입력 중인 글자를 가리고, 하이라이트만 원래 자리에 남아 어긋나 보인다.
-  // → 입력이 시작되는 순간의 높이를 고정해 레이어를 제자리에 두고, 키보드가 그 위를 덮게 한다.
-  //   높이를 "튜토리얼 시작 시점"이 아니라 "입력 시작 시점"에 재는 이유는 회전 때문 —
-  //   STEP1은 에디터에서 가로로 눕히므로 시작값을 고정하면 그쪽이 어긋난다.
+  // 두 플랫폼이 정반대로 동작한다.
+  //   안드로이드(adjustResize) — 키보드가 올라오면 웹뷰 높이(window.innerHeight)가 줄어든다.
+  //     #tut-layer가 뷰포트에 묶여 있으면 같이 줄어들며 하단 설명창이 키보드 위로 딸려 올라가
+  //     입력 중인 글자를 가리고, 하이라이트만 원래 자리에 남아 어긋나 보인다.
+  //     → 입력 시작 시점의 높이를 고정해 레이어를 제자리에 두고, 키보드가 그 위를 덮게 한다.
+  //       "튜토리얼 시작 시점"이 아니라 "입력 시작 시점"에 재는 이유는 회전 때문 —
+  //       STEP1은 에디터에서 가로로 눕히므로 시작값을 고정하면 그쪽이 어긋난다.
+  //   iOS Safari — window.innerHeight는 그대로고 비주얼 뷰포트만 줄어든다. 위 고정은
+  //     높이가 안 변하니 아무 일도 하지 않고, 대신 브라우저가 입력칸을 보이게 하려고
+  //     문서를 통째로 밀어 올린다. tut-lock이 스크롤을 잠가둬서 유저가 되돌릴 수도 없다.
+  //     → 밀린 스크롤을 되돌리고(_restoreScroll), 레이어를 실제 보이는 영역에 맞춘다.
   let _frozenLayerH = 0;
 
   function _isEditable(el) {
@@ -279,15 +308,20 @@ const Tutorial = (() => {
     return el.tagName === 'INPUT' || el.tagName === 'TEXTAREA' || el.isContentEditable;
   }
   function _onFocusIn(e) {
-    if (!_running || _frozenLayerH || !_isEditable(e.target)) return;
-    _frozenLayerH = window.innerHeight;
-    document.documentElement.style.setProperty('--tut-layer-h', _frozenLayerH + 'px');
+    if (!_running || !_isEditable(e.target)) return;
+    if (!_frozenLayerH) {
+      _frozenLayerH = window.innerHeight;
+      document.documentElement.style.setProperty('--tut-layer-h', _frozenLayerH + 'px');
+    }
+    _syncLayerToViewport();
   }
   function _onFocusOut() {
     // 입력칸 사이를 옮겨 다닐 땐 계속 고정해 둔다 — focusout이 focusin보다 먼저 와서 한 박자 미룬다.
     setTimeout(() => {
       if (_isEditable(document.activeElement)) return;
       _unfreezeLayerHeight();
+      _restoreScroll();
+      _syncLayerToViewport();
     }, 0);
   }
   function _unfreezeLayerHeight() {
@@ -295,10 +329,50 @@ const Tutorial = (() => {
     document.documentElement.style.removeProperty('--tut-layer-h');
   }
 
+  // 튜토리얼 중에는 문서가 스크롤될 일이 없다(body는 height:100dvh + overflow:hidden).
+  // 그래도 0이 아니라면 브라우저가 입력칸을 보이려고 밀어 올린 것이므로 되돌린다.
+  // tut-lock(touch-action:none)이 걸려 있어 유저 손으로는 절대 복구되지 않는 자리다.
+  function _restoreScroll() {
+    const se = document.scrollingElement || document.documentElement;
+    if (se.scrollTop  !== 0) se.scrollTop  = 0;
+    if (se.scrollLeft !== 0) se.scrollLeft = 0;
+    if (window.scrollX !== 0 || window.scrollY !== 0) window.scrollTo(0, 0);
+  }
+
+  // #tut-layer를 "실제로 보이는 영역"에 맞춘다.
+  // CSS 기본값은 top:0 + height:100%(fixed라 큰 뷰포트 기준 = 주소창 무시)이라,
+  // iOS처럼 비주얼 뷰포트만 줄어드는 환경에서는 하단 설명창이 화면 밖으로 내려간다.
+  //   안드로이드는 건드리지 않는다 — 거기선 innerHeight가 같이 줄어서
+  //   visualViewport.height와 차이가 없고, 위의 높이 고정이 의도대로 동작해야 한다.
+  //   가로(left/right)는 CSS에 맡긴다 — 데스크톱 폭 제한(max-width+margin-inline:auto)을
+  //   인라인 left로 덮으면 가운데 정렬이 깨진다. 핀치줌은 tut-lock이 막고 있다.
+  function _syncLayerToViewport() {
+    const layer = document.getElementById('tut-layer');
+    if (!layer) return;
+    const vv = window.visualViewport;
+    // 비주얼 뷰포트가 레이아웃 뷰포트보다 뚜렷하게 작을 때만 = iOS식 키보드.
+    if (vv && vv.height < window.innerHeight - 1) {
+      layer.style.top    = (vv.offsetTop - _fixedOrigin().y) + 'px';
+      layer.style.height = vv.height + 'px';
+    } else {
+      layer.style.top    = '';
+      layer.style.height = '';
+    }
+  }
+
+  function _onViewportChange() {
+    if (!_running) return;
+    _syncLayerToViewport();
+    // 키보드가 내려간 뒤에도 밀린 스크롤이 남는 경우가 있다(입력칸 밖을 눌러 닫은 경우 등).
+    if (!_isEditable(document.activeElement)) _restoreScroll();
+  }
+
   function _installGuard() {
     _GUARD_EVENTS.forEach(ev => document.addEventListener(ev, _guard, _GUARD_OPTS));
     document.addEventListener('focusin',  _onFocusIn);
     document.addEventListener('focusout', _onFocusOut);
+    window.visualViewport?.addEventListener('resize', _onViewportChange);
+    window.visualViewport?.addEventListener('scroll', _onViewportChange);
     // 네이티브 스크롤·핀치줌은 이벤트 취소만으론 새는 경로가 있어 CSS로도 잠근다.
     document.body.classList.add('tut-lock');
   }
@@ -306,7 +380,10 @@ const Tutorial = (() => {
     _GUARD_EVENTS.forEach(ev => document.removeEventListener(ev, _guard, true));
     document.removeEventListener('focusin',  _onFocusIn);
     document.removeEventListener('focusout', _onFocusOut);
+    window.visualViewport?.removeEventListener('resize', _onViewportChange);
+    window.visualViewport?.removeEventListener('scroll', _onViewportChange);
     _unfreezeLayerHeight();
+    _removeProbe();
     document.body.classList.remove('tut-lock');
   }
 
@@ -417,19 +494,20 @@ const Tutorial = (() => {
       if (!r || r.width < 1 || r.height < 1) {
         a.style.display = 'none';
       } else {
+        const o = _fixedOrigin(); // 링과 같은 이유의 좌표 보정
         a.style.display = '';
         if (side === 'left') {
-          a.style.left = (r.left - GAP) + 'px';
-          a.style.top  = (r.top + r.height / 2) + 'px';
+          a.style.left = (r.left - GAP - o.x) + 'px';
+          a.style.top  = (r.top + r.height / 2 - o.y) + 'px';
         } else if (side === 'right') {
-          a.style.left = (r.right + GAP) + 'px';
-          a.style.top  = (r.top + r.height / 2) + 'px';
+          a.style.left = (r.right + GAP - o.x) + 'px';
+          a.style.top  = (r.top + r.height / 2 - o.y) + 'px';
         } else if (side === 'bottom') {
-          a.style.left = (r.left + r.width / 2) + 'px';
-          a.style.top  = (r.bottom + GAP) + 'px';
+          a.style.left = (r.left + r.width / 2 - o.x) + 'px';
+          a.style.top  = (r.bottom + GAP - o.y) + 'px';
         } else { // top
-          a.style.left = (r.left + r.width / 2) + 'px';
-          a.style.top  = (r.top - GAP) + 'px';
+          a.style.left = (r.left + r.width / 2 - o.x) + 'px';
+          a.style.top  = (r.top - GAP - o.y) + 'px';
         }
       }
       _elArrowRaf = requestAnimationFrame(follow);
@@ -575,8 +653,9 @@ const Tutorial = (() => {
     const follow = () => {
       const r = el.getBoundingClientRect();
       if (r.height >= 1) {
-        hint.style.left = (r.left + r.width / 2) + 'px';
-        hint.style.top  = (r.top + r.height / 2) + 'px';
+        const o = _fixedOrigin(); // 링과 같은 이유의 좌표 보정
+        hint.style.left = (r.left + r.width / 2 - o.x) + 'px';
+        hint.style.top  = (r.top + r.height / 2 - o.y) + 'px';
         hint.hidden = false;
       }
       _hintRaf = requestAnimationFrame(follow);
@@ -642,12 +721,14 @@ const Tutorial = (() => {
     });
 
     const follow = () => {
+      // fixed의 원점이 rect 좌표계로 어디인지 실측해 그만큼 빼준다(대개 0,0 — _fixedOrigin 참고)
+      const o = _fixedOrigin();
       items.forEach(({ sel, ring }) => {
         const el = document.querySelector(sel);
         const r  = el?.getBoundingClientRect();
         if (!r || r.width < 1 || r.height < 1) { ring.style.display = 'none'; return; }
 
-        let w = r.width, h = r.height, left = r.left, top = r.top;
+        let w = r.width, h = r.height, left = r.left - o.x, top = r.top - o.y;
         const radius = getComputedStyle(el).borderRadius;
         // 원형 의도(50%)인데 가로세로가 살짝 다르면 그대로 못생긴 타원이 된다.
         // 긴 변 기준 정사각형으로 맞추고 중앙을 유지해 완전한 원으로 그린다.
@@ -775,6 +856,7 @@ const Tutorial = (() => {
 
     _runSave(); // 구간이 바뀔 때마다 위치 기록 — 페이지가 넘어가도 여기서 이어진다
     layer.classList.remove('hidden');
+    _syncLayerToViewport(); // 키보드가 떠 있는 채로 구간이 넘어가도 레이어가 보이는 영역에 남게
 
     const panel = document.getElementById('tut-panel');
     // hidePanel — 유저가 화면에 집중해야 하는 구간(퀴즈 풀이 등)은 설명창을 아예 감춘다.
@@ -896,7 +978,14 @@ const Tutorial = (() => {
     // 안 지우면 튜토리얼이 끝난 뒤에도 모달들에 여백이 남는다
     document.documentElement.style.setProperty('--tut-top-inset', '0px');
     document.documentElement.style.setProperty('--tut-bottom-inset', '0px');
-    document.getElementById('tut-layer')?.classList.add('hidden');
+    const layer = document.getElementById('tut-layer');
+    if (layer) {
+      // _syncLayerToViewport가 남긴 인라인 값을 지운다 — 안 지우면 다음 시작 때
+      // 키보드가 없는데도 지난번 키보드 높이로 열린다.
+      layer.style.top    = '';
+      layer.style.height = '';
+      layer.classList.add('hidden');
+    }
   }
 
   // ── 진행 제어 ──────────────────────────────────────────────
