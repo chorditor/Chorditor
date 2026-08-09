@@ -3313,22 +3313,44 @@ function openRowMenu(e, lineId, projectId) {
   _rowMenuLinesEl = lineDiv?.parentElement ?? null;
 
   // position: fixed → 뷰포트 기준 좌표 (내부 스크롤 무관)
-  const rect   = e.currentTarget.getBoundingClientRect();
-  const MENU_H = 256; // 드롭다운 예상 높이
+  const rect = e.currentTarget.getBoundingClientRect();
+
+  // 튜토리얼 설명창이 떠 있으면 그만큼 쓸 수 있는 세로 폭이 줄어든다.
+  // 이걸 빼지 않으면 "화면 기준으론 들어가니까" 아래로 펼쳐 놓고 마지막 항목
+  // ('이 줄 삭제')이 하단 설명창에 덮여 튜토리얼 진행이 막힌다(리뷰 제보).
+  // 브라우저는 주소창·하단탭까지 있어 여백이 더 빠듯하다.
+  // 튜토리얼이 아닐 땐 두 값 모두 0이라 기존 동작 그대로다.
+  const _inset = n =>
+    parseFloat(getComputedStyle(document.documentElement).getPropertyValue(n)) || 0;
+
+  // 실제 높이를 재서 쓴다 — 항목 수·폰트·글자 크기에 따라 달라지는데 상수로 어림하면
+  // 살짝 모자랄 때 마지막 항목만 화면 밖으로 나간다. display:none이면 못 재므로
+  // 먼저 펼치되 그리기 전에 재고 위치를 잡는다(같은 프레임 안이라 깜빡임 없음).
+  _rowMenuEl.style.visibility = 'hidden';
+  _rowMenuEl.classList.remove('hidden');
+  const menuH = _rowMenuEl.offsetHeight || 256;
+
   const viewH  = window.innerHeight;
-  if (rect.bottom + MENU_H > viewH) {
-    // 아래 공간 부족 → 버튼 위쪽으로 뒤집어 표시
-    _rowMenuEl.style.top    = 'auto';
-    _rowMenuEl.style.bottom = (viewH - rect.top + 4) + 'px';
+  const topLim = _inset('--tut-top-inset') + 4;     // 이 아래로만 그릴 수 있다
+  const botLim = viewH - _inset('--tut-bottom-inset') - 4; // 이 위로만 그릴 수 있다
+
+  const below = rect.bottom + 4;      // 버튼 아래에 펼칠 때의 상단 y
+  const above = rect.top - 4 - menuH; // 버튼 위로 뒤집을 때의 상단 y
+
+  if (below + menuH <= botLim) {
+    _rowMenuEl.style.top = below + 'px';           // 아래에 그대로 들어감
+  } else if (above >= topLim) {
+    _rowMenuEl.style.top = above + 'px';           // 아래가 부족 → 위로 뒤집기
   } else {
-    _rowMenuEl.style.top    = (rect.bottom + 4) + 'px';
-    _rowMenuEl.style.bottom = 'auto';
+    // 양쪽 다 빠듯 → 가능한 범위 안으로 밀어 넣는다. 위 경계를 우선해 첫 항목부터 보이게 한다.
+    _rowMenuEl.style.top = Math.max(topLim, botLim - menuH) + 'px';
   }
-  _rowMenuEl.style.right = (window.innerWidth - rect.right) + 'px';
-  _rowMenuEl.style.left  = 'auto';
+  _rowMenuEl.style.bottom = 'auto';
+  _rowMenuEl.style.right  = (window.innerWidth - rect.right) + 'px';
+  _rowMenuEl.style.left   = 'auto';
 
   _backdropEl.classList.remove('hidden');
-  _rowMenuEl.classList.remove('hidden');
+  _rowMenuEl.style.visibility = '';
 
   // 내부 스크롤 발생 시 자동 닫기
   _rowMenuLinesEl?.addEventListener('scroll', _closeRowMenu, { once: true });
