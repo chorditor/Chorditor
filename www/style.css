@@ -13696,10 +13696,13 @@ body.tut-lock .modal-overlay {
   pointer-events: none;
 }
 
-/* 튜토리얼 진행 중 전역 잠금 — 스크롤·핀치줌·텍스트선택 차단.
-   탭 자체는 막지 않는다(허용 대상은 눌려야 하므로). 실제 차단은 JS capture 가드가 담당. */
+/* 튜토리얼 진행 중 전역 잠금 — 스크롤·텍스트선택 차단.
+   탭 자체는 막지 않는다(허용 대상은 눌려야 하므로). 실제 차단은 JS capture 가드가 담당.
+   ⚠ 핀치줌만은 열어둔다(none이 아니라 pinch-zoom). iOS가 입력칸 포커스 시 화면을
+   저절로 확대하는데, 축소는 유저 핀치로만 가능해서 여기까지 막으면 확대된 채 갇힌다.
+   pinch-zoom은 한 손가락 팬(스크롤)은 그대로 막으므로 잠금 의도는 유지된다. */
 body.tut-lock {
-  touch-action: none;
+  touch-action: pinch-zoom;
   overscroll-behavior: none;
   -webkit-user-select: none;
   user-select: none;

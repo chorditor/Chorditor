@@ -260,6 +260,11 @@ const Tutorial = (() => {
   }
 
   function _guard(e) {
+    // 손가락 두 개 이상 = 핀치. 이것만은 절대 막지 않는다.
+    // iOS는 폰트 16px 미만 입력칸에 포커스가 가면 화면을 저절로 확대해버리는데,
+    // 그 상태에서 핀치까지 막으면 확대된 채로 갇혀 튜토리얼을 끝낼 방법이 없어진다.
+    // 확대는 자동으로 되는데 축소는 유저 손으로만 되므로, 축소 경로는 항상 열어둔다.
+    if (e.touches && e.touches.length > 1) return;
     if (_guardAllows(e.target)) return;
     e.stopPropagation();
     if (e.cancelable) e.preventDefault();

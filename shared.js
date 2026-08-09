@@ -195,6 +195,44 @@ function isMobileOrTablet() {
   return window.innerWidth <= 1400;
 }
 
+// ── iOS 입력 포커스 자동 확대 방지 ────────────────────────────
+// iOS(사파리·iOS 크롬 전부 WebKit)는 폰트가 16px보다 작은 입력칸에 포커스가 가면
+// 화면을 저절로 확대한다. 유저는 칸을 탭했을 뿐인데 화면이 커지고, 되돌리려면
+// 직접 핀치해야 한다 — 그걸 모르면 "화면이 커진 채 안 돌아온다"가 된다.
+// 앱 곳곳의 입력칸이 14px이라(.line-text 등) 전역으로 막는다.
+//
+// 포커스가 있는 동안만 maximum-scale=1 을 걸고 벗어나면 되돌린다.
+//   · 항상 걸어두지 않는 이유 — 확대 자체는 접근성 수단이라 평소엔 열어둬야 한다.
+//   · iOS는 접근성 때문에 '유저가 직접 하는 핀치'는 이 값과 무관하게 계속 허용한다.
+//     즉 자동 확대만 막히고 유저의 확대·축소는 그대로다.
+//   · 되돌릴 때 원래 content로 복원하는 과정에서 iOS가 배율을 1로 리셋해주는
+//     부수효과도 있어, 이미 확대된 상태에서 빠져나오는 데도 도움이 된다.
+function _viewportAutoZoomGuard(lock) {
+  const m = document.querySelector('meta[name="viewport"]');
+  if (!m) return;
+  // 원본 content는 최초 1회만 기억한다(반복 토글로 값이 누적되지 않게).
+  const base = m.dataset.vpBase || (m.dataset.vpBase = m.getAttribute('content'));
+  m.setAttribute('content', lock ? base + ', maximum-scale=1' : base);
+}
+
+// 자동 확대는 16px 미만일 때만 일어난다 — 그 경우에만 건드려서 영향 범위를 좁힌다.
+function _autoZoomsOnFocus(el) {
+  if (!el) return false;
+  const editable = el.tagName === 'INPUT' || el.tagName === 'TEXTAREA' || el.isContentEditable;
+  if (!editable) return false;
+  return (parseFloat(getComputedStyle(el).fontSize) || 16) < 16;
+}
+
+document.addEventListener('focusin', e => {
+  if (_autoZoomsOnFocus(e.target)) _viewportAutoZoomGuard(true);
+});
+document.addEventListener('focusout', () => {
+  // 입력칸 사이를 옮겨 다닐 땐 계속 걸어둔다 — focusout이 focusin보다 먼저 온다.
+  setTimeout(() => {
+    if (!_autoZoomsOnFocus(document.activeElement)) _viewportAutoZoomGuard(false);
+  }, 0);
+});
+
 // ── 튜토리얼 샌드박스 ─────────────────────────────────────────
 // 튜토리얼 중엔 실제 노트·DB를 건드리지 않고 임시 목록 위에서만 동작한다.
 //  · 무료 3개 한도에 안 걸림 (loadProjects().length가 0에서 시작)
