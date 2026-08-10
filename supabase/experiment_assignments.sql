@@ -41,7 +41,7 @@ begin
 
   -- 실험명을 자유 문자열로 받으면 인증된 유저가 임의 이름으로 행을 무한히 만들 수 있다
   -- (security definer라 RLS도 안 걸린다). 실험이 늘면 이 목록에 추가한다.
-  if p_experiment not in ('tutorial_order') then return null; end if;
+  if p_experiment not in ('tutorial_step1') then return null; end if;
 
   select variant into v_variant
     from public.experiment_assignments
