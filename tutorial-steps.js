@@ -1377,7 +1377,7 @@ const TUTORIAL_CHAPTERS = (() => {
     },
     {
       title: '{S} | 훈련소',
-      text: '훈련소로 들어가 볼까요?',
+      text: '어떤 컨텐츠가 있는지 살펴볼까요?',
       panel: 'top',
       target: '#home-block-training',
       advanceOn: 'view:training',
