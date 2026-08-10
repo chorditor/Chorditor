@@ -1575,7 +1575,7 @@ const TUTORIAL_CHAPTERS = (() => {
       // 새A(=구B)는 훈련소 다음이 바로 노트.
       variant: 'A',
       title: '{S} 완료',
-      text: '한 번씩 둘러보며 실력을 쌓아 보세요!\n다음 스텝에선 나만의 악보를 만들어 볼게요.',
+      text: '훈련소 설명이 전부 끝났어요!\n다음 스텝에선 나만의 악보를 만들어 볼게요.',
       panel: 'top',
       pulse: false,
       optional: true,
