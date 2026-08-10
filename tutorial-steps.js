@@ -1585,7 +1585,7 @@ const TUTORIAL_CHAPTERS = (() => {
       // 새B는 훈련소 다음이 사전(2번).
       variant: 'B',
       title: '{S} 완료',
-      text: '한 번씩 둘러보며 실력을 쌓아 보세요!\n다음 스텝에선 코드 사전을 둘러볼게요.',
+      text: '훈련소 설명이 전부 끝났어요!\n다음 스텝에선 코드 사전을 둘러볼게요!',
       panel: 'top',
       pulse: false,
       optional: true,
