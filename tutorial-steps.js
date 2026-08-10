@@ -1555,7 +1555,7 @@ const TUTORIAL_CHAPTERS = (() => {
     },
     {
       title: '{S} 완료',
-      text: '튜토리얼에선 코드 맞추기만 해봤지만\n다른 훈련들도 준비되어 있어요.',
+      text: '튜토리얼에선 코드 맞추기만 해봤지만\n다른 훈련들도 즐겨보세요!',
       panel: 'top',
       pulse: false,
       optional: true,
