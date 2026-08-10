@@ -1392,6 +1392,48 @@ const TUTORIAL_CHAPTERS = (() => {
       optional: true,
       nextLabel: '다음',
     },
+    // 카드별 소개 — 어떤 컨텐츠고 뭘 연습하고 싶을 때 좋은지 한 줄씩. 여기서도 target은
+    // 위와 같은 이유로 비워둔다(눌리면 진행이 끊긴다).
+    {
+      title: '코드 맞추기',
+      text: '코드 암기를 게임처럼! 제한 시간 안에\n빠르게 맞혀보는 훈련이에요.',
+      panel: 'top',
+      pulse: '.training-card[data-key="chord-name"]',
+      optional: true,
+      nextLabel: '다음',
+    },
+    {
+      title: '스케일 훈련',
+      text: '기타 솔로, 즉흥 연주가 꿈이라면 필수예요.\n스케일을 손에 익혀보세요.',
+      panel: 'top',
+      pulse: '.training-card[data-key="scale"]',
+      optional: true,
+      nextLabel: '다음',
+    },
+    {
+      title: '코드 진행 리스트',
+      text: '매번 따로 외워야 했던 코드 진행,\n패턴으로 몸에 각인시켜요.',
+      panel: 'top',
+      pulse: '.training-card[data-key="progression"]',
+      optional: true,
+      nextLabel: '다음',
+    },
+    {
+      title: '주법 리듬 훈련',
+      text: '노래에 자주 쓰이는 리듬 패턴만\n집중적으로 공략해요.',
+      panel: 'top',
+      pulse: '.training-card[data-key="strumming"]',
+      optional: true,
+      nextLabel: '다음',
+    },
+    {
+      title: '코드 조합 훈련',
+      text: '어렵게만 느껴지던 화성학,\n퀴즈만 풀어도 자연스럽게 익혀져요.',
+      panel: 'top',
+      pulse: '.training-card[data-key="reharmony"]',
+      optional: true,
+      nextLabel: '다음',
+    },
     {
       title: '훈련 목록',
       text: '흐릿한 카드는 준비 중이에요.\n앞으로 계속 늘어날 거예요.',
