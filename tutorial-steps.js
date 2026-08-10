@@ -520,6 +520,13 @@ const TUTORIAL_CHAPTERS = (() => {
       text: '찾는 코드가 있으면 검색이 더 빨라요.\nG7을 입력하고 확인을 눌러 보세요.',
       panel: 'bottom',
       target: '#lib-search',
+      // 앞 구간(뷰어 짚기)이 캔버스를 화면 가운데로 끌어오면서 위에 있는 검색창이
+      // 화면 밖으로 밀려난다. 범용 자동스크롤(_ensureTargetVisible)이 뒤이어 돌지만
+      // 렌더 직후 한 프레임 늦게 붙어 체감상 안 끌려오는 경우가 있었다 — 여기서 바로 당긴다.
+      setup: () => {
+        document.getElementById('lib-search')
+          ?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      },
       advanceOn: 'libsearch:open:G7',
     },
     {
