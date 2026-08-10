@@ -23,8 +23,11 @@ const Tutorial = (() => {
   let CHAPTERS = TUTORIAL_CHAPTERS;
 
   // ── A/B 변형 배정 ──────────────────────────────────────────
-  const EXPERIMENT = 'tutorial_order';
-  const LS_VARIANT = 'chorditor_tut_variant'; // DB 미러 (진행도와 같은 방식)
+  const EXPERIMENT = 'tutorial_step1';
+  // DB 미러 (진행도와 같은 방식). 키에 실험명을 붙인다 — 고정 키면 다음 실험을 시작해도
+  // 이전 실험의 배정값이 그대로 읽혀 _ensureVariant가 서버를 안 부르고 조기 반환한다
+  // (구 배정값으로 새 실험이 돌아 직교성이 깨진다).
+  const LS_VARIANT = `chorditor_tut_variant__${EXPERIMENT}`;
   let _variant = null; // 'A' | 'B' — 배정 전엔 null
 
   function _applyVariant(v) {
@@ -68,6 +71,16 @@ const Tutorial = (() => {
   // 챕터의 자리 번호. A/B 변형마다 달라지므로 로그에 박아두지 말고 여기서 뽑아 쓴다.
   function _noOf(key) { return CHAPTERS.find(c => c.key === key)?.no ?? 0; }
   function _steps() { return _chap()?.steps || []; }
+
+  // 문구 속 스텝 번호 토큰을 실제 자리 번호로 채운다 (title·text 공통).
+  // 못 찾은 key는 원문 그대로 남긴다 — 오타를 'STEP0'으로 감추지 않고 눈에 띄게 하려는 것.
+  function _fillSteps(s) {
+    return (s || '').replace(/\{S(?::([\w-]+))?\}/g, (m, key) => {
+      if (!key) return 'STEP' + _chap().no;
+      const no = _noOf(key);
+      return no ? 'STEP' + no : m;
+    });
+  }
 
   // 아직 구간이 채워진 다음 챕터가 있는가 (완료 모달의 "이어서 하기" 노출 조건)
   function _hasNextChapter() {
@@ -223,7 +236,9 @@ const Tutorial = (() => {
   // ── 시작 / 건너뛰기 ────────────────────────────────────────
   function startFromModal() {
     closeStartModal();
-    if (typeof analytics !== 'undefined') analytics.track('tutorial_started', { step: getState().step || 0 });
+    // entry: 자동 노출 모달 경로. 물음표 아이콘 경로('manual')와 구분해야 A/B 분석에서
+    // 지표별 대상 인구를 나눌 수 있다(Guardrail은 auto만, Primary는 둘 다).
+    if (typeof analytics !== 'undefined') analytics.track('tutorial_started', { step: getState().step || 0, entry: 'auto' });
     start();
   }
 
@@ -905,11 +920,12 @@ const Tutorial = (() => {
 
     _publishPanelInsets(step, panel);
 
-    // 구간 타이틀의 {S}는 챕터가 몇 번째 자리인지로 채운다 —
-    // A/B 변형에 따라 같은 챕터가 다른 번호에 오므로 문구에 번호를 굳혀두지 않는다.
-    document.getElementById('tut-title').textContent =
-      (step.title || '').replace(/\{S\}/g, 'STEP' + _chap().no);
-    document.getElementById('tut-text').textContent  = step.text;
+    // 문구의 스텝 번호는 토큰으로 쓴다 — A/B 변형마다 같은 챕터가 다른 번호에 오므로
+    // 숫자를 박아두면 순서를 바꿀 때마다 문구가 조용히 어긋난다.
+    //   {S}        → 지금 챕터의 자리 번호
+    //   {S:editor} → 그 key를 가진 챕터의 자리 번호 (다른 챕터를 가리킬 때)
+    document.getElementById('tut-title').textContent = _fillSteps(step.title);
+    document.getElementById('tut-text').textContent  = _fillSteps(step.text);
 
     // 팝업 등장 — 클래스를 뗐다 붙여야 같은 애니메이션이 다시 재생된다
     panel.classList.remove('tut-panel--out', 'tut-panel--pop');
@@ -1383,9 +1399,11 @@ const Tutorial = (() => {
     overlay.classList.add('tutorial-modal-overlay--show');
     if (typeof _playSfx === 'function') _playSfx('page.mp3');
     if (typeof lucide !== 'undefined') lucide.createIcons();
-    // 배정(스텝 순서)과 서버 진행도(기기 교체 등)를 받아오면 다시 그린다.
-    _ensureVariant()
-      .then(() => (_loaded ? null : loadState()))
+    // 서버 진행도(기기 교체 등)와 배정(스텝 순서)을 받아오면 다시 그린다.
+    // 진행도를 먼저 읽는다 — 이미 튜토리얼을 진행한 유저(step>0)는 실험 대상이 아니므로
+    // 배정을 받지 않아야 한다(순서가 바뀌면 저장된 step이 가리키는 챕터가 달라진다).
+    (_loaded ? Promise.resolve() : loadState())
+      .then(() => ((getState().step || 0) === 0 ? _ensureVariant() : null))
       .then(() => renderTutorialList())
       .catch(() => {});
   }
@@ -1424,6 +1442,9 @@ const Tutorial = (() => {
         if (cleared) btn.classList.add('tut-list-btn--again');
         btn.addEventListener('click', () => {
           closeTutorialModal();
+          // 이 경로는 startFromModal을 거치지 않아 tutorial_started가 안 찍혔다.
+          // 안 찍으면 물음표로 들어온 유저가 퍼널 분모(started)에서 통째로 빠진다.
+          if (typeof analytics !== 'undefined') analytics.track('tutorial_started', { step: done, entry: 'manual' });
           startAt(chap.no, 0);
         });
       }

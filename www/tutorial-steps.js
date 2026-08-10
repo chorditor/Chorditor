@@ -73,8 +73,20 @@ const TUTORIAL_CHAPTERS = (() => {
   const STEP1_STEPS = [
     {
       // 인사·주제 소개 전용 — 조작 없음. 시작 모달 바로 뒤라 보상 언급은 반복이라 뺐다.
+      // A는 에디터가 첫 챕터라 여기서 인사한다. B는 훈련소가 첫 챕터라 인사가 그쪽에 있다.
+      variant: 'A',
       title: '{S} | 코드 에디터',
-      text: '안녕하세요, 코디터에 오신 것을 환영해요!\nSTEP1에서는 코드 에디터 사용법을 배워볼 거예요.',
+      text: '안녕하세요, 코디터에 오신 것을 환영해요!\n{S}에서는 코드 에디터 사용법을 배워볼 거예요.',
+      panel: 'top',
+      pulse: false,
+      optional: true,
+      nextLabel: '다음',
+    },
+    {
+      // B 전용 — 에디터가 3번 자리(사전 다음)라 인사 대신 앞 챕터에서 이어받는다.
+      variant: 'B',
+      title: '{S} | 코드 에디터',
+      text: '방금 사전에서 코드를 골라봤죠?\n{S}에서는 코드를 직접 만들고 바꿔볼 거예요.',
       panel: 'top',
       pulse: false,
       optional: true,
@@ -537,7 +549,18 @@ const TUTORIAL_CHAPTERS = (() => {
       // 위치만 짚는 구간 — target을 비워 조작은 막고 pulse로 버튼만 가리킨다.
       // 누르면 에디터로 넘어가 흐름이 끊기고, STEP1에서 이미 해본 동작이라 반복 가치도 없다.
       title: '에디터로 가져가기',
-      text: '고른 코드를 에디터로 가져가 편집할 수 있어요.\nSTEP1에서 배운 그 에디터예요.',
+      // A는 에디터를 이미 배운 뒤라 과거형, B는 아직 안 배워서 예고형으로 갈린다.
+      variant: 'A',
+      text: '고른 코드를 에디터로 가져가 편집할 수 있어요.\n{S:editor}에서 배운 그 에디터예요.',
+      panel: 'top',
+      pulse: '#lib-btn-to-editor',
+      optional: true,
+      nextLabel: '다음',
+    },
+    {
+      variant: 'B',
+      title: '에디터로 가져가기',
+      text: '고른 코드를 에디터로 가져가 편집할 수 있어요.\n에디터는 다음 스텝에서 배워볼게요!',
       panel: 'top',
       pulse: '#lib-btn-to-editor',
       optional: true,
@@ -545,8 +568,19 @@ const TUTORIAL_CHAPTERS = (() => {
     },
     {
       // 여기도 위치만 짚는다 — 누르면 노트 선택 시트가 열려 흐름이 끊긴다.
+      // 위 구간과 같은 이유로 A는 과거형, B는 예고형.
+      variant: 'A',
       title: '노트에 저장',
-      text: '마음에 드는 코드는 노트에 담아둘 수 있어요.\nSTEP1에서 배운 것과 똑같아요.',
+      text: '마음에 드는 코드는 노트에 담아둘 수 있어요.\n{S:editor}에서 배운 것과 똑같아요.',
+      panel: 'top',
+      pulse: '#lib-btn-save-note',
+      optional: true,
+      nextLabel: '다음',
+    },
+    {
+      variant: 'B',
+      title: '노트에 저장',
+      text: '마음에 드는 코드는 노트에 담아둘 수 있어요.\n노트는 뒤에서 자세히 알려드릴게요.',
       panel: 'top',
       pulse: '#lib-btn-save-note',
       optional: true,
@@ -554,8 +588,8 @@ const TUTORIAL_CHAPTERS = (() => {
     },
     {
       // 마무리 — 완료 사실을 알리고 다음 스텝을 예고한다. 하이라이트 없이 설명만.
-      // 다음 챕터가 변형마다 다르다(A: 노트 만들기 / B: 훈련소) — 예고 문구도 갈라야 한다.
-      variant: 'A',
+      // 구A 전용 문구(사전→노트 예고)는 구A 폐기로 죽은 코드, 새B용으로 재활용 불가(내용 안 맞음).
+      variant: '__dead_old_A',
       title: '{S} 완료',
       text: '코드 사전은 여기까지예요!\n다음 단계에서는 노트 기능에 대해 배워볼게요.',
       panel: 'top',
@@ -564,9 +598,18 @@ const TUTORIAL_CHAPTERS = (() => {
       nextLabel: '다음',
     },
     {
-      variant: 'B',
+      variant: 'A',
       title: '{S} 완료',
       text: '코드 사전은 여기까지예요!\n다음 단계에서는 훈련소를 둘러볼게요.',
+      panel: 'top',
+      pulse: false,
+      optional: true,
+      nextLabel: '다음',
+    },
+    {
+      variant: 'B',
+      title: '{S} 완료',
+      text: '코드 사전은 여기까지예요!\n다음 단계에서는 코드 에디터를 배워볼게요.',
       panel: 'top',
       pulse: false,
       optional: true,
@@ -636,7 +679,8 @@ const TUTORIAL_CHAPTERS = (() => {
       // "팔레트"는 유저에게 낯선 말이라, 조작을 시키기 전에 자리부터 정의해 준다.
       // 앞 스텝에서 담은 코드가 여기로 모인다는 연결도 이 구간에서 짚는다.
       title: '코드 팔레트',
-      text: '아래 이곳은 코드를 모아두는 팔레트예요.\nSTEP1·2에서 담은 코드도 전부 여기 모여요.',
+      // 번호를 쓰면 B에서 'STEP3·STEP2'로 역순이 되어 읽기 나쁘다 → 번호 없이 쓴다.
+      text: '아래 이곳은 코드를 모아두는 팔레트예요.\n앞서 담아둔 코드도 전부 여기 모여요.',
       panel: 'bottom',
       pulse: `.chord-palette`,
       optional: true,
@@ -651,7 +695,7 @@ const TUTORIAL_CHAPTERS = (() => {
     },
     {
       title: '코드 담기',
-      text: 'STEP2의 코드 사전이 여기에도 담겨 있죠?\n이곳에서 원하는 코드를 바로 담을 수 있어요!',
+      text: '{S:library}의 코드 사전이 여기에도 담겨 있죠?\n이곳에서 원하는 코드를 바로 담을 수 있어요!',
       panel: 'top',
       pulse: false,
       optional: true,
@@ -1226,8 +1270,8 @@ const TUTORIAL_CHAPTERS = (() => {
     },
     {
       // 선물('작은 별' 노트) 안내는 여기서 하지 않는다 — 완료 모달에서 조건별로 처리한다.
-      // A에서는 뒤에 훈련소가 남아 있으므로 다음 스텝을 예고한다.
-      variant: 'A',
+      // 구A 전용(뒤에 훈련소 남음 예고) — 구A 폐기로 죽은 코드, 새A/새B 둘 다 노트가 마지막이라 미사용.
+      variant: '__dead_old_A',
       title: '{S} 완료',
       text: '노트를 다루는 법을 전부 익히셨어요!\n마지막 단계에선 실력을 키우는 훈련소로 가볼게요.',
       panel: 'top',
@@ -1236,9 +1280,8 @@ const TUTORIAL_CHAPTERS = (() => {
       nextLabel: '다음',
     },
     {
-      // B에서는 이 스텝이 튜토리얼의 끝이다. 두 갈래 출구를 다 열어준다 —
+      // 새A·새B 둘 다 노트가 마지막 두 챕터라 변형 무관 공통 문구. 두 갈래 출구를 다 열어준다 —
       // 제작(내 노트 만들기)과 반복 방문(훈련소).
-      variant: 'B',
       title: '{S} 완료',
       text: '노트를 다루는 법을 전부 익히셨어요!\n이제 나만의 악보집을 채워 나가면 돼요.',
       panel: 'top',
@@ -1247,7 +1290,6 @@ const TUTORIAL_CHAPTERS = (() => {
       nextLabel: '다음',
     },
     {
-      variant: 'B',
       title: '{S} 완료',
       text: '틈틈이 훈련소도 들러 실력을 쌓아 보세요!\n튜토리얼은 여기까지예요, 수고하셨어요!',
       panel: 'top',
@@ -1262,8 +1304,9 @@ const TUTORIAL_CHAPTERS = (() => {
   const STEP5_STEPS = [
     {
       // 문제제기 먼저 — 기능을 소개하기 전에 왜 필요한지 유저 상황으로 깔아준다(STEP3·4와 동일).
-      // A는 노트 스텝을 이미 지나왔으므로 "악보를 만들 수 있게 됐다"를 전제로 쓴다.
-      variant: 'A',
+      // 구A 전용("악보 만들 수 있게 됐다" 전제, 훈련소가 노트 뒤) — 구A 폐기로 죽은 코드.
+      // 새A는 훈련소가 노트보다 앞이고, 새B는 훈련소가 아예 첫 챕터라 둘 다 이 전제 안 맞음.
+      variant: '__dead_old_A',
       title: '{S} | 훈련소',
       text: '악보를 만들 수 있게 됐지만\n손이 따라주지 않으면 아쉽겠죠?',
       panel: 'top',
@@ -1272,9 +1315,19 @@ const TUTORIAL_CHAPTERS = (() => {
       nextLabel: '다음',
     },
     {
-      // B는 앞 스텝(에디터·사전)이 도구·정보일 뿐 "코드를 익히는 과정"이 아니므로,
-      // 앞 스텝을 전제하지 않고 초보자 보편 상황으로 문제제기한다.
+      // B 전용 인사 — B는 훈련소가 첫 챕터라 여기가 튜토리얼의 첫인상이다.
+      // A의 에디터 인사(STEP1_STEPS 맨 앞)와 같은 틀을 쓴다. 순서 말고 다른 변수가 끼면
+      // 실험이 재는 것이 흐려진다.
       variant: 'B',
+      title: '{S} | 훈련소',
+      text: '안녕하세요, 코디터에 오신 것을 환영해요!\n{S}에서는 훈련소를 둘러볼 거예요.',
+      panel: 'top',
+      pulse: false,
+      optional: true,
+      nextLabel: '다음',
+    },
+    {
+      // 앞 스텝을 전제하지 않는 범용 문구라 새A(훈련소=3번)·새B(훈련소=1번, 첫 챕터) 둘 다 그대로 맞는다.
       title: '{S} | 훈련소',
       text: '기타 연습, 뭘 어떻게 해야 할지\n막막할 때가 있죠?',
       panel: 'top',
@@ -1284,7 +1337,8 @@ const TUTORIAL_CHAPTERS = (() => {
     },
     {
       // 브리핑 — 이 스텝에서 뭘 배우는지 먼저 알린다.
-      variant: 'A',
+      // 구A 전용("마지막 스텝" 전제) — 새A/새B 둘 다 훈련소가 마지막이 아니라 죽은 코드.
+      variant: '__dead_old_A',
       title: '{S} | 훈련소',
       text: '마지막 스텝에선 실력을 키우는\n훈련소를 둘러볼 거예요!',
       panel: 'top',
@@ -1293,7 +1347,9 @@ const TUTORIAL_CHAPTERS = (() => {
       nextLabel: '다음',
     },
     {
-      variant: 'B',
+      // A 전용 — B는 앞에 인사 구간이 하나 더 붙으므로 여기를 빼서 조작 없는 설명 구간
+      // 개수를 A와 맞춘다(둘 다 훈련소 진입 전 2개). 순서 외 변수를 통제하기 위함.
+      variant: 'A',
       title: '{S} | 훈련소',
       text: '이번 스텝에선 기타를 더 재미있고 효율적으로\n연습할 수 있는 훈련 시스템을 소개드릴게요!',
       panel: 'top',
@@ -1449,8 +1505,8 @@ const TUTORIAL_CHAPTERS = (() => {
       nextLabel: '다음',
     },
     {
-      // A는 여기가 튜토리얼의 끝이다.
-      variant: 'A',
+      // 구A 전용(훈련소가 튜토리얼의 끝) — 새A/새B 둘 다 훈련소 뒤에 노트가 남아 죽은 코드.
+      variant: '__dead_old_A',
       title: '{S} 완료',
       text: '한 번씩 둘러보며 실력을 쌓아 보세요!\n튜토리얼은 여기까지예요, 수고하셨어요!',
       panel: 'top',
@@ -1459,10 +1515,20 @@ const TUTORIAL_CHAPTERS = (() => {
       nextLabel: '다음',
     },
     {
-      // B는 뒤에 노트 스텝이 두 개 남아 있으므로 다음을 예고한다.
-      variant: 'B',
+      // 새A(=구B)는 훈련소 다음이 바로 노트.
+      variant: 'A',
       title: '{S} 완료',
       text: '한 번씩 둘러보며 실력을 쌓아 보세요!\n다음 스텝에선 나만의 악보를 만들어 볼게요.',
+      panel: 'top',
+      pulse: false,
+      optional: true,
+      nextLabel: '다음',
+    },
+    {
+      // 새B는 훈련소 다음이 사전(2번).
+      variant: 'B',
+      title: '{S} 완료',
+      text: '한 번씩 둘러보며 실력을 쌓아 보세요!\n다음 스텝에선 코드 사전을 둘러볼게요.',
       panel: 'top',
       pulse: false,
       optional: true,
@@ -1534,8 +1600,8 @@ const TUTORIAL_CHAPTERS = (() => {
   //   B — 훈련소를 앞으로. 사전에서 배운 코드를 바로 퀴즈로 확인하고, 제작을 뒤로 미룬다.
   // 문구가 갈리는 구간은 각 구간의 variant 필드로 처리한다(필드가 없으면 두 변형 공통).
   const VARIANT_ORDER = {
-    A: ['editor', 'library', 'note-create', 'note-edit', 'training'],
-    B: ['editor', 'library', 'training', 'note-create', 'note-edit'],
+    A: ['editor', 'library', 'training', 'note-create', 'note-edit'],
+    B: ['training', 'library', 'editor', 'note-create', 'note-edit'],
   };
 
   // no는 "몇 번째 자리인가"이고 DB의 tutorial_step과 대응한다.
