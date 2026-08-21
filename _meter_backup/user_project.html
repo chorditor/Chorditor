@@ -1,0 +1,335 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="color-scheme" content="light dark" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <title>Chorditor</title>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css" />
+  <link rel="stylesheet" href="style.css" />
+  <!-- Supabase JS (웹 인증용) -->
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
+</head>
+<body>
+
+  <!-- 페이지 커버: 초기화 완료 전 화면 가림, JS가 fade out 처리 -->
+  <div id="page-cover"></div>
+
+  <div class="app-shell">
+
+    <!-- ── 탑바 (뒤로가기 영역) ── -->
+    <div class="top-bar">
+      <button id="back-btn" class="hidden" onpointerup="closeProjectPage()">
+        <i data-lucide="x"></i>
+      </button>
+    </div>
+
+    <!-- ── 메인 콘텐츠 ── -->
+    <div class="main-content" id="main-content">
+
+      <div class="tab-view" id="tab-view-project">
+        <!-- ── 프로젝트 뷰 ── -->
+        <div class="view" id="view-project">
+          <!-- JS로 렌더링 -->
+        </div>
+      </div>
+
+    </div><!-- /main-content -->
+
+
+    <!-- 플랜 배지 (숨김 상태 유지, JS 참조용) -->
+    <span id="sidebar-plan-badge" class="plan-badge" data-plan="free" style="display:none">FREE</span>
+
+  </div><!-- /app-shell -->
+
+  <!-- ── 모달: 뷰 ── -->
+  <div class="modal-overlay hidden" id="modal-view">
+    <div class="modal">
+      <div class="modal-header">
+        <span class="modal-title" id="modal-view-title"></span>
+        <button class="icon-btn" onclick="closeModal('modal-view')"><i data-lucide="x"></i></button>
+      </div>
+      <div class="modal-body" style="align-items:center;">
+        <div class="canvas-inner" style="width:240px;">
+          <canvas id="modal-view-canvas"></canvas>
+        </div>
+        <div class="btn-group">
+          <button class="btn btn-ghost" id="modal-view-play">▶ 재생</button>
+          <button class="btn btn-primary" onclick="switchToEditModal()">✏️ 편집</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+
+  <!-- ── 모달: 공유 ── -->
+  <div class="modal-overlay hidden" id="modal-share">
+    <div class="modal">
+      <div class="modal-header">
+        <span class="modal-title">공유하기</span>
+        <button class="icon-btn" onclick="closeModal('modal-share')"><i data-lucide="x"></i></button>
+      </div>
+      <div class="modal-body" style="gap:16px;">
+        <p class="hint">코드 배열(가사 제외)을 공유합니다.</p>
+        <div class="share-field-group">
+          <span class="share-label">공유 코드</span>
+          <div class="share-row">
+            <input type="text" id="share-code-input" class="share-code-input" readonly />
+            <button class="btn btn-ghost" id="share-code-copy-btn" onclick="copyShareCode()">복사</button>
+          </div>
+        </div>
+        <div class="share-icon-row">
+          <button class="share-icon-btn" id="share-copy-url-btn" onclick="copyShareUrl()" title="링크 복사"><i data-lucide="copy"></i></button>
+          <button class="share-icon-btn" id="share-native-btn" onclick="shareProjectViaOS()" title="공유"><i data-lucide="share-2"></i></button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── 모달: 새 프로젝트 ── -->
+  <div class="modal-overlay hidden" id="modal-create-project">
+    <div class="modal" style="max-width:360px;">
+      <div class="modal-header">
+        <span class="modal-title">새 노트</span>
+        <button class="icon-btn" onclick="closeModal('modal-create-project')"><i data-lucide="x"></i></button>
+      </div>
+      <div class="modal-body" style="gap:12px;">
+        <input type="text" id="create-project-name-input" class="share-code-input"
+               placeholder="노트 이름" style="font-size:14px;font-family:inherit;" />
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-ghost" onclick="closeModal('modal-create-project')">취소</button>
+        <button class="btn btn-primary" onclick="confirmCreateProject()">만들기</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── 모달: 프로젝트 삭제 확인 ── -->
+  <div class="modal-overlay hidden" id="delete-confirm-overlay" onclick="closeDeleteConfirm()">
+    <div class="delete-confirm-modal" onclick="event.stopPropagation()">
+      <h3 class="delete-confirm-title">노트 삭제</h3>
+      <p class="delete-confirm-desc">삭제된 노트는 복구할 수 없어요.<br>정말 삭제하시겠어요?</p>
+      <p class="delete-confirm-tip">삭제 전 공유하기로 코드 배열을 백업해두세요.</p>
+      <div class="delete-confirm-actions">
+        <button class="btn btn-ghost" onclick="closeDeleteConfirm()">취소</button>
+        <button class="btn btn-danger" id="delete-confirm-btn">삭제</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── 모달: 노트 저장 선택 (팔레트 이미지 / 텍스트 복사) ── -->
+  <div class="modal-overlay hidden" id="note-save-overlay" onclick="closeNoteSaveChoice()">
+    <div class="note-save-modal" onclick="event.stopPropagation()">
+      <i class="ph-fill ph-crown note-save-crown"></i>
+      <h3 class="note-save-title">저장하기</h3>
+      <div class="note-save-opts">
+        <button class="note-save-opt" onclick="noteSaveChoosePaletteImages()">
+          <i data-lucide="image" class="note-save-opt-icon"></i>
+          <span class="note-save-opt-label">팔레트 저장</span>
+        </button>
+        <button class="note-save-opt" onclick="noteSaveChooseText()">
+          <i data-lucide="type" class="note-save-opt-icon"></i>
+          <span class="note-save-opt-label">텍스트 복사</span>
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── 이미지 저장 모달 (코드에디터 공용 모달 이식 — 팔레트 코드 전체 저장) ── -->
+  <div class="img-save-backdrop" id="img-save-backdrop" onclick="closeImgSaveModal()"></div>
+  <div class="img-save-modal" id="img-save-modal">
+    <div class="ism-handle"></div>
+    <div class="ism-preview">
+      <canvas id="img-preview-canvas"></canvas>
+    </div>
+    <div class="ism-scale">
+      <div class="ism-scale-row">
+        <span class="ism-scale-label">배율</span>
+        <span class="ism-scale-val" id="img-scale-val">1배 · 100×80 px</span>
+      </div>
+      <input type="range" id="img-scale-slider" class="ism-slider"
+             min="0.5" max="3" step="0.5" value="1"
+             oninput="onImgScaleInput(this.value)">
+    </div>
+    <div class="ism-bottom">
+      <label class="ism-transparent" id="img-transparent-label">
+        <input type="checkbox" id="img-transparent-chk" onchange="onImgTransparentToggle(this.checked)">
+        <span>투명 배경으로 저장</span>
+      </label>
+      <button class="ism-save-btn" id="img-save-btn" onclick="onImgSave()">저장</button>
+    </div>
+  </div>
+
+  <!-- ── 모달: 줄 BPM·박자 설정 ── -->
+  <div class="modal-overlay hidden" id="row-meter-overlay" onclick="closeRowMeterModal()">
+    <div class="modal" style="max-width:340px;" onclick="event.stopPropagation()">
+      <div class="modal-header">
+        <span class="modal-title">마디 정보 수정</span>
+        <button class="icon-btn" onclick="closeRowMeterModal()"><i data-lucide="x"></i></button>
+      </div>
+      <div class="modal-body meter-modal-body">
+        <div class="meter-top-row">
+          <div class="meter-box">
+            <div class="meter-box-label">BPM</div>
+            <input type="number" id="row-meter-bpm-input" class="meter-bpm-input" min="40" max="240" placeholder="기본값" />
+          </div>
+          <div class="meter-box">
+            <div class="meter-box-label">박자</div>
+            <div class="meter-sig">
+              <div class="meter-sig-row">
+                <input type="number" id="row-meter-num-val" class="meter-big meter-num-input" min="1" max="16" value="4" />
+              </div>
+              <div class="meter-sig-bar"></div>
+              <div class="meter-sig-row">
+                <span class="meter-big meter-big-tap" id="row-meter-den-val" onclick="rowMeterStep('den',1)">4</span>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="share-field-group">
+          <span class="share-label">카포</span>
+          <div class="capo-control row-meter-capo">
+            <span class="capo-label">Capo</span>
+            <button class="capo-btn" onclick="rowMeterCapoStep(-1)">−</button>
+            <span class="capo-value" id="row-meter-capo-val">0</span>
+            <button class="capo-btn" onclick="rowMeterCapoStep(1)">+</button>
+          </div>
+        </div>
+        <div class="share-field-group">
+          <span class="share-label">마디 수</span>
+          <div class="meter-bars-toggle" id="row-meter-bars-toggle">
+            <label class="meter-bars-check">
+              <input type="checkbox" data-bars="1" onchange="setRowMeterBars(1)" />
+              <span>1마디</span>
+            </label>
+            <label class="meter-bars-check">
+              <input type="checkbox" data-bars="2" onchange="setRowMeterBars(2)" />
+              <span>2마디</span>
+            </label>
+          </div>
+        </div>
+        <p class="hint" id="row-meter-error" style="color:var(--accent);display:none;"></p>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-ghost" onclick="closeRowMeterModal()">취소</button>
+        <button class="btn btn-primary" id="row-meter-save-btn">저장</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── 모달: 세로/가로 전환 확인 ── -->
+  <div class="modal-overlay hidden" id="orient-confirm-overlay" onclick="closeOrientConfirm()">
+    <div class="orient-confirm-modal" onclick="event.stopPropagation()">
+      <h3 class="orient-confirm-title" id="orient-confirm-title"></h3>
+      <div class="orient-confirm-preview">
+        <div class="orient-confirm-box">
+          <i data-lucide="layout-grid" class="orient-confirm-box-icon"></i>
+          <span id="orient-confirm-box1-line1"></span>
+        </div>
+        <div class="orient-confirm-box">
+          <i data-lucide="metronome" class="orient-confirm-box-icon"></i>
+          <span id="orient-confirm-box2-line1"></span>
+        </div>
+      </div>
+      <div class="orient-confirm-actions">
+        <button class="btn btn-ghost" onclick="closeOrientConfirm()">취소</button>
+        <button class="btn btn-primary" id="orient-confirm-btn">전환</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── 모달: 업그레이드 유도 ── -->
+  <div class="modal-overlay hidden" id="upgrade-modal-overlay" onclick="closeUpgradeModal()">
+    <div class="modal upgrade-modal" onclick="event.stopPropagation()">
+      <div class="modal-header">
+        <span class="modal-title" id="upgrade-modal-title">플랜 업그레이드가 필요합니다</span>
+      </div>
+      <div class="upgrade-modal-body">
+        <p id="upgrade-modal-desc"></p>
+      </div>
+      <div class="modal-footer upgrade-actions">
+        <button class="btn btn-ghost" onclick="closeUpgradeModal()">닫기</button>
+        <button class="btn btn-primary" onclick="closeUpgradeModal(); openPlanModal()">요금제 보기</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── 모달: 공지 팝업 ── -->
+  <div class="modal-overlay hidden" id="notice-modal-overlay" onclick="closeNoticeModal()">
+    <div class="notice-modal" onclick="event.stopPropagation()">
+      <div class="notice-modal-icon">🎉</div>
+      <h3 class="notice-modal-title" id="notice-modal-title"></h3>
+      <p class="notice-modal-message" id="notice-modal-message"></p>
+      <button class="notice-modal-btn" onclick="closeNoticeModal()">확인</button>
+    </div>
+  </div>
+
+  <!-- ── 코드사전 추가 모달 (코드 팔레트 + 버튼) ── -->
+  <div class="modal-overlay hidden" id="palette-dict-modal"
+       onclick="if(event.target===this) closePaletteDictionary()">
+    <div class="modal palette-dict-card" onclick="event.stopPropagation()">
+      <div class="modal-header">
+        <span class="modal-title">코드 추가</span>
+        <button class="icon-btn" onclick="closePaletteDictionary()"><i data-lucide="x"></i></button>
+      </div>
+      <div class="modal-body palette-dict-body">
+        <div class="lib-bottom-area">
+          <div class="lib-action-section">
+            <div class="lib-action-bar">
+              <div class="accidental-toggle" onclick="toggleLibAccidental()">
+                <button class="acc-btn active" id="lib-acc-sharp">#</button>
+                <button class="acc-btn" id="lib-acc-flat">b</button>
+              </div>
+              <span class="ab-spacer"></span>
+              <button class="ab-btn ab-btn-primary" onclick="paletteDictToEditor()">에디터로</button>
+            </div>
+          </div><!-- /lib-action-section -->
+
+          <div class="lib-bottom">
+            <div class="lib-root-list" id="lib-root-tabs"></div>
+            <div class="lib-cards-area">
+              <div class="lib-cards" id="lib-cards"></div>
+            </div>
+            <div class="lib-voicing-overlay" id="lib-voicing-overlay"
+                 onclick="closeVoicingModal()"></div>
+            <div class="lib-voicing-modal" id="lib-voicing-modal"
+                 onclick="closeVoicingModal()">
+              <div class="lib-voicing-grid" id="lib-voicing-grid"></div>
+            </div>
+          </div>
+        </div><!-- /lib-bottom-area -->
+      </div>
+    </div>
+  </div>
+
+  <!-- ── 저장 공간 경고 토스트 ── -->
+  <div class="storage-warning hidden" id="storage-warning">
+    저장 공간이 부족합니다. 일부 내용이 저장되지 않을 수 있어요.
+  </div>
+
+  <!-- ── 저장 완료 체크 애니메이션 ── -->
+  <div class="save-check-overlay" id="save-toast">
+    <svg class="save-check-svg" viewBox="0 0 52 52">
+      <circle class="save-check-circle" cx="26" cy="26" r="23" fill="none"/>
+      <polyline class="save-check-mark" points="14,27 22,35 38,18" fill="none"/>
+    </svg>
+  </div>
+
+
+  <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.js"></script>
+  <script src="https://unpkg.com/@phosphor-icons/web"></script>
+
+  <script src="guitar-samples.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/tone/14.8.49/Tone.js"></script>
+  <script src="guitar-audio.js"></script>
+  <script src="analytics-sdk.js"></script>
+  <script src="shared.js"></script>
+  <script src="voicing-canvas.js"></script>
+  <!-- 코드사전 추가 모달용 코드 데이터 (window.chordsLibrary 제공) -->
+  <script src="chord-voicings.js"></script>
+  <script src="chords-library.js"></script>
+  <script src="user_project.js"></script>
+
+  <div id="exit-toast"></div>
+</body>
+</html>

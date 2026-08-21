@@ -81,6 +81,9 @@
     <!-- 로컬 알림 (Android 13+ 런타임 권한) -->
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
 
+    <!-- 튜너 마이크 입력 -->
+    <uses-permission android:name="android.permission.RECORD_AUDIO" />
+
     <!-- 사진/동영상 권한 강제 제거 (플러그인이 선언해도 최종 APK에서 제거) -->
     <uses-permission android:name="android.permission.READ_MEDIA_IMAGES" tools:node="remove"/>
     <uses-permission android:name="android.permission.READ_MEDIA_VIDEO" tools:node="remove"/>

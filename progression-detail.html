@@ -10,54 +10,41 @@
   <link rel="stylesheet" href="style.css" />
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
 </head>
-<body>
+<body class="training-flow-page">
 
   <div id="page-cover"></div>
 
   <div class="app-shell">
 
-    <!-- 탑바 -->
-    <div class="top-bar top-bar--white">
-      <button id="back-btn" onpointerup="requestBack()">
-        <i data-lucide="chevron-left"></i>
-      </button>
-      <div class="topbar-currency" id="topbar-currency" style="margin-left:auto;margin-right:15px;">
-        <div class="currency-item currency-item--clickable" onclick="openPeakboxModal()">
-          <span class="currency-count" id="currency-peakbox-count">0</span>
-          <div class="currency-icon-box"><img src="image/gift.png" alt=""></div>
-        </div>
-        <div class="currency-item currency-item--clickable" onclick="openPeakTimerPopup(event)">
-          <span class="currency-count" id="currency-peak-count">30/30</span>
-          <div class="currency-icon-box"><img src="image/peak.svg" alt=""></div>
-        </div>
-      </div>
-    </div>
-
-    <!-- ── 바텀시트: 사운드 볼륨 ── -->
-    <div class="gsheet-overlay" id="sound-sheet-overlay" onclick="closeSoundSheet()"></div>
-    <div class="gsheet" id="sound-sheet">
-      <div class="gsheet-handle"></div>
-      <div class="gsheet-header"><span class="gsheet-title">사운드</span></div>
-      <div class="gsheet-inner">
-        <div class="sound-sheet-row">
-          <i data-lucide="volume-1"></i>
-          <input type="range" id="sound-volume-slider" min="0" max="100" value="100" oninput="onSoundVolumeInput(this.value)">
-          <i data-lucide="volume-2"></i>
-        </div>
-      </div>
-    </div>
+    <!-- ── 앱 로고탑바(데스크탑 전용) — injectAppChrome이 로고 주입하는 진짜 대상.
+         main-content보다 먼저(DOM 앞) 와야 document.querySelector('.top-bar')가 이걸 먼저 잡음 ── -->
+    <div class="top-bar top-bar--white app-logo-topbar"></div>
 
     <!-- 메인 콘텐츠 -->
     <div class="main-content progd-layout" id="main-content">
+
+      <!-- ── main-top-bar: 뒤로가기 + 피크바 ── -->
+      <div class="top-bar progd-top-bar top-bar--white main-top-bar">
+        <button id="back-btn" onpointerup="requestBack()">
+          <i data-lucide="chevron-left"></i>
+        </button>
+        <div class="topbar-currency" id="topbar-currency" style="margin-left:auto;margin-right:15px;">
+          <div class="currency-item currency-item--clickable" onclick="openPeakboxModal()">
+            <span class="currency-count" id="currency-peakbox-count">0</span>
+            <div class="currency-icon-box"><img src="image/gift.png" alt=""></div>
+          </div>
+          <div class="currency-item currency-item--clickable" onclick="openPeakTimerPopup(event)">
+            <span class="currency-count" id="currency-peak-count">30/30</span>
+            <div class="currency-icon-box"><img src="image/peak.svg" alt=""></div>
+          </div>
+        </div>
+      </div>
 
       <!-- ① 코드 뷰 -->
       <div class="progd-chord-view">
         <!-- 조성/모드 헤더 (root 선택 따라 전조) -->
         <div class="progd-key-header" id="detail-key-header">
           <span id="detail-key-header-text"></span>
-          <button class="icon-btn progd-key-header-sound-btn" onclick="openSoundSheet()" title="음량">
-            <i data-lucide="volume-2"></i>
-          </button>
         </div>
         <!-- 코드 진행 나열 -->
         <div class="progd-prog-bar" id="detail-prog-bar"></div>
@@ -68,8 +55,8 @@
           <span class="progd-count-dot"></span>
           <span class="progd-count-dot"></span>
         </div>
-        <div class="progd-chord-view-inner" id="detail-chord-row"></div>
       </div>
+      <div class="progd-chord-view-inner" id="detail-chord-row"></div>
 
       <!-- ② BPM + 재생 -->
       <div class="progd-playbar">
@@ -96,14 +83,16 @@
 
       <!-- ③ 키 선택 (하단) -->
       <div class="key-selector-section">
-        <div class="accidental-toggle-row">
-          <div class="accidental-toggle" id="detail-accidental-toggle">
-            <span class="acc-btn" id="detail-acc-sharp">#</span>
-            <span class="acc-btn active" id="detail-acc-flat">b</span>
+        <div class="progd-action-wrap">
+          <div class="accidental-toggle-row">
+            <div class="accidental-toggle" id="detail-accidental-toggle">
+              <span class="acc-btn" id="detail-acc-sharp">#</span>
+              <span class="acc-btn active" id="detail-acc-flat">b</span>
+            </div>
+            <button class="finger-toggle" id="detail-finger-toggle" aria-label="손가락 번호 표시">
+              <i class="ph-bold ph-hand"></i>
+            </button>
           </div>
-          <button class="finger-toggle" id="detail-finger-toggle" aria-label="손가락 번호 표시">
-            <i class="ph-bold ph-hand"></i>
-          </button>
         </div>
         <span class="key-selector-label">Root</span>
         <div class="key-selector" id="detail-key-strip"></div>

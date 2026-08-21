@@ -15,17 +15,24 @@ function strumDefaultVoicing(chordName) {
   return list.find((e) => e.name === chordName) || list[0] || null;
 }
 
-// 슬롯 1개에 코드 캔버스 드로잉
+// 슬롯 1개에 코드 캔버스 드로잉 — 폭 기준 크기가 슬롯 높이를 넘으면 비율 유지한 채 축소
+// (progression-detail.js의 _redrawCanvas와 동일 원리)
 function strumDrawSlot(slot, chordName) {
   const voicing = strumDefaultVoicing(chordName);
   const canvas = slot.querySelector('canvas');
   const dpr  = window.devicePixelRatio || 1;
-  const cssW = slot.offsetWidth;
+  let cssW = slot.offsetWidth;
   if (!cssW) return;
+  let cssH = cssW * VoicingCanvas.BASE_H / VoicingCanvas.BASE_W;
+  const availH = slot.offsetHeight;
+  if (availH && cssH > availH) {
+    cssW = cssW * (availH / cssH);
+    cssH = availH;
+  }
   const ratio = (cssW * dpr) / VoicingCanvas.BASE_W;
   VoicingCanvas.draw(canvas, voicing, { chordName, ratio, transparent: true });
-  canvas.style.width  = cssW + 'px';
-  canvas.style.height = Math.round(cssW * VoicingCanvas.BASE_H / VoicingCanvas.BASE_W) + 'px';
+  canvas.style.width  = Math.round(cssW) + 'px';
+  canvas.style.height = Math.round(cssH) + 'px';
 }
 
 // 코드 진행 렌더 (progression-detail 4슬롯 가로 휠 방식)
@@ -227,7 +234,7 @@ function strumClearHighlight() {
 let _strumBpm = 80;
 const STRUM_BPM_MIN = 30;
 const STRUM_BPM_MAX = 200;
-const STRUM_BPM_ITEM_H = 30;
+let _strumBpmItemH = 30; // 실제 렌더 높이로 아래서 갱신됨 (뷰포트별 CSS 크기 변화 대응)
 
 function strumInitBpmWheel() {
   const wheel = document.getElementById('strum-bpm-wheel');
@@ -241,10 +248,11 @@ function strumInitBpmWheel() {
     item.addEventListener('pointerup', () => strumSetBpm(b));
     wheel.appendChild(item);
   }
+  if (wheel.firstElementChild) _strumBpmItemH = wheel.firstElementChild.getBoundingClientRect().height;
   strumScrollBpmWheel(_strumBpm, false);
 
   wheel.addEventListener('scroll', () => {
-    const idx = Math.round(wheel.scrollTop / STRUM_BPM_ITEM_H);
+    const idx = Math.round(wheel.scrollTop / _strumBpmItemH);
     const newBpm = STRUM_BPM_MIN + idx;
     // 목표 BPM 하한 = 시작 BPM
     const clamped = Math.max(_strumStartBpm, STRUM_BPM_MIN, Math.min(STRUM_BPM_MAX, newBpm));
@@ -272,7 +280,7 @@ function _strumSetWheelTop(wheel, top) {
 function strumScrollBpmWheel(bpm, smooth) {
   const wheel = document.getElementById('strum-bpm-wheel');
   if (!wheel) return;
-  const top = (bpm - STRUM_BPM_MIN) * STRUM_BPM_ITEM_H;
+  const top = (bpm - STRUM_BPM_MIN) * _strumBpmItemH;
   if (smooth) wheel.scrollTo({ top, behavior: 'smooth' });
   else _strumSetWheelTop(wheel, top);
   strumUpdateBpmActiveItem();
@@ -315,6 +323,8 @@ function strumToggleRamp(on) {
   if (_strumRamp) requestAnimationFrame(() => strumScrollStartWheel(_strumStartBpm, false));
 }
 
+let _strumStartItemH = 30; // 실제 렌더 높이로 아래서 갱신됨
+
 function strumInitStartWheel() {
   const wheel = document.getElementById('strum-start-wheel');
   if (!wheel) return;
@@ -327,11 +337,12 @@ function strumInitStartWheel() {
     item.addEventListener('pointerup', () => strumSetStart(b));
     wheel.appendChild(item);
   }
+  if (wheel.firstElementChild) _strumStartItemH = wheel.firstElementChild.getBoundingClientRect().height;
   strumScrollStartWheel(_strumStartBpm, false);
 
   wheel.addEventListener('scroll', () => {
     if (_strumPlaying) return; // 재생 중 자동(램프) 스크롤은 설정 베이스값 변경 금지
-    const idx = Math.round(wheel.scrollTop / STRUM_BPM_ITEM_H);
+    const idx = Math.round(wheel.scrollTop / _strumStartItemH);
     const newBpm = STRUM_BPM_MIN + idx;
     if (newBpm !== _strumStartBpm) {
       _strumStartBpm = Math.max(STRUM_BPM_MIN, Math.min(STRUM_BPM_MAX, newBpm));
@@ -345,7 +356,7 @@ function strumInitStartWheel() {
 function strumScrollStartWheel(bpm, smooth) {
   const wheel = document.getElementById('strum-start-wheel');
   if (!wheel) return;
-  const top = (bpm - STRUM_BPM_MIN) * STRUM_BPM_ITEM_H;
+  const top = (bpm - STRUM_BPM_MIN) * _strumStartItemH;
   if (smooth) wheel.scrollTo({ top, behavior: 'smooth' });
   else _strumSetWheelTop(wheel, top);
   strumUpdateStartActive();
@@ -453,10 +464,22 @@ function strumTogglePlay() {
 let _strumStarting = false;
 // 연습 시작(피크 1회 소모)으로 재생 잠금 해제. 이후 재생은 무한.
 let _strumPracticeUnlocked = false;
+window._leaveGuardActive = () => _strumPracticeUnlocked; // shared.js 사이드바 네비 이탈 확인용
+window._clearLeaveGuard = () => { if (STRUM_ITEM?.id != null) sessionStorage.removeItem(`sp_unlock_${STRUM_ITEM.id}`); }; // shared.js 사이드바 네비로 이탈 확정 시 언락 해제
 async function strumUnlockPractice() {
   _playSfx('pop.mp3');
   if (_strumPracticeUnlocked) return;
   if (!(await consumePeak(2))) return;
+  _strumPracticeUnlocked = true;
+  if (STRUM_ITEM?.id != null) sessionStorage.setItem(`sp_unlock_${STRUM_ITEM.id}`, '1'); // 새로고침해도 유지(새로고침은 이탈이 아님)
+  const gate = document.getElementById('strum-practice-gate');
+  if (gate) gate.style.display = 'none';
+  const btn = document.getElementById('strum-play-btn');
+  if (btn) btn.style.display = '';
+}
+// 새로고침 직후 복원 — 같은 카드(id)이고 이 세션에서 이미 연 적 있으면 게이트 다시 안 걸음
+function _restoreStrumPracticeUnlock() {
+  if (STRUM_ITEM?.id == null || sessionStorage.getItem(`sp_unlock_${STRUM_ITEM.id}`) !== '1') return;
   _strumPracticeUnlocked = true;
   const gate = document.getElementById('strum-practice-gate');
   if (gate) gate.style.display = 'none';
@@ -665,6 +688,7 @@ function requestStrumBack() {
 }
 
 function closeStrumPlay() {
+  if (STRUM_ITEM?.id != null) sessionStorage.removeItem(`sp_unlock_${STRUM_ITEM.id}`); // 진짜 이탈이면 언락도 해제(새로고침만 유지)
   strumPlayStop();
   const shell = document.querySelector('.app-shell');
   if (shell) {
@@ -703,6 +727,7 @@ document.addEventListener('DOMContentLoaded', () => {
       STRUM_ITEM = pool.length ? pool[Math.floor(Math.random() * pool.length)] : null;
     }
   }
+  _restoreStrumPracticeUnlock();
 
   const titleEl = document.getElementById('strum-play-title');
   if (titleEl && STRUM_ITEM) titleEl.textContent = STRUM_ITEM.title;

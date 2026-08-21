@@ -1,0 +1,156 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="color-scheme" content="light dark" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <title>Chorditor - 메트로놈</title>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css" />
+  <link rel="stylesheet" href="style.css" />
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
+</head>
+<body class="training-flow-page">
+
+  <!-- 페이지 커버: 초기화 완료 전 화면 가림 -->
+  <div id="page-cover"></div>
+
+  <div class="app-shell">
+
+    <!-- ── 앱 로고탑바(데스크탑 전용) — injectAppChrome이 로고 주입하는 진짜 대상.
+         main-content보다 먼저(DOM 앞) 와야 document.querySelector('.top-bar')가 이걸 먼저 잡음 ── -->
+    <div class="top-bar app-logo-topbar"></div>
+
+    <!-- ── 메인 콘텐츠 ── -->
+    <div class="main-content" id="main-content">
+
+      <!-- ── main-top-bar: 뒤로가기 전용 ── -->
+      <div class="top-bar main-top-bar">
+        <button id="back-btn" class="icon-btn" onpointerup="closeMetronomePage()">
+          <i data-lucide="x"></i>
+        </button>
+      </div>
+
+      <div class="metronome-scroll">
+
+        <span class="training-page-title">메트로놈</span>
+
+        <!-- 1. 박자 인디케이터 -->
+        <div class="metronome-box" id="metronome-beat-area">
+          <div id="metronome-beat-dots">
+            <div class="beat-dot beat-dot--accent" data-beat="1" data-mode="accent"></div>
+            <div class="beat-dot beat-dot--normal" data-beat="2" data-mode="normal"></div>
+            <div class="beat-dot beat-dot--normal" data-beat="3" data-mode="normal"></div>
+            <div class="beat-dot beat-dot--normal" data-beat="4" data-mode="normal"></div>
+          </div>
+          <div id="metronome-beat-swing">
+            <div id="metronome-swing-track"></div>
+            <div id="metronome-swing-ball"></div>
+          </div>
+        </div>
+
+        <!-- 2. BPM 설정 -->
+        <div class="metronome-box" id="metronome-bpm-area">
+          <div id="metronome-bpm-pair">
+            <div class="metronome-subbox hidden" id="metronome-bpm-start">
+              <div class="metronome-bpm-arrows">
+                <button type="button" class="strum-bpm-step" onpointerup="metronomeChangeStart(1)"><i class="ph-bold ph-caret-up"></i></button>
+                <button type="button" class="strum-bpm-step" onpointerup="metronomeChangeStart(-1)"><i class="ph-bold ph-caret-down"></i></button>
+              </div>
+              <div class="metronome-bpm-wheel-col">
+                <span class="metronome-bpm-label" id="metronome-bpm-start-label">시작 BPM</span>
+                <div class="metronome-bpm-wheel">
+                  <div class="progd-bpm-wheel-wrap metronome-wheel-wrap">
+                    <div class="progd-bpm-wheel" id="metronome-start-wheel"></div>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div class="metronome-subbox hidden" id="metronome-bpm-arrow"><i class="ph-bold ph-caret-double-right"></i></div>
+            <div class="metronome-subbox" id="metronome-bpm-target">
+              <div class="metronome-bpm-arrows-spacer" id="metronome-bpm-target-spacer"></div>
+              <div class="metronome-bpm-wheel-col">
+                <span class="metronome-bpm-label hidden" id="metronome-bpm-target-label">목표 BPM</span>
+                <div class="metronome-bpm-wheel">
+                  <div class="progd-bpm-wheel-wrap metronome-wheel-wrap">
+                    <div class="progd-bpm-wheel" id="metronome-target-wheel"></div>
+                  </div>
+                </div>
+              </div>
+              <div class="metronome-bpm-arrows">
+                <button type="button" class="strum-bpm-step" onpointerup="metronomeChangeTarget(1)"><i class="ph-bold ph-caret-up"></i></button>
+                <button type="button" class="strum-bpm-step" onpointerup="metronomeChangeTarget(-1)"><i class="ph-bold ph-caret-down"></i></button>
+              </div>
+            </div>
+          </div>
+          <div class="metronome-subbox strum-ramp-row" id="metronome-bpm-ramp-row">
+            <span class="strum-ramp-label">느린 BPM부터 연습하기</span>
+            <div class="metronome-ramp-settings">
+              <div class="metronome-option-group metronome-option-group--sm">
+                <div class="metronome-option-card-wrap">
+                  <div class="metronome-option-card metronome-option-card--sm" id="metronome-rampcycle-card" onpointerup="toggleMetronomeOptionMenu(event, 'rampcycle')">
+                    <span id="metronome-rampcycle-value">2</span>
+                  </div>
+                  <div class="metronome-option-menu hidden" id="metronome-rampcycle-menu"></div>
+                </div>
+                <span class="metronome-option-card-label metronome-option-card-label--sm">사이클마다</span>
+              </div>
+              <div class="metronome-option-group metronome-option-group--sm">
+                <div class="metronome-option-card-wrap">
+                  <div class="metronome-option-card metronome-option-card--sm" id="metronome-rampinc-card" onpointerup="toggleMetronomeOptionMenu(event, 'rampinc')">
+                    <span id="metronome-rampinc-value">+2</span>
+                  </div>
+                  <div class="metronome-option-menu hidden" id="metronome-rampinc-menu"></div>
+                </div>
+                <span class="metronome-option-card-label metronome-option-card-label--sm">BPM 상승</span>
+              </div>
+            </div>
+            <label class="settings-switch">
+              <input type="checkbox" id="metronome-ramp-toggle" onchange="metronomeToggleRamp(this.checked)" />
+              <span class="settings-switch-track"></span>
+            </label>
+          </div>
+        </div>
+
+        <!-- 3. 재생 버튼 -->
+        <div class="metronome-box" id="metronome-play-area">
+          <button type="button" id="metronome-play-btn" onpointerup="toggleMetronomePlay()">
+            <i class="ph-fill ph-play"></i>
+          </button>
+        </div>
+
+        <!-- 4. 세부 옵션 -->
+        <div class="metronome-box" id="metronome-options-area">
+          <div class="metronome-option-group">
+            <div class="metronome-option-card-wrap">
+              <div class="metronome-option-card" id="metronome-beatcount-card" onpointerup="toggleMetronomeOptionMenu(event, 'beatcount')">
+                <span id="metronome-beatcount-value">4</span>
+              </div>
+              <div class="metronome-option-menu hidden" id="metronome-beatcount-menu"></div>
+            </div>
+            <span class="metronome-option-card-label">박자 수</span>
+          </div>
+          <div class="metronome-option-group">
+            <div class="metronome-option-card-wrap">
+              <div class="metronome-option-card" id="metronome-backing-card" onpointerup="toggleMetronomeOptionMenu(event, 'backing')">
+                <span id="metronome-backing-value">메트로놈</span>
+              </div>
+              <div class="metronome-option-menu hidden" id="metronome-backing-menu"></div>
+            </div>
+            <span class="metronome-option-card-label">백킹</span>
+          </div>
+        </div>
+
+      </div><!-- /metronome-scroll -->
+    </div><!-- /main-content -->
+
+  </div><!-- /app-shell -->
+
+  <script src="https://unpkg.com/@phosphor-icons/web"></script>
+  <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/tone/14.8.49/Tone.js"></script>
+  <script src="drum-audio.js"></script>
+  <script src="analytics-sdk.js"></script>
+  <script src="shared.js"></script>
+  <script src="metronome.js"></script>
+</body>
+</html>

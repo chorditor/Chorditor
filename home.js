@@ -48,65 +48,14 @@ function resizeCanvas() {
   }
 
   canvas.style.width  = displayW + 'px';
-  canvas.style.height = 'auto';
+  canvas.style.height = '100%'; // .canvas-inner가 aspect-ratio로 높이를 확정하므로 그대로 채움
   canvas.parentElement.style.width = displayW + 'px'; // canvas-inner 고정
-  const fbCssW   = Math.round(BASE_FBW * displayW / BASE_W);  // 프렛보드 CSS 너비
-  const fbCssL   = Math.round((BASE_PAD_L + BASE_OPEN_W) * displayW / BASE_W); // nut x CSS
-  // fret-ctrl: 레이아웃 완료 후 실제 렌더 크기 기준으로 위치 계산
-  const fretCtrlEl = document.getElementById('fret-ctrl');
-  if (fretCtrlEl) {
-    requestAnimationFrame(() => {
-      const rect     = canvas.getBoundingClientRect();
-      const cssW     = rect.width;
-      const cssH     = rect.height;
-      const fret2X   = cssW * (BASE_PAD_L + BASE_OPEN_W + 1.5 * BASE_FBW / FRETS) / BASE_W;
-      const fontH    = cssH * 28 / BASE_H;
-      const textTopY = cssH * (BASE_PAD_T + BASE_FBH + 28) / BASE_H;
-      fretCtrlEl.style.left = Math.round(fret2X) + 'px';
-      fretCtrlEl.style.top  = Math.round(textTopY + fontH * 0.35) + 'px';
-      fretCtrlEl.style.gap  = Math.round(fontH * 0.6) + 'px';
-    });
-  }
-  const barreWrapEl = document.getElementById('barre-wrap');
-  if (barreWrapEl) {
-    barreWrapEl.style.width      = fbCssW + 'px';
-    barreWrapEl.style.marginLeft = fbCssL + 'px';
-  }
-  const barreBtnsEl = document.getElementById('barre-btns');
-  if (barreBtnsEl) barreBtnsEl.style.width = fbCssW + 'px';
 
-  // 사이드 버튼: 캔버스 크기에 비례한 동적 크기 + 프렛보드 기준 수직 중앙정렬
-  const sideBtnsEl = document.getElementById('canvas-side-btns');
-  if (sideBtnsEl) {
-    const btnSize  = Math.max(26, Math.round(displayW * 0.12));
-    const btnGap   = Math.max(8,  Math.round(btnSize * 0.3));
-    const iconSize = Math.round(btnSize * 0.44);
-    // 버튼 크기 적용 (초기화 포함 전체)
-    sideBtnsEl.querySelectorAll('.canvas-side-btn').forEach(btn => {
-      btn.style.width  = btnSize + 'px';
-      btn.style.height = btnSize + 'px';
-      const svg = btn.querySelector('svg');
-      if (svg) { svg.style.width = iconSize + 'px'; svg.style.height = iconSize + 'px'; }
-    });
-    // canvas-side-btns gap 제거 (paddingTop으로 직접 제어)
-    sideBtnsEl.style.gap = '0';
-    // 우측 오프셋: 캔버스 우측 여백(BASE_PAD_R) 중앙에 버튼 배치
-    const rightOffset = Math.max(4, Math.round(BASE_PAD_R * displayW / BASE_W * 0.15));
-    sideBtnsEl.style.right = rightOffset + 'px';
+  // 샵플랫 토글·초기화·저장·재생·프렛화살표·바레 배치는 전부 CSS grid(.canvas-inner)가 담당한다.
+  // 캔버스 내부 좌표계(BASE_* 상수)를 grid-template의 %로 복제해뒀으므로 JS px 계산이 불필요.
+  // (기존엔 여기서 rAF로 getBoundingClientRect를 재측정해 px로 박았는데, 뷰가 hidden이면
+  //  rect=0인 채 엉뚱한 값이 박히고 다음 window resize까지 안 고쳐지는 문제가 있었음)
 
-    const mainBtnsEl = document.getElementById('canvas-main-btns');
-    if (mainBtnsEl) {
-      mainBtnsEl.style.gap = btnGap + 'px';
-      // 프렛보드 기준 수직 중앙정렬: reset 버튼 높이만 차감
-      requestAnimationFrame(() => {
-        const rect       = canvas.getBoundingClientRect();
-        const cssH       = rect.height;
-        const fbCenterY  = (BASE_PAD_T + BASE_FBH / 2) / BASE_H * cssH;
-        const totalBtnH  = btnSize * 2 + btnGap;
-        mainBtnsEl.style.paddingTop = Math.max(0, fbCenterY - totalBtnH / 2 - btnSize) + 'px';
-      });
-    }
-  }
   // finger-num-group 동적 사이즈
   const fingerBtnSize = Math.max(28, Math.round(displayW * 0.076 * 1.5));
   const fingerIconSize = Math.round(fingerBtnSize * 0.54);
@@ -125,13 +74,6 @@ function resizeCanvas() {
     btn.style.height   = fingerBtnSize + 'px';
     btn.style.fontSize = fingerFontSize + 'px';
   });
-
-  // 샵/플랫 토글 동적 스케일
-  const accOverlay = document.querySelector('.canvas-wrap-acc-overlay');
-  if (accOverlay) {
-    const accScale = Math.max(0.6, Math.min(0.95, displayW / BASE_W)) * 1.5;
-    accOverlay.style.transform = `scale(${accScale.toFixed(3)})`;
-  }
 
   RATIO = (displayW * 2) / BASE_W; // 2x 화질: 물리픽셀 = CSS 표시 크기의 2배
   canvas.width  = W();
@@ -504,8 +446,28 @@ let _projectsSubView = 'list';   // 'list' | 'project'
 
 
 // ── Wheel Picker ─────────────────────────────────────────────
-// CSS --picker-item-h 와 반드시 일치
-const PICKER_ITEM_H = 30;
+// CSS --picker-item-h를 실시간으로 읽어옴 — 하드코딩 상수로 이중 관리하면
+// 태블릿 등 스코프별로 CSS만 바뀌고 JS는 그대로라 스크롤 스냅이 어긋나는 문제가 있었음.
+// 단일 소스(CSS 변수)로 통일, resize 시 재계산.
+let PICKER_ITEM_H = 30;
+function _syncPickerItemH() {
+  const v = parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--picker-item-h'));
+  if (!isNaN(v) && v > 0) PICKER_ITEM_H = v;
+}
+_syncPickerItemH();
+// 값이 바뀌는 순간(브레이크포인트를 넘나드는 실제 리사이즈) 이미 열려있는 휠들의 scrollTop이
+// 옛 pitch 기준으로 남아있으면 스냅이 어긋난다 — idx는 유지한 채 새 pitch로 재정렬한다.
+window.addEventListener('resize', () => {
+  const oldH = PICKER_ITEM_H;
+  const idxByEl = new Map();
+  document.querySelectorAll('.col-scroll').forEach(el => {
+    idxByEl.set(el, Math.round(el.scrollTop / oldH));
+  });
+  _syncPickerItemH();
+  if (PICKER_ITEM_H !== oldH) {
+    idxByEl.forEach((idx, el) => { el.scrollTop = idx * PICKER_ITEM_H; });
+  }
+});
 
 function initWheelPicker(scrollEl, getIdx, onPick) {
   if (!scrollEl) return;
@@ -1374,8 +1336,12 @@ function updateBarreBtns() {
   container.innerHTML = '';
   let needsRedraw = false;
   const ds = parseFloat(canvas.style.width) / canvas.width; // 물리→CSS 실제 변환 비율
-  const btnSize = Math.round(48 * ds);
-  const containerH = btnSize + 8;
+  // ⚠️ ds는 RATIO 정의상 항상 0.5로 고정된다(canvas.width = displayW*2). 크기 산출에 ds를 쓰면
+  //    버튼이 24px에 하드고정돼 캔버스가 커져도 안 커진다 → 크기는 캔버스 '표시 배율' 기준으로.
+  //    (위치 계산의 ds는 물리→CSS 변환이 맞으므로 그대로 둔다)
+  const sc = parseFloat(canvas.style.width) / BASE_W; // 캔버스 표시 배율
+  const btnSize = Math.round(48 * sc);
+  const containerH = btnSize + Math.round(8 * sc);
   container.style.height = containerH + 'px';
   getBarreFrets().forEach(f => {
     if (barreActive[f] === undefined) {
@@ -1390,7 +1356,7 @@ function updateBarreBtns() {
       border-radius:50%;border:none;
       background:${barreActive[f] ? '#242729' : '#ffffff'};
       color:${barreActive[f] ? '#fff' : '#888'};
-      font-size:${Math.round(22 * ds)}px;font-family:'Pretendard',sans-serif;
+      font-size:${Math.round(22 * sc)}px;font-family:'Pretendard',sans-serif;
       cursor:pointer;display:flex;align-items:center;justify-content:center;padding:0;`;
     btn.onclick = () => {
       _playTap();
@@ -1646,6 +1612,17 @@ async function savePNG() { /* 직접 호출 시 드롭다운 없이 scale=1 */ a
 // 리사이즈
 // ═══════════════════════════════════════════════════════════════
 window.addEventListener('resize', resizeCanvas);
+
+// window resize 이벤트나 뷰 진입 시점 RAF만으로는, 미디어쿼리로 .editor-card 폭이
+// 바뀌는 것처럼 '실제 window resize 없이 레이아웃만 바뀌는' 경우를 못 잡아
+// canvas.style.width가 stale하게 남는 문제가 있었다(실측으로 확인됨: 카드폭 캡을
+// 새로 넣었는데 캔버스가 이전 뷰포트 기준 폭 그대로 튀어나옴).
+// .canvas-unit 자체를 감시하면 원인(리사이즈·뷰전환·미디어쿼리)과 무관하게 항상 정확해진다.
+// (canvas의 크기는 .canvas-unit의 폭을 '따라가기만' 하고 되돌려 영향주지 않으므로 순환 없음)
+const _canvasUnitEl = document.querySelector('.canvas-unit');
+if (_canvasUnitEl && window.ResizeObserver) {
+  new ResizeObserver(() => resizeCanvas()).observe(_canvasUnitEl);
+}
 
 // ═══════════════════════════════════════════════════════════════
 // fret 입력
@@ -2166,7 +2143,7 @@ function updateProject(updated) {
 // (let 선언은 TDZ로 인해 선언 전 접근 시 ReferenceError 발생)
 
 // ─── 하단 탭 전환 ────────────────────────────────────────────
-const _TAB_ORDER = { home: 0, projects: 1, profile: 2 };
+const _TAB_ORDER = { home: 0, tools: 1, projects: 2, profile: 3 };
 const _SLIDE_CLS = ['slide-in-right', 'slide-in-left', 'slide-out-left', 'slide-out-right'];
 
 function _clearSlide(...els) {
@@ -2183,7 +2160,7 @@ function switchTab(tab, noAnim = false) {
 
   // 모든 탭 즉시 정리 — 진행 중 애니메이션 강제 종료 + 비대상 탭 즉시 숨김
   // (animationend에 hide를 위임하지 않음 → 빠른 연속 탭 전환 시 안전)
-  ['home', 'projects', 'profile'].forEach(t => {
+  ['home', 'tools', 'projects', 'profile'].forEach(t => {
     const el = document.getElementById('tab-view-' + t);
     _clearSlide(el);
     if (t !== tab) el?.classList.add('hidden');
@@ -2204,7 +2181,7 @@ function switchTab(tab, noAnim = false) {
   }
 
   // 하단 탭 활성화
-  ['home', 'projects', 'profile'].forEach(t => {
+  ['home', 'tools', 'projects', 'profile'].forEach(t => {
     document.getElementById('nav-' + t)?.classList.toggle('active', t === tab);
   });
 
@@ -2419,17 +2396,33 @@ async function enterFromHome(view, skipAnim = false, reverse = false) {
     document.getElementById('lib-acc-sharp')?.classList.toggle('active', accidental === 'sharp');
     document.getElementById('lib-acc-flat')?.classList.toggle('active', accidental === 'flat');
     renderLibRootTabs();
-    renderLibCards(_libRoot);
-    const _initEntries = (window.chordsLibrary || {})[_libRoot] || [];
-    if (_initEntries.length > 0) selectLibEntry(0, { silent: true });
     window.Tutorial?.notify('view:library');
+    // 뷰가 방금 hidden에서 풀린 시점이라 여기서 바로 캔버스를 재면 레이아웃이 아직
+    // 안 끝나 작은 값(또는 0)이 잡힌다 — 카드 그리드(renderLibCards)도 미니 캔버스를
+    // _drawLibMiniCanvas(offsetWidth 실측)로 그리므로 뷰어 캔버스와 똑같이 여기로 옮겨야
+    // 함. 작게 한 번 그려졌다가 흐린 채로 안 고쳐지는 문제였음(뷰어는 ResizeObserver가
+    // 있어 나중에 재보정되지만 카드 그리드는 그런 감시가 없어 처음 흐린 값이 계속 남음).
+    // 데스크탑은 사이드바 쪽 다른 리스너(유저요약 미러 등)까지 겹쳐서 1프레임으로는
+    // 부족해 rAF를 한 번 더 겹침.
     requestAnimationFrame(() => {
-      const bottom = document.querySelector('.lib-bottom');
-      if (bottom && !bottom.dataset.heightFixed) {
-        bottom.style.height = bottom.getBoundingClientRect().height + 'px';
-        bottom.style.flex   = 'none';
-        bottom.dataset.heightFixed = '1';
-      }
+      requestAnimationFrame(() => {
+        renderLibCards(_libRoot);
+        const _initEntries = (window.chordsLibrary || {})[_libRoot] || [];
+        if (_initEntries.length > 0) selectLibEntry(0, { silent: true });
+        // 와이드 레이아웃에서는 높이를 고정하지 않는다 — grid 컬럼 전체 높이를 flex로 채워야 하는데
+        // 여기서 인라인 flex:none을 박으면 CSS가 이길 수 없어 카드 영역이 짧게 굳는다.
+        // libWideMq() 문자열과 CSS 브레이크포인트를 따로 관리하면 새 와이드 스코프를 추가할 때마다
+        // 또 어긋날 수 있어서, 실제 CSS 상태(.lib-bottom-area가 grid인지)를 직접 물어봄 —
+        // 와이드 레이아웃이면 항상 이 값이라 스코프 목록과 무관하게 정확함.
+        const bottomArea = document.querySelector('.lib-bottom-area');
+        if (bottomArea && getComputedStyle(bottomArea).display === 'grid') return;
+        const bottom = document.querySelector('.lib-bottom');
+        if (bottom && !bottom.dataset.heightFixed) {
+          bottom.style.height = bottom.getBoundingClientRect().height + 'px';
+          bottom.style.flex   = 'none';
+          bottom.dataset.heightFixed = '1';
+        }
+      });
     });
   }
 }
@@ -2479,7 +2472,7 @@ function handleNativeBack() {
 // 에디터·코드사전에서도 떠 있으면 그 화면에서 튜토리얼을 시작했을 때
 // 시작 지점(홈)과 현재 화면이 어긋난다.
 function _updateTutorialEntryBtn() {
-  const show = _activeTab === 'home' && _homeSubView === 'home' && !_isFromProject;
+  const show = false; // 튜토리얼 임시 숨김 — 반응형 유지보수 부담 + 낮은 완주 효과
   document.getElementById('tutorial-entry-btn')?.classList.toggle('hidden', !show);
 }
 
@@ -4807,6 +4800,163 @@ document.addEventListener('DOMContentLoaded', async () => {
   const _prodVer = 'v' + APP_VERSION;
   const _bannerVer = document.getElementById('home-banner-version');
   if (_bannerVer) _bannerVer.textContent = _prodVer;
+  const _sidebarVer = document.getElementById('sidebar-brand-version');
+  if (_sidebarVer) _sidebarVer.textContent = _prodVer;
+
+  // 데스크탑(1600px~) — 튜토리얼/설정 아이콘을 좌측 사이드바로 이동 (hidden 토글 로직은 ID 기반이라 위치 이동 무관)
+  (() => {
+    const _mq = window.matchMedia('(min-width: 1440px)');
+    const _tutBtn = document.getElementById('tutorial-entry-btn');
+    const _setBtn = document.getElementById('settings-btn');
+    const _logoutBtn = document.getElementById('sidebar-logout-btn');
+    const _nav = document.querySelector('.bottom-nav');
+    const _topBar = document.querySelector('.top-bar');
+    if (!_tutBtn || !_setBtn || !_nav || !_topBar) return;
+    const _place = () => {
+      if (_mq.matches) {
+        // 데스크탑 사이드바: 홈/노트/프로필 다음 4번째 튜토리얼, 설정은 맨 아래로, 그 밑에 로그아웃
+        _nav.appendChild(_tutBtn);
+        _nav.appendChild(_setBtn);
+        if (_logoutBtn) _nav.appendChild(_logoutBtn);
+      } else {
+        // 모바일/태블릿 탑바: 기존 순서(튜토리얼 → 설정) 유지
+        _topBar.appendChild(_tutBtn);
+        _topBar.appendChild(_setBtn);
+      }
+    };
+    _place();
+    _mq.addEventListener('change', _place);
+  })();
+
+  // 데스크탑 — 뒤로가기 버튼(#back-btn)을 top-bar(사이드바+메인 전체 폭을 가로지름)에서
+  // main-content(사이드바 오른쪽, 실제 콘텐츠 영역)로 이동. top-bar 안에 있으면 좌측 끝이
+  // 사이드바 위쪽에 떠서 메인 콘텐츠 좌상단과 안 맞았음 — CSS 포지션만으론 못 고치고
+  // DOM 위치 자체를 옮겨야 함(위 튜토리얼/설정 버튼과 동일 패턴).
+  (() => {
+    const _mq = window.matchMedia('(min-width: 1440px)');
+    const _backBtn = document.getElementById('back-btn');
+    const _main = document.getElementById('main-content');
+    const _topBar = document.querySelector('.top-bar');
+    if (!_backBtn || !_main || !_topBar) return;
+    const _place = () => {
+      if (_mq.matches) _main.prepend(_backBtn);
+      else _topBar.prepend(_backBtn);
+    };
+    _place();
+    _mq.addEventListener('change', _place);
+  })();
+
+  // 코드 사전 와이드 레이아웃 — 12key 근음 레일(#lib-root-tabs)을 .lib-bottom 안에서
+  // #view-library 직계로 꺼내 좌측 전체높이 컬럼으로 씀. CSS grid는 직계 자식에만 영역을
+  // 배정할 수 있어서 DOM 이동이 필요함(위 back-btn과 동일 패턴).
+  // renderLibRootTabs()는 getElementById로 잡으므로 위치가 바뀌어도 렌더링에 영향 없음.
+  (() => {
+    const _mq = libWideMq();
+    const _rail = document.getElementById('lib-root-tabs');
+    const _view = document.getElementById('view-library');
+    const _title = document.querySelector('#view-library .lib-title');
+    const _bottom = document.querySelector('#view-library .lib-bottom');
+    const _bottomArea = document.querySelector('#view-library .lib-bottom-area');
+    const _actionSection = document.querySelector('#view-library .lib-action-section');
+    const _viewer = document.querySelector('#view-library .lib-viewer');
+    if (!_rail || !_view || !_title || !_bottom || !_bottomArea || !_actionSection || !_viewer) return;
+    const _place = () => {
+      if (_mq.matches) {
+        _view.prepend(_rail);
+        // 좁은 화면에서 이미 굳혀둔 인라인 높이 고정을 해제 — 안 풀면 grid 컬럼을 못 채운다.
+        // dataset도 지워서 다시 좁아졌을 때 재고정될 수 있게 함.
+        _bottom.style.height = '';
+        _bottom.style.flex   = '';
+        delete _bottom.dataset.heightFixed;
+        // 타이틀을 .lib-bottom-area 안으로 넣어 "레일 옆 컬럼 = 타이틀+카드 2행"을
+        // 독립된 내부 그리드로 만든다. 바깥 그리드의 행(검색/다이어그램/액션바 전용)과
+        // 더 이상 트랙을 공유하지 않아 서로 크기에 영향을 안 준다.
+        _bottomArea.prepend(_title);
+        // 액션바(토글바)를 .lib-bottom-area 밖으로 꺼내 다이어그램(.lib-viewer) 안으로
+        // 넣어 하나의 컨테이너로 묶는다 — 캔버스 행과 액션바 행을 그리드에서 합쳐 쓴다.
+        _viewer.appendChild(_actionSection);
+      } else {
+        _bottom.prepend(_rail);
+        _view.prepend(_title);
+        _bottomArea.prepend(_actionSection);
+      }
+      // 와이드 진입/이탈로 .lib-card-canvas 표시폭이 바뀌므로 실제 비트맵 해상도도 다시 맞춘다.
+      if (typeof renderLibCards === 'function') renderLibCards(_libRoot);
+    };
+    _place();
+    _mq.addEventListener('change', _place);
+  })();
+
+  // 코드 사전 와이드 레이아웃 — 액션바와 캔버스 아래 버튼 자리 맞바꾸기.
+  // 이미지저장·재생을 액션바(#/b·손가락번호 옆)로, 노트에저장·에디터로는 별도 줄로 묶어
+  // 액션바 하단에 배치.
+  (() => {
+    const _mq = libWideMq();
+    const _view = document.getElementById('view-library');
+    const _actionBar = document.querySelector('#view-library .lib-action-bar');
+    const _actionSection = document.querySelector('#view-library .lib-action-section');
+    const _viewer2 = document.querySelector('#view-library .lib-viewer');
+    const _sideBtns  = document.querySelector('#view-library .lib-canvas-side-btns');
+    const _saveImg = document.getElementById('lib-btn-save-image');
+    const _play    = document.getElementById('lib-btn-play');
+    const _saveNote = document.getElementById('lib-btn-save-note');
+    const _toEditor = document.getElementById('lib-btn-to-editor');
+    if (!_view || !_actionBar || !_actionSection || !_viewer2 || !_sideBtns || !_saveImg || !_play || !_saveNote || !_toEditor) return;
+    let _bottomRow = document.getElementById('lib-action-bottom-row');
+    if (!_bottomRow) {
+      _bottomRow = document.createElement('div');
+      _bottomRow.id = 'lib-action-bottom-row';
+      _bottomRow.className = 'lib-action-bottom-row';
+    }
+    const _place = () => {
+      if (_mq.matches) {
+        _actionBar.appendChild(_saveImg);
+        _actionBar.appendChild(_play);
+        _bottomRow.appendChild(_saveNote);
+        _bottomRow.appendChild(_toEditor);
+        // 저장버튼 줄은 독립된 grid row를 가져야 해서 .lib-viewer(다이어그램+액션바 묶음) 밖,
+        // #view-library 직계 형제로 둔다. .lib-action-section은 이제 .lib-viewer 안에 있으므로
+        // .lib-viewer를 기준으로 이어붙인다.
+        _viewer2.insertAdjacentElement('afterend', _bottomRow);
+      } else {
+        _sideBtns.appendChild(_saveImg);
+        _sideBtns.appendChild(_play);
+        _actionBar.appendChild(_saveNote);
+        _actionBar.appendChild(_toEditor);
+        if (_bottomRow.parentElement) _bottomRow.remove();
+      }
+    };
+    _place();
+    _mq.addEventListener('change', _place);
+  })();
+
+  // 코드 사전 뷰어 캔버스 — CSS 표시폭이 미디어쿼리로 바뀔 때마다 비트맵 해상도 재계산.
+  // 안 하면 폭이 넓어진 스코프(와이드 레이아웃)에서 옛 320px 기준 비트맵이 업스케일되어 흐려진다
+  // (코드 에디터 resizeCanvas()와 동일한 이유의 ResizeObserver).
+  (() => {
+    const _canvasEl = document.getElementById('lib-canvas');
+    if (!_canvasEl || !window.ResizeObserver) return;
+    new ResizeObserver(() => { if (_libEntry) drawLibViewerCanvas(); }).observe(_canvasEl);
+  })();
+
+  // 사이드바 유저 요약(레벨/닉네임/플랜) — 프로필 탭 안 들어가도 항상 보이게
+  // 기존 요소(#tbl-num, #profile-name, #profile-plan-name) 텍스트를 그대로 미러링
+  (() => {
+    const _mirror = (srcId, dstId) => {
+      const src = document.getElementById(srcId);
+      const dst = document.getElementById(dstId);
+      if (!src || !dst) return;
+      const sync = () => { dst.textContent = src.textContent; };
+      sync();
+      new MutationObserver(sync).observe(src, { childList: true, characterData: true, subtree: true });
+    };
+    _mirror('tbl-num', 'sidebar-user-lv');
+    _mirror('profile-name', 'sidebar-user-name');
+    _mirror('profile-plan-name', 'sidebar-user-plan');
+    if (typeof loadProfileFromDB === 'function') loadProfileFromDB(); // profile 탭 안 가도 닉네임/플랜 미리 로드
+    if (typeof renderProfileXp === 'function') renderProfileXp(); // 프로필 탭 안 가도 사이드바 XP바 미리 로드
+  })();
+
   if (typeof renderTutorialBody === 'function') renderTutorialBody();
   const _updateTitle = document.getElementById('tutorial-update-title');
   if (_updateTitle) _updateTitle.textContent = '최신 업데이트 소식';
@@ -4829,6 +4979,9 @@ document.addEventListener('DOMContentLoaded', async () => {
   const _initTab       = _urlParams.get('tab') || 'home';
   const _fromProject   = _urlParams.get('from_project');
   const _fromChordId   = _urlParams.get('chord_id');
+
+  // 서브페이지 사이드바 로그아웃 버튼 → home.html로 넘어와서 트리거
+  if (_urlParams.get('action') === 'logout') confirmLogout();
 
   // user_project → 에디터 진입
   if (_fromProject && _urlParams.get('view') === 'editor') {
@@ -4950,9 +5103,14 @@ document.addEventListener('DOMContentLoaded', async () => {
       const distance       = velocityY * duration * 0.35;
       const startScrollTop = el.scrollTop;
       const startTime      = performance.now();
+      const SNAP_EDGE      = 24; // 끝에서 이만큼 이내면 정확히 끝까지 스냅 (여백 잘림 방지)
       function animate(now) {
-        const t = Math.min((now - startTime) / duration, 1);
-        el.scrollTop = startScrollTop + distance * easeOutQuint(t);
+        const t        = Math.min((now - startTime) / duration, 1);
+        const maxTop   = el.scrollHeight - el.clientHeight;
+        let target     = startScrollTop + distance * easeOutQuint(t);
+        if (t >= 1 && target > maxTop - SNAP_EDGE) target = maxTop;
+        if (t >= 1 && target < SNAP_EDGE) target = 0;
+        el.scrollTop = target;
         if (t < 1) { rafId = requestAnimationFrame(animate); return; }
         setScrolling(false, 80); // 모멘텀 종료 후 80ms 유예
       }
@@ -5071,10 +5229,22 @@ let _libCtx         = null;
 let _libCurrentIdx  = -1;
 let _voicingModalChord = null; // 현재 보이싱 모달에 표시 중인 코드명 (sharp 기준)
 const _LIB_DPR        = Math.min(window.devicePixelRatio || 1, 4); // 최대 4x 캡
-const LIB_VIEWER_W    = Math.ceil(320 * _LIB_DPR); // CSS 320px × DPR
-const LIB_VIEWER_RATIO = LIB_VIEWER_W / BASE_W;
 const LIB_MINI_W      = Math.ceil(56 * _LIB_DPR);  // CSS 56px × DPR
 const LIB_MINI_RATIO   = LIB_MINI_W / BASE_W;
+
+// 코드 사전 와이드 레이아웃(태블릿 가로) 판별 — 근음 레일 DOM 이동과 .lib-bottom 높이 고정
+// 두 곳이 같은 조건을 써야 해서 여기 한 곳에서만 정의한다. style.css의 태블릿 가로 스코프와 일치시킬 것.
+let _libWideMqCache = null;
+function libWideMq() {
+  if (!_libWideMqCache) {
+    // 태블릿 가로(1133~1439) + 데스크탑(1440~) + Z Fold8 와이드형(834~950×680~770) —
+    // 콤마는 matchMedia에서 OR로 동작. style.css의 각 와이드 스코프 조건과 정확히 일치시킬 것.
+    _libWideMqCache = window.matchMedia(
+      '(min-width: 1133px) and (min-height: 600px) and (min-aspect-ratio: 1/1), ' +
+      '(min-width: 834px) and (max-width: 950px) and (min-height: 680px) and (max-height: 770px)');
+  }
+  return _libWideMqCache;
+}
 
 function openLibrary()  { navigateTo('library'); }
 function closeLibrary() { navigateTo('editor');  }
@@ -5152,7 +5322,7 @@ function renderLibCards(root) {
   // 미니 캔버스 렌더
   reps.forEach((rep, i) => {
     const c = container.querySelectorAll('.lib-card-canvas')[i];
-    if (c) _drawLibCanvas(c, LIB_MINI_RATIO, rep, '');
+    if (c) _drawLibMiniCanvas(c, rep, '');
   });
 }
 
@@ -5177,12 +5347,34 @@ function selectLibEntry(idx, { silent = false } = {}) {
   _updateVoicingGridActive(idx);     // 모달 그리드 active 상태 갱신
 }
 
+// 캔버스 CSS 표시폭(실측) × DPR 기준 비트맵 해상도 계산.
+// 320px 고정이면 col3 폭이 넓은 와이드 레이아웃(태블릿 가로)에서 업스케일되어 흐려지므로
+// 실제 렌더 크기를 그때그때 재서 맞춘다 — 코드 에디터 resizeCanvas()와 같은 방식.
+function _libViewerRatio() {
+  const cssW = _libCanvas ? _libCanvas.getBoundingClientRect().width : 0;
+  return Math.ceil((cssW > 0 ? cssW : 320) * _LIB_DPR) / BASE_W;
+}
+
+// 카드 그리드·보이싱 모달·검색결과 공용 미니 캔버스 렌더.
+// .lib-card-canvas CSS 표시폭이 스코프마다 다른데(56px 기본 → 120px 와이드 레이아웃 등)
+// 비트맵은 LIB_MINI_W(56px×DPR) 고정이라 그대로 두면 업스케일되어 흐려짐 — 실제 표시폭을
+// 재서 그때그때 비트맵 해상도를 맞춘다(_libViewerRatio와 같은 방식).
+// getBoundingClientRect() 대신 offsetWidth 사용 — .lib-voicing-modal은 열리기 전
+// transform:scale(0) 상태라 그 안 캔버스를 rect로 재면 0이 나와 계속 56px 기본값으로
+// 떨어짐(업스케일 자체가 발동을 못 함). offsetWidth는 transform 영향을 안 받는
+// 레이아웃 크기라 모달이 닫혀 있어도 정확히 잡힌다.
+function _drawLibMiniCanvas(canvas, entry, nameOverride) {
+  const cssW  = canvas.offsetWidth;
+  const ratio = Math.ceil((cssW > 0 ? cssW : 56) * _LIB_DPR) / BASE_W;
+  canvas.width  = Math.round(BASE_W * ratio);
+  canvas.height = Math.round(BASE_H * ratio);
+  _drawLibCanvas(canvas, ratio, entry, nameOverride);
+}
+
 function _ensureLibCanvas() {
   if (!_libCanvas) {
     _libCanvas = document.getElementById('lib-canvas');
     if (_libCanvas) {
-      _libCanvas.width  = LIB_VIEWER_W;
-      _libCanvas.height = Math.round(BASE_H * LIB_VIEWER_RATIO);
       _libCtx = _libCanvas.getContext('2d');
     }
   }
@@ -5191,9 +5383,12 @@ function _ensureLibCanvas() {
 function drawLibViewerCanvas() {
   _ensureLibCanvas();
   if (!_libCanvas || !_libEntry) return;
+  const ratio = _libViewerRatio();
+  _libCanvas.width  = Math.round(BASE_W * ratio);
+  _libCanvas.height = Math.round(BASE_H * ratio);
   const useFlat  = accidental === 'flat';
   const dispName = useFlat ? _libEntry.flatName : _libEntry.name;
-  _drawLibCanvas(_libCanvas, LIB_VIEWER_RATIO, _libEntry, dispName, _libFingeringIdx);
+  _drawLibCanvas(_libCanvas, ratio, _libEntry, dispName, _libFingeringIdx);
 }
 
 // 공통 캔버스 렌더 (viewer / mini card 공용)
@@ -5334,7 +5529,7 @@ function _renderVoicingGrid(sharpName) {
 
   filtered.forEach(({ e, i }) => {
     const c = grid.querySelector(`[data-vidx="${i}"]`);
-    if (c) _drawLibCanvas(c, LIB_MINI_RATIO, e, '');
+    if (c) _drawLibMiniCanvas(c, e, '');
   });
 }
 
@@ -5462,7 +5657,7 @@ function showLibSearchModal() {
     }).join('');
     _libSearchResults.forEach((entry, i) => {
       const c = container.querySelector(`[data-sidx="${i}"]`);
-      if (c) _drawLibCanvas(c, LIB_MINI_RATIO, entry, '');
+      if (c) _drawLibMiniCanvas(c, entry, '');
     });
   }
 

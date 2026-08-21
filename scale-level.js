@@ -148,6 +148,9 @@ let _testItem    = null;        // 테스트 현재 아이템 { block, bi, start
 let _testHint      = null;        // 힌트 위치 { s, col } — 미리 찍어두는 dot 표시
 let _placedNotes   = new Set();   // 플레이어가 찍은 dot: "s,col" 문자열의 Set
 let _testSubmitted = false;       // 제출 후 입력 방지 플래그
+// shared.js 사이드바 네비 이탈 확인용 — 테스트 오버레이 열려있고 미제출일 때만 확인
+window._leaveGuardActive = () =>
+  !!document.getElementById('scale-test-overlay')?.classList.contains('is-open') && !_testSubmitted;
 
 let _shuffleBag = null;  // ShuffleBag 인스턴스 — lazy 초기화
 let _scaleSessionStart = 0; // 페이지 진입 시각 (훈련 시간 측정)

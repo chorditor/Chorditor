@@ -6,7 +6,7 @@
 // ── 상수 ─────────────────────────────────────────────────────
 const SUPABASE_URL  = 'https://jbvkygeksohlysyvaoab.supabase.co';
 const SUPABASE_ANON = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Impidmt5Z2Vrc29obHlzeXZhb2FiIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzYzOTk5NjgsImV4cCI6MjA5MTk3NTk2OH0.6RSgChy0Yq0H2TJpZPSoMKQ2V-OYfR0XzE1aJBBZkXI';
-const APP_VERSION   = '1.3.3.2';
+const APP_VERSION   = '1.3.3.3_dev1';
 const SUPABASE_STORAGE_KEY = 'sb-jbvkygeksohlysyvaoab-auth-token';
 
 // ── 온보딩 관문 판정 ──────────────────────────────────────────
@@ -221,6 +221,38 @@ function handleNativeBack() {
   // 뒤로가기 버튼이 없는(또는 숨겨진) 화면 → 브라우저 히스토리로 물러난다
   history.back();
 }
+
+// ── 웹 브라우저 뒤로가기(주소창/제스처)도 네이티브 뒤로가기와 동일하게 처리 ──
+// #back-btn이 있는 페이지에서만: 더미 history state를 하나 쌓아두고, popstate가 오면
+// 실제 이동은 취소(다시 쌓기)하고 handleNativeBack()으로 위임한다.
+// → back-btn 핸들러가 이미 하던 처리(확인 모달 포함)를 그대로 타므로, 버튼마다
+//   확인 로직을 새로 심을 필요가 없다. 페이지별 관리 지점은 없음.
+document.addEventListener('DOMContentLoaded', () => {
+  if (!document.getElementById('back-btn')) return;
+  history.pushState({ _backGuard: true }, '');
+  window.addEventListener('popstate', () => {
+    history.pushState({ _backGuard: true }, '');
+    handleNativeBack();
+  });
+});
+
+// ── 사이드바/하단 네비(홈·노트·프로필 등)로 이탈할 때도 훈련 중이면 확인 ──
+// 훈련·연습 중인 페이지는 window._leaveGuardActive를 함수로 정의해 알린다(페이지당 한 줄,
+// 예: window._leaveGuardActive = () => _comboInQuiz;). 정의 안 하면 기본적으로 확인 없이 이동 —
+// 새 네비 버튼이 추가돼도 이 리스너 하나가 전부 커버하므로 버튼마다 조건을 심을 필요가 없다.
+document.addEventListener('click', (e) => {
+  if (typeof window._leaveGuardActive !== 'function' || !window._leaveGuardActive()) return;
+  const navBtn = e.target.closest('.bottom-nav-item');
+  if (!navBtn) return;
+  const m = (navBtn.getAttribute('onclick') || '').match(/location\.href\s*=\s*'([^']+)'/);
+  if (!m) return;
+  e.preventDefault();
+  e.stopPropagation();
+  showLeavePracticeModal(() => {
+    if (typeof window._clearLeaveGuard === 'function') window._clearLeaveGuard();
+    location.href = m[1];
+  });
+}, true);
 
 // ── iOS 입력 포커스 자동 확대 방지 ────────────────────────────
 // iOS(사파리·iOS 크롬 전부 WebKit)는 폰트가 16px보다 작은 입력칸에 포커스가 가면
@@ -728,10 +760,146 @@ async function consumePeak(cost) {
   return true;
 }
 
+// ── 앱 크롬(탑바 브랜드 + 데스크탑 사이드바) 자동 주입 ────────────────────────
+// 규칙: 데스크탑에서는 어떤 페이지를 가도 탑바(로고·타이틀)와 좌측 사이드바가 home.html과
+// 완전히 동일해야 한다. 페이지마다 마크업을 복붙하면 새 페이지를 만들 때마다 빠뜨리므로
+// shared.js가 .app-shell을 가진 모든 페이지에 없으면 자동으로 채워 넣는다.
+// (home.html은 이미 둘 다 갖고 있어서 자동으로 스킵됨)
+function injectAppChrome() {
+  const shell = document.querySelector('.app-shell');
+  if (!shell) return; // 온보딩·약관 등 앱셸 없는 페이지는 대상 아님
+
+  // 1) 탑바 브랜드(로고 + CHORDITOR + 버전) — #back-btn 바로 뒤에 삽입.
+  //    모바일 서브페이지는 뒤로가기+피크바만 보여야 하므로 CSS(.top-bar-title--auto)로 숨기고
+  //    데스크탑(1440px+)에서만 보이게 한다.
+  const topBar = document.querySelector('.top-bar');
+  if (topBar && !topBar.querySelector('.top-bar-title')) {
+    const title = document.createElement('span');
+    title.className = 'top-bar-title top-bar-title--auto';
+    title.innerHTML =
+      '<img src="image/Chorditor_logo.svg" alt="" class="top-bar-logo">CHORDITOR' +
+      '<span id="home-banner-version" class="top-bar-version"></span>';
+    const backBtn = topBar.querySelector('#back-btn');
+    if (backBtn) backBtn.after(title);
+    else topBar.prepend(title);
+  }
+
+  // 2) 데스크탑 좌측 사이드바 — .app-shell의 grid-area:nav 자리를 채운다.
+  //    탭 버튼은 home.html의 navTabPointerDown이 없는 페이지이므로 URL 이동으로 처리.
+  if (!shell.querySelector('.bottom-nav')) {
+    const nav = document.createElement('nav');
+    nav.className = 'bottom-nav';
+    nav.innerHTML = `
+      <div class="sidebar-brand"><span class="top-bar-title">CHORDITOR<span id="sidebar-brand-version" class="top-bar-version"></span></span></div>
+      <div class="sidebar-user">
+        <span class="sidebar-user-level">Lv.<span id="sidebar-user-lv">1</span></span>
+        <span class="sidebar-user-name" id="sidebar-user-name">—</span>
+        <span class="sidebar-user-plan" id="sidebar-user-plan">Free</span>
+      </div>
+      <div class="sidebar-user-xp profile-xp">
+        <div class="profile-xp-bar">
+          <div class="profile-xp-bar-fill" id="sidebar-user-xp-bar-fill"></div>
+        </div>
+        <span class="profile-xp-num" id="sidebar-user-xp-num">0 / 0 XP</span>
+      </div>
+      <button class="bottom-nav-item" onclick="location.href='home.html'">
+        <i data-lucide="home"></i>
+        <span>홈</span>
+      </button>
+      <button class="bottom-nav-item" onclick="location.href='home.html?tab=tools'">
+        <i data-lucide="wrench"></i>
+        <span>도구</span>
+      </button>
+      <button class="bottom-nav-item" onclick="location.href='home.html?tab=projects'">
+        <i data-lucide="book-open"></i>
+        <span>노트</span>
+      </button>
+      <button class="bottom-nav-item" onclick="location.href='home.html?tab=profile'">
+        <i data-lucide="user"></i>
+        <span>프로필</span>
+      </button>
+      <button class="icon-btn" id="sidebar-logout-btn" onclick="location.href='home.html?action=logout'" aria-label="로그아웃">
+        <i data-lucide="log-out"></i>
+        <span class="nav-label">로그아웃</span>
+      </button>`;
+    shell.appendChild(nav);
+  }
+}
+
 document.addEventListener('DOMContentLoaded', () => {
+  injectAppChrome(); // 탑바 브랜드 + 데스크탑 사이드바 — 모든 페이지 공통(DOM 이동 로직보다 먼저)
+
   if (document.getElementById('currency-peak-count') || document.getElementById('currency-peakbox-count')) {
     renderPeakBadge(); // RPC 응답 전 즉시 렌더 (Pro는 ∞ 즉시 표시)
     refreshPeakState();
+  }
+
+  // 데스크탑 — 서브페이지 닫기 버튼(#back-btn)을 top-bar에서 main-content로 이동
+  // (home.js의 코드 사전 #back-btn 이동과 동일 패턴 · 이미 이동된 페이지면 무해하게 스킵)
+  // .main-top-bar 쓰는 페이지(main-content 안에 자체 상단바 구조)는 이미 올바른 위치라 스킵 —
+  // 안 그러면 main-content로 다시 끄집어내서 main-top-bar 밖으로 튀어나감
+  (() => {
+    if (document.querySelector('.main-top-bar')) return;
+    const _backBtn = document.getElementById('back-btn');
+    const _main = document.getElementById('main-content');
+    const _topBar = document.querySelector('.top-bar');
+    if (!_backBtn || !_main || !_topBar) return;
+    const _mq = window.matchMedia('(min-width: 1440px)');
+    const _place = () => {
+      if (_mq.matches) _main.prepend(_backBtn);
+      else _topBar.prepend(_backBtn);
+    };
+    _place();
+    _mq.addEventListener('change', _place);
+  })();
+
+  // 데스크탑 — 서브페이지 피크바(#topbar-currency)를 top-bar(사이드바+메인 전체 폭을 가로지름)에서
+  // main-content(사이드바 오른쪽, 실제 콘텐츠 영역)로 이동. 태블릿과 동일하게 메인영역 안에서
+  // 우측 정렬되도록. CSS 포지션만으론 못 고치고 DOM 위치 자체를 옮겨야 함(home.js의 #back-btn 이동과 동일 패턴)
+  // .main-top-bar 쓰는 페이지는 스킵(위와 동일 이유)
+  (() => {
+    if (document.querySelector('.main-top-bar')) return;
+    const _currency = document.getElementById('topbar-currency');
+    const _main = document.getElementById('main-content');
+    const _topBar = document.querySelector('.top-bar');
+    if (!_currency || !_main || !_topBar) return;
+    const _mq = window.matchMedia('(min-width: 1440px)');
+    const _place = () => {
+      if (_mq.matches) _main.appendChild(_currency);
+      else _topBar.appendChild(_currency);
+    };
+    _place();
+    _mq.addEventListener('change', _place);
+  })();
+
+  // 데스크탑 — 코드맞추기 퀴즈 진행 dots(#quiz-topbar-center)를 top-bar(사이드바+메인 전체 폭)에서
+  // main-content로 이동. absolute+left:50% 기준이 top-bar 전체 폭이면 사이드바만큼 중심이 밀림.
+  // .main-top-bar 쓰는 페이지는 스킵(위와 동일 이유)
+  (() => {
+    if (document.querySelector('.main-top-bar')) return;
+    const _center = document.getElementById('quiz-topbar-center');
+    const _main = document.getElementById('main-content');
+    const _topBar = document.querySelector('.top-bar');
+    if (!_center || !_main || !_topBar) return;
+    const _mq = window.matchMedia('(min-width: 1440px)');
+    const _place = () => {
+      if (_mq.matches) _main.appendChild(_center);
+      else _topBar.appendChild(_center);
+    };
+    _place();
+    _mq.addEventListener('change', _place);
+  })();
+
+  // 탑바/사이드바 브랜드 버전 — 어느 페이지든 존재하면 채움 (home.html은 home.js가 이미 채우지만 중복 무해)
+  const _bannerVer = document.getElementById('home-banner-version');
+  if (_bannerVer) _bannerVer.textContent = 'v' + APP_VERSION;
+  // 데스크탑 사이드바 — 브랜드 버전/레벨·XP바는 어디서든 안전, 닉네임/플랜은 home.html
+  // 자체 로직(loadProfileFromDB)이 없는 서브페이지에서만 별도로 로드
+  if (document.getElementById('sidebar-brand-version')) {
+    const _v = document.getElementById('sidebar-brand-version');
+    if (_v) _v.textContent = 'v' + APP_VERSION;
+    renderProfileXp();
+    if (typeof loadProfileFromDB !== 'function') loadSidebarUserInfo();
   }
   // 모달용 이미지 프리로드 — 세션 중 모달 첫 오픈 시 아이콘 늦게 뜨는 끊김 방지
   ['image/gift.png', 'image/gift2.png', 'image/peak.svg'].forEach(src => { new Image().src = src; });
@@ -1818,9 +1986,9 @@ function _initPlanSheet() {
 <div class="plan-sheet-overlay" id="plan-sheet-overlay" onclick="closePlanSheet()"></div>
 <div class="plan-sheet" id="plan-sheet">
   <div class="plan-sheet-handle"></div>
+  <button class="plan-sheet-close" onclick="closePlanSheet()"><i data-lucide="x"></i></button>
   <div class="plan-sheet-header">
     <span class="plan-sheet-title">Pro 플랜으로 업그레이드</span>
-    <button class="icon-btn" onclick="closePlanSheet()"><i data-lucide="x"></i></button>
   </div>
   <div class="plan-sheet-inner">
     <div class="plan-sheet-hero">
@@ -1832,7 +2000,6 @@ function _initPlanSheet() {
       <div class="plan-feature-row"><img class="plan-feature-icon" src="image/photo.png" alt=""><span>코드 이미지 고급 설정 개방</span></div>
       <div class="plan-feature-row"><img class="plan-feature-icon" src="image/pencil.png" alt=""><span>노트 무제한, 편리한 저장 기능</span></div>
     </div>
-    <div class="plan-sheet-divider"></div>
     <div class="plan-launch-banner">출시 할인가 적용<br>Pro 업그레이드하기</div>
     <div class="plan-card plan-card--highlight">
       <div class="plan-card-badge">추천</div>
@@ -1845,13 +2012,6 @@ function _initPlanSheet() {
         <span class="price-amount">₩4,900<small>/월</small></span>
       </div>
     </div>
-    <div class="plan-legal-group">
-      <div class="plan-cancel-info" id="plan-cancel-info">구독은 결제일 기준 매월 자동으로 갱신되며, 갱신 24시간 전까지 언제든 해지할 수 있습니다. 해지는 Google Play 스토어 &gt; 구독 메뉴에서 가능합니다.</div>
-      <div class="plan-legal-links">
-        <span class="plan-legal-link" onclick="window.open('Privacy.html', '_blank')">개인정보 처리방침</span>
-        <span class="plan-legal-link" onclick="window.open('Terms.html', '_blank')">이용약관</span>
-      </div>
-    </div>
     <div class="plan-page-footer">
       <div class="plan-modal-footer-links">
         <span class="plan-restore-link" id="plan-sheet-faq-btn" onclick="openBillingFaq()" style="display:none">결제 도움말</span>
@@ -1860,6 +2020,14 @@ function _initPlanSheet() {
     </div>
   </div>
   <div class="plan-sheet-footer">
+    <div class="plan-legal-group">
+      <div class="plan-cancel-info" id="plan-cancel-info">구독은 결제일 기준 매월 자동으로 갱신되며, 갱신 24시간 전까지 언제든 해지할 수 있습니다. 해지는 Google Play 스토어 &gt; 구독 메뉴에서 가능합니다.</div>
+      <div class="plan-legal-links">
+        <span class="plan-legal-link" onclick="window.open('Privacy.html', '_blank')">개인정보 처리방침</span>
+        <span class="plan-legal-link" onclick="window.open('Terms.html', '_blank')">이용약관</span>
+      </div>
+    </div>
+    <div class="plan-sheet-divider"></div>
     <button class="btn btn-primary plan-card-btn" id="plan-sheet-btn-pro">구독하기</button>
     <span class="hint">구독은 Google Play에서 언제든지 취소할 수 있습니다.</span>
   </div>
@@ -3441,9 +3609,18 @@ function renderProfileXp() {
   const lv = document.getElementById('profile-xp-lv');
   if (lv) lv.textContent = s.level;
   const num = document.getElementById('profile-xp-num');
-  if (num) num.textContent = (s.level >= 50 ? (s.into + ' / ' + s.into) : (s.into + ' / ' + s.need)) + ' XP';
+  const xpText = (s.level >= 50 ? (s.into + ' / ' + s.into) : (s.into + ' / ' + s.need)) + ' XP';
+  if (num) num.textContent = xpText;
   const fill = document.getElementById('profile-xp-bar-fill');
   if (fill) fill.style.width = s.pct + '%';
+
+  // 데스크탑 사이드바 XP바 미러
+  const sidebarNum = document.getElementById('sidebar-user-xp-num');
+  if (sidebarNum) sidebarNum.textContent = xpText;
+  const sidebarFill = document.getElementById('sidebar-user-xp-bar-fill');
+  if (sidebarFill) sidebarFill.style.width = s.pct + '%';
+  const sidebarLv = document.getElementById('sidebar-user-lv');
+  if (sidebarLv) sidebarLv.textContent = s.level;
 
   const pEl = document.getElementById('profile-persona');
   if (pEl) pEl.textContent = _persona(s.level);
@@ -3451,6 +3628,38 @@ function renderProfileXp() {
   if (hp) hp.textContent = _persona(s.level);
 
   renderPersonaTrack(s.level);
+}
+
+// 데스크탑 사이드바 유저 닉네임/플랜 — home.html은 loadProfileFromDB()가 이미 처리하므로
+// 그 함수가 없는(=home.html이 아닌) 서브페이지에서만 호출됨
+async function loadSidebarUserInfo() {
+  const _sv = (id, v) => { const el = document.getElementById(id); if (el) el.textContent = v; };
+  try {
+    const stored = localStorage.getItem(SUPABASE_STORAGE_KEY);
+    if (!stored) return;
+    const session = JSON.parse(stored);
+    const token = session?.access_token;
+    const userId = session?.user?.id;
+    if (!token || !userId) return;
+
+    const resp = await fetch(
+      `${SUPABASE_URL}/rest/v1/subscriptions?user_id=eq.${userId}&select=nickname,plan,promo_plan,promo_expires_at`,
+      { headers: { 'apikey': SUPABASE_ANON, 'Authorization': `Bearer ${token}` } }
+    );
+    if (!resp.ok) return;
+    const rows = await resp.json();
+    if (!rows.length) return;
+    const row = rows[0];
+
+    const nickname = row.nickname || session?.user?.user_metadata?.full_name || '—';
+    const promoActive = !!row.promo_plan && !!row.promo_expires_at
+      && new Date(row.promo_expires_at) > new Date();
+    const plan = promoActive ? row.promo_plan : (row.plan || getPlan() || 'free');
+    const planLabel = plan === 'pro' ? 'Pro' : plan === 'standard' ? 'Standard' : 'Free';
+
+    _sv('sidebar-user-name', nickname);
+    _sv('sidebar-user-plan', planLabel);
+  } catch (e) { console.warn('[Sidebar] 유저정보 로드 실패:', e); }
 }
 
 // 페르소나 승급 트랙(5원+선) 렌더: 저장된 persona 기준(1~4단계) + Lv45 자동해금(5단계)
@@ -4610,3 +4819,36 @@ function chordToVoicing(chord) {
   };
 }
 if (typeof window !== 'undefined') window.chordToVoicing = chordToVoicing;
+
+// ── 그리드 시스템 디버그 오버레이 (docs/style-guide.md §5) ──
+// 실제 레이아웃엔 미적용, 눈으로 확인만 하는 용도. 'G' 키로 토글.
+// 배포본 일반 유저에게 노출 방지 — localhost거나 ?griddebug=1 붙였을 때만 활성화.
+(function () {
+  const enabled = ['localhost', '127.0.0.1', ''].includes(location.hostname)
+    || new URLSearchParams(location.search).get('griddebug') === '1';
+  if (!enabled) return;
+  let overlay = null;
+  function buildOverlay() {
+    overlay = document.createElement('div');
+    overlay.id = 'grid-overlay-debug';
+    document.body.appendChild(overlay);
+  }
+  function renderOverlay() {
+    if (!overlay) return;
+    const cols = parseInt(getComputedStyle(document.documentElement).getPropertyValue('--grid-cols'), 10) || 12;
+    overlay.innerHTML = '';
+    for (let i = 0; i < cols; i++) overlay.appendChild(document.createElement('span'));
+  }
+  function toggleOverlay() {
+    if (!overlay) buildOverlay();
+    overlay.classList.toggle('active');
+    if (overlay.classList.contains('active')) renderOverlay();
+  }
+  window.addEventListener('resize', () => { if (overlay && overlay.classList.contains('active')) renderOverlay(); });
+  document.addEventListener('keydown', (e) => {
+    if (e.key !== 'g' && e.key !== 'G') return;
+    const tag = (e.target && e.target.tagName) || '';
+    if (tag === 'INPUT' || tag === 'TEXTAREA' || (e.target && e.target.isContentEditable)) return;
+    toggleOverlay();
+  });
+})();

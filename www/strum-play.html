@@ -9,7 +9,7 @@
   <link rel="stylesheet" href="style.css?v=2" />
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
 </head>
-<body class="strum-play-page">
+<body class="strum-play-page training-flow-page">
 
   <!-- 페이지 커버: 초기화 완료 전 화면 가림 -->
   <div id="page-cover"></div>
@@ -17,7 +17,7 @@
   <div class="app-shell">
 
     <!-- ── 탑바 ── -->
-    <div class="top-bar">
+    <div class="top-bar top-bar--white">
       <button id="back-btn" class="icon-btn" onpointerup="requestStrumBack()">
         <i data-lucide="chevron-left"></i>
       </button>
@@ -29,23 +29,6 @@
         <div class="currency-item currency-item--clickable" onclick="openPeakTimerPopup(event)">
           <span class="currency-count" id="currency-peak-count">30/30</span>
           <div class="currency-icon-box"><img src="image/peak.svg" alt=""></div>
-        </div>
-      </div>
-      <button class="icon-btn" onclick="openSoundSheet()" title="음량">
-        <i data-lucide="volume-2"></i>
-      </button>
-    </div>
-
-    <!-- ── 바텀시트: 사운드 볼륨 ── -->
-    <div class="gsheet-overlay" id="sound-sheet-overlay" onclick="closeSoundSheet()"></div>
-    <div class="gsheet" id="sound-sheet">
-      <div class="gsheet-handle"></div>
-      <div class="gsheet-header"><span class="gsheet-title">사운드</span></div>
-      <div class="gsheet-inner">
-        <div class="sound-sheet-row">
-          <i data-lucide="volume-1"></i>
-          <input type="range" id="sound-volume-slider" min="0" max="100" value="100" oninput="onSoundVolumeInput(this.value)">
-          <i data-lucide="volume-2"></i>
         </div>
       </div>
     </div>

@@ -198,25 +198,102 @@ function onChapterTabTap(el) {
   }
 }
 
-// ── 캐러셀 원근감: 화면 중앙에서 멀어질수록 카드 축소 ───────────
-const CAROUSEL_MIN_SCALE = 0.88;
-const CAROUSEL_FALLOFF   = 0.6;  // 화면폭 대비 거리로 축소량 정규화
+// ── 캐러셀 원근감: 스냅 기준점(scroll-padding-left)에서 멀어질수록 카드 축소·흐려짐 ─────
+const CAROUSEL_MIN_SCALE   = 0.88;
+const CAROUSEL_MIN_OPACITY = 0.15;
+const CAROUSEL_FALLOFF     = 0.6;  // 화면폭 대비 거리로 축소량 정규화
+
+// CSS scroll-snap-align:start + scroll-padding-left(=--sc-offset, 그리드로 계산한 카드
+// 시작 x좌표)가 실제 정렬 기준점 — 뷰포트/캐러셀 진짜 중앙(center)으로 하면
+// 그리드 위치와 어긋나서(37px 등) 여기 원근감·스크롤 계산도 전부 이 기준으로 통일
+function _snapAnchor(list) {
+  return list.getBoundingClientRect().left + parseFloat(getComputedStyle(list).scrollPaddingLeft || 0);
+}
 
 function _updateCarouselScale(list) {
-  const viewportCenter = window.innerWidth / 2;
+  const listRect = list.getBoundingClientRect();
+  const anchor = _snapAnchor(list);
+  let closestCard = null, closestDist = Infinity;
   list.querySelectorAll('.scale-item-card').forEach(card => {
     const rect = card.getBoundingClientRect();
-    const cardCenter = rect.left + rect.width / 2;
-    const dist = Math.abs(cardCenter - viewportCenter) / window.innerWidth;
+    const dist = Math.abs(rect.left - anchor) / listRect.width;
     const scale = Math.max(CAROUSEL_MIN_SCALE, 1 - dist / CAROUSEL_FALLOFF * (1 - CAROUSEL_MIN_SCALE));
+    const opacity = Math.max(CAROUSEL_MIN_OPACITY, 1 - dist / CAROUSEL_FALLOFF * (1 - CAROUSEL_MIN_OPACITY));
     card.style.transform = `scale(${scale})`;
+    card.style.opacity = opacity;
+    card.classList.remove('scale-item-card--selected');
+    if (dist < closestDist) { closestDist = dist; closestCard = card; }
   });
+  if (closestCard) closestCard.classList.add('scale-item-card--selected');
+}
+
+// 해당 카드를 스냅 기준점(scroll-padding-left)에 맞추는 스크롤 위치 계산
+function _centerScrollLeft(list, card) {
+  return card.offsetLeft - parseFloat(getComputedStyle(list).scrollPaddingLeft || 0);
+}
+
+// 현재 스크롤 위치에서 가장 가까운 카드로 스냅
+function _snapToNearest(list) {
+  let best = null, bestDist = Infinity;
+  list.querySelectorAll('.scale-item-card').forEach(card => {
+    const d = Math.abs(_centerScrollLeft(list, card) - list.scrollLeft);
+    if (d < bestDist) { bestDist = d; best = card; }
+  });
+  if (best) list.scrollTo({ left: _centerScrollLeft(list, best), behavior: 'smooth' });
+}
+
+// 마우스 드래그 스크롤(데스크탑) — 터치는 브라우저 기본 스크롤이 처리
+function _initCarouselDrag(list) {
+  let dragging = false, moved = false, startX = 0, startLeft = 0, savedSnap = '';
+  let suppressClickUntil = 0;
+
+  list.addEventListener('pointerdown', (e) => {
+    if (e.pointerType !== 'mouse' || e.button !== 0) return;
+    dragging = true; moved = false;
+    startX = e.clientX;
+    startLeft = list.scrollLeft;
+  });
+
+  list.addEventListener('pointermove', (e) => {
+    if (!dragging || e.pointerType !== 'mouse') return;
+    const dx = e.clientX - startX;
+    if (!moved && Math.abs(dx) > 3) {
+      moved = true;
+      savedSnap = list.style.scrollSnapType;
+      list.style.scrollSnapType = 'none';   // 드래그 중엔 스냅이 방해되므로 해제
+      list.classList.add('carousel--dragging');
+      try { list.setPointerCapture(e.pointerId); } catch (_) {}
+    }
+    if (moved) {
+      list.scrollLeft = startLeft - dx;
+      e.preventDefault();
+    }
+  });
+
+  const _endDrag = (e) => {
+    if (!dragging || e.pointerType !== 'mouse') return;
+    dragging = false;
+    if (!moved) return;
+    list.classList.remove('carousel--dragging');
+    suppressClickUntil = performance.now() + 80;  // 드래그 끝의 click이 카드 진입시키는 것 방지
+    _snapToNearest(list);
+    // 스냅 애니메이션이 끝난 뒤 원래 scroll-snap 복구(중간에 되돌리면 위치가 튄다)
+    setTimeout(() => { list.style.scrollSnapType = savedSnap; }, 350);
+  };
+  list.addEventListener('pointerup', _endDrag);
+  list.addEventListener('pointercancel', _endDrag);
+
+  list.addEventListener('click', (ce) => {
+    if (performance.now() < suppressClickUntil) { ce.stopPropagation(); ce.preventDefault(); }
+  }, { capture: true });
 }
 
 function initCarousels() {
   document.querySelectorAll('.scale-item-list--carousel').forEach(list => {
+    list.scrollLeft = 0;
     _updateCarouselScale(list);
     list.addEventListener('scroll', () => _updateCarouselScale(list), { passive: true });
+    _initCarouselDrag(list);
   });
 }
 
@@ -240,8 +317,8 @@ function restoreLastPosition() {
   if (list) {
     const card = list.querySelector(`.scale-item-card[data-level="${st.level}"]`);
     if (card) {
-      // 해당 레벨 카드를 뷰포트 중앙으로 (scroll-snap 보정)
-      list.scrollLeft = card.offsetLeft - (list.clientWidth - card.offsetWidth) / 2;
+      // 해당 레벨 카드를 스냅 기준점(scroll-padding-left)에 맞춤
+      list.scrollLeft = _centerScrollLeft(list, card);
     }
     _updateCarouselScale(list);
   }
@@ -253,6 +330,26 @@ document.addEventListener('DOMContentLoaded', () => {
   // 슬라이드업 진입 애니메이션
   const shell = document.querySelector('.app-shell');
   if (shell) shell.classList.add('project-enter');
+
+  // 뒤로가기+피크바를 브레이크포인트별로 app-logo-topbar ↔ main-top-bar 사이에서 옮김.
+  // ~1439px(모바일+태블릿, 사이드바 없음): app-logo-topbar 하나로 처리 — main-top-bar/
+  // content-body 분리 구조 불필요. 1440px~(데스크탑, 사이드바 있음): main-top-bar가 담당
+  // (사이드바 때문에 그 구조 자체가 필요해서). chord-combo.js/progression.js와 동일 패턴.
+  (() => {
+    const backBtn = document.getElementById('back-btn');
+    const currency = document.getElementById('topbar-currency');
+    const appLogoBar = document.querySelector('.app-logo-topbar');
+    const mainTopBar = document.querySelector('.main-top-bar');
+    if (!backBtn || !currency || !appLogoBar || !mainTopBar) return;
+    const mq = window.matchMedia('(min-width: 1440px)');
+    const place = () => {
+      const target = mq.matches ? mainTopBar : appLogoBar;
+      target.prepend(backBtn);
+      target.appendChild(currency);
+    };
+    place();
+    mq.addEventListener('change', place);
+  })();
 
   lucide.createIcons();
 

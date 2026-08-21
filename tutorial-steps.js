@@ -702,7 +702,9 @@ const TUTORIAL_CHAPTERS = (() => {
       title: '직접 만들기',
       text: '사전에 없는 코드가 있다면\n직접 에디터에서 만들어 담을 수도 있어요!',
       panel: 'bottom',
-      pulse: '#pd-btn-to-editor',
+      // 팔레트 추가 모달이 560px 기준 -sm/-lg 두 벌로 나뉘어(user_project.html) id가
+      // 접미사로 갈라짐 — 항상 :not(.hidden)로 그중 실제 열려있는 쪽만 골라야 함
+      pulse: '.modal-overlay:not(.hidden) [id^="pd-btn-to-editor-"]',
       optional: true,
       nextLabel: '다음',
     },
@@ -711,8 +713,8 @@ const TUTORIAL_CHAPTERS = (() => {
       text: '그럼 C 코드를 담아 볼까요?\n맨 앞의 C를 눌러 주세요!',
       panel: 'top',
       // STEP2 '코드 고르기'와 같은 이유로 보이싱 오버레이를 함께 연다(오탭 복구 경로)
-      target: ['.lib-cards-area', '#lib-voicing-overlay'],
-      pulse: '.lib-card[data-chord="C"]',
+      target: ['.modal-overlay:not(.hidden) .lib-cards-area', '.modal-overlay:not(.hidden) .lib-voicing-overlay'],
+      pulse: '.modal-overlay:not(.hidden) .lib-card[data-chord="C"]',
       advanceOn: 'libcard:C',
     },
     {
@@ -721,15 +723,15 @@ const TUTORIAL_CHAPTERS = (() => {
       text: '이렇게 C를 잡는 방법들이 나와요.\n첫 번째를 눌러볼까요?',
       panel: 'top',
       lockVoicing: true,
-      target: '#lib-voicing-modal',
-      pulse: '#lib-voicing-grid .lib-card[data-vpos="0"]',
+      target: '.modal-overlay:not(.hidden) .lib-voicing-modal',
+      pulse: '.modal-overlay:not(.hidden) .lib-voicing-grid .lib-card[data-vpos="0"]',
       advanceOn: 'chordadded:C',
     },
     {
       title: 'C 코드 담기',
       text: '팔레트에 C가 담겼어요!\n이제 닫기를 눌러볼까요?',
       panel: 'bottom',
-      target: '.palette-dict-card .modal-header .icon-btn',
+      target: '.modal-overlay:not(.hidden) .palette-dict-card .modal-header .icon-btn',
       advanceOn: 'palettedict:close',
     },
     {
@@ -1158,22 +1160,13 @@ const TUTORIAL_CHAPTERS = (() => {
       nextLabel: '다음',
     },
     {
-      // 전환 확인 모달이 뜨므로 모달도 함께 열어둔다(취소를 눌러도 이 구간에 머무름).
-      // 웹(브라우저)에선 기기 회전 잠금 API가 없어 유저가 직접 돌려야 한다 → 조작 직전에 알린다.
+      // 별도 버튼 없이 기기를 실제로 돌리면 자동으로 전환됨을 안내한다.
       title: '화면 방향',
-      text: '앱을 깔지 않으셨다면 화면도 직접 돌려주셔야 해요.\n가로 버튼을 눌러 전환해 볼까요?',
+      text: '버튼 없이 기기를 가로로 돌리기만 하면\n화면이 자동으로 가로 모드로 바뀌어요.',
       panel: 'bottom',
-      target: ['.col-toggle-btn[data-orient="landscape"]', '#orient-confirm-overlay'],
-      pulse: '.col-toggle-btn[data-orient="landscape"]',
-      advanceOn: 'orient:landscape',
-    },
-    {
-      title: '화면 방향',
-      text: '확인하셨으면 다시 세로로 돌아가 볼까요?',
-      panel: 'bottom',
-      target: ['.col-toggle-btn[data-orient="portrait"]', '#orient-confirm-overlay'],
-      pulse: '.col-toggle-btn[data-orient="portrait"]',
-      advanceOn: 'orient:portrait',
+      pulse: false,
+      optional: true,
+      nextLabel: '다음',
     },
     {
       // 눈동자 토글은 편집 모드에서도 보이지만, 여기까지가 편집 실습이므로 먼저 편집을 닫는다.

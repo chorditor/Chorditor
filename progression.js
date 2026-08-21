@@ -70,7 +70,7 @@ async function _stopPlay(options = {}) {
     const card = document.querySelector(`.prog-card[data-id="${_playingId}"]`);
     if (card) {
       card.querySelectorAll('.prog-chord-cell').forEach(c => c.classList.remove('prog-chord-cell--playing'));
-      const btn = card.querySelector('.prog-play-btn');
+      const btn = card.querySelector('.prog-enter-btn');
       if (btn) { btn.innerHTML = '<i data-lucide="chevron-right"></i>'; lucide.createIcons({ nodes: [btn] }); }
     }
   }
@@ -91,7 +91,7 @@ function _startPlay(progId) {
   _playStep  = 0;
 
   const card = document.querySelector(`.prog-card[data-id="${progId}"]`);
-  const btn  = card?.querySelector('.prog-play-btn');
+  const btn  = card?.querySelector('.prog-enter-btn');
   if (btn) { btn.innerHTML = '<i data-lucide="square"></i>'; lucide.createIcons({ nodes: [btn] }); }
 
   analytics.track('progression_played', {
@@ -211,10 +211,10 @@ function _renderProgList() {
       </div>
       <div class="prog-card-body">
         <div class="prog-chord-rows">${chordRows}</div>
-        <button class="prog-play-btn"><i data-lucide="chevron-right"></i></button>
+        <button class="prog-enter-btn"><i data-lucide="chevron-right"></i></button>
       </div>`;
 
-      card.querySelector('.prog-play-btn').addEventListener('pointerup', async () => {
+      card.querySelector('.prog-enter-btn').addEventListener('pointerup', async () => {
         const _tapP = _playTap();
         await _stopPlay({ wait: true });
         analytics.track('progression_detail_entered', { prog_id: prog.id, key: _getKeyDisplayName(_currentKey), no: prog.no ?? 1 });
@@ -251,6 +251,26 @@ document.addEventListener('DOMContentLoaded', () => {
 
   const shell = document.querySelector('.app-shell');
   if (shell) shell.classList.add('project-enter');
+
+  // 뒤로가기+피크바를 브레이크포인트별로 app-logo-topbar ↔ main-top-bar 사이에서 옮김.
+  // ~1439px(모바일+태블릿, 사이드바 없음): app-logo-topbar 하나로 처리 — main-top-bar/
+  // content-body 분리 구조 불필요. 1440px~(데스크탑, 사이드바 있음): main-top-bar가 담당
+  // (사이드바 때문에 그 구조 자체가 필요해서). chord-combo.js와 동일 패턴.
+  (() => {
+    const backBtn = document.getElementById('back-btn');
+    const currency = document.getElementById('topbar-currency');
+    const appLogoBar = document.querySelector('.app-logo-topbar');
+    const mainTopBar = document.querySelector('.main-top-bar');
+    if (!backBtn || !currency || !appLogoBar || !mainTopBar) return;
+    const mq = window.matchMedia('(min-width: 1440px)');
+    const place = () => {
+      const target = mq.matches ? mainTopBar : appLogoBar;
+      target.prepend(backBtn);
+      target.appendChild(currency);
+    };
+    place();
+    mq.addEventListener('change', place);
+  })();
 
   lucide.createIcons();
 
