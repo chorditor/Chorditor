@@ -9871,7 +9871,7 @@ canvas {
   gap: 0;
 }
 .training-stat-card {
-  flex: none;
+  flex: 1 1 0;
   display: flex;
   flex-direction: column;
   align-items: flex-start;

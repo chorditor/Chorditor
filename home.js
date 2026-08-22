@@ -1805,13 +1805,16 @@ function _consumeAfterNotices() {
 
 // ── 업데이트 안내 모달 (튜너·메트로놈 출시, 1회성 — 로그인 여부 무관) ──────
 const UPDATE_NOTICE_SEEN_KEY = 'chorditor_update_notice_tuner_metronome_seen';
+let _updateNoticeDismissedThisLoad = false; // "다시 보지 않기" 안 눌러도 이번 페이지 로드에선 재노출 안 함
 function maybeShowUpdateNotice() {
+  if (_updateNoticeDismissedThisLoad) return false;
   if (localStorage.getItem(UPDATE_NOTICE_SEEN_KEY)) return false;
   document.getElementById('update-notice-overlay')?.classList.remove('hidden');
   return true;
 }
 function closeUpdateNotice(goTools) {
   document.getElementById('update-notice-overlay')?.classList.add('hidden');
+  _updateNoticeDismissedThisLoad = true;
   // "다시 보지 않기" 체크된 경우, 또는 바로가기로 이동하는 경우(그 자체가 확인 의사) seen 마킹
   // — 안 그러면 tools탭으로 이동한 페이지가 재로드되면서 checkAndShowNotice()가 다시 띄움
   const dismissCheck = document.getElementById('update-notice-dismiss-check');
@@ -1822,13 +1825,16 @@ function closeUpdateNotice(goTools) {
 
 // ── 태블릿·PC 반응형 개선 안내 (1회성 — 로그인 여부 무관) ────────────────
 const RESPONSIVE_NOTICE_SEEN_KEY = 'chorditor_responsive_notice_seen';
+let _responsiveNoticeDismissedThisLoad = false;
 function maybeShowResponsiveNotice() {
+  if (_responsiveNoticeDismissedThisLoad) return false;
   if (localStorage.getItem(RESPONSIVE_NOTICE_SEEN_KEY)) return false;
   document.getElementById('responsive-notice-overlay')?.classList.remove('hidden');
   return true;
 }
 function closeResponsiveNotice() {
   document.getElementById('responsive-notice-overlay')?.classList.add('hidden');
+  _responsiveNoticeDismissedThisLoad = true;
   const dismissCheck = document.getElementById('responsive-notice-dismiss-check');
   if (dismissCheck?.checked) localStorage.setItem(RESPONSIVE_NOTICE_SEEN_KEY, '1');
   checkAndShowNotice(); // 다음 공지 있으면 이어서, 없으면 출석 콜백 소비
