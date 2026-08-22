@@ -17,8 +17,9 @@
 
   <div class="app-shell">
 
-    <!-- ── 탑바 ── -->
-    <div class="top-bar">
+    <!-- ── home.html 전용 탑바 — 로고/브랜드/버전 + 뒤로가기 + 튜토리얼 + 설정 전부 이 하나에 —
+         home.html은 desktop-topbar 하나만 쓰기로 함(2026-08-22). 항상 노출(모바일/데스크탑 공용) ── -->
+    <div class="top-bar desktop-topbar">
       <button id="back-btn" class="hidden" onpointerdown="enterFromBlock(event,this,'home')">
         <i data-lucide="chevron-left"></i>
       </button>
@@ -941,6 +942,60 @@
       <h3 class="notice-modal-title" id="notice-modal-title"></h3>
       <p class="notice-modal-message" id="notice-modal-message"></p>
       <button class="notice-modal-btn" onclick="closeNoticeModal()">확인</button>
+    </div>
+  </div>
+
+  <!-- ── 모달: 업데이트 안내(1회성, DB notices와 별개 — 기능 소개용 고정 카드형) ── -->
+  <div class="modal-overlay hidden" id="update-notice-overlay" onclick="closeUpdateNotice(false)">
+    <div class="update-notice-modal" onclick="event.stopPropagation()">
+      <img src="image/Chorditor_logo.png" alt="" class="update-notice-logo">
+      <h3 class="update-notice-version">1.3.4 업데이트</h3>
+      <p class="update-notice-subtitle">새 기능이 추가됐어요!</p>
+      <p class="update-notice-message">튜너와 메트로놈을 새로 만들었어요.<br>지금 바로 사용해보세요.</p>
+
+      <div class="update-notice-features">
+        <div class="update-notice-feature">
+          <div class="update-notice-feature-icon"><i class="ph-fill ph-waveform"></i></div>
+          <div class="update-notice-feature-text">
+            <span class="update-notice-feature-name">튜너</span>
+          </div>
+        </div>
+        <div class="update-notice-feature">
+          <div class="update-notice-feature-icon"><i class="ph-fill ph-metronome"></i></div>
+          <div class="update-notice-feature-text">
+            <span class="update-notice-feature-name">메트로놈</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="update-notice-btns">
+        <button class="update-notice-btn update-notice-btn--ghost" onclick="closeUpdateNotice(false)">확인</button>
+        <button class="update-notice-btn update-notice-btn--primary" onclick="closeUpdateNotice(true)">바로가기</button>
+      </div>
+
+      <label class="update-notice-dismiss">
+        <input type="checkbox" id="update-notice-dismiss-check">
+        다시 보지 않기
+      </label>
+    </div>
+  </div>
+
+  <!-- ── 모달: 태블릿·PC 반응형 개선 안내(1회성, 위 update-notice 공용 클래스 재활용) ── -->
+  <div class="modal-overlay hidden" id="responsive-notice-overlay" onclick="closeResponsiveNotice()">
+    <div class="update-notice-modal" onclick="event.stopPropagation()">
+      <img src="image/Chorditor_logo.png" alt="" class="update-notice-logo">
+      <h3 class="update-notice-version">1.3.4 업데이트</h3>
+      <p class="update-notice-subtitle">태블릿과 PC브라우저에서 더 보기 편해졌어요!</p>
+      <p class="update-notice-message">화면 배치를 새로 다듬었어요.<br>더 넓고 편하게 써보세요.</p>
+
+      <div class="update-notice-btns">
+        <button class="update-notice-btn update-notice-btn--primary" onclick="closeResponsiveNotice()">확인</button>
+      </div>
+
+      <label class="update-notice-dismiss">
+        <input type="checkbox" id="responsive-notice-dismiss-check">
+        다시 보지 않기
+      </label>
     </div>
   </div>
 

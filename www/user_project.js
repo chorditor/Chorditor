@@ -4808,19 +4808,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   const _backBtn = document.getElementById('back-btn');
   if (_backBtn) _backBtn.classList.remove('hidden');
 
-  // 뒤로가기를 브레이크포인트별로 app-logo-topbar ↔ main-top-bar 사이에서 옮김.
-  // ~1439px(모바일+태블릿, 사이드바 없음): app-logo-topbar 하나로 처리 — main-top-bar/
-  // content-body 분리 구조 불필요. 1440px~(데스크탑, 사이드바 있음): main-top-bar가 담당
-  // (chord-combo.js와 동일 패턴)
-  (() => {
-    const appLogoBar = document.querySelector('.app-logo-topbar');
-    const mainTopBar = document.querySelector('.main-top-bar');
-    if (!_backBtn || !appLogoBar || !mainTopBar) return;
-    const mq = window.matchMedia('(min-width: 1440px)');
-    const place = () => (mq.matches ? mainTopBar : appLogoBar).prepend(_backBtn);
-    place();
-    try { mq.addEventListener('change', place); } catch (e) { mq.addListener(place); }
-  })();
+  // 뒤로가기는 #main-content > .top-bar 안에 고정 — 모바일/데스크탑 공용, JS 이동 없음.
 
   // 마우스 드래그 스크롤 (브라우저 환경, progression.js와 동일 패턴) — .project-lines는
   // 렌더될 때마다 새로 생성되므로 document에 위임. 코드슬롯/텍스트 편집은 그대로 두고

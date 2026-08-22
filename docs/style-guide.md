@@ -68,6 +68,18 @@ Headline(페이지타이틀) → Display(초대형 숫자)**. 추가 세분화 �
 `style.css` 구현: `:root` 기본값 + `@media(min-width:481/769/1080/1440px)` 4단 오버라이드
 (값이 안 바뀌는 토큰은 해당 구간에서 재선언하지 않음).
 
+### 2-1. 폰트 두께 토큰 (2026-08-22 확정)
+
+규칙: 본문류는 일반, 타이틀류는 세미볼드, 볼드는 특수 강조에만(토큰화 안 함, 개별 선언).
+
+| 토큰 | 값 | 적용 카테고리 |
+|---|---|---|
+| `--weight-regular` | 400 | Caption, Label-sm, Label-lg, Body-sm, Body |
+| `--weight-semibold` | 600 | Title-sm, Title, Title-lg, Headline-sm, Headline, Display-sm, Display |
+| `--weight-bold` | 700 | (토큰 아님) 특수 강조 지점에만 개별 지정 |
+
+뷰포트 단계와 무관하게 고정값 — 두께는 크기와 달리 반응형으로 바꾸지 않는다.
+
 ## 3. 여백(spacing) 스케일 — 4px 배수 체계
 
 기존 값 분포가 이미 4px 배수에 가까웠으므로, 그대로 토큰화만 한다.

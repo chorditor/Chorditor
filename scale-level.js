@@ -3113,6 +3113,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
   lucide.createIcons();
 
+  // 뒤로가기+타이틀+피크바는 #main-content > .top-bar 안에 고정 — 모바일/데스크탑 공용, JS 이동 없음.
+
   const params = new URLSearchParams(location.search);
   _scaleKey = params.get('key') || 'major';
   _scaleLevel = parseInt(params.get('level'), 10) || 0;

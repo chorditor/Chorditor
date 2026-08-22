@@ -1,0 +1,100 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="color-scheme" content="light dark" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Chorditor 코드 공유</title>
+  <!-- Open Graph -->
+  <meta property="og:type"        content="website" />
+  <meta property="og:title"       content="Chorditor 코드 배열 공유" />
+  <meta property="og:description" content="기타 코드 배열을 Chorditor 앱에서 바로 열어보세요." />
+  <meta property="og:image"       content="https://chorditor.github.io/Chorditor/share/og-image.png" />
+  <meta property="og:url"         content="https://chorditor.github.io/Chorditor/share/" />
+  <meta name="twitter:card"       content="summary_large_image" />
+  <meta name="twitter:title"      content="Chorditor 코드 배열 공유" />
+  <meta name="twitter:description" content="기타 코드 배열을 Chorditor 앱에서 바로 열어보세요." />
+  <meta name="twitter:image"      content="https://chorditor.github.io/Chorditor/share/og-image.png" />
+  <style>
+    :root { --accent: #e03c31; --text: #1a1714; --sub: #6b6560; --muted: #a09b95; --radius: 10px; }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      background: #f7f5f2;
+      min-height: 100vh;
+      display: flex; flex-direction: column;
+      align-items: center; justify-content: center;
+      padding: 24px; text-align: center;
+    }
+    .card {
+      background: #fff; border-radius: 16px;
+      padding: 36px 28px; max-width: 360px; width: 100%;
+      box-shadow: 0 4px 24px rgba(0,0,0,.08);
+    }
+    .logo { font-size: 22px; font-weight: 700; letter-spacing: -.5px; color: var(--text); margin-bottom: 8px; }
+    .msg  { font-size: 15px; color: var(--sub); margin-bottom: 28px; line-height: 1.5; }
+    .btn  {
+      display: inline-block; background: var(--accent); color: #fff;
+      border: none; border-radius: var(--radius);
+      padding: 14px 28px; font-size: 16px; font-weight: 600;
+      cursor: pointer; text-decoration: none; width: 100%;
+    }
+    .btn:active { opacity: .85; }
+    .divider { margin: 20px 0; border: none; border-top: 1px solid #e8e4df; }
+    .hint { font-size: 12px; color: var(--muted); line-height: 1.6; }
+    .code-box {
+      margin-top: 10px; background: #f5f3f0; border-radius: 8px;
+      padding: 10px 12px; font-size: 11px; font-family: monospace;
+      color: var(--sub); word-break: break-all; text-align: left;
+    }
+    .hidden { display: none; }
+    .spinner {
+      width: 36px; height: 36px; border: 3px solid #e8e4df;
+      border-top-color: var(--accent); border-radius: 50%;
+      animation: spin .8s linear infinite; margin: 0 auto 20px;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <div class="logo">CHORDITOR</div>
+    <div class="spinner" id="spinner"></div>
+    <p class="msg" id="msg">앱을 열고 있습니다…</p>
+    <a class="btn hidden" id="open-btn" href="#">앱으로 열기</a>
+    <hr class="divider hidden" id="divider" />
+    <div class="hidden" id="fallback">
+      <p class="hint">앱이 설치되지 않았다면 아래 코드를 앱 하단 <b>공유 코드 붙여넣기</b> 칸에 입력하세요.</p>
+      <div class="code-box" id="code-display"></div>
+    </div>
+  </div>
+
+  <script>
+    const params = new URLSearchParams(location.search);
+    const share  = params.get('share') || params.get('c'); // 구: base64 payload, 신: DB 16자 코드
+
+    if (!share) {
+      document.getElementById('spinner').classList.add('hidden');
+      document.getElementById('msg').textContent = '올바르지 않은 공유 링크입니다.';
+    } else {
+      const deepLink = 'chorditor://import?code=' + encodeURIComponent(share);
+      const shareCode = share;
+
+      document.getElementById('open-btn').href = deepLink;
+      document.getElementById('code-display').textContent = shareCode;
+
+      // 즉시 딥링크 시도
+      location.href = deepLink;
+
+      // 2초 후 앱이 안 열렸을 경우 fallback UI 표시
+      setTimeout(() => {
+        document.getElementById('spinner').classList.add('hidden');
+        document.getElementById('msg').textContent = '앱이 열리지 않았나요?';
+        document.getElementById('open-btn').classList.remove('hidden');
+        document.getElementById('divider').classList.remove('hidden');
+        document.getElementById('fallback').classList.remove('hidden');
+      }, 2000);
+    }
+  </script>
+</body>
+</html>

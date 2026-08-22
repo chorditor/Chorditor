@@ -1788,13 +1788,61 @@ function hideOnboarding() {}
 // ── 공지 팝업 ────────────────────────────────────────────────────
 let _currentNoticeId = null;
 
+// 공지팝업(DB notices / update-notice / responsive-notice) 전부 닫힌 뒤에만 실행할 콜백
+// — 출석모달과 공지팝업이 동시에 뜨는 걸 막기 위해, 홈 진입 시 출석플로우를 여기 담아두고
+// checkAndShowNotice()가 "더 띄울 공지 없음"을 확인한 시점에만 소비한다.
+let _afterNoticesCallback = null;
+// 홈 화면(탭+서브뷰 둘 다)이 실제로 보이고 있을 때만 소비 — 공지 확인(fetch) 대기 중에
+// 유저가 이미 다른 탭/서브뷰로 이동했다면 그 화면 위에 출석모달이 뜨지 않도록 보류하고,
+// switchTab('home')/enterFromHome('home')에서 홈 복귀 시점에 다시 시도한다.
+function _consumeAfterNotices() {
+  if (!_afterNoticesCallback) return;
+  if (_activeTab !== 'home' || _homeSubView !== 'home') return;
+  const cb = _afterNoticesCallback;
+  _afterNoticesCallback = null;
+  cb();
+}
+
+// ── 업데이트 안내 모달 (튜너·메트로놈 출시, 1회성 — 로그인 여부 무관) ──────
+const UPDATE_NOTICE_SEEN_KEY = 'chorditor_update_notice_tuner_metronome_seen';
+function maybeShowUpdateNotice() {
+  if (localStorage.getItem(UPDATE_NOTICE_SEEN_KEY)) return false;
+  document.getElementById('update-notice-overlay')?.classList.remove('hidden');
+  return true;
+}
+function closeUpdateNotice(goTools) {
+  document.getElementById('update-notice-overlay')?.classList.add('hidden');
+  // "다시 보지 않기" 체크된 경우, 또는 바로가기로 이동하는 경우(그 자체가 확인 의사) seen 마킹
+  // — 안 그러면 tools탭으로 이동한 페이지가 재로드되면서 checkAndShowNotice()가 다시 띄움
+  const dismissCheck = document.getElementById('update-notice-dismiss-check');
+  if (goTools || dismissCheck?.checked) localStorage.setItem(UPDATE_NOTICE_SEEN_KEY, '1');
+  if (goTools) { location.href = 'home.html?tab=tools'; return; } // 페이지 이동 — 콜백은 새 페이지 로드에서 다시 처리
+  checkAndShowNotice(); // 다음 공지 있으면 이어서, 없으면 출석 콜백 소비
+}
+
+// ── 태블릿·PC 반응형 개선 안내 (1회성 — 로그인 여부 무관) ────────────────
+const RESPONSIVE_NOTICE_SEEN_KEY = 'chorditor_responsive_notice_seen';
+function maybeShowResponsiveNotice() {
+  if (localStorage.getItem(RESPONSIVE_NOTICE_SEEN_KEY)) return false;
+  document.getElementById('responsive-notice-overlay')?.classList.remove('hidden');
+  return true;
+}
+function closeResponsiveNotice() {
+  document.getElementById('responsive-notice-overlay')?.classList.add('hidden');
+  const dismissCheck = document.getElementById('responsive-notice-dismiss-check');
+  if (dismissCheck?.checked) localStorage.setItem(RESPONSIVE_NOTICE_SEEN_KEY, '1');
+  checkAndShowNotice(); // 다음 공지 있으면 이어서, 없으면 출석 콜백 소비
+}
+
 async function checkAndShowNotice() {
-  if (!_authReady) return;
+  if (maybeShowResponsiveNotice()) return;
+  if (maybeShowUpdateNotice()) return; // 신규 기능 안내가 DB 공지보다 우선
+  if (!_authReady) { _consumeAfterNotices(); return; }
   const stored = localStorage.getItem(SUPABASE_STORAGE_KEY);
-  if (!stored) return;
+  if (!stored) { _consumeAfterNotices(); return; }
   let session;
-  try { session = JSON.parse(stored); } catch(e) { return; }
-  if (!session?.access_token || !session?.user?.id) return;
+  try { session = JSON.parse(stored); } catch(e) { _consumeAfterNotices(); return; }
+  if (!session?.access_token || !session?.user?.id) { _consumeAfterNotices(); return; }
 
   const headers = {
     'Content-Type': 'application/json',
@@ -1823,6 +1871,7 @@ async function checkAndShowNotice() {
       if (typeof checkPromoExpiryNotice === 'function' && checkPromoExpiryNotice()) return;
       if (typeof checkEventThanks130 === 'function' && await checkEventThanks130()) return;
       if (typeof reviewMaybeShow === 'function') reviewMaybeShow();
+      _consumeAfterNotices();
       return;
     }
 
@@ -1832,33 +1881,37 @@ async function checkAndShowNotice() {
     document.getElementById('notice-modal-message').textContent = notice.message.replace(/\\n/g, '\n');
     document.getElementById('notice-modal-overlay').classList.remove('hidden');
     analytics.track('notice_viewed', { notice_id: notice.id, title: notice.title });
-  } catch(e) { /* 무시 */ }
+  } catch(e) { _consumeAfterNotices(); }
 }
 
 async function closeNoticeModal() {
   document.getElementById('notice-modal-overlay').classList.add('hidden');
-  if (!_currentNoticeId) return;
-  const noticeId = _currentNoticeId;
-  _currentNoticeId = null;
-
-  const stored = localStorage.getItem(SUPABASE_STORAGE_KEY);
-  if (!stored) return;
-  let session;
-  try { session = JSON.parse(stored); } catch(e) { return; }
-  if (!session?.access_token || !session?.user?.id) return;
-
   try {
-    await fetch(`${SUPABASE_URL}/rest/v1/notice_reads`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'apikey': SUPABASE_ANON,
-        'Authorization': 'Bearer ' + session.access_token,
-        'Prefer': 'return=minimal',
-      },
-      body: JSON.stringify({ user_id: session.user.id, notice_id: noticeId }),
-    });
-  } catch(e) { /* 무시 */ }
+    if (!_currentNoticeId) return;
+    const noticeId = _currentNoticeId;
+    _currentNoticeId = null;
+
+    const stored = localStorage.getItem(SUPABASE_STORAGE_KEY);
+    if (!stored) return;
+    let session;
+    try { session = JSON.parse(stored); } catch(e) { return; }
+    if (!session?.access_token || !session?.user?.id) return;
+
+    try {
+      await fetch(`${SUPABASE_URL}/rest/v1/notice_reads`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'apikey': SUPABASE_ANON,
+          'Authorization': 'Bearer ' + session.access_token,
+          'Prefer': 'return=minimal',
+        },
+        body: JSON.stringify({ user_id: session.user.id, notice_id: noticeId }),
+      });
+    } catch(e) { /* 무시 */ }
+  } finally {
+    checkAndShowNotice(); // 다음 공지 있으면 이어서, 없으면 출석 콜백 소비
+  }
 }
 
 // ── 이벤트 보상 모달 (버전 감사 이벤트 등 1회성 지급) ──
@@ -2187,6 +2240,9 @@ function switchTab(tab, noAnim = false) {
 
   _updateBackBtn();
 
+  // 홈 탭으로 돌아왔고 보류 중인 출석플로우가 있으면 지금 실행
+  if (tab === 'home') _consumeAfterNotices();
+
   // 설정(톱니) 버튼: 프로필 탭에서만 노출
   document.getElementById('settings-btn')?.classList.toggle('hidden', tab !== 'profile');
   // 튜토리얼 재진입 아이콘은 홈 화면에서만 — 탭뿐 아니라 서브뷰(에디터·코드사전)도 봐야 한다.
@@ -2321,6 +2377,12 @@ function tapSwitchTab(el, tab) {
 async function enterFromHome(view, skipAnim = false, reverse = false) {
   const prevView = _homeSubView;
   _homeSubView = view;
+  // 홈 서브뷰로 돌아왔고 보류 중인 출석플로우가 있으면 지금 실행
+  if (view === 'home') _consumeAfterNotices();
+  // 서브뷰 전환 애니메이션(250ms) 시작과 동시에 즉시 반영 — outgoing view의 hidden 처리는
+  // animationend 후에야 붙어서(250ms 지연) :has(#view-library:not(.hidden)) 기준으로 margin을
+  // 걸면 전환 끝나고도 한참 뒤 레이아웃이 갑자기 줄어드는 버그가 생김
+  document.querySelector('.app-shell')?.setAttribute('data-subview', view);
 
   // 에디터·라이브러리 이탈 시 사운드 중지
   if (prevView !== view && (prevView === 'editor' || prevView === 'library')) {
@@ -2384,15 +2446,9 @@ async function enterFromHome(view, skipAnim = false, reverse = false) {
     populateProjectSelect();
     requestAnimationFrame(resizeCanvas);
     window.Tutorial?.notify('view:editor');
-    if (isMobileOrTablet() && screen.orientation?.lock) {
-      screen.orientation.lock('landscape').catch(() => {});
-    }
   } else if (view === 'library') {
     analytics.setScreen('library');
     analytics.track('library_opened', {});
-    if (isMobileOrTablet() && screen.orientation?.lock) {
-      screen.orientation.lock('portrait').catch(() => {});
-    }
     document.getElementById('lib-acc-sharp')?.classList.toggle('active', accidental === 'sharp');
     document.getElementById('lib-acc-flat')?.classList.toggle('active', accidental === 'flat');
     renderLibRootTabs();
@@ -4792,6 +4848,20 @@ function initHomeAdBannerCarousel() {
 }
 
 document.addEventListener('DOMContentLoaded', async () => {
+  // 모바일/태블릿은 튜너 진입 전에 마이크 권한을 미리 받아둔다 —
+  // 튜너 페이지에서 탭 없이 바로 자동 시작하기 위함(권한 팝업은 여기 홈에서 한 번만 뜸).
+  // 뒤쪽 초기화 코드가 예외를 던지는 것과 무관하게 항상 실행되도록 맨 앞에서 즉시 처리.
+  try {
+    const isMobileOrTablet = !!window.Capacitor?.isNativePlatform() || /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
+    if (isMobileOrTablet && navigator.mediaDevices?.getUserMedia) {
+      navigator.mediaDevices.getUserMedia({ audio: true })
+        .then((stream) => stream.getTracks().forEach((t) => t.stop()))
+        .catch((e) => console.warn('[home] mic 사전권한요청 실패:', e && e.name));
+    }
+  } catch (e) {
+    console.error('[home] mic 사전권한요청 중 예외:', e);
+  }
+
   // 리뷰 유도: 앱 실행 카운트 (성숙도 측정)
   if (typeof reviewRegisterLaunch === 'function') reviewRegisterLaunch();
 
@@ -4810,7 +4880,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     const _setBtn = document.getElementById('settings-btn');
     const _logoutBtn = document.getElementById('sidebar-logout-btn');
     const _nav = document.querySelector('.bottom-nav');
-    const _topBar = document.querySelector('.top-bar');
+    const _topBar = document.querySelector('.desktop-topbar');
     if (!_tutBtn || !_setBtn || !_nav || !_topBar) return;
     const _place = () => {
       if (_mq.matches) {
@@ -4836,7 +4906,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     const _mq = window.matchMedia('(min-width: 1440px)');
     const _backBtn = document.getElementById('back-btn');
     const _main = document.getElementById('main-content');
-    const _topBar = document.querySelector('.top-bar');
+    const _topBar = document.querySelector('.desktop-topbar');
     if (!_backBtn || !_main || !_topBar) return;
     const _place = () => {
       if (_mq.matches) _main.prepend(_backBtn);
@@ -5144,9 +5214,12 @@ document.addEventListener('DOMContentLoaded', async () => {
   // ── DEV 빌드: 인증 체크 없이 바로 진입 ──────────────────────
   if (APP_VERSION.includes('_dev')) {
     initSupabase().catch(() => {});
-    // 튜토리얼 자동 노출 대상이면 출석·랜덤피크는 건너뛰기 이후로 보류됨
-    if (typeof runHomeEntryFlow === 'function') runHomeEntryFlow();
-    else if (typeof runDailyAttendanceFlow === 'function') runDailyAttendanceFlow();
+    // 출석플로우는 공지팝업이 전부 닫힌 뒤로 미룸(동시 노출 금지) — 튜토리얼 자동 노출
+    // 대상이면 어차피 그 내부에서 건너뛰기 이후로 보류됨
+    _afterNoticesCallback = () => {
+      if (typeof runHomeEntryFlow === 'function') runHomeEntryFlow();
+      else if (typeof runDailyAttendanceFlow === 'function') runDailyAttendanceFlow();
+    };
     _consumePendingShareCode();
     setTimeout(() => checkAndShowNotice(), 800);
     return;
@@ -5172,9 +5245,12 @@ document.addEventListener('DOMContentLoaded', async () => {
       _setOnboardedCache(session.user.id); // 다른 페이지의 관문이 재조회를 건너뛰도록
       analytics.setUserId(session.user.id);
       analytics.track('app_open', { platform: 'android', project_count: loadProjects().length });
-      // 튜토리얼 자동 노출 대상이면 출석·랜덤피크는 건너뛰기 이후로 보류됨
-      if (typeof runHomeEntryFlow === 'function') runHomeEntryFlow();
-      else if (typeof runDailyAttendanceFlow === 'function') runDailyAttendanceFlow();
+      // 출석플로우는 공지팝업이 전부 닫힌 뒤로 미룸(동시 노출 금지) — 튜토리얼 자동 노출
+      // 대상이면 어차피 그 내부에서 건너뛰기 이후로 보류됨
+      _afterNoticesCallback = () => {
+        if (typeof runHomeEntryFlow === 'function') runHomeEntryFlow();
+        else if (typeof runDailyAttendanceFlow === 'function') runDailyAttendanceFlow();
+      };
       analytics.setScreen('home');
       analytics.track('screen_view', { view: 'home' }); // 홈 화면 진입 명시 기록
       syncProjectsOnLogin().catch(() => {}); // 재설치 등 DB 백업 복구 + 로컬 전용 업로드
@@ -5207,9 +5283,12 @@ document.addEventListener('DOMContentLoaded', async () => {
   }
   _setOnboardedCache(getStoredAuth().userId); // 다른 페이지의 관문이 재조회를 건너뛰도록
   analytics.track('app_open', { platform: 'web', project_count: loadProjects().length });
-  // 튜토리얼 자동 노출 대상이면 출석·랜덤피크는 건너뛰기 이후로 보류됨
-  if (typeof runHomeEntryFlow === 'function') runHomeEntryFlow();
-  else if (typeof runDailyAttendanceFlow === 'function') runDailyAttendanceFlow();
+  // 출석플로우는 공지팝업이 전부 닫힌 뒤로 미룸(동시 노출 금지) — 튜토리얼 자동 노출
+  // 대상이면 어차피 그 내부에서 건너뛰기 이후로 보류됨
+  _afterNoticesCallback = () => {
+    if (typeof runHomeEntryFlow === 'function') runHomeEntryFlow();
+    else if (typeof runDailyAttendanceFlow === 'function') runDailyAttendanceFlow();
+  };
   analytics.setScreen('home');
   analytics.track('screen_view', { view: 'home' }); // 홈 화면 진입 명시 기록
   syncProjectsOnLogin().catch(() => {}); // 재설치 등 DB 백업 복구 + 로컬 전용 업로드

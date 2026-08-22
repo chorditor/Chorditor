@@ -15,6 +15,9 @@ const TUNER_PRESETS = {
       { name: 'G3', freq: 196.00 }, { name: 'B3', freq: 246.94 }, { name: 'E4', freq: 329.63 }
     ]
   },
+  // 고정 현 세트가 없는 자유튜닝용 — 12음 아무거나 감지되면 목표음으로 인정.
+  // notes를 빈 배열로 두고 isCustom 플래그로 분기(줄번호 표시 없음).
+  custom: { label: '커스텀', isCustom: true, notes: [] },
   dropD: {
     label: '드롭 D', notes: [
       { name: 'D2', freq: 73.42 }, { name: 'A2', freq: 110.00 }, { name: 'D3', freq: 146.83 },
@@ -48,22 +51,13 @@ const TUNER_PRESETS = {
 };
 let tunerActivePresetId = 'standard';
 const TUNER_IN_TUNE_CENTS = 5; // 이 이내면 정확한 것으로 판단(녹색) — 눈금단위(5센트)와 맞춤
+const TUNER_MIN_FREQ = 20.60; // E0 — 기타 최저음(E2)보다 훨씬 낮은 영역, 이 아래는 저역 노이즈/험으로 간주해 감지 게이트
 
 // 목표음 박스(하단) 확정 판정용 — 게이지(즉시반응)와 달리 일정시간 유지돼야 확정 표시.
 // 아래 3개는 실사용하면서 튜닝할 파라미터, 우선 상식적인 기본값으로 시작.
 const TUNER_LOCK_WINDOW_MS = 600;  // 이 시간창 안의 판정만 봄
 const TUNER_LOCK_RATIO = 0.7;      // 그 안에서 인튠비율이 이 이상이면 확정
 const TUNER_HOLD_MS = 3000;        // 무음이어도 이 시간까지는 마지막 목표음 유지
-
-// 감지음(Hz)과 현재 활성 프리셋의 음들 중 가장 가까운 것을 센트단위로 비교해서 반환
-function findNearestPresetNote(hz) {
-  let best = null;
-  for (const note of TUNER_PRESETS[tunerActivePresetId].notes) {
-    const cents = 1200 * Math.log2(hz / note.freq);
-    if (!best || Math.abs(cents) < Math.abs(best.cents)) best = { ...note, cents };
-  }
-  return best;
-}
 
 // Hz → 음이름(A4=440 12평균율). { name: "E2", cents: -3 } 형태로 반환
 function hzToNoteName(hz) {
@@ -73,6 +67,51 @@ function hzToNoteName(hz) {
   const name = names[((rounded % 12) + 12) % 12];
   const octave = Math.floor(rounded / 12) - 1;
   return { name: name + octave, cents: Math.round((noteNum - rounded) * 100) };
+}
+
+// 음이름("E2") → 주파수(A4=440 12평균율). hzToNoteName의 역함수 — 커스텀 프리셋에서 락된 음이름의 정확한 목표주파수 계산용
+function noteNameToFreq(name) {
+  const m = name.match(/^([A-G]#?)(-?\d+)$/);
+  if (!m) return null;
+  const names = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
+  const midi = names.indexOf(m[1]) + (parseInt(m[2], 10) + 1) * 12;
+  return 440 * Math.pow(2, (midi - 69) / 12);
+}
+
+// 옥타브 오인식 보정 — 감지음/2배음/절반음 중 활성 프리셋 음들과 가장 가까운 것 선택
+// (저음현은 배음이 fundamental보다 강해서 McLeod가 2배 주파수로 스냅하는 경우 있음, 예: E2→E3)
+function correctPitchOctave(hz) {
+  const preset = TUNER_PRESETS[tunerActivePresetId];
+  let bestHz = hz, bestCents = Infinity;
+  for (const cand of [hz, hz / 2, hz * 2]) {
+    if (preset.isCustom) {
+      // 커스텀은 고정 음이 없으니 가장 가까운 반음(임의 옥타브)과의 거리로 비교
+      const cents = Math.abs(hzToNoteName(cand).cents);
+      if (cents < bestCents) { bestCents = cents; bestHz = cand; }
+      continue;
+    }
+    for (const note of preset.notes) {
+      const cents = Math.abs(1200 * Math.log2(cand / note.freq));
+      if (cents < bestCents) { bestCents = cents; bestHz = cand; }
+    }
+  }
+  return bestHz;
+}
+
+// 감지음(Hz)과 현재 활성 프리셋의 음들 중 가장 가까운 것을 센트단위로 비교해서 반환
+// 커스텀 프리셋은 고정 음 목록이 없으므로 12음 중 가장 가까운 반음(임의 옥타브)을 그대로 목표음으로 삼음
+function findNearestPresetNote(hz) {
+  const preset = TUNER_PRESETS[tunerActivePresetId];
+  if (preset.isCustom) {
+    const nn = hzToNoteName(hz);
+    return { name: nn.name, freq: noteNameToFreq(nn.name), cents: nn.cents };
+  }
+  let best = null;
+  for (const note of preset.notes) {
+    const cents = 1200 * Math.log2(hz / note.freq);
+    if (!best || Math.abs(cents) < Math.abs(best.cents)) best = { ...note, cents };
+  }
+  return best;
 }
 
 // 피치감지 상태 — 프리셋 변경(setActivePreset)에서도 리셋해야해서 모듈스코프로 둠
@@ -96,15 +135,23 @@ function setActiveTick(el, inTune) {
 
 // 프리셋 변경/장기무음 시 목표음 표시+판정상태 전부 초기화
 function resetTargetDisplay() {
-  const defaultNote = TUNER_PRESETS[tunerActivePresetId].notes[1]; // 5번줄 자리를 기본 표시로
+  const preset = TUNER_PRESETS[tunerActivePresetId];
   const targetStringEl = document.getElementById('tuner-target-string');
   const targetNoteEl = document.getElementById('tuner-target-note');
   const targetFreqEl = document.getElementById('tuner-target-freq');
   const directionEl = document.getElementById('tuner-pitch-direction');
   const targetBoxEl = document.getElementById('tuner-pitch-target');
-  if (targetStringEl) targetStringEl.textContent = '5번줄';
-  if (targetNoteEl) targetNoteEl.textContent = defaultNote.name;
-  if (targetFreqEl) targetFreqEl.textContent = `${defaultNote.freq}Hz`;
+  if (targetStringEl) targetStringEl.classList.toggle('hidden', !!preset.isCustom);
+  if (preset.isCustom) {
+    if (targetStringEl) targetStringEl.textContent = '';
+    if (targetNoteEl) targetNoteEl.textContent = '—';
+    if (targetFreqEl) targetFreqEl.textContent = '';
+  } else {
+    const defaultNote = preset.notes[1]; // 5번줄 자리를 기본 표시로
+    if (targetStringEl) targetStringEl.textContent = '5번줄';
+    if (targetNoteEl) targetNoteEl.textContent = defaultNote.name;
+    if (targetFreqEl) targetFreqEl.textContent = `${defaultNote.freq.toFixed(1)}Hz`;
+  }
   if (directionEl) {
     directionEl.textContent = '';
     directionEl.classList.remove('tuner-direction--intune', 'tuner-direction--off');
@@ -159,7 +206,10 @@ function closeTunerPresetMenu() {
 function updatePresetNotesDisplay() {
   const notesEl = document.getElementById('tuner-preset-notes');
   if (!notesEl) return;
-  notesEl.innerHTML = TUNER_PRESETS[tunerActivePresetId].notes
+  const preset = TUNER_PRESETS[tunerActivePresetId];
+  notesEl.classList.toggle('hidden', !!preset.isCustom); // 커스텀은 고정 음 목록이 없어 표시할 게 없음
+  if (preset.isCustom) { notesEl.innerHTML = ''; return; }
+  notesEl.innerHTML = preset.notes
     .map(n => `<span>${n.name.replace(/\d/g, '')}</span>`).join('');
 }
 
@@ -169,6 +219,7 @@ function setActivePreset(id) {
   updatePresetNotesDisplay();
   resetTargetDisplay();
   renderPresetMenu();
+  analytics.track('tuner_preset_changed', { preset_id: id });
 }
 
 // Pitchy(McLeod Pitch Method)로 실시간 피치감지 + 프리셋 매칭
@@ -193,11 +244,15 @@ async function startPitchDetection() {
     const gaugeEl = document.getElementById('tuner-gauge');
 
     tunerAnalyser.getFloatTimeDomainData(data);
-    const [pitch, clarity] = detector.findPitch(data, tunerAudioCtx.sampleRate);
-    const detected = (clarity > 0.93 && pitch > 0);
+    let [pitch, clarity] = detector.findPitch(data, tunerAudioCtx.sampleRate);
+    // 저음역(E2 82Hz 근방)은 배음간섭으로 clarity가 구조적으로 낮게 나와 기준 완화
+    const clarityThreshold = pitch < 110 ? 0.85 : 0.93;
+    const detected = (clarity > clarityThreshold && pitch >= TUNER_MIN_FREQ);
+    if (detected) pitch = correctPitchOctave(pitch);
     const now = performance.now();
 
-    if (currentEl) currentEl.textContent = detected ? hzToNoteName(pitch).name : 'A2';
+    // 무음이어도 A2로 강제리셋 안 함 — 마지막 감지음 그대로 유지(초기값만 HTML의 A2)
+    if (detected && currentEl) currentEl.textContent = hzToNoteName(pitch).name;
 
     if (detected) {
       tunerLastDetectedAt = now;
@@ -218,8 +273,11 @@ async function startPitchDetection() {
           tunerLockEvents.length = 0; // 목표음 바뀌면 이전 확정판정은 무의미
         }
       }
-      const activeNotes = TUNER_PRESETS[tunerActivePresetId].notes;
-      const target = activeNotes.find(n => n.name === tunerLockedNoteName) || rawTarget;
+      const activePreset = TUNER_PRESETS[tunerActivePresetId];
+      const activeNotes = activePreset.notes;
+      const target = activePreset.isCustom
+        ? { name: tunerLockedNoteName, freq: noteNameToFreq(tunerLockedNoteName) }
+        : (activeNotes.find(n => n.name === tunerLockedNoteName) || rawTarget);
       const cents = 1200 * Math.log2(pitch / target.freq);
       const clampedCents = Math.max(-65, Math.min(65, cents));
 
@@ -240,7 +298,7 @@ async function startPitchDetection() {
       const stringIndex = activeNotes.findIndex(n => n.name === target.name);
       if (targetStringEl && stringIndex !== -1) targetStringEl.textContent = `${6 - stringIndex}번줄`;
       if (targetNoteEl) targetNoteEl.textContent = target.name;
-      if (targetFreqEl) targetFreqEl.textContent = `${target.freq}Hz`;
+      if (targetFreqEl) targetFreqEl.textContent = `${target.freq.toFixed(1)}Hz`;
       if (directionEl) {
         directionEl.textContent = locked ? '정확해요' : (medianCents > 0 ? '▼ 더 낮춰야 해요' : '▲ 더 높여야 해요');
         directionEl.classList.toggle('tuner-direction--intune', locked);
@@ -277,9 +335,6 @@ function startMic() {
   if (tunerMicStarting || tunerAnalyser) return;
   tunerMicStarting = true;
 
-  const tip = document.getElementById('tuner-tip');
-  if (tip) tip.textContent = '마이크 연결 중...';
-
   navigator.mediaDevices.getUserMedia({
     audio: {
       echoCancellation: false,
@@ -298,36 +353,28 @@ function startMic() {
     tunerAnalyser.fftSize = 4096; // 저음(E2 82Hz)도 충분한 주기가 담기도록 큰 버퍼 사용
     source.connect(tunerAnalyser); // destination에는 연결 안 함(하울링 방지)
 
+    // getUserMedia가 Android 오디오모드를 통화모드로 바꿔버리는 문제 보정 — 미디어음량으로 되돌림
+    window.Capacitor?.Plugins?.AudioMode?.setNormal().catch(() => {});
+
     tunerMicStarting = false;
-    if (tip) tip.onpointerup = null;
-    if (isMobileOrTablet()) {
-      if (tip) tip.textContent = '마이크가 연결됐어요';
-    } else {
-      populateMicSelect();
-    }
+    if (!isMobileOrTablet()) populateMicSelect();
     startPitchDetection();
   }).catch((err) => {
     tunerMicStarting = false;
-    let msg = '마이크 연결 실패. 탭해서 다시 시도';
-    if (err.name === 'NotAllowedError' || err.name === 'PermissionDeniedError') {
-      msg = '마이크 권한이 필요해요. 탭해서 다시 시도';
-    } else if (err.name === 'NotFoundError' || err.name === 'DevicesNotFoundError') {
-      msg = '마이크를 찾을 수 없어요';
-    }
-    if (tip) tip.textContent = msg;
+    console.error('[tuner] mic connect failed:', err.name || err);
   });
 }
 
-// 마이크 연결 성공 후 호출 — 라벨은 권한 획득 후에만 보임
+// 마이크 연결 성공 후 호출 — PC 전용 장치선택 드롭다운(마이크 탭 버튼과 무관한 별도 자리)
 function populateMicSelect() {
-  const tip = document.getElementById('tuner-tip');
-  if (!tip) return;
+  const wrap = document.getElementById('tuner-mic-select-wrap');
+  if (!wrap) return;
 
   navigator.mediaDevices.enumerateDevices().then((devices) => {
     const inputs = devices.filter(d => d.kind === 'audioinput');
     const currentId = tunerMicStream.getAudioTracks()[0].getSettings().deviceId;
 
-    tip.innerHTML = '';
+    wrap.innerHTML = '';
     const select = document.createElement('select');
     select.id = 'tuner-mic-select';
     inputs.forEach((d, i) => {
@@ -338,7 +385,8 @@ function populateMicSelect() {
       select.appendChild(opt);
     });
     select.onchange = () => switchMicDevice(select.value);
-    tip.appendChild(select);
+    wrap.appendChild(select);
+    wrap.classList.add('has-select');
   });
 }
 
@@ -423,6 +471,15 @@ function closeTunerPage() {
 // ── DOMContentLoaded ─────────────────────────────────────────
 document.addEventListener('DOMContentLoaded', () => {
 
+  // 마이크 탭 버튼 자체를 없앴으므로 전 플랫폼(모바일/태블릿/데스크탑) 공통으로 페이지 진입 시
+  // 바로 마이크 연결을 시도한다. 모바일/태블릿은 홈 화면에서 이미 권한을 미리 받아둔 상태.
+  // 아래쪽 다른 초기화 코드가 뭔가로 인해 예외를 던져도 이 블록은 항상 실행되도록 맨 앞에서 처리.
+  try {
+    startMic();
+  } catch (e) {
+    console.error('[tuner] mic auto-start failed:', e);
+  }
+
   // 슬라이드업 진입 애니메이션
   const shell = document.querySelector('.app-shell');
   if (shell) shell.classList.add('project-enter');
@@ -431,21 +488,7 @@ document.addEventListener('DOMContentLoaded', () => {
   startTuningTipRotation();
   initPresetSelect();
 
-  // 뒤로가기를 브레이크포인트별로 app-logo-topbar ↔ main-top-bar 사이에서 옮김.
-  // ~1439px(모바일+태블릿, 사이드바 없음): app-logo-topbar 하나로 처리.
-  // 1440px~(데스크탑, 사이드바 있음): main-top-bar가 담당. strumming.js와 동일 패턴(피크바 없음).
-  (() => {
-    const backBtn = document.getElementById('back-btn');
-    const appLogoBar = document.querySelector('.app-logo-topbar');
-    const mainTopBar = document.querySelector('.main-top-bar');
-    if (!backBtn || !appLogoBar || !mainTopBar) return;
-    const mq = window.matchMedia('(min-width: 1440px)');
-    const place = () => {
-      (mq.matches ? mainTopBar : appLogoBar).prepend(backBtn);
-    };
-    place();
-    mq.addEventListener('change', place);
-  })();
+  // 뒤로가기는 #main-content > .top-bar 안에 고정 — 모바일/데스크탑 공용, JS 이동 없음.
 
   // 페이지 커버 제거
   const cover = document.getElementById('page-cover');
@@ -455,4 +498,6 @@ document.addEventListener('DOMContentLoaded', () => {
       setTimeout(() => { cover.style.display = 'none'; }, 200);
     });
   }
+
+  analytics.track('tuner_page_viewed', {});
 });

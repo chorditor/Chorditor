@@ -18,34 +18,35 @@
 
     <!-- ── 앱 로고탑바(데스크탑 전용) — injectAppChrome이 로고 주입하는 진짜 대상.
          main-content보다 먼저(DOM 앞) 와야 document.querySelector('.top-bar')가 이걸 먼저 잡음 ── -->
-    <div class="top-bar app-logo-topbar top-bar--white"></div>
+    <div class="top-bar desktop-topbar top-bar--white"></div>
 
     <!-- ── 메인 콘텐츠 (와이어프레임) ── -->
     <div class="main-content" id="main-content">
 
-      <!-- ── main-top-bar: 뒤로가기 전용 ── -->
-      <div class="top-bar main-top-bar top-bar--white">
+      <!-- ── 뒤로가기 전용 ── -->
+      <div class="top-bar top-bar--white">
         <button id="back-btn" class="icon-btn" onpointerup="closeTunerPage()">
           <i data-lucide="x"></i>
         </button>
       </div>
 
-      <div class="tuner-wire-scroll">
-
-        <!-- 1. 튜닝 프리셋 선택창 — 타이틀 역할도 겸함. 좌측에 프리셋 드롭다운 자리 -->
-        <div class="wireframe-box" id="tuner-preset-area">
-          <div id="tuner-preset-dropdown">
-            <button type="button" id="tuner-preset-btn" onpointerup="toggleTunerPresetMenu(event)">
-              <span id="tuner-preset-btn-label">스탠다드</span>
-              <i data-lucide="chevron-down"></i>
-            </button>
-            <div id="tuner-preset-menu" class="hidden"></div>
-          </div>
-          <!-- 6번줄(저음)부터 1번줄 순서로 현재 프리셋의 음이름 나열 -->
-          <div id="tuner-preset-notes">
-            <span>E</span><span>A</span><span>D</span><span>G</span><span>B</span><span>E</span>
-          </div>
+      <!-- 1. 튜닝 프리셋 선택창 — 타이틀 역할도 겸함. .top-bar처럼 .tuner-wire-scroll 밖(캡 영향 안 받음)에
+           둬서 배경이 top-bar와 동일하게 항상 화면(사이드바 제외) 끝까지 이어지게 함 -->
+      <div class="wireframe-box" id="tuner-preset-area">
+        <div id="tuner-preset-dropdown">
+          <button type="button" id="tuner-preset-btn" onpointerup="toggleTunerPresetMenu(event)">
+            <span id="tuner-preset-btn-label">스탠다드</span>
+            <i data-lucide="chevron-down"></i>
+          </button>
+          <div id="tuner-preset-menu" class="hidden"></div>
         </div>
+        <!-- 6번줄(저음)부터 1번줄 순서로 현재 프리셋의 음이름 나열 -->
+        <div id="tuner-preset-notes">
+          <span>E</span><span>A</span><span>D</span><span>G</span><span>B</span><span>E</span>
+        </div>
+      </div>
+
+      <div class="tuner-wire-scroll">
 
         <!-- 2. 튜너 주파수/음 표시 영역 — 상단: 실시간 피치 감지, 하단: 목표 음이름+주파수 -->
         <div class="wireframe-box wireframe-box--tall" id="tuner-freq-area">
@@ -88,8 +89,8 @@
             <!-- 게이지 하단: 음을 높여야/낮춰야 하는지 안내 -->
             <div id="tuner-pitch-direction">▲ 더 높여야 해요</div>
           </div>
-          <!-- 마이크 상태/장치선택 영역. 초기엔 마이크 시작 트리거 겸용 -->
-          <div id="tuner-tip" onpointerup="startMic()">탭해서 마이크 시작</div>
+          <!-- PC 전용 마이크 장치선택 드롭다운 자리 — 연결 성공 후에만 JS로 채워짐 -->
+          <div id="tuner-mic-select-wrap"></div>
           <!-- 튜닝 팁 문구 — 몇초 간격으로 랜덤 순환 -->
           <div id="tuner-tuning-tip"></div>
           <div id="tuner-pitch-target">

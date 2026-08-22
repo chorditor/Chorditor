@@ -6,7 +6,7 @@
 // ── 상수 ─────────────────────────────────────────────────────
 const SUPABASE_URL  = 'https://jbvkygeksohlysyvaoab.supabase.co';
 const SUPABASE_ANON = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Impidmt5Z2Vrc29obHlzeXZhb2FiIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzYzOTk5NjgsImV4cCI6MjA5MTk3NTk2OH0.6RSgChy0Yq0H2TJpZPSoMKQ2V-OYfR0XzE1aJBBZkXI';
-const APP_VERSION   = '1.3.3.3_dev1';
+const APP_VERSION   = '1.3.4_pre';
 const SUPABASE_STORAGE_KEY = 'sb-jbvkygeksohlysyvaoab-auth-token';
 
 // ── 온보딩 관문 판정 ──────────────────────────────────────────
@@ -137,18 +137,6 @@ function enableMouseDragScroll(el) {
   }, { capture: true });
 }
 window.enableMouseDragScroll = enableMouseDragScroll;
-
-// ── 화면 회전 잠금 ────────────────────────────────────────────
-// user_project.html(노트 편집)만 가로 회전 허용, 나머지 전 페이지 세로 고정.
-// 실제 잠금/해제는 페이지별 진입 시점(각 페이지 DOMContentLoaded)에 걸어야
-// 이전 페이지의 잠금 상태가 새 페이지로 새지 않는다.
-(function() {
-  const SO = window.Capacitor?.Plugins?.ScreenOrientation;
-  if (!SO) return; // 웹 브라우저: 네이티브 회전 제어 불가, 무시
-  if (!location.pathname.includes('user_project.html')) {
-    SO.lock({ orientation: 'portrait' }).catch(() => {});
-  }
-})();
 
 // ── 네트워크 오프라인 오버레이 ────────────────────────────────
 (function() {
@@ -834,61 +822,9 @@ document.addEventListener('DOMContentLoaded', () => {
     refreshPeakState();
   }
 
-  // 데스크탑 — 서브페이지 닫기 버튼(#back-btn)을 top-bar에서 main-content로 이동
-  // (home.js의 코드 사전 #back-btn 이동과 동일 패턴 · 이미 이동된 페이지면 무해하게 스킵)
-  // .main-top-bar 쓰는 페이지(main-content 안에 자체 상단바 구조)는 이미 올바른 위치라 스킵 —
-  // 안 그러면 main-content로 다시 끄집어내서 main-top-bar 밖으로 튀어나감
-  (() => {
-    if (document.querySelector('.main-top-bar')) return;
-    const _backBtn = document.getElementById('back-btn');
-    const _main = document.getElementById('main-content');
-    const _topBar = document.querySelector('.top-bar');
-    if (!_backBtn || !_main || !_topBar) return;
-    const _mq = window.matchMedia('(min-width: 1440px)');
-    const _place = () => {
-      if (_mq.matches) _main.prepend(_backBtn);
-      else _topBar.prepend(_backBtn);
-    };
-    _place();
-    _mq.addEventListener('change', _place);
-  })();
-
-  // 데스크탑 — 서브페이지 피크바(#topbar-currency)를 top-bar(사이드바+메인 전체 폭을 가로지름)에서
-  // main-content(사이드바 오른쪽, 실제 콘텐츠 영역)로 이동. 태블릿과 동일하게 메인영역 안에서
-  // 우측 정렬되도록. CSS 포지션만으론 못 고치고 DOM 위치 자체를 옮겨야 함(home.js의 #back-btn 이동과 동일 패턴)
-  // .main-top-bar 쓰는 페이지는 스킵(위와 동일 이유)
-  (() => {
-    if (document.querySelector('.main-top-bar')) return;
-    const _currency = document.getElementById('topbar-currency');
-    const _main = document.getElementById('main-content');
-    const _topBar = document.querySelector('.top-bar');
-    if (!_currency || !_main || !_topBar) return;
-    const _mq = window.matchMedia('(min-width: 1440px)');
-    const _place = () => {
-      if (_mq.matches) _main.appendChild(_currency);
-      else _topBar.appendChild(_currency);
-    };
-    _place();
-    _mq.addEventListener('change', _place);
-  })();
-
-  // 데스크탑 — 코드맞추기 퀴즈 진행 dots(#quiz-topbar-center)를 top-bar(사이드바+메인 전체 폭)에서
-  // main-content로 이동. absolute+left:50% 기준이 top-bar 전체 폭이면 사이드바만큼 중심이 밀림.
-  // .main-top-bar 쓰는 페이지는 스킵(위와 동일 이유)
-  (() => {
-    if (document.querySelector('.main-top-bar')) return;
-    const _center = document.getElementById('quiz-topbar-center');
-    const _main = document.getElementById('main-content');
-    const _topBar = document.querySelector('.top-bar');
-    if (!_center || !_main || !_topBar) return;
-    const _mq = window.matchMedia('(min-width: 1440px)');
-    const _place = () => {
-      if (_mq.matches) _main.appendChild(_center);
-      else _topBar.appendChild(_center);
-    };
-    _place();
-    _mq.addEventListener('change', _place);
-  })();
+  // 뒤로가기/피크바/퀴즈센터의 desktop-topbar ↔ #main-content > .top-bar 이동은
+  // 이제 전 페이지가 각자 page.js에 자체 relocator를 갖고 있어 여기서 처리하지 않는다
+  // (과거엔 여기 공통 로직이 있었으나 .main-top-bar 클래스 자체를 없애면서 제거함).
 
   // 탑바/사이드바 브랜드 버전 — 어느 페이지든 존재하면 채움 (home.html은 home.js가 이미 채우지만 중복 무해)
   const _bannerVer = document.getElementById('home-banner-version');
@@ -4344,7 +4280,8 @@ function initPushNotifications() {
     }
   });
 
-  (async () => {
+  // 마이크 권한을 "알림 바로 다음"에 띄우려면 이 비동기 흐름이 끝나는 시점을 알아야 한다
+  return (async () => {
     try {
       if (localStorage.getItem('push_enabled') === '0') return; // 알림 OFF → 등록 안 함
       let perm = await PN.checkPermissions();
@@ -4370,11 +4307,47 @@ async function __pushApplyEnabled() {
   } catch (_) { localStorage.setItem('push_enabled', '0'); return false; }
 }
 
+// ── 마이크 권한 (튜너용) ───────────────────────────────────
+// 튜너 페이지에서 처음 받으면 진입하자마자 OS 팝업에 막혀 흐름이 끊긴다.
+// 홈에서 알림 권한 직후에 미리 받아두고, 튜너는 이미 허용된 상태로 시작한다.
+const MIC_PERM_ASKED = 'mic_perm_asked';
+
+async function requestMicPermission() {
+  // 앱에서만 미리 받는다. 웹은 홈에 들어오자마자 브라우저 마이크 팝업이 뜨면
+  // 튜너를 쓸 생각도 없던 방문자에게 맥락 없는 요구가 된다 — 웹은 튜너 진입 시 요청 그대로.
+  if (!window.Capacitor?.isNativePlatform?.()) return;
+  if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) return;
+
+  // 이미 허용/거부가 확정된 상태면 요청해도 팝업이 뜨지 않는다 — 스트림을 열 이유가 없다.
+  // WebView 는 Permissions API 에 'microphone' 이름이 없을 수 있어 실패하면 그냥 요청으로 넘어간다.
+  try {
+    const st = await navigator.permissions.query({ name: 'microphone' });
+    if (st.state === 'granted' || st.state === 'denied') return;
+  } catch (_) {}
+
+  // 거절한 유저에게 홈 진입마다 다시 묻지 않는다. 요청 "전에" 세워야
+  // 팝업 중 앱이 재시작돼도 무한 반복되지 않는다.
+  if (localStorage.getItem(MIC_PERM_ASKED) === '1') return;
+  try { localStorage.setItem(MIC_PERM_ASKED, '1'); } catch (_) {}
+
+  try {
+    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    stream.getTracks().forEach(t => t.stop()); // 권한만 확보하고 즉시 해제 — 홈에서 마이크를 물고 있지 않는다
+  } catch (_) {}
+}
+
 if (typeof window !== 'undefined') {
   window.initPushNotifications = initPushNotifications;
+  window.requestMicPermission = requestMicPermission;
   window._savePushToken = _savePushToken;
   window.__pushApplyEnabled = __pushApplyEnabled;
-  document.addEventListener('DOMContentLoaded', () => { initPushNotifications(); checkForceUpdate(); });
+  document.addEventListener('DOMContentLoaded', () => {
+    // 마이크는 홈에서만 묻는다 — 훈련 페이지 한복판에서 튜너와 무관한 팝업이 뜨면 맥락이 없다.
+    Promise.resolve(initPushNotifications()).then(() => {
+      if (_currentPageName() === 'home.html') requestMicPermission();
+    });
+    checkForceUpdate();
+  });
 }
 
 // ── 리뷰/평점 유도 시스템 ───────────────────────────────────

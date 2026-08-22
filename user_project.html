@@ -19,13 +19,13 @@
 
     <!-- ── 앱 로고탑바(데스크탑 전용) — injectAppChrome이 로고 주입하는 진짜 대상.
          main-content보다 먼저(DOM 앞) 와야 document.querySelector('.top-bar')가 이걸 먼저 잡음 ── -->
-    <div class="top-bar app-logo-topbar"></div>
+    <div class="top-bar desktop-topbar"></div>
 
     <!-- ── 메인 콘텐츠 ── -->
     <div class="main-content" id="main-content">
 
-      <!-- ── main-top-bar: 뒤로가기 영역 ── -->
-      <div class="top-bar main-top-bar">
+      <!-- ── 뒤로가기 영역 ── -->
+      <div class="top-bar">
         <button id="back-btn" class="hidden" onpointerup="closeProjectPage()">
           <i data-lucide="x"></i>
         </button>

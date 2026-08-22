@@ -18,17 +18,17 @@
 
     <!-- ── 앱 로고탑바(데스크탑 전용) — injectAppChrome이 로고 주입하는 진짜 대상.
          main-content보다 먼저(DOM 앞) 와야 document.querySelector('.top-bar')가 이걸 먼저 잡음 ── -->
-    <div class="top-bar top-bar--white app-logo-topbar"></div>
+    <div class="top-bar top-bar--white desktop-topbar"></div>
 
     <!-- ── 메인 콘텐츠 ── -->
     <div class="main-content" id="main-content">
 
-      <!-- ── main-top-bar: 뒤로가기 + 피크바 ── -->
-      <div class="top-bar scale-training-top-bar top-bar--white main-top-bar">
+      <!-- ── 뒤로가기 + 피크바 ── -->
+      <div class="top-bar scale-training-top-bar top-bar--white">
         <button id="back-btn" class="icon-btn" onpointerup="closeScaleTraining()">
           <i data-lucide="x"></i>
         </button>
-        <div class="topbar-currency" id="topbar-currency" style="margin-left:auto;margin-right:15px;">
+        <div class="topbar-currency" id="topbar-currency" style="margin-left:auto;">
           <div class="currency-item currency-item--clickable" onclick="openPeakboxModal()">
             <span class="currency-count" id="currency-peakbox-count">0</span>
             <div class="currency-icon-box"><img src="image/gift.png" alt=""></div>

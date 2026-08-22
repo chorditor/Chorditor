@@ -36,16 +36,26 @@ function _metroRenderBeatDots() {
   lucide.createIcons();
 }
 
+let _metroPendingBeatCount = null; // 재생 중엔 즉시 안 바꾸고 마디 경계에서 안전하게 반영
+
 function metronomeSetBeatCount(n) {
   if (typeof _playTap === 'function') _playTap();
-  _metroBeatCount = Math.max(METRO_BEATCOUNT_MIN, Math.min(METRO_BEATCOUNT_MAX, n));
+  const clamped = Math.max(METRO_BEATCOUNT_MIN, Math.min(METRO_BEATCOUNT_MAX, n));
   const valueEl = document.getElementById('metronome-beatcount-value');
-  if (valueEl) valueEl.textContent = _metroBeatCount;
-  _metroBeatIndex = 0;
-  _metroBeatsSinceCycleStart = 0; // 재생 중 박자수를 바꿔도 마디 경계가 어긋나지 않게 바로 리셋
-  _metroRenderBeatDots();
+  if (valueEl) valueEl.textContent = clamped;
   _metroRenderOptionMenuActive('beatcount');
   closeMetronomeOptionMenu();
+
+  if (_metroPlaying) {
+    // 재생 중엔 인디케이터(dot) DOM을 지금 당장 바꾸면 이미 예약된 오디오/화면효과가
+    // 옛 dot을 참조하다 어긋난다 — 다음 마디 경계(_metroScheduler)에서 한 번에 안전하게 반영
+    _metroPendingBeatCount = clamped;
+  } else {
+    _metroBeatCount = clamped;
+    _metroBeatIndex = 0;
+    _metroBeatsSinceCycleStart = 0;
+    _metroRenderBeatDots();
+  }
 }
 
 // ── 백킹 사운드 프리셋 ────────────────────────────────────────
@@ -97,9 +107,8 @@ const METRO_DRUM1_PATTERNS = {
   6: { stepsPerBeat: 1, kick: [0], snare: [3], hat: [0, 1, 2, 3, 4, 5] },
 };
 
-function _metroPlayDrumStep(patt, stepIndex) {
+function _metroPlayDrumStep(patt, stepIndex, t) {
   if (typeof DrumAudio === 'undefined') return;
-  const t = (typeof Tone !== 'undefined' && Tone.now) ? Tone.now() : 0;
   if (patt.kick.includes(stepIndex)) DrumAudio.hit('kick', t);
   if (patt.snare.includes(stepIndex)) DrumAudio.hit('snare', t);
   if (patt.hat.includes(stepIndex)) DrumAudio.hit('hat', t, 0.6);
@@ -182,6 +191,7 @@ function toggleMetronomeOptionMenu(e, kind) {
 
 // ── 재생 엔진 ────────────────────────────────────────────────
 let _metroAudioCtx = null;
+let _metroToneSynced = false; // Tone.js(드럼 샘플)가 _metroAudioCtx와 같은 시계를 쓰도록 동기화됐는지
 let _metroUpSfxMaster = null;
 let _metroPlaying = false;
 let _metroSchedulerTimeout = null;
@@ -286,7 +296,7 @@ let _metroVisualQueue = [];
 
 function _metroScheduler() {
   if (!_metroPlaying) return;
-  const beatDots = _metroGetBeatDots();
+  let beatDots = _metroGetBeatDots();
   if (beatDots.length === 0) { _metroSchedulerTimeout = setTimeout(_metroScheduler, METRO_SCHEDULER_TICK_MS); return; }
 
   while (_metroNextBeatTime < _metroAudioCtx.currentTime + METRO_LOOKAHEAD_SEC) {
@@ -296,6 +306,15 @@ function _metroScheduler() {
     const isLastBeatOfBar = _metroBeatsSinceCycleStart >= _metroBeatCount;
     if (isLastBeatOfBar) {
       _metroBeatsSinceCycleStart = 0;
+      // 재생 중 박자수 변경 요청이 있었다면 이번 마디 경계에서 한 번에 안전하게 반영
+      // — 이전 마디의 남은 화면효과는 이미 옛 dot으로 예약이 끝난 상태라 어긋날 일 없음
+      if (_metroPendingBeatCount !== null) {
+        _metroBeatCount = _metroPendingBeatCount;
+        _metroPendingBeatCount = null;
+        _metroBeatIndex = 0;
+        _metroRenderBeatDots();
+        beatDots = _metroGetBeatDots();
+      }
       if (_metroRamp && _metroRampCycle > 0) {
         _metroCyclesElapsed++;
         if (_metroCyclesElapsed % _metroRampCycle === 0) {
@@ -317,10 +336,12 @@ function _metroScheduler() {
     if (!isMute && _metroBacking === 'drum') {
       const patt = METRO_DRUM1_PATTERNS[_metroBeatCount];
       if (patt) {
+        // 클릭사운드와 동일하게 룩어헤드 시점에 바로 절대시각으로 예약 — rAF(_metroVisualLoop)를
+        // 거치면 프레임 지연/드랍에 따라 발화 시각이 밀림(Two Clocks 문제) — 시각효과만 큐잉
         for (let s = 0; s < patt.stepsPerBeat; s++) {
           const stepIndex = barStep * patt.stepsPerBeat + s;
           const stepTime = _metroNextBeatTime + (s / patt.stepsPerBeat) * beatDuration;
-          _metroVisualQueue.push({ time: stepTime, kind: 'drum', patt, stepIndex });
+          _metroPlayDrumStep(patt, stepIndex, stepTime);
         }
       }
     }
@@ -338,12 +359,8 @@ function _metroVisualLoop() {
   const now = _metroAudioCtx.currentTime;
   while (_metroVisualQueue.length && _metroVisualQueue[0].time <= now) {
     const ev = _metroVisualQueue.shift();
-    if (ev.kind === 'drum') {
-      _metroPlayDrumStep(ev.patt, ev.stepIndex);
-    } else {
-      if (!ev.isMute) _metroFlashDot(ev.dot);
-      _metroSwingBall(ev.beatDuration);
-    }
+    if (!ev.isMute) _metroFlashDot(ev.dot);
+    _metroSwingBall(ev.beatDuration);
   }
   requestAnimationFrame(_metroVisualLoop);
 }
@@ -357,6 +374,14 @@ async function toggleMetronomePlay() {
     _metroPlaying = false;
     if (_metroSchedulerTimeout) { clearTimeout(_metroSchedulerTimeout); _metroSchedulerTimeout = null; }
     _metroVisualQueue = [];
+    // 정지 시 대기 중이던 박자수 변경이 있으면 지금 바로 확정 적용
+    if (_metroPendingBeatCount !== null) {
+      _metroBeatCount = _metroPendingBeatCount;
+      _metroPendingBeatCount = null;
+      _metroBeatIndex = 0;
+      _metroBeatsSinceCycleStart = 0;
+      _metroRenderBeatDots();
+    }
     _metroClearFlash();
     _metroResetBall();
     _metroLiveBpm = _metroStartBpm;
@@ -368,6 +393,19 @@ async function toggleMetronomePlay() {
 
   if (!_metroAudioCtx) _metroAudioCtx = new (window.AudioContext || window.webkitAudioContext)();
   if (_metroAudioCtx.state === 'suspended') await _metroAudioCtx.resume();
+
+  // 드럼(Tone.js)이 기본 Tone 컨텍스트(별도 시계)를 쓰던 걸 클릭사운드와 같은 _metroAudioCtx로
+  // 맞춤 — 안 맞으면 드럼 히트가 절대시각 예약이 아니라 rAF가 알아챈 "지금"에 재생돼서
+  // 백킹 전환 시/기기 렉 시 클릭과 어긋남
+  if (!_metroToneSynced && typeof Tone !== 'undefined') {
+    try {
+      const toneCtx = new Tone.Context({ context: _metroAudioCtx, lookAhead: 0 });
+      Tone.setContext(toneCtx);
+      await Tone.start();
+      if (typeof DrumAudio !== 'undefined') DrumAudio.rebuild();
+      _metroToneSynced = true;
+    } catch (e) {}
+  }
 
   if (typeof DrumAudio !== 'undefined') {
     try { await DrumAudio.resume(); await DrumAudio.ready(); } catch (e) {}
@@ -569,6 +607,8 @@ function closeMetronomePage() {
   if (_metroSchedulerTimeout) { clearTimeout(_metroSchedulerTimeout); _metroSchedulerTimeout = null; }
   if (_metroAudioCtx) { _metroAudioCtx.close(); _metroAudioCtx = null; }
   if (typeof DrumAudio !== 'undefined') DrumAudio.stop();
+  // 세로 고정 해제 — 다른 페이지로 돌아갈 때 회전 다시 허용
+  window.Capacitor?.Plugins?.ScreenOrientation?.unlock().catch(() => {});
   const shell = document.querySelector('.app-shell');
   if (shell) {
     shell.classList.add('project-exit');
@@ -580,6 +620,9 @@ function closeMetronomePage() {
 
 // ── DOMContentLoaded ─────────────────────────────────────────
 document.addEventListener('DOMContentLoaded', () => {
+
+  // 메트로놈은 가로모드 미지원 — 진입 시 세로 고정(뒤로가기에서 unlock으로 해제)
+  window.Capacitor?.Plugins?.ScreenOrientation?.lock({ orientation: 'portrait' }).catch(() => {});
 
   // 슬라이드업 진입 애니메이션
   const shell = document.querySelector('.app-shell');
@@ -597,21 +640,7 @@ document.addEventListener('DOMContentLoaded', () => {
     closeMetronomeOptionMenu();
   });
 
-  // 뒤로가기를 브레이크포인트별로 app-logo-topbar ↔ main-top-bar 사이에서 옮김.
-  // ~1439px(모바일+태블릿, 사이드바 없음): app-logo-topbar 하나로 처리.
-  // 1440px~(데스크탑, 사이드바 있음): main-top-bar가 담당.
-  (() => {
-    const backBtn = document.getElementById('back-btn');
-    const appLogoBar = document.querySelector('.app-logo-topbar');
-    const mainTopBar = document.querySelector('.main-top-bar');
-    if (!backBtn || !appLogoBar || !mainTopBar) return;
-    const mq = window.matchMedia('(min-width: 1440px)');
-    const place = () => {
-      (mq.matches ? mainTopBar : appLogoBar).prepend(backBtn);
-    };
-    place();
-    mq.addEventListener('change', place);
-  })();
+  // 뒤로가기는 #main-content > .top-bar 안에 고정 — 모바일/데스크탑 공용, JS 이동 없음.
 
   // 페이지 커버 제거
   const cover = document.getElementById('page-cover');
@@ -621,4 +650,6 @@ document.addEventListener('DOMContentLoaded', () => {
       setTimeout(() => { cover.style.display = 'none'; }, 200);
     });
   }
+
+  analytics.track('metronome_page_viewed', {});
 });

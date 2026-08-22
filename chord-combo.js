@@ -1078,27 +1078,7 @@ document.addEventListener('DOMContentLoaded', () => {
   const shell = document.querySelector('.app-shell');
   if (shell) shell.classList.add('project-enter');
 
-  // 뒤로가기+피크바를 브레이크포인트별로 app-logo-topbar ↔ main-top-bar 사이에서 옮김.
-  // ~1439px(모바일+태블릿, 사이드바 없음): app-logo-topbar 하나로 처리 — main-top-bar/
-  // content-body 분리 구조 불필요. 1440px~(데스크탑, 사이드바 있음): main-top-bar가 담당
-  // (사이드바 때문에 그 구조 자체가 필요해서).
-  (() => {
-    const backBtn = document.getElementById('back-btn');
-    const progress = document.getElementById('combo-quiz-progress');
-    const currency = document.getElementById('topbar-currency');
-    const appLogoBar = document.querySelector('.app-logo-topbar');
-    const mainTopBar = document.querySelector('.main-top-bar');
-    if (!backBtn || !currency || !appLogoBar || !mainTopBar) return;
-    const mq = window.matchMedia('(min-width: 1440px)');
-    const place = () => {
-      const target = mq.matches ? mainTopBar : appLogoBar;
-      target.prepend(backBtn);
-      if (progress) target.appendChild(progress);
-      target.appendChild(currency);
-    };
-    place();
-    mq.addEventListener('change', place);
-  })();
+  // 뒤로가기+피크바는 #main-content > .top-bar 안에 고정 — 모바일/데스크탑 공용, JS 이동 없음.
 
   lucide.createIcons();
   initTutorialCarousel();

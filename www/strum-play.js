@@ -706,6 +706,8 @@ document.addEventListener('DOMContentLoaded', () => {
   const shell = document.querySelector('.app-shell');
   if (shell) shell.classList.add('project-enter');
 
+  // 뒤로가기+피크바는 #main-content > .top-bar 안에 고정 — 모바일/데스크탑 공용, JS 이동 없음.
+
   // Android 하드웨어 백: 모달 열려있으면 닫기, 아니면 뒤로가기 요청
   if (window.Capacitor?.Plugins?.App) {
     window.Capacitor.Plugins.App.addListener('backButton', () => {

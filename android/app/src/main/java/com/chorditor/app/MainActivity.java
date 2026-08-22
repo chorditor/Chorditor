@@ -14,6 +14,7 @@ public class MainActivity extends BridgeActivity {
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         registerPlugin(SaveImagePlugin.class);
+        registerPlugin(AudioModePlugin.class);
         super.onCreate(savedInstanceState);
 
         new android.os.Handler().post(() -> {
