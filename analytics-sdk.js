@@ -90,6 +90,11 @@ class AnalyticsSDK {
     quiz_attendance_achieved:  'quiz',
     quiz_retried:              'quiz',
     quiz_abandoned:            'quiz',
+    // tuner
+    tuner_page_viewed:    'tuner',
+    tuner_preset_changed: 'tuner',
+    // metronome
+    metronome_page_viewed: 'metronome',
     // push
     push_opened:    'push',
     // session

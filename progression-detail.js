@@ -250,15 +250,27 @@ function _runCountIn(onComplete) {
 
 // 연습 시작(피크 1회 소모)으로 재생 잠금 해제. 이후 재생은 무한.
 let _practiceUnlocked = false;
+window._leaveGuardActive = () => _practiceUnlocked; // shared.js 사이드바 네비 이탈 확인용
+window._clearLeaveGuard = () => { if (_prog?.id) sessionStorage.removeItem(`pd_unlock_${_prog.id}`); }; // shared.js 사이드바 네비로 이탈 확정 시 언락 해제
 async function unlockPractice() {
   _playSfx('pop.mp3');
   if (_practiceUnlocked) return;
   if (!(await consumePeak(2))) return;
   _practiceUnlocked = true;
+  if (_prog?.id) sessionStorage.setItem(`pd_unlock_${_prog.id}`, '1'); // 새로고침해도 유지(새로고침은 이탈이 아님)
   const gate = document.getElementById('detail-practice-gate');
   if (gate) gate.style.display = 'none';
   const btn = document.getElementById('detail-play-btn');
   if (btn) { btn.style.display = ''; }
+}
+// 새로고침 직후 복원 — 같은 진행(id)이고 이 세션에서 이미 연 적 있으면 게이트 다시 안 걸음
+function _restorePracticeUnlock() {
+  if (!_prog?.id || sessionStorage.getItem(`pd_unlock_${_prog.id}`) !== '1') return;
+  _practiceUnlocked = true;
+  const gate = document.getElementById('detail-practice-gate');
+  if (gate) gate.style.display = 'none';
+  const btn = document.getElementById('detail-play-btn');
+  if (btn) btn.style.display = '';
 }
 
 async function togglePlay() {
@@ -305,7 +317,7 @@ async function togglePlay() {
 
 const BPM_MIN = 40;
 const BPM_MAX = 200;
-const BPM_ITEM_H = 30;
+let _bpmItemH = 30; // 실제 렌더 높이로 아래서 갱신됨 (뷰포트별 CSS 크기 변화 대응)
 
 function _initBpmWheel() {
   const wheel = document.getElementById('detail-bpm-wheel');
@@ -319,10 +331,11 @@ function _initBpmWheel() {
     item.addEventListener('pointerup', () => _setBpm(b));
     wheel.appendChild(item);
   }
+  if (wheel.firstElementChild) _bpmItemH = wheel.firstElementChild.getBoundingClientRect().height; // offsetHeight는 정수 반올림 → idx 큰 값에서 오차 누적
   _scrollBpmWheel(_bpm, false);
 
   wheel.addEventListener('scroll', () => {
-    const idx = Math.round(wheel.scrollTop / BPM_ITEM_H);
+    const idx = Math.round(wheel.scrollTop / _bpmItemH);
     const newBpm = BPM_MIN + idx;
     if (newBpm !== _bpm) {
       _bpm = Math.max(BPM_MIN, Math.min(BPM_MAX, newBpm));
@@ -337,7 +350,7 @@ function _scrollBpmWheel(bpm, smooth) {
   const wheel = document.getElementById('detail-bpm-wheel');
   if (!wheel) return;
   const idx = bpm - BPM_MIN;
-  wheel.scrollTo({ top: idx * BPM_ITEM_H, behavior: smooth ? 'smooth' : 'instant' });
+  wheel.scrollTo({ top: idx * _bpmItemH, behavior: smooth ? 'smooth' : 'instant' });
   _updateBpmActiveItem();
 }
 
@@ -389,6 +402,7 @@ function requestBack() {
 }
 
 async function goBack() {
+  if (_prog?.id) sessionStorage.removeItem(`pd_unlock_${_prog.id}`); // 진짜 이탈이면 언락도 해제(새로고침만 유지)
   await _stopPlay({ wait: true });
   const shell = document.querySelector('.app-shell');
   if (shell) {
@@ -426,15 +440,22 @@ let _slotRoles  = null; // _slotRoles[domIdx] = 0(prev)|1(current)|2(next)
 let _slotData   = null; // _slotData[domIdx] = { voicing, chordName }
 let _stepCache  = null; // _stepCache[stepIdx] = { voicing, chordName } — 스텝별 보이싱 캐시
 
-// 캔버스 픽셀 크기 계산 + 드로잉
+// 캔버스 픽셀 크기 계산 + 드로잉 — 폭 기준 크기가 wrap(슬롯) 높이를 넘으면 비율 유지한 채 축소
+// (wrap은 top:0/bottom:0으로 .progd-chord-view-inner 전체 높이를 그대로 물려받음)
 function _redrawCanvas(canvas, wrap, voicing, chordName) {
   const dpr  = window.devicePixelRatio || 1;
-  const cssW = wrap.offsetWidth;
+  let cssW = wrap.offsetWidth;
   if (!cssW) return;
+  let cssH = cssW * _BASE_H / _BASE_W;
+  const availH = wrap.offsetHeight;
+  if (availH && cssH > availH) {
+    cssW = cssW * (availH / cssH);
+    cssH = availH;
+  }
   const ratio = (cssW * dpr) / _BASE_W;
   _drawVoicingCanvas(canvas, voicing, chordName, ratio);
-  canvas.style.width  = cssW + 'px';
-  canvas.style.height = Math.round(cssW * _BASE_H / _BASE_W) + 'px';
+  canvas.style.width  = Math.round(cssW) + 'px';
+  canvas.style.height = Math.round(cssH) + 'px';
 }
 
 // 특정 슬롯 캔버스 업데이트 (캐시 우선 사용)
@@ -770,6 +791,9 @@ document.addEventListener('DOMContentLoaded', () => {
   } else {
     _prog = null;
   }
+  _restorePracticeUnlock();
+
+  // 뒤로가기+피크바는 #main-content > .top-bar 안에 고정 — 모바일/데스크탑 공용, JS 이동 없음.
 
   // 페이지 진입 애니메이션
   const shell = document.querySelector('.app-shell');

@@ -10,32 +10,38 @@
   <link rel="stylesheet" href="style.css" />
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
 </head>
-<body>
+<body class="training-flow-page">
 
   <!-- 페이지 커버: 초기화 완료 전 화면 가림 -->
   <div id="page-cover"></div>
 
   <div class="app-shell">
 
-    <!-- ── 탑바 ── -->
-    <div class="top-bar top-bar--white">
-      <button id="back-btn" class="icon-btn" onpointerup="closeProgressionPage()">
-        <i data-lucide="x"></i>
-      </button>
-      <div class="topbar-currency" id="topbar-currency" style="margin-left:auto;margin-right:15px;">
-        <div class="currency-item currency-item--clickable" onclick="openPeakboxModal()">
-          <span class="currency-count" id="currency-peakbox-count">0</span>
-          <div class="currency-icon-box"><img src="image/gift.png" alt=""></div>
-        </div>
-        <div class="currency-item currency-item--clickable" onclick="openPeakTimerPopup(event)">
-          <span class="currency-count" id="currency-peak-count">30/30</span>
-          <div class="currency-icon-box"><img src="image/peak.svg" alt=""></div>
-        </div>
-      </div>
-    </div>
+    <!-- ── 앱 로고탑바(데스크탑 전용) — injectAppChrome이 로고 주입하는 진짜 대상.
+         main-content보다 먼저(DOM 앞) 와야 document.querySelector('.top-bar')가 이걸 먼저 잡음 ── -->
+    <div class="top-bar top-bar--white desktop-topbar"></div>
 
     <!-- ── 메인 콘텐츠 ── -->
     <div class="main-content" id="main-content">
+
+      <!-- ── 뒤로가기 + 피크바 ── -->
+      <div class="top-bar prog-top-bar top-bar--white">
+        <button id="back-btn" class="icon-btn" onpointerup="closeProgressionPage()">
+          <i data-lucide="x"></i>
+        </button>
+        <div class="topbar-currency" id="topbar-currency" style="margin-left:auto;">
+          <div class="currency-item currency-item--clickable" onclick="openPeakboxModal()">
+            <span class="currency-count" id="currency-peakbox-count">0</span>
+            <div class="currency-icon-box"><img src="image/gift.png" alt=""></div>
+          </div>
+          <div class="currency-item currency-item--clickable" onclick="openPeakTimerPopup(event)">
+            <span class="currency-count" id="currency-peak-count">30/30</span>
+            <div class="currency-icon-box"><img src="image/peak.svg" alt=""></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="content-body">
       <div class="prog-scroll">
 
         <!-- 스티키 헤더 -->
@@ -70,6 +76,7 @@
         <div class="prog-list" id="prog-list"></div>
 
       </div><!-- /prog-scroll -->
+      </div><!-- /content-body -->
     </div><!-- /main-content -->
 
   </div><!-- /app-shell -->

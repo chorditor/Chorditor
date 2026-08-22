@@ -106,6 +106,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
   lucide.createIcons();
 
+  // 뒤로가기(#back-btn)는 #main-content > .top-bar 안에 고정 — 모바일/데스크탑 공용,
+  // JS로 옮기지 않음. desktop-topbar는 로고 전용 껍데기(데스크탑만 노출, 절대 안 건드림).
+
   // 페이지 커버 제거
   const cover = document.getElementById('page-cover');
   if (cover) {

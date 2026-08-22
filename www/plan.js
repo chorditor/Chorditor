@@ -16,6 +16,8 @@ function goBack() {
 
 // ── 페이지 초기화 ─────────────────────────────────────────────
 document.addEventListener('DOMContentLoaded', async () => {
+  // 뒤로가기+타이틀은 #main-content > .top-bar 안에 고정 — 모바일/데스크탑 공용, JS 이동 없음.
+
   await initBilling();
 
   const plan = getPlan();

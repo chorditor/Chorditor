@@ -9,49 +9,36 @@
   <link rel="stylesheet" href="style.css?v=2" />
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
 </head>
-<body class="strum-play-page">
+<body class="strum-play-page training-flow-page">
 
   <!-- 페이지 커버: 초기화 완료 전 화면 가림 -->
   <div id="page-cover"></div>
 
   <div class="app-shell">
 
-    <!-- ── 탑바 ── -->
-    <div class="top-bar">
-      <button id="back-btn" class="icon-btn" onpointerup="requestStrumBack()">
-        <i data-lucide="chevron-left"></i>
-      </button>
-      <div class="topbar-currency" id="topbar-currency" style="margin-left:auto;margin-right:15px;">
-        <div class="currency-item currency-item--clickable" onclick="openPeakboxModal()">
-          <span class="currency-count" id="currency-peakbox-count">0</span>
-          <div class="currency-icon-box"><img src="image/gift.png" alt=""></div>
-        </div>
-        <div class="currency-item currency-item--clickable" onclick="openPeakTimerPopup(event)">
-          <span class="currency-count" id="currency-peak-count">30/30</span>
-          <div class="currency-icon-box"><img src="image/peak.svg" alt=""></div>
-        </div>
-      </div>
-      <button class="icon-btn" onclick="openSoundSheet()" title="음량">
-        <i data-lucide="volume-2"></i>
-      </button>
-    </div>
-
-    <!-- ── 바텀시트: 사운드 볼륨 ── -->
-    <div class="gsheet-overlay" id="sound-sheet-overlay" onclick="closeSoundSheet()"></div>
-    <div class="gsheet" id="sound-sheet">
-      <div class="gsheet-handle"></div>
-      <div class="gsheet-header"><span class="gsheet-title">사운드</span></div>
-      <div class="gsheet-inner">
-        <div class="sound-sheet-row">
-          <i data-lucide="volume-1"></i>
-          <input type="range" id="sound-volume-slider" min="0" max="100" value="100" oninput="onSoundVolumeInput(this.value)">
-          <i data-lucide="volume-2"></i>
-        </div>
-      </div>
-    </div>
+    <!-- ── 앱 로고탑바(데스크탑 전용) — injectAppChrome이 로고 주입하는 진짜 대상.
+         main-content보다 먼저(DOM 앞) 와야 document.querySelector('.top-bar')가 이걸 먼저 잡음 ── -->
+    <div class="top-bar desktop-topbar top-bar--white"></div>
 
     <!-- ── 메인 콘텐츠 ── -->
     <div class="main-content" id="main-content">
+
+      <!-- ── 뒤로가기 + 피크바 ── -->
+      <div class="top-bar top-bar--white">
+        <button id="back-btn" class="icon-btn" onpointerup="requestStrumBack()">
+          <i data-lucide="chevron-left"></i>
+        </button>
+        <div class="topbar-currency" id="topbar-currency" style="margin-left:auto;">
+          <div class="currency-item currency-item--clickable" onclick="openPeakboxModal()">
+            <span class="currency-count" id="currency-peakbox-count">0</span>
+            <div class="currency-icon-box"><img src="image/gift.png" alt=""></div>
+          </div>
+          <div class="currency-item currency-item--clickable" onclick="openPeakTimerPopup(event)">
+            <span class="currency-count" id="currency-peak-count">30/30</span>
+            <div class="currency-icon-box"><img src="image/peak.svg" alt=""></div>
+          </div>
+        </div>
+      </div>
       <div class="strum-play-area">
 
         <!-- 타이틀 -->

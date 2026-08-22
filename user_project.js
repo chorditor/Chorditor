@@ -1280,7 +1280,8 @@ let userSelectedProjectId = null;
 // 프로젝트 뷰 렌더링
 // ═══════════════════════════════════════════════════════════════
 let currentColCount  = 4; // (레거시) 신 모델은 currentOrient 사용
-let currentOrient    = 'portrait'; // 'portrait'(세로,4슬롯·슬롯2박) | 'landscape'(가로,8슬롯·슬롯1박)
+let currentOrient    = 'portrait'; // 'portrait'(세로) | 'landscape'(가로) — 헤더·팔레트 레이아웃 전용, 화면비 기준
+let currentSlotLand  = false; // 코드슬롯 4/8개(박자 해상도) 결정 — currentOrient와 별개, 뷰포트 폭 787px 기준 순수 판정
 let playbackActive = false;
 let _userScrollHoldUntil = 0;   // 사용자 스크롤 감지 시 이 시각까지 자동스크롤 중단
 let _autoScrollLineId = null;   // 자동스크롤이 마지막으로 처리한 줄 (줄 단위 갱신용)
@@ -1483,7 +1484,7 @@ async function playAll(projectId, startIndex = 0) {
   if (isFirstInit) await GuitarAudio.syncContext(audioCtx); // Tone.js 동기화
   else await GuitarAudio.resume();
 
-  const land = currentOrient === 'landscape';
+  const land = currentSlotLand;
 
   // 줄마다 박자·BPM·마디 수가 다를 수 있으므로 슬롯 하나하나의 재생 시간을 개별 계산해서 순서대로 나열.
   // 슬롯 수는 박자(분자)와 무관(마디 수 기준)이므로, 그 줄의 총 연주 시간(마디 수×분자×펄스)을
@@ -1626,97 +1627,6 @@ async function playAll(projectId, startIndex = 0) {
   next();
 }
 
-// 기기 화면 실제 회전 잠금 (네이티브 앱 전용, 웹은 무시)
-function _applyOrientLock(orient) {
-  const SO = window.Capacitor?.Plugins?.ScreenOrientation;
-  if (!SO) return Promise.resolve();
-  return SO.lock({ orientation: orient === 'landscape' ? 'landscape' : 'portrait' }).catch(() => {});
-}
-
-// ── 세로/가로 전환 확인 모달 (confirm() 대체) ──────────────────
-let _orientConfirmResolve = null;
-
-function openOrientConfirm(mode) {
-  const title = mode === 'landscape' ? '가로 모드로 전환할까요?' : '세로 모드로 전환할까요?';
-  const beatLine = mode === 'landscape' ? '슬롯 당 1박' : '슬롯 당 2박';
-  document.getElementById('orient-confirm-title').textContent = title;
-  document.getElementById('orient-confirm-box1-line1').textContent = '1줄 2마디';
-  document.getElementById('orient-confirm-box2-line1').textContent = beatLine;
-  document.getElementById('orient-confirm-overlay').classList.remove('hidden');
-  document.getElementById('orient-confirm-btn').onclick = confirmOrientSwitch;
-  // 튜토리얼 화면 방향 구간은 설명창이 하단에 있는데, 가로에서는 화면이 짧아
-  // 이 모달의 확인 버튼과 겹쳐 누를 수가 없다 → 모달이 떠 있는 동안만 설명창을 내린다.
-  // 튜토리얼 중이 아니면 아무 일도 하지 않는다.
-  window.Tutorial?.suppressPanel?.(true);
-  return new Promise(resolve => { _orientConfirmResolve = resolve; });
-}
-
-function closeOrientConfirm() {
-  document.getElementById('orient-confirm-overlay').classList.add('hidden');
-  window.Tutorial?.suppressPanel?.(false);
-  if (_orientConfirmResolve) { _orientConfirmResolve(false); _orientConfirmResolve = null; }
-}
-
-function confirmOrientSwitch() {
-  document.getElementById('orient-confirm-overlay').classList.add('hidden');
-  window.Tutorial?.suppressPanel?.(false);
-  const resolve = _orientConfirmResolve;
-  _orientConfirmResolve = null;
-  if (resolve) resolve(true);
-}
-
-// 세로/가로 모드 전환 (확인 모달 + 안내)
-// 전환 중 실제 회전 애니메이션 + 레이아웃 재빌드로 화면이 잠깐 깨지므로
-// page-cover로 가리고 스피너를 띄운 뒤, 여유시간 확보 후 서서히 걷어낸다.
-async function switchOrient(projectId, mode) {
-  if (mode === currentOrient) return;
-  const ok = await openOrientConfirm(mode);
-  if (!ok) return;
-
-  if (playbackActive) await stopPlayAll({ wait: true }); // 재생 중 전환 시 재생 중단
-
-  const cover = document.getElementById('page-cover');
-  let spinnerEl = null;
-  if (cover) {
-    cover.style.transition = 'none';
-    cover.style.display = '';
-    cover.style.opacity = '1';
-    cover.classList.remove('cover-out');
-    cover.classList.add('page-cover--spin');
-    spinnerEl = document.createElement('div');
-    spinnerEl.className = 'page-cover-spinner';
-    cover.appendChild(spinnerEl);
-    cover.offsetHeight; // reflow — 가림막 즉시 페인트
-  }
-
-  // 가림막 제거 — renderProjectView 등에서 예외가 나도 반드시 실행되도록 finally에 배치
-  // (그렇지 않으면 흰 스피너 화면에 영구 고정되어 새로고침 전엔 안 사라지는 버그 발생)
-  const hideCover = () => {
-    if (!cover) return;
-    spinnerEl?.remove();
-    cover.classList.remove('page-cover--spin');
-    cover.style.transition = 'opacity 0.18s ease-out';
-    // 인라인 opacity:1 을 직접 0으로 내림 — 인라인이 .cover-out 클래스(opacity:0)를 이겨서
-    // 클래스만 추가하면 흰 화면이 안 걷히는 버그가 있었음
-    cover.style.opacity = '0';
-    cover.classList.add('cover-out');
-    setTimeout(() => { cover.style.display = 'none'; }, 200);
-  };
-
-  try {
-    const p = getProject(projectId);
-    if (p) { p.orient = mode; updateProject(p); }
-    currentOrient = mode;
-
-    await _applyOrientLock(mode); // 기기 실제 회전 요청이 반영될 시간 확보
-    renderProjectView(projectId); // 레이아웃 재빌드는 가림막 뒤에서 진행
-    window.Tutorial?.notify(`orient:${mode}`); // 재렌더 뒤에 알림
-  } finally {
-    // 회전 애니메이션이 실제로 끝날 여유시간 확보 후 가림막 제거
-    setTimeout(hideCover, 450);
-  }
-}
-
 // ═══════════════════════════════════════════════════════════════
 // 줄(row) 단위 박자(meter)·마디 수 지원
 // 코드슬롯 수는 박자(분자)와 무관 — "마디 수 × 오리엔테이션별 고정 분할수"로만 결정됨.
@@ -1769,7 +1679,7 @@ function _resizeRowSlots(oldSlots, newLen) {
 }
 
 function getGlobalSlotIndex(project, lineId, dataIdx) {
-  const land = currentOrient === 'landscape';
+  const land = currentSlotLand;
   let globalIdx = 0;
   for (const row of project.arrangement) {
     const layout = computeRowLayout(getRowBars(row)) || computeRowLayout(2);
@@ -1839,19 +1749,22 @@ function renderProjectView(projectId) {
 
   if (migrated) updateProject(project);
 
-  currentOrient = project.orient === 'landscape' ? 'landscape' : 'portrait';
+  // 뷰포트 실제 가로/세로 비율로 자동 판정 (기기 회전 시 setupOrientationListener가 재렌더)
+  currentOrient = window.innerWidth > window.innerHeight ? 'landscape' : 'portrait';
   // 가로모드: 프레임을 812px까지 확장 (CSS .app-shell.app-land)
   document.querySelector('.app-shell')?.classList.toggle('app-land', currentOrient === 'landscape');
-  _applyOrientLock(currentOrient); // 기기 화면 실제 회전
+  // 코드슬롯 4/8개는 화면비가 아니라 뷰포트 폭 787px 기준 순수 판정(currentOrient와 무관)
+  currentSlotLand = window.innerWidth >= 787;
 
   const viewEl = document.getElementById('view-project');
   viewEl.innerHTML = '';
   viewEl.classList.toggle('view-mode', !isEditMode);
 
-  const maxW = currentOrient === 'landscape' ? '600px' : '480px';
   // #view-project 카드 자체 폭이 이제 양쪽 모드 모두 CSS로 고정됨(가로: app-land 규칙 / 세로: 기본 규칙)
-  // → 자식(sticky-bar·wrapper)도 100%로 고정하면 편집/보기 전환 시 콘텐츠 차이와 무관하게 절대 안 변함
-  const fixedW = currentOrient === 'landscape' ? '600px' : '100%';
+  // → 자식(sticky-bar·wrapper)은 항상 100%로 부모(#view-project) 실제 폭을 그대로 따라감
+  //   (예전엔 가로모드에서 600px 고정값을 따로 줘서 부모(최대 648px)와 어긋나 우측에 빈 공간 생겼음)
+  const maxW = '100%';
+  const fixedW = '100%';
 
   // ── 헤더 (<header> 로 분리) ──
   const header = document.createElement('div');
@@ -1885,19 +1798,6 @@ function renderProjectView(projectId) {
     window.Tutorial?.notify(`editmode:${isEditMode ? 'on' : 'off'}`);
   };
 
-  // 세로/가로 전환 버튼 (동작 미구현 — UI 배치만)
-  const colToggle = document.createElement('div');
-  colToggle.className = 'col-toggle';
-  [['portrait', '세로'], ['landscape', '가로']].forEach(([mode, label]) => {
-    const btn = document.createElement('button');
-    btn.className = 'col-toggle-btn orient-btn' + (currentOrient === mode ? ' active' : '') + (mode === 'landscape' ? ' orient-land' : '');
-    btn.innerHTML = `<i data-lucide="smartphone"></i>`;
-    btn.title = label;
-    btn.dataset.orient = mode;
-    btn.onclick = () => switchOrient(projectId, mode);
-    colToggle.appendChild(btn);
-  });
-
   // ── 1행: [좌] 1마디/½마디 | [우, 편집모드] 삭제 · 공유하기 · 완료/편집 ──
   const headerRow1 = document.createElement('div');
   headerRow1.className = 'project-header-row1';
@@ -1926,11 +1826,8 @@ function renderProjectView(projectId) {
   undoBtn.innerHTML = '<i data-lucide="undo-2"></i>';
   undoBtn.disabled = _undoProjectId !== projectId || _undoStack.length === 0;
   undoBtn.onclick = () => undoLastAction();
-  if (!isEditMode) {
-    undoBtn.style.visibility = 'hidden';
-    undoBtn.style.pointerEvents = 'none';
-  }
-  row1Right.appendChild(undoBtn);
+  // row1Right/append 위치는 방향별 분기부에서 처리(가로모드는 메트로놈·재생 그룹에 합쳐서
+  // 원형버튼 간격 토큰을 셋 다 동일하게 적용하기 위함)
 
   // ── 2행: [코드슬롯 토글 왼쪽] ... [Capo BPM 메트로놈 재생 오른쪽] ──
   const headerRow2 = document.createElement('div');
@@ -1951,11 +1848,12 @@ function renderProjectView(projectId) {
     // 튜토리얼 뷰 모드 구간 — 숨김/표시 두 방향을 각각 판정한다
     window.Tutorial?.notify(`slotshidden:${!slotsHidden}`);
   };
-  headerRow2.appendChild(slotToggleBtn);
 
-  // 오른쪽 컨트롤 그룹
-  const row2Controls = document.createElement('div');
-  row2Controls.className = 'project-header-row2-controls';
+  // row2 좌우 그룹 — 좌: BPM·카포 / 우: 메트로놈·재생
+  const row2Left = document.createElement('div');
+  row2Left.className = 'project-header-row2-controls project-header-row2-left';
+  const row2Right = document.createElement('div');
+  row2Right.className = 'project-header-row2-controls project-header-row2-right';
 
   // 카포 컨트롤
   const capoWrap = document.createElement('div');
@@ -1994,7 +1892,6 @@ function renderProjectView(projectId) {
     }
   };
   capoWrap.append(capoLabel, capoDown, capoVal, capoUp);
-  row2Controls.appendChild(capoWrap);
 
   // BPM 컨트롤
   const bpmWrap = document.createElement('div');
@@ -2018,7 +1915,7 @@ function renderProjectView(projectId) {
     }
   });
   bpmWrap.append(bpmLabel, bpmInput);
-  row2Controls.appendChild(bpmWrap);
+  row2Left.append(bpmWrap, capoWrap); // BPM → 카포 순서
 
   // 메트로놈 버튼
   const metronomeBtn = document.createElement('button');
@@ -2027,7 +1924,7 @@ function renderProjectView(projectId) {
   metronomeBtn.innerHTML = '<i data-lucide="metronome"></i>';
   metronomeBtn.title = '메트로놈';
   metronomeBtn.onclick = () => toggleMetronome();
-  row2Controls.appendChild(metronomeBtn);
+  row2Right.appendChild(metronomeBtn);
 
   // 전체재생 버튼
   const playAllBtn = document.createElement('button');
@@ -2038,18 +1935,27 @@ function renderProjectView(projectId) {
     if (playbackActive) stopPlayAll();
     else playAll(projectId, getVisibleStartSlotIndex(projectId));
   };
-  row2Controls.appendChild(playAllBtn);
-  headerRow2.appendChild(row2Controls);
+  row2Right.appendChild(playAllBtn);
+  headerRow2.append(row2Left, row2Right);
 
-  // 가로모드: 2줄이 필요 없으므로 col-toggle · slot-toggle · row2-controls · row1-right를
-  // slot-toggle-btn 기준 좌→우 한 줄로 배치. 세로모드는 기존 2행 구조 유지.
+  // 가로모드: 2줄이 필요 없으므로 slot-toggle · row2Left · row2Right를
+  // slot-toggle-btn 기준 좌→우 한 줄로 배치. 되돌리기는 row2Right(메트로놈·재생)에
+  // 합쳐서 원형버튼 3개가 같은 --icon-circle-gap 간격을 쓰도록 함(별도 박스로 두면
+  // landrow 자체 gap(8px, 그룹 사이용)이 끼어들어 메트로놈-재생은 6px인데
+  // 재생-되돌리기만 8px로 어긋남). 세로모드는 기존 2행 구조 유지 —
+  // 뷰모드(slot-toggle) 버튼은 row1로 옮겨서 [좌: 뷰모드][우: 되돌리기]로 채움
+  // (row1이 되돌리기 하나뿐이라 휑했고, row2는 이미 4개라 더 못 채웠음)
   if (currentOrient === 'landscape') {
+    undoBtn.style.display = isEditMode ? '' : 'none';
+    row2Right.appendChild(undoBtn);
     const headerRowLand = document.createElement('div');
     headerRowLand.className = 'project-header-row1 project-header-landrow';
-    headerRowLand.append(colToggle, slotToggleBtn, row2Controls, row1Right);
+    headerRowLand.append(slotToggleBtn, row2Left, row2Right);
     header.appendChild(headerRowLand);
   } else {
-    headerRow1.appendChild(colToggle);
+    row1Right.appendChild(undoBtn);
+    if (!isEditMode) row1Right.style.display = 'none';
+    headerRow1.appendChild(slotToggleBtn);
     headerRow1.appendChild(row1Right);
     header.appendChild(headerRow1);
     header.appendChild(headerRow2);
@@ -2058,19 +1964,6 @@ function renderProjectView(projectId) {
   // ── 타이틀 컨테이너 ──
   const titleBar = document.createElement('div');
   titleBar.className = 'project-title-bar';
-
-  // 가로모드: top-bar 공간 낭비 방지 → X버튼을 좌측화살표로 바꿔 제목 좌측에 배치, top-bar는 숨김
-  const topBarEl = document.querySelector('.top-bar');
-  if (currentOrient === 'landscape') {
-    if (topBarEl) topBarEl.classList.add('hidden');
-    const backArrow = document.createElement('button');
-    backArrow.className = 'project-icon-btn title-back-btn';
-    backArrow.innerHTML = '<i data-lucide="x"></i>';
-    backArrow.onclick = () => closeProjectPage();
-    titleBar.appendChild(backArrow);
-  } else if (topBarEl) {
-    topBarEl.classList.remove('hidden');
-  }
 
   titleBar.appendChild(nameInput);
 
@@ -2110,7 +2003,6 @@ function renderProjectView(projectId) {
   viewEl.appendChild(inner);
 
   lucide.createIcons();
-  requestAnimationFrame(() => _syncLineTextWidths(linesEl));
 
   // 에디터 복귀 시 스크롤 위치 복원, 그 외엔 맨 위
   if (_pendingEditRestore) {
@@ -2177,7 +2069,7 @@ function setLineText(lineDiv, text) {
 
 function buildChordArea(line, project, editMode = true) {
   const textMode = project.slotsHidden === true;
-  const land = currentOrient === 'landscape';
+  const land = currentSlotLand;
   const layout = computeRowLayout(getRowBars(line)) || computeRowLayout(2); // 안전망(정상 데이터라면 항상 존재)
   const slotCount = land ? layout.landscapeSlots : layout.portraitSlots;
   const step = land ? 1 : 2; // 세로는 2칸씩 건너뛰며 표시(슬롯당 2칸)
@@ -2360,23 +2252,6 @@ function buildChordArea(line, project, editMode = true) {
   return wrapper;
 }
 
-// 텍스트 보조선(.line-text) 너비를 실제 렌더된 코드슬롯 영역(.chord-area) 너비에 맞춤
-// (chord-area는 케밥 메뉴 유무·오리엔테이션에 따라 실제 폭이 달라지므로 CSS 고정값 대신 매 렌더 후 측정)
-function _syncLineTextWidths(root) {
-  root.querySelectorAll('.project-line').forEach(lineEl => {
-    const areaEl = lineEl.querySelector('.chord-area');
-    const wrapEl = lineEl.querySelector('.line-text-wrap');
-    if (!areaEl || !wrapEl) return;
-    const bars = parseFloat(lineEl.dataset.rowBars) || 2;
-    // 1마디: 보조선이 전체 폭의 절반만 사용 — 가운데 선은 이제 필요 없음(끝선이 그 자리)
-    // chord-area는 이미 박자 레일 반영 후 실측폭이므로 그대로 사용
-    const fullWidth = areaEl.offsetWidth;
-    wrapEl.style.width = (bars <= 1 ? fullWidth / 2 : fullWidth) + 'px';
-    const midTick = wrapEl.querySelector('.line-mid-tick');
-    if (midTick) midTick.style.display = bars <= 1 ? 'none' : '';
-  });
-}
-
 function buildProjectLine(line, project, editMode, prevLine = null, isFirstLine = false) {
   if (!line.slots) line.slots = new Array(8).fill(null);
   const div = document.createElement('div');
@@ -2389,8 +2264,9 @@ function buildProjectLine(line, project, editMode, prevLine = null, isFirstLine 
   if (line.barsPerRow != null) div.dataset.rowBars = line.barsPerRow;
   if (line.capo != null) div.dataset.rowCapo = line.capo;
 
-  // 박자 레일: row-meta-badge·chord-row-wrapper·project-line-text-row(보조선) 전체를 아우르는
-  // 왼쪽 박스로 항상 자리를 예약(그만큼 나머지 콘텐츠 폭이 줄어듦)
+  // 박자 레일: project-line-text-row(보조선) 안에서 line-text-wrap 왼쪽에 붙는 고정폭 박스.
+  // 같은 폭(--row-meter-rail-w)만큼 chord-row-wrapper에도 padding-left로 줘서
+  // 코드슬롯1 좌측끝과 line-text 좌측끝이 정렬되게 함(CSS 참고).
   // → 박자가 커스텀일 때만 그 안에 세로 분수(분자/분모)를 표시, 아닐 땐 빈 채로 자리만 유지
   const rowMeter  = getRowMeter(project, line);
   const prevMeter = prevLine ? getRowMeter(project, prevLine) : null;
@@ -2459,12 +2335,12 @@ function buildProjectLine(line, project, editMode, prevLine = null, isFirstLine 
 
   const textRow = document.createElement('div');
   textRow.className = 'project-line-text-row';
+  textRow.appendChild(meterRail);
   textRow.appendChild(lineTextWrap);
   bodyContent.appendChild(textRow);
 
   const bodyRow = document.createElement('div');
   bodyRow.className = 'project-line-body';
-  bodyRow.appendChild(meterRail);
   bodyRow.appendChild(bodyContent);
   div.appendChild(bodyRow);
 
@@ -2490,7 +2366,7 @@ function buildLinesSection(project, editMode = true) {
     const addLineBtn = document.createElement('button');
     addLineBtn.className = 'add-line-btn';
     addLineBtn.setAttribute('aria-label', '줄 추가');
-    addLineBtn.textContent = '+';
+    addLineBtn.innerHTML = '<i data-lucide="plus"></i>';
     addLineBtn.addEventListener('mousedown', e => e.preventDefault());
     addLineBtn.addEventListener('click', () => {
       // 클로저의 linesEl을 쓰지 않고 버튼이 실제 붙어있는 컨테이너를 조회.
@@ -2507,7 +2383,6 @@ function buildLinesSection(project, editMode = true) {
       host.insertBefore(newDiv, addLineBtn);
       saveAllLines(project.id, host);
       lucide.createIcons();
-      requestAnimationFrame(() => _syncLineTextWidths(host));
     });
     linesEl.appendChild(addLineBtn);
 
@@ -2891,7 +2766,6 @@ function buildLinesSection(project, editMode = true) {
         }
       }
       lucide.createIcons();
-      requestAnimationFrame(() => _syncLineTextWidths(linesEl));
     }
 
     const endLineText = lastLine.querySelector('.line-text') || lastLine;
@@ -3011,7 +2885,6 @@ function buildLinesSection(project, editMode = true) {
       lastInsertedLine.insertAdjacentElement('afterend', newDiv);
       lastInsertedLine = newDiv;
     }
-    requestAnimationFrame(() => _syncLineTextWidths(linesEl));
     const endLineText = lastInsertedLine.querySelector('.line-text') || lastInsertedLine;
     const sel = window.getSelection();
     const endRange = document.createRange();
@@ -3418,7 +3291,6 @@ function _rowMenuAction(action) {
     insertedDiv?.classList.add('project-line-enter');
     insertedDiv?.addEventListener('animationend', () => insertedDiv.classList.remove('project-line-enter'), { once: true });
     lucide.createIcons();
-    requestAnimationFrame(() => _syncLineTextWidths(linesEl));
 
   } else if (action === 'duplicate') {
     // 현재 줄(텍스트+슬롯)을 맨 아래에 복제
@@ -3438,7 +3310,6 @@ function _rowMenuAction(action) {
     else        linesEl.appendChild(newDiv);
     saveAllLines(projectId, linesEl);
     lucide.createIcons();
-    requestAnimationFrame(() => _syncLineTextWidths(linesEl));
     // 복제된 줄은 맨 아래 추가되지만 편집 중이던 자리 유지 위해 자동 스크롤 안 함
 
   } else if (action === 'clear') {
@@ -4047,19 +3918,34 @@ let _libFingerMode   = false;
 let _voicingModalChord = null;
 
 const _LIB_DPR       = Math.min(window.devicePixelRatio || 1, 3);
-const LIB_MINI_W     = Math.ceil(56 * _LIB_DPR);            // CSS 56px × DPR
-const LIB_MINI_RATIO = LIB_MINI_W / VoicingCanvas.BASE_W;
+// 카드 다이어그램 비트맵 크기 = CSS 표시폭(활성 모달의 --pd-canvas-w, sm 56px/lg 72px) × DPR.
+// 고정값으로 두면 lg 모달에서 CSS가 확대할 때 흐려진다 — 그릴 때마다 활성 모달에서 읽어 맞춘다.
+function _libMiniW() {
+  const card = _pdEl('palette-dict-modal')?.querySelector('.palette-dict-card');
+  const css = card ? parseFloat(getComputedStyle(card).getPropertyValue('--pd-canvas-w')) : 56;
+  return Math.ceil((css || 56) * _LIB_DPR);
+}
+
+// 코드사전 추가 모달은 560px 기준으로 완전히 분리된 두 벌(-sm 3x3 / -lg 4x4)로 존재한다.
+// 여는 시점에 한 번만 어느 쪽인지 정하고(_pdActiveModal), 이후 모든 렌더/토글 함수는
+// 이 헬퍼로 "지금 활성 모달"의 요소를 찾는다 — 함수 본문에 -sm/-lg 분기가 안 생기게.
+let _pdActiveModal = 'sm'; // 'sm' | 'lg'
+const _pdModalMq = window.matchMedia('(min-width: 560px)');
+function _pdEl(baseId) {
+  return document.getElementById(`${baseId}-${_pdActiveModal}`);
+}
 
 function openPaletteDictionary(projectId) {
   _pdProjectId = projectId;
   _voicingModalChord = null;
+  _pdActiveModal = _pdModalMq.matches ? 'lg' : 'sm';
   // 샵/플랫 버튼을 전역 accidental 상태에 동기화
-  document.getElementById('lib-acc-sharp')?.classList.toggle('active', accidental === 'sharp');
-  document.getElementById('lib-acc-flat')?.classList.toggle('active', accidental === 'flat');
+  _pdEl('lib-acc-sharp')?.classList.toggle('active', accidental === 'sharp');
+  _pdEl('lib-acc-flat')?.classList.toggle('active', accidental === 'flat');
   renderLibRootTabs();
   renderLibCards(_libRoot);
   closeVoicingModal();
-  document.getElementById('palette-dict-modal').classList.remove('hidden');
+  _pdEl('palette-dict-modal').classList.remove('hidden');
   lucide.createIcons();
   analytics.track('palette_dict_opened', { project_id: projectId });
   window.Tutorial?.notify('palettedict:open');
@@ -4067,9 +3953,29 @@ function openPaletteDictionary(projectId) {
 
 function closePaletteDictionary() {
   closeVoicingModal();
-  document.getElementById('palette-dict-modal').classList.add('hidden');
+  // 열려있던 쪽이 어느 쪽인지 모를 수 있어(리사이즈로 전환 가능성) 둘 다 닫는다
+  document.getElementById('palette-dict-modal-sm')?.classList.add('hidden');
+  document.getElementById('palette-dict-modal-lg')?.classList.add('hidden');
   window.Tutorial?.notify('palettedict:close');
 }
+
+// 모달을 열어둔 채로 560px 경계를 넘나들면 sm/lg를 실시간으로 전환한다
+_pdModalMq.addEventListener('change', (e) => {
+  const smOpen = document.getElementById('palette-dict-modal-sm')?.classList.contains('hidden') === false;
+  const lgOpen = document.getElementById('palette-dict-modal-lg')?.classList.contains('hidden') === false;
+  if (!smOpen && !lgOpen) return;
+  const next = e.matches ? 'lg' : 'sm';
+  if (next === _pdActiveModal) return;
+  document.getElementById(`palette-dict-modal-${_pdActiveModal}`)?.classList.add('hidden');
+  _pdActiveModal = next;
+  _pdEl('lib-acc-sharp')?.classList.toggle('active', accidental === 'sharp');
+  _pdEl('lib-acc-flat')?.classList.toggle('active', accidental === 'flat');
+  renderLibRootTabs();
+  renderLibCards(_libRoot);
+  closeVoicingModal();
+  _pdEl('palette-dict-modal').classList.remove('hidden');
+  lucide.createIcons();
+});
 
 // "에디터로" — 기존 + 버튼의 에디터 이동 로직 이식
 async function paletteDictToEditor() {
@@ -4091,7 +3997,7 @@ function renderLibRootTabs() {
   const roots    = ['C','C#','D','D#','E','F','F#','G','G#','A','A#','B'];
   const flatMap  = { 'C#':'Db','D#':'Eb','F#':'Gb','G#':'Ab','A#':'Bb' };
   const useFlat  = accidental === 'flat';
-  const container = document.getElementById('lib-root-tabs');
+  const container = _pdEl('lib-root-tabs');
   if (!container) return;
   container.innerHTML = roots.map(r => {
     const label = useFlat ? (flatMap[r] || r) : r;
@@ -4111,7 +4017,7 @@ function selectLibRoot(root) {
 // ── 코드 카드 그리드 (코드명 기준 그룹화) ──
 function renderLibCards(root) {
   const entries   = (window.chordsLibrary || {})[root] || [];
-  const container = document.getElementById('lib-cards');
+  const container = _pdEl('lib-cards');
   if (!container) return;
 
   if (!entries.length) {
@@ -4119,6 +4025,8 @@ function renderLibCards(root) {
     return;
   }
 
+  const miniW     = _libMiniW();
+  const miniRatio = miniW / VoicingCanvas.BASE_W;
   const useFlat = accidental === 'flat';
   const groups  = new Map(); // sharpName → [idx, ...]
   entries.forEach((e, i) => {
@@ -4137,8 +4045,8 @@ function renderLibCards(root) {
                   data-chord="${sharpName}"
                   onclick="onLibCardClick(event,'${sharpName.replace(/\\/g,'\\\\').replace(/'/g,"\\'")}')">
                <canvas class="lib-card-canvas" data-gidx="${gi}"
-                       width="${LIB_MINI_W}"
-                       height="${Math.round(VoicingCanvas.BASE_H * LIB_MINI_RATIO)}"></canvas>
+                       width="${miniW}"
+                       height="${Math.round(VoicingCanvas.BASE_H * miniRatio)}"></canvas>
                <div class="lib-card-name">${dispName}</div>
                ${multi ? `<div class="lib-card-badge">${idxList.length}</div>` : ''}
              </div>`;
@@ -4149,7 +4057,7 @@ function renderLibCards(root) {
 
   reps.forEach((rep, i) => {
     const c = container.querySelectorAll('.lib-card-canvas')[i];
-    if (c) _drawLibCanvas(c, LIB_MINI_RATIO, rep);
+    if (c) _drawLibCanvas(c, miniRatio, rep);
   });
 }
 
@@ -4225,11 +4133,11 @@ function _drawLibCanvas(canvas, ratio, entry, nameOverride = '') {
 
 // ── 보이싱 피커 모달 ──
 function openVoicingModal(sharpName, cardEl) {
-  const modal   = document.getElementById('lib-voicing-modal');
-  const overlay = document.getElementById('lib-voicing-overlay');
+  const modal   = _pdEl('lib-voicing-modal');
+  const overlay = _pdEl('lib-voicing-overlay');
   if (!modal) return;
 
-  const bottomEl = document.querySelector('#palette-dict-modal .lib-bottom');
+  const bottomEl = _pdEl('palette-dict-modal')?.querySelector('.lib-bottom');
   if (bottomEl && cardEl) {
     const br = bottomEl.getBoundingClientRect();
     const cr = cardEl.getBoundingClientRect();
@@ -4250,15 +4158,17 @@ function openVoicingModal(sharpName, cardEl) {
 function closeVoicingModal() {
   // 튜토리얼이 이 구간에서 목록을 잠갔으면 무시한다(모달 여백·오버레이 오터치 방지)
   if (window.Tutorial?.locksVoicing?.()) return;
-  document.getElementById('lib-voicing-modal')?.classList.remove('open');
-  document.getElementById('lib-voicing-overlay')?.classList.remove('open');
+  _pdEl('lib-voicing-modal')?.classList.remove('open');
+  _pdEl('lib-voicing-overlay')?.classList.remove('open');
   _voicingModalChord = null;
 }
 
 function _renderVoicingGrid(sharpName) {
-  const grid = document.getElementById('lib-voicing-grid');
+  const grid = _pdEl('lib-voicing-grid');
   if (!grid) return;
   const allEntries = (window.chordsLibrary || {})[_libRoot] || [];
+  const miniW      = _libMiniW();
+  const miniRatio  = miniW / VoicingCanvas.BASE_W;
   const useFlat    = accidental === 'flat';
   const filtered   = allEntries
     .map((e, i) => ({ e, i }))
@@ -4270,15 +4180,15 @@ function _renderVoicingGrid(sharpName) {
     return `<div class="lib-card" data-vpos="${pos}"
                  onclick="event.stopPropagation(); onVoicingPick(event, ${i});">
                <canvas class="lib-card-canvas" data-vidx="${i}"
-                       width="${LIB_MINI_W}"
-                       height="${Math.round(VoicingCanvas.BASE_H * LIB_MINI_RATIO)}"></canvas>
+                       width="${miniW}"
+                       height="${Math.round(VoicingCanvas.BASE_H * miniRatio)}"></canvas>
                <div class="lib-card-name">${dispName}</div>
              </div>`;
   }).join('');
 
   filtered.forEach(({ e, i }) => {
     const c = grid.querySelector(`[data-vidx="${i}"]`);
-    if (c) _drawLibCanvas(c, LIB_MINI_RATIO, e);
+    if (c) _drawLibCanvas(c, miniRatio, e);
   });
 }
 
@@ -4296,10 +4206,10 @@ function onVoicingPick(event, idx) {
 
 // ── 샵/플랫 토글 ──
 function toggleLibAccidental() {
-  const current = document.getElementById('lib-acc-sharp')?.classList.contains('active') ? 'sharp' : 'flat';
+  const current = _pdEl('lib-acc-sharp')?.classList.contains('active') ? 'sharp' : 'flat';
   accidental = current === 'sharp' ? 'flat' : 'sharp';
-  document.getElementById('lib-acc-sharp')?.classList.toggle('active', accidental === 'sharp');
-  document.getElementById('lib-acc-flat')?.classList.toggle('active', accidental === 'flat');
+  _pdEl('lib-acc-sharp')?.classList.toggle('active', accidental === 'sharp');
+  _pdEl('lib-acc-flat')?.classList.toggle('active', accidental === 'flat');
   renderLibRootTabs();
   renderLibCards(_libRoot);
   if (_voicingModalChord) _renderVoicingGrid(_voicingModalChord);
@@ -4615,6 +4525,11 @@ function setupOrientationListener() {
     }
   };
   try { mq.addEventListener('change', handler); } catch(e) { mq.addListener(handler); }
+
+  // 코드슬롯 4/8개 판정 경계(787px) — 화면비 안 바뀌는 순수 폭 리사이즈(데스크탑 창 드래그 등)도
+  // 이 경계를 넘으면 재렌더되도록 별도 감시
+  const mqSlot = window.matchMedia('(min-width: 787px)');
+  try { mqSlot.addEventListener('change', handler); } catch(e) { mqSlot.addListener(handler); }
 }
 
 // ═══════════════════════════════════════════════════════════════
@@ -4893,6 +4808,33 @@ document.addEventListener('DOMContentLoaded', async () => {
   const _backBtn = document.getElementById('back-btn');
   if (_backBtn) _backBtn.classList.remove('hidden');
 
+  // 뒤로가기는 #main-content > .top-bar 안에 고정 — 모바일/데스크탑 공용, JS 이동 없음.
+
+  // 마우스 드래그 스크롤 (브라우저 환경, progression.js와 동일 패턴) — .project-lines는
+  // 렌더될 때마다 새로 생성되므로 document에 위임. 코드슬롯/텍스트 편집은 그대로 두고
+  // 빈 영역을 누른 드래그만 스크롤로 처리
+  (() => {
+    let _dragScroller = null, _startY = 0, _scrollY = 0;
+    document.addEventListener('mousedown', e => {
+      const scroller = e.target.closest('.project-lines');
+      if (!scroller || e.target.closest('.line-text, .chord-slot, button')) return;
+      _dragScroller = scroller;
+      _startY = e.clientY;
+      _scrollY = scroller.scrollTop;
+      scroller.style.cursor = 'grabbing';
+      e.preventDefault();
+    });
+    document.addEventListener('mousemove', e => {
+      if (!_dragScroller) return;
+      _dragScroller.scrollTop = _scrollY - (e.clientY - _startY);
+    });
+    document.addEventListener('mouseup', () => {
+      if (!_dragScroller) return;
+      _dragScroller.style.cursor = '';
+      _dragScroller = null;
+    });
+  })();
+
   // 새 프로젝트 모달 Enter 키
   document.getElementById('create-project-name-input')
     ?.addEventListener('keydown', e => { if (e.key === 'Enter') confirmCreateProject(); });
@@ -4941,9 +4883,6 @@ document.addEventListener('DOMContentLoaded', async () => {
     const _vp = document.getElementById('view-project');
     if (_vp) _vp.innerHTML = '<div class="project-loading-spinner"></div>';
 
-    // 가로모드로 저장된 노트는 renderProjectView 안에서 실제 기기 회전이 걸리므로
-    // 그 회전이 끝날 때까지 page-cover를 유지 — 그 전에 걷으면 회전 과정이 노출됨
-    const _needsRotate = getProject(projectIdParam)?.orient === 'landscape';
     const _cover = document.getElementById('page-cover');
     setTimeout(() => {
       renderProjectView(projectIdParam);
@@ -4951,11 +4890,10 @@ document.addEventListener('DOMContentLoaded', async () => {
       requestAnimationFrame(() => requestAnimationFrame(() => {
         if (typeof Tutorial !== 'undefined') Tutorial.resume();
       }));
-      setTimeout(() => {
-        if (!_cover) return;
+      if (_cover) {
         _cover.classList.add('cover-out');
         setTimeout(() => { _cover.style.display = 'none'; }, 200);
-      }, _needsRotate ? 450 : 0);
+      }
     }, 200);
   } else {
     // id 없이 접근한 경우 홈으로 리다이렉트

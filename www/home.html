@@ -17,19 +17,22 @@
 
   <div class="app-shell">
 
-    <!-- ── 탑바 ── -->
-    <div class="top-bar">
+    <!-- ── home.html 전용 탑바 — 로고/브랜드/버전 + 뒤로가기 + 튜토리얼 + 설정 전부 이 하나에 —
+         home.html은 desktop-topbar 하나만 쓰기로 함(2026-08-22). 항상 노출(모바일/데스크탑 공용) ── -->
+    <div class="top-bar desktop-topbar">
       <button id="back-btn" class="hidden" onpointerdown="enterFromBlock(event,this,'home')">
         <i data-lucide="chevron-left"></i>
       </button>
-      <span class="top-bar-title">CHORDITOR<span id="home-banner-version" class="top-bar-version"></span></span>
+      <span class="top-bar-title"><img src="image/Chorditor_logo.svg" alt="" class="top-bar-logo">CHORDITOR<span id="home-banner-version" class="top-bar-version"></span></span>
       <!-- 튜토리얼 재진입 — 건너뛰거나 중간에 멈춘 유저용. 홈 탭에서만 노출 -->
-      <button id="tutorial-entry-btn" class="icon-btn hidden" onclick="_playTap(); openTutorialModal()" style="margin-left:auto;margin-right:15px;" aria-label="튜토리얼">
+      <button id="tutorial-entry-btn" class="icon-btn hidden" onclick="_playTap(); openTutorialModal()" style="margin-left:auto;margin-right:0px;" aria-label="튜토리얼">
         <i data-lucide="circle-help"></i>
         <span class="tut-entry-dot" id="tutorial-entry-dot" hidden></span>
+        <span class="nav-label">튜토리얼</span>
       </button>
       <button id="settings-btn" class="icon-btn hidden" onclick="_playTap(); openSettings()" style="margin-left:auto;margin-right:15px;" aria-label="설정">
         <i data-lucide="settings"></i>
+        <span class="nav-label">설정</span>
       </button>
     </div>
 
@@ -41,38 +44,42 @@
 
         <!-- 홈 화면 -->
         <div class="view" id="view-home">
+          <!-- Z Flip 힌지 기준 상단 스택(튜토리얼 배너+출석보드+광고배너) 묶음 — 힌지 위 50vh에 맞춰 정렬할 때만 사용 -->
+          <div class="home-top-stack">
           <!-- 튜토리얼 배너 + 출석/퀘스트 보드 (단일 카드로 병합) -->
           <div class="home-daily-board" id="home-daily-board">
-            <div class="hdb-banner" id="home-banner">
-              <div class="home-banner-cols">
-                <div class="home-banner-left">
-                  <div class="home-banner-title">누구나 기타를 즐기는 세상, 코디터</div>
-                </div>
-                <div class="home-banner-right">
-                  <button class="home-banner-note home-banner-btn home-banner-btn--arrow" onclick="showTutorial()"><i data-lucide="chevron-right"></i></button>
-                </div>
-              </div>
-            </div>
-            <div class="hdb-hdivider"></div>
-            <div class="hdb-row">
-              <div class="hdb-col" id="topbar-level" onclick="_playTap();switchTab('profile')">
-                <div class="hdb-icon hdb-icon--level"><span class="hdb-icon-lv-prefix">Lv</span><span id="tbl-num">1</span></div>
-                <div class="hdb-text">
-                  <div class="hdb-label" id="hdb-persona">언박싱 1일차</div>
+            <div class="hdb-content">
+              <div class="hdb-banner" id="home-banner">
+                <div class="home-banner-cols">
+                  <div class="home-banner-left">
+                    <div class="home-banner-title">누구나 기타를 즐기는 세상, 코디터</div>
+                  </div>
+                  <div class="home-banner-right">
+                    <button class="home-banner-note home-banner-btn home-banner-btn--arrow" onclick="showTutorial()"><i data-lucide="chevron-right"></i></button>
+                  </div>
                 </div>
               </div>
-              <div class="hdb-divider"></div>
-              <div class="hdb-col" id="hdb-attendance" onclick="openAttendanceCalendar()">
-                <div class="hdb-icon"><img src="image/calender.png" alt=""></div>
-                <div class="hdb-text">
-                  <div class="hdb-label">출석체크</div>
+              <div class="hdb-hdivider"></div>
+              <div class="hdb-row">
+                <div class="hdb-col" id="topbar-level" onclick="_playTap();switchTab('profile')">
+                  <div class="hdb-icon hdb-icon--level"><span class="hdb-icon-lv-prefix">Lv</span><span id="tbl-num">1</span></div>
+                  <div class="hdb-text">
+                    <div class="hdb-label" id="hdb-persona">언박싱 1일차</div>
+                  </div>
                 </div>
-              </div>
-              <div class="hdb-divider"></div>
-              <div class="hdb-col" id="hdb-quest" onclick="openQuestModal()">
-                <div class="hdb-icon"><img src="image/badge.png" alt=""><span class="hdb-quest-dot" id="hdb-quest-dot" hidden></span></div>
-                <div class="hdb-text">
-                  <div class="hdb-label">퀘스트 보상</div>
+                <div class="hdb-divider"></div>
+                <div class="hdb-col" id="hdb-attendance" onclick="openAttendanceCalendar()">
+                  <div class="hdb-icon"><img src="image/calender.png" alt=""></div>
+                  <div class="hdb-text">
+                    <div class="hdb-label">출석체크</div>
+                  </div>
+                </div>
+                <div class="hdb-divider"></div>
+                <div class="hdb-col" id="hdb-quest" onclick="openQuestModal()">
+                  <div class="hdb-icon"><img src="image/badge.png" alt=""><span class="hdb-quest-dot" id="hdb-quest-dot" hidden></span></div>
+                  <div class="hdb-text">
+                    <div class="hdb-label">퀘스트 보상</div>
+                  </div>
                 </div>
               </div>
             </div>
@@ -109,7 +116,7 @@
                 <span class="ad-banner-badge">신규</span>
                 <div class="ad-banner-text">
                   <div class="ad-banner-title">코드 조합 훈련</div>
-                  <div class="ad-banner-desc">복잡하고 어려운 화성학을<br>퀴즈로 연습해요!</div>
+                  <div class="ad-banner-desc">복잡하고 어려운 화성학을 <br>퀴즈로 연습해요!</div>
                 </div>
                 <button class="ad-banner-cta" onclick="_playTap();enterChordComboFromBanner()">
                   <i data-lucide="chevron-right"></i>
@@ -119,7 +126,7 @@
                 <div class="ad-banner-prog-bg" id="home-ad-banner-prog-bg"></div>
                 <div class="ad-banner-text">
                   <div class="ad-banner-title">오늘의 코드진행</div>
-                  <div class="ad-banner-desc">매일 코드진행 하나씩<br>연습해보아요!</div>
+                  <div class="ad-banner-desc">매일 코드진행 하나씩 <br>연습해보아요!</div>
                 </div>
                 <button class="ad-banner-cta" onclick="_playTap();enterProgressionFromBanner()">
                   <i data-lucide="chevron-right"></i>
@@ -129,14 +136,14 @@
                 <div class="ad-banner-split" onclick="_playTap();enterTrainingFromBanner('chord-name')">
                   <div class="ad-banner-split-text">
                     <div class="ad-banner-split-label"><i class="ph-fill ph-grid-nine"></i>코드 맞추기</div>
-                    <div class="ad-banner-split-desc">기타 없이도 코드 암기를<br>할 수 있어요.</div>
+                    <div class="ad-banner-split-desc">가볍게 즐기는 <br>코드 암기 퀴즈!</div>
                   </div>
                   <i data-lucide="chevron-right" class="ad-banner-split-arrow"></i>
                 </div>
                 <div class="ad-banner-split" onclick="_playTap();enterTrainingFromBanner('scale')">
                   <div class="ad-banner-split-text">
                     <div class="ad-banner-split-label"><i class="ph-fill ph-music-notes"></i>스케일 훈련</div>
-                    <div class="ad-banner-split-desc">다양한 스케일들이<br>모여있어요!</div>
+                    <div class="ad-banner-split-desc">기타 솔로 <br>필수 코스!</div>
                   </div>
                   <i data-lucide="chevron-right" class="ad-banner-split-arrow"></i>
                 </div>
@@ -148,22 +155,23 @@
               <span class="home-ad-banner-dot"></span>
             </div>
           </div>
+          </div>
 
           <div class="home-blocks">
-            <div class="home-block" id="home-block-editor" onpointerdown="enterFromBlock(event,this,'editor')">
-              <div class="home-block-icon"><i class="ph-bold ph-grid-nine"></i></div>
-              <div class="home-block-title">코드 에디터</div>
-              <div class="home-block-desc">코드표 제작 · 이미지 저장</div>
+            <div class="home-block" id="home-block-training" onpointerdown="enterFromBlock(event,this,'training')">
+              <div class="home-block-icon"><i class="ph-bold ph-barbell"></i></div>
+              <div class="home-block-title">훈련소</div>
+              <div class="home-block-desc">기타 실력 향상 훈련</div>
             </div>
             <div class="home-block" id="home-block-library" onpointerdown="enterFromBlock(event,this,'library')">
               <div class="home-block-icon"><i class="ph-bold ph-book-open"></i></div>
               <div class="home-block-title">코드 사전</div>
               <div class="home-block-desc">코드 운지 검색 · 가져오기</div>
             </div>
-            <div class="home-block" id="home-block-training" onpointerdown="enterFromBlock(event,this,'training')">
-              <div class="home-block-icon"><i class="ph-bold ph-barbell"></i></div>
-              <div class="home-block-title">훈련소</div>
-              <div class="home-block-desc">기타 실력 향상 훈련</div>
+            <div class="home-block" id="home-block-editor" onpointerdown="enterFromBlock(event,this,'editor')">
+              <div class="home-block-icon"><i class="ph-bold ph-grid-nine"></i></div>
+              <div class="home-block-title">코드 에디터</div>
+              <div class="home-block-desc">코드표 제작 · 이미지 저장</div>
             </div>
             <div class="home-block home-block--soon">
               <div class="home-block-icon"><i class="ph-bold ph-map-trifold"></i></div>
@@ -288,11 +296,16 @@
 
             <!-- 캔버스 -->
             <div class="canvas-wrap">
-              <div class="accidental-toggle canvas-wrap-acc-overlay" onclick="toggleAccidental()">
-                <button class="acc-btn active" id="acc-sharp">#</button>
-                <button class="acc-btn" id="acc-flat">b</button>
-              </div>
               <div class="canvas-unit">
+                <div class="canvas-topbar">
+                  <div class="accidental-toggle canvas-wrap-acc-overlay" onclick="toggleAccidental()">
+                    <button class="acc-btn active" id="acc-sharp">#</button>
+                    <button class="acc-btn" id="acc-flat">b</button>
+                  </div>
+                  <button class="canvas-side-btn canvas-side-btn--ghost" id="btn-reset-chord" onclick="resetChord()" title="초기화">
+                    <i data-lucide="rotate-ccw"></i>
+                  </button>
+                </div>
                 <div class="canvas-inner">
                   <canvas id="c"></canvas>
                   <div id="fret-ctrl">
@@ -300,9 +313,6 @@
                     <button class="fret-arrow-btn" onclick="adjustFretNumber(1)">&#9654;</button>
                   </div>
                   <div class="canvas-side-btns" id="canvas-side-btns">
-                    <button class="canvas-side-btn canvas-side-btn--ghost" id="btn-reset-chord" onclick="resetChord()" title="초기화">
-                      <i data-lucide="rotate-ccw"></i>
-                    </button>
                     <div id="canvas-main-btns">
                       <button class="canvas-side-btn" id="btn-save-image" onclick="saveChordImage()" title="이미지 저장">
                         <i data-lucide="image-down"></i>
@@ -336,9 +346,7 @@
           <span class="home-section-label lib-page-title">코드 사전</span>
         </div>
 
-        <!-- 2. 검색바 + 뷰어 -->
-        <div class="lib-viewer-section">
-        <!-- 1. 검색창 -->
+        <!-- 1. 검색 섹션 -->
         <div class="lib-search-bar">
           <i data-lucide="search" class="lib-search-icon"></i>
           <input type="text" id="lib-search"
@@ -347,7 +355,7 @@
                  onkeydown="if(event.key==='Enter'){event.target.blur();showLibSearchModal();}" />
         </div>
 
-        <!-- 2. 코드 뷰어: 캔버스 + 사이드버튼 + 운지 내비게이션 -->
+        <!-- 2. 다이어그램 섹션: 캔버스 + 사이드버튼 + 운지 내비게이션 -->
         <div class="lib-viewer">
           <div class="lib-canvas-row">
             <canvas id="lib-canvas"></canvas>
@@ -370,7 +378,6 @@
             </button>
           </div>
         </div>
-        </div><!-- /lib-viewer-section -->
 
         <!-- 3+4. 액션바 + 코드목록 묶음 -->
         <div class="lib-bottom-area">
@@ -419,6 +426,38 @@
       </div>
 
       </div><!-- /tab-view-home -->
+
+      <!-- ── 도구 탭 ── -->
+      <div class="tab-view hidden" id="tab-view-tools">
+
+        <div class="training-scroll" id="view-tools">
+
+          <span class="training-page-title">도구</span>
+
+          <div class="training-section-label">도구 목록</div>
+          <div class="training-grid">
+
+            <!-- 튜너 -->
+            <div class="training-card" data-key="tuner" onclick="_playTap();location.href='tuner.html'">
+              <div class="training-card-icon"><i class="ph-fill ph-waveform"></i></div>
+              <div class="training-card-bottom">
+                <span class="training-card-name">튜너</span>
+              </div>
+            </div>
+
+            <!-- 메트로놈 -->
+            <div class="training-card" data-key="metronome" onclick="_playTap();location.href='metronome.html'">
+              <div class="training-card-icon"><i class="ph-fill ph-metronome"></i></div>
+              <div class="training-card-bottom">
+                <span class="training-card-name">메트로놈</span>
+              </div>
+            </div>
+
+          </div><!-- /training-grid -->
+
+        </div><!-- /training-scroll -->
+
+      </div><!-- /tab-view-tools -->
 
       <!-- ── 프로젝트 탭 ── -->
       <div class="tab-view hidden" id="tab-view-projects">
@@ -483,7 +522,7 @@
           </div>
 
           <!-- 컨테이너 2: 플랜 배너 -->
-          <div class="profile-container">
+          <div class="profile-container profile-container--plan">
             <div class="profile-plan-banner">
               <div class="profile-plan-left">
                 <span class="profile-plan-label">현재 플랜</span>
@@ -499,7 +538,7 @@
           </div>
 
           <!-- 컨테이너 3: 통계 카드 -->
-          <div class="profile-container">
+          <div class="profile-container profile-container--stats">
             <div class="profile-section-label">활동 기록</div>
             <div class="profile-stats">
               <div class="profile-stat-card">
@@ -526,7 +565,7 @@
           </div>
 
           <!-- 컨테이너 4: 내 초대코드 -->
-          <div class="profile-container">
+          <div class="profile-container profile-container--invite">
             <div class="profile-section-label">내 초대코드</div>
             <div class="profile-invite-box" onclick="_playTap();copyMyInviteCode()">
               <span class="profile-invite-code" id="profile-invite-code">------</span>
@@ -536,7 +575,7 @@
           </div>
 
           <!-- 컨테이너 5: 코드 입력 (프로모션 쿠폰 전용) -->
-          <div class="profile-container">
+          <div class="profile-container profile-container--code">
             <div class="profile-section-label">코드 입력</div>
             <div class="profile-code-box">
               <input type="text" class="profile-code-input" id="profile-code-input"
@@ -553,9 +592,28 @@
 
     <!-- ── 하단 탭바 ── -->
     <nav class="bottom-nav">
+      <!-- 데스크탑 사이드바 전용 타이틀 (모바일/태블릿은 CSS로 숨김) -->
+      <div class="sidebar-brand"><span class="top-bar-title">CHORDITOR<span id="sidebar-brand-version" class="top-bar-version"></span></span></div>
+      <!-- 데스크탑 사이드바 전용 유저 요약 (레벨/닉네임/플랜) -->
+      <div class="sidebar-user">
+        <span class="sidebar-user-level">Lv.<span id="sidebar-user-lv">1</span></span>
+        <span class="sidebar-user-name" id="sidebar-user-name">—</span>
+        <span class="sidebar-user-plan" id="sidebar-user-plan">Free</span>
+      </div>
+      <!-- 데스크탑 사이드바 전용 경험치바 (프로필 탭 XP바 미러) -->
+      <div class="sidebar-user-xp profile-xp">
+        <div class="profile-xp-bar">
+          <div class="profile-xp-bar-fill" id="sidebar-user-xp-bar-fill"></div>
+        </div>
+        <span class="profile-xp-num" id="sidebar-user-xp-num">0 / 0 XP</span>
+      </div>
       <button class="bottom-nav-item active" id="nav-home" onpointerdown="navTabPointerDown(event,this,'home')">
         <i data-lucide="home"></i>
         <span>홈</span>
+      </button>
+      <button class="bottom-nav-item" id="nav-tools" onpointerdown="navTabPointerDown(event,this,'tools')">
+        <i data-lucide="wrench"></i>
+        <span>도구</span>
       </button>
       <button class="bottom-nav-item" id="nav-projects" onpointerdown="navTabPointerDown(event,this,'projects')">
         <i data-lucide="book-open"></i>
@@ -564,6 +622,11 @@
       <button class="bottom-nav-item" id="nav-profile" onpointerdown="navTabPointerDown(event,this,'profile')">
         <i data-lucide="user"></i>
         <span>프로필</span>
+      </button>
+      <!-- 데스크탑 사이드바 전용 로그아웃 (JS가 설정 아래로 배치) -->
+      <button class="icon-btn" id="sidebar-logout-btn" onclick="_playTap(); confirmLogout();" aria-label="로그아웃">
+        <i data-lucide="log-out"></i>
+        <span class="nav-label">로그아웃</span>
       </button>
     </nav>
 
@@ -885,6 +948,60 @@
       <h3 class="notice-modal-title" id="notice-modal-title"></h3>
       <p class="notice-modal-message" id="notice-modal-message"></p>
       <button class="notice-modal-btn" onclick="closeNoticeModal()">확인</button>
+    </div>
+  </div>
+
+  <!-- ── 모달: 업데이트 안내(1회성, DB notices와 별개 — 기능 소개용 고정 카드형) ── -->
+  <div class="modal-overlay hidden" id="update-notice-overlay" onclick="closeUpdateNotice(false)">
+    <div class="update-notice-modal" onclick="event.stopPropagation()">
+      <img src="image/Chorditor_logo.png" alt="" class="update-notice-logo">
+      <h3 class="update-notice-version">1.3.4 업데이트</h3>
+      <p class="update-notice-subtitle">새 기능이 추가됐어요!</p>
+      <p class="update-notice-message">튜너와 메트로놈을 새로 만들었어요.<br>지금 바로 사용해보세요.</p>
+
+      <div class="update-notice-features">
+        <div class="update-notice-feature">
+          <div class="update-notice-feature-icon"><i class="ph-fill ph-waveform"></i></div>
+          <div class="update-notice-feature-text">
+            <span class="update-notice-feature-name">튜너</span>
+          </div>
+        </div>
+        <div class="update-notice-feature">
+          <div class="update-notice-feature-icon"><i class="ph-fill ph-metronome"></i></div>
+          <div class="update-notice-feature-text">
+            <span class="update-notice-feature-name">메트로놈</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="update-notice-btns">
+        <button class="update-notice-btn update-notice-btn--ghost" onclick="closeUpdateNotice(false)">확인</button>
+        <button class="update-notice-btn update-notice-btn--primary" onclick="closeUpdateNotice(true)">바로가기</button>
+      </div>
+
+      <label class="update-notice-dismiss">
+        <input type="checkbox" id="update-notice-dismiss-check">
+        다시 보지 않기
+      </label>
+    </div>
+  </div>
+
+  <!-- ── 모달: 태블릿·PC 반응형 개선 안내(1회성, 위 update-notice 공용 클래스 재활용) ── -->
+  <div class="modal-overlay hidden" id="responsive-notice-overlay" onclick="closeResponsiveNotice()">
+    <div class="update-notice-modal" onclick="event.stopPropagation()">
+      <img src="image/Chorditor_logo.png" alt="" class="update-notice-logo">
+      <h3 class="update-notice-version">1.3.4 업데이트</h3>
+      <p class="update-notice-subtitle">태블릿과 PC브라우저에서 더 보기 편해졌어요!</p>
+      <p class="update-notice-message">화면 배치를 새로 다듬었어요.<br>더 넓고 편하게 써보세요.</p>
+
+      <div class="update-notice-btns">
+        <button class="update-notice-btn update-notice-btn--primary" onclick="closeResponsiveNotice()">확인</button>
+      </div>
+
+      <label class="update-notice-dismiss">
+        <input type="checkbox" id="responsive-notice-dismiss-check">
+        다시 보지 않기
+      </label>
     </div>
   </div>
 

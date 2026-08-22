@@ -4,6 +4,7 @@
 
 // ── 뷰 전환 상태 ─────────────────────────────────────────────
 let _comboInQuiz = false;
+window._leaveGuardActive = () => _comboInQuiz; // shared.js 사이드바 네비 이탈 확인용
 
 // 괄호 표기(텐션·(b5) 등)를 위첨자로 작게 표기 — 코드명/라벨 텍스트에 섞인 (...) 전부 <sup>로 감쌈
 function _ccFormatB5(text) {
@@ -965,7 +966,12 @@ const COMBO_CAROUSEL_MIN_SCALE = 0.88;
 const COMBO_CAROUSEL_FALLOFF   = 0.6;
 
 function _updateComboCarouselScale(track) {
-  const viewportCenter = window.innerWidth / 2;
+  // window.innerWidth/2는 데스크탑 사이드바(240px)를 안 뺀 전체폭 중심이라, 실제 콘텐츠
+  // 영역(.content-body) 중심과 어긋나서 정중앙 카드도 scale<1로 살짝 줄어들었음 —
+  // content-body(없으면 main-content) 실제 렌더 영역 기준으로 중심 계산
+  const stage = track.closest('.content-body') || document.getElementById('main-content') || document.body;
+  const stageRect = stage.getBoundingClientRect();
+  const viewportCenter = stageRect.left + stageRect.width / 2;
   track.querySelectorAll('.combo-card').forEach(card => {
     const rect = card.getBoundingClientRect();
     const cardCenter = rect.left + rect.width / 2;
@@ -1071,6 +1077,8 @@ document.addEventListener('DOMContentLoaded', () => {
   // 슬라이드업 진입 애니메이션
   const shell = document.querySelector('.app-shell');
   if (shell) shell.classList.add('project-enter');
+
+  // 뒤로가기+피크바는 #main-content > .top-bar 안에 고정 — 모바일/데스크탑 공용, JS 이동 없음.
 
   lucide.createIcons();
   initTutorialCarousel();

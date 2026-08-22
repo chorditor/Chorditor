@@ -70,7 +70,7 @@ async function _stopPlay(options = {}) {
     const card = document.querySelector(`.prog-card[data-id="${_playingId}"]`);
     if (card) {
       card.querySelectorAll('.prog-chord-cell').forEach(c => c.classList.remove('prog-chord-cell--playing'));
-      const btn = card.querySelector('.prog-play-btn');
+      const btn = card.querySelector('.prog-enter-btn');
       if (btn) { btn.innerHTML = '<i data-lucide="chevron-right"></i>'; lucide.createIcons({ nodes: [btn] }); }
     }
   }
@@ -91,7 +91,7 @@ function _startPlay(progId) {
   _playStep  = 0;
 
   const card = document.querySelector(`.prog-card[data-id="${progId}"]`);
-  const btn  = card?.querySelector('.prog-play-btn');
+  const btn  = card?.querySelector('.prog-enter-btn');
   if (btn) { btn.innerHTML = '<i data-lucide="square"></i>'; lucide.createIcons({ nodes: [btn] }); }
 
   analytics.track('progression_played', {
@@ -211,10 +211,10 @@ function _renderProgList() {
       </div>
       <div class="prog-card-body">
         <div class="prog-chord-rows">${chordRows}</div>
-        <button class="prog-play-btn"><i data-lucide="chevron-right"></i></button>
+        <button class="prog-enter-btn"><i data-lucide="chevron-right"></i></button>
       </div>`;
 
-      card.querySelector('.prog-play-btn').addEventListener('pointerup', async () => {
+      card.querySelector('.prog-enter-btn').addEventListener('pointerup', async () => {
         const _tapP = _playTap();
         await _stopPlay({ wait: true });
         analytics.track('progression_detail_entered', { prog_id: prog.id, key: _getKeyDisplayName(_currentKey), no: prog.no ?? 1 });
@@ -251,6 +251,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
   const shell = document.querySelector('.app-shell');
   if (shell) shell.classList.add('project-enter');
+
+  // 뒤로가기+피크바는 #main-content > .top-bar 안에 고정 — 모바일/데스크탑 공용, JS 이동 없음.
 
   lucide.createIcons();
 

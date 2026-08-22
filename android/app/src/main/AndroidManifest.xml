@@ -81,6 +81,15 @@
     <!-- 로컬 알림 (Android 13+ 런타임 권한) -->
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
 
+    <!-- 튜너 마이크 입력 -->
+    <!-- MODIFY_AUDIO_SETTINGS 를 빼면 안 된다. Capacitor 의 BridgeWebChromeClient 는
+         getUserMedia 요청을 받으면 RECORD_AUDIO 와 함께 이 권한도 launch() 하고,
+         결과 Map 이 "전부 true" 일 때만 request.grant() 한다.
+         선언돼 있지 않으면 이 항목이 false 로 돌아와 유저가 마이크를 허용해도
+         request.deny() → getUserMedia 가 NotAllowedError 로 실패한다. -->
+    <uses-permission android:name="android.permission.RECORD_AUDIO" />
+    <uses-permission android:name="android.permission.MODIFY_AUDIO_SETTINGS" />
+
     <!-- 사진/동영상 권한 강제 제거 (플러그인이 선언해도 최종 APK에서 제거) -->
     <uses-permission android:name="android.permission.READ_MEDIA_IMAGES" tools:node="remove"/>
     <uses-permission android:name="android.permission.READ_MEDIA_VIDEO" tools:node="remove"/>

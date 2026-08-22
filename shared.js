@@ -6,7 +6,7 @@
 // ── 상수 ─────────────────────────────────────────────────────
 const SUPABASE_URL  = 'https://jbvkygeksohlysyvaoab.supabase.co';
 const SUPABASE_ANON = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Impidmt5Z2Vrc29obHlzeXZhb2FiIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzYzOTk5NjgsImV4cCI6MjA5MTk3NTk2OH0.6RSgChy0Yq0H2TJpZPSoMKQ2V-OYfR0XzE1aJBBZkXI';
-const APP_VERSION   = '1.3.3.2';
+const APP_VERSION   = '1.3.4';
 const SUPABASE_STORAGE_KEY = 'sb-jbvkygeksohlysyvaoab-auth-token';
 
 // ── 온보딩 관문 판정 ──────────────────────────────────────────
@@ -138,18 +138,6 @@ function enableMouseDragScroll(el) {
 }
 window.enableMouseDragScroll = enableMouseDragScroll;
 
-// ── 화면 회전 잠금 ────────────────────────────────────────────
-// user_project.html(노트 편집)만 가로 회전 허용, 나머지 전 페이지 세로 고정.
-// 실제 잠금/해제는 페이지별 진입 시점(각 페이지 DOMContentLoaded)에 걸어야
-// 이전 페이지의 잠금 상태가 새 페이지로 새지 않는다.
-(function() {
-  const SO = window.Capacitor?.Plugins?.ScreenOrientation;
-  if (!SO) return; // 웹 브라우저: 네이티브 회전 제어 불가, 무시
-  if (!location.pathname.includes('user_project.html')) {
-    SO.lock({ orientation: 'portrait' }).catch(() => {});
-  }
-})();
-
 // ── 네트워크 오프라인 오버레이 ────────────────────────────────
 (function() {
   function _showOffline() {
@@ -221,6 +209,38 @@ function handleNativeBack() {
   // 뒤로가기 버튼이 없는(또는 숨겨진) 화면 → 브라우저 히스토리로 물러난다
   history.back();
 }
+
+// ── 웹 브라우저 뒤로가기(주소창/제스처)도 네이티브 뒤로가기와 동일하게 처리 ──
+// #back-btn이 있는 페이지에서만: 더미 history state를 하나 쌓아두고, popstate가 오면
+// 실제 이동은 취소(다시 쌓기)하고 handleNativeBack()으로 위임한다.
+// → back-btn 핸들러가 이미 하던 처리(확인 모달 포함)를 그대로 타므로, 버튼마다
+//   확인 로직을 새로 심을 필요가 없다. 페이지별 관리 지점은 없음.
+document.addEventListener('DOMContentLoaded', () => {
+  if (!document.getElementById('back-btn')) return;
+  history.pushState({ _backGuard: true }, '');
+  window.addEventListener('popstate', () => {
+    history.pushState({ _backGuard: true }, '');
+    handleNativeBack();
+  });
+});
+
+// ── 사이드바/하단 네비(홈·노트·프로필 등)로 이탈할 때도 훈련 중이면 확인 ──
+// 훈련·연습 중인 페이지는 window._leaveGuardActive를 함수로 정의해 알린다(페이지당 한 줄,
+// 예: window._leaveGuardActive = () => _comboInQuiz;). 정의 안 하면 기본적으로 확인 없이 이동 —
+// 새 네비 버튼이 추가돼도 이 리스너 하나가 전부 커버하므로 버튼마다 조건을 심을 필요가 없다.
+document.addEventListener('click', (e) => {
+  if (typeof window._leaveGuardActive !== 'function' || !window._leaveGuardActive()) return;
+  const navBtn = e.target.closest('.bottom-nav-item');
+  if (!navBtn) return;
+  const m = (navBtn.getAttribute('onclick') || '').match(/location\.href\s*=\s*'([^']+)'/);
+  if (!m) return;
+  e.preventDefault();
+  e.stopPropagation();
+  showLeavePracticeModal(() => {
+    if (typeof window._clearLeaveGuard === 'function') window._clearLeaveGuard();
+    location.href = m[1];
+  });
+}, true);
 
 // ── iOS 입력 포커스 자동 확대 방지 ────────────────────────────
 // iOS(사파리·iOS 크롬 전부 WebKit)는 폰트가 16px보다 작은 입력칸에 포커스가 가면
@@ -728,10 +748,94 @@ async function consumePeak(cost) {
   return true;
 }
 
+// ── 앱 크롬(탑바 브랜드 + 데스크탑 사이드바) 자동 주입 ────────────────────────
+// 규칙: 데스크탑에서는 어떤 페이지를 가도 탑바(로고·타이틀)와 좌측 사이드바가 home.html과
+// 완전히 동일해야 한다. 페이지마다 마크업을 복붙하면 새 페이지를 만들 때마다 빠뜨리므로
+// shared.js가 .app-shell을 가진 모든 페이지에 없으면 자동으로 채워 넣는다.
+// (home.html은 이미 둘 다 갖고 있어서 자동으로 스킵됨)
+function injectAppChrome() {
+  const shell = document.querySelector('.app-shell');
+  if (!shell) return; // 온보딩·약관 등 앱셸 없는 페이지는 대상 아님
+
+  // 1) 탑바 브랜드(로고 + CHORDITOR + 버전) — #back-btn 바로 뒤에 삽입.
+  //    모바일 서브페이지는 뒤로가기+피크바만 보여야 하므로 CSS(.top-bar-title--auto)로 숨기고
+  //    데스크탑(1440px+)에서만 보이게 한다.
+  const topBar = document.querySelector('.top-bar');
+  if (topBar && !topBar.querySelector('.top-bar-title')) {
+    const title = document.createElement('span');
+    title.className = 'top-bar-title top-bar-title--auto';
+    title.innerHTML =
+      '<img src="image/Chorditor_logo.svg" alt="" class="top-bar-logo">CHORDITOR' +
+      '<span id="home-banner-version" class="top-bar-version"></span>';
+    const backBtn = topBar.querySelector('#back-btn');
+    if (backBtn) backBtn.after(title);
+    else topBar.prepend(title);
+  }
+
+  // 2) 데스크탑 좌측 사이드바 — .app-shell의 grid-area:nav 자리를 채운다.
+  //    탭 버튼은 home.html의 navTabPointerDown이 없는 페이지이므로 URL 이동으로 처리.
+  if (!shell.querySelector('.bottom-nav')) {
+    const nav = document.createElement('nav');
+    nav.className = 'bottom-nav';
+    nav.innerHTML = `
+      <div class="sidebar-brand"><span class="top-bar-title">CHORDITOR<span id="sidebar-brand-version" class="top-bar-version"></span></span></div>
+      <div class="sidebar-user">
+        <span class="sidebar-user-level">Lv.<span id="sidebar-user-lv">1</span></span>
+        <span class="sidebar-user-name" id="sidebar-user-name">—</span>
+        <span class="sidebar-user-plan" id="sidebar-user-plan">Free</span>
+      </div>
+      <div class="sidebar-user-xp profile-xp">
+        <div class="profile-xp-bar">
+          <div class="profile-xp-bar-fill" id="sidebar-user-xp-bar-fill"></div>
+        </div>
+        <span class="profile-xp-num" id="sidebar-user-xp-num">0 / 0 XP</span>
+      </div>
+      <button class="bottom-nav-item" onclick="location.href='home.html'">
+        <i data-lucide="home"></i>
+        <span>홈</span>
+      </button>
+      <button class="bottom-nav-item" onclick="location.href='home.html?tab=tools'">
+        <i data-lucide="wrench"></i>
+        <span>도구</span>
+      </button>
+      <button class="bottom-nav-item" onclick="location.href='home.html?tab=projects'">
+        <i data-lucide="book-open"></i>
+        <span>노트</span>
+      </button>
+      <button class="bottom-nav-item" onclick="location.href='home.html?tab=profile'">
+        <i data-lucide="user"></i>
+        <span>프로필</span>
+      </button>
+      <button class="icon-btn" id="sidebar-logout-btn" onclick="location.href='home.html?action=logout'" aria-label="로그아웃">
+        <i data-lucide="log-out"></i>
+        <span class="nav-label">로그아웃</span>
+      </button>`;
+    shell.appendChild(nav);
+  }
+}
+
 document.addEventListener('DOMContentLoaded', () => {
+  injectAppChrome(); // 탑바 브랜드 + 데스크탑 사이드바 — 모든 페이지 공통(DOM 이동 로직보다 먼저)
+
   if (document.getElementById('currency-peak-count') || document.getElementById('currency-peakbox-count')) {
     renderPeakBadge(); // RPC 응답 전 즉시 렌더 (Pro는 ∞ 즉시 표시)
     refreshPeakState();
+  }
+
+  // 뒤로가기/피크바/퀴즈센터의 desktop-topbar ↔ #main-content > .top-bar 이동은
+  // 이제 전 페이지가 각자 page.js에 자체 relocator를 갖고 있어 여기서 처리하지 않는다
+  // (과거엔 여기 공통 로직이 있었으나 .main-top-bar 클래스 자체를 없애면서 제거함).
+
+  // 탑바/사이드바 브랜드 버전 — 어느 페이지든 존재하면 채움 (home.html은 home.js가 이미 채우지만 중복 무해)
+  const _bannerVer = document.getElementById('home-banner-version');
+  if (_bannerVer) _bannerVer.textContent = 'v' + APP_VERSION;
+  // 데스크탑 사이드바 — 브랜드 버전/레벨·XP바는 어디서든 안전, 닉네임/플랜은 home.html
+  // 자체 로직(loadProfileFromDB)이 없는 서브페이지에서만 별도로 로드
+  if (document.getElementById('sidebar-brand-version')) {
+    const _v = document.getElementById('sidebar-brand-version');
+    if (_v) _v.textContent = 'v' + APP_VERSION;
+    renderProfileXp();
+    if (typeof loadProfileFromDB !== 'function') loadSidebarUserInfo();
   }
   // 모달용 이미지 프리로드 — 세션 중 모달 첫 오픈 시 아이콘 늦게 뜨는 끊김 방지
   ['image/gift.png', 'image/gift2.png', 'image/peak.svg'].forEach(src => { new Image().src = src; });
@@ -1818,9 +1922,9 @@ function _initPlanSheet() {
 <div class="plan-sheet-overlay" id="plan-sheet-overlay" onclick="closePlanSheet()"></div>
 <div class="plan-sheet" id="plan-sheet">
   <div class="plan-sheet-handle"></div>
+  <button class="plan-sheet-close" onclick="closePlanSheet()"><i data-lucide="x"></i></button>
   <div class="plan-sheet-header">
     <span class="plan-sheet-title">Pro 플랜으로 업그레이드</span>
-    <button class="icon-btn" onclick="closePlanSheet()"><i data-lucide="x"></i></button>
   </div>
   <div class="plan-sheet-inner">
     <div class="plan-sheet-hero">
@@ -1832,7 +1936,6 @@ function _initPlanSheet() {
       <div class="plan-feature-row"><img class="plan-feature-icon" src="image/photo.png" alt=""><span>코드 이미지 고급 설정 개방</span></div>
       <div class="plan-feature-row"><img class="plan-feature-icon" src="image/pencil.png" alt=""><span>노트 무제한, 편리한 저장 기능</span></div>
     </div>
-    <div class="plan-sheet-divider"></div>
     <div class="plan-launch-banner">출시 할인가 적용<br>Pro 업그레이드하기</div>
     <div class="plan-card plan-card--highlight">
       <div class="plan-card-badge">추천</div>
@@ -1845,13 +1948,6 @@ function _initPlanSheet() {
         <span class="price-amount">₩4,900<small>/월</small></span>
       </div>
     </div>
-    <div class="plan-legal-group">
-      <div class="plan-cancel-info" id="plan-cancel-info">구독은 결제일 기준 매월 자동으로 갱신되며, 갱신 24시간 전까지 언제든 해지할 수 있습니다. 해지는 Google Play 스토어 &gt; 구독 메뉴에서 가능합니다.</div>
-      <div class="plan-legal-links">
-        <span class="plan-legal-link" onclick="window.open('Privacy.html', '_blank')">개인정보 처리방침</span>
-        <span class="plan-legal-link" onclick="window.open('Terms.html', '_blank')">이용약관</span>
-      </div>
-    </div>
     <div class="plan-page-footer">
       <div class="plan-modal-footer-links">
         <span class="plan-restore-link" id="plan-sheet-faq-btn" onclick="openBillingFaq()" style="display:none">결제 도움말</span>
@@ -1860,6 +1956,14 @@ function _initPlanSheet() {
     </div>
   </div>
   <div class="plan-sheet-footer">
+    <div class="plan-legal-group">
+      <div class="plan-cancel-info" id="plan-cancel-info">구독은 결제일 기준 매월 자동으로 갱신되며, 갱신 24시간 전까지 언제든 해지할 수 있습니다. 해지는 Google Play 스토어 &gt; 구독 메뉴에서 가능합니다.</div>
+      <div class="plan-legal-links">
+        <span class="plan-legal-link" onclick="window.open('Privacy.html', '_blank')">개인정보 처리방침</span>
+        <span class="plan-legal-link" onclick="window.open('Terms.html', '_blank')">이용약관</span>
+      </div>
+    </div>
+    <div class="plan-sheet-divider"></div>
     <button class="btn btn-primary plan-card-btn" id="plan-sheet-btn-pro">구독하기</button>
     <span class="hint">구독은 Google Play에서 언제든지 취소할 수 있습니다.</span>
   </div>
@@ -3441,9 +3545,18 @@ function renderProfileXp() {
   const lv = document.getElementById('profile-xp-lv');
   if (lv) lv.textContent = s.level;
   const num = document.getElementById('profile-xp-num');
-  if (num) num.textContent = (s.level >= 50 ? (s.into + ' / ' + s.into) : (s.into + ' / ' + s.need)) + ' XP';
+  const xpText = (s.level >= 50 ? (s.into + ' / ' + s.into) : (s.into + ' / ' + s.need)) + ' XP';
+  if (num) num.textContent = xpText;
   const fill = document.getElementById('profile-xp-bar-fill');
   if (fill) fill.style.width = s.pct + '%';
+
+  // 데스크탑 사이드바 XP바 미러
+  const sidebarNum = document.getElementById('sidebar-user-xp-num');
+  if (sidebarNum) sidebarNum.textContent = xpText;
+  const sidebarFill = document.getElementById('sidebar-user-xp-bar-fill');
+  if (sidebarFill) sidebarFill.style.width = s.pct + '%';
+  const sidebarLv = document.getElementById('sidebar-user-lv');
+  if (sidebarLv) sidebarLv.textContent = s.level;
 
   const pEl = document.getElementById('profile-persona');
   if (pEl) pEl.textContent = _persona(s.level);
@@ -3451,6 +3564,38 @@ function renderProfileXp() {
   if (hp) hp.textContent = _persona(s.level);
 
   renderPersonaTrack(s.level);
+}
+
+// 데스크탑 사이드바 유저 닉네임/플랜 — home.html은 loadProfileFromDB()가 이미 처리하므로
+// 그 함수가 없는(=home.html이 아닌) 서브페이지에서만 호출됨
+async function loadSidebarUserInfo() {
+  const _sv = (id, v) => { const el = document.getElementById(id); if (el) el.textContent = v; };
+  try {
+    const stored = localStorage.getItem(SUPABASE_STORAGE_KEY);
+    if (!stored) return;
+    const session = JSON.parse(stored);
+    const token = session?.access_token;
+    const userId = session?.user?.id;
+    if (!token || !userId) return;
+
+    const resp = await fetch(
+      `${SUPABASE_URL}/rest/v1/subscriptions?user_id=eq.${userId}&select=nickname,plan,promo_plan,promo_expires_at`,
+      { headers: { 'apikey': SUPABASE_ANON, 'Authorization': `Bearer ${token}` } }
+    );
+    if (!resp.ok) return;
+    const rows = await resp.json();
+    if (!rows.length) return;
+    const row = rows[0];
+
+    const nickname = row.nickname || session?.user?.user_metadata?.full_name || '—';
+    const promoActive = !!row.promo_plan && !!row.promo_expires_at
+      && new Date(row.promo_expires_at) > new Date();
+    const plan = promoActive ? row.promo_plan : (row.plan || getPlan() || 'free');
+    const planLabel = plan === 'pro' ? 'Pro' : plan === 'standard' ? 'Standard' : 'Free';
+
+    _sv('sidebar-user-name', nickname);
+    _sv('sidebar-user-plan', planLabel);
+  } catch (e) { console.warn('[Sidebar] 유저정보 로드 실패:', e); }
 }
 
 // 페르소나 승급 트랙(5원+선) 렌더: 저장된 persona 기준(1~4단계) + Lv45 자동해금(5단계)
@@ -4135,7 +4280,8 @@ function initPushNotifications() {
     }
   });
 
-  (async () => {
+  // 마이크 권한을 "알림 바로 다음"에 띄우려면 이 비동기 흐름이 끝나는 시점을 알아야 한다
+  return (async () => {
     try {
       if (localStorage.getItem('push_enabled') === '0') return; // 알림 OFF → 등록 안 함
       let perm = await PN.checkPermissions();
@@ -4161,11 +4307,47 @@ async function __pushApplyEnabled() {
   } catch (_) { localStorage.setItem('push_enabled', '0'); return false; }
 }
 
+// ── 마이크 권한 (튜너용) ───────────────────────────────────
+// 튜너 페이지에서 처음 받으면 진입하자마자 OS 팝업에 막혀 흐름이 끊긴다.
+// 홈에서 알림 권한 직후에 미리 받아두고, 튜너는 이미 허용된 상태로 시작한다.
+const MIC_PERM_ASKED = 'mic_perm_asked';
+
+async function requestMicPermission() {
+  // 앱에서만 미리 받는다. 웹은 홈에 들어오자마자 브라우저 마이크 팝업이 뜨면
+  // 튜너를 쓸 생각도 없던 방문자에게 맥락 없는 요구가 된다 — 웹은 튜너 진입 시 요청 그대로.
+  if (!window.Capacitor?.isNativePlatform?.()) return;
+  if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) return;
+
+  // 이미 허용/거부가 확정된 상태면 요청해도 팝업이 뜨지 않는다 — 스트림을 열 이유가 없다.
+  // WebView 는 Permissions API 에 'microphone' 이름이 없을 수 있어 실패하면 그냥 요청으로 넘어간다.
+  try {
+    const st = await navigator.permissions.query({ name: 'microphone' });
+    if (st.state === 'granted' || st.state === 'denied') return;
+  } catch (_) {}
+
+  // 거절한 유저에게 홈 진입마다 다시 묻지 않는다. 요청 "전에" 세워야
+  // 팝업 중 앱이 재시작돼도 무한 반복되지 않는다.
+  if (localStorage.getItem(MIC_PERM_ASKED) === '1') return;
+  try { localStorage.setItem(MIC_PERM_ASKED, '1'); } catch (_) {}
+
+  try {
+    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    stream.getTracks().forEach(t => t.stop()); // 권한만 확보하고 즉시 해제 — 홈에서 마이크를 물고 있지 않는다
+  } catch (_) {}
+}
+
 if (typeof window !== 'undefined') {
   window.initPushNotifications = initPushNotifications;
+  window.requestMicPermission = requestMicPermission;
   window._savePushToken = _savePushToken;
   window.__pushApplyEnabled = __pushApplyEnabled;
-  document.addEventListener('DOMContentLoaded', () => { initPushNotifications(); checkForceUpdate(); });
+  document.addEventListener('DOMContentLoaded', () => {
+    // 마이크는 홈에서만 묻는다 — 훈련 페이지 한복판에서 튜너와 무관한 팝업이 뜨면 맥락이 없다.
+    Promise.resolve(initPushNotifications()).then(() => {
+      if (_currentPageName() === 'home.html') requestMicPermission();
+    });
+    checkForceUpdate();
+  });
 }
 
 // ── 리뷰/평점 유도 시스템 ───────────────────────────────────
@@ -4610,3 +4792,36 @@ function chordToVoicing(chord) {
   };
 }
 if (typeof window !== 'undefined') window.chordToVoicing = chordToVoicing;
+
+// ── 그리드 시스템 디버그 오버레이 (docs/style-guide.md §5) ──
+// 실제 레이아웃엔 미적용, 눈으로 확인만 하는 용도. 'G' 키로 토글.
+// 배포본 일반 유저에게 노출 방지 — localhost거나 ?griddebug=1 붙였을 때만 활성화.
+(function () {
+  const enabled = ['localhost', '127.0.0.1', ''].includes(location.hostname)
+    || new URLSearchParams(location.search).get('griddebug') === '1';
+  if (!enabled) return;
+  let overlay = null;
+  function buildOverlay() {
+    overlay = document.createElement('div');
+    overlay.id = 'grid-overlay-debug';
+    document.body.appendChild(overlay);
+  }
+  function renderOverlay() {
+    if (!overlay) return;
+    const cols = parseInt(getComputedStyle(document.documentElement).getPropertyValue('--grid-cols'), 10) || 12;
+    overlay.innerHTML = '';
+    for (let i = 0; i < cols; i++) overlay.appendChild(document.createElement('span'));
+  }
+  function toggleOverlay() {
+    if (!overlay) buildOverlay();
+    overlay.classList.toggle('active');
+    if (overlay.classList.contains('active')) renderOverlay();
+  }
+  window.addEventListener('resize', () => { if (overlay && overlay.classList.contains('active')) renderOverlay(); });
+  document.addEventListener('keydown', (e) => {
+    if (e.key !== 'g' && e.key !== 'G') return;
+    const tag = (e.target && e.target.tagName) || '';
+    if (tag === 'INPUT' || tag === 'TEXTAREA' || (e.target && e.target.isContentEditable)) return;
+    toggleOverlay();
+  });
+})();
