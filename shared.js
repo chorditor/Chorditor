@@ -6,7 +6,7 @@
 // ── 상수 ─────────────────────────────────────────────────────
 const SUPABASE_URL  = 'https://jbvkygeksohlysyvaoab.supabase.co';
 const SUPABASE_ANON = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Impidmt5Z2Vrc29obHlzeXZhb2FiIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzYzOTk5NjgsImV4cCI6MjA5MTk3NTk2OH0.6RSgChy0Yq0H2TJpZPSoMKQ2V-OYfR0XzE1aJBBZkXI';
-const APP_VERSION   = '1.3.4';
+const APP_VERSION   = '1.3.4.1';
 const SUPABASE_STORAGE_KEY = 'sb-jbvkygeksohlysyvaoab-auth-token';
 
 // ── 온보딩 관문 판정 ──────────────────────────────────────────
@@ -4336,6 +4336,40 @@ async function requestMicPermission() {
   } catch (_) {}
 }
 
+// ── 앱 버전 동기화: 세션 진입마다 subscriptions.app_version 갱신 ──
+// 네이티브 앱 진입 시 1일 1회, 로그인 유저만. checkForceUpdate()와 같은
+// 전역 DOMContentLoaded 훅에서 호출.
+async function _syncAppVersionToDB() {
+  if (!window.Capacitor?.isNativePlatform()) return;
+  const today = _kstToday();
+  if (localStorage.getItem('_av_synced_date') === today) return;
+
+  let accessToken = null, userId = null;
+  try {
+    const stored = localStorage.getItem(SUPABASE_STORAGE_KEY);
+    if (stored) {
+      const p = JSON.parse(stored);
+      accessToken = p?.access_token ?? null;
+      userId      = p?.user?.id     ?? null;
+    }
+  } catch (_) {}
+  if (!accessToken || !userId) return;
+
+  try {
+    await fetch(`${SUPABASE_URL}/rest/v1/subscriptions?user_id=eq.${userId}`, {
+      method: 'PATCH',
+      headers: {
+        'Content-Type':  'application/json',
+        'apikey':         SUPABASE_ANON,
+        'Authorization': `Bearer ${accessToken}`,
+        'Prefer':        'return=minimal',
+      },
+      body: JSON.stringify({ app_version: APP_VERSION }),
+    });
+    localStorage.setItem('_av_synced_date', today);
+  } catch (_) {}
+}
+
 if (typeof window !== 'undefined') {
   window.initPushNotifications = initPushNotifications;
   window.requestMicPermission = requestMicPermission;
@@ -4347,6 +4381,7 @@ if (typeof window !== 'undefined') {
       if (_currentPageName() === 'home.html') requestMicPermission();
     });
     checkForceUpdate();
+    _syncAppVersionToDB();
   });
 }
 

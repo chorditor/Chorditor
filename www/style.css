@@ -5830,7 +5830,7 @@ canvas {
   flex-direction: column;
   align-items: flex-start;
   justify-content: space-between;
-  padding: 24px 32px 48px;
+  padding: 24px 0 48px;
   width: 100%;
   box-sizing: border-box;
 }
@@ -15143,12 +15143,6 @@ canvas {
     justify-content: center;
   }
 
-  /* ?�보???�체?�면(버튼 ?�면 + ?�르?�나/?�도/?�별 ?�텝) */
-  .onboarding-overlay {
-    max-width: 400px;
-    margin-inline: auto;
-  }
-
 }
 
 /* ?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═
@@ -19619,59 +19613,27 @@ body.tut-lock .tut-allow * {
   .home-blocks { flex: none; }
 }
 
-/* 온보딩(사이드바 없음) 데스크탑 그리드 — col1~col12(그리드 전체폭). 접속화면(사이드바 있는
-   main-content 기준 cqw 계산)과 다르게, 100vw 기준 단순 계산이면 됨.
-   :root는 문서 전역이라 스코프 없이 재정의하면 다른 페이지(사이드바 있는 페이지)의
-   --grid-track까지 덮어써버림 — :has()로 온보딩 마크업이 있는 페이지에만 한정 */
+/* 온보딩(사이드바 없음) — col1~마지막 컬럼 풀블리드로 5단계 전 티어 통일.
+   --grid-margin이 :root 미디어쿼리(§5 그리드 토큰)에서 티어별로 이미 갱신되므로
+   여기서는 그 값만 그대로 써서 margin-inline 한 줄로 전 티어 처리 — 컬럼수(--grid-cols)가
+   티어마다 달라도(6/8/12) 풀블리드는 margin 값만 맞으면 되므로 --grid-track 계산 불필요.
+   (과거엔 787px 경계로 8컬럼/12컬럼 구간을 하나로 묶어 col3~10 계산을 그대로 써서
+   8컬럼 구간(769~1079)에서 우측으로 넘쳐 쏠리는 버그가 있었음 — 폭 좁힘 자체를 제거) */
+.onboarding-overlay,
+.ob-overlay--step {
+  max-width: calc(100vw - var(--grid-margin) * 2);
+  margin-inline: var(--grid-margin);
+}
+
+/* 데스크탑(1440px~)만 컨테이너 캡 1264px 적용(§5 컨테이너 표 — 사이드바 있는 홈과 동일 캡값,
+   온보딩은 사이드바가 없어 100vw 기준으로 그대로 계산). 캡을 넘는 폭은 중앙정렬 후 남는
+   여백을 margin으로 흡수 — col1~last는 캡 안에서 여전히 grid-margin만큼만 안쪽 */
 @media (min-width: 1440px) {
-  :root:has(.onboarding-overlay) {
-    --grid-track: calc((100vw - var(--grid-margin) * 2 - var(--grid-gutter) * (var(--grid-cols) - 1)) / var(--grid-cols));
-  }
-  .onboarding-overlay {
-    max-width: calc(100vw - var(--grid-margin) * 2);
-    margin-inline: var(--grid-margin);
-  }
-  /* 스텝 화면(페르소나/목표/레벨)만 col3~col10(8컬럼+7거터)로 좁힘 — 로그인 카드(기본)는 col1~12 유지 */
-  .ob-overlay--step {
-    max-width: calc(8 * var(--grid-track) + 7 * var(--grid-gutter));
-    margin-left: calc(var(--grid-margin) + 2 * (var(--grid-track) + var(--grid-gutter))) !important;
-    margin-right: auto;
-  }
-}
-
-/* 온보딩 — 태블릿 와이드(787~1439px, 12컬럼)도 데스크탑과 동일하게 col1~12 / 스텝화면 col3~10 */
-@media (min-width: 787px) and (max-width: 1439px) {
-  :root {
-    --grid-track: calc((100vw - var(--grid-margin) * 2 - var(--grid-gutter) * (var(--grid-cols) - 1)) / var(--grid-cols));
-  }
-  .onboarding-overlay {
-    max-width: calc(100vw - var(--grid-margin) * 2);
-    margin-inline: var(--grid-margin);
-  }
-  .ob-overlay--step {
-    max-width: calc(8 * var(--grid-track) + 7 * var(--grid-gutter));
-    margin-left: calc(var(--grid-margin) + 2 * (var(--grid-track) + var(--grid-gutter))) !important;
-    margin-right: auto;
-  }
-}
-
-/* 온보딩 — 작은태블릿(481~786px, 6컬럼)은 스텝화면도 좁히지 않고 col1~col6 꽉 채움 */
-@media (min-width: 481px) and (max-width: 786px) {
   .onboarding-overlay,
   .ob-overlay--step {
-    max-width: calc(100vw - var(--grid-margin) * 2);
-    margin-left: var(--grid-margin) !important;
-    margin-right: var(--grid-margin) !important;
-  }
-}
-
-/* 온보딩 — 모바일(~480px, 6컬럼)도 동일하게 col1~col6 꽉 채움 */
-@media (max-width: 480px) {
-  .onboarding-overlay,
-  .ob-overlay--step {
-    max-width: calc(100vw - var(--grid-margin) * 2);
-    margin-left: var(--grid-margin) !important;
-    margin-right: var(--grid-margin) !important;
+    --grid-content-w: min(100vw, 1264px);
+    max-width: calc(var(--grid-content-w) - var(--grid-margin) * 2);
+    margin-inline: calc((100vw - var(--grid-content-w)) / 2 + var(--grid-margin));
   }
 }
 

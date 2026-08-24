@@ -1,5 +1,6 @@
 Chorditor — CLAUDE.md
 @docs/project-rules.md
+@docs/style-guide.md
 
 행동 지침 (Behavioral Guidelines)
 속도보다는 신중함을 우선시하십시오. 사소한 작업에 대해서는 스스로의 판단력을 발휘하십시오.
