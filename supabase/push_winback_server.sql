@@ -42,13 +42,14 @@ begin
   return query
   with last_active as (
     -- 유저별 마지막 활동 시각 (로그인 유저만, 토큰 보유자).
-    -- 활동 이벤트 없으면 토큰 등록시각(pt.updated_at)을 바닥값으로 → 신규 유저 오판 방지.
+    -- user_last_active 캐시 사용(analytics_events 직접조회 X) — 30일 지난 원본
+    -- 이벤트가 pg_cron으로 지워져도 이 값은 트리거로 영구 보존됨(user_last_active.sql).
+    -- 캐시에 없으면(=신규 유저 등) 토큰 등록시각(pt.updated_at)을 바닥값으로.
     select pt.user_id, pt.token, pt.platform, pt.winback_enabled,
-           greatest(coalesce(max(ae.created_at), pt.updated_at), pt.updated_at) as last_at
+           greatest(coalesce(ula.last_active_at, pt.updated_at), pt.updated_at) as last_at
     from public.push_tokens pt
-    left join public.analytics_events ae on ae.user_id = pt.user_id
+    left join public.user_last_active ula on ula.user_id = pt.user_id
     where pt.user_id is not null
-    group by pt.user_id, pt.token, pt.platform, pt.winback_enabled, pt.updated_at
   ),
   staged as (
     -- 유휴일수 → 도달 단계(최고 임계 통과). KST 달력일 차이 기준.

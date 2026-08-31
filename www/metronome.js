@@ -650,4 +650,6 @@ document.addEventListener('DOMContentLoaded', () => {
       setTimeout(() => { cover.style.display = 'none'; }, 200);
     });
   }
+
+  analytics.track('metronome_page_viewed', {});
 });

@@ -6,7 +6,7 @@
 // ── 상수 ─────────────────────────────────────────────────────
 const SUPABASE_URL  = 'https://jbvkygeksohlysyvaoab.supabase.co';
 const SUPABASE_ANON = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Impidmt5Z2Vrc29obHlzeXZhb2FiIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzYzOTk5NjgsImV4cCI6MjA5MTk3NTk2OH0.6RSgChy0Yq0H2TJpZPSoMKQ2V-OYfR0XzE1aJBBZkXI';
-const APP_VERSION   = '1.3.4_pre';
+const APP_VERSION   = '1.3.4.2_dev';
 const SUPABASE_STORAGE_KEY = 'sb-jbvkygeksohlysyvaoab-auth-token';
 
 // ── 온보딩 관문 판정 ──────────────────────────────────────────
@@ -530,6 +530,38 @@ function isProjectLocked(project, projects) {
 const PEAK_CAP = 30;
 const PEAKBOX_REWARD = 5;
 
+// ── 피크 완전소진 시 "광고 보고 충전하기" (2026-08-30) ──
+// 콘텐츠 종류 무관 공용 게이트(openPeakBuffer)에서 씀. mission-session.js의 MS_AD_ENABLED와는
+// 별개 플래그 — 이건 앱 전역(어느 페이지든 피크 게이트가 뜰 수 있어서) 이라 shared.js에 둠.
+const PEAK_AD_ENABLED = false; // 실기기 테스트 전까지 꺼둠(mission-session.js와 동일 원칙)
+const PEAK_AD_TESTING = true;
+const PEAK_AD_UNIT_ID = 'ca-app-pub-3016297895973220/9420279694'; // 피크 충전 전용
+const PEAK_AD_RECHARGE_AMOUNT = 3;
+
+// 리워드 광고 재생 → 끝까지 봐서 보상 획득 시에만 true (mission-session.js MissionAdProvider.show와 동일 패턴)
+async function _playPeakRechargeAd() {
+  if (!PEAK_AD_ENABLED) return false;
+  const AdMob = window.Capacitor?.Plugins?.AdMob;
+  if (!AdMob) return false;
+  try {
+    await AdMob.prepareRewardVideoAd({ adId: PEAK_AD_UNIT_ID, isTesting: PEAK_AD_TESTING });
+    const reward = await AdMob.showRewardVideoAd();
+    return !!reward;
+  } catch (e) { console.warn('[AdMob] peak recharge ad 실패:', e); return false; }
+}
+// 광고 시청 보상 지급 — RPC 우선, 실패(dev/비로그인) 시 localStorage 폴백(_msGrantPeakbox와 동일 패턴)
+async function _peakGrantByAd() {
+  const r = await _peakRpc('grant_peak_ad');
+  if (r && r.ok) {
+    _peakState = { ..._peakState, balance: r.balance, peakbox_count: r.peakbox_count, loaded: true };
+  } else {
+    const local = _localPeakGet();
+    _localPeakSet(local.balance + PEAK_AD_RECHARGE_AMOUNT, local.peakbox_count);
+    _peakState = { ..._peakState, balance: (_peakState.balance || 0) + PEAK_AD_RECHARGE_AMOUNT, loaded: true };
+  }
+  renderPeakBadge();
+}
+
 // 효과음 프리로드 캐시 — 매번 new Audio()의 디스크 로드·디코드 지연 제거.
 // 프리로드 안 하면 첫 재생이 100ms+ 늦어 화면전환(페이지 이동)과 레이스로 소리가 잘림.
 // ⛔ 안드로이드 WebView는 HTMLAudioElement.volume 설정을 무시한다(하드웨어 볼륨만 적용).
@@ -724,7 +756,7 @@ async function consumePeak(cost) {
     _peakState = { balance: r.balance, peakbox_count: r.peakbox_count, loaded: true };
     renderPeakBadge();
     if (!r.ok) {
-      analytics.track('peak_insufficient', { cost, balance: r.balance, ab_group: _peakFunnelGroup() });
+      analytics.track('peak_insufficient', { cost, balance: r.balance });
       _openPeakInsufficientFunnel();
       return false;
     }
@@ -736,7 +768,7 @@ async function consumePeak(cost) {
   if (local.balance < cost) {
     _peakState = { balance: local.balance, peakbox_count: local.peakbox_count, loaded: true };
     renderPeakBadge();
-    analytics.track('peak_insufficient', { cost, balance: local.balance, ab_group: _peakFunnelGroup() });
+    analytics.track('peak_insufficient', { cost, balance: local.balance });
     _openPeakInsufficientFunnel();
     return false;
   }
@@ -759,7 +791,7 @@ function injectAppChrome() {
 
   // 1) 탑바 브랜드(로고 + CHORDITOR + 버전) — #back-btn 바로 뒤에 삽입.
   //    모바일 서브페이지는 뒤로가기+피크바만 보여야 하므로 CSS(.top-bar-title--auto)로 숨기고
-  //    데스크탑(1440px+)에서만 보이게 한다.
+  //    데스크탑(1600px+)에서만 보이게 한다.
   const topBar = document.querySelector('.top-bar');
   if (topBar && !topBar.querySelector('.top-bar-title')) {
     const title = document.createElement('span');
@@ -820,6 +852,12 @@ document.addEventListener('DOMContentLoaded', () => {
   if (document.getElementById('currency-peak-count') || document.getElementById('currency-peakbox-count')) {
     renderPeakBadge(); // RPC 응답 전 즉시 렌더 (Pro는 ∞ 즉시 표시)
     refreshPeakState();
+  }
+
+  // 리워드 광고 SDK 초기화(2026-08-30) — 피크 게이트가 어느 페이지에서든 뜰 수 있어 전역 1회.
+  // 네이티브 플러그인 없는 환경(브라우저 dev)에서는 조용히 스킵.
+  if (window.Capacitor?.Plugins?.AdMob) {
+    window.Capacitor.Plugins.AdMob.initialize().catch((e) => console.warn('[AdMob] init 실패:', e));
   }
 
   // 뒤로가기/피크바/퀴즈센터의 desktop-topbar ↔ #main-content > .top-bar 이동은
@@ -1813,43 +1851,36 @@ async function restorePurchases() {
   }
 }
 
-// ── A/B 실험: 피크부족 퍼널 (테이블 없이 user_id 결정론적 50/50) ──
-// A = 부족 즉시 구독시트(기존). B = 완충 모달 경유 후 유저 선택.
-// uuid v4 첫 hex 문자(완전 랜덤): 짝수(0·2·4·6·8·a·c·e)→A, 홀수→B.
-// 비로그인/uid 없음 → A(기존 동작) 폴백.
-// SQL 동일 규칙: substr(user_id::text,1,1) in ('0','2','4','6','8','a','c','e') → 'A' else 'B'
-function _peakFunnelGroup() {
-  let uid = null;
-  try {
-    const stored = localStorage.getItem(SUPABASE_STORAGE_KEY);
-    if (stored) uid = JSON.parse(stored)?.user?.id || null;
-  } catch (_) {}
-  if (!uid) return 'A';
-  return '02468ace'.includes(uid[0].toLowerCase()) ? 'A' : 'B';
-}
-
+// 피크부족 퍼널 — 2026-08-30: A/B 실험(즉시 구독시트 vs 완충모달) 종료, 항상 완충모달로 통일.
+// 완충모달의 "Pro 플랜 보기" CTA도 이번에 제거 — 설명 텍스트로만 Pro를 안내하고, 버튼은
+// "충전하기"(광고보고 +3)/"그만하기" 2개로 대체(사용자 지시, 논의 후 확정).
 function _openPeakInsufficientFunnel() {
-  if (_peakFunnelGroup() === 'B') {
-    if (typeof openPeakBuffer === 'function') openPeakBuffer();
-  } else {
-    if (typeof openPlanSheet === 'function') openPlanSheet('peak_insufficient');
-  }
+  if (typeof openPeakBuffer === 'function') openPeakBuffer();
 }
 
-// B그룹 완충 모달: 구독시트를 바로 띄우지 않고 유저에게 선택권 제공
 function openPeakBuffer() {
   const ov = document.getElementById('peak-buffer-overlay');
   if (!ov) return;
-  if (typeof analytics !== 'undefined') analytics.track('peak_buffer_shown', { ab_group: 'B' });
+  if (typeof analytics !== 'undefined') analytics.track('peak_buffer_shown', {});
   setTimeout(() => ov.classList.add('peak-buffer-overlay--open'), 0);
 }
 function closePeakBuffer() {
   document.getElementById('peak-buffer-overlay')?.classList.remove('peak-buffer-overlay--open');
 }
-function _peakBufferToPlan() {
+// "충전하기" — 광고 끝까지 봐야 지급. 중간이탈/실패면 아무 일도 안 일어남(모달 유지).
+async function _peakBufferWatchAd() {
+  if (typeof analytics !== 'undefined') analytics.track('peak_buffer_ad_clicked', {});
+  const rewarded = await _playPeakRechargeAd();
+  if (!rewarded) {
+    if (typeof showTextToast === 'function') showTextToast('광고를 끝까지 봐야 충전돼요');
+    return;
+  }
+  await _peakGrantByAd();
   closePeakBuffer();
-  if (typeof analytics !== 'undefined') analytics.track('peak_buffer_cta', { ab_group: 'B' });
-  openPlanSheet('peak_buffer');
+  if (typeof analytics !== 'undefined') {
+    analytics.track('peak_recharged_by_ad', { amount: PEAK_AD_RECHARGE_AMOUNT, balance_after: _peakState.balance });
+  }
+  if (typeof showTextToast === 'function') showTextToast(`피크 ${PEAK_AD_RECHARGE_AMOUNT}개 충전됐어요!`);
 }
 
 function openPlanSheet(triggerSource) {
@@ -1857,7 +1888,7 @@ function openPlanSheet(triggerSource) {
   const sheet   = document.getElementById('plan-sheet');
   if (!sheet) return;
   if (typeof analytics !== 'undefined') {
-    analytics.track('paywall_viewed', { trigger_source: triggerSource || 'unknown', current_plan: getPlan(), ab_group: _peakFunnelGroup() });
+    analytics.track('paywall_viewed', { trigger_source: triggerSource || 'unknown', current_plan: getPlan() });
   }
 
   const plan     = getPlan();
@@ -1988,8 +2019,8 @@ function _initPlanSheet() {
     <img class="peak-buffer-icon" src="image/peak.svg" alt="">
     <div class="peak-buffer-title">피크가 부족해요</div>
     <div class="peak-buffer-desc">Pro 플랜이면 피크 걱정 없이<br>무제한으로 연습할 수 있어요.</div>
-    <button class="peak-buffer-cta" onclick="_peakBufferToPlan()">Pro 플랜 보기</button>
-    <button class="peak-buffer-dismiss" onclick="closePeakBuffer()">다음에</button>
+    <button class="peak-buffer-cta" onclick="_peakBufferWatchAd()">충전하기</button>
+    <button class="peak-buffer-dismiss" onclick="closePeakBuffer()">그만하기</button>
   </div>
 </div>`;
   while (el.firstChild) document.body.appendChild(el.firstChild);
@@ -2272,12 +2303,12 @@ async function claimDailyAttendance(onDone) {
   showTrainingAttendanceModal(stats.streak, reward, newBalance, onDone);
 }
 
-// ── 출석 달력 (30일 도장판, 순환) ─────────────────────────────
-// 접속 시 advance_attendance() 로 도장 진행. 5일 배수(5·10·15·20·25·30) 도달 시
-// 피크상자 2·3·5·5·5·10 즉시 지급 + 획득 모달. 갭은 보충출석(사이클당 3회)으로 이어감.
+// ── 출석 달력 (25일 도장판, 순환) ─────────────────────────────
+// 접속 시 advance_attendance() 로 도장 진행. 5일 배수(5·10·15·20·25) 도달 시
+// 피크상자 2·3·3·5·10 즉시 지급 + 획득 모달. 갭은 보충출석(사이클당 3회)으로 이어감.
 // DB RPC 우선, 실패(dev/비로그인) 시 localStorage 폴백. claim_daily_attendance(랜덤피크)와 병행.
-const ATTENDANCE_TOTAL_DAYS = 30;
-const ATTENDANCE_MILESTONES = { 5: 2, 10: 3, 15: 5, 20: 5, 25: 5, 30: 10 };
+const ATTENDANCE_TOTAL_DAYS = 25;
+const ATTENDANCE_MILESTONES = { 5: 2, 10: 3, 15: 3, 20: 5, 25: 10 };
 const ATTENDANCE_MAKEUP_MAX = 3;
 let _attState = { day: 0, makeup_left: ATTENDANCE_MAKEUP_MAX, needs_makeup: false, loaded: false };
 
@@ -2343,7 +2374,9 @@ function _markMakeupPrompt() {
   localStorage.setItem(ATT_MAKEUP_PROMPT_KEY, _kstToday());
 }
 
-// 접속 시 도장 진행 (home 진입에서 claimDailyAttendance 와 병행 호출)
+// 도장 진행 — 접속 자동호출 폐지됨(현재 호출부 없음). 데일리미션 완료 트리거로 재배선 예정.
+// 재배선 시 UI(피크상자 획득 연출 등)는 호출부에서 res를 보고 직접 구성할 것 — 예전 모달
+// 자동오픈 로직(openAttendanceCalendar 연결)은 페이지 전환(attendance.html)으로 대체되며 제거됨.
 async function advanceAttendance(onDone) {
   const r = await _peakRpc('advance_attendance');
   let res;
@@ -2355,127 +2388,17 @@ async function advanceAttendance(onDone) {
   }
   _attState = { day: res.day, makeup_left: res.makeup_left, needs_makeup: !!res.needs_makeup, loaded: true };
   renderPeakboxBadge();
-
-  // ── 분기2: 출석이 비어 보충이 필요한 상태 ────────────────────────
-  // 예전엔 advanced=false라 아무 모달도 안 떠서, 유저가 달력을 직접 열지 않으면
-  // 연속이 끊긴 사실조차 몰랐다(= "그냥 갱신이 안 될 뿐"으로 보이던 원인).
-  // 이제는 달력을 띄워 보충출석을 유도하고, 닫은 뒤에 일일 랜덤피크 모달로 이어간다.
-  // 하루 여러 번 홈에 들어와도 안내는 하루 한 번만.
-  if (res.needs_makeup) {
-    if (!_makeupPromptShownToday()) {
-      _markMakeupPrompt();
-      setTimeout(() => openAttendanceCalendar(null, 'makeup', onDone), ATTENDANCE_CAL_DELAY_MS);
-    } else if (typeof onDone === 'function') {
-      onDone();
-    }
-    return res;
-  }
-
-  // ── 분기1(연속 도장) · 분기3(보충권 소진 → 1일차 리셋) ───────────
-  // 둘 다 오늘 도장이 찍히므로 달력을 열고 애니메이션을 준다. 안내문만 다르다.
-  if (res.advanced) {
-    setTimeout(() => openAttendanceCalendar(res.day, res.reset ? 'reset' : 'stamp'),
-               ATTENDANCE_CAL_DELAY_MS);
-  }
-
-  // 마일스톤(보상칸) 도장 → 애니메이션 후 피크상자 수령 모달 자동 표시 (호출 경로 무관)
-  // onDone: 모달 닫힘(보상 없으면 즉시) 후 이어질 콜백 — 홈 플로우의 랜덤피크 모달 연결용
-  const stampDelay = res.advanced ? ATTENDANCE_CAL_DELAY_MS + STAMP_ANIM_MS + 200 : 0;
-  setTimeout(() => {
-    if (res.advanced && res.reward > 0) {
-      showPeakboxRewardModal(res.reward, onDone);
-    } else if (typeof onDone === 'function') {
-      onDone();
-    }
-  }, stampDelay);
+  if (typeof onDone === 'function') onDone();
   return res;
 }
 
 // 접속 시 출석 플로우 오케스트레이터 (home 진입에서 호출).
-// 순서: ① 출석도장(달력 자동오픈+애니메이션) → ② 마일스톤 상자모달 → ③ 매일 랜덤피크 모달
-// onAllDone: ③까지(유저가 상자를 열어야) 전부 끝났을 때만 불린다 — 없어도 이 플로우 자체는 그대로 동작.
+// 자동출석(접속=도장) 폐지됨 — 도장은 데일리미션 완료 트리거로 이전 예정(백엔드 작업 별도).
+// 매일 랜덤피크 지급도 접속 시 자동지급 폐지 — claimDailyAttendance는 다른 트리거에서
+// 재사용할 예정이라 함수 자체는 남겨두고 여기서만 호출을 끊는다.
 async function runDailyAttendanceFlow(onAllDone) {
-  advanceAttendance(() => { claimDailyAttendance(onAllDone); });
-}
-
-// 달력 상단 안내문 — 접속 시 세 갈래를 여기서 구분해 알린다.
-//   stamp  : 연속 유지 → 오늘 도장이 찍힘
-//   makeup : 하루 이상 비어 보충출석이 필요함(보충권이 남아 있는 상태)
-//   reset  : 보충권까지 소진돼 1일차로 되돌아감
-const ATT_CAL_SUB = {
-  stamp:  '5일마다 피크상자를 받아요 · 30일 순환',
-  makeup: '출석이 비었어요! 보충출석으로 이어갈 수 있어요',
-  reset:  '연속이 끊겨 1일차부터 다시 시작해요',
-};
-
-// 달력이 닫힐 때 이어서 할 일(보충 안내 → 일일 랜덤피크 모달 연결용). 1회성.
-let _attCalOnClose = null;
-
-// animateDay: 해당 칸 도장에 찍힘 애니메이션 부여(방금 찍힌 오늘 칸). 없으면 정적 렌더.
-// mode: ATT_CAL_SUB 키. 생략하면 기본 안내문.
-// onClose: 넘긴 경우에만 교체(보충출석으로 재렌더될 때 콜백이 날아가지 않게).
-function openAttendanceCalendar(animateDay, mode, onClose) {
-  if (onClose !== undefined) _attCalOnClose = onClose;
-  const grid = document.getElementById('attend-cal-grid');
-  const overlay = document.getElementById('attend-cal-overlay');
-  if (!grid || !overlay) return;
-
-  const st = _attState.loaded ? _attState : (function () {
-    const a = _localAttGet(); return { day: a.day, makeup_left: a.makeup, needs_makeup: false };
-  })();
-  const stamped = st.day;
-  const boxSvg = '<img src="image/gift.png" class="acc-box-icon" alt="">';
-
-  let html = '';
-  for (let d = 1; d <= ATTENDANCE_TOTAL_DAYS; d++) {
-    const done      = d <= stamped;
-    const milestone = ATTENDANCE_MILESTONES[d];
-    const cls = ['acc-cell'];
-    if (done) cls.push('acc-cell--done');
-    if (milestone) cls.push('acc-cell--milestone');
-    if (done && d === animateDay) cls.push('acc-cell--animate');
-    // 마일스톤=피크상자(+개수), 일반=날짜 숫자. 찍힌 날은 도장을 위에 겹침.
-    const base = milestone
-      ? boxSvg + '<span class="acc-box-count">' + milestone + '</span>'
-      : '<span class="acc-day-num">' + d + '</span>';
-    const inner = base + (done ? '<span class="acc-stamp"><i data-lucide="guitar"></i></span>' : '');
-    html += '<div class="' + cls.join(' ') + '">' + inner + '</div>';
-  }
-  grid.innerHTML = html;
-  // 도장 소리 싱크: CSS 애니메이션 실제 시작(animationstart, delay 경과 후) 기준으로
-  // "쾅" 내려찍는 임팩트(55% 지점 = duration*0.55)에 맞춰 재생. reflow/paint 지연 영향 제거.
-  if (animateDay) {
-    const stampEl = grid.querySelector('.acc-cell--animate .acc-stamp');
-    if (stampEl) stampEl.addEventListener('animationstart',
-      () => setTimeout(() => _playSfx('stamp.mp3'), STAMP_IMPACT_OFFSET_MS), { once: true });
-  }
-
-  const subEl = document.getElementById('attend-cal-sub');
-  if (subEl) subEl.textContent = ATT_CAL_SUB[mode] || ATT_CAL_SUB.stamp;
-
-  const mkCountEl = document.getElementById('attend-cal-makeup-count');
-  if (mkCountEl) mkCountEl.textContent = st.makeup_left;
-  const mkBtn = document.getElementById('attend-cal-makeup');
-  if (mkBtn) {
-    const canMakeup = !!(st.needs_makeup && st.makeup_left > 0);
-    mkBtn.disabled = !canMakeup;
-    // 지금 눌러야 할 상황(분기2)에서만 강조 — 홈 배너로 그냥 열어본 경우엔 붙이지 않는다
-    mkBtn.classList.toggle('attend-cal-makeup--urge', canMakeup && mode === 'makeup');
-  }
-
-  overlay.classList.add('attend-cal-overlay--show');
-  // 도장 찍는 경로(일일 첫 접속·보충)=attendance.mp3, 홈배너 열람(animateDay 없음)=page.mp3
-  _playSfx(animateDay ? 'attendance.mp3' : 'page.mp3', animateDay ? 0.5 : 1);
-  if (typeof lucide !== 'undefined') lucide.createIcons();
-}
-
-function closeAttendanceCalendar() {
-  const overlay = document.getElementById('attend-cal-overlay');
-  if (overlay) overlay.classList.remove('attend-cal-overlay--show');
-  // 보충 안내로 열렸던 경우, 닫은 뒤에 일일 랜덤피크 모달을 이어 띄운다(모달 겹침 방지)
-  const cb = _attCalOnClose;
-  _attCalOnClose = null;
-  if (typeof cb === 'function') setTimeout(cb, 250);
+  if (typeof onAllDone === 'function') onAllDone();
+  // claimDailyAttendance(onAllDone);
 }
 
 // ── 퀘스트 XP 보상 (레벨 경험치, 상자 개수와 무관하게 티어별 개별 설정) ──
@@ -3492,8 +3415,9 @@ function xpToLevel(xp) {
   return { level: lv, into: into, need: need, pct: pct };
 }
 
-/* ── 페르소나(칭호) 시스템 — 레벨과 독립, 온보딩 선택 + 퀴즈 승급으로만 변경 ── */
-// 1~4단계: 온보딩 선택 가능 + 퀴즈 승급/즉시 강등. 5단계(guitar_master): 선택 불가, Lv45 자동해금.
+/* ── 페르소나(칭호) 시스템 — 레벨과 완전 독립. 온보딩 선택 + 승급시험/강등(프로필 트랙 클릭)으로만 변경 ── */
+// 2026-08-28 결정: 레벨게이트 전부 폐지(PERSONA_UNLOCK_LV/PERSONA_NEXT_GATE_LV 삭제) — guitar_master 포함
+// 전 단계가 승급/강등만으로 오르내림. 레벨은 더 이상 페르소나 계산에 관여 안 함.
 const PERSONA_STAGES = ['unboxing', 'beginner', 'sheet_reader', 'home_master', 'guitar_master'];
 const PERSONA_NAMES = {
   unboxing: '언박싱 1일차',
@@ -3502,9 +3426,6 @@ const PERSONA_NAMES = {
   home_master: '방구석 기타마스터',
   guitar_master: '기타마스터',
 };
-const PERSONA_UNLOCK_LV = 45; // guitar_master 자동해금 레벨
-// 다음 페르소나 승급 자격(퀴즈 응시 가능) 레벨 게이트
-const PERSONA_NEXT_GATE_LV = { beginner: 10, sheet_reader: 20, home_master: 35, guitar_master: 45 };
 
 function getUserPersona() {
   return localStorage.getItem('user_persona') || 'unboxing';
@@ -3512,15 +3433,105 @@ function getUserPersona() {
 function setUserPersona(key) {
   if (PERSONA_STAGES.indexOf(key) === -1) return;
   localStorage.setItem('user_persona', key);
+  _syncPersonaToProfile(key); // 승급/강등 즉시 DB반영(fire-and-forget) — user_persona_profile.js 참고
 }
-// 표시용 페르소나 키: guitar_master는 저장값과 무관하게 Lv45 이상이면 자동 표시
-function _effectivePersonaKey(level) {
-  if (level >= PERSONA_UNLOCK_LV) return 'guitar_master';
-  const stored = getUserPersona();
-  return stored === 'guitar_master' ? 'home_master' : stored; // 레벨 미달인데 저장값만 남아있는 경우 방지
+
+// user_persona_profile은 pref_type/skill_type/engagement_type은 30일 배치갱신이지만
+// persona만은 승급/강등 즉시 반영되는 하이브리드 테이블로 씀(유저관리 총집합 테이블).
+// 실패해도 조용히 무시 — 다음 30일 배치가 subscriptions.persona에서 다시 복사해가므로
+// 게임 흐름을 막을 이유 없음.
+function _syncPersonaToProfile(key) {
+  try {
+    const { token, userId } = getStoredAuth();
+    if (!token || !userId) return;
+    fetch(`${SUPABASE_URL}/rest/v1/user_persona_profile?on_conflict=user_id`, {
+      method: 'POST',
+      headers: {
+        apikey: SUPABASE_ANON, Authorization: `Bearer ${token}`,
+        'Content-Type': 'application/json', Prefer: 'resolution=merge-duplicates',
+      },
+      body: JSON.stringify({ user_id: userId, persona: key, computed_at: new Date().toISOString() }),
+    }).catch(() => {});
+  } catch (_) {}
 }
-function _persona(level) {
-  return PERSONA_NAMES[_effectivePersonaKey(level)];
+// ── 승급시험 하루 도전 횟수(DB기록) ──
+// 무료1회 + 광고시청1회 = 총 2회/일, KST 자정 리셋. 로그인 유저는 user_persona_profile의
+// promo_attempts_date/promo_attempts_used에 저장(기기 간 동기화됨), 비로그인/dev는
+// attendance와 동일 패턴으로 training_stats 로컬 폴백.
+const PROMO_DAILY_ATTEMPTS = 2;
+function _localPromoAttemptsGet() {
+  const s = JSON.parse(localStorage.getItem('training_stats') || '{}');
+  if (s.promo_attempt_date !== _kstToday()) return { date: _kstToday(), used: 0 };
+  return { date: s.promo_attempt_date, used: s.promo_attempt_used || 0 };
+}
+function _localPromoAttemptsSet(used) {
+  const s = JSON.parse(localStorage.getItem('training_stats') || '{}');
+  s.promo_attempt_date = _kstToday();
+  s.promo_attempt_used = used;
+  localStorage.setItem('training_stats', JSON.stringify(s));
+}
+// 오늘 남은 도전 횟수 조회. 실패 시(네트워크 등) 로컬 폴백값 반환 — 게임 흐름 막지 않음.
+async function getPromoAttemptsLeft() {
+  const today = _kstToday();
+  const { token, userId } = getStoredAuth();
+  if (!token || !userId) {
+    const a = _localPromoAttemptsGet();
+    return Math.max(0, PROMO_DAILY_ATTEMPTS - a.used);
+  }
+  try {
+    const resp = await fetch(
+      `${SUPABASE_URL}/rest/v1/user_persona_profile?user_id=eq.${userId}&select=promo_attempts_date,promo_attempts_used`,
+      { headers: { apikey: SUPABASE_ANON, Authorization: `Bearer ${token}` } }
+    );
+    if (!resp.ok) throw new Error('promo attempts fetch failed');
+    const rows = await resp.json();
+    const row = rows[0];
+    const used = (row && row.promo_attempts_date === today) ? (row.promo_attempts_used || 0) : 0;
+    return Math.max(0, PROMO_DAILY_ATTEMPTS - used);
+  } catch (_) {
+    const a = _localPromoAttemptsGet();
+    return Math.max(0, PROMO_DAILY_ATTEMPTS - a.used);
+  }
+}
+// 시도 1회 소진 — 시험 실제 시작 시점(무료 최초 진입, 광고보고 재도전)에 호출. 반환값=소진 후 남은 횟수.
+async function consumePromoAttempt() {
+  const today = _kstToday();
+  const { token, userId } = getStoredAuth();
+  if (!token || !userId) {
+    const used = _localPromoAttemptsGet().used + 1;
+    _localPromoAttemptsSet(used);
+    return Math.max(0, PROMO_DAILY_ATTEMPTS - used);
+  }
+  try {
+    const resp = await fetch(
+      `${SUPABASE_URL}/rest/v1/user_persona_profile?user_id=eq.${userId}&select=promo_attempts_date,promo_attempts_used`,
+      { headers: { apikey: SUPABASE_ANON, Authorization: `Bearer ${token}` } }
+    );
+    const rows = resp.ok ? await resp.json() : [];
+    const row = rows[0];
+    const prevUsed = (row && row.promo_attempts_date === today) ? (row.promo_attempts_used || 0) : 0;
+    const used = prevUsed + 1;
+    await fetch(`${SUPABASE_URL}/rest/v1/user_persona_profile?on_conflict=user_id`, {
+      method: 'POST',
+      headers: {
+        apikey: SUPABASE_ANON, Authorization: `Bearer ${token}`,
+        'Content-Type': 'application/json', Prefer: 'resolution=merge-duplicates',
+      },
+      body: JSON.stringify({ user_id: userId, promo_attempts_date: today, promo_attempts_used: used }),
+    });
+    return Math.max(0, PROMO_DAILY_ATTEMPTS - used);
+  } catch (_) {
+    const used = _localPromoAttemptsGet().used + 1;
+    _localPromoAttemptsSet(used);
+    return Math.max(0, PROMO_DAILY_ATTEMPTS - used);
+  }
+}
+// 표시용 페르소나 키: 저장값 그대로 (레벨 무관)
+function _effectivePersonaKey() {
+  return getUserPersona();
+}
+function _persona() {
+  return PERSONA_NAMES[_effectivePersonaKey()];
 }
 
 // 홈 우상단 레벨 위젯 렌더 (즉시, 애니메이션 없음)
@@ -3598,11 +3609,11 @@ async function loadSidebarUserInfo() {
   } catch (e) { console.warn('[Sidebar] 유저정보 로드 실패:', e); }
 }
 
-// 페르소나 승급 트랙(5원+선) 렌더: 저장된 persona 기준(1~4단계) + Lv45 자동해금(5단계)
-function renderPersonaTrack(level) {
+// 페르소나 승급 트랙(5원+선) 렌더: 저장된 persona 기준. 레벨 무관 — 승급시험/강등으로만 이동.
+function renderPersonaTrack() {
   const track = document.getElementById('persona-track');
   if (!track) return;
-  const curKey = _effectivePersonaKey(level);
+  const curKey = _effectivePersonaKey();
   const curIdx = PERSONA_STAGES.indexOf(curKey);
 
   const nodes = track.querySelectorAll('.pt-node');
@@ -3616,14 +3627,46 @@ function renderPersonaTrack(level) {
     line.classList.toggle('done', i < curIdx);
   });
 
-  // 저장된 persona 기준 다음 단계가 레벨 게이트를 충족하면 하이라이트 (퀴즈 응시 가능 표시)
-  const storedIdx = PERSONA_STAGES.indexOf(getUserPersona());
-  const nextIdx = storedIdx + 1;
-  if (nextIdx >= 1 && nextIdx <= 3) {
-    const nextKey = PERSONA_STAGES[nextIdx];
-    if (level >= PERSONA_NEXT_GATE_LV[nextKey]) {
-      nodes[nextIdx]?.classList.add('eligible');
-    }
+  // 다음 단계(승급시험 대상)는 항상 하이라이트. home_master→guitar_master 시험도
+  // MS_PROMO_TIER_TARGETS.home_master에 구현 완료돼서(2026-08-27) 더 이상 제외 안 함(2026-08-29).
+  const nextIdx = curIdx + 1;
+  if (nextIdx >= 1 && nextIdx <= 4) {
+    nodes[nextIdx]?.classList.add('eligible');
+  }
+
+  // eligible(승급 가능) dot 클릭 시 승급시험 진입 / done(지나온) dot 클릭 시 그 단계로 강등 확인
+  // — 위임 리스너 1회만 등록
+  if (!track.dataset.ptClickBound) {
+    track.dataset.ptClickBound = '1';
+    track.addEventListener('click', (e) => {
+      const doneNode = e.target.closest('.pt-node.done');
+      if (doneNode) {
+        const targetKey = doneNode.dataset.persona;
+        const targetName = PERSONA_NAMES[targetKey];
+        if (typeof openConfirmSheet === 'function') {
+          openConfirmSheet({
+            title: `${targetName}(으)로 내려갈까요?`,
+            desc: '지금 단계에서 다루는 문제들의 난이도가 낮아져요.\n내려가면 다시 승급시험을 통과해야 올라올 수 있어요.',
+            btnText: '내려가기',
+            danger: true,
+            onConfirm: () => {
+              setUserPersona(targetKey);
+              renderPersonaTrack();
+              if (typeof renderTopbarLevel === 'function') renderTopbarLevel();
+              const pEl = document.getElementById('profile-persona');
+              if (pEl) pEl.textContent = PERSONA_NAMES[targetKey];
+              const hp = document.getElementById('hdb-persona');
+              if (hp) hp.textContent = PERSONA_NAMES[targetKey];
+            },
+          });
+        } else {
+          console.warn('[PersonaTrack] openConfirmSheet 없음 — 이 페이지에서는 강등 UI 미지원');
+        }
+        return;
+      }
+      const node = e.target.closest('.pt-node.eligible');
+      if (node) location.href = 'mission-session.html?promo=1';
+    });
   }
 }
 
@@ -3867,7 +3910,7 @@ async function makeupAttendance() {
   }
   _attState = { day: res.day, makeup_left: res.makeup_left, needs_makeup: false, loaded: true };
   renderPeakboxBadge();
-  openAttendanceCalendar(res.day); // 재렌더 + 오늘 칸 도장 애니메이션
+  // 재렌더 UI는 호출부(attendance.html) 몫 — 모달 자동오픈 로직은 페이지 전환으로 대체되며 제거됨
   if (res.reward > 0) setTimeout(() => showPeakboxRewardModal(res.reward), STAMP_ANIM_MS + 150);
 }
 
@@ -3979,8 +4022,6 @@ if (typeof window !== 'undefined') {
   window.claimDailyAttendance         = claimDailyAttendance;
   window.advanceAttendance            = advanceAttendance;
   window.runDailyAttendanceFlow       = runDailyAttendanceFlow;
-  window.openAttendanceCalendar       = openAttendanceCalendar;
-  window.closeAttendanceCalendar      = closeAttendanceCalendar;
   window.makeupAttendance             = makeupAttendance;
   window._playTap                     = _playTap;
   window.showPeakboxRewardModal       = showPeakboxRewardModal;
@@ -4307,45 +4348,16 @@ async function __pushApplyEnabled() {
   } catch (_) { localStorage.setItem('push_enabled', '0'); return false; }
 }
 
-// ── 마이크 권한 (튜너용) ───────────────────────────────────
-// 튜너 페이지에서 처음 받으면 진입하자마자 OS 팝업에 막혀 흐름이 끊긴다.
-// 홈에서 알림 권한 직후에 미리 받아두고, 튜너는 이미 허용된 상태로 시작한다.
-const MIC_PERM_ASKED = 'mic_perm_asked';
-
-async function requestMicPermission() {
-  // 앱에서만 미리 받는다. 웹은 홈에 들어오자마자 브라우저 마이크 팝업이 뜨면
-  // 튜너를 쓸 생각도 없던 방문자에게 맥락 없는 요구가 된다 — 웹은 튜너 진입 시 요청 그대로.
-  if (!window.Capacitor?.isNativePlatform?.()) return;
-  if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) return;
-
-  // 이미 허용/거부가 확정된 상태면 요청해도 팝업이 뜨지 않는다 — 스트림을 열 이유가 없다.
-  // WebView 는 Permissions API 에 'microphone' 이름이 없을 수 있어 실패하면 그냥 요청으로 넘어간다.
-  try {
-    const st = await navigator.permissions.query({ name: 'microphone' });
-    if (st.state === 'granted' || st.state === 'denied') return;
-  } catch (_) {}
-
-  // 거절한 유저에게 홈 진입마다 다시 묻지 않는다. 요청 "전에" 세워야
-  // 팝업 중 앱이 재시작돼도 무한 반복되지 않는다.
-  if (localStorage.getItem(MIC_PERM_ASKED) === '1') return;
-  try { localStorage.setItem(MIC_PERM_ASKED, '1'); } catch (_) {}
-
-  try {
-    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-    stream.getTracks().forEach(t => t.stop()); // 권한만 확보하고 즉시 해제 — 홈에서 마이크를 물고 있지 않는다
-  } catch (_) {}
-}
+// 마이크는 튜너 페이지에서만 연다(그 외 페이지는 일절 접근 금지 — Android가 getUserMedia
+// 감지 시 오디오모드를 통화모드로 바꿔버려 볼륨슬라이더가 엉뚱하게 뜨는 문제 재발 방지).
+// 홈 사전권한요청은 폐지함.
 
 if (typeof window !== 'undefined') {
   window.initPushNotifications = initPushNotifications;
-  window.requestMicPermission = requestMicPermission;
   window._savePushToken = _savePushToken;
   window.__pushApplyEnabled = __pushApplyEnabled;
   document.addEventListener('DOMContentLoaded', () => {
-    // 마이크는 홈에서만 묻는다 — 훈련 페이지 한복판에서 튜너와 무관한 팝업이 뜨면 맥락이 없다.
-    Promise.resolve(initPushNotifications()).then(() => {
-      if (_currentPageName() === 'home.html') requestMicPermission();
-    });
+    initPushNotifications();
     checkForceUpdate();
   });
 }

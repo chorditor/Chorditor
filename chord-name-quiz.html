@@ -9,7 +9,7 @@
   <link rel="stylesheet" href="style.css" />
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
 </head>
-<body class="training-flow-page">
+<body class="training-flow-page" id="chord-quiz-page">
 
   <!-- 페이지 커버: 초기화 완료 전 화면 가림 -->
   <div id="page-cover"></div>
@@ -118,48 +118,70 @@
 
       <!-- ── 퀴즈 뷰 ── -->
       <div id="view-quiz" class="quiz-view quiz-view--right">
-        <div class="quiz-wrap">
-          <div class="quiz-inner">
 
-          <!-- 상단 그룹: 피드백 + 문제 카드 + 타임어택 바 -->
-          <div class="quiz-upper-group">
+        <!-- 카운트다운 — 데일리미션 .ms-precountdown과 완전히 동일한 구조(2026-08-31).
+             문제뷰(#ms-quiz-view)는 이 동안 아예 안 보임(오버레이 아님, 화면 자체가 이거) -->
+        <div id="quiz-precountdown" class="ms-precountdown" style="display:none">
+          <div class="ms-precountdown-msgs">
+            <p class="ms-precountdown-msg ms-stagger-pending" id="quiz-precountdown-msg1">최대한 빠르게 맞춰보세요!</p>
+            <p class="ms-precountdown-msg ms-stagger-pending" id="quiz-precountdown-msg2">카운트가 시작됩니다.</p>
+          </div>
+          <div class="ms-countdown-num" id="quiz-countdown"></div>
+        </div>
 
-            <!-- ① 피드백 + 반응속도 -->
-            <div class="quiz-info-area">
-              <div id="quiz-feedback-msg" class="quiz-feedback-msg"></div>
-              <div id="quiz-speed" class="quiz-speed"></div>
+        <!-- 데일리미션 문제풀이 뷰(.ms-quiz-view)와 완전히 동일한 구조(2026-08-31) —
+             #view-quiz가 #ms-main 역할까지 겸함(옛 .quiz-wrap/.quiz-inner 축소 레이어 제거) -->
+        <div class="ms-quiz-view" id="ms-quiz-view">
+          <div class="ms-quiz-question-card">
+            <span id="quiz-timer-text" class="ms-quiz-timer">0.0s</span>
+            <p id="quiz-feedback-msg" class="ms-quiz-feedback"></p>
+            <div class="ms-quiz-canvas-wrap">
+              <div id="quiz-canvas-slot" class="ms-quiz-canvas-slot">
+                <canvas id="quiz-canvas"></canvas>
+                <div id="quiz-loading" class="quiz-loading" style="display:none"><div class="quiz-loading-spinner"></div></div>
+              </div>
+              <span id="quiz-chord-name-display" class="ms-quiz-question-name" style="display:none"></span>
             </div>
+          </div>
+          <div id="quiz-choices" class="ms-quiz-choices"></div>
+        </div>
 
-            <!-- ② 문제 카드 (5:4) -->
-            <div class="quiz-question-area">
-              <div class="quiz-canvas-wrap">
-                <div class="quiz-canvas-inner">
-                  <canvas id="quiz-canvas"></canvas>
-                  <div id="quiz-countdown" class="quiz-countdown"></div>
-                  <div id="quiz-loading" class="quiz-loading" style="display:none"><div class="quiz-loading-spinner"></div></div>
+      </div><!-- /view-quiz -->
+
+      <!-- ── 결산 뷰 — 데일리미션 결산화면 구조 이식(2026-08-31). 총평 문구는 제외,
+           게이지는 코드맞추기 1줄만, 최상단에 통계(정규분포+정답률/속도 문구) ── -->
+      <div id="view-result" class="quiz-view quiz-view--right">
+        <div class="ms-result">
+          <div class="ms-result-scroll">
+            <div class="ms-result-stat-card" id="result-stat-card">
+              <div class="ms-result-stat-headline" id="result-stat-headline"></div>
+              <div id="result-chart-wrap"></div>
+              <p class="ms-result-stat-line" id="result-stat-line-count"></p>
+              <p class="ms-result-stat-line" id="result-stat-line-speed"></p>
+            </div>
+            <div class="ms-result-scores">
+              <div class="ms-result-score-row ms-result-score-row--blue">
+                <span class="ms-result-score-name">코드맞추기</span>
+                <div class="ms-result-gauge-row">
+                  <div class="ms-result-gauge" id="result-gauge"></div>
+                  <span class="ms-result-score-value" id="result-score-value"></span>
                 </div>
               </div>
-              <div id="quiz-chord-name-display" class="quiz-chord-name-display" style="display:none"></div>
             </div>
-
-            <!-- ③ 타임어택 바 -->
-            <div class="quiz-timer-track">
-              <div id="quiz-timer-bar" class="quiz-timer-bar"></div>
-            </div>
-
-          </div><!-- /quiz-upper-group -->
-
-          <!-- ④ 다음 버튼 -->
-          <button id="quiz-next-btn" class="quiz-next-btn" onpointerup="advanceQuestion()">다음</button>
-
-          <!-- ⑤ 선택지 (5:4) -->
-          <div class="quiz-choices-area">
-            <div id="quiz-choices" class="quiz-choices"></div>
+            <ul class="ms-result-quiz-row" id="result-quiz-row"></ul>
           </div>
-
-          </div><!-- /quiz-inner -->
-        </div><!-- /quiz-wrap -->
-      </div><!-- /view-quiz -->
+        </div>
+        <div class="ms-bottom-actions ms-result-btn-row">
+          <button class="cd-btn cd-btn--gray" onpointerup="closeResultModal()">그만하기</button>
+          <button class="cd-btn cd-btn--blue" onpointerup="retryFromResult()">
+            다시하기
+            <span class="ldp-peak-cost" id="retry-peak-cost">
+              <img src="image/white_peak.svg" alt="" class="ldp-peak-cost-icon">
+              <span class="ldp-peak-cost-count" id="retry-peak-cost-count"></span>
+            </span>
+          </button>
+        </div>
+      </div><!-- /view-result -->
 
       </div><!-- /content-body -->
 
@@ -268,6 +290,7 @@
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4/dist/chart.umd.min.js"></script>
   <script src="analytics-sdk.js"></script>
   <script src="shared.js"></script>
+  <script src="mission-percentile.js"></script>
   <script src="chord-voicings.js"></script>
   <script src="chords-library.js"></script>
   <script src="voicing-canvas.js"></script>

@@ -219,6 +219,7 @@ function setActivePreset(id) {
   updatePresetNotesDisplay();
   resetTargetDisplay();
   renderPresetMenu();
+  analytics.track('tuner_preset_changed', { preset_id: id });
 }
 
 // Pitchy(McLeod Pitch Method)로 실시간 피치감지 + 프리셋 매칭
@@ -334,9 +335,6 @@ function startMic() {
   if (tunerMicStarting || tunerAnalyser) return;
   tunerMicStarting = true;
 
-  const tip = document.getElementById('tuner-tip');
-  if (tip) tip.textContent = '마이크 연결 중...';
-
   navigator.mediaDevices.getUserMedia({
     audio: {
       echoCancellation: false,
@@ -359,42 +357,24 @@ function startMic() {
     window.Capacitor?.Plugins?.AudioMode?.setNormal().catch(() => {});
 
     tunerMicStarting = false;
-    if (tip) tip.onpointerup = null;
-    if (isMobileOrTablet()) {
-      if (tip) tip.textContent = '마이크가 연결됐어요';
-    } else {
-      populateMicSelect();
-    }
+    if (!isMobileOrTablet()) populateMicSelect();
     startPitchDetection();
   }).catch((err) => {
     tunerMicStarting = false;
-    let msg = '마이크 연결 실패. 탭해서 다시 시도';
-    if (err.name === 'NotAllowedError' || err.name === 'PermissionDeniedError') {
-      msg = '마이크 권한이 필요해요. 탭해서 다시 시도';
-    } else if (err.name === 'NotFoundError' || err.name === 'DevicesNotFoundError') {
-      msg = '마이크를 찾을 수 없어요';
-    }
-    if (tip) {
-      tip.textContent = msg;
-      // 모바일/태블릿에선 실패해도 이 버튼을 절대 보여주지 않음 — PC에서만 재시도 버튼으로 사용
-      if (!isMobileOrTablet()) {
-        tip.classList.remove('hidden');
-        tip.onpointerup = startMic;
-      }
-    }
+    console.error('[tuner] mic connect failed:', err.name || err);
   });
 }
 
-// 마이크 연결 성공 후 호출 — 라벨은 권한 획득 후에만 보임
+// 마이크 연결 성공 후 호출 — PC 전용 장치선택 드롭다운(마이크 탭 버튼과 무관한 별도 자리)
 function populateMicSelect() {
-  const tip = document.getElementById('tuner-tip');
-  if (!tip) return;
+  const wrap = document.getElementById('tuner-mic-select-wrap');
+  if (!wrap) return;
 
   navigator.mediaDevices.enumerateDevices().then((devices) => {
     const inputs = devices.filter(d => d.kind === 'audioinput');
     const currentId = tunerMicStream.getAudioTracks()[0].getSettings().deviceId;
 
-    tip.innerHTML = '';
+    wrap.innerHTML = '';
     const select = document.createElement('select');
     select.id = 'tuner-mic-select';
     inputs.forEach((d, i) => {
@@ -405,7 +385,8 @@ function populateMicSelect() {
       select.appendChild(opt);
     });
     select.onchange = () => switchMicDevice(select.value);
-    tip.appendChild(select);
+    wrap.appendChild(select);
+    wrap.classList.add('has-select');
   });
 }
 
@@ -490,18 +471,11 @@ function closeTunerPage() {
 // ── DOMContentLoaded ─────────────────────────────────────────
 document.addEventListener('DOMContentLoaded', () => {
 
-  // 모바일/태블릿은 홈 화면 진입 시 이미 마이크 권한을 미리 받아둔 상태 —
-  // 탭 유도 버튼 없이 바로 마이크를 자동으로 켠다. 실패하면(권한거부 등) 그때만 버튼을 보여 재시도.
+  // 마이크 탭 버튼 자체를 없앴으므로 전 플랫폼(모바일/태블릿/데스크탑) 공통으로 페이지 진입 시
+  // 바로 마이크 연결을 시도한다. 모바일/태블릿은 홈 화면에서 이미 권한을 미리 받아둔 상태.
   // 아래쪽 다른 초기화 코드가 뭔가로 인해 예외를 던져도 이 블록은 항상 실행되도록 맨 앞에서 처리.
   try {
-    if (isMobileOrTablet()) {
-      const tip = document.getElementById('tuner-tip');
-      if (tip) {
-        tip.classList.add('hidden');
-        tip.onpointerup = null;
-      }
-      startMic();
-    }
+    startMic();
   } catch (e) {
     console.error('[tuner] mic auto-start failed:', e);
   }
@@ -524,4 +498,6 @@ document.addEventListener('DOMContentLoaded', () => {
       setTimeout(() => { cover.style.display = 'none'; }, 200);
     });
   }
+
+  analytics.track('tuner_page_viewed', {});
 });

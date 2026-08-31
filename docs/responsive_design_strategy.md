@@ -44,11 +44,11 @@ computed style이 내가 원하는 값으로 나와도 실제 화면이 다르�
 | Mobile | `max-width: 559px` (기본, 조건 없음) | 스마트폰 전종, Z Fold 접힘, Z Flip 펼침 |
 | Tablet | `min-width: 560px` and `min-height: 600px` | 태블릿 전종, Z Fold 펼침, 데스크탑 창 반분할 |
 | Fold 근접정사각형 (Tablet 하위 예외) | `min-width:580px, max-width:760px, min-height:700px, min-aspect-ratio:3/4, max-aspect-ratio:1/1` | Z Fold 펼침 전종 |
-| Desktop/Laptop | `min-width: 1440px` (Tablet 조건 위에 얹힘) | PC·랩탑 브라우저 |
+| Desktop/Laptop | `min-width: 1600px` (Tablet 조건 위에 얹힘) | PC·랩탑 브라우저 |
 
 - `min-width:560px`: 갤럭시 폴드3 펼침폭 590px가 걸리도록 낮춘 값(600이면 밀려남). 폴드 접힘폭(~360~412)·일반 폰 세로폭(~480 이하)과 안 겹쳐서 안전.
 - `min-height:600px`은 태블릿 조건에 필수 — 없으면 폰 가로모드(812×375처럼 폭만 넓고 높이 낮은 기기)가 같이 걸림.
-- `min-width:1440px`: 랩탑(1366/1440/1600) 대부분 커버. 태블릿 실기기 9종 중 가로폭이 이 경계에 닿는 건 Tab S10 FE+(1440px) 하나뿐 — 데스크탑으로 분류하기로 확정(§4 참고). iPad Pro13 M4 가로(1376px)는 경계 아래라 태블릿 유지.
+- `min-width:1600px`(2026-08-31, 기존 1440px에서 상향): 랩탑(1600/1920 등) 대부분 커버. 태블릿 실기기 9종 중 가로폭이 옛 경계(1440px)에 닿던 Tab S10 FE+는 이제 경계 아래라 **태블릿(가로)으로 재분류** — iPad Pro13 M4 가로(1376px)와 함께 태블릿 가로 실질 상한 그룹에 속함. 새 경계(1600px)에 실기기가 닿는 사례는 현재 없음.
 - `hover:none`+`pointer:coarse` 터치 판별은 테스트 툴이 에뮬레이션 안 해서 검증 불가 → 제거함. 비슷한 창 크기의 노트북/데스크탑 브라우저도 태블릿/데스크탑 스타일을 탈 수 있음(허용).
 
 ---
@@ -91,13 +91,13 @@ computed style이 내가 원하는 값으로 나와도 실제 화면이 다르�
 - `.home-ad-banner:12vh`, `.home-blocks:46vh`, `.hdb-row:12vh`(px에서 vh로 통일, Fold7 832px 기준 환산), `.home-blocks{column-gap:64px}`(힌지 세로선 기준 좌우 카드 벌림, row-gap은 기본 12px 유지)
 - 실기기 7종 종횡비: 폴드2 .801 / 폴드3 .801 / 폴드5·4 .832 / 폴드6 .859 / 폴드7 .901 / 폴드8U .901 / **폴드8(신형) .755**(iPad에 근접) — 폴드8만 비율이 달라서 `min-aspect-ratio` 기준을 3/4(.75)까지 낮추고 `max-width:760px`으로 iPad 표준/에어를 폭에서 차단, iPad mini(.656)는 비율 미달로 자동 제외
 
-### 데스크탑/랩탑 사이드바 (1440px~)
+### 데스크탑/랩탑 사이드바 (1600px~)
 - `.app-shell`을 grid로 전환: `grid-template-areas: "nav topbar" / "nav main"` — 좌측 `nav`가 두 행 다 차지, `topbar`는 우측 컬럼 위쪽에만
 - `.bottom-nav`가 하단탭 대신 좌측 240px 세로 사이드바로 재사용(HTML 그대로, CSS로 flex row→column)
 - 사이드바 구성(위→아래): 타이틀(`.sidebar-brand`) → 유저요약(`.sidebar-user`) → 홈/노트/프로필 → 튜토리얼 → *(빈공간)* → 설정 → 로그아웃(`position:absolute; bottom` — `margin-top:auto`는 컨테이너 높이 계산 이슈로 안 먹어서 폐기)
-- 튜토리얼/설정 버튼은 **실제 DOM을 JS로 이동**(복제 아님) — `home.js`의 `matchMedia('(min-width:1440px)')` change 리스너가 데스크탑이면 `.bottom-nav`로, 아니면 `.top-bar`로 옮김. 탭별 hidden 토글은 ID 기반이라 위치 이동과 무관하게 작동, 사이드바 안에서만 hidden 무시하고 항상 노출되도록 오버라이드
+- 튜토리얼/설정 버튼은 **실제 DOM을 JS로 이동**(복제 아님) — `home.js`의 `matchMedia('(min-width:1600px)')` change 리스너가 데스크탑이면 `.bottom-nav`로, 아니면 `.top-bar`로 옮김. 탭별 hidden 토글은 ID 기반이라 위치 이동과 무관하게 작동, 사이드바 안에서만 hidden 무시하고 항상 노출되도록 오버라이드
 - 로그아웃은 사이드바 전용 새 버튼(`#sidebar-logout-btn`), 유저요약은 `#tbl-num`/`#profile-name`/`#profile-plan-name`을 `MutationObserver`로 미러링 + `loadProfileFromDB()` 앱 시작 시 1회 선행 호출
-- **주의**: 태블릿 범위(560~1440 전체)에 nav rail 그대로 적용하면 깨짐 — 반드시 데스크탑(1440px~)에만 좁혀서 적용할 것
+- **주의**: 태블릿 범위(560~1600 전체)에 nav rail 그대로 적용하면 깨짐 — 반드시 데스크탑(1600px~)에만 좁혀서 적용할 것
 
 ---
 
@@ -144,7 +144,7 @@ computed style이 내가 원하는 값으로 나와도 실제 화면이 다르�
 ### 일반 태블릿 (9종, 안드로이드+iOS 혼합 실기기 스펙)
 - 세로 CSS 폭 744~1032px, 전부 태블릿 하한(560px) 위 — 하한 안전 재확인
 - 갤럭시탭 DPR 1.75~2.125(280~340 DPI), 아이패드 전종 DPR 2.0(@2x 고정) — 제조사 무관하게 실측 CSS px는 폭 기준으로 겹침(갤럭시탭 753~900 vs 아이패드 744~1032, 중첩 큼) → 제조사별 aspect-ratio 분기는 근거 부족으로 채택 안 함(단순성 우선)
-- 가로모드 시 Tab S10 FE+만 1440px 정확히 찍음 → 데스크탑 경계(`min-width:1440px`)와 정면 충돌. **의도적으로 데스크탑으로 분류**(사용자 확정) — 태블릿 가로 최대는 그 아래 iPad Pro13 M4 1376px가 실질 상한
+- 가로모드 시 Tab S10 FE+가 1440px 정확히 찍음 — 옛 데스크탑 경계(1440px)와 정면 충돌했었으나, 경계가 1600px로 상향되면서 **충돌 해소, 태블릿 가로로 재분류**. 태블릿 가로 실질 상한은 Tab S10 FE+(1440px)로 올라가고, iPad Pro13 M4(1376px)는 그 아래
 
 ---
 
@@ -161,7 +161,8 @@ computed style이 내가 원하는 값으로 나와도 실제 화면이 다르�
 | Tablet Min | 744 | 1133 | Tablet | 2.0 | iPad mini6 — 태블릿 하한 |
 | Tablet Base | 820 | 1180 | Tablet | 2.0 | iPad 10/Air11, 갤럭시탭 다수 커버 |
 | Tablet Max | 1032 | 1376 | Tablet | 2.0 | iPad Pro13 M4 — 태블릿 상한 |
-| Tablet/Desktop 경계 | 1440 | 900 | Desktop | 1.0 | Tab S10 FE+ 가로모드 — 데스크탑 분류 확정, 경계 검증용 |
+| Tablet 가로 상한 | 1440 | 900 | Tablet | 1.0 | Tab S10 FE+ 가로모드 — 태블릿 가로 실질 상한(경계 1600 상향 후 재분류) |
+| Tablet/Desktop 경계 | 1600 | 900 | Desktop | 1.0 | 데스크탑 경계 정확히 찍는 값, 경계 검증용 |
 | Fold Main (Unfolded) | 750 | 832 | Tablet | 2.625 | Z Fold7 — 기본 채택값 |
 | Fold Cover (Folded) | 412 | 915 | Mobile | 2.625 | Z Fold7 커버스크린 |
 | Fold8 Main (Unfolded, 회전) | 704 | 933 | Tablet | 2.625 | Z Fold8 표준형 90도 회전 상태 확인용 |
@@ -405,7 +406,7 @@ Fold 세로힌지·Fold8 회전형처럼 grid가 아니라 일반 flex-column으
 
 ## 12. 훈련소 목록(training.html) 반응형 — 완료
 
-대상: 모바일(기본) / 태블릿 세로(`min-width:560,max-aspect-ratio:1/1`) / 태블릿 가로(`1133~1439w`) / 데스크탑(`1440px+`) / Z Fold 세로힌지 2종(폴드메인 세로힌지, 폴드8 회전형 704×933) / Z Fold 가로힌지 2종(폴드메인 가로힌지, 폴드8 표준형 933×704) / 모바일 가로모드(`min-width:560,max-height:480`). 카드 그리드(`.training-grid`/`.training-card`) 열 수·높이·폰트·아이콘 크기를 스코프별로 조정.
+대상: 모바일(기본) / 태블릿 세로(`min-width:560,max-aspect-ratio:1/1`) / 태블릿 가로(`1133~1599w`) / 데스크탑(`1600px+`) / Z Fold 세로힌지 2종(폴드메인 세로힌지, 폴드8 회전형 704×933) / Z Fold 가로힌지 2종(폴드메인 가로힌지, 폴드8 표준형 933×704) / 모바일 가로모드(`min-width:560,max-height:480`). 카드 그리드(`.training-grid`/`.training-card`) 열 수·높이·폰트·아이콘 크기를 스코프별로 조정.
 
 ### 가장 어려웠던 부분 — nth-child 특이도가 파일 순서를 이겨버린 버그
 
