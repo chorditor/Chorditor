@@ -2080,6 +2080,8 @@ async function loadProfileFromDB() {
     }
 
     const resp = await fetch(
+      // persona는 폴백용으로만 유지 — user_persona_profile에 아직 행이 없는
+      // 신규가입 직후 유저(온보딩 시 subscriptions에만 기록됨)를 위함.
       `${SUPABASE_URL}/rest/v1/subscriptions?user_id=eq.${userId}&select=nickname,plan,created_at,persona,promo_plan,promo_expires_at,promo_pending_days,invite_code`,
       { headers: { 'apikey': SUPABASE_ANON, 'Authorization': `Bearer ${token}` } }
     );
@@ -2093,6 +2095,25 @@ async function loadProfileFromDB() {
       return;
     }
     const row = rows[0];
+
+    // user_persona_profile: persona는 즉시반영(승급/강등 시 setUserPersona가 씀),
+    // pref_type/skill_type/engagement_type은 30일 배치갱신 — 유저관리 총집합 테이블.
+    try {
+      const ppResp = await fetch(
+        `${SUPABASE_URL}/rest/v1/user_persona_profile?user_id=eq.${userId}&select=persona,pref_type,skill_type,engagement_type`,
+        { headers: { 'apikey': SUPABASE_ANON, 'Authorization': `Bearer ${token}` } }
+      );
+      if (ppResp.ok) {
+        const ppRows = await ppResp.json();
+        if (ppRows.length) {
+          const pp = ppRows[0];
+          if (pp.persona) row.persona = pp.persona; // 아래 뱃지·로컬동기화 로직이 이 값을 씀
+          if (pp.pref_type) localStorage.setItem('user_pref_type', pp.pref_type);
+          if (pp.skill_type) localStorage.setItem('user_skill_type', pp.skill_type);
+          if (pp.engagement_type) localStorage.setItem('user_engagement_type', pp.engagement_type);
+        }
+      }
+    } catch (e) { console.warn('[Profile] persona_profile fetch 실패:', e); }
 
     const nickname = row.nickname || session?.user?.user_metadata?.full_name || '—';
     // row.plan은 결제 원본값. 프로모션 쿠폰으로 받은 플랜은 promo_* 에 따로 있으므로
@@ -3564,7 +3585,7 @@ function onPushCategoryToggle(kind, el) {
 // ── 확인 바텀시트(로그아웃/계정삭제 공용) ───────────────────────
 function openConfirmSheet({ title, desc, btnText, danger, onConfirm }) {
   document.getElementById('confirm-sheet-title').textContent = title;
-  document.getElementById('confirm-sheet-desc').textContent  = desc;
+  document.getElementById('confirm-sheet-desc').innerHTML = desc.replace(/\n/g, '<br>');
   const btn = document.getElementById('confirm-sheet-btn');
   btn.textContent = btnText;
   btn.className = 'btn ' + (danger ? 'btn-danger' : 'btn-primary');
@@ -4854,19 +4875,8 @@ function initHomeAdBannerCarousel() {
 }
 
 document.addEventListener('DOMContentLoaded', async () => {
-  // 모바일/태블릿은 튜너 진입 전에 마이크 권한을 미리 받아둔다 —
-  // 튜너 페이지에서 탭 없이 바로 자동 시작하기 위함(권한 팝업은 여기 홈에서 한 번만 뜸).
-  // 뒤쪽 초기화 코드가 예외를 던지는 것과 무관하게 항상 실행되도록 맨 앞에서 즉시 처리.
-  try {
-    const isMobileOrTablet = !!window.Capacitor?.isNativePlatform() || /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
-    if (isMobileOrTablet && navigator.mediaDevices?.getUserMedia) {
-      navigator.mediaDevices.getUserMedia({ audio: true })
-        .then((stream) => stream.getTracks().forEach((t) => t.stop()))
-        .catch((e) => console.warn('[home] mic 사전권한요청 실패:', e && e.name));
-    }
-  } catch (e) {
-    console.error('[home] mic 사전권한요청 중 예외:', e);
-  }
+  // 마이크는 튜너 페이지 진입 시에만 연다 — 홈에서 사전권한요청 폐지
+  // (getUserMedia 호출 자체가 Android 오디오모드를 통화모드로 바꿔버리는 부작용 있음).
 
   // 리뷰 유도: 앱 실행 카운트 (성숙도 측정)
   if (typeof reviewRegisterLaunch === 'function') reviewRegisterLaunch();
@@ -4881,7 +4891,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   // 데스크탑(1600px~) — 튜토리얼/설정 아이콘을 좌측 사이드바로 이동 (hidden 토글 로직은 ID 기반이라 위치 이동 무관)
   (() => {
-    const _mq = window.matchMedia('(min-width: 1440px)');
+    const _mq = window.matchMedia('(min-width: 1600px)');
     const _tutBtn = document.getElementById('tutorial-entry-btn');
     const _setBtn = document.getElementById('settings-btn');
     const _logoutBtn = document.getElementById('sidebar-logout-btn');
@@ -4909,7 +4919,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   // 사이드바 위쪽에 떠서 메인 콘텐츠 좌상단과 안 맞았음 — CSS 포지션만으론 못 고치고
   // DOM 위치 자체를 옮겨야 함(위 튜토리얼/설정 버튼과 동일 패턴).
   (() => {
-    const _mq = window.matchMedia('(min-width: 1440px)');
+    const _mq = window.matchMedia('(min-width: 1600px)');
     const _backBtn = document.getElementById('back-btn');
     const _main = document.getElementById('main-content');
     const _topBar = document.querySelector('.desktop-topbar');
@@ -5322,7 +5332,7 @@ const LIB_MINI_RATIO   = LIB_MINI_W / BASE_W;
 let _libWideMqCache = null;
 function libWideMq() {
   if (!_libWideMqCache) {
-    // 태블릿 가로(1133~1439) + 데스크탑(1440~) + Z Fold8 와이드형(834~950×680~770) —
+    // 태블릿 가로/랩탑(1133~1599) + 데스크탑(1600~) + Z Fold8 와이드형(834~950×680~770) —
     // 콤마는 matchMedia에서 OR로 동작. style.css의 각 와이드 스코프 조건과 정확히 일치시킬 것.
     _libWideMqCache = window.matchMedia(
       '(min-width: 1133px) and (min-height: 600px) and (min-aspect-ratio: 1/1), ' +

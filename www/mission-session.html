@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="color-scheme" content="light dark" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <title>Chorditor - 오늘의 미션</title>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css" />
+  <link rel="stylesheet" href="style.css" />
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
+</head>
+<body class="training-flow-page">
+
+  <!-- 페이지 커버: 초기화 완료 전 화면 가림 -->
+  <div id="page-cover"></div>
+
+  <div class="app-shell" id="mission-session-page">
+
+    <!-- ── 앱 로고탑바(데스크탑 전용) ── -->
+    <div class="top-bar desktop-topbar"></div>
+
+    <!-- ── 메인 콘텐츠 ── -->
+    <div class="main-content" id="main-content">
+
+      <!-- ── 탑바: 뒤로가기 X + 프로그레스 바 ── -->
+      <div class="top-bar">
+        <button id="back-btn" class="icon-btn" onpointerup="closeMissionSession()">
+          <i data-lucide="x"></i>
+        </button>
+        <div class="ms-progress-track">
+          <div class="ms-progress-fill" id="ms-progress-fill"></div>
+        </div>
+        <!-- 승급시험 전용 — 평소엔 숨김(msPersonaPromoTimerStart가 켬), 진행도바 대신 남은시간 숫자 -->
+        <span class="ms-progress-time" id="ms-progress-time" style="display:none"></span>
+      </div>
+
+      <div class="ms-scroll">
+        <div class="ms-scroll-inner">
+          <!-- ── 타이틀(문제 가이드) ── -->
+          <div class="ms-title" id="ms-title">
+            <div class="ms-title-row">
+              <span class="ms-title-icon" id="ms-title-icon" style="display:none"></span>
+              <h2 class="ms-title-text" id="ms-title-text">오늘의 미션을 준비하고 있어요</h2>
+            </div>
+            <p class="ms-title-desc" id="ms-title-desc"><span id="ms-buffer-status">학습 데이터를 불러오는 중</span><span class="ms-dots"></span></p>
+          </div>
+
+          <!-- ── 메인영역(버퍼 → 튜토리얼 → 문제) ── -->
+          <div class="ms-main" id="ms-main">
+            <div class="ms-buffer">
+              <div class="ms-buffer-visual">
+                <div class="ms-buffer-icon"><img src="image/guitar.png" alt=""></div>
+                <div class="ms-buffer-shadow"></div>
+              </div>
+              <p class="ms-buffer-note">기타가 있다면 지금 가져와주세요.<br>직접 잡아보며 연습하면 훨씬 도움이 돼요!</p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.js"></script>
+  <script src="https://unpkg.com/@phosphor-icons/web"></script>
+  <script src="analytics-sdk.js"></script>
+  <script src="shared.js"></script>
+  <script src="chord-voicings.js"></script>
+  <script src="chords-library.js"></script>
+  <script src="voicing-canvas.js"></script>
+  <script src="guitar-samples.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/tone/14.8.49/Tone.js"></script>
+  <script src="guitar-audio.js"></script>
+  <script src="scale-data.js"></script>
+  <script src="scale-block-preview.js"></script>
+  <script src="progression-voicing-list.js"></script>
+  <script src="progression-voicings.js"></script>
+  <script src="chord-combo-questions.js"></script>
+  <script src="mission-result-messages.js"></script>
+  <script src="mission-percentile.js"></script>
+  <script src="mission-persona-pools.js"></script>
+  <script src="mission-session.js"></script>
+</body>
+</html>

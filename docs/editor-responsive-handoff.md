@@ -63,11 +63,11 @@ resize 시 기존 스크롤 위치도 idx 유지한 채 새 pitch로 재정렬�
 | Fold세로 | `580~760 × ≥700, 3/4~1/1` | `min(340px,…)` | 태블릿세로 값 전부 모바일 기준으로 리셋 |
 | 태블릿가로 Min | `1133~1156` | `26vw` | |
 | 태블릿가로 Base | `1157~1278` | `28vw` | |
-| 태블릿가로 Max | `1279~1439` | `32vw` | |
+| 태블릿가로 Max | `1279~1599` | `32vw` | |
 | 랩탑 | `1260~1300` | `25vw` | Tablet Max 범위와 겹쳐 뒤에 배치 |
 | Fold가로힌지 | `≥700 × 580~760, 1/1~4/3` | `min(34vw, 85vh*400/671)` | chord-display 22px, inner 16px, `--picker-item-h:24px` |
 | Fold8와이드 | `834~950 × 680~770` | `min(340px,…)` | |
-| 데스크탑 | `≥1440` | `min(27vw, 47vh)` | 47vh = 주소창 고려 높이 캡 |
+| 데스크탑 | `≥1600`(2026-08-31, 기존 1440에서 상향) | `min(27vw, 47vh)` | 47vh = 주소창 고려 높이 캡, vw/vh 값 자체는 재계산 없이 유지 |
 | 데스크탑 FHD | `≥1920` | 상속 | inner 40px |
 
 ## 높이 캡(`Nvh`) 계산법 — 추측 금지, 실측 후 산출
@@ -100,7 +100,7 @@ N     = 필요폭 / innerHeight × 100
 })();
 ```
 
-> 데스크탑(1440+)의 `47vh`는 이 실측 이전에 1.68 추정으로 잡은 값 — 넘치면 같은 방법으로 재산출할 것.
+> 데스크탑(1600+, 기존 1440+에서 상향)의 `47vh`는 이 실측 이전에 1.68 추정으로 잡은 값 — 넘치면 같은 방법으로 재산출할 것.
 
 ## 캐스케이드 함정 (반복해서 걸린 것)
 1. **파일 등장 순서** — 스코프 블록이 base 규칙보다 **앞**에 있으면 무효화됨.
@@ -117,7 +117,7 @@ N     = 필요폭 / innerHeight × 100
    예: `.toolbar{margin-top:calc(3vh - 6vh)}`
 
 ## 데스크탑 전용 처리
-- `#back-btn`을 `home.js`가 `matchMedia(min-width:1440px)`로 `.top-bar` ↔ `#main-content` 간
+- `#back-btn`을 `home.js`가 `matchMedia(min-width:1600px)`로 `.top-bar` ↔ `#main-content` 간
   **DOM 이동**(튜토리얼/설정 버튼과 동일 패턴). CSS: `#main-content > #back-btn{position:absolute;top:20px;left:20px}`
 - grid: `"topbar topbar" / "nav main"`
 

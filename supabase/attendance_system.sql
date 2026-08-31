@@ -69,11 +69,11 @@ grant execute on function public.claim_daily_attendance() to authenticated;
 
 
 -- ───────────────────────────────────────────────────────────
--- 출석 달력 (30일 도장판, 순환). claim_daily_attendance(랜덤피크)와 병행.
---   att_day        : 현재 사이클 진행칸(0~30, 연속 도장 수)
+-- 출석 달력 (25일 도장판, 순환). claim_daily_attendance(랜덤피크)와 병행.
+--   att_day        : 현재 사이클 진행칸(0~25, 연속 도장 수)
 --   att_last_date  : 마지막 도장 날짜(KST)
 --   att_makeup_left: 이번 사이클 남은 보충출석(기본 3)
---   5·10·15·20·25·30 칸 도달 시 피크상자(peakbox_count) 2·3·5·5·5·10 즉시 지급.
+--   5·10·15·20·25 칸 도달 시 피크상자(peakbox_count) 2·3·3·5·10 즉시 지급.
 --   갭(어제 미출석) 발생 → 보충출석 버튼으로 1회 소진해 이어감. 보충 소진 후 또 갭 → 사이클 리셋.
 -- ───────────────────────────────────────────────────────────
 
@@ -86,8 +86,8 @@ alter table public.subscriptions
 create or replace function public._att_milestone(p_day integer)
 returns integer language sql immutable as $$
   select case p_day
-    when 5  then 2 when 10 then 3 when 15 then 5
-    when 20 then 5 when 25 then 5 when 30 then 10
+    when 5  then 2 when 10 then 3 when 15 then 3
+    when 20 then 5 when 25 then 10
     else 0 end;
 $$;
 
@@ -131,8 +131,8 @@ begin
     return json_build_object('advanced', true, 'day', 1, 'makeup_left', 3, 'reward', 0, 'needs_makeup', false, 'reset', true);
   end if;
 
-  -- 정상 도장 (30 도달 후엔 새 사이클로)
-  if v_day >= 30 then
+  -- 정상 도장 (25 도달 후엔 새 사이클로)
+  if v_day >= 25 then
     v_day := 1; v_makeup := 3;
   else
     v_day := v_day + 1;
@@ -178,7 +178,7 @@ begin
   end if;
 
   v_makeup := v_makeup - 1;
-  if v_day >= 30 then
+  if v_day >= 25 then
     v_day := 1; v_makeup := 3;
   else
     v_day := v_day + 1;
@@ -197,7 +197,7 @@ grant execute on function public.makeup_attendance() to authenticated;
 
 
 -- ───────────────────────────────────────────────────────────
--- 퀘스트: 누적출석 (평생 총 출석일수, 리셋 없음 · 30일 순환달력과 별개)
+-- 퀘스트: 누적출석 (평생 총 출석일수, 리셋 없음 · 25일 순환달력과 별개)
 --   att_total         : 평생 누적 출석일수(claim_daily_attendance 가 1일 1회 +1).
 --   att_quest_claimed : 마지막으로 수령한 티어의 임계 일수(0=미수령).
 --   티어: 3·7·14·30·100·200·365·500 → 피크상자 1·1·2·3·5·5·10·20.

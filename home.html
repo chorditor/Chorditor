@@ -68,7 +68,7 @@
                   </div>
                 </div>
                 <div class="hdb-divider"></div>
-                <div class="hdb-col" id="hdb-attendance" onclick="openAttendanceCalendar()">
+                <div class="hdb-col" id="hdb-attendance" onclick="location.href='attendance.html'">
                   <div class="hdb-icon"><img src="image/calender.png" alt=""></div>
                   <div class="hdb-text">
                     <div class="hdb-label">출석체크</div>
@@ -1149,23 +1149,6 @@
       <circle class="save-check-circle" cx="26" cy="26" r="23" fill="none"/>
       <polyline class="save-check-mark" points="14,27 22,35 38,18" fill="none"/>
     </svg>
-  </div>
-
-  <!-- ── 출석 달력 모달 ── -->
-  <div class="attend-cal-overlay" id="attend-cal-overlay" onclick="if(event.target===this)closeAttendanceCalendar()">
-    <div class="attend-cal">
-      <div class="attend-cal-header">
-        <span class="attend-cal-title">출석체크</span>
-        <div class="attend-cal-header-right">
-          <button class="attend-cal-makeup" id="attend-cal-makeup" onclick="makeupAttendance()">
-            보충출석 <span class="attend-cal-makeup-count" id="attend-cal-makeup-count">3</span>
-          </button>
-          <button class="icon-btn" onclick="closeAttendanceCalendar()"><i data-lucide="x"></i></button>
-        </div>
-      </div>
-      <div class="attend-cal-sub" id="attend-cal-sub">5일마다 피크상자를 받아요 · 30일 순환</div>
-      <div class="attend-cal-grid" id="attend-cal-grid"></div>
-    </div>
   </div>
 
   <!-- ── 퀘스트 모달 ── -->

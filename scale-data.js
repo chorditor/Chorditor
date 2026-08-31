@@ -512,7 +512,7 @@ const SCALE_BLOCKS = {
   'pentatonic': [
     {
       id: 'pentatonic-gm',
-      label: '마이너 펜타토닉 스케일 Gm폼',
+      label: '마이너 펜타토닉 스케일 G폼',
       grid: [
         '. . b7 . 1 . .',   // 1번줄
         '. . 4 . 5 . .',    // 2번줄
@@ -524,7 +524,7 @@ const SCALE_BLOCKS = {
     },
     {
       id: 'pentatonic-am',
-      label: '마이너 펜타토닉 스케일 Am폼',
+      label: '마이너 펜타토닉 스케일 A폼',
       grid: [
         '. 5 . . b7 . .',   // 1번줄
         '. . b3 . 4 . .',   // 2번줄
@@ -536,7 +536,7 @@ const SCALE_BLOCKS = {
     },
     {
       id: 'pentatonic-cm',
-      label: '마이너 펜타토닉 스케일 Cm폼',
+      label: '마이너 펜타토닉 스케일 C폼',
       grid: [
         '. . 4 . 5 . .',    // 1번줄
         '. . 1 . . b3 .',   // 2번줄
@@ -548,7 +548,7 @@ const SCALE_BLOCKS = {
     },
     {
       id: 'pentatonic-dm',
-      label: '마이너 펜타토닉 스케일 Dm폼',
+      label: '마이너 펜타토닉 스케일 D폼',
       grid: [
         '. . b3 . 4 . .',   // 1번줄
         '. . b7 . 1 . .',   // 2번줄
@@ -560,7 +560,7 @@ const SCALE_BLOCKS = {
     },
     {
       id: 'pentatonic-em',
-      label: '마이너 펜타토닉 스케일 Em폼',
+      label: '마이너 펜타토닉 스케일 E폼',
       grid: [
         '. . 1 . . b3 .',   // 1번줄
         '. . 5 . . b7 .',   // 2번줄
