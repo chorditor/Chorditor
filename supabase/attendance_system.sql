@@ -197,6 +197,137 @@ grant execute on function public.makeup_attendance() to authenticated;
 
 
 -- ───────────────────────────────────────────────────────────
+-- 출석 달력 v2 (25일/월, 캘린더 월 리셋) — 2026-09-01 개편.
+--   위 advance_attendance()/makeup_attendance()(v1, 30일 순환·갭 기반 보충)는 라이브 앱이
+--   아직 그대로 호출 중이라 절대 안 건드림 — 함수 이름 자체를 분리해서 신규 클라이언트만
+--   v2를 쓰게 한다. v1이 더 이상 필요없어지면(구버전 유저 소멸) 그때 정리.
+--
+--   규칙:
+--     - 한 달 안에 정규출석 25번 채우면 끝(연속 여부 무관), 25에서 캡.
+--     - 정규출석: 데일리미션 완료 시 자동, 하루 1회.
+--     - 보충출석: 그날 정규출석을 안 했을 때만, 유저가 원할 때 수동, 하루 1회, 월 3회.
+--     - 달(캘린더 기준)이 바뀌면 달성 여부 상관없이 att_day=0, att_makeup_left=3으로 리셋.
+--   컬럼(att_day/att_last_date/att_makeup_left는 v1과 공유):
+--     att_month           : 현재 카운터가 속한 월(YYYYMM 정수). NULL=v2 미사용 유저
+--                           (v1에서 넘어온 기존 유저 전부 여기 해당 — 그래서 v2를 처음 호출하는
+--                           순간 무조건 "월 바뀜"으로 판정돼 att_day가 뭐였든 0부터 자동 시작함.
+--                           별도 마이그레이션 UPDATE 불필요).
+--     att_makeup_last_date: 보충출석을 마지막으로 쓴 날(KST) — 하루 1회 제한용, v1엔 없음.
+-- ───────────────────────────────────────────────────────────
+
+alter table public.subscriptions
+  add column if not exists att_month integer,
+  add column if not exists att_makeup_last_date date;
+
+create or replace function public.advance_attendance_v2()
+returns json
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_today  date    := (now() at time zone 'Asia/Seoul')::date;
+  v_month  integer := extract(year from v_today)::integer * 100 + extract(month from v_today)::integer;
+  v_day    integer;
+  v_last   date;
+  v_makeup integer;
+  v_amonth integer;
+  v_reward integer := 0;
+begin
+  select att_day, att_last_date, att_makeup_left, att_month
+    into v_day, v_last, v_makeup, v_amonth
+    from public.subscriptions
+    where user_id = auth.uid()
+    for update;
+
+  if not found then
+    return json_build_object('advanced', false, 'day', 0, 'makeup_left', 3, 'reward', 0);
+  end if;
+
+  -- 월 바뀜(또는 v2 첫 호출: att_month가 NULL) → 달성 여부 상관없이 리셋
+  if v_amonth is distinct from v_month then
+    v_day := 0; v_makeup := 3; v_amonth := v_month;
+  end if;
+
+  if v_last = v_today then
+    return json_build_object('advanced', false, 'day', v_day, 'makeup_left', v_makeup, 'reward', 0, 'already', true);
+  end if;
+
+  if v_day >= 25 then
+    -- 이번 달 이미 다 채움 — 오늘 왔다는 기록만 남기고(내일 already 판정용) 더 안 올림
+    update public.subscriptions
+      set att_last_date = v_today, att_makeup_left = v_makeup, att_month = v_amonth
+      where user_id = auth.uid();
+    return json_build_object('advanced', false, 'day', 25, 'makeup_left', v_makeup, 'reward', 0, 'full', true);
+  end if;
+
+  v_day := v_day + 1;
+  v_reward := public._att_milestone(v_day);
+  update public.subscriptions
+    set att_day = v_day, att_last_date = v_today, att_makeup_left = v_makeup, att_month = v_amonth,
+        peakbox_count = peakbox_count + v_reward
+    where user_id = auth.uid();
+  return json_build_object('advanced', true, 'day', v_day, 'makeup_left', v_makeup, 'reward', v_reward, 'full', v_day = 25);
+end;
+$$;
+
+create or replace function public.makeup_attendance_v2()
+returns json
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_today  date    := (now() at time zone 'Asia/Seoul')::date;
+  v_month  integer := extract(year from v_today)::integer * 100 + extract(month from v_today)::integer;
+  v_day    integer;
+  v_last   date;
+  v_makeup integer;
+  v_amonth integer;
+  v_mlast  date;
+  v_reward integer := 0;
+begin
+  select att_day, att_last_date, att_makeup_left, att_month, att_makeup_last_date
+    into v_day, v_last, v_makeup, v_amonth, v_mlast
+    from public.subscriptions
+    where user_id = auth.uid()
+    for update;
+
+  if not found then return json_build_object('ok', false, 'reason', 'no_row'); end if;
+
+  if v_amonth is distinct from v_month then
+    v_day := 0; v_makeup := 3; v_amonth := v_month; v_mlast := null;
+  end if;
+
+  if v_last = v_today then
+    return json_build_object('ok', false, 'reason', 'already_regular', 'day', v_day, 'makeup_left', v_makeup);
+  end if;
+  if v_mlast = v_today then
+    return json_build_object('ok', false, 'reason', 'already_makeup', 'day', v_day, 'makeup_left', v_makeup);
+  end if;
+  if v_day >= 25 then
+    return json_build_object('ok', false, 'reason', 'full', 'day', 25, 'makeup_left', v_makeup);
+  end if;
+  if v_makeup <= 0 then
+    return json_build_object('ok', false, 'reason', 'no_left', 'day', v_day, 'makeup_left', 0);
+  end if;
+
+  v_makeup := v_makeup - 1;
+  v_day := v_day + 1;
+  v_reward := public._att_milestone(v_day);
+  update public.subscriptions
+    set att_day = v_day, att_makeup_left = v_makeup, att_month = v_amonth, att_makeup_last_date = v_today,
+        peakbox_count = peakbox_count + v_reward
+    where user_id = auth.uid();
+  return json_build_object('ok', true, 'day', v_day, 'makeup_left', v_makeup, 'reward', v_reward, 'full', v_day = 25);
+end;
+$$;
+
+grant execute on function public.advance_attendance_v2() to authenticated;
+grant execute on function public.makeup_attendance_v2() to authenticated;
+
+
+-- ───────────────────────────────────────────────────────────
 -- 퀘스트: 누적출석 (평생 총 출석일수, 리셋 없음 · 25일 순환달력과 별개)
 --   att_total         : 평생 누적 출석일수(claim_daily_attendance 가 1일 1회 +1).
 --   att_quest_claimed : 마지막으로 수령한 티어의 임계 일수(0=미수령).

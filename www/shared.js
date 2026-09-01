@@ -6,7 +6,7 @@
 // ── 상수 ─────────────────────────────────────────────────────
 const SUPABASE_URL  = 'https://jbvkygeksohlysyvaoab.supabase.co';
 const SUPABASE_ANON = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Impidmt5Z2Vrc29obHlzeXZhb2FiIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzYzOTk5NjgsImV4cCI6MjA5MTk3NTk2OH0.6RSgChy0Yq0H2TJpZPSoMKQ2V-OYfR0XzE1aJBBZkXI';
-const APP_VERSION   = '1.3.5_pre3';
+const APP_VERSION   = '1.3.5_pre4';
 const SUPABASE_STORAGE_KEY = 'sb-jbvkygeksohlysyvaoab-auth-token';
 
 // 이용약관/개인정보처리방침 버전 — 광고식별자 수집 항목 추가(2026-09) 시 1로 올림.
@@ -1148,6 +1148,8 @@ function _dbgResetLocalAttendanceMirror() {
   delete s.att_day;
   delete s.att_last_date;
   delete s.att_makeup_left;
+  delete s.att_month;
+  delete s.att_makeup_last_date;
   delete s.attendance_claimed_date;
   localStorage.setItem('training_stats', JSON.stringify(s));
 }
@@ -1162,7 +1164,7 @@ async function _dbgResetDailyMission() {
       await fetch(`${SUPABASE_URL}/rest/v1/subscriptions?user_id=eq.${userId}`, {
         method: 'PATCH',
         headers: { apikey: SUPABASE_ANON, Authorization: `Bearer ${token}`, 'Content-Type': 'application/json', Prefer: 'return=minimal' },
-        body: JSON.stringify({ att_last_date: null, attendance_claimed_date: null }),
+        body: JSON.stringify({ att_last_date: null, att_makeup_last_date: null, attendance_claimed_date: null }),
       });
     } catch (e) { console.warn('[Debug] 데일리미션 DB 초기화 실패:', e); }
   }
@@ -1203,6 +1205,8 @@ async function _dbgResetAttendance() {
         att_day: 0,
         att_last_date: null,
         att_makeup_left: ATTENDANCE_MAKEUP_MAX,
+        att_month: _kstMonth(),
+        att_makeup_last_date: null,
         attendance_claimed_date: null,
       }),
     });
@@ -2728,7 +2732,7 @@ async function claimDailyAttendance(onDone) {
 const ATTENDANCE_TOTAL_DAYS = 25;
 const ATTENDANCE_MILESTONES = { 5: 2, 10: 3, 15: 3, 20: 5, 25: 10 };
 const ATTENDANCE_MAKEUP_MAX = 3;
-let _attState = { day: 0, makeup_left: ATTENDANCE_MAKEUP_MAX, needs_makeup: false, loaded: false };
+let _attState = { day: 0, makeup_left: ATTENDANCE_MAKEUP_MAX, full: false, loaded: false };
 
 function _attReward(day) { return ATTENDANCE_MILESTONES[day] || 0; }
 // 앱의 하루 = KST 자정 기준. 서버 SQL(attendance/push/promo)이 모두 Asia/Seoul 기준이므로
@@ -2737,50 +2741,60 @@ function _attReward(day) { return ATTENDANCE_MILESTONES[day] || 0; }
 function _kstToday() { return new Date(Date.now() + 9 * 3600000).toISOString().slice(0, 10); }
 function _kstYesterday() { return new Date(Date.now() + 9 * 3600000 - 86400000).toISOString().slice(0, 10); }
 function _dayDiff(a, b) { return Math.round((Date.parse(b) - Date.parse(a)) / 86400000); }
+// 'YYYY-MM' → YYYYMM 정수. attendance v2의 att_month(달 리셋 판정용)와 같은 형식.
+function _kstMonth() { const t = _kstToday(); return parseInt(t.slice(0, 4) + t.slice(5, 7), 10); }
 
-// dev/비로그인 폴백: training_stats 에 att_day/att_last_date/att_makeup_left 저장
+// dev/비로그인 폴백: training_stats 에 att_day/att_last_date/att_makeup_left/att_month/
+// att_makeup_last_date 저장 — SQL v2(advance_attendance_v2/makeup_attendance_v2)의 로컬 미러.
 function _localAttGet() {
   const s = JSON.parse(localStorage.getItem('training_stats') || '{}');
   return { day: s.att_day || 0, last: s.att_last_date || null,
-           makeup: (s.att_makeup_left == null ? ATTENDANCE_MAKEUP_MAX : s.att_makeup_left) };
+           makeup: (s.att_makeup_left == null ? ATTENDANCE_MAKEUP_MAX : s.att_makeup_left),
+           month: s.att_month == null ? null : s.att_month,
+           makeupLast: s.att_makeup_last_date || null };
 }
-function _localAttSet(day, last, makeup) {
+function _localAttSet(day, last, makeup, month, makeupLast) {
   const s = JSON.parse(localStorage.getItem('training_stats') || '{}');
   s.att_day = day; s.att_last_date = last; s.att_makeup_left = makeup;
+  s.att_month = month; s.att_makeup_last_date = makeupLast;
   localStorage.setItem('training_stats', JSON.stringify(s));
 }
 
-// SQL advance_attendance() 미러
+// SQL advance_attendance_v2() 미러 — 월 리셋(연속 불문, 25일 채우면 캡, 달 바뀌면 0으로)
 function _localAdvance() {
   const today = _kstToday();
+  const month = _kstMonth();
   const a = _localAttGet();
-  if (a.last === today) return { advanced: false, day: a.day, makeup_left: a.makeup, needs_makeup: false, already: true };
-  if (a.last && _dayDiff(a.last, today) >= 2) {
-    if (a.makeup > 0) return { advanced: false, day: a.day, makeup_left: a.makeup, needs_makeup: true };
-    _localAttSet(1, today, ATTENDANCE_MAKEUP_MAX); // 보충 소진 → 사이클 리셋
-    return { advanced: true, day: 1, makeup_left: ATTENDANCE_MAKEUP_MAX, reward: 0, needs_makeup: false, reset: true };
+  let day = a.day, mk = a.makeup, amonth = a.month;
+  if (amonth !== month) { day = 0; mk = ATTENDANCE_MAKEUP_MAX; amonth = month; }
+  if (a.last === today) return { advanced: false, day, makeup_left: mk, reward: 0, already: true };
+  if (day >= ATTENDANCE_TOTAL_DAYS) {
+    _localAttSet(day, today, mk, amonth, a.makeupLast);
+    return { advanced: false, day, makeup_left: mk, reward: 0, full: true };
   }
-  let day = a.day, mk = a.makeup;
-  if (day >= ATTENDANCE_TOTAL_DAYS) { day = 1; mk = ATTENDANCE_MAKEUP_MAX; } else day = day + 1;
+  day += 1;
   const reward = _attReward(day);
-  _localAttSet(day, today, mk);
+  _localAttSet(day, today, mk, amonth, a.makeupLast);
   if (reward > 0) { const l = _localPeakGet(); _localPeakSet(l.balance, l.peakbox_count + reward); }
-  return { advanced: true, day, makeup_left: mk, reward, needs_makeup: false };
+  return { advanced: true, day, makeup_left: mk, reward, full: day === ATTENDANCE_TOTAL_DAYS };
 }
 
-// SQL makeup_attendance() 미러
+// SQL makeup_attendance_v2() 미러 — 정규출석 안 한 날에만, 하루 1회, 월 3회
 function _localMakeup() {
   const today = _kstToday();
+  const month = _kstMonth();
   const a = _localAttGet();
-  if (a.last === today) return null;
-  if (!a.last || _dayDiff(a.last, today) < 2) return null;
-  if (a.makeup <= 0) return null;
-  let mk = a.makeup - 1, day = a.day;
-  if (day >= ATTENDANCE_TOTAL_DAYS) { day = 1; mk = ATTENDANCE_MAKEUP_MAX; } else day = day + 1;
+  let day = a.day, mk = a.makeup, amonth = a.month, mlast = a.makeupLast;
+  if (amonth !== month) { day = 0; mk = ATTENDANCE_MAKEUP_MAX; amonth = month; mlast = null; }
+  if (a.last === today) return { ok: false, reason: 'already_regular', day, makeup_left: mk };
+  if (mlast === today) return { ok: false, reason: 'already_makeup', day, makeup_left: mk };
+  if (day >= ATTENDANCE_TOTAL_DAYS) return { ok: false, reason: 'full', day, makeup_left: mk };
+  if (mk <= 0) return { ok: false, reason: 'no_left', day, makeup_left: 0 };
+  mk -= 1; day += 1;
   const reward = _attReward(day);
-  _localAttSet(day, today, mk);
+  _localAttSet(day, a.last, mk, amonth, today);
   if (reward > 0) { const l = _localPeakGet(); _localPeakSet(l.balance, l.peakbox_count + reward); }
-  return { ok: true, day, makeup_left: mk, reward };
+  return { ok: true, day, makeup_left: mk, reward, full: day === ATTENDANCE_TOTAL_DAYS };
 }
 
 // 보충 안내는 하루 한 번만 — 홈에 다시 들어올 때마다 뜨면 성가시다.
@@ -2796,7 +2810,7 @@ function _markMakeupPrompt() {
 // UI(피크상자 획득 연출 등)는 호출부에서 res를 보고 직접 구성한다 — 예전 모달 자동오픈 로직
 // (openAttendanceCalendar 연결)은 페이지 전환(attendance.html)으로 대체되며 제거됨.
 async function advanceAttendance(onDone) {
-  const r = await _peakRpc('advance_attendance');
+  const r = await _peakRpc('advance_attendance_v2');
   let res;
   if (r) {
     res = r;
@@ -2804,7 +2818,7 @@ async function advanceAttendance(onDone) {
   } else {
     res = _localAdvance();
   }
-  _attState = { day: res.day, makeup_left: res.makeup_left, needs_makeup: !!res.needs_makeup, loaded: true };
+  _attState = { day: res.day, makeup_left: res.makeup_left, full: !!res.full, loaded: true };
   renderPeakboxBadge();
   if (typeof onDone === 'function') onDone();
   return res;
@@ -2813,14 +2827,17 @@ async function advanceAttendance(onDone) {
 // 읽기 전용 출석 상태 조회(attendance.html 진입용) — advanceAttendance()와 달리 진행을
 // 건드리지 않는다(도장은 데일리미션 완료 시점에만 advanceAttendance()가 찍음, 여기서 또
 // 찍으면 페이지만 열어도 진행이 앞으로 밀리는 사고가 남). subscriptions를 직접 select만 하고
-// makeup 필요 여부는 SQL advance_attendance()/makeup_attendance()의 갭 판정(gap>=2)을 그대로 미러.
+// 2026-09-01 v2 개편: 월 리셋(달 바뀜 무조건 0) + 25 캡 + 보충출석 하루1회(정규출석 안 한
+// 날에만) 규칙을 그대로 미러. att_month가 이번 달과 다르면(v2 첫 사용 포함) 화면엔 리셋된
+// 걸로 보여주되 DB/로컬은 여기서 안 건드림(조회 시점에 값을 바꾸면 안 되는 원칙 유지, 실제
+// 반영은 advance_attendance_v2()/makeup_attendance_v2()가 호출될 때만).
 async function loadAttendanceState() {
   const { token, userId } = getStoredAuth();
-  let day, last, makeup;
+  let day, last, makeup, amonth, mlast;
   if (token && userId) {
     try {
       const resp = await fetch(
-        `${SUPABASE_URL}/rest/v1/subscriptions?user_id=eq.${userId}&select=att_day,att_last_date,att_makeup_left`,
+        `${SUPABASE_URL}/rest/v1/subscriptions?user_id=eq.${userId}&select=att_day,att_last_date,att_makeup_left,att_month,att_makeup_last_date`,
         { headers: { apikey: SUPABASE_ANON, Authorization: `Bearer ${token}` } }
       );
       if (resp.ok) {
@@ -2829,17 +2846,26 @@ async function loadAttendanceState() {
           day = rows[0].att_day || 0;
           last = rows[0].att_last_date || null;
           makeup = rows[0].att_makeup_left == null ? ATTENDANCE_MAKEUP_MAX : rows[0].att_makeup_left;
+          amonth = rows[0].att_month == null ? null : rows[0].att_month;
+          mlast = rows[0].att_makeup_last_date || null;
         }
       }
     } catch (_) {}
   }
-  if (day == null) { const a = _localAttGet(); day = a.day; last = a.last; makeup = a.makeup; }
+  if (day == null) {
+    const a = _localAttGet();
+    day = a.day; last = a.last; makeup = a.makeup; amonth = a.month; mlast = a.makeupLast;
+  }
 
   const today = _kstToday();
-  const doneToday = last === today;
-  const needsMakeup = !doneToday && !!last && _dayDiff(last, today) >= 2 && makeup > 0;
-  _attState = { day, makeup_left: makeup, needs_makeup: needsMakeup, loaded: true };
-  return { ..._attState, doneToday };
+  if (amonth !== _kstMonth()) { day = 0; makeup = ATTENDANCE_MAKEUP_MAX; last = null; mlast = null; }
+
+  const doneToday       = last === today;
+  const usedMakeupToday = mlast === today;
+  const isFull          = day >= ATTENDANCE_TOTAL_DAYS;
+  const canMakeup        = !doneToday && !usedMakeupToday && !isFull && makeup > 0;
+  _attState = { day, makeup_left: makeup, full: isFull, loaded: true };
+  return { ..._attState, doneToday, usedMakeupToday, canMakeup };
 }
 
 // 접속 시 출석 플로우 오케스트레이터 (home 진입에서 호출).
@@ -4353,23 +4379,24 @@ function closeXpInfoModal() {
   if (overlay) overlay.classList.remove('xpinfo-overlay--show');
 }
 
-// 보충출석 (갭 상태에서만, 사이클당 3회). 1회 소진해 오늘 도장 이어감.
+// 보충출석 v2 — 정규출석 안 한 날에만, 하루 1회, 월 3회. 갭 판정 없음(2026-09-01 개편).
+// 실패 사유(res.reason: already_regular/already_makeup/full/no_left)는 호출부(attendance.js)가
+// 보고 UI 처리(예: full이면 "이번 달 다 채웠어요" 팝업) — 여기선 결과를 그대로 반환만 한다.
 async function makeupAttendance() {
-  if (!_attState.needs_makeup || _attState.makeup_left <= 0) return;
-  const r = await _peakRpc('makeup_attendance');
+  const r = await _peakRpc('makeup_attendance_v2');
   let res;
   if (r) {
-    if (!r.ok) return;
     res = r;
-    if (r.reward > 0) _peakState = { ..._peakState, peakbox_count: (_peakState.peakbox_count || 0) + r.reward, loaded: true };
+    if (r.ok && r.reward > 0) _peakState = { ..._peakState, peakbox_count: (_peakState.peakbox_count || 0) + r.reward, loaded: true };
   } else {
     res = _localMakeup();
-    if (!res) return;
   }
-  _attState = { day: res.day, makeup_left: res.makeup_left, needs_makeup: false, loaded: true };
+  if (!res || !res.ok) return res;
+  _attState = { day: res.day, makeup_left: res.makeup_left, full: !!res.full, loaded: true };
   renderPeakboxBadge();
   // 재렌더 UI는 호출부(attendance.html) 몫 — 모달 자동오픈 로직은 페이지 전환으로 대체되며 제거됨
   if (res.reward > 0) setTimeout(() => showPeakboxRewardModal(res.reward), STAMP_ANIM_MS + 150);
+  return res;
 }
 
 // 오늘 칸 도장 찍힘 애니메이션 완료 시각(ms) — style.css delay(0.4s)+duration(0.7s) 합

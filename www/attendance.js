@@ -58,12 +58,26 @@ function renderAttendanceMonth() {
   el.textContent = kstMonth + '월 출석';
 }
 
+// 2026-09-01 개편(월 리셋+25 캡): 보충출석은 갭 상태에서만 뜨는 버튼이 아니라 항상
+// 보이는 버튼 — 정규출석 안 한 날에 유저가 원할 때 씀. _attCanMakeup은 loadAttendanceState()가
+// 계산(정규출석 이미 함/보충 이미 씀/이번 달 다 채움/보충권 소진 중 하나라도 걸리면 false).
+let _attCanMakeup = false;
+
 function renderAttendanceMakeup() {
-  const row = document.querySelector('.attendance-makeup-row');
+  const btn = document.getElementById('attendance-makeup-btn');
   const countEl = document.getElementById('attendance-makeup-count');
-  if (!row) return;
-  row.hidden = !_attState.needs_makeup;
+  if (!btn) return;
+  btn.disabled = !_attCanMakeup;
   if (countEl) countEl.textContent = _attState.makeup_left;
+}
+
+function showAttendanceFullModal() {
+  document.getElementById('attendance-full-modal-overlay')?.classList.remove('hidden');
+  if (typeof lucide !== 'undefined') lucide.createIcons();
+}
+function closeAttendanceFullModal() {
+  _playConfirmSfx();
+  document.getElementById('attendance-full-modal-overlay')?.classList.add('hidden');
 }
 
 // 이미 떠있는 달력의 해당 칸에 직접 도장을 찍는다 — mission-session.js _msRunStampFlow()와
@@ -89,19 +103,24 @@ function _attAnimateStamp(day) {
 
 // 보충출석 클릭 → shared.js makeupAttendance() 실행 후 그 자리에서 도장 연출, 재렌더.
 // 마일스톤(피크상자) 획득 팝업은 shared.js makeupAttendance()가 자체 딜레이로 이미 띄워준다.
+// 정규출석과 별개 트랙이라(같은 날 정규출석 여부는 안 건드림) 성공해도 _attDoneToday는 안 바꾼다.
 async function attendanceMakeupClick() {
   const btn = document.getElementById('attendance-makeup-btn');
   if (btn) btn.disabled = true;
-  const dayBefore = _attState.day;
-  await makeupAttendance();
-  if (_attState.day === dayBefore) { if (btn) btn.disabled = false; return; } // 진행 안 됨(실패)
+  const res = await makeupAttendance();
+  if (!res || !res.ok) {
+    if (res && res.reason === 'full') showAttendanceFullModal();
+    renderAttendanceMakeup(); // 실패해도 btn.disabled는 _attCanMakeup 기준으로 다시 계산
+    return;
+  }
 
   _playConfirmSfx();
-  _attDoneToday = true; // 보충출석 성공 시 오늘 도장도 같이 찍힌 것으로 간주
-  await _attAnimateStamp(_attState.day);
+  await _attAnimateStamp(res.day);
+  const state = await loadAttendanceState(); // canMakeup 등 최신 상태 재조회
+  _attDoneToday = state.doneToday;
+  _attCanMakeup = state.canMakeup;
   renderAttendanceStatus();
   renderAttendanceMakeup();
-  if (btn) btn.disabled = false;
 }
 
 function renderAttendanceCalendar() {
@@ -205,6 +224,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   const state = await loadAttendanceState();
   _attDoneToday = state.doneToday;
+  _attCanMakeup = state.canMakeup;
   renderAttendanceCalendar();
   renderAttendanceStatus();
   renderAttendanceMakeup();
