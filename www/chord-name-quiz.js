@@ -69,6 +69,7 @@ function drawLibEntry(canvas, entry) {
     source:     entry.source,  // 사전과 동일 분기 (pattern: r-1/r+1, static: r-2/r)
   }, {
     ratio: canvas.width / VoicingCanvas.BASE_W,
+    transparent: true, // 데일리미션 _msDrawEntry와 동일 — 카드 배경(흰색)이 비쳐야 하므로 캔버스 자체는 투명(2026-08-31)
   });
 }
 
@@ -172,42 +173,44 @@ function _lwBuildDetailShell() {
   const panel = document.getElementById('level-detail-panel');
   if (!panel) return;
   panel.innerHTML = `
-    <div class="ldp-header-row">
-      <i class="ph-fill ph-grid-nine ldp-icon"></i>
-      <span class="ldp-header-title">코드 맞추기</span>
+    <div class="ldp-inner">
+      <div class="ldp-header-row">
+        <i class="ph-fill ph-grid-nine ldp-icon"></i>
+        <span class="ldp-header-title">코드 맞추기</span>
+      </div>
+      <div class="ldp-badge-row">
+        <span class="ldp-badge"></span>
+        <span class="ldp-count"></span>
+      </div>
+      <div class="ldp-name"></div>
+      <div class="ldp-divider"></div>
+      <div class="ldp-info"></div>
+      <div class="ldp-actions">
+        <button class="level-action-btn level-action-btn--secondary">예습하기</button>
+        <button class="level-action-btn level-action-btn--primary">
+          <span>시작하기</span>
+          <span class="ldp-peak-cost" id="ldp-peak-cost">
+            <img src="image/white_peak.svg" alt="" class="ldp-peak-cost-icon">
+            <span class="ldp-peak-cost-count"></span>
+          </span>
+        </button>
+      </div>
+      <div class="ldp-stats-grid">
+        <!-- 1행: 헤더 -->
+        <div class="ldp-sg-cell ldp-sg-empty"></div>
+        <div class="ldp-sg-cell ldp-sg-header" data-mode="name-from-diagram">코드이름 맞추기</div>
+        <div class="ldp-sg-cell ldp-sg-header" data-mode="diagram-from-name">운지법 맞추기</div>
+        <!-- 2행: 최고기록 -->
+        <div class="ldp-sg-cell ldp-sg-label">최고기록</div>
+        <div class="ldp-sg-cell ldp-sg-value" data-stat-best="name">—</div>
+        <div class="ldp-sg-cell ldp-sg-value" data-stat-best="diagram">—</div>
+        <!-- 3행: 정답률 -->
+        <div class="ldp-sg-cell ldp-sg-label">정답률</div>
+        <div class="ldp-sg-cell ldp-sg-value" data-stat-acc="name">0/0</div>
+        <div class="ldp-sg-cell ldp-sg-value" data-stat-acc="diagram">0/0</div>
+      </div>
+      <div class="ldp-locked-msg"></div>
     </div>
-    <div class="ldp-badge-row">
-      <span class="ldp-badge"></span>
-      <span class="ldp-count"></span>
-    </div>
-    <div class="ldp-name"></div>
-    <div class="ldp-divider"></div>
-    <div class="ldp-info"></div>
-    <div class="ldp-actions">
-      <button class="level-action-btn level-action-btn--secondary">예습하기</button>
-      <button class="level-action-btn level-action-btn--primary">
-        <span>시작하기</span>
-        <span class="ldp-peak-cost" id="ldp-peak-cost">
-          <img src="image/white_peak.svg" alt="" class="ldp-peak-cost-icon">
-          <span class="ldp-peak-cost-count"></span>
-        </span>
-      </button>
-    </div>
-    <div class="ldp-stats-grid">
-      <!-- 1행: 헤더 -->
-      <div class="ldp-sg-cell ldp-sg-empty"></div>
-      <div class="ldp-sg-cell ldp-sg-header" data-mode="name-from-diagram">코드이름 맞추기</div>
-      <div class="ldp-sg-cell ldp-sg-header" data-mode="diagram-from-name">운지법 맞추기</div>
-      <!-- 2행: 최고기록 -->
-      <div class="ldp-sg-cell ldp-sg-label">최고기록</div>
-      <div class="ldp-sg-cell ldp-sg-value" data-stat-best="name">—</div>
-      <div class="ldp-sg-cell ldp-sg-value" data-stat-best="diagram">—</div>
-      <!-- 3행: 정답률 -->
-      <div class="ldp-sg-cell ldp-sg-label">정답률</div>
-      <div class="ldp-sg-cell ldp-sg-value" data-stat-acc="name">0/0</div>
-      <div class="ldp-sg-cell ldp-sg-value" data-stat-acc="diagram">0/0</div>
-    </div>
-    <div class="ldp-locked-msg"></div>
   `;
 
   // 이벤트는 골격 생성 시 한 번만 바인딩 (이벤트 위임)
@@ -220,7 +223,7 @@ function _lwBuildDetailShell() {
   panel.querySelector('.level-action-btn--primary').addEventListener('pointerup', e => {
     e.stopPropagation();
     _playTap();
-    _playSfx('pop.mp3');
+    _playConfirmSfx();
     const cfg = LEVEL_CONFIGS[_lwRealIdx];
     // 프리미엄 체크 먼저 — locked여도 플랜 시트 노출
     if (cfg.premium && getPlan() === 'free') {
@@ -257,7 +260,7 @@ function _lwUpdateDetail() {
   panel.querySelector('.ldp-info').textContent    = cfg.info;
 
   const countEl = panel.querySelector('.ldp-count');
-  countEl.textContent   = cfg.count ? `${cfg.count}문제 · 문제 당 ${cfg.timePerQ}` : '';
+  countEl.textContent   = cfg.count ? `${cfg.count}문제` : '';
   countEl.style.display = cfg.count ? '' : 'none';
 
   // 통계 그리드 항상 표시 / 잠금 메시지 항상 숨김
@@ -310,7 +313,7 @@ function buildLevelList() {
       <div class="lw-row1">
         <span class="lw-badge">${badgeText}</span>
         <span class="lw-row1-right">
-          ${cfg.count ? `<span class="lw-count">${cfg.count}문제 · 문제 당 ${cfg.timePerQ}</span>` : ''}
+          ${cfg.count ? `<span class="lw-count">${cfg.count}문제</span>` : ''}
           ${cfg.premium ? '<i class="ph-fill ph-crown lw-premium-crown"></i>' : ''}
         </span>
       </div>
@@ -1406,17 +1409,16 @@ function generateDiagramChoices(correctItem, pool) {
 }
 
 function selectDiagramChoice(selectedName, correctName) {
-  if (_answered) return; // 타임아웃/중복 클릭 경쟁 방지
+  if (_answered) return; // 중복 클릭 경쟁 방지
   _answered = true;
-  clearQuestionTimer();
+  clearQuestionTimer(); // 경과시간 카운트업 중단
   // 중복 탭 방지
-  document.querySelectorAll('.quiz-diagram-choice').forEach(el => {
+  document.querySelectorAll('.ms-quiz-choice-card').forEach(el => {
     el.style.pointerEvents = 'none';
   });
 
   const speedMs  = Date.now() - _questionStartTime;
   const speedSec = speedMs / 1000;
-  document.getElementById('quiz-speed').textContent = `${speedSec.toFixed(2)}s`;
 
   const isCorrect = selectedName === correctName;
   playSound(isCorrect ? 'correct' : 'wrong');
@@ -1426,19 +1428,17 @@ function selectDiagramChoice(selectedName, correctName) {
   showFeedbackMsg(pickFeedbackMsg(isCorrect, speedSec));
 
   // 피드백 색상 적용
-  document.querySelectorAll('.quiz-diagram-choice').forEach(el => {
+  document.querySelectorAll('.ms-quiz-choice-card').forEach(el => {
     if (el.dataset.name === selectedName && !isCorrect) {
-      el.classList.add('quiz-diagram-choice--wrong');
+      el.classList.add('ms-quiz-choice-card--wrong');
     }
     if (el.dataset.name === correctName) {
-      el.classList.add('quiz-diagram-choice--correct');
+      el.classList.add('ms-quiz-choice-card--correct');
     }
   });
 
-  // 다음 버튼 등장
-  const nextBtn = document.getElementById('quiz-next-btn');
-  nextBtn.textContent = (_current === _questions.length - 1) ? '결과 보기' : '다음';
-  nextBtn.classList.add('quiz-next-btn--active');
+  // 다음버튼 없이 자동으로 다음 문제(또는 결과)로 전환 — 데일리미션과 동일(1.1s)
+  _autoAdvance();
 }
 
 // ── 뷰 상태 ──────────────────────────────────────────────────
@@ -1453,9 +1453,9 @@ let _questionStartTime = 0; // 문제 노출 시각 (ms)
 let _sessionStartTime  = 0; // 퀴즈 세션 시작 시각 (ms) — 훈련 시간 측정용
 let _results           = []; // { name, isCorrect, speedSec } 배열
 let _newRecordSpeed     = null;  // 신기록 달성 시 기록값 (null이면 미달성)
-let _timerTimeout       = null;  // 문제 타임어택 타이머 ID
+let _quizTimerRAF       = null;  // 경과시간 카운트업 rAF ID(데일리미션 방식, 제한시간 없음)
 let _countdownTimers    = [];    // 카운트다운 setTimeout ID 목록
-let _answered           = false; // 현재 문제 응답 처리 여부 — 타임아웃/클릭 경쟁 방지
+let _answered           = false; // 현재 문제 응답 처리 여부 — 중복 클릭 경쟁 방지
 let _abandonSent        = false; // quiz_abandoned 중복 발화 방지
 
 const TRAINING_STATS_KEY = 'training_stats';
@@ -1544,153 +1544,54 @@ function playSound(type) {
 }
 
 // ── 타이머 함수 ───────────────────────────────────────────────
+// 제한시간 타임어택 폐지(2026-08-31) — 데일리미션과 동일하게 경과시간만 카운트업 표시,
+// 시간 초과로 자동 오답처리하는 동작 없음.
 
-/** 진행 중인 타이머 + 바 애니메이션 동결 */
+/** 경과시간 카운트업 중단 */
 function clearQuestionTimer() {
-  if (_timerTimeout !== null) {
-    clearTimeout(_timerTimeout);
-    _timerTimeout = null;
+  if (_quizTimerRAF !== null) {
+    cancelAnimationFrame(_quizTimerRAF);
+    _quizTimerRAF = null;
   }
-  const bar = document.getElementById('quiz-timer-bar');
-  if (!bar) return;
-  // CSS transition 중이더라도 현재 위치에서 동결
-  const computed = getComputedStyle(bar).width;
-  bar.style.transition = 'none';
-  bar.style.width = computed;
 }
 
-/** 문제 타이머 시작 — timeSec이 null/0 이면 바 숨김 */
-function startQuestionTimer(timeSec) {
+/** 경과시간 카운트업 시작 */
+function startQuestionTimer() {
   clearQuestionTimer();
-  const bar = document.getElementById('quiz-timer-bar');
-  if (!bar) return;
-
-  if (!timeSec) {
-    bar.style.display = 'none';
-    return;
-  }
-
-  bar.style.display = '';
-  bar.style.transition  = 'none';
-  bar.style.width       = '100%';
-  bar.classList.remove('quiz-timer-bar--urgent');
-
-  // 레이아웃 플러시 후 트랜지션 시작
-  requestAnimationFrame(() => requestAnimationFrame(() => {
-    bar.style.transition = `width ${timeSec}s linear`;
-    bar.style.width      = '0%';
-  }));
-
-  _timerTimeout = setTimeout(() => handleTimeout(), timeSec * 1000);
+  const el = document.getElementById('quiz-timer-text');
+  if (!el) return;
+  el.textContent = '0.0s';
+  const tick = () => {
+    if (_answered) return;
+    const sec = (Date.now() - _questionStartTime) / 1000;
+    el.textContent = sec.toFixed(1) + 's';
+    _quizTimerRAF = requestAnimationFrame(tick);
+  };
+  _quizTimerRAF = requestAnimationFrame(tick);
 }
 
-/** 시간 초과 처리 */
-function handleTimeout() {
-  _timerTimeout = null;
-  if (_answered) return; // 이미 응답됨 → 중복 처리 방지
-  _answered = true;
-  const { name } = _questions[_current];
-
-  // 제한시간 값 그대로 기록 (오답)
-  const _lvCfg  = LEVEL_CONFIGS.find(c => c.id === _currentLevel);
-  const timeSec = _lvCfg?.timeSec ?? 0;
-  _results.push({ name, isCorrect: false, speedSec: timeSec, isTimeout: true });
-
-  playSound('wrong');
-  document.getElementById('quiz-speed').textContent = '시간 초과';
-  showFeedbackMsg(pickFeedbackMsg(false, timeSec, true));
-
-  if (_currentMode === 'name-from-diagram') {
-    document.querySelectorAll('.quiz-choice-btn').forEach(btn => {
-      btn.style.pointerEvents = 'none';
-      if (btn.textContent === name) btn.classList.add('quiz-choice-btn--correct');
-    });
-  } else {
-    document.querySelectorAll('.quiz-diagram-choice').forEach(el => {
-      el.style.pointerEvents = 'none';
-      if (el.dataset.name === name) el.classList.add('quiz-diagram-choice--correct');
-    });
-  }
-
-  const nextBtn = document.getElementById('quiz-next-btn');
-  nextBtn.textContent = (_current === _questions.length - 1) ? '결과 보기' : '다음';
-  nextBtn.classList.add('quiz-next-btn--active');
-}
-
-/** quiz-inner를 quiz-wrap 안 공간에 맞게 비례 축소 */
-function fitQuizToScreen() {
-  const inner = document.querySelector('.quiz-inner');
-  const wrap  = document.querySelector('.quiz-wrap');
-  if (!inner || !wrap) return;
-
-  // 초기화: 인라인 스타일 제거 → CSS flex:1 + max-height 적용
-  inner.style.zoom   = '1';
-  inner.style.height = '';
-
-  requestAnimationFrame(() => {
-    const naturalH = inner.scrollHeight;  // 콘텐츠 자연 높이
-
-    // quiz-wrap content area (padding 제외) — flex:1 기준 실제 가용 높이
-    const wStyle = getComputedStyle(wrap);
-    const padT   = parseFloat(wStyle.paddingTop)    || 0;
-    const padB   = parseFloat(wStyle.paddingBottom) || 0;
-    const availH = wrap.clientHeight - padT - padB;
-
-    if (naturalH > availH) {
-      // height를 naturalH로 고정 후 zoom 적용
-      // → 시각 높이 = naturalH × zoom = availH (딱 맞음)
-      inner.style.height = naturalH + 'px';
-      inner.style.zoom   = String(availH / naturalH);
-    } else {
-      inner.style.height = '';  // flex:1 자동 조절로 복귀
-      inner.style.zoom   = '1';
-    }
-  });
-}
-
+// 데일리미션 msShowPreQuizCountdown과 완전히 동일한 구조/타이밍 — 안내문구 2줄 순차등장 후
+// 3-2-1, 그동안 문제뷰(#ms-quiz-view) 자체가 안 보임(오버레이 아니라 완전히 별도 화면, 2026-08-31)
 function startCountdown(callback) {
   if (typeof GuitarAudio !== 'undefined' && GuitarAudio.stop) GuitarAudio.stop();
   updateProgressDots();
 
-  const canvas      = document.getElementById('quiz-canvas');
-  const wrap        = canvas.parentElement;
-  const _nameDisplay = document.getElementById('quiz-chord-name-display');
+  const precountdown = document.getElementById('quiz-precountdown');
+  const quizView      = document.getElementById('ms-quiz-view');
+  precountdown.style.display = '';
+  quizView.style.display     = 'none';
 
-  // 카운트 중에는 항상 canvas-wrap 표시 (두 모드 모두 동일 크기 5:4)
-  wrap.style.display = '';
-  if (_nameDisplay) _nameDisplay.style.display = 'none';
-  // 타임바: 빈 상태로 표시
-  const _bar = document.getElementById('quiz-timer-bar');
-  if (_bar) { _bar.style.display = ''; _bar.style.transition = 'none'; _bar.style.width = '0%'; }
+  const msg1 = document.getElementById('quiz-precountdown-msg1');
+  const msg2 = document.getElementById('quiz-precountdown-msg2');
+  const numEl = document.getElementById('quiz-countdown');
 
-  const cs = getComputedStyle(wrap);
-  const W  = Math.round(wrap.clientWidth
-               - parseFloat(cs.paddingLeft)
-               - parseFloat(cs.paddingRight));
-  const H  = Math.round(W * VoicingCanvas.BASE_H / VoicingCanvas.BASE_W);
-  canvas.width  = W;
-  canvas.height = H;
-  const ctx = canvas.getContext('2d');
-  ctx.fillStyle = '#ffffff';
-  ctx.fillRect(0, 0, W, H);
-
-  // 피드백·속도·다음버튼 초기화
-  document.getElementById('quiz-feedback-msg').textContent = '';
-  document.getElementById('quiz-speed').textContent = '';
-  const _nextBtn1 = document.getElementById('quiz-next-btn');
-  _nextBtn1.textContent = '다음';
-  _nextBtn1.classList.remove('quiz-next-btn--active');
-
-  // 4지선다: 모드에 맞는 회색 플레이스홀더 표시
-  const choicesEl   = document.getElementById('quiz-choices');
-  choicesEl.innerHTML = '';
-  for (let i = 0; i < 4; i++) {
-    const ghost = document.createElement('div');
-    ghost.className = 'quiz-choice-ghost';
-    choicesEl.appendChild(ghost);
-  }
-
-  const el = document.getElementById('quiz-countdown');
+  const revealMsg = (el) => {
+    el.classList.remove('ms-stagger-in');
+    el.classList.remove('ms-stagger-pending');
+    void el.offsetWidth; // 리플레이 트릭
+    el.style.setProperty('--ms-stagger-dur', '0.9s');
+    el.classList.add('ms-stagger-in');
+  };
 
   // countdown-pop은 forwards라 끝나면 opacity:0으로 멈춘다.
   // 예전 코드는 display:none인 상태(.active 제거 직후)에서 offsetWidth를 읽어 reflow를 유도했는데,
@@ -1698,31 +1599,38 @@ function startCountdown(callback) {
   // 그러면 두 번째 판부터 이전 실행의 끝 상태(opacity:0)가 그대로 남아 숫자가 안 보인다.
   // → 박스를 먼저 만들고(animation:none) 그 상태에서 reflow한 뒤 애니메이션을 새로 건다.
   const showNum = (n) => {
-    el.classList.remove('active');
-    el.style.display   = 'flex'; // 먼저 레이아웃 박스를 만든다
-    el.style.animation = 'none'; // 이전 실행을 확실히 끊는다
-    el.textContent     = String(n);
-    void el.offsetWidth;         // 박스가 있는 상태에서 reflow
-    el.style.animation = '';     // 클래스 쪽 애니메이션을 처음부터 재생
-    el.classList.add('active');
+    numEl.classList.remove('active');
+    numEl.style.display   = 'flex'; // 먼저 레이아웃 박스를 만든다
+    numEl.style.animation = 'none'; // 이전 실행을 확실히 끊는다
+    numEl.textContent     = String(n);
+    void numEl.offsetWidth;         // 박스가 있는 상태에서 reflow
+    numEl.style.animation = '';     // 클래스 쪽 애니메이션을 처음부터 재생
+    numEl.classList.add('active');
   };
 
   // 이전 카운트다운 잔여 타이머 제거
   _countdownTimers.forEach(id => clearTimeout(id));
   _countdownTimers = [];
 
-  fitQuizToScreen();
-  showNum(3); _playBeep(600, 0.06);
-  _countdownTimers.push(setTimeout(() => { showNum(2); _playBeep(600, 0.06); }, 1000));
-  _countdownTimers.push(setTimeout(() => { showNum(1); _playBeep(600, 0.06); }, 2000));
+  revealMsg(msg1);
+  _countdownTimers.push(setTimeout(() => revealMsg(msg2), 1000));
+  _countdownTimers.push(setTimeout(() => { showNum(3); _playBeep(600, 0.06); }, 2300));
+  _countdownTimers.push(setTimeout(() => { showNum(2); _playBeep(600, 0.06); }, 3300));
+  _countdownTimers.push(setTimeout(() => { showNum(1); _playBeep(600, 0.06); }, 4300));
   _countdownTimers.push(setTimeout(() => {
     _countdownTimers = [];
-    el.classList.remove('active');
-    el.style.animation = ''; // 다음 판을 위해 인라인 잔재를 남기지 않는다
-    el.style.display   = 'none';
     _playBell(1046.50, 0, 0.20);
+    precountdown.style.display = 'none';
+    quizView.style.display     = '';
+    numEl.classList.remove('active');
+    numEl.style.animation = ''; // 다음 판을 위해 인라인 잔재를 남기지 않는다
+    numEl.style.display   = 'none';
+    msg1.classList.remove('ms-stagger-in');
+    msg1.classList.add('ms-stagger-pending');
+    msg2.classList.remove('ms-stagger-in');
+    msg2.classList.add('ms-stagger-pending');
     callback();
-  }, 3000));
+  }, 5300));
 }
 
 function initQuiz() {
@@ -1813,20 +1721,16 @@ function renderQuestion() {
 
   updateProgressDots();
 
-  // 공통 초기화
-  document.getElementById('quiz-speed').textContent = '';
-  const _nextBtn2 = document.getElementById('quiz-next-btn');
-  _nextBtn2.textContent = '다음';
-  _nextBtn2.classList.remove('quiz-next-btn--active');
-
-  const canvasWrap  = document.querySelector('.quiz-canvas-wrap');
+  const canvasSlot  = document.getElementById('quiz-canvas-slot');
   const nameDisplay = document.getElementById('quiz-chord-name-display');
   const container   = document.getElementById('quiz-choices');
   container.innerHTML = '';
 
   if (_currentMode === 'name-from-diagram') {
     // ── 다이어그램 보여주기, 코드명 숨기기 ───────────────────
-    canvasWrap.style.display  = '';
+    // .ms-quiz-canvas-wrap(공통 부모)는 항상 노출 상태로 두고 슬롯/이름 자식만 개별 토글
+    // (부모 자체를 숨기면 그 안의 다른 자식도 같이 사라짐 — 2026-08-31 버그 수정)
+    canvasSlot.style.display  = '';
     nameDisplay.style.display = 'none';
 
     const canvas = document.getElementById('quiz-canvas');
@@ -1845,8 +1749,8 @@ function renderQuestion() {
     const choices = generateChoices(name);
     choices.forEach(choice => {
       const btn = document.createElement('button');
-      btn.className   = 'quiz-choice-btn';
-      btn.innerHTML   = _chordNameToHtml(_disp(choice));
+      btn.className   = 'ms-quiz-choice-card ms-quiz-choice-card--text';
+      btn.textContent = _disp(choice); // 텐션 위첨자 없이 평문 표시(데일리미션과 동일, 2026-08-31)
       btn.dataset.value = choice;  // canonical 값 — 정답 매칭용 (표시명과 분리)
       btn.addEventListener('pointerup', () => selectChoice(choice, name));
       container.appendChild(btn);
@@ -1854,9 +1758,9 @@ function renderQuestion() {
 
   } else {
     // ── 코드명 보여주기, 다이어그램 캔버스 숨기기 ─────────────
-    canvasWrap.style.display  = 'none';
+    canvasSlot.style.display  = 'none';
     nameDisplay.style.display = '';
-    nameDisplay.innerHTML     = _chordNameToHtml(_disp(name));
+    nameDisplay.textContent   = _disp(name); // 텐션 위첨자 없이 평문 표시(데일리미션과 동일, 2026-08-31)
     _fitChordNameDisplay(nameDisplay);
 
     // 다이어그램 4지선다 — 같은 코드명은 오답에서 제외
@@ -1865,17 +1769,20 @@ function renderQuestion() {
 
     choices.forEach(item => {
       const div = document.createElement('div');
-      div.className    = 'quiz-diagram-choice';
+      div.className    = 'ms-quiz-choice-card';
       div.dataset.name = item.name;
+      const slot = document.createElement('div');
+      slot.className = 'ms-quiz-choice-canvas-slot';
       const cv = document.createElement('canvas');
-      div.appendChild(cv);
+      slot.appendChild(cv);
+      div.appendChild(slot);
       container.appendChild(div);
       div.addEventListener('pointerup', () => selectDiagramChoice(item.name, name));
     });
 
     // 레이아웃 확정 후 캔버스 드로잉 + 화면 맞춤
     requestAnimationFrame(() => requestAnimationFrame(() => {
-      const divs = container.querySelectorAll('.quiz-diagram-choice');
+      const divs = container.querySelectorAll('.ms-quiz-choice-card');
       choices.forEach((item, i) => {
         const cv = divs[i].querySelector('canvas');
         const dpr = window.devicePixelRatio || 1;
@@ -1887,31 +1794,25 @@ function renderQuestion() {
         cv.height = Math.round(h * dpr);
         drawLibEntry(cv, item.entry);
       });
-      fitQuizToScreen();
     }));
   }
 
-  if (_currentMode === 'name-from-diagram') fitQuizToScreen();
   _questionStartTime = Date.now();
-  const _lvCfg = LEVEL_CONFIGS.find(c => c.id === _currentLevel);
-  startQuestionTimer(_lvCfg?.timeSec ?? null);
+  startQuestionTimer();
 }
 
 function selectChoice(selected, correct) {
-  if (_answered) return; // 타임아웃/중복 클릭 경쟁 방지
+  if (_answered) return; // 중복 클릭 경쟁 방지
   _answered = true;
-  clearQuestionTimer(); // 타임어택 타이머 중단
+  clearQuestionTimer(); // 경과시간 카운트업 중단
   // 중복 탭 방지
-  document.querySelectorAll('.quiz-choice-btn').forEach(btn => {
+  document.querySelectorAll('.ms-quiz-choice-card').forEach(btn => {
     btn.style.pointerEvents = 'none';
   });
 
-  // 반응속도 계산
+  // 반응속도 계산(피드백 문구 선택용 — 별도 표시는 안 함, 데일리미션과 동일)
   const speedMs  = Date.now() - _questionStartTime;
   const speedSec = (speedMs / 1000).toFixed(2);
-
-  // 반응속도 상단 표시
-  document.getElementById('quiz-speed').textContent = `${speedSec}s`;
 
   const isCorrect = selected === correct;
   playSound(isCorrect ? 'correct' : 'wrong');
@@ -1923,19 +1824,22 @@ function selectChoice(selected, correct) {
   showFeedbackMsg(pickFeedbackMsg(isCorrect, speedMs / 1000));
 
   // 피드백 색상 적용
-  document.querySelectorAll('.quiz-choice-btn').forEach(btn => {
+  document.querySelectorAll('.ms-quiz-choice-card').forEach(btn => {
     if (btn.dataset.value === selected && !isCorrect) {
-      btn.classList.add('quiz-choice-btn--wrong');
+      btn.classList.add('ms-quiz-choice-card--wrong');
     }
     if (btn.dataset.value === correct) {
-      btn.classList.add('quiz-choice-btn--correct');
+      btn.classList.add('ms-quiz-choice-card--correct');
     }
   });
 
-  // 다음 버튼 등장
-  const nextBtn = document.getElementById('quiz-next-btn');
-  nextBtn.textContent = (_current === _questions.length - 1) ? '결과 보기' : '다음';
-  nextBtn.classList.add('quiz-next-btn--active');
+  // 다음버튼 없이 자동으로 다음 문제(또는 결과)로 전환 — 데일리미션과 동일(1.1s)
+  _autoAdvance();
+}
+
+/** 정답 확인 후 잠깐 보여주고 자동으로 다음 문제(또는 결과)로 — 데일리미션 _msQuizAnswer와 동일 딜레이 */
+function _autoAdvance() {
+  setTimeout(advanceQuestion, 1100);
 }
 
 function advanceQuestion() {
@@ -1943,7 +1847,7 @@ function advanceQuestion() {
     _current++;
     renderQuestion();
   } else {
-    showResultModal();
+    showResultView();
   }
 }
 
@@ -1986,9 +1890,6 @@ function saveSessionStats() {
   const _lvCfgForHistory = LEVEL_CONFIGS.find(c => c.id === _currentLevel);
   appendSessionHistory(sessionAvg ?? (_lvCfgForHistory?.timeSec ?? null));
 
-  // DB 업로드용 로컬 캐시에 이번 세션 추가
-  cacheSessionRecord();
-
   // 퀴즈 레벨 통계 DB 동기화 (fire-and-forget)
   if (typeof syncQuizLevelStatsToDB === 'function') syncQuizLevelStatsToDB(levelId);
 
@@ -2030,49 +1931,7 @@ function updateTrainingOverviewStats(durationMin) {
 }
 
 // ── 세션 로컬 캐시 & DB 플러시 ───────────────────────────────
-const QUIZ_PENDING_KEY  = 'quiz_pending_sessions';
 const QUIZ_HISTORY_KEY  = 'quiz_session_history';
-
-/** localStorage에 저장된 Supabase 세션에서 userId, accessToken 추출 */
-function _getAuthInfo() {
-  try {
-    const stored = localStorage.getItem(SUPABASE_STORAGE_KEY);
-    if (!stored) return { userId: null, accessToken: null };
-    const parsed = JSON.parse(stored);
-    return {
-      userId:      parsed?.user?.id       ?? null,
-      accessToken: parsed?.access_token   ?? null,
-    };
-  } catch (_) {
-    return { userId: null, accessToken: null };
-  }
-}
-
-/** 이번 세션 결과를 pending 캐시에 추가 */
-function cacheSessionRecord() {
-  const { userId } = _getAuthInfo();
-  const today          = _kstToday();
-  const correctResults = _results.filter(r => r.isCorrect);
-  const correctSpeeds  = correctResults.map(r => r.speedSec);
-  const avg  = correctSpeeds.length > 0
-    ? correctSpeeds.reduce((s, v) => s + v, 0) / correctSpeeds.length
-    : 0;
-  const best = correctSpeeds.length > 0 ? Math.min(...correctSpeeds) : 0;
-
-  const record = {
-    user_id:       userId,
-    level_id:      parseInt(_currentLevel, 10),
-    mode:          _currentMode,
-    average_speed: Math.round(avg  * 1000) / 1000,
-    best_speed:    Math.round(best * 1000) / 1000,
-    correct_count: correctResults.length,
-    created_at:    today,
-  };
-
-  const cache = JSON.parse(localStorage.getItem(QUIZ_PENDING_KEY) || '[]');
-  cache.push(record);
-  localStorage.setItem(QUIZ_PENDING_KEY, JSON.stringify(cache));
-}
 
 /** 세션 결과를 로컬 히스토리에 영구 저장 (차트용) */
 function appendSessionHistory(avgSpeed) {
@@ -2196,49 +2055,6 @@ function closeChartModal() {
   if (_chartAccuracy) { _chartAccuracy.destroy(); _chartAccuracy = null; }
 }
 
-/**
- * 오늘 이전 날짜의 캐시 레코드를 Supabase에 일괄 업로드하고 캐시에서 제거.
- * 로그인 상태일 때만 실행. 비로그인 세션은 user_id를 현재 유저로 채워 올림.
- */
-async function flushPendingSessions() {
-  const cache = JSON.parse(localStorage.getItem(QUIZ_PENDING_KEY) || '[]');
-  if (cache.length === 0) return;
-
-  const today     = _kstToday();
-  const toFlushRaw = cache.filter(r => r.created_at < today);
-  if (toFlushRaw.length === 0) return;
-
-  const { accessToken, userId } = _getAuthInfo();
-  if (!accessToken || !userId) return; // 비로그인이면 다음 기회에
-
-  // null user_id 레코드는 현재 로그인 유저로 채움
-  const toFlush = toFlushRaw.map(r => ({ ...r, user_id: r.user_id ?? userId }));
-
-  try {
-    const res = await fetch(`${SUPABASE_URL}/rest/v1/quiz_session_logs`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'apikey':        SUPABASE_ANON,
-        'Authorization': `Bearer ${accessToken}`,
-        'Prefer':        'return=minimal',
-      },
-      body: JSON.stringify(toFlush),
-    });
-
-    if (res.ok) {
-      const toKeep = cache.filter(r => r.created_at >= today);
-      localStorage.setItem(QUIZ_PENDING_KEY, JSON.stringify(toKeep));
-      console.log(`[Quiz] ${toFlush.length}개 세션 레코드 DB 업로드 완료`);
-    } else {
-      const msg = await res.text().catch(() => res.status);
-      console.warn('[Quiz] 세션 업로드 실패:', msg);
-    }
-  } catch (err) {
-    console.warn('[Quiz] 세션 업로드 오류 (다음 실행 시 재시도):', err.message);
-  }
-}
-
 // 문항별 결과를 이벤트 properties용 배열로 변환.
 // 개별 quiz_answer_given / quiz_timeout 행을 대체한다(세션당 1행으로 통합).
 function _answersPayload() {
@@ -2254,7 +2070,124 @@ function _answersPayload() {
   });
 }
 
-// ── 결과 모달 ────────────────────────────────────────────────
+// ── 결산 뷰 — 데일리미션 결산화면 구조 이식(2026-08-31). 총평 문구 제외, 게이지는
+//    코드맞추기 1줄만, 최상단에 통계(정규분포+정답률/속도 문구). mission-session.js의
+//    _msNormalChartHTML/_msGaugeHTML/msShowResultView를 이 페이지용으로 이식 ──
+const QUIZ_RESULT_CHART_BARS = 11;
+const QUIZ_RESULT_CHART_RANGE = 3; // ±3σ
+function _quizResultChartHTML(z) {
+  const step = (QUIZ_RESULT_CHART_RANGE * 2) / QUIZ_RESULT_CHART_BARS;
+  const clamped = Math.max(-QUIZ_RESULT_CHART_RANGE, Math.min(QUIZ_RESULT_CHART_RANGE, z));
+  const myIdx = Math.min(QUIZ_RESULT_CHART_BARS - 1, Math.floor((clamped + QUIZ_RESULT_CHART_RANGE) / step));
+  let bars = '';
+  for (let i = 0; i < QUIZ_RESULT_CHART_BARS; i++) {
+    const center = -QUIZ_RESULT_CHART_RANGE + (i + 0.5) * step;
+    const pdf = Math.exp(-center * center / 2) * 100;
+    const h = 10 + pdf * 0.9;
+    const cls = i === myIdx ? ' ms-normal-bar--me' : (i > myIdx ? ' ms-normal-bar--above' : '');
+    bars += `<div class="ms-normal-bar${cls}" style="height:${h.toFixed(1)}%"></div>`;
+  }
+  return `
+    <div class="ms-normal-chart">${bars}</div>
+    <div class="ms-normal-axis"><span>낮음</span><span>평균</span><span>높음</span></div>
+  `;
+}
+
+const QUIZ_RESULT_GAUGE_SEGMENTS = 5; // 20점당 1칸
+function _quizGaugeHTML(score) {
+  const segSpan = 100 / QUIZ_RESULT_GAUGE_SEGMENTS;
+  let html = '';
+  for (let i = 0; i < QUIZ_RESULT_GAUGE_SEGMENTS; i++) {
+    const pct = Math.max(0, Math.min(100, (score - i * segSpan) / segSpan * 100));
+    html += `<div class="ms-result-gauge-seg"><div class="ms-result-gauge-seg-fill" style="width:${pct}%"></div></div>`;
+  }
+  return html;
+}
+
+function showResultView() {
+  _abandonSent = true; // 완주 세션 — 이후 페이지 이탈을 abandon으로 잡지 않는다
+  saveSessionStats();
+
+  const correctResults = _results.filter(r => r.isCorrect);
+  const correctCount   = correctResults.length;
+  const avgSec         = correctResults.length > 0
+    ? correctResults.reduce((s, r) => s + r.speedSec, 0) / correctResults.length
+    : null;
+  analytics.track('quiz_completed', {
+    level_id:      _currentLevel,
+    mode:          _currentMode,
+    correct_count: correctCount,
+    total:         _results.length,
+    avg_speed_sec: avgSec !== null ? Math.round(avgSec * 1000) / 1000 : null,
+    is_perfect:    correctCount === _results.length,
+    is_new_record: _newRecordSpeed !== null,
+    answers:       _answersPayload(),
+  });
+
+  // 상단 통계 — 레벨 자신의 실측 기준(quizByLevel). 예전엔 데일리미션 페르소나 기준
+  // quiz()를 그대로 재사용해서 "레벨과 무관한 값"이 나오는 문제가 있었음(2026-09-01 분리).
+  const records = _results.map(r => ({ isCorrect: r.isCorrect, timeSec: r.speedSec }));
+  const st = MissionPercentile.quizByLevel(records, _currentLevel);
+
+  const headlineEl  = document.getElementById('result-stat-headline');
+  const chartWrap    = document.getElementById('result-chart-wrap');
+  const lineCountEl = document.getElementById('result-stat-line-count');
+  const lineSpeedEl = document.getElementById('result-stat-line-speed');
+  // 정답 0개(topPct===null)여도 못한 걸 감추지 않고 그대로 "상위 100%"로 보여줌(사용자 확정,
+  // 데일리미션 원본의 스텁 문구 숨김 처리는 안 가져옴) — chartZ만 그래프 맨 왼쪽(최하위)으로 보정
+  const topPct = st.topPct ?? 100;
+  const chartZ = st.chartZ ?? -QUIZ_RESULT_CHART_RANGE;
+  // 1% 밑은 반올림하면 전부 "0%"가 되어버려서 소수점 한 자리까지(하한 0.1%) — 데일리미션과 동일
+  const pctText = pct => pct < 1 ? Math.max(0.1, pct).toFixed(1) : Math.round(pct);
+  headlineEl.innerHTML  = `상위 <b>${pctText(topPct)}%</b>`;
+  chartWrap.innerHTML   = _quizResultChartHTML(chartZ);
+  lineCountEl.innerHTML = `<b>${pctText(st.atLeastPct)}%</b>가 ${st.n}개 이상 맞췄어요!`;
+  lineSpeedEl.innerHTML = st.rtSec !== null
+    ? `<b>${pctText(st.fasterPct)}%</b>가 평균 ${st.rtSec.toFixed(2)}초만에 맞췄어요!`
+    : '';
+
+  // 게이지 — 코드맞추기 1줄만(데일리미션은 스케일/코드조합까지 3줄이지만 이 페이지는 코드맞추기뿐)
+  const score = _results.length ? Math.round(correctCount / _results.length * 100) : 0;
+  document.getElementById('result-gauge').innerHTML = _quizGaugeHTML(score);
+  document.getElementById('result-score-value').textContent = score + '점';
+
+  // 문제별 O/X 칩 목록
+  const row = document.getElementById('result-quiz-row');
+  row.innerHTML = _results.map((r, i) => `
+    <li class="ms-result-quiz-chip ms-result-quiz-chip--${r.isCorrect ? 'correct' : 'wrong'}">
+      <span class="ms-result-quiz-chip-num">${i + 1}</span>
+      <span class="ms-result-quiz-chip-mark">${r.isCorrect ? 'O' : 'X'}</span>
+      <span class="ms-result-quiz-chip-name">${r.name}</span>
+      <span class="ms-result-quiz-chip-time">${r.speedSec.toFixed(1)}s</span>
+    </li>
+  `).join('');
+  // 데스크탑 마우스 드래그 스크롤은 데일리미션 _msInitRowMouseDrag(가로 전용, momentum 포함)
+  // 이식이 필요한데 이 페이지엔 아직 없음 — 터치 스크롤은 정상 동작, 데스크탑 드래그는 후속 작업
+
+  const retryCostEl = document.getElementById('retry-peak-cost-count');
+  if (retryCostEl) retryCostEl.textContent = 'x' + _quizPeakCost(_currentLevel);
+
+  // 뷰 전환: 퀴즈 → 결산(기존 quiz-view 슬라이드 패턴과 동일)
+  _currentView = 'result';
+  document.getElementById('view-quiz').classList.add('quiz-view--left');
+  document.getElementById('view-result').classList.remove('quiz-view--right');
+
+  // 결산 화면에선 탑바 뒤로가기/인디케이터 숨김(데일리미션 ms-result-mode와 동일 의도) —
+  // showModeSelect()/retryFromResult()가 updateTopBar()로 복원함
+  document.getElementById('back-btn').style.visibility = 'hidden';
+  document.getElementById('quiz-topbar-center').innerHTML = '';
+
+  window.Tutorial?.notify('quiz:result'); // 결산 뷰가 뜬 뒤에 알림
+
+  // 신기록 달성 팝업
+  if (_newRecordSpeed !== null) {
+    const speed = _newRecordSpeed;
+    _newRecordSpeed = null;
+    setTimeout(() => showNewRecordModal(speed), 500);
+  }
+}
+
+// ── 결과 모달(구버전, 미사용 — 결산 뷰(showResultView)로 대체됨. 삭제 안 하고 남겨둠) ──
 function showResultModal() {
   _abandonSent = true; // 완주 세션 — 이후 페이지 이탈을 abandon으로 잡지 않는다
   saveSessionStats();
@@ -2324,8 +2257,13 @@ function closeResultModal() {
 
 async function retryFromResult() {
   if (!(await consumePeak(_quizPeakCost(_currentLevel)))) return;
+  _playConfirmSfx();
   analytics.track('quiz_retried', { level_id: _currentLevel, mode: _currentMode });
   hideResultModal();
+  _currentView = 'quiz';
+  document.getElementById('view-result').classList.add('quiz-view--right');
+  document.getElementById('view-quiz').classList.remove('quiz-view--left');
+  updateTopBar('quiz');
   initQuiz();
 }
 
@@ -2340,6 +2278,7 @@ function showNewRecordModal(speedSec) {
 }
 
 function closeNewRecordModal() {
+  _playConfirmSfx();
   const overlay = document.getElementById('newrecord-modal-overlay');
   if (overlay) overlay.classList.remove('newrecord-modal-overlay--show');
 }
@@ -2368,6 +2307,11 @@ window.addEventListener('pagehide', () => trackQuizAbandon('pagehide'));
 function handleBack() {
   _playTap();
   if (_currentView === 'quiz') {
+    showLeavePracticeModal(() => {
+      trackQuizAbandon('back_btn');
+      showModeSelect();
+    });
+  } else if (_currentView === 'result') {
     trackQuizAbandon('back_btn');
     showModeSelect();
   } else if (_currentView === 'mode-select') {
@@ -2414,7 +2358,9 @@ function showModeSelect() {
   _currentView = 'mode-select';
   const vmEl = document.getElementById('view-mode-select');
   const vqEl = document.getElementById('view-quiz');
+  const vrEl = document.getElementById('view-result');
   vqEl.classList.add('quiz-view--right');
+  vrEl.classList.add('quiz-view--right'); // 결산 뷰에서 나가는 경우도 같이 정리
   vmEl.classList.remove('quiz-view--left');
   updateTopBar('mode-select');
 }
@@ -2460,16 +2406,17 @@ async function startQuiz(mode) {
   window.Tutorial?.notify('quiz:started'); // 문제가 그려진 뒤에 알림
 }
 
-// 진행 dots 업데이트
+// 진행 바 업데이트 — 데일리미션 msUpdateProgress와 동일하게 .ms-progress-fill 폭으로 표시
 function updateProgressDots() {
-  const el = document.getElementById('quiz-progress-dots');
+  const el = document.getElementById('ms-progress-fill');
   if (!el) return;
-  el.innerHTML = '';
-  for (let i = 0; i < _questions.length; i++) {
-    const dot = document.createElement('div');
-    dot.className = 'quiz-progress-dot' + (i === _current ? ' quiz-progress-dot--active' : '');
-    el.appendChild(dot);
-  }
+  const total = Math.max(1, _questions.length);
+  const t   = _current / total;
+  const pct = Math.sqrt(t) * 100; // 데일리미션 msUpdateProgress와 동일 — 초반 급상승, 후반 완만
+  el.style.width = pct + '%';
+  el.style.background = pct >= 90 ? '#D9534F' // 빨강
+    :                    pct >= 75 ? '#FFD60A' // 밝은 노랑
+    :                    ''; // 기본 --blue로 복귀
 }
 
 // 탑바 아이콘·텍스트 전환
@@ -2488,8 +2435,10 @@ function updateTopBar(view) {
     center.innerHTML  = '';
     if (currency) currency.style.display = '';
   } else {
-    backBtn.style.visibility = 'hidden'; // 퀴즈 중 이탈 버튼 제거
-    center.innerHTML  = '<div id="quiz-progress-dots" class="quiz-progress-dots"></div>';
+    // 데일리미션 탑바와 동일 — 뒤로가기 계속 노출, 중앙은 진행바(.ms-progress-track/-fill)
+    backBtn.style.visibility = '';
+    backBtn.innerHTML = '<i data-lucide="chevron-left"></i>';
+    center.innerHTML  = '<div class="ms-progress-track"><div class="ms-progress-fill" id="ms-progress-fill"></div></div>';
     if (currency) currency.style.display = 'none'; // 퀴즈 중 UI 단순화 — 수량 표기 숨김
   }
   lucide.createIcons();
@@ -2572,22 +2521,14 @@ document.addEventListener('DOMContentLoaded', () => {
   } catch (_) {}
   // initQuiz()는 startLevel()에서 호출
 
-  // 화면 회전 등 크기 변경 시 재계산
-  window.addEventListener('resize', () => {
-    if (_currentView === 'quiz') fitQuizToScreen();
-  });
-
   // 문제 출제 영역(캔버스/코드명) 탭 → 정답 코드폼 사운드 재생
-  const _quizQuestionArea = document.querySelector('.quiz-question-area');
+  const _quizQuestionArea = document.querySelector('.ms-quiz-question-card');
   if (_quizQuestionArea) {
     _quizQuestionArea.addEventListener('pointerup', () => {
       const q = _questions[_current];
       if (q) _playQuizEntrySound(q.entry);
     });
   }
-
-  // 전일 이전 세션 캐시 → DB 플러시 (백그라운드)
-  flushPendingSessions();
 
   // 튜토리얼 진행 중이면 이어받기 — 레벨 목록이 그려진 뒤라야 대상 위치가 잡힌다
   requestAnimationFrame(() => requestAnimationFrame(() => {

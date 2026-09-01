@@ -1566,6 +1566,7 @@ function _renderImgPreview() {
 async function onImgSave() {
   if (_imgScale > getPlanLimit('maxScale')) { closeImgSaveModal(); openPlanSheet('image_scale'); return; }
   if (_imgTransparent && getPlan() === 'free') { closeImgSaveModal(); openPlanSheet('image_transparent'); return; }
+  _playConfirmSfx();
   closeImgSaveModal();
   if (_imgMode === 'library') await _doExportLibChordImage(_imgScale, _imgTransparent);
   else                        await _doSavePNG(_imgScale, _imgTransparent);
@@ -1803,46 +1804,126 @@ function _consumeAfterNotices() {
   cb();
 }
 
-// ── 업데이트 안내 모달 (튜너·메트로놈 출시, 1회성 — 로그인 여부 무관) ──────
-const UPDATE_NOTICE_SEEN_KEY = 'chorditor_update_notice_tuner_metronome_seen';
-let _updateNoticeDismissedThisLoad = false; // "다시 보지 않기" 안 눌러도 이번 페이지 로드에선 재노출 안 함
-function maybeShowUpdateNotice() {
-  if (_updateNoticeDismissedThisLoad) return false;
-  if (localStorage.getItem(UPDATE_NOTICE_SEEN_KEY)) return false;
-  document.getElementById('update-notice-overlay')?.classList.remove('hidden');
+// ── 앱 업데이트 공지 (버전별 신규기능 안내, 1회성 — 로그인 여부 무관) ──────
+// UI 껍데기(app-notice-overlay, home.html)는 고정, 내용은 여기 배열에 데이터로만 추가.
+// id는 seen 여부 localStorage 키(chorditor_notice_seen_<id>) 생성에 쓰임 — 한번 배포한 공지의
+// id는 절대 바꾸지 말 것(바꾸면 이미 본 유저에게 재노출됨). 오래된 공지부터 배열 앞쪽에 둔다.
+//
+// 공지 객체 형식:
+//   id           고유 식별자, 불변
+//   version      모달 상단 큰 타이틀 (예: '1.3.5 업데이트')
+//   sections     세로 스크롤로 훑는 섹션 목록. 섹션 하나 = 타이틀/설명/그래픽/추가정보 한 세트.
+//                [{ title: '데일리미션', desc: '매일 미션 깨고 보상 받아요.', image: 'image/xxx.png',
+//                   extra: '홈 → 출석체크에서 확인할 수 있어요.' }, ...]
+//                image(또는 mediaHtml) 없으면 그래픽 영역 자체를 생략.
+//                extra는 선택 — 경로 안내/부가설명/CTA 등 그래픽 아래 들어가는 작은 보조 텍스트, 없으면 생략.
+//   pastVersion    (선택) pastHighlights 그룹 위에 중앙정렬로 뜨는 소제목 (예: '1.3.4 업데이트')
+//   pastHighlights (선택) sections와 형식 동일 — 있으면 얇은 구분선 아래 "과거 업데이트 다시보기"로 이어붙임
+//   ghostBtn     (선택) {label} — 있으면 "그냥 닫기"용 보조 버튼이 primary 왼쪽에 생김
+//   primaryBtn   (선택) {label, action} — action 없으면 그냥 닫기, label 없으면 '확인'
+const APP_NOTICES = [
+  {
+    id: 'v1_3_5',
+    version: '1.3.5 업데이트',
+    sections: [
+      {
+        title: '매일 훈련 루틴&출석 시스템 개편',
+        desc: '매일 짧은 미션을 깨면서 훈련 습관을 만들어요.<br>출석 도장 모으고 보상도 챙기세요.',
+        image: 'image/calender.png',
+        extra: '<strong>홈 → 출석체크</strong>에서 데일리미션을 확인할 수 있어요.',
+      },
+      {
+        title: '승급 시스템',
+        desc: '레벨 없이도 훈련 실력을 인정받는 시스템이에요.<br>시험 통과하면 다음 단계 유저로 승급해요.',
+        image: 'image/trophy.png',
+        extra: '<strong>프로필</strong>의 5개 점을 누르면 단계를 원하는 대로 다시 조정할 수 있어요.',
+      },
+    ],
+    // 업데이트 주기가 빨라 놓쳤을 수 있는 과거 버전 기능 짧은 회고 — 구분선 아래 표시
+    pastVersion: '1.3.4 업데이트',
+    pastHighlights: [
+      {
+        title: '튜너',
+        desc: '마이크로 음정을 실시간으로 잡아줘요.<br>줄 하나하나 정확하게 맞춰보세요.',
+        mediaHtml: '<div class="update-notice-media--pair"><i class="ph-fill ph-waveform"></i></div>',
+      },
+      {
+        title: '메트로놈',
+        desc: '원하는 BPM으로 박자를 맞춰줘요.<br>연습 템포를 일정하게 유지해보세요.',
+        mediaHtml: '<div class="update-notice-media--pair"><i class="ph-fill ph-metronome"></i></div>',
+      },
+    ],
+    primaryBtn: { label: '확인' },
+  },
+];
+
+let _appNoticeDismissedThisLoad = false; // "다시 보지 않기" 안 눌러도 이번 페이지 로드에선 재노출 안 함
+let _appNoticeShowingId = null;
+
+function maybeShowAppNotice() {
+  if (_appNoticeDismissedThisLoad) return false;
+  const notice = APP_NOTICES.find(n => !localStorage.getItem('chorditor_notice_seen_' + n.id));
+  if (!notice) return false;
+  _renderAppNotice(notice);
   return true;
-}
-function closeUpdateNotice(goTools) {
-  document.getElementById('update-notice-overlay')?.classList.add('hidden');
-  _updateNoticeDismissedThisLoad = true;
-  // "다시 보지 않기" 체크된 경우, 또는 바로가기로 이동하는 경우(그 자체가 확인 의사) seen 마킹
-  // — 안 그러면 tools탭으로 이동한 페이지가 재로드되면서 checkAndShowNotice()가 다시 띄움
-  const dismissCheck = document.getElementById('update-notice-dismiss-check');
-  if (goTools || dismissCheck?.checked) localStorage.setItem(UPDATE_NOTICE_SEEN_KEY, '1');
-  if (goTools) { location.href = 'home.html?tab=tools'; return; } // 페이지 이동 — 콜백은 새 페이지 로드에서 다시 처리
-  checkAndShowNotice(); // 다음 공지 있으면 이어서, 없으면 출석 콜백 소비
 }
 
-// ── 태블릿·PC 반응형 개선 안내 (1회성 — 로그인 여부 무관) ────────────────
-const RESPONSIVE_NOTICE_SEEN_KEY = 'chorditor_responsive_notice_seen';
-let _responsiveNoticeDismissedThisLoad = false;
-function maybeShowResponsiveNotice() {
-  if (_responsiveNoticeDismissedThisLoad) return false;
-  if (localStorage.getItem(RESPONSIVE_NOTICE_SEEN_KEY)) return false;
-  document.getElementById('responsive-notice-overlay')?.classList.remove('hidden');
-  return true;
+// 섹션 목록 하나(공통 레이아웃: 타이틀/설명/그래픽/추가정보)를 HTML로 렌더 — 이번 버전
+// 섹션과 과거 업데이트 회고 섹션이 이 함수를 그대로 같이 씀
+function _renderNoticeSections(list) {
+  return (list || []).map(s => `
+    <div class="update-notice-section">
+      <div class="update-notice-section-title">${s.title}</div>
+      <p class="update-notice-section-desc">${s.desc}</p>
+      ${s.image ? `<div class="update-notice-section-media"><img src="${s.image}" alt=""></div>`
+        : s.mediaHtml ? `<div class="update-notice-section-media">${s.mediaHtml}</div>` : ''}
+      ${s.extra ? `<p class="update-notice-section-extra">${s.extra}</p>` : ''}
+    </div>
+  `).join('');
 }
-function closeResponsiveNotice() {
-  document.getElementById('responsive-notice-overlay')?.classList.add('hidden');
-  _responsiveNoticeDismissedThisLoad = true;
-  const dismissCheck = document.getElementById('responsive-notice-dismiss-check');
-  if (dismissCheck?.checked) localStorage.setItem(RESPONSIVE_NOTICE_SEEN_KEY, '1');
+
+function _renderAppNotice(notice) {
+  _appNoticeShowingId = notice.id;
+  document.getElementById('app-notice-version').textContent = notice.version || '';
+
+  // pastHighlights: 업데이트 주기가 빨라 놓쳤을 수 있는 과거 버전 기능을 얇은 구분선 아래
+  // 짧게 회고 — sections와 완전히 같은 레이아웃을 재사용
+  document.getElementById('app-notice-sections').innerHTML =
+    _renderNoticeSections(notice.sections)
+    + (notice.pastHighlights?.length
+        ? '<hr class="update-notice-divider">'
+          + (notice.pastVersion ? `<div class="update-notice-past-version">${notice.pastVersion}</div>` : '')
+          + _renderNoticeSections(notice.pastHighlights)
+        : '');
+
+  const ghostHtml = notice.ghostBtn
+    ? `<button class="update-notice-btn update-notice-btn--ghost" onclick="closeAppNotice(false)">${notice.ghostBtn.label || '확인'}</button>`
+    : '';
+  const primaryLabel = notice.primaryBtn?.label || '확인';
+  document.getElementById('app-notice-btns').innerHTML = ghostHtml
+    + `<button class="update-notice-btn update-notice-btn--primary" onclick="closeAppNotice(true)">${primaryLabel}</button>`;
+
+  document.getElementById('app-notice-overlay')?.classList.remove('hidden');
+  if (typeof lucide !== 'undefined') lucide.createIcons(); // 섹션 그래픽에 data-lucide 아이콘(도장) 쓰는 경우 렌더
+}
+
+// 버튼이 어느 쪽이든 닫히면 그걸로 "봤다"고 간주해 seen 마킹 — 체크박스는 즉시반영과
+// 무관하게 남겨둠(다음에도 다시 안 뜨는 걸 명시적으로 보장하고 싶은 유저용 습관적 UI)
+function closeAppNotice(primary) {
+  if (primary) _playConfirmSfx();
+  const notice = APP_NOTICES.find(n => n.id === _appNoticeShowingId);
+  document.getElementById('app-notice-overlay')?.classList.add('hidden');
+  _appNoticeDismissedThisLoad = true;
+  if (notice) localStorage.setItem('chorditor_notice_seen_' + notice.id, '1');
+  if (primary && notice?.primaryBtn?.action) {
+    notice.primaryBtn.action();
+    return; // action이 페이지 이동 등을 책임짐 — 콜백 체인은 새 로드에서 이어짐
+  }
   checkAndShowNotice(); // 다음 공지 있으면 이어서, 없으면 출석 콜백 소비
 }
 
 async function checkAndShowNotice() {
-  if (maybeShowResponsiveNotice()) return;
-  if (maybeShowUpdateNotice()) return; // 신규 기능 안내가 DB 공지보다 우선
+  if (maybeShowAppNotice()) return; // 신규 기능 안내가 DB 공지보다 우선
   if (!_authReady) { _consumeAfterNotices(); return; }
   const stored = localStorage.getItem(SUPABASE_STORAGE_KEY);
   if (!stored) { _consumeAfterNotices(); return; }
@@ -1978,8 +2059,6 @@ function renderAuthUI(user) {
 }
 
 
-// 플랜 관련 함수는 plan.js로 이전됨
-
 // ── 배율 옵션 잠금 제어 ─────────────────────────────────────────
 function updateExportScaleOptions() {
   const max = getPlanLimit('maxScale');
@@ -2080,7 +2159,7 @@ async function loadProfileFromDB() {
     }
 
     const resp = await fetch(
-      `${SUPABASE_URL}/rest/v1/subscriptions?user_id=eq.${userId}&select=nickname,plan,created_at,persona,promo_plan,promo_expires_at,promo_pending_days,invite_code`,
+      `${SUPABASE_URL}/rest/v1/subscriptions?user_id=eq.${userId}&select=nickname,plan,created_at,promo_plan,promo_expires_at,promo_pending_days,invite_code`,
       { headers: { 'apikey': SUPABASE_ANON, 'Authorization': `Bearer ${token}` } }
     );
     if (!resp.ok) {
@@ -2093,6 +2172,26 @@ async function loadProfileFromDB() {
       return;
     }
     const row = rows[0];
+
+    // user_persona_profile: persona 유일한 소스(2026-08-31, subscriptions.persona 삭제).
+    // 즉시반영(승급/강등 시 setUserPersona가 씀), pref_type/skill_type/engagement_type은
+    // 30일 배치갱신 — 유저관리 총집합 테이블.
+    try {
+      const ppResp = await fetch(
+        `${SUPABASE_URL}/rest/v1/user_persona_profile?user_id=eq.${userId}&select=persona,pref_type,skill_type,engagement_type`,
+        { headers: { 'apikey': SUPABASE_ANON, 'Authorization': `Bearer ${token}` } }
+      );
+      if (ppResp.ok) {
+        const ppRows = await ppResp.json();
+        if (ppRows.length) {
+          const pp = ppRows[0];
+          if (pp.persona) row.persona = pp.persona; // 아래 뱃지·로컬동기화 로직이 이 값을 씀
+          if (pp.pref_type) localStorage.setItem('user_pref_type', pp.pref_type);
+          if (pp.skill_type) localStorage.setItem('user_skill_type', pp.skill_type);
+          if (pp.engagement_type) localStorage.setItem('user_engagement_type', pp.engagement_type);
+        }
+      }
+    } catch (e) { console.warn('[Profile] persona_profile fetch 실패:', e); }
 
     const nickname = row.nickname || session?.user?.user_metadata?.full_name || '—';
     // row.plan은 결제 원본값. 프로모션 쿠폰으로 받은 플랜은 promo_* 에 따로 있으므로
@@ -3319,6 +3418,7 @@ async function openReferralNoticeModal() {
 }
 
 function closeReferralNotice() {
+  _playConfirmSfx();
   document.getElementById('referral-notice-overlay')?.classList.add('hidden');
 }
 
@@ -3361,6 +3461,7 @@ async function submitProfileCode() {
   const code = input.value.trim();
   if (!code) return;
 
+  _playConfirmSfx();
   _submittingProfileCode = true;
   try {
     const r = await _peakRpc('redeem_promo_code', { p_code: code });
@@ -3444,6 +3545,7 @@ function showPromoProModal(r, onClose) {
   if (typeof lucide !== 'undefined') lucide.createIcons();
 }
 function closePromoProModal() {
+  _playConfirmSfx();
   document.getElementById('promo-pro-modal-overlay')?.classList.add('hidden');
   const cb = _promoProOnClose;
   _promoProOnClose = null; // 콜백이 다시 이 모달을 열 경우를 대비해 먼저 비운다
@@ -3564,7 +3666,7 @@ function onPushCategoryToggle(kind, el) {
 // ── 확인 바텀시트(로그아웃/계정삭제 공용) ───────────────────────
 function openConfirmSheet({ title, desc, btnText, danger, onConfirm }) {
   document.getElementById('confirm-sheet-title').textContent = title;
-  document.getElementById('confirm-sheet-desc').textContent  = desc;
+  document.getElementById('confirm-sheet-desc').innerHTML = desc.replace(/\n/g, '<br>');
   const btn = document.getElementById('confirm-sheet-btn');
   btn.textContent = btnText;
   btn.className = 'btn ' + (danger ? 'btn-danger' : 'btn-primary');
@@ -4854,19 +4956,8 @@ function initHomeAdBannerCarousel() {
 }
 
 document.addEventListener('DOMContentLoaded', async () => {
-  // 모바일/태블릿은 튜너 진입 전에 마이크 권한을 미리 받아둔다 —
-  // 튜너 페이지에서 탭 없이 바로 자동 시작하기 위함(권한 팝업은 여기 홈에서 한 번만 뜸).
-  // 뒤쪽 초기화 코드가 예외를 던지는 것과 무관하게 항상 실행되도록 맨 앞에서 즉시 처리.
-  try {
-    const isMobileOrTablet = !!window.Capacitor?.isNativePlatform() || /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
-    if (isMobileOrTablet && navigator.mediaDevices?.getUserMedia) {
-      navigator.mediaDevices.getUserMedia({ audio: true })
-        .then((stream) => stream.getTracks().forEach((t) => t.stop()))
-        .catch((e) => console.warn('[home] mic 사전권한요청 실패:', e && e.name));
-    }
-  } catch (e) {
-    console.error('[home] mic 사전권한요청 중 예외:', e);
-  }
+  // 마이크는 튜너 페이지 진입 시에만 연다 — 홈에서 사전권한요청 폐지
+  // (getUserMedia 호출 자체가 Android 오디오모드를 통화모드로 바꿔버리는 부작용 있음).
 
   // 리뷰 유도: 앱 실행 카운트 (성숙도 측정)
   if (typeof reviewRegisterLaunch === 'function') reviewRegisterLaunch();
@@ -4881,7 +4972,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   // 데스크탑(1600px~) — 튜토리얼/설정 아이콘을 좌측 사이드바로 이동 (hidden 토글 로직은 ID 기반이라 위치 이동 무관)
   (() => {
-    const _mq = window.matchMedia('(min-width: 1440px)');
+    const _mq = window.matchMedia('(min-width: 1600px)');
     const _tutBtn = document.getElementById('tutorial-entry-btn');
     const _setBtn = document.getElementById('settings-btn');
     const _logoutBtn = document.getElementById('sidebar-logout-btn');
@@ -4909,7 +5000,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   // 사이드바 위쪽에 떠서 메인 콘텐츠 좌상단과 안 맞았음 — CSS 포지션만으론 못 고치고
   // DOM 위치 자체를 옮겨야 함(위 튜토리얼/설정 버튼과 동일 패턴).
   (() => {
-    const _mq = window.matchMedia('(min-width: 1440px)');
+    const _mq = window.matchMedia('(min-width: 1600px)');
     const _backBtn = document.getElementById('back-btn');
     const _main = document.getElementById('main-content');
     const _topBar = document.querySelector('.desktop-topbar');
@@ -5092,7 +5183,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
   } else {
     switchTab(_initTab, _initTab !== 'home');
-    // plan.html 복귀 시 서브뷰 복원 (에디터/라이브러리)
+    // ?subview= 붙여서 홈으로 돌아온 경우 서브뷰 복원(에디터/라이브러리)
     const _initSubview = _urlParams.get('subview');
     if (_initSubview && _initSubview !== 'home') {
       enterFromHome(_initSubview, true);
@@ -5322,7 +5413,7 @@ const LIB_MINI_RATIO   = LIB_MINI_W / BASE_W;
 let _libWideMqCache = null;
 function libWideMq() {
   if (!_libWideMqCache) {
-    // 태블릿 가로(1133~1439) + 데스크탑(1440~) + Z Fold8 와이드형(834~950×680~770) —
+    // 태블릿 가로/랩탑(1133~1599) + 데스크탑(1600~) + Z Fold8 와이드형(834~950×680~770) —
     // 콤마는 matchMedia에서 OR로 동작. style.css의 각 와이드 스코프 조건과 정확히 일치시킬 것.
     _libWideMqCache = window.matchMedia(
       '(min-width: 1133px) and (min-height: 600px) and (min-aspect-ratio: 1/1), ' +

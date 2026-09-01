@@ -3157,7 +3157,7 @@ renderFullNeck();
   // 테스트 시작 버튼 (피크 1개 소모)
   document.getElementById('start-test-btn')?.addEventListener('pointerup', async () => {
     _playTap();
-    _playSfx('pop.mp3');
+    _playConfirmSfx();
     if (!(await consumePeak(1))) return;
     analytics.track('scale_test_started', {
       scale_key: _scaleKey,
@@ -3174,7 +3174,7 @@ renderFullNeck();
   document.getElementById('test-submit-btn')?.addEventListener('pointerup', async (e) => {
     if (e.currentTarget.disabled) return;
     if (_testSubmitted) {
-      _playSfx('pop.mp3');
+      _playConfirmSfx();
       if (!(await consumePeak(1))) return;
       analytics.track('scale_test_retry', {
         scale_key: _scaleKey,
@@ -3188,6 +3188,7 @@ renderFullNeck();
         form:      _testItem.block.label || FORM_NAMES[_testItem.bi] || (_testItem.bi + 1 + '번폼'),
         bi:        _testItem?.bi,
       });
+      _playConfirmSfx();
       checkAnswer();
     }
   });

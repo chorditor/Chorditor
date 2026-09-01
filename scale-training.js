@@ -138,7 +138,7 @@ function renderScaleCardNotes() {
 
 // ── 연습하기 버튼 → 레벨 진입 (피크 소모 없음, pop 사운드) ──────
 function onScalePracticeTap(btn) {
-  _playSfx('pop.mp3');
+  _playConfirmSfx();
   const card  = btn.closest('.scale-item-card');
   if (!card) return;
   const key   = card.dataset.key;

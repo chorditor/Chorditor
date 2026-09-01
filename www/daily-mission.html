@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="color-scheme" content="light dark" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <title>Chorditor - 오늘의 미션</title>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css" />
+  <link rel="stylesheet" href="style.css" />
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
+  <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.js"></script>
+  <script src="https://unpkg.com/@phosphor-icons/web"></script>
+</head>
+<body>
+
+  <!-- ── 데일리 미션 게이트 ── -->
+  <div class="onboarding-overlay ob-overlay--step" id="dm-gate">
+    <div class="ob-topbar"></div>
+    <div class="ob-main">
+      <div class="ob-step8-header">
+        <h2 class="ob-title"><img src="image/calender.png" class="ob-title-icon" alt="">매일 연습 루틴</h2>
+        <p class="ob-step8-desc"><span id="dm-nickname">OO</span>님, 오늘의 훈련 루틴을 준비했어요!<br>하루 <span class="dm-gate-desc-accent">3분</span> 훈련하고 <span class="dm-gate-desc-accent">추가 보상</span> 받아가세요</p>
+      </div>
+      <div class="ob-step8-icon-wrap">
+        <p class="dm-cardlist-label">아래의 훈련을 진행해요</p>
+        <ul class="cd-cardlist">
+          <li class="cd-cardlist-item cd-cardlist-item--icon cd-cardlist-item--blue"><i class="ph-fill ph-grid-nine"></i><span>코드맞추기</span></li>
+          <li class="cd-cardlist-item cd-cardlist-item--icon cd-cardlist-item--red"><i class="ph-fill ph-music-notes"></i><span>스케일훈련</span></li>
+          <li class="cd-cardlist-item cd-cardlist-item--icon cd-cardlist-item--purple"><i class="ph-fill ph-pencil"></i><span>코드조합훈련</span></li>
+        </ul>
+      </div>
+      <div class="ob-bottom-actions dm-gate-btn-row">
+        <button class="cd-btn cd-btn--gray" id="dm-gate-later" onpointerdown="dmGateLater()">나중에 할래요</button>
+        <button class="cd-btn cd-btn--blue" id="dm-gate-start" onpointerdown="dmGateStart()">시작할래요!</button>
+      </div>
+    </div><!-- ob-main -->
+  </div>
+
+  <script src="analytics-sdk.js"></script>
+  <script src="shared.js"></script>
+  <script src="daily-mission.js"></script>
+</body>
+</html>

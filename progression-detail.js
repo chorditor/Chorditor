@@ -253,7 +253,7 @@ let _practiceUnlocked = false;
 window._leaveGuardActive = () => _practiceUnlocked; // shared.js 사이드바 네비 이탈 확인용
 window._clearLeaveGuard = () => { if (_prog?.id) sessionStorage.removeItem(`pd_unlock_${_prog.id}`); }; // shared.js 사이드바 네비로 이탈 확정 시 언락 해제
 async function unlockPractice() {
-  _playSfx('pop.mp3');
+  _playConfirmSfx();
   if (_practiceUnlocked) return;
   if (!(await consumePeak(2))) return;
   _practiceUnlocked = true;

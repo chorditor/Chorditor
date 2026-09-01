@@ -132,6 +132,7 @@ window.CHORD_STATIC = [
   ['x x 3 2 1 1',  ['F'],    'x x 3 2 1 1',  'M',  2, { barre: true }],
   ['x 0 3 2 1 1',  ['F/A'],    'x x 3 2 1 1',  'slash',  2, { barre: true }],
   ['x x 3 2 1 0',  ['FM7'],    'x x 3 2 1 0',  'M7',  2],
+  ['1 x 3 2 1 3',  ['Fadd9'],    'T x 3 2 1 4',  'M',  2],
 
   // ── B 계열 ────────────────────────────────────────────────
   ['x 2 0 2 3 x',  ['Bm7'],    'x 1 x 2 3 x',  'm7',  2],
@@ -261,9 +262,9 @@ window.CHORD_PATTERN = [
   { pattern: 'x x r+1 r+3 r+1 r+2', rootStr: 4, fingers: 'x x 1 3 1 2', barre: true, quality: 'm6', name: (r, flat) => chordNoteName(2, r+1, flat) + 'm6'},
 
   // m7(b5) 코드 쉘 보이싱
-  { pattern: 'r+1 x r+1 r+1 r x', rootStr: 6, fingers: '2 x 3 4 1 x', barre: true, quality: 'm7(b5)', name: (r, flat) => chordNoteName(0, r+1, flat) + 'm7(b5)'},
+  { pattern: 'r+2 x r+2 r+2 r+1 x', rootStr: 6, fingers: '2 x 3 4 1 x', barre: true, quality: 'm7(b5)', name: (r, flat) => chordNoteName(0, r+2, flat) + 'm7(b5)'},
   { pattern: 'x r+1 r+2 r+1 r+2 x', rootStr: 5, fingers: 'x 1 3 2 4 x', barre: true, quality: 'm7(b5)', name: (r, flat) => chordNoteName(1, r+1, flat) + 'm7(b5)'},
-  { pattern: 'x r+1 x r+1 r+2 r', rootStr: 5, fingers: 'x 2 x 3 4 1', barre: true, quality: 'm7(b5)', name: (r, flat) => chordNoteName(1, r+1, flat) + 'm7(b5)'},
+  { pattern: 'x r+2 x r+2 r+3 r+1', rootStr: 5, fingers: 'x 2 x 3 4 1', barre: true, quality: 'm7(b5)', name: (r, flat) => chordNoteName(1, r+2, flat) + 'm7(b5)'},
   { pattern: 'x x r+1 r+2 r+2 r+2', rootStr: 4, fingers: 'x x 1 2 3 4', barre: true, quality: 'm7(b5)', name: (r, flat) => chordNoteName(2, r+1, flat) + 'm7(b5)'},
 
   // dim7 코드 쉘 보이싱
@@ -275,19 +276,19 @@ window.CHORD_PATTERN = [
   // 1전위 코드 (C/E)
   { pattern: 'r+2 x r r+2 r+3 x', rootStr: 6, fingers: '2 x 1 3 4 x', barre: false, quality: 'slash', name: (r, flat) => chordNoteName(2, r, flat) + '/' + chordNoteName(0, r+2, flat)},
   { pattern: 'r+1 x x r+1 r+2 r+1', rootStr: 6, fingers: 'T x x 2 3 1', barre: false, quality: 'slash', name: (r, flat) => chordNoteName(4, r+2, flat) + '/' + chordNoteName(0, r+1, flat)},
-  { pattern: 'x r+2 r r r x', rootStr: 5, fingers: 'x 3 1 1 1 x', barre: true, quality: 'slash', name: (r, flat) => chordNoteName(3, r, flat) + '/' + chordNoteName(1, r+2, flat)},
+  { pattern: 'x r+3 r+1 r+1 r+1 x', rootStr: 5, fingers: 'x 3 1 1 1 x', barre: true, quality: 'slash', name: (r, flat) => chordNoteName(3, r+1, flat) + '/' + chordNoteName(1, r+3, flat)},
   { pattern: 'x r+2 r r r r+3', rootStr: 5, fingers: 'x 3 1 1 1 4', barre: true, quality: 'slash', name: (r, flat) => chordNoteName(3, r, flat) + '/' + chordNoteName(1, r+2, flat)},
   { pattern: 'x r r+3 r+2 r+1 x', rootStr: 5, fingers: 'x 1 4 3 2 x', barre: false, quality: 'slash', name: (r, flat) => chordNoteName(2, r+3, flat) + '/' + chordNoteName(1, r, flat)},
-  { pattern: 'x x r+2 r r+1 r', rootStr: 4, fingers: 'x x 3 1 2 1', barre: true, quality: 'slash', name: (r, flat) => chordNoteName(4, r+1, flat) + '/' + chordNoteName(2, r+2, flat)},
+  { pattern: 'x x r+3 r+1 r+2 r+1', rootStr: 4, fingers: 'x x 3 1 2 1', barre: true, quality: 'slash', name: (r, flat) => chordNoteName(4, r+2, flat) + '/' + chordNoteName(2, r+3, flat)},
   // 1전위 코드 (CM7/E)
   { pattern: 'x r r+2 r+2 r+1 x', rootStr: 6, fingers: 'x 1 3 4 2 x', barre: false, quality: 'slash', name: (r, flat) => chordNoteName(0, r+1, flat) + 'M7' + '/' + chordNoteName(1, r, flat)},
   { pattern: 'x x r r+2 r+3 r+1', rootStr: 5, fingers: 'x x 1 3 4 2', barre: false, quality: 'slash', name: (r, flat) => chordNoteName(1, r+1, flat) + 'M7' + '/' + chordNoteName(2, r, flat)},
 
   // 1전위 코드 (C7/E)
   { pattern: 'r+2 x r r+2 r+1 x', rootStr: 6, fingers: '3 x 1 4 2 x', barre: false, quality: 'slash', name: (r, flat) => chordNoteName(2, r, flat) + '7' + '/' + chordNoteName(0, r+2, flat)},
-  { pattern: 'x r+2 x r r r+1', rootStr: 5, fingers: 'x 3 x 1 1 2', barre: true, quality: 'slash', name: (r, flat) => chordNoteName(3, r, flat) + '7' + '/' + chordNoteName(1, r+2, flat)},
+  { pattern: 'x r+3 x r+1 r+1 r+2', rootStr: 5, fingers: 'x 3 x 1 1 2', barre: true, quality: 'slash', name: (r, flat) => chordNoteName(3, r+1, flat) + '7' + '/' + chordNoteName(1, r+3, flat)},
   
-  { pattern: 'x r+2 r r r r+1', rootStr: 5, fingers: 'x 3 1 1 1 2', barre: true, quality: 'slash', name: (r, flat) => chordNoteName(3, r, flat) + '7' + '/' + chordNoteName(1, r+2, flat)},
+  { pattern: 'x r+3 r+1 r+1 r+1 r+2', rootStr: 5, fingers: 'x 3 1 1 1 2', barre: true, quality: 'slash', name: (r, flat) => chordNoteName(3, r+1, flat) + '7' + '/' + chordNoteName(1, r+3, flat)},
   { pattern: 'x x r+1 r+2 r r+2', rootStr: 4, fingers: 'x x 2 3 1 4', barre: true, quality: 'slash', name: (r, flat) => chordNoteName(1, r+2, flat) + '7' + '/' + chordNoteName(2, r+1, flat)},
   
   // 1전위 코드 (Cm/Eb)
@@ -300,24 +301,24 @@ window.CHORD_PATTERN = [
   { pattern: 'r+1 x r r+2 r+1 x', rootStr: 6, fingers: '2 x 1 4 3 x', barre: false, quality: '6', name: (r, flat) => chordNoteName(0, r+1, flat) + '6'},
   { pattern: 'x r+2 r+1 r+1 r x', rootStr: 5, fingers: 'x 4 2 3 1 x', barre: false, quality: '6', name: (r, flat) => chordNoteName(1, r+2, flat) + '6'},
   { pattern: 'x r x r+2 r+2 r+2', rootStr: 5, fingers: 'x 1 x 2 3 4', barre: false, quality: '6', name: (r, flat) => chordNoteName(1, r, flat) + '6'},
-  { pattern: 'x x r r+2 r r+2', rootStr: 4, fingers: 'x x 1 3 1 4', barre: true, quality: '6', name: (r, flat) => chordNoteName(2, r, flat) + '6'},
+  { pattern: 'x x r+1 r+3 r+1 r+3', rootStr: 4, fingers: 'x x 1 3 1 4', barre: true, quality: '6', name: (r, flat) => chordNoteName(2, r+1, flat) + '6'},
 
 
   // 2전위 코드 (C/G) 
-  { pattern: 'r x r+2 r+2 r+2 r', rootStr: 6, fingers: '1 x 2 3 4 1', barre: true, quality: 'slash', name: (r, flat) => chordNoteName(3, r+2, flat) + '/' + chordNoteName(0, r, flat)},
-  { pattern: 'x r+2 r+2 r+1 r r', rootStr: 5, fingers: 'x 3 4 2 1 1', barre: true, quality: 'slashM', name: (r, flat) => chordNoteName(5, r, flat) + '/' + chordNoteName(1, r+2, flat)},
+  { pattern: 'r+1 x r+3 r+3 r+3 r+1', rootStr: 6, fingers: '1 x 2 3 4 1', barre: true, quality: 'slash', name: (r, flat) => chordNoteName(3, r+3, flat) + '/' + chordNoteName(0, r+1, flat)},
+  { pattern: 'x r+3 r+3 r+2 r+1 r+1', rootStr: 5, fingers: 'x 3 4 2 1 1', barre: true, quality: 'slashM', name: (r, flat) => chordNoteName(5, r+1, flat) + '/' + chordNoteName(1, r+3, flat)},
   { pattern: 'x x r+2 r+2 r+2 r', rootStr: 4, fingers: 'x x 2 3 4 1', barre: false, quality: 'slash', name: (r, flat) => chordNoteName(3, r+2, flat) + '/' + chordNoteName(2, r+2, flat)},
   // 2전위 코드 (Cm/G)
-  { pattern: 'r x r+2 r+2 r+1 r', rootStr: 6, fingers: '1 x 3 4 2 1', barre: true, quality: 'slash', name: (r, flat) => chordNoteName(3, r+2, flat) + 'm' + '/' + chordNoteName(0, r, flat)},
-  { pattern: 'r x r+2 r+2 r+1 r', rootStr: 6, fingers: '1 x 3 4 2 1', barre: true, quality: 'tension', name: (r, flat) => chordNoteName(0, r, flat) + '7sus4' + '(b13)'},
-  { pattern: 'x r+2 r+2 r r r', rootStr: 5, fingers: 'x 3 4 1 1 1', barre: true, quality: 'slash', name: (r, flat) => chordNoteName(5, r, flat) + 'm' + '/' + chordNoteName(1, r+2, flat)},
+  { pattern: 'r+1 x r+3 r+3 r+2 r+1', rootStr: 6, fingers: '1 x 3 4 2 1', barre: true, quality: 'slash', name: (r, flat) => chordNoteName(3, r+3, flat) + 'm' + '/' + chordNoteName(0, r+1, flat)},
+  { pattern: 'r+1 x r+3 r+3 r+2 r+1', rootStr: 6, fingers: '1 x 3 4 2 1', barre: true, quality: 'tension', name: (r, flat) => chordNoteName(0, r+1, flat) + '7sus4' + '(b13)'},
+  { pattern: 'x r+3 r+3 r+1 r+1 r+1', rootStr: 5, fingers: 'x 3 4 1 1 1', barre: true, quality: 'slash', name: (r, flat) => chordNoteName(5, r+1, flat) + 'm' + '/' + chordNoteName(1, r+3, flat)},
   { pattern: 'x r x r+2 r+3 r+1', rootStr: 5, fingers: 'x 1 x 3 4 2', barre: false, quality: 'slash', name: (r, flat) => chordNoteName(4, r+3, flat) + 'm' + '/' + chordNoteName(1, r, flat)},
   { pattern: 'x x r+2 r+2 r+1 r', rootStr: 4, fingers: 'x x 3 4 2 1', barre: false, quality: 'slash', name: (r, flat) => chordNoteName(3, r+2, flat) + 'm' + '/' + chordNoteName(2, r+2, flat)},
 
   // 3전위 코드 (C/B or CM7/B)
-  { pattern: 'r+2 x r r r x', rootStr: 6, fingers: '3 x 1 1 1 x', barre: true, quality: 'slash', name: (r, flat) => chordNoteName(3, r, flat) + '/' + chordNoteName(0, r+2, flat)},
-  { pattern: 'x r+2 x r r+1 r', rootStr: 5, fingers: 'x 3 x 1 2 1', barre: true, quality: 'slash', name: (r, flat) => chordNoteName(4, r+1, flat) + '/' + chordNoteName(1, r+2, flat)},
-  { pattern: 'x x r+1 r+1 r r', rootStr: 4, fingers: 'x x 2 3 1 1', barre: true, quality: 'slash', name: (r, flat) => chordNoteName(5, r, flat) + '/' + chordNoteName(2, r+1, flat)},
+  { pattern: 'r+3 x r+1 r+1 r+1 x', rootStr: 6, fingers: '3 x 1 1 1 x', barre: true, quality: 'slash', name: (r, flat) => chordNoteName(3, r+1, flat) + '/' + chordNoteName(0, r+3, flat)},
+  { pattern: 'x r+3 x r+1 r+2 r+1', rootStr: 5, fingers: 'x 3 x 1 2 1', barre: true, quality: 'slash', name: (r, flat) => chordNoteName(4, r+2, flat) + '/' + chordNoteName(1, r+3, flat)},
+  { pattern: 'x x r+2 r+2 r+1 r+1', rootStr: 4, fingers: 'x x 2 3 1 1', barre: true, quality: 'slash', name: (r, flat) => chordNoteName(5, r+1, flat) + '/' + chordNoteName(2, r+2, flat)},
   // 3전위 코드 (C/Bb or C7/Bb)
   { pattern: 'r+2 x r+1 r+1 r+1 x', rootStr: 6, fingers: '2 x 1 1 1 x', barre: true, quality: 'slash', name: (r, flat) => chordNoteName(3, r+1, flat) + '/' + chordNoteName(0, r+2, flat)},
   { pattern: 'x r+2 x r+1 r+2 r+1', rootStr: 5, fingers: 'x 2 x 1 3 1', barre: true, quality: 'slash', name: (r, flat) => chordNoteName(4, r+2, flat) + '/' + chordNoteName(1, r+2, flat)},
@@ -340,18 +341,18 @@ window.CHORD_PATTERN = [
   { pattern: 'x x r+1 r+1 r+2 r+1', rootStr: 4, fingers: 'x x 1 1 2 1', barre: true, quality: 'hybrid', name: (r, flat) => chordNoteName(4, r+2, flat) + '/' + chordNoteName(2, r+1, flat)},
   { pattern: 'x x r+1 r+1 r+2 r+1', rootStr: 4, fingers: 'x x 1 1 2 1', barre: true, quality: 'tension', name: (r, flat) => chordNoteName(2, r+1, flat) + '7sus4' + '(9)'},
   // C/F
-  { pattern: 'r+1 x x r r+1 r', rootStr: 6, fingers: '2 x x 1 3 1', barre: true, quality: 'hybrid', name: (r, flat) => chordNoteName(4, r+1, flat) + '/' + chordNoteName(0, r+1, flat)},
-  { pattern: 'r+1 x r+2 r r+1 r', rootStr: 6, fingers: '2 x 4 1 3 1', barre: true, quality: 'hybrid', name: (r, flat) => chordNoteName(4, r+1, flat) + '/' + chordNoteName(0, r+1, flat)},
-  { pattern: 'x r r+2 r+1 r r', rootStr: 5, fingers: 'x 1 3 2 1 1', barre: true, quality: 'hybrid', name: (r, flat) => chordNoteName(2, r+2, flat) + '/' + chordNoteName(1, r, flat)},
-  { pattern: 'x x r r+2 r+2 r', rootStr: 4, fingers: 'x x 1 3 4 1', barre: true, quality: 'hybrid', name: (r, flat) => chordNoteName(3, r+2, flat) + '/' + chordNoteName(2, r, flat)},
+  { pattern: 'r+2 x x r+1 r+2 r+1', rootStr: 6, fingers: '2 x x 1 3 1', barre: true, quality: 'hybrid', name: (r, flat) => chordNoteName(4, r+2, flat) + '/' + chordNoteName(0, r+2, flat)},
+  { pattern: 'r+2 x r+3 r+1 r+2 r+1', rootStr: 6, fingers: '2 x 4 1 3 1', barre: true, quality: 'hybrid', name: (r, flat) => chordNoteName(4, r+2, flat) + '/' + chordNoteName(0, r+2, flat)},
+  { pattern: 'x r+1 r+3 r+2 r+1 r+1', rootStr: 5, fingers: 'x 1 3 2 1 1', barre: true, quality: 'hybrid', name: (r, flat) => chordNoteName(2, r+3, flat) + '/' + chordNoteName(1, r+1, flat)},
+  { pattern: 'x x r+1 r+3 r+3 r+1', rootStr: 4, fingers: 'x x 1 3 4 1', barre: true, quality: 'hybrid', name: (r, flat) => chordNoteName(3, r+3, flat) + '/' + chordNoteName(2, r+1, flat)},
   // Cm/Db
-  { pattern: 'r+1 x r+2 r r r', rootStr: 6, fingers: '2 x 3 1 1 1', barre: true, quality: 'hybrid', name: (r, flat) => chordNoteName(5, r, flat) + 'm' + '/' + chordNoteName(0, r+1, flat)},
-  { pattern: 'r+1 x x r r r', rootStr: 6, fingers: '2 x x 1 1 1', barre: true, quality: 'hybrid', name: (r, flat) => chordNoteName(5, r, flat) + 'm' + '/' + chordNoteName(0, r+1, flat)},
+  { pattern: 'r+2 x r+3 r+1 r+1 r+1', rootStr: 6, fingers: '2 x 3 1 1 1', barre: true, quality: 'hybrid', name: (r, flat) => chordNoteName(5, r+1, flat) + 'm' + '/' + chordNoteName(0, r+2, flat)},
+  { pattern: 'r+2 x x r+1 r+1 r+1', rootStr: 6, fingers: '2 x x 1 1 1', barre: true, quality: 'hybrid', name: (r, flat) => chordNoteName(5, r+1, flat) + 'm' + '/' + chordNoteName(0, r+2, flat)},
   { pattern: 'x r+1 r+2 r+2 r+1 x', rootStr: 5, fingers: 'x 1 3 4 2 x', barre: false, quality: 'hybrid', name: (r, flat) => chordNoteName(3, r+2, flat) + 'm' + '/' + chordNoteName(1, r+1, flat)},
   { pattern: 'x r+1 x r+2 r+1 r', rootStr: 5, fingers: 'x 2 x 4 3 1', barre: false, quality: 'hybrid', name: (r, flat) => chordNoteName(3, r+2, flat) + 'm' + '/' + chordNoteName(1, r+1, flat)},
-  { pattern: 'x x r r+1 r+2 r', rootStr: 4, fingers: 'x x 1 2 3 1', barre: true, quality: 'hybrid', name: (r, flat) => chordNoteName(4, r+2, flat) + 'm' + '/' + chordNoteName(2, r, flat)},
+  { pattern: 'x x r+1 r+2 r+3 r+1', rootStr: 4, fingers: 'x x 1 2 3 1', barre: true, quality: 'hybrid', name: (r, flat) => chordNoteName(4, r+3, flat) + 'm' + '/' + chordNoteName(2, r+1, flat)},
   // Cm/D
-  { pattern: 'r+2 x r+2 r r r', rootStr: 6, fingers: '3 x 4 1 1 1', barre: true, quality: 'hybrid', name: (r, flat) => chordNoteName(5, r, flat) + 'm' + '/' + chordNoteName(0, r+2, flat)},
+  { pattern: 'r+3 x r+3 r+1 r+1 r+1', rootStr: 6, fingers: '3 x 4 1 1 1', barre: true, quality: 'hybrid', name: (r, flat) => chordNoteName(5, r+1, flat) + 'm' + '/' + chordNoteName(0, r+3, flat)},
   { pattern: 'x r+2 r+2 r+2 r+1 x', rootStr: 5, fingers: 'x 2 3 4 1 x', barre: false, quality: 'hybrid', name: (r, flat) => chordNoteName(3, r+2, flat) + 'm' + '/' + chordNoteName(1, r+2, flat)},
   { pattern: 'x r+2 x r+2 r+1 r', rootStr: 5, fingers: 'x 3 x 4 2 1', barre: false, quality: 'hybrid', name: (r, flat) => chordNoteName(3, r+2, flat) + 'm' + '/' + chordNoteName(1, r+2, flat)},
   { pattern: 'x x r+1 r+1 r+2 r', rootStr: 4, fingers: 'x x 1 2 3 1', barre: false, quality: 'hybrid', name: (r, flat) => chordNoteName(4, r+2, flat) + 'm' + '/' + chordNoteName(2, r+1, flat)},
@@ -359,16 +360,16 @@ window.CHORD_PATTERN = [
   { pattern: 'r+2 x r+2 r+1 r+2 x', rootStr: 6, fingers: 'T x 2 1 3 x', barre: false, quality: 'hybrid', name: (r, flat) => chordNoteName(4, r+2, flat) + 'm' + '/' + chordNoteName(0, r+2, flat)},
   { pattern: 'r+2 x r+2 r+1 r+2 x', rootStr: 6, fingers: '2 x 3 1 4 x', barre: false, quality: 'hybrid', name: (r, flat) => chordNoteName(4, r+2, flat) + 'm' + '/' + chordNoteName(0, r+2, flat)},
   { pattern: 'r+2 x x r+1 r+2 r', rootStr: 6, fingers: '3 x x 2 4 1', barre: false, quality: 'hybrid', name: (r, flat) => chordNoteName(4, r+2, flat) + 'm' + '/' + chordNoteName(0, r+2, flat)},
-  { pattern: 'x r r+2 r r r', rootStr: 5, fingers: 'x 1 3 1 1 1', barre: true, quality: 'hybrid', name: (r, flat) => chordNoteName(5, r, flat) + 'm' + '/' + chordNoteName(1, r, flat)},
-  { pattern: 'x x r r+2 r+1 r', rootStr: 4, fingers: 'x x 1 3 2 1', barre: true, quality: 'hybrid', name: (r, flat) => chordNoteName(3, r+2, flat) + 'm' + '/' + chordNoteName(2, r, flat)},
+  { pattern: 'x r+1 r+3 r+1 r+1 r+1', rootStr: 5, fingers: 'x 1 3 1 1 1', barre: true, quality: 'hybrid', name: (r, flat) => chordNoteName(5, r+1, flat) + 'm' + '/' + chordNoteName(1, r+1, flat)},
+  { pattern: 'x x r+1 r+3 r+2 r+1', rootStr: 4, fingers: 'x x 1 3 2 1', barre: true, quality: 'hybrid', name: (r, flat) => chordNoteName(3, r+3, flat) + 'm' + '/' + chordNoteName(2, r+1, flat)},
   // 
 
   // ── 텐션 코드(미완성) ─────────────────────────────────────
   // CM7(9)
   { pattern: 'r+1 x r+2 r+2 r+1 r+3', rootStr: 6, fingers: 'T x 2 3 1 4', barre: false, quality: 'tension', name: (r, flat) => chordNoteName(0, r+1, flat) + 'M7' + '(9)'},
   { pattern: 'x r+1 r r+2 r+1 x', rootStr: 5, fingers: 'x 2 1 4 3 x', barre: false, quality: 'tension', name: (r, flat) => chordNoteName(1, r+1, flat) + 'M7' + '(9)'},
-  { pattern: 'x r r+2 r+1 r r', rootStr: 5, fingers: 'x 1 3 2 1 1', barre: true, quality: 'tension', name: (r, flat) => chordNoteName(1, r, flat) + 'M7' + '(9)'},
-  { pattern: 'x x r r+2 r+2 r', rootStr: 4, fingers: 'x x 1 3 4 1', barre: true, quality: 'tension', name: (r, flat) => chordNoteName(2, r, flat) + 'M7' + '(9)'},
+  { pattern: 'x r+1 r+3 r+2 r+1 r+1', rootStr: 5, fingers: 'x 1 3 2 1 1', barre: true, quality: 'tension', name: (r, flat) => chordNoteName(1, r+1, flat) + 'M7' + '(9)'},
+  { pattern: 'x x r+1 r+3 r+3 r+1', rootStr: 4, fingers: 'x x 1 3 4 1', barre: true, quality: 'tension', name: (r, flat) => chordNoteName(2, r+1, flat) + 'M7' + '(9)'},
   // CM7(#11)
   { pattern: 'r+1 x r+2 r+2 r x', rootStr: 6, fingers: 'T x 2 3 1 x', barre: false, quality: 'tension', name: (r, flat) => chordNoteName(0, r+1, flat) + 'M7' + '(#11)'},
   { pattern: 'x r+1 r+2 r+2 r+3 x', rootStr: 5, fingers: 'x 1 2 3 4 x', barre: false, quality: 'tension', name: (r, flat) => chordNoteName(1, r+1, flat) + 'M7' + '(#11)'},
@@ -378,27 +379,27 @@ window.CHORD_PATTERN = [
   { pattern: 'x r+1 x r+2 r+3 r+3', rootStr: 5, fingers: 'x 1 x 2 3 4', barre: false, quality: 'tension', name: (r, flat) => chordNoteName(1, r+1, flat) + 'M7' + '(13)'},
 
   // Cm7(9)
-  { pattern: 'r r+2 r r r r+2', rootStr: 6, fingers: '1 3 1 1 1 4', barre: true, quality: 'tension', name: (r, flat) => chordNoteName(0, r, flat) + 'm7' + '(9)'},
+  { pattern: 'r+1 r+3 r+1 r+1 r+1 r+3', rootStr: 6, fingers: '1 3 1 1 1 4', barre: true, quality: 'tension', name: (r, flat) => chordNoteName(0, r+1, flat) + 'm7' + '(9)'},
   { pattern: 'x r+2 r r+2 r+2 x', rootStr: 5, fingers: 'x 2 1 3 4 x', barre: false, quality: 'tension', name: (r, flat) => chordNoteName(1, r+2, flat) + 'm7' + '(9)'},
   { pattern: 'x x r+2 r r+3 r+2', rootStr: 4, fingers: 'x x 2 1 4 3', barre: false, quality: 'tension', name: (r, flat) => chordNoteName(2, r+2, flat) + 'm7' + '(9)'},
   // Cm7(11)
   { pattern: 'r+2 x r+2 r+2 r x', rootStr: 6, fingers: '2 x 3 4 1 x', barre: false, quality: 'tension', name: (r, flat) => chordNoteName(0, r+2, flat) + 'm7' + '(11)'},
-  { pattern: 'r+2 x r+2 r+2 r r', rootStr: 6, fingers: '2 x 3 4 1 1', barre: true, quality: 'tension', name: (r, flat) => chordNoteName(0, r+2, flat) + 'm7' + '(11)'},
+  { pattern: 'r+3 x r+3 r+3 r+1 r+1', rootStr: 6, fingers: '2 x 3 4 1 1', barre: true, quality: 'tension', name: (r, flat) => chordNoteName(0, r+3, flat) + 'm7' + '(11)'},
   { pattern: 'x r+2 x r+2 r+3 r', rootStr: 5, fingers: 'x 2 x 3 4 1', barre: false, quality: 'tension', name: (r, flat) => chordNoteName(1, r+2, flat) + 'm7' + '(11)'},
   // Cm7(13)
   { pattern: 'r+1 x r+1 r+1 r+3 x', rootStr: 6, fingers: '1 x 1 1 4 x', barre: true, quality: 'tension', name: (r, flat) => chordNoteName(0, r+1, flat) + 'm7' + '(13)'},
   { pattern: 'x r+1 x r+1 r+2 r+3', rootStr: 6, fingers: 'x 1 x 2 3 4', barre: false, quality: 'tension', name: (r, flat) => chordNoteName(1, r+1, flat) + 'm7' + '(13)'},
 
   // C7(b9)
-  { pattern: 'r x r r+1 r r+1', rootStr: 6, fingers: '1 x 1 2 1 3', barre: true, quality: 'tension', name: (r, flat) => chordNoteName(0, r, flat) + '7' + '(b9)'},
+  { pattern: 'r+1 x r+1 r+2 r+1 r+2', rootStr: 6, fingers: '1 x 1 2 1 3', barre: true, quality: 'tension', name: (r, flat) => chordNoteName(0, r+1, flat) + '7' + '(b9)'},
   { pattern: 'x r+2 r+1 r+2 r+1 x', rootStr: 5, fingers: 'x 2 1 3 1 x', barre: true, quality: 'tension', name: (r, flat) => chordNoteName(1, r+2, flat) + '7' + '(b9)'},
   { pattern: 'x r+2 r+1 r+2 r+1 x', rootStr: 5, fingers: 'x 3 2 4 1 x', barre: false, quality: 'tension', name: (r, flat) => chordNoteName(1, r+2, flat) + '7' + '(b9)'},
-  { pattern: 'x x r+1 r r+2 r', rootStr: 4, fingers: 'x x 2 1 3 1', barre: true, quality: 'tension', name: (r, flat) => chordNoteName(2, r+1, flat) + '7' + '(b9)'},
+  { pattern: 'x x r+2 r+1 r+3 r+1', rootStr: 4, fingers: 'x x 2 1 3 1', barre: true, quality: 'tension', name: (r, flat) => chordNoteName(2, r+2, flat) + '7' + '(b9)'},
   // C7(9)
   { pattern: 'r x r r+1 r r+2', rootStr: 6, fingers: 'T x 2 3 1 4', barre: false, quality: 'tension', name: (r, flat) => chordNoteName(0, r, flat) + '7' + '(9)'},
   { pattern: 'x r+1 r r+1 r+1 x', rootStr: 5, fingers: 'x 2 1 3 4 x', barre: false, quality: 'tension', name: (r, flat) => chordNoteName(1, r+1, flat) + '7' + '(9)'},
-  { pattern: 'x r r+2 r r r', rootStr: 5, fingers: 'x 1 3 1 1 1', barre: true, quality: 'tension', name: (r, flat) => chordNoteName(1, r, flat) + '7' + '(9)'},
-  { pattern: 'x x r r+2 r+1 r', rootStr: 4, fingers: 'x x 1 3 2 1', barre: true, quality: 'tension', name: (r, flat) => chordNoteName(2, r, flat) + '7' + '(9)'},
+  { pattern: 'x r+1 r+3 r+1 r+1 r+1', rootStr: 5, fingers: 'x 1 3 1 1 1', barre: true, quality: 'tension', name: (r, flat) => chordNoteName(1, r+1, flat) + '7' + '(9)'},
+  { pattern: 'x x r+1 r+3 r+2 r+1', rootStr: 4, fingers: 'x x 1 3 2 1', barre: true, quality: 'tension', name: (r, flat) => chordNoteName(2, r+1, flat) + '7' + '(9)'},
   { pattern: 'x x r+1 r r+2 r+1', rootStr: 4, fingers: 'x x 2 1 4 3', barre: false, quality: 'tension', name: (r, flat) => chordNoteName(2, r+1, flat) + '7' + '(9)'},
   // C7(#9)
   { pattern: 'r r+2 r r+1 r r+3', rootStr: 6, fingers: '1 3 1 2 1 4', barre: true, quality: 'tension', name: (r, flat) => chordNoteName(0, r, flat) + '7' + '(#9)'},
@@ -406,15 +407,15 @@ window.CHORD_PATTERN = [
   { pattern: 'x x r+1 r r+2 r+2', rootStr: 4, fingers: 'x x 2 1 3 4', barre: false, quality: 'tension', name: (r, flat) => chordNoteName(2, r+1, flat) + '7' + '(#9)'},
   // C7(#11)
   { pattern: 'r+1 x r+1 r+2 r x', rootStr: 6, fingers: 'T x 2 3 1 x', barre: false, quality: 'tension', name: (r, flat) => chordNoteName(0, r+1, flat) + '7' + '(#11)'},
-  { pattern: 'x r r+1 r r+2 x', rootStr: 5, fingers: 'x 1 2 1 3 x', barre: true, quality: 'tension', name: (r, flat) => chordNoteName(1, r, flat) + '7' + '(#11)'},
+  { pattern: 'x r+1 r+2 r+1 r+3 x', rootStr: 5, fingers: 'x 1 2 1 3 x', barre: true, quality: 'tension', name: (r, flat) => chordNoteName(1, r+1, flat) + '7' + '(#11)'},
   { pattern: 'x x r r+1 r+1 r+2', rootStr: 4, fingers: 'x x 1 2 3 4', barre: false, quality: 'tension', name: (r, flat) => chordNoteName(2, r, flat) + '7' + '(#11)'},
   // C7(b13)
   { pattern: 'r+1 x r+1 r+2 r+1 r+2', rootStr: 6, fingers: '1 x 1 2 1 3', barre: true, quality: 'tension', name: (r, flat) => chordNoteName(0, r+1, flat) + '7' + '(b13)'},
-  { pattern: 'x r r+2 r r+2 r+1', rootStr: 5, fingers: 'x 1 3 1 4 2', barre: true, quality: 'tension', name: (r, flat) => chordNoteName(1, r, flat) + '7' + '(b13)'},
-  { pattern: 'x r x r r+2 r+1', rootStr: 5, fingers: 'x 1 x 1 4 2', barre: true, quality: 'tension', name: (r, flat) => chordNoteName(1, r, flat) + '7' + '(b13)'},
+  { pattern: 'x r+1 r+3 r+1 r+3 r+2', rootStr: 5, fingers: 'x 1 3 1 4 2', barre: true, quality: 'tension', name: (r, flat) => chordNoteName(1, r+1, flat) + '7' + '(b13)'},
+  { pattern: 'x r+1 x r+1 r+3 r+2', rootStr: 5, fingers: 'x 1 x 1 4 2', barre: true, quality: 'tension', name: (r, flat) => chordNoteName(1, r+1, flat) + '7' + '(b13)'},
   // C7(13)
-  { pattern: 'r r+2 r r+1 r+2 r', rootStr: 6, fingers: '1 3 1 2 4 1', barre: true, quality: 'tension', name: (r, flat) => chordNoteName(0, r, flat) + '7' + '(13)'},
-  { pattern: 'x r x r r+2 r+2', rootStr: 5, fingers: 'x 1 x 1 3 4', barre: true, quality: 'tension', name: (r, flat) => chordNoteName(1, r, flat) + '7' + '(13)'},
+  { pattern: 'r+1 r+3 r+1 r+2 r+3 r+1', rootStr: 6, fingers: '1 3 1 2 4 1', barre: true, quality: 'tension', name: (r, flat) => chordNoteName(0, r+1, flat) + '7' + '(13)'},
+  { pattern: 'x r+1 x r+1 r+3 r+3', rootStr: 5, fingers: 'x 1 x 1 3 4', barre: true, quality: 'tension', name: (r, flat) => chordNoteName(1, r+1, flat) + '7' + '(13)'},
 
   // ──Drop 보이싱(미완성) ─────────────────────────────────────
 

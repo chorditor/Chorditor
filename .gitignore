@@ -79,3 +79,12 @@ proguard/
 freeline/
 freeline.py
 vcs.xml
+
+# ========================
+# 비밀키 (BigQuery 이관 스크립트용)
+# ========================
+.env
+.env.*
+gcp-service-account*.json
+.migration-tmp/
+logs/

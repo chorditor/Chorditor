@@ -5,9 +5,19 @@
 
 // ── 온보딩 관문 통과 → home.html(또는 보류된 푸시 딥링크)로 이동 ──
 // 여기서 세션 생존 마커를 세워야 이후 웜 진입이 온보딩을 건너뛴다.
+// 목적지가 home.html일 때만(푸시 딥링크가 있으면 그쪽이 우선) 오늘 데일리미션 게이트를
+// 아직 안 지났으면 daily-mission.html로 먼저 보냄 — dmGateLater()가 통과 시각을 기록.
 function goToHome() {
   _markSessionAlive();
-  window.location.replace(_consumePushTarget() || 'home.html');
+  const target = _consumePushTarget() || 'home.html';
+  if (target === 'home.html') {
+    const today = new Date().toISOString().slice(0, 10);
+    if (localStorage.getItem('chorditor_dm_cleared_date') !== today) {
+      window.location.replace('daily-mission.html');
+      return;
+    }
+  }
+  window.location.replace(target);
 }
 
 // ── 인앱 브라우저(임베디드 WebView) 감지 및 외부 브라우저 유도 ──
@@ -84,9 +94,10 @@ let _obData = { persona: null, guitar_experience: null, gender: null, birth_year
 // existing → 마지막 닉네임 step 완료 후 '시작하기' 화면 거쳐 home
 let _obFlow   = 'signup';
 let _obRouted = false; // 인증 유저 라우팅 1회 가드
+let _obReconsentOnly = false; // true면 동의 바텀시트가 step1/닉네임 없이 재동의 전용으로 뜬 것
 
 async function _startOnboardingSteps() {
-  // 페르소나 온보딩 노출 조건: DB subscriptions.persona 값이 존재하는지 여부.
+  // 페르소나 온보딩 노출 조건: DB user_persona_profile.persona 값이 존재하는지 여부(2026-08-31).
   // persona 있으면 완료 처리 → home / 없으면(기존·신규 무관, 계정 재생성 포함) 온보딩 표시.
   // localStorage 플래그에 의존하지 않음(계정 삭제 후 재로그인 시 stale 플래그로 스킵되던 버그 방지).
   // ?ob=1(테스트 강제 진입) 시엔 persona 존재 여부와 무관하게 항상 Step1부터 표시.
@@ -138,17 +149,10 @@ function obStep1Next() {
   document.getElementById('ob-consent-backdrop')?.classList.remove('hidden');
 }
 
-function obToggleTerms() {
-  const terms = document.getElementById('ob-consent-terms');
-  const icon  = document.getElementById('ob-consent-toggle-icon');
-  const isHidden = terms.classList.toggle('hidden');
-  icon.textContent = isHidden ? '▾' : '▴';
-}
-
 function obOnConsentCheck() {
-  const checkbox = document.getElementById('ob-consent-checkbox');
-  const btn      = document.getElementById('ob-consent-btn');
-  if (btn) btn.disabled = !checkbox?.checked;
+  const required = document.querySelectorAll('.ob-consent-required');
+  const btn = document.getElementById('ob-consent-btn');
+  if (btn) btn.disabled = ![...required].every(c => c.checked);
 }
 
 function obConsentAgree() {
@@ -161,7 +165,35 @@ function obConsentAgree() {
     backdrop?.classList.add('hidden');
     backdrop?.classList.remove('ob-consent-backdrop--closing');
   }, 280);
+  if (_obReconsentOnly) {
+    _saveReConsent().finally(goToHome);
+    return;
+  }
   _showStep('ob-step2', 'ob-step1');
+}
+
+// 재동의 전용 저장 — persona·닉네임 등 기존 값은 건드리지 않고 버전만 갱신
+async function _saveReConsent() {
+  try {
+    const { token, userId } = getStoredAuth();
+    if (!token || !userId) return;
+    await fetch(`${SUPABASE_URL}/rest/v1/subscriptions?on_conflict=user_id`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'apikey': SUPABASE_ANON,
+        'Authorization': `Bearer ${token}`,
+        'Prefer': 'resolution=merge-duplicates,return=minimal',
+      },
+      body: JSON.stringify({
+        user_id: userId,
+        terms_version: CURRENT_TERMS_VERSION,
+        consent_agreed_at: new Date().toISOString(),
+      }),
+    });
+  } catch (e) {
+    console.error('[Onboarding] 재동의 저장 실패:', e);
+  }
 }
 
 // FCM 푸시 권한 요청 + 토큰 등록 (채널 생성은 shared.js initPushNotifications 담당)
@@ -385,7 +417,7 @@ function _initYearPicker() {
   const ITEM_H    = 42;
   const PAD_H     = ITEM_H * 2; // 위아래 여백 (2칸)
   const START     = 1940;
-  const END       = new Date().getFullYear() - 10;
+  const END       = new Date().getFullYear() - 14; // 만 14세 미만 가입 방지(개인정보보호법 제22조의2) — 휠 자체에서 선택 불가하게 차단
   const DEFAULT   = 1995;
 
   // 위 여백
@@ -437,18 +469,36 @@ async function _saveOnboardingData() {
       },
       body: JSON.stringify({
         user_id:                  userId,
-        persona:                  _obData.persona,
         guitar_experience:        _obData.guitar_experience,
         gender:                   _obData.gender,
         birth_year:               _obData.birth_year,
         nickname:                 _obData.nickname,
         consent_agreed_at:        new Date().toISOString(),
         onboarding_completed_at:  new Date().toISOString(),
+        terms_version:            CURRENT_TERMS_VERSION,
       }),
     });
     if (!resp.ok) {
       const errBody = await resp.text();
       console.error('[Onboarding] subscriptions 저장 실패:', resp.status, errBody);
+    }
+    // persona는 subscriptions가 아니라 user_persona_profile이 유일한 소스(2026-08-31).
+    // checkNeedsOnboarding이 바로 다음에 이 테이블을 재조회하므로 fire-and-forget 아닌 await 필수
+    // (안 하면 라우팅이 아직 없는 row를 보고 다시 온보딩으로 튕길 수 있음).
+    if (_obData.persona) {
+      const ppResp = await fetch(`${SUPABASE_URL}/rest/v1/user_persona_profile?on_conflict=user_id`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'apikey': SUPABASE_ANON,
+          'Authorization': `Bearer ${token}`,
+          'Prefer': 'resolution=merge-duplicates,return=minimal',
+        },
+        body: JSON.stringify({ user_id: userId, persona: _obData.persona, computed_at: new Date().toISOString() }),
+      });
+      if (!ppResp.ok) {
+        console.error('[Onboarding] user_persona_profile 저장 실패:', ppResp.status, await ppResp.text());
+      }
     }
   } catch(e) {
     console.error('[Onboarding] subscriptions 저장 예외:', e);
@@ -487,6 +537,15 @@ async function _routeAuthedUser() {
     document.getElementById('onboarding-loading')?.classList.add('hidden');
     document.getElementById('onboarding-overlay')?.classList.add('hidden');
     _showStep('ob-step1');
+    return;
+  }
+  // persona는 있지만(온보딩 완료 유저) 이용약관·개인정보처리방침 재동의가 필요한 경우
+  // (광고식별자 등 신규 수집항목 추가, 2026-09) → 동의 바텀시트만 단독으로 띄운다.
+  if (token && userId && await checkNeedsReConsent(token, userId)) {
+    document.getElementById('onboarding-loading')?.classList.add('hidden');
+    document.getElementById('onboarding-overlay')?.classList.add('hidden');
+    _obReconsentOnly = true;
+    document.getElementById('ob-consent-backdrop')?.classList.remove('hidden');
     return;
   }
   // persona 있음 → 시작하기 welcome 표시

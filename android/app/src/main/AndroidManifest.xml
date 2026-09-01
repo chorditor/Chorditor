@@ -41,6 +41,11 @@
 
         </activity>
 
+        <!-- AdMob App ID — @capacitor-community/admob 필수 등록(2026-08-30, 데일리미션/승급시험 리워드 광고) -->
+        <meta-data
+            android:name="com.google.android.gms.ads.APPLICATION_ID"
+            android:value="ca-app-pub-3016297895973220~3915837424" />
+
         <!-- FCM 원격 푸시 알림 아이콘: 풀컬러 런처 아이콘 fallback 방지 (흰색 실루엣 전용 모노크롬 아이콘 지정) -->
         <meta-data
             android:name="com.google.firebase.messaging.default_notification_icon"
@@ -96,6 +101,4 @@
     <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" tools:node="remove"/>
     <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" tools:node="remove"/>
 
-    <!-- 광고 ID 미사용 (광고 없음). firebase-analytics가 자동 병합하는 AD_ID 제거 → Play Console "광고 ID: 아니요" -->
-    <uses-permission android:name="com.google.android.gms.permission.AD_ID" tools:node="remove"/>
 </manifest>

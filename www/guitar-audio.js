@@ -6,6 +6,10 @@
 
 const GuitarAudio = (() => {
 
+  // 스트로크 간격 상수 — 연주용(빠름, 노트/코드진행/퀴즈 등)과 샘플용(느림, 보이싱을
+  // 하나하나 들려줘야 하는 상황 — 데일리미션 튜토리얼 등)을 명확히 구분
+  const STRUM_INTERVAL_SAMPLE = 0.035;
+
   // 코드 보이싱 인터벌 (root MIDI 기준 반음 오프셋)
   const QUALITY_INTERVALS = {
     'M':    [0,  7, 12, 16, 19],
@@ -338,5 +342,5 @@ const GuitarAudio = (() => {
     _init();
   }
 
-  return { playChord, strumNotes, strumAt, strumAtCut, cutAt, playNote, stop, panic, ready, resume, syncContext, setOutputVolume };
+  return { playChord, strumNotes, strumAt, strumAtCut, cutAt, playNote, stop, panic, ready, resume, syncContext, setOutputVolume, STRUM_INTERVAL_SAMPLE };
 })();

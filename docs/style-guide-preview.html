@@ -1,0 +1,584 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Chorditor Style Guide (internal)</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css" />
+<link rel="stylesheet" href="../style.css" />
+<script src="https://unpkg.com/@phosphor-icons/web"></script>
+<style>
+  /* ── 이 가이드 페이지 전용 레이아웃 CSS (앱 스타일과 별개, style.css 토큰만 참조) ── */
+  body {
+    margin: 0;
+    padding: 40px 32px 120px;
+    background: var(--bg);
+    font-family: 'Pretendard', sans-serif;
+    color: var(--text-primary);
+    /* 앱 전역 style.css의 body{height:100dvh;overflow:hidden}(SPA 앱셸용)을 이 독립 페이지에서는
+       리셋 — 안 그러면 상하 스크롤이 막힘 */
+    height: auto;
+    overflow: visible;
+  }
+  /* 앱 전역 style.css의 *{user-select:none}(터치 오조작 방지용)도 이 독립 페이지에서는 리셋 —
+     텍스트 드래그 복사 가능하게 */
+  body, body * {
+    user-select: text;
+    -webkit-user-select: text;
+  }
+  .sg-h1 {
+    font-size: 28px;
+    font-weight: 700;
+    margin: 0 0 4px;
+  }
+  .sg-sub {
+    font-size: 14px;
+    color: var(--text-muted);
+    margin: 0 0 48px;
+  }
+  .sg-section {
+    margin-bottom: 120px;
+  }
+  .sg-section-title {
+    font-size: 24px;
+    font-weight: 800;
+    color: var(--text-primary);
+    margin: 0 0 24px;
+  }
+  .sg-group-title {
+    font-size: 15px;
+    font-weight: 600;
+    color: var(--text-secondary);
+    margin: 0 0 12px;
+  }
+
+  /* 뷰포트 테이블 */
+  .sg-vp-table {
+    width: 100%;
+    max-width: 720px;
+    border-collapse: collapse;
+    font-size: 13px;
+  }
+  .sg-vp-table th, .sg-vp-table td {
+    text-align: left;
+    padding: 10px 16px 10px 0;
+    border-bottom: 1px solid var(--border);
+  }
+  .sg-vp-table th {
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    color: var(--text-muted);
+  }
+  .sg-vp-table td {
+    color: var(--text-primary);
+  }
+  .sg-vp-table td:last-child {
+    color: var(--text-muted);
+    font-size: 12px;
+  }
+
+  /* 색상 스와치 */
+  .sg-swatch-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 16px;
+    margin-bottom: 32px;
+  }
+  .sg-swatch {
+    width: 96px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 6px;
+    cursor: pointer;
+  }
+  .sg-swatch-box {
+    width: 96px;
+    height: 96px;
+    border-radius: 12px;
+    border: 1px solid var(--border);
+  }
+  .sg-swatch-label {
+    font-size: 11px;
+    color: var(--text-secondary);
+    text-align: center;
+    word-break: break-all;
+  }
+
+  /* 폰트 스케일 */
+  .sg-font-row {
+    display: flex;
+    align-items: baseline;
+    gap: 16px;
+    padding: 10px 0;
+    border-bottom: 1px solid var(--border);
+    cursor: pointer;
+  }
+  .sg-font-token {
+    width: 160px;
+    flex-shrink: 0;
+    font-size: 12px;
+    color: var(--text-muted);
+  }
+  .sg-font-sample {
+    color: var(--text-primary);
+  }
+
+  /* 폰트 5단계 병렬 테이블 */
+  .sg-font-table-scroll { overflow-x: auto; }
+  .sg-font-table { min-width: 900px; }
+  .sg-font-table-row {
+    display: grid;
+    grid-template-columns: 160px repeat(5, max-content);
+    justify-content: start;
+    align-items: center;
+    gap: 32px;
+    border-bottom: 1px solid var(--border);
+    padding: 14px 0;
+  }
+  .sg-font-table-head {
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    color: var(--text-muted);
+    padding-bottom: 10px;
+    border-bottom: 2px solid var(--border);
+  }
+  .sg-font-table-tokencol {
+    font-size: 12px;
+    color: var(--text-muted);
+  }
+  .sg-font-table-row:not(.sg-font-table-head) .sg-font-table-tokencol {
+    color: var(--text-secondary);
+  }
+  .sg-font-table-cell {
+    color: var(--text-primary);
+    white-space: nowrap;
+    cursor: pointer;
+  }
+
+  /* cd-btn / cd-cardlist 공용: row(variant)×5단계(column) 테이블 — 폰트 테이블과 동일 패턴 */
+  .sg-row-table-scroll { overflow-x: auto; }
+  .sg-row-table-row {
+    display: grid;
+    grid-template-columns: 120px repeat(5, max-content);
+    justify-content: start;
+    align-items: center;
+    gap: 32px;
+    border-bottom: 1px solid var(--border);
+    padding: 14px 0;
+  }
+  .sg-row-table-head {
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    color: var(--text-muted);
+    padding-bottom: 10px;
+    border-bottom: 2px solid var(--border);
+  }
+  .sg-row-table-labelcol {
+    font-size: 12px;
+    color: var(--text-secondary);
+  }
+  .sg-row-table-row .cd-btn {
+    cursor: pointer;
+    font-family: 'Pretendard', sans-serif;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    border: none;
+  }
+  .sg-row-table-row .cd-cardlist-item {
+    list-style: none;
+    cursor: pointer;
+  }
+
+  /* cd-cardlist(비테이블) 데모용 여백 */
+  .sg-demo-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 16px;
+    align-items: center;
+  }
+  .sg-cardlist-demo {
+    max-width: 360px;
+  }
+
+  /* ── 툴팁 ── */
+  .sg-tooltip {
+    position: fixed;
+    z-index: 9999;
+    background: var(--text-primary);
+    color: var(--bg);
+    font-size: 12px;
+    line-height: 1.6;
+    padding: 10px 12px;
+    border-radius: 8px;
+    pointer-events: none;
+    white-space: pre;
+    opacity: 0;
+    transform: translateY(4px);
+    transition: opacity .12s, transform .12s;
+    box-shadow: 0 4px 16px rgba(0,0,0,0.25);
+  }
+  .sg-tooltip.show { opacity: 1; transform: translateY(0); }
+</style>
+</head>
+<body>
+
+  <h1 class="sg-h1">Chorditor Style Guide</h1>
+  <p class="sg-sub">내부 참고용 — docs/style-guide.md 토큰 실물 미리보기. 컴포넌트에 마우스를 올리면 실제 값이 뜸.</p>
+
+  <!-- ══════════════ 1. 색상 팔레트 ══════════════ -->
+  <section class="sg-section">
+    <h2 class="sg-section-title">색상 팔레트</h2>
+
+    <h3 class="sg-group-title">메인 색상 (차콜블랙 → 화이트)</h3>
+    <div class="sg-swatch-row">
+      <div class="sg-swatch" data-tip-name="--text-primary" data-tip-vars="--text-primary">
+        <div class="sg-swatch-box" style="background:var(--text-primary)"></div>
+        <span class="sg-swatch-label">--text-primary</span>
+      </div>
+      <div class="sg-swatch" data-tip-name="--text-secondary" data-tip-vars="--text-secondary">
+        <div class="sg-swatch-box" style="background:var(--text-secondary)"></div>
+        <span class="sg-swatch-label">--text-secondary</span>
+      </div>
+      <div class="sg-swatch" data-tip-name="--text-muted" data-tip-vars="--text-muted">
+        <div class="sg-swatch-box" style="background:var(--text-muted)"></div>
+        <span class="sg-swatch-label">--text-muted</span>
+      </div>
+      <div class="sg-swatch" data-tip-name="--border" data-tip-vars="--border">
+        <div class="sg-swatch-box" style="background:var(--border)"></div>
+        <span class="sg-swatch-label">--border</span>
+      </div>
+      <div class="sg-swatch" data-tip-name="--gray-light" data-tip-vars="--gray-light">
+        <div class="sg-swatch-box" style="background:var(--gray-light)"></div>
+        <span class="sg-swatch-label">--gray-light</span>
+      </div>
+      <div class="sg-swatch" data-tip-name="--bg" data-tip-vars="--bg">
+        <div class="sg-swatch-box" style="background:var(--bg)"></div>
+        <span class="sg-swatch-label">--bg</span>
+      </div>
+      <div class="sg-swatch" data-tip-name="--surface" data-tip-vars="--surface">
+        <div class="sg-swatch-box" style="background:var(--surface)"></div>
+        <span class="sg-swatch-label">--surface</span>
+      </div>
+    </div>
+
+    <h3 class="sg-group-title">기타 색상</h3>
+    <div class="sg-swatch-row">
+      <div class="sg-swatch" data-tip-name="--accent" data-tip-vars="--accent">
+        <div class="sg-swatch-box" style="background:var(--accent)"></div>
+        <span class="sg-swatch-label">--accent</span>
+      </div>
+      <div class="sg-swatch" data-tip-name="--blue" data-tip-vars="--blue">
+        <div class="sg-swatch-box" style="background:var(--blue)"></div>
+        <span class="sg-swatch-label">--blue</span>
+      </div>
+      <div class="sg-swatch" data-tip-name="--charcoal-blue" data-tip-vars="--charcoal-blue">
+        <div class="sg-swatch-box" style="background:var(--charcoal-blue)"></div>
+        <span class="sg-swatch-label">--charcoal-blue</span>
+      </div>
+      <div class="sg-swatch" data-tip-name="--icon-purple" data-tip-vars="--icon-purple">
+        <div class="sg-swatch-box" style="background:var(--icon-purple)"></div>
+        <span class="sg-swatch-label">--icon-purple</span>
+      </div>
+      <div class="sg-swatch" data-tip-name="--icon-green" data-tip-vars="--icon-green">
+        <div class="sg-swatch-box" style="background:var(--icon-green)"></div>
+        <span class="sg-swatch-label">--icon-green</span>
+      </div>
+      <div class="sg-swatch" data-tip-name="--icon-coral" data-tip-vars="--icon-coral">
+        <div class="sg-swatch-box" style="background:var(--icon-coral)"></div>
+        <span class="sg-swatch-label">--icon-coral</span>
+      </div>
+      <div class="sg-swatch" data-tip-name="--icon-blue" data-tip-vars="--icon-blue">
+        <div class="sg-swatch-box" style="background:var(--icon-blue)"></div>
+        <span class="sg-swatch-label">--icon-blue</span>
+      </div>
+      <div class="sg-swatch" data-tip-name="--icon-yellow" data-tip-vars="--icon-yellow">
+        <div class="sg-swatch-box" style="background:var(--icon-yellow)"></div>
+        <span class="sg-swatch-label">--icon-yellow</span>
+      </div>
+      <div class="sg-swatch" data-tip-name="--icon-pink" data-tip-vars="--icon-pink">
+        <div class="sg-swatch-box" style="background:var(--icon-pink)"></div>
+        <span class="sg-swatch-label">--icon-pink</span>
+      </div>
+    </div>
+
+    <h3 class="sg-group-title">파스텔 (따뜻함 → 차가움)</h3>
+    <div class="sg-swatch-row">
+      <div class="sg-swatch" data-tip-name="--pastel-red" data-tip-vars="--pastel-red">
+        <div class="sg-swatch-box" style="background:var(--pastel-red)"></div>
+        <span class="sg-swatch-label">--pastel-red</span>
+      </div>
+      <div class="sg-swatch" data-tip-name="--pastel-orange" data-tip-vars="--pastel-orange">
+        <div class="sg-swatch-box" style="background:var(--pastel-orange)"></div>
+        <span class="sg-swatch-label">--pastel-orange</span>
+      </div>
+      <div class="sg-swatch" data-tip-name="--pastel-yellow" data-tip-vars="--pastel-yellow">
+        <div class="sg-swatch-box" style="background:var(--pastel-yellow)"></div>
+        <span class="sg-swatch-label">--pastel-yellow</span>
+      </div>
+      <div class="sg-swatch" data-tip-name="--pastel-green" data-tip-vars="--pastel-green">
+        <div class="sg-swatch-box" style="background:var(--pastel-green)"></div>
+        <span class="sg-swatch-label">--pastel-green</span>
+      </div>
+      <div class="sg-swatch" data-tip-name="--pastel-blue" data-tip-vars="--pastel-blue">
+        <div class="sg-swatch-box" style="background:var(--pastel-blue)"></div>
+        <span class="sg-swatch-label">--pastel-blue</span>
+      </div>
+      <div class="sg-swatch" data-tip-name="--pastel-purple" data-tip-vars="--pastel-purple">
+        <div class="sg-swatch-box" style="background:var(--pastel-purple)"></div>
+        <span class="sg-swatch-label">--pastel-purple</span>
+      </div>
+    </div>
+  </section>
+
+  <!-- ══════════════ 1-2. 뷰포트 ══════════════ -->
+  <section class="sg-section">
+    <h2 class="sg-section-title">뷰포트</h2>
+
+    <h3 class="sg-group-title">5단계 표준 (§4/§5)</h3>
+    <table class="sg-vp-table">
+      <thead>
+        <tr><th>명칭</th><th>범위</th><th>그리드 컬럼</th><th>마진</th><th>거터</th></tr>
+      </thead>
+      <tbody>
+        <tr><td>모바일</td><td>360~480px</td><td>6</td><td>20px</td><td>16px</td></tr>
+        <tr><td>태블릿</td><td>481~768px</td><td>6</td><td>24px</td><td>24px</td></tr>
+        <tr><td>큰 태블릿</td><td>769~1079px</td><td>8</td><td>28px</td><td>24px</td></tr>
+        <tr><td>태블릿 가로/랩탑</td><td>1080~1439px</td><td>12</td><td>32px</td><td>24px</td></tr>
+        <tr><td>데스크탑</td><td>1440px~</td><td>12</td><td>32px</td><td>24px</td></tr>
+      </tbody>
+    </table>
+
+    <h3 class="sg-group-title" style="margin-top:28px;">Fold / Flip 특수기기</h3>
+    <p class="sg-sub" style="margin-bottom:16px;">별도 그리드값 없음 — 실제 폭이 위 5단계 중 어디에 해당하는지로 자동 결정됨.</p>
+    <table class="sg-vp-table">
+      <thead>
+        <tr><th>명칭</th><th>실측 해상도</th><th>적용 티어</th><th>비고</th></tr>
+      </thead>
+      <tbody>
+        <tr><td>Z Flip 펼침</td><td>360~412 × (22:9)</td><td>모바일</td><td>세로로 긴 일반 폰 형태</td></tr>
+        <tr><td>Z Flip 접힘(커버스크린)</td><td>360~412 × 412~500</td><td>모바일</td><td>정사각형에 가까운 저높이</td></tr>
+        <tr><td>Z Flip 분할(멀티윈도우)</td><td>440 × 360</td><td>모바일 (강제)</td><td>440~500 폭이 481 경계를 걸쳐서 그리드값 새어들어오는 걸 막으려 모바일값(20/16) 명시 고정</td></tr>
+        <tr><td>Fold 펼침(세로힌지)</td><td>704 × 933</td><td>태블릿</td><td>일반 Fold, 세로로 긴 방향</td></tr>
+        <tr><td>Fold8 펼침(세로힌지)</td><td>933 × 704</td><td>큰 태블릿</td><td>일반 Fold와 가로/세로 정반대라 혼동 주의</td></tr>
+        <tr><td>Fold8 접힘</td><td>412 × 658</td><td>모바일</td><td></td></tr>
+      </tbody>
+    </table>
+  </section>
+
+  <!-- ══════════════ 2. 텍스트 크기 및 두께 ══════════════ -->
+  <section class="sg-section">
+    <h2 class="sg-section-title">텍스트</h2>
+    <p class="sg-sub" style="margin-bottom:20px;">5단계(§4 브레이크포인트) 값을 실제 뷰포트 폭과 무관하게 병렬로 나열 — 셀에 마우스를 올리면 그 구간의 px 값이 뜸.</p>
+
+    <div class="sg-font-table-scroll">
+      <div class="sg-font-table">
+        <div class="sg-font-table-row sg-font-table-head">
+          <div class="sg-font-table-tokencol"></div>
+          <div>모바일</div><div>태블릿</div><div>큰태블릿</div><div>랩탑</div><div>데스크탑</div>
+        </div>
+        <!-- 각 행: 토큰명 + 5단계 셀. px 값은 style.css 실측(§2) 그대로 하드코딩 -->
+      </div>
+    </div>
+  </section>
+
+  <!-- ══════════════ 3. cd-btn ══════════════ -->
+  <section class="sg-section">
+    <h2 class="sg-section-title">버튼</h2>
+    <p class="sg-sub" style="margin-bottom:20px;">variant(charcoal/blue/gray/red)별 행, 5단계는 열로 배치 — 리터럴 px 값(§12 실측) 사용.</p>
+
+    <div class="sg-row-table-scroll">
+      <div class="sg-btn-table">
+        <div class="sg-row-table-row sg-row-table-head">
+          <div class="sg-row-table-labelcol"></div>
+          <div>모바일</div><div>태블릿</div><div>큰태블릿</div><div>랩탑</div><div>데스크탑</div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ══════════════ 4. cd-card_list ══════════════ -->
+  <section class="sg-section">
+    <h2 class="sg-section-title">카드 리스트</h2>
+    <p class="sg-sub" style="margin-bottom:20px;">variant(기본/--icon)별 행, 5단계는 열로 배치 — 리터럴 px 값(§13 실측) 사용.</p>
+
+    <div class="sg-row-table-scroll">
+      <div class="sg-cardlist-table">
+        <div class="sg-row-table-row sg-row-table-head">
+          <div class="sg-row-table-labelcol"></div>
+          <div>모바일</div><div>태블릿</div><div>큰태블릿</div><div>랩탑</div><div>데스크탑</div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <div class="sg-tooltip" id="sg-tooltip"></div>
+
+  <script>
+    // 폰트 5단계 테이블 데이터 — style.css §2 실측값(1440px까지 누적 캐스케이드) 그대로 하드코딩.
+    // 실제 뷰포트 폭과 무관하게 5단계를 동시에 병렬로 보여줘야 해서 var()가 아닌 리터럴 px 사용.
+    const FONT_TIERS = ['모바일', '태블릿', '큰태블릿', '랩탑', '데스크탑'];
+    const FONT_ROWS = [
+      { token: '--font-caption',      weight: 400, sample: '캡션 텍스트',       sizes: [11, 11, 12, 12, 12] },
+      { token: '--font-label-sm',     weight: 400, sample: '라벨',             sizes: [12, 12, 13, 13, 13] },
+      { token: '--font-label-lg',     weight: 400, sample: '라벨',             sizes: [14, 14, 14, 16, 16] },
+      { token: '--font-body-sm',      weight: 400, sample: '본문 내용 텍스트', sizes: [13, 13, 14, 14, 14] },
+      { token: '--font-body',         weight: 400, sample: '본문 내용 텍스트', sizes: [16, 16, 16, 17, 17] },
+      { token: '--font-body-bold',    weight: 600, sample: '본문 내용 텍스트', sizes: [16, 16, 16, 17, 17] },
+      { token: '--font-title-sm',     weight: 600, sample: '제목/타이틀',      sizes: [16, 18, 18, 18, 18] },
+      { token: '--font-title',        weight: 600, sample: '제목/타이틀',      sizes: [18, 20, 20, 22, 22] },
+      { token: '--font-title-lg',     weight: 600, sample: '제목/타이틀',      sizes: [20, 22, 24, 24, 26] },
+      { token: '--font-headline-sm',  weight: 800, sample: '헤드라인',         sizes: [24, 26, 28, 32, 36] },
+      { token: '--font-headline',     weight: 800, sample: '헤드라인',         sizes: [28, 30, 32, 36, 40] },
+      { token: '--font-display-sm',   weight: 600, sample: '88',              sizes: [32, 34, 36, 36, 36] },
+      { token: '--font-display',      weight: 600, sample: '88',              sizes: [40, 44, 48, 48, 56] },
+    ];
+    const table = document.querySelector('.sg-font-table');
+    FONT_ROWS.forEach(row => {
+      const rowEl = document.createElement('div');
+      rowEl.className = 'sg-font-table-row';
+      const tokenCol = document.createElement('div');
+      tokenCol.className = 'sg-font-table-tokencol';
+      tokenCol.textContent = row.token;
+      rowEl.appendChild(tokenCol);
+      row.sizes.forEach((px, i) => {
+        const cell = document.createElement('div');
+        cell.className = 'sg-font-table-cell';
+        cell.style.fontSize = px + 'px';
+        cell.style.fontWeight = row.weight;
+        cell.textContent = row.sample;
+        cell.dataset.tipText = `${row.token} (${FONT_TIERS[i]})\nfont-size: ${px}px\nfont-weight: ${row.weight}`;
+        rowEl.appendChild(cell);
+      });
+      table.appendChild(rowEl);
+    });
+
+    // cd-btn 5단계×variant 테이블 — §12 실측값 리터럴 하드코딩
+    const BTN_TIERS = ['모바일', '태블릿', '큰태블릿', '랩탑', '데스크탑'];
+    const BTN_SIZE = {
+      height:  [44, 46, 48, 50, 52],
+      width:   [96, 100, 104, 108, 112],
+      padding: [20, 20, 24, 24, 28],
+      font:    [15, 15, 16, 16, 16],
+      radius:  [8, 10, 12, 14, 16],
+    };
+    const BTN_VARIANTS = [
+      { cls: 'cd-btn--charcoal', label: 'charcoal' },
+      { cls: 'cd-btn--blue',     label: 'blue' },
+      { cls: 'cd-btn--gray',     label: 'gray' },
+      { cls: 'cd-btn--red',      label: 'red' },
+    ];
+    const btnTable = document.querySelector('.sg-btn-table');
+    BTN_VARIANTS.forEach(v => {
+      const rowEl = document.createElement('div');
+      rowEl.className = 'sg-row-table-row';
+      const labelCol = document.createElement('div');
+      labelCol.className = 'sg-row-table-labelcol';
+      labelCol.textContent = v.label;
+      rowEl.appendChild(labelCol);
+      BTN_TIERS.forEach((tierName, i) => {
+        const btn = document.createElement('button');
+        btn.className = 'cd-btn ' + v.cls;
+        btn.textContent = '버튼';
+        btn.style.height = BTN_SIZE.height[i] + 'px';
+        btn.style.width = BTN_SIZE.width[i] + 'px';
+        btn.style.paddingInline = BTN_SIZE.padding[i] + 'px';
+        btn.style.fontSize = BTN_SIZE.font[i] + 'px';
+        btn.style.borderRadius = BTN_SIZE.radius[i] + 'px';
+        btn.dataset.tipText = `${v.cls} (${tierName})\nheight: ${BTN_SIZE.height[i]}px\nwidth: ${BTN_SIZE.width[i]}px\npadding-inline: ${BTN_SIZE.padding[i]}px\nfont-size: ${BTN_SIZE.font[i]}px\nradius: ${BTN_SIZE.radius[i]}px`;
+        rowEl.appendChild(btn);
+      });
+      btnTable.appendChild(rowEl);
+    });
+
+    // cd-cardlist 5단계×variant 테이블 — §13 실측값 리터럴 하드코딩
+    const CL_TIERS = ['모바일', '태블릿', '큰태블릿', '랩탑', '데스크탑'];
+    const CL_SIZE = {
+      height:  [56, 64, 72, 80, 88],
+      padding: [16, 16, 20, 20, 24],
+      font:    [16, 18, 20, 22, 24],
+      icon:    [24, 26, 28, 30, 32],
+      radius:  [8, 10, 12, 14, 16],
+    };
+    const clTable = document.querySelector('.sg-cardlist-table');
+
+    // 기본(텍스트만) 행
+    const baseRow = document.createElement('div');
+    baseRow.className = 'sg-row-table-row';
+    const baseLabelCol = document.createElement('div');
+    baseLabelCol.className = 'sg-row-table-labelcol';
+    baseLabelCol.textContent = '기본';
+    baseRow.appendChild(baseLabelCol);
+    CL_TIERS.forEach((tierName, i) => {
+      const base = document.createElement('li');
+      base.className = 'cd-cardlist-item';
+      base.style.height = CL_SIZE.height[i] + 'px';
+      base.style.paddingInline = CL_SIZE.padding[i] + 'px';
+      base.style.borderRadius = CL_SIZE.radius[i] + 'px';
+      const baseSpan = document.createElement('span');
+      baseSpan.style.fontSize = CL_SIZE.font[i] + 'px';
+      baseSpan.style.fontWeight = 600;
+      baseSpan.textContent = '훈련 항목';
+      base.appendChild(baseSpan);
+      base.dataset.tipText = `cd-cardlist-item (기본, ${tierName})\nheight: ${CL_SIZE.height[i]}px\npadding-inline: ${CL_SIZE.padding[i]}px\nfont-size: ${CL_SIZE.font[i]}px\nradius: ${CL_SIZE.radius[i]}px`;
+      baseRow.appendChild(base);
+    });
+    clTable.appendChild(baseRow);
+
+    // --icon variant 행
+    const iconRow = document.createElement('div');
+    iconRow.className = 'sg-row-table-row';
+    const iconLabelCol = document.createElement('div');
+    iconLabelCol.className = 'sg-row-table-labelcol';
+    iconLabelCol.textContent = '--icon';
+    iconRow.appendChild(iconLabelCol);
+    CL_TIERS.forEach((tierName, i) => {
+      const iconItem = document.createElement('li');
+      iconItem.className = 'cd-cardlist-item cd-cardlist-item--icon';
+      iconItem.style.height = CL_SIZE.height[i] + 'px';
+      iconItem.style.paddingInline = CL_SIZE.padding[i] + 'px';
+      iconItem.style.borderRadius = CL_SIZE.radius[i] + 'px';
+      const iconEl = document.createElement('i');
+      iconEl.className = 'ph-fill ph-grid-nine';
+      iconEl.style.fontSize = CL_SIZE.icon[i] + 'px';
+      const iconSpan = document.createElement('span');
+      iconSpan.style.fontSize = CL_SIZE.font[i] + 'px';
+      iconSpan.style.fontWeight = 600;
+      iconSpan.textContent = '코드맞추기';
+      iconItem.appendChild(iconEl);
+      iconItem.appendChild(iconSpan);
+      iconItem.dataset.tipText = `cd-cardlist-item--icon (${tierName})\nheight: ${CL_SIZE.height[i]}px\npadding-inline: ${CL_SIZE.padding[i]}px\nfont-size: ${CL_SIZE.font[i]}px\nicon-size: ${CL_SIZE.icon[i]}px\nradius: ${CL_SIZE.radius[i]}px`;
+      iconRow.appendChild(iconItem);
+    });
+    clTable.appendChild(iconRow);
+
+    // 호버 툴팁 — data-tip-text(리터럴 문자열) 우선, 없으면 data-tip-vars를 getComputedStyle로
+    // 실시간 읽어서 표시(뷰포트 리사이즈로 토큰값이 바뀌어도 항상 실제값 그대로 뜸)
+    const tip = document.getElementById('sg-tooltip');
+    document.querySelectorAll('[data-tip-vars], [data-tip-text]').forEach(el => {
+      el.addEventListener('mouseenter', () => {
+        if (el.dataset.tipText) {
+          tip.textContent = el.dataset.tipText;
+        } else {
+          const cs = getComputedStyle(el);
+          const name = el.dataset.tipName || '';
+          const lines = el.dataset.tipVars.split(',').map(v => `${v}: ${cs.getPropertyValue(v).trim()}`);
+          tip.textContent = (name ? name + '\n' : '') + lines.join('\n');
+        }
+        tip.classList.add('show');
+      });
+      el.addEventListener('mousemove', (e) => {
+        tip.style.left = (e.clientX + 16) + 'px';
+        tip.style.top = (e.clientY + 16) + 'px';
+      });
+      el.addEventListener('mouseleave', () => {
+        tip.classList.remove('show');
+      });
+    });
+  </script>
+
+</body>
+</html>

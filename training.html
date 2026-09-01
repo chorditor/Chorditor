@@ -23,27 +23,27 @@
     <!-- ── 메인 콘텐츠 ── -->
     <div class="main-content" id="main-content">
 
-      <!-- ── 뒤로가기 전용 ── -->
+      <!-- ── 뒤로가기 + 피크바 ── -->
       <div class="top-bar">
         <button id="back-btn" class="icon-btn" onpointerup="closeTrainingPage()">
           <i data-lucide="chevron-left"></i>
         </button>
+        <div class="topbar-currency" id="topbar-currency" style="margin-left:auto;">
+          <div class="currency-item currency-item--clickable" onclick="openPeakboxModal()">
+            <span class="currency-count" id="currency-peakbox-count">0</span>
+            <div class="currency-icon-box"><img src="image/gift.png" alt=""></div>
+          </div>
+          <div class="currency-item currency-item--clickable" onclick="openPeakTimerPopup(event)">
+            <span class="currency-count" id="currency-peak-count">30/30</span>
+            <div class="currency-icon-box"><img src="image/peak.svg" alt=""></div>
+          </div>
+        </div>
       </div>
       <div class="training-scroll">
 
-        <!-- 0. 타이틀 & 피크바 -->
+        <!-- 0. 타이틀 -->
         <div class="training-title-row">
           <span class="training-page-title">훈련소</span>
-          <div class="topbar-currency" id="topbar-currency">
-            <div class="currency-item currency-item--clickable" onclick="openPeakboxModal()">
-              <span class="currency-count" id="currency-peakbox-count">0</span>
-              <div class="currency-icon-box"><img src="image/gift.png" alt=""></div>
-            </div>
-            <div class="currency-item currency-item--clickable" onclick="openPeakTimerPopup(event)">
-              <span class="currency-count" id="currency-peak-count">30/30</span>
-              <div class="currency-icon-box"><img src="image/peak.svg" alt=""></div>
-            </div>
-          </div>
         </div>
 
         <!-- 1. 통계 섹션 -->
@@ -55,12 +55,10 @@
               <span class="training-stat-value" id="stat-streak">0</span>
               <span class="training-stat-label">연속 기록</span>
             </div>
-            <div class="training-stat-divider"></div>
             <div class="training-stat-card">
               <span class="training-stat-value" id="stat-time">—</span>
               <span class="training-stat-label">훈련 시간</span>
             </div>
-            <div class="training-stat-divider"></div>
             <div class="training-stat-card">
               <span class="training-stat-value" id="stat-total">0</span>
               <span class="training-stat-label">훈련 완료</span>

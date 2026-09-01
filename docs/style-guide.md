@@ -19,6 +19,7 @@
 --bg: #FAFAF9;
 --surface: #ffffff;
 --border: #d9d4cc;
+--gray-light: #ECECEA; /* 2026-08-24 신규 — --border보다 연한 회색 */
 --text-primary: #242729;
 --text-secondary: #6b6560;
 --text-muted: #a09b95;
@@ -32,6 +33,15 @@
 --icon-blue:   #4f7cff;
 --icon-yellow: #E8C000;
 --icon-pink:   #C94B7A;
+
+/* 파스텔 팔레트 (2026-08-24 신규) — 카드리스트 등 배경색 전용.
+   따뜻한 계열(red/orange/yellow)과 차가운 계열(green/blue/purple) 균형 배치 */
+--pastel-red:    #FCE9E7;
+--pastel-orange: #FDEEE1;
+--pastel-yellow: #FDF8E3;
+--pastel-green:  #EBF5EC;
+--pastel-blue:   #E9F1FD;
+--pastel-purple: #EFEAFA;
 ```
 
 ## 2. 폰트 파운데이션 토큰 (2026-08-22 5단계 확정)
@@ -57,28 +67,36 @@ Material 3 / iOS HIG 타입스케일을 앵커로 삼아 **Caption → Label →
 | Title | `--font-title-sm` | 작은 카드제목(`hdb-label`, 프로필 카드 제목) | 16 | 18 | 18 | 18 | 18 |
 | Title | `--font-title` | 섹션 제목(홈블럭 타이틀, 배너 타이틀) | 18 | 20 | 20 | 22 | 22 |
 | Title | `--font-title-lg` | 큰 섹션제목(카드 헤더, 모달 타이틀) | 20 | 22 | 24 | 24 | 26 |
-| Headline | `--font-headline-sm` | 서브페이지 타이틀(뒤로가기 옆 텍스트) | 22 | 24 | 24 | 26 | 28 |
-| Headline | `--font-headline` | 메인 페이지타이틀, 온보딩 헤드라인 | 24 | 28 | 28 | 30 | 32 |
+| Headline | `--font-headline-sm` | 서브페이지 타이틀(뒤로가기 옆 텍스트) | 24 | 26 | 28 | 32 | 36 |
+| Headline | `--font-headline` | 메인 페이지타이틀, 온보딩 헤드라인 | 28 | 30 | 32 | 36 | 40 |
 | Display | `--font-display-sm` | 중간 강조숫자(레벨 숫자, 통계카드 큰값) | 32 | 34 | 36 | 36 | 36 |
 | Display | `--font-display` | 초대형 숫자/타이머(스톱워치, 대형강조) | 40 | 44 | 48 | 48 | 56 |
 
 계층 감(작음→큼): **Caption(메타정보) → Label(버튼·뱃지) → Body(설명문) → Title(제목류 3단계) →
 Headline(페이지타이틀) → Display(초대형 숫자)**. 추가 세분화 여지 있음 — 실제 적용하면서 빈 계층 발견 시 추가.
 
-`style.css` 구현: `:root` 기본값 + `@media(min-width:481/769/1080/1440px)` 4단 오버라이드
+`style.css` 구현: `:root` 기본값 + `@media(min-width:481/769/1080/1600px)` 4단 오버라이드
 (값이 안 바뀌는 토큰은 해당 구간에서 재선언하지 않음).
 
-### 2-1. 폰트 두께 토큰 (2026-08-22 확정)
+### 2-1. 폰트 두께 토큰 (2026-08-22 확정, 2026-08-24 `--weight-headline` 분리)
 
-규칙: 본문류는 일반, 타이틀류는 세미볼드, 볼드는 특수 강조에만(토큰화 안 함, 개별 선언).
+규칙: 본문류는 일반, Title/Display는 세미볼드, Headline은 더 진하게(전용 토큰), 볼드는
+특수 강조에만(토큰화 안 함, 개별 선언).
 
 | 토큰 | 값 | 적용 카테고리 |
 |---|---|---|
 | `--weight-regular` | 400 | Caption, Label-sm, Label-lg, Body-sm, Body |
-| `--weight-semibold` | 600 | Title-sm, Title, Title-lg, Headline-sm, Headline, Display-sm, Display |
+| `--weight-semibold` | 600 | Title-sm, Title, Title-lg, Display-sm, Display |
+| `--weight-headline` | 800 | Headline-sm, Headline |
 | `--weight-bold` | 700 | (토큰 아님) 특수 강조 지점에만 개별 지정 |
+| `--font-body-bold` | 600 | Body 크기 그대로, 두께만 세미볼드로 강조하고 싶을 때(2026-08-24 신규) |
 
 뷰포트 단계와 무관하게 고정값 — 두께는 크기와 달리 반응형으로 바꾸지 않는다.
+
+`--weight-headline`은 원래 Headline도 `--weight-semibold`(600)를 같이 썼으나, daily-mission
+게이트 타이틀이 "헤드라인인데 얇다"는 피드백으로 분리 — Headline만 800으로 더 진하게.
+기존에 Headline 카테고리를 쓰던 다른 곳(있다면)도 이 토큰으로 자동 승격됨(전역 토큰 변경이라
+표 갱신만으로 전부 반영).
 
 ## 3. 여백(spacing) 스케일 — 4px 배수 체계
 
@@ -108,8 +126,8 @@ Headline(페이지타이틀) → Display(초대형 숫자)**. 추가 세분화 �
 | 모바일 | 360~480px |
 | 태블릿 | 481~768px |
 | 큰 태블릿 | 769~1079px |
-| 태블릿 가로/랩탑 | 1080~1439px |
-| 데스크탑 | 1440px~ |
+| 태블릿 가로/랩탑 | 1080~1599px |
+| 데스크탑 | 1600px~ |
 
 **하한 360px 확정.** 320px대 기기는 실질적으로 유통 안 됨. Play Console은 스크린 폭 기준 기기 차단 기능이 없고 개별 기종 수동 제외는 유지보수 부담이 커서, 스토어 단에서 막지 않고 360px 미만은 CSS가 자연 열화(graceful degrade)하도록만 둔다.
 
@@ -137,8 +155,8 @@ Fold/Fold8/Flip 계열은 별도 (`fold_hinge_orientation_naming` 메모리 참�
 | 모바일 | 360~480px | 6 |
 | 태블릿 | 481~768px | 6 |
 | 큰 태블릿 | 769~1079px | 8 |
-| 태블릿 가로/랩탑 | 1080~1439px | 12 |
-| 데스크탑 | 1440px~ | 12 |
+| 태블릿 가로/랩탑 | 1080~1599px | 12 |
+| 데스크탑 | 1600px~ | 12 |
 
 컴포넌트는 해당 티어 컬럼 수 중 N칸을 차지하는 식으로 배치. 큰 태블릿(8컬럼)은 태블릿가로/랩탑·데스크탑(12컬럼)
 기준 배치를 그대로 못 쓰므로, 이 구간 컴포넌트는 8칸 기준으로 새로 배치값을 잡아야 함.
@@ -175,6 +193,30 @@ Fold/Fold8/Flip 계열은 별도 (`fold_hinge_orientation_naming` 메모리 참�
 
 **그리드 시스템 4요소(컨테이너/컬럼/거터/마진) 전부 확정.**
 
+### 5-1. "그리드에 맞춰줘" 지시 시 작업 순서 (2026-08-24 확정, daily-mission 게이트 작업 사례)
+
+새 컴포넌트를 "그리드 컬럼 꽉 채우는 너비로" 맞추라는 지시를 받으면 아래 순서로 처리한다.
+
+1. **폭 제어는 그 컴포넌트 전용 스코프 한 곳에만 둔다.** 고정 px 패딩/마진을
+   `padding-left/right: var(--grid-margin)`으로 교체하되, 공용 클래스(`.ob-main` 등 여러
+   페이지가 같이 쓰는 클래스)를 직접 고치지 말고 `#컴포넌트id .공용클래스` 식으로 스코프를
+   좁혀서 덮어쓴다 (§6 "기존 페이지 안 건드림" 원칙과 동일 이유).
+2. **데스크탑 캡은 `--grid-container-max` + `margin-inline:auto`로.** 1264px 캡을 넘는 폭에서
+   중앙정렬되도록 이 토큰을 그대로 재사용 — 새 캡값 만들지 않는다.
+3. **그 컴포넌트가 물려받는 다른 클래스에 폭 관련 규칙이 이미 있는지 반드시 먼저 확인한다.**
+   (예: 온보딩 마크업을 재사용하면 `.onboarding-overlay`/`.ob-overlay--step`처럼 폭을 좁히는
+   기존 규칙이 같이 딸려온다.) 1번에서 잡은 폭 제어와 겹치면 **이중 인셋**이 발생해서 의도한
+   컬럼보다 더 안쪽에서 시작하는 버그가 남 — grep으로 그 클래스명이 style.css에 폭(`max-width`/
+   `margin`/`padding`) 관련해 몇 군데서 더 정의되는지 전수 확인 후, 이 컴포넌트에 불필요한
+   규칙은 `#컴포넌트id.클래스명 { ... !important }` 식으로 무효화(ID 특이도로 확실히 이김).
+4. **`--grid-margin`/`--grid-cols` 등 토큰이 실제 각 구간 경계와 일치하는지 확인한다.** 그리드
+   5단계 표(§4)가 갱신된 뒤에도 예전 경계값(예: 786px)이 남아있는 컴포넌트별 미디어쿼리가
+   있을 수 있음 — 폭 그대로 베끼지 말고 실측(§4 경계값 기준)으로 재검증.
+5. **컬럼 수가 바뀌는 구간(예: 8→12컬럼)에서 "N칸 중 M칸 좁힘" 같은 비율 공식을 그대로
+   복사하지 않는다.** 그 구간의 실제 `--grid-cols` 값에 맞게 비율을 다시 계산(정수로 떨어지는
+   가장 가까운 값 채택) — 안 그러면 컬럼 수가 다른 구간에서 폭 계산이 전체폭을 넘어버림
+   (768~1079 8컬럼 구간에 12컬럼용 "8/12칸" 공식을 그대로 썼다가 발생했던 실제 버그 사례).
+
 ## 6. 적용 원칙
 
 - **기존 페이지는 지금 건드리지 않는다.** 이 문서는 신규 작업 + 향후 리팩터링 기준.
@@ -190,7 +232,7 @@ Fold/Fold8/Flip 계열은 별도 (`fold_hinge_orientation_naming` 메모리 참�
 아이콘 크기 기준으로 박스 크기를 역산하는 바텀업 방식. 모바일/태블릿(작음·와이드)/데스크탑
 3티어로 나눌 예정 — 데스크탑만 확정, 나머지는 추후 논의.
 
-### 데스크탑(1440px~) — 확정
+### 데스크탑(1600px~) — 확정
 
 | 요소 | 값 |
 |---|---|
@@ -218,8 +260,8 @@ Fold/Fold8/Flip 계열은 별도 (`fold_hinge_orientation_naming` 메모리 참�
 | 구간 | 원 크기 | 내부 아이콘(svg) | 비고 |
 |---|---|---|---|
 | ~768px (모바일+태블릿) | `clamp(26px, round(nearest, calc(100vw * 28 / 412), 1px), 28px)` | `clamp(15px, round(nearest, calc(100vw * 16 / 412), 1px), 16px)` | 412px 뷰포트에서 정확히 28px/16px로 수렴(vw% 반올림 오차 방지 위해 calc 나눗셈 사용), `round()`로 정수 px 스냅해 서브픽셀 흐림 방지(단 `@supports`로 감싸 구형 크로미움 폴백 처리 — round() 미지원 시 커스텀 프로퍼티 전체가 무효화되는 걸 막음), 그 아래는 최소 26px까지 축소 |
-| 769~1439px (큰 태블릿+태블릿가로/랩탑) | `32px` (고정) | `18px` (고정) | Material medium(40dp 터치타겟) 참고, 기존 비율(16/28≈57%) 유지해 18px |
-| 1440px~ (데스크탑) | 미정 | 미정 | 다음 논의 |
+| 769~1599px (큰 태블릿+태블릿가로/랩탑) | `32px` (고정) | `18px` (고정) | Material medium(40dp 터치타겟) 참고, 기존 비율(16/28≈57%) 유지해 18px |
+| 1600px~ (데스크탑) | 미정 | 미정 | 다음 논의 |
 
 `--icon-circle-gap`(6px, ~768px 기준, 그 이상은 아직 미정)은 **원형 버튼 2개 이상을 가로로
 묶은 그룹**의 내부 간격 토큰 — `.project-title-btns`, `.project-header-row1-right`,
@@ -310,7 +352,7 @@ padding을 0으로 없애도 아이콘 자체 시각 중심이 약간 안쪽으�
 전 페이지 공통 레이아웃을 두 계층으로 나눈다. 접두어로 계층을 구분: `app-*`(항상 존재하는 바깥셸,
 데스크탑 전용) / `page-*`(전 플랫폼 공통, 페이지마다 반복되는 안쪽셸).
 
-**바깥셸 (`app-*`, 데스크탑 1440px~ 전용, 항상 존재)**
+**바깥셸 (`app-*`, 데스크탑 1600px~ 전용, 항상 존재)**
 - `.app-topbar` — 로고+브랜드+버전 탑바
 - `.app-sidebar` — 좌측 사이드바
 
@@ -327,3 +369,124 @@ padding을 0으로 없애도 아이콘 자체 시각 중심이 약간 안쪽으�
 `.bottom-nav`를 데스크탑에서 사이드바로 grid-area만 바꿔 재활용) — 이게 탑바 위치가 페이지마다
 공통 안 됐던 원인 중 하나. `app-*`/`page-*` 분리는 신규 기준이며, 기존 코드 전환은 지금 당장 하지 않고
 **페이지 단위로 점진 적용**한다 (§4의 모바일퍼스트 전환과 같은 방식 — 전부 끝날 때까지 기존 구조와 혼재 허용).
+
+## 12. `.cd-btn` 컴포넌트 (CTA 버튼, 2026-08-24 확정)
+
+daily-mission 게이트 작업 중 CTA형 사각버튼 스타일이 페이지마다 제각각(6종 이상, 높이 28~52px)으로
+흩어져 있는 게 확인돼서 신설. 기존 `.btn`은 home.html 등 30곳 이상에서 이미 다른 스타일(높이 34px대,
+`.btn-ghost`/`.btn-primary`/`.btn-danger`)로 활발히 쓰이고 있어 이름 재사용 시 전역 리스타일링
+사고가 나므로 새 이름 `cd-btn`(Chorditor 프리픽스) 채택 — 실무 디자인시스템도 기존 이름과 충돌하면
+새 네임스페이스를 붙이는 게 일반적인 패턴(Material의 `mdc-*`, Ant Design의 `ant-*`와 동일 이유).
+
+`.sel-btn`(칩/토글형 선택버튼, M/m/aug/dim 등 코드 속성 고르기)은 카테고리 자체가 달라서
+`.cd-btn`과 충돌 없음 — CTA 버튼(호출행동)과 칩/토글은 디자인시스템에서 별개 컴포넌트로 취급.
+
+**기존 페이지는 지금 당장 전환하지 않는다** — §6 적용 원칙과 동일, 신규 작업부터 사용.
+
+### 크기 토큰 — 5단계(§4 브레이크포인트 기준)
+
+| 토큰 | 모바일 | 태블릿 | 큰태블릿 | 랩탑 | 데스크탑 |
+|---|---|---|---|---|---|
+| `--cd-btn-height` | 44px | 46px | 48px | 50px | 52px |
+| `--cd-btn-width` | 96px | 100px | 104px | 108px | 112px |
+| `--cd-btn-padding-inline` | 20px | 20px | 24px | 24px | 28px |
+| `--cd-btn-font-size` | 15px | 15px | 16px | 16px | 16px |
+| `--cd-btn-radius` | 8px | 10px | 12px | 14px | 16px |
+
+너비는 고정값 기본, 특별한 상황(라벨 길이가 가변적인 경우 등)에만 `auto`로 개별 예외 처리.
+
+`--cd-btn-radius`는 처음엔 `var(--radius)`(16~24px, 카드용 토큰) 재사용이었으나 버튼엔 너무
+둥글다는 피드백으로 2026-08-24 전용 토큰으로 분리, 4~12px로 낮췄다가 이번엔 너무 각져서
+8~16px로 재조정.
+
+### 색상 variant — 4종 (§1 기존 색상 토큰만 재사용, 신규 색상 없음)
+
+| variant | background | text |
+|---|---|---|
+| `--cd-btn-charcoal` | `var(--text-primary)` (#242729) | `var(--bg)` |
+| `--cd-btn-blue` | `var(--blue)` (#4f7cff) | `#fff` |
+| `--cd-btn-gray` | `var(--gray-light)` (#ECECEA) | `var(--text-primary)` |
+| `--cd-btn-red` | `var(--accent)` (#e03c31) | `#fff` |
+
+연한그레이는 처음엔 `--border`(#d9d4cc)로 대체했으나 더 연한 톤 요청으로 2026-08-24
+`--gray-light`(#ECECEA, §1 참고) 신규 토큰화 — §8에 "시도했다 되돌림"으로 기록만 남아있던
+값을 정식 승격한 것.
+
+## 13. `.cd-cardlist` 컴포넌트 (Card List, 2026-08-24 확정)
+
+daily-mission 게이트에서 "오늘 할 훈련 3가지"를 보여줄 목적으로 신설. 실무 디자인시스템 용어로
+항목 하나(아이콘+텍스트 한 줄)는 **List Item**, 배경이 있는 카드 형태로 낱개 분리된 배치는
+**Card List**라고 부름 — 그대로 이름 채택. `.cd-btn`과 동일하게 Chorditor 프리픽스(`cd-`) 사용.
+
+**기본값은 아이콘 없이 텍스트만.** 아이콘이 필요하면 `.cd-cardlist-item--icon` variant를 추가로
+붙인다 — 기본 컴포넌트에 아이콘을 필수 요소로 넣지 않은 이유는 아이콘 없는 사용처(예: 단순 목록)에서
+불필요한 여백/정렬 규칙까지 끌려오는 걸 막기 위함.
+
+**기존 페이지는 지금 당장 전환하지 않는다** — §6 적용 원칙과 동일, 신규 작업부터 사용.
+
+### 마크업
+
+```html
+<ul class="cd-cardlist">
+  <li class="cd-cardlist-item cd-cardlist-item--icon">
+    <i class="ph-fill ph-grid-nine"></i>
+    <span>코드맞추기</span>
+  </li>
+</ul>
+```
+
+아이콘은 Phosphor Icons(`ph-fill ph-*`, `training.html`이 이미 쓰는 것과 동일 라이브러리·색상
+재사용) — training-card 아이콘 색 `#334155`(`--charcoal-blue`) 그대로 사용.
+
+### 크기 토큰 — 5단계(§4 브레이크포인트 기준)
+
+| 토큰 | 모바일 | 태블릿 | 큰태블릿 | 랩탑 | 데스크탑 |
+|---|---|---|---|---|---|
+| `--cd-cardlist-height` | 56px | 64px | 72px | 80px | 88px |
+| `--cd-cardlist-font-size` | 16px | 18px | 20px | 22px | 24px |
+| `--cd-cardlist-padding` | 16px | 16px | 20px | 20px | 24px |
+| `--cd-cardlist-icon-size` | 24px | 26px | 28px | 30px | 32px (`--icon` variant 전용) |
+| `--cd-cardlist-radius` | 8px | 10px | 12px | 14px | 16px |
+
+높이·폰트 증가폭은 초안(2px/2px 단위)이 너무 작다는 피드백으로 8px/2px 단위로 재조정된 값.
+`--cd-cardlist-radius`도 `--cd-btn-radius`와 동일하게 처음엔 `var(--radius)`(16~24px) 재사용이었으나
+2026-08-24 전용 토큰(8~16px)으로 분리.
+
+## 14. `docs/style-guide-preview.html` — 실물 미리보기 페이지 (2026-08-24 신설)
+
+이 문서(마크다운)는 값만 텍스트로 나열돼서 실제로 어떻게 생겼는지 눈으로 확인이 안 됨 —
+`docs/style-guide-preview.html`이 §1~13 토큰을 실제 컴포넌트로 렌더링해서 보여주는 별도
+정적 페이지. **앱 라우팅과 완전히 무관**(어디서도 링크 안 됨, 본인만 직접 파일 열어서 확인하는
+내부 전용 도구) — `../style.css`만 그대로 불러와 쓰고 `shared.js`/`analytics-sdk.js` 등
+앱 로직은 일절 로드하지 않는다.
+
+### 구조 원칙
+
+- **섹션 = `<section class="sg-section">`**, 제목은 `<h2 class="sg-section-title">` (24px/800,
+  구분선 없음, 섹션간 여백 120px로 크게). 현재 순서: 색상 팔레트 → 뷰포트 → 텍스트 → 버튼 → 카드 리스트.
+  새 컴포넌트/토큰 추가 시 이 순서 뒤에 같은 패턴으로 섹션만 추가하면 됨.
+- **5단계 비교가 필요한 컴포넌트는 "row(variant) × column(5단계)" 테이블로 통일.**
+  공용 CSS 클래스 `.sg-row-table-row`(그리드, 첫 칸은 라벨 120px + 나머지 5칸 max-content,
+  갭 32px 왼쪽정렬) / `.sg-row-table-head`(헤더행, "모바일/태블릿/큰태블릿/랩탑/데스크탑" 라벨)
+  그대로 재사용 — 새 컴포넌트 추가할 때 이 두 클래스만 그대로 갖다 쓰면 레이아웃 고민 불필요.
+  (텍스트/버튼/카드리스트 3개 섹션 전부 이 패턴)
+- **실제 뷰포트 폭과 무관하게 5단계를 동시에 병렬로 보여줘야 하므로, `var(--cd-*)` 토큰이 아니라
+  각 구간의 리터럴 px 값을 JS로 하드코딩**해서 렌더링한다(각 섹션 하단 `<script>`의
+  `FONT_ROWS`/`BTN_SIZE`/`CL_SIZE` 같은 데이터 배열 — style.css 실측값을 그대로 옮겨적은 것,
+  값이 바뀌면 여기도 같이 고쳐야 함. 색상 팔레트만 예외로 `var(--token)`을 직접 씀 — 색상은
+  브레이크포인트에 따라 안 바뀌므로 리터럴화 불필요).
+- **호버 툴팁**: `#sg-tooltip` 하나를 공용으로 씀. 각 요소에 `data-tip-text="여러줄\n텍스트"`를
+  달아두면(위 데이터 배열에서 자동 생성) 마우스 오버 시 그 내용을 그대로 보여줌 — 리터럴 값이라
+  `data-tip-vars`(getComputedStyle로 실시간 CSS 변수 읽기, 색상 스와치 섹션에서 사용) 방식과는
+  다른 경로. 새 섹션 추가 시 둘 중 하나 골라서 씀: 색상처럼 뷰포트 무관 고정값이면
+  `data-tip-vars`, 5단계 비교 테이블이면 `data-tip-text`.
+
+### 새 컴포넌트 추가 절차
+
+1. `docs/style-guide.md`에 §번호로 크기/색상 토큰 먼저 확정 문서화 (§12/§13처럼)
+2. `style-guide-preview.html`에 `<section class="sg-section">` 하나 추가, 5단계 비교가 필요하면
+   `.sg-row-table-row`/`.sg-row-table-head` 그대로 사용
+3. `<script>` 안에 그 컴포넌트의 5단계 리터럴 px 데이터 배열 추가하고, 위 두 렌더러(`BTN_...`,
+   `CL_...`)와 같은 패턴으로 행 생성 루프 작성, `data-tip-text`에 토큰명+구간+값 나열
+4. 기존 `document.querySelectorAll('[data-tip-vars], [data-tip-text]')` 툴팁 바인딩 코드는
+   그대로 재사용됨(수정 불필요) — 스크립트 마지막에 있으므로 항상 그 앞에 렌더러 코드를 둘 것

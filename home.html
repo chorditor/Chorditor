@@ -67,14 +67,12 @@
                     <div class="hdb-label" id="hdb-persona">언박싱 1일차</div>
                   </div>
                 </div>
-                <div class="hdb-divider"></div>
-                <div class="hdb-col" id="hdb-attendance" onclick="openAttendanceCalendar()">
+                <div class="hdb-col" id="hdb-attendance" onclick="_playTap();location.href='attendance.html'">
                   <div class="hdb-icon"><img src="image/calender.png" alt=""></div>
                   <div class="hdb-text">
                     <div class="hdb-label">출석체크</div>
                   </div>
                 </div>
-                <div class="hdb-divider"></div>
                 <div class="hdb-col" id="hdb-quest" onclick="openQuestModal()">
                   <div class="hdb-icon"><img src="image/badge.png" alt=""><span class="hdb-quest-dot" id="hdb-quest-dot" hidden></span></div>
                   <div class="hdb-text">
@@ -945,55 +943,17 @@
     </div>
   </div>
 
-  <!-- ── 모달: 업데이트 안내(1회성, DB notices와 별개 — 기능 소개용 고정 카드형) ── -->
-  <div class="modal-overlay hidden" id="update-notice-overlay" onclick="closeUpdateNotice(false)">
+  <!-- ── 모달: 앱 업데이트 공지(버전별 신규기능 안내, 1회성, DB notices와 별개) ──
+       UI 껍데기 고정, 내용은 home.js APP_NOTICES 데이터로 주입 — 새 버전 공지 추가할 땐
+       이 마크업 건드리지 말고 APP_NOTICES에 객체 하나만 추가할 것. ── -->
+  <div class="modal-overlay hidden" id="app-notice-overlay" onclick="closeAppNotice(false)">
     <div class="update-notice-modal" onclick="event.stopPropagation()">
       <img src="image/Chorditor_logo.png" alt="" class="update-notice-logo">
-      <h3 class="update-notice-version">1.3.4 업데이트</h3>
-      <p class="update-notice-subtitle">새 기능이 추가됐어요!</p>
-      <p class="update-notice-message">튜너와 메트로놈을 새로 만들었어요.<br>지금 바로 사용해보세요.</p>
-
-      <div class="update-notice-features">
-        <div class="update-notice-feature">
-          <div class="update-notice-feature-icon"><i class="ph-fill ph-waveform"></i></div>
-          <div class="update-notice-feature-text">
-            <span class="update-notice-feature-name">튜너</span>
-          </div>
-        </div>
-        <div class="update-notice-feature">
-          <div class="update-notice-feature-icon"><i class="ph-fill ph-metronome"></i></div>
-          <div class="update-notice-feature-text">
-            <span class="update-notice-feature-name">메트로놈</span>
-          </div>
-        </div>
-      </div>
-
-      <div class="update-notice-btns">
-        <button class="update-notice-btn update-notice-btn--ghost" onclick="closeUpdateNotice(false)">확인</button>
-        <button class="update-notice-btn update-notice-btn--primary" onclick="closeUpdateNotice(true)">바로가기</button>
-      </div>
-
+      <h3 class="update-notice-version" id="app-notice-version"></h3>
+      <div class="update-notice-sections" id="app-notice-sections"></div>
+      <div class="update-notice-btns" id="app-notice-btns"></div>
       <label class="update-notice-dismiss">
-        <input type="checkbox" id="update-notice-dismiss-check">
-        다시 보지 않기
-      </label>
-    </div>
-  </div>
-
-  <!-- ── 모달: 태블릿·PC 반응형 개선 안내(1회성, 위 update-notice 공용 클래스 재활용) ── -->
-  <div class="modal-overlay hidden" id="responsive-notice-overlay" onclick="closeResponsiveNotice()">
-    <div class="update-notice-modal" onclick="event.stopPropagation()">
-      <img src="image/Chorditor_logo.png" alt="" class="update-notice-logo">
-      <h3 class="update-notice-version">1.3.4 업데이트</h3>
-      <p class="update-notice-subtitle">태블릿과 PC브라우저에서 더 보기 편해졌어요!</p>
-      <p class="update-notice-message">화면 배치를 새로 다듬었어요.<br>더 넓고 편하게 써보세요.</p>
-
-      <div class="update-notice-btns">
-        <button class="update-notice-btn update-notice-btn--primary" onclick="closeResponsiveNotice()">확인</button>
-      </div>
-
-      <label class="update-notice-dismiss">
-        <input type="checkbox" id="responsive-notice-dismiss-check">
+        <input type="checkbox" id="app-notice-dismiss-check">
         다시 보지 않기
       </label>
     </div>
@@ -1149,23 +1109,6 @@
       <circle class="save-check-circle" cx="26" cy="26" r="23" fill="none"/>
       <polyline class="save-check-mark" points="14,27 22,35 38,18" fill="none"/>
     </svg>
-  </div>
-
-  <!-- ── 출석 달력 모달 ── -->
-  <div class="attend-cal-overlay" id="attend-cal-overlay" onclick="if(event.target===this)closeAttendanceCalendar()">
-    <div class="attend-cal">
-      <div class="attend-cal-header">
-        <span class="attend-cal-title">출석체크</span>
-        <div class="attend-cal-header-right">
-          <button class="attend-cal-makeup" id="attend-cal-makeup" onclick="makeupAttendance()">
-            보충출석 <span class="attend-cal-makeup-count" id="attend-cal-makeup-count">3</span>
-          </button>
-          <button class="icon-btn" onclick="closeAttendanceCalendar()"><i data-lucide="x"></i></button>
-        </div>
-      </div>
-      <div class="attend-cal-sub" id="attend-cal-sub">5일마다 피크상자를 받아요 · 30일 순환</div>
-      <div class="attend-cal-grid" id="attend-cal-grid"></div>
-    </div>
   </div>
 
   <!-- ── 퀘스트 모달 ── -->

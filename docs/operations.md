@@ -44,3 +44,24 @@ Play 스토어 리뷰 답변, 유저 피드백 대응.
 ### 할 일
 
 - (특이사항 있을 시 기록)
+
+---
+
+## 3. 백엔드 운영 (DB → BigQuery 연동)
+
+Supabase(DB) → Google BigQuery 데이터 동기화 인프라. **키/시크릿 값은 이 문서에 절대 기록하지 않음** — 파일 위치와 상태만 기록.
+
+### 구성 요소 (2026-08-28 기준)
+
+| 항목 | 파일/위치 | 상태 |
+|---|---|---|
+| Supabase 접속 정보 (URL, SERVICE_ROLE_KEY) | `.env` (repo 루트) | ✅ 사용자가 채워넣음 |
+| GCP 서비스 계정 키 | `gcp-service-account.json` (repo 루트) | ✅ 생성완료, IAM 권한 부여 완료 |
+| BigQuery 데이터셋 | `chorditor_analytics` | ✅ 생성완료 |
+
+두 파일 모두 `.gitignore`에 등록됨(`.env`, `.env.*`, `gcp-service-account*.json`) — git 추적 안 됨, 커밋 유출 위험 없음.
+
+### 할 일
+
+- [ ] DB → BigQuery 실제 동기화 파이프라인(스크립트/스케줄) 구현 — 미착수
+- [ ] 동기화 대상 테이블/스키마 확정
