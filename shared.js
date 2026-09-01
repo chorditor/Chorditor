@@ -6,7 +6,7 @@
 // ── 상수 ─────────────────────────────────────────────────────
 const SUPABASE_URL  = 'https://jbvkygeksohlysyvaoab.supabase.co';
 const SUPABASE_ANON = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Impidmt5Z2Vrc29obHlzeXZhb2FiIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzYzOTk5NjgsImV4cCI6MjA5MTk3NTk2OH0.6RSgChy0Yq0H2TJpZPSoMKQ2V-OYfR0XzE1aJBBZkXI';
-const APP_VERSION   = '1.3.5_pre2';
+const APP_VERSION   = '1.3.5_pre3';
 const SUPABASE_STORAGE_KEY = 'sb-jbvkygeksohlysyvaoab-auth-token';
 
 // 이용약관/개인정보처리방침 버전 — 광고식별자 수집 항목 추가(2026-09) 시 1로 올림.
@@ -1818,11 +1818,12 @@ async function fetchPlanWithToken(accessToken) {
     if (resp.ok) {
       const plan = await resp.json();
       if (plan) {
-        // RC(구글 결제)가 이미 pro로 확인해둔 상태면 서버의 stale free값이 덮어쓰면 안 된다
-        // (구매 직후 set_my_plan RPC 반영 지연/실패 시 Pro 결제자가 재접속마다 기능이
-        // 잠기는 버그로 재현됐음). 이 경우 로컬 pro는 유지하고, 서버 쪽을 다시 맞춰서
-        // (self-heal) DB가 영구히 stale 상태로 안 남게 한다.
-        if (getPlan() === 'pro' && plan !== 'pro') {
+        // _rcConfirmedPro(RC가 "이번 세션에" 직접 확인한 pro)일 때만 서버의 stale free값을
+        // 무시하고 self-heal한다 — 구매 직후 set_my_plan RPC 반영 지연 시 재접속마다 기능이
+        // 잠기는 버그 대응. localStorage의 그냥 오래된 'pro' 캐시를 기준으로 삼으면 안 됨:
+        // revenuecat-webhook이 실제 취소/환불로 DB를 정상적으로 free로 내렸는데 이 가드가
+        // 그걸 다시 pro로 되돌려버리는 사고가 났었음(2026-09-01 발견, DB가 도로 pro로 남음).
+        if (_rcConfirmedPro && plan !== 'pro') {
           updateSupabasePlan('pro').catch(() => {});
         } else {
           setPlan(plan);
@@ -2104,13 +2105,22 @@ async function initBilling() {
   catch(e) { console.warn('[Billing] initBilling 실패:', e); }
 }
 
+// RC(RevenueCat)가 "이번 세션에" pro 엔타이틀먼트를 직접 확인했는지 — fetchPlanWithToken()의
+// self-heal 가드가 이 플래그만 보게 해서, 로컬 localStorage에 남아있는 stale 'pro' 캐시를
+// "RC가 방금 확인한 진짜 pro"로 오인하는 사고를 막는다(2026-09-01, 아래 버그 참고).
+let _rcConfirmedPro = false;
+
 async function syncPlanFromBilling() {
   if (!window._RC) return;
   try {
     const { customerInfo } = await window._RC.getCustomerInfo();
     const active = customerInfo?.entitlements?.active || {};
     let newPlan;
-    if (active[ENTITLEMENT_PRO]) newPlan = 'pro';
+    // ⚠ pro가 아니면 그냥 return하고 setPlan('free')를 안 하는 이유: 프로모션 쿠폰으로
+    // 받은 pro는 RC 결제 엔타이틀먼트가 아니라서 여기서 무조건 free로 내리면 프로모션
+    // pro 유저를 잘못 강등시킴. 결제 취소로 인한 free 반영은 revenuecat-webhook이
+    // DB에 써주고, fetchPlanWithToken()이 그걸 읽어서 반영한다.
+    if (active[ENTITLEMENT_PRO]) { newPlan = 'pro'; _rcConfirmedPro = true; }
     else return;
     setPlan(newPlan);
     await updateSupabasePlan(newPlan);

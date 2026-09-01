@@ -256,10 +256,6 @@
 @media (min-width: 769px) { :root { --tsc-value-size: 28px; } }
 @media (min-width: 1080px) { :root { --tsc-value-size: 24px; } }
 
-/* 홈배너 하단(.hdb-row) 3요소 간격 상한 — 기본은 좌우끝 space-between으로 균등분배하되
-   .hdb-divider(스페이서)가 이 값 이상 안 벌어지게 캡(2026-08-22, 뷰포트 무관 고정) */
-:root { --hdb-row-gap-max: 150px; }
-
 /* 폰트 파운데이션 토큰 (docs/style-guide.md §2, 2026-08-22 5단계 확정)
    Caption→Label→Body→Title→Headline→Display 6카테고리 12토큰.
    Material/iOS 표준값을 앵커로 삼되, 명확한 목적 있는 홀수는 허용(§6 규칙 예외) */
@@ -1019,6 +1015,8 @@ button, input, select, textarea {
 
 .hdb-row {
   width: 100%;
+  max-width: 600px; /* 넓은 화면에서 space-between 간격이 무한정 벌어지지 않게 상한(2026-09-01) */
+  margin-inline: auto; /* 상한 걸렸을 때 .hdb-content 안에서 그룹 자체를 가운데로 */
   flex: none;
   height: calc(100% - var(--hdb-title-h) - 1px); /* hdb-content 높이에서 상단 슬로건(hdb-title-h)+구분선(1px)
     뺀 나머지 전부 — flex-grow(min-height:0) 방식은 콘텐츠가 넘칠 때 위로 밀려서 구분선을
@@ -1029,13 +1027,14 @@ button, input, select, textarea {
   padding-block: 4px;
   display: flex;
   align-items: center;
-  justify-content: center; /* 스페이서가 캡(150px)까지 벌어진 후 남는 여유공간은 좌우 바깥
-    여백으로만 가서 그룹 전체가 중앙정렬됨(space-between은 안 씀 — 캡 못 채운 여유분을
-    아이템 사이에 또 분배해버려 무한정 벌어지는 문제가 있었음) */
+  justify-content: space-between; /* 양끝(레벨/퀘스트)은 컨테이너 가장자리에 붙이고, 그 사이
+    간격은 균등분배(2026-09-01). .hdb-divider 스페이서 방식은 폐기 — 가운데 컬럼(출석체크)
+    위치가 옆 컬럼 콘텐츠 길이에 딸려 밀리는 문제가 있었음(사용자 지적, 컨테이너 구조 교체) */
 }
 
 .hdb-col {
-  flex: none;
+  flex: none; /* 콘텐츠 길이만큼만 — space-between이 양끝 고정+간격을 담당하므로 폭을 강제로
+    맞출 필요 없음 */
   min-width: 0;
   display: flex;
   flex-direction: column;
@@ -1049,12 +1048,6 @@ button, input, select, textarea {
 
 .hdb-col:active {
   background: var(--bg, #f5f5f5);
-}
-
-.hdb-divider {
-  flex: 1 1 0; /* 3요소 사이 간격 스페이서 — 넓은 화면일수록 늘어나되 아래 max-width로 상한 캡 */
-  max-width: var(--hdb-row-gap-max);
-  align-self: stretch;
 }
 
 .hdb-icon {
@@ -1127,6 +1120,17 @@ button, input, select, textarea {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+
+/* 페르소나 라벨("방구석 기타마스터" 등 길어지는 값) — .hdb-col이 이제 3등분 고정폭이라
+   옆 컬럼을 밀 일은 없지만, 그 안에서도 말줄임(...)으로 잘리지 않고 2줄로 줄바꿈되게
+   해서 전체 텍스트가 다 보이게 함(2026-09-01) */
+#hdb-persona {
+  white-space: normal;
+  word-break: keep-all;
+  overflow-wrap: break-word;
+  text-overflow: clip;
+  line-height: 1.2;
 }
 
 /* 배너 카드 자체는 위치·크기 고정. 카드 안 내용(슬라이드)만 좌우로 넘어감. */
