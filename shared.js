@@ -585,10 +585,10 @@ const PEAKBOX_REWARD = 5;
 // 전부 미리 로딩해두고, 클릭 시엔 이미 로딩된 걸 즉시 재생하는 구조로 바꿈.
 // 네이티브 쪽이 adId별로 따로 캐싱(preparedAds 맵)하는 구조라 3개 동시 preload 안전함
 // (showRewardVideoAd({adId})로 어느 걸 보여줄지 명시 가능, @capacitor-community/admob 8.1.0 기준).
-const MS_AD_ENABLED = true;  // pre 내부테스트용 전환(2026-08-31)
-const MS_AD_TESTING = true;
+const MS_AD_ENABLED = true;
+const MS_AD_TESTING = false; // admin 계정은 _adIsTesting()이 _isAdminUser()로 항상 테스트 처리
 const PEAK_AD_ENABLED = true; // 피크 완전소진 시 "광고 보고 충전하기". 콘텐츠 무관 공용 게이트라 여기 둠.
-const PEAK_AD_TESTING = true;
+const PEAK_AD_TESTING = false;
 // ⚠ DEV ONLY — 광고가 안 뜨는 원인 파악용 alert. logcat 확인 불가능한 환경에서 임시로 심음.
 const AD_DEBUG_ALERTS = false;
 const AD_UNIT_IDS = {
@@ -1217,7 +1217,7 @@ async function _dbgResetAttendance() {
 }
 
 document.addEventListener('DOMContentLoaded', () => {
-  _sharedInitDebugChip();
+  if (_isAdminUser()) _sharedInitDebugChip();
   injectAppChrome(); // 탑바 브랜드 + 데스크탑 사이드바 — 모든 페이지 공통(DOM 이동 로직보다 먼저)
 
   if (document.getElementById('currency-peak-count') || document.getElementById('currency-peakbox-count')) {

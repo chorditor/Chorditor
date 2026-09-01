@@ -15,6 +15,7 @@ const MS_PERSONA_DEFAULT = 'unboxing';
 // shared.js setUserPersona()와 동일 키)을 직접 씀. 프로필 화면과 미션 세션이 다른 값을 보는
 // 사고(override값 기준으로 승급 커밋되는 등) 방지 — 무조건 프로필에 보이는 페르소나로 동작.
 window.msSetPersona = function (id) {
+  if (typeof _isAdminUser === 'function' && !_isAdminUser()) { console.error('[MissionSession] 관리자 계정에서만 사용 가능합니다.'); return; }
   if (id && !MS_PERSONA_POOLS[id]) {
     console.error(`[MissionSession] 없는 페르소나: "${id}"`, Object.keys(MS_PERSONA_POOLS));
     return;
@@ -39,6 +40,7 @@ window.msPersonaList = function () {
 //  chorditor_dm_cleared_date — "나중에 할게요" 패스 여부
 // msResetToday() → 콘솔에서 실행 후 mission-session.html 새로고침(또는 daily-mission.html부터 재진입)
 window.msResetToday = function () {
+  if (typeof _isAdminUser === 'function' && !_isAdminUser()) { console.error('[MissionSession] 관리자 계정에서만 사용 가능합니다.'); return; }
   ['ms_today_result', 'ms_today_result_seen', 'ms_reward_claimed', 'chorditor_dm_cleared_date'].forEach(k => localStorage.removeItem(k));
   console.log('[MissionSession] 오늘 미션 상태 초기화 완료 — 새로고침하면 처음부터 다시 풀 수 있습니다.');
   location.reload();
