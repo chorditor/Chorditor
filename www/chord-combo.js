@@ -107,7 +107,7 @@ async function comboStartTraining(e) {
   const card = e?.target.closest('.combo-card');
   const chapter = card?.dataset.chapter || '1';
   if (!['1', '2', '3', '4', '5', '6', '7', '8'].includes(chapter)) return;
-  _playSfx('pop.mp3');
+  _playConfirmSfx();
   if (!(await consumePeak(1))) return;
   const activeCard = card.querySelector('.combo-difficulty-card.active');
   const difficulty = activeCard?.dataset.difficulty === 'high' ? 'high'
@@ -578,7 +578,7 @@ function comboSubmitAnswer() {
     return;
   }
 
-  _playSfx('pop.mp3');
+  _playConfirmSfx();
 
   // 교체형에서 강조슬롯 외 도수라벨을 숨겼던 문제(2장)라도 제출 후엔 전부 보이게 복원
   const qLabels = _comboCurrentQuestion?.labels;
@@ -653,6 +653,7 @@ function _comboShowLockedDiagrams() {
 // ── 다음 문제로 (COMBO_QUESTIONS_PER_SESSION문제 다 풀면 선택 뷰로 복귀) ──
 function comboNextQuestion() {
   _playTap();
+  _playConfirmSfx();
   if (typeof GuitarAudio !== 'undefined' && GuitarAudio.stop) GuitarAudio.stop();
   if (_comboQuestionIndex >= COMBO_QUESTIONS_PER_SESSION - 1) {
     _comboRecordSessionComplete();

@@ -1566,6 +1566,7 @@ function _renderImgPreview() {
 async function onImgSave() {
   if (_imgScale > getPlanLimit('maxScale')) { closeImgSaveModal(); openPlanSheet('image_scale'); return; }
   if (_imgTransparent && getPlan() === 'free') { closeImgSaveModal(); openPlanSheet('image_transparent'); return; }
+  _playConfirmSfx();
   closeImgSaveModal();
   if (_imgMode === 'library') await _doExportLibChordImage(_imgScale, _imgTransparent);
   else                        await _doSavePNG(_imgScale, _imgTransparent);
@@ -1909,6 +1910,7 @@ function _renderAppNotice(notice) {
 // 버튼이 어느 쪽이든 닫히면 그걸로 "봤다"고 간주해 seen 마킹 — 체크박스는 즉시반영과
 // 무관하게 남겨둠(다음에도 다시 안 뜨는 걸 명시적으로 보장하고 싶은 유저용 습관적 UI)
 function closeAppNotice(primary) {
+  if (primary) _playConfirmSfx();
   const notice = APP_NOTICES.find(n => n.id === _appNoticeShowingId);
   document.getElementById('app-notice-overlay')?.classList.add('hidden');
   _appNoticeDismissedThisLoad = true;
@@ -3416,6 +3418,7 @@ async function openReferralNoticeModal() {
 }
 
 function closeReferralNotice() {
+  _playConfirmSfx();
   document.getElementById('referral-notice-overlay')?.classList.add('hidden');
 }
 
@@ -3458,6 +3461,7 @@ async function submitProfileCode() {
   const code = input.value.trim();
   if (!code) return;
 
+  _playConfirmSfx();
   _submittingProfileCode = true;
   try {
     const r = await _peakRpc('redeem_promo_code', { p_code: code });
@@ -3541,6 +3545,7 @@ function showPromoProModal(r, onClose) {
   if (typeof lucide !== 'undefined') lucide.createIcons();
 }
 function closePromoProModal() {
+  _playConfirmSfx();
   document.getElementById('promo-pro-modal-overlay')?.classList.add('hidden');
   const cb = _promoProOnClose;
   _promoProOnClose = null; // 콜백이 다시 이 모달을 열 경우를 대비해 먼저 비운다

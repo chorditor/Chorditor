@@ -467,7 +467,7 @@ let _strumPracticeUnlocked = false;
 window._leaveGuardActive = () => _strumPracticeUnlocked; // shared.js 사이드바 네비 이탈 확인용
 window._clearLeaveGuard = () => { if (STRUM_ITEM?.id != null) sessionStorage.removeItem(`sp_unlock_${STRUM_ITEM.id}`); }; // shared.js 사이드바 네비로 이탈 확정 시 언락 해제
 async function strumUnlockPractice() {
-  _playSfx('pop.mp3');
+  _playConfirmSfx();
   if (_strumPracticeUnlocked) return;
   if (!(await consumePeak(2))) return;
   _strumPracticeUnlocked = true;

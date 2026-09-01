@@ -861,6 +861,10 @@ function _playSfx(src, vol) {
 // 버튼 탭 효과음 — 1.3.0 폐기(조작감 개선 미미). 더 나은 사운드 확보 시 재활성화.
 function _playTap() { return Promise.resolve(); }
 
+// 주요 CTA 버튼(브랜드컬러 적용 버튼) 공용 클릭 효과음 — chord-name-quiz.js
+// level-action-btn--primary에서 쓰던 pop.mp3를 토큰화, 동일 CTA군 전체에 적용
+function _playConfirmSfx() { return _playSfx('pop.mp3'); }
+
 // 출석 랜덤상자 보상: 2~10 랜덤, 기댓값 3 (최빈값 2). SQL claim_daily_attendance()와 동일 가중치.
 const ATTENDANCE_REWARD_WEIGHTS = [5000, 2500, 1250, 625, 313, 156, 78, 39, 39]; // 값 2~10, 합 10000
 function _rollAttendanceReward() {
@@ -1509,7 +1513,7 @@ function showLeavePracticeModal(onConfirm, opts) {
   if (modal) { modal.style.animation = 'none'; void modal.offsetWidth; modal.style.animation = ''; }
   const close = () => { ov.style.display = 'none'; _leavePracticeOpen = false; };
   ov.querySelector('#leave-practice-stop').onclick     = () => { close(); onConfirm(); };
-  ov.querySelector('#leave-practice-continue').onclick  = close;
+  ov.querySelector('#leave-practice-continue').onclick  = () => { _playConfirmSfx(); close(); };
 }
 function isLeavePracticeOpen() { return _leavePracticeOpen; }
 function hideLeavePracticeModal() {
@@ -1785,6 +1789,7 @@ function closePromoExpiryModal() {
   document.getElementById('promo-expiry-modal-overlay')?.classList.add('hidden');
 }
 function promoExpiryUpgrade() {
+  _playConfirmSfx();
   closePromoExpiryModal();
   if (typeof openPlanSheet === 'function') openPlanSheet('promo_expiry_notice');
 }
@@ -1812,9 +1817,19 @@ async function fetchPlanWithToken(accessToken) {
     });
     if (resp.ok) {
       const plan = await resp.json();
-      if (plan) setPlan(plan);
+      if (plan) {
+        // RC(구글 결제)가 이미 pro로 확인해둔 상태면 서버의 stale free값이 덮어쓰면 안 된다
+        // (구매 직후 set_my_plan RPC 반영 지연/실패 시 Pro 결제자가 재접속마다 기능이
+        // 잠기는 버그로 재현됐음). 이 경우 로컬 pro는 유지하고, 서버 쪽을 다시 맞춰서
+        // (self-heal) DB가 영구히 stale 상태로 안 남게 한다.
+        if (getPlan() === 'pro' && plan !== 'pro') {
+          updateSupabasePlan('pro').catch(() => {});
+        } else {
+          setPlan(plan);
+        }
+      }
       // pro일 때만 출처 확인 (free/standard는 프로모션일 수 없음)
-      if (plan === 'pro') await _fetchPromoUntil(accessToken);
+      if (plan === 'pro' || getPlan() === 'pro') await _fetchPromoUntil(accessToken);
       else setPromoUntil(null);
     }
   } catch(e) { console.warn('[Auth] fetchPlanWithToken 실패:', e); }
@@ -2235,6 +2250,7 @@ function closePeakBuffer() {
 }
 // "충전하기" — 광고 끝까지 봐야 지급. 중간이탈/실패면 아무 일도 안 일어남(모달 유지).
 async function _peakBufferWatchAd() {
+  _playConfirmSfx();
   if (typeof analytics !== 'undefined') analytics.track('peak_buffer_ad_clicked', {});
   // 버튼은 웹(iOS 등)에서도 그대로 노출 — 네이티브가 아니면 여기서 앱 다운로드 안내로 막고
   // 끝낸다("광고를 끝까지 봐야 충전돼요" 토스트와 겹치지 않게 여기서 먼저 분기)
@@ -3406,7 +3422,7 @@ function _scalePerfectCardsHtml(list) {
     const pending = q.earned - q.claimed;
     const inCycle = q.perfect - q.claimed * 3;
     const tail = pending > 0
-      ? '<button class="quest-card-claim" onclick="claimScalePerfectQuest(' + q.level + ')">수령</button>'
+      ? '<button class="quest-card-claim" onclick="_playConfirmSfx();claimScalePerfectQuest(' + q.level + ')">수령</button>'
       : '<span class="quest-card-progress">' + Math.min(inCycle, 3) + ' / 3</span>';
     return '<div class="quest-card">' +
         '<div class="quest-card-info">' +
@@ -3602,7 +3618,7 @@ function _challengeCardsHtml(list) {
     const pending = q.earned - q.claimed;
     const inCycle = q.perfect - q.claimed * 3;
     const tail = pending > 0
-      ? '<button class="quest-card-claim" onclick="claimChallengeQuest(\'' + q.ch + '\')">수령</button>'
+      ? '<button class="quest-card-claim" onclick="_playConfirmSfx();claimChallengeQuest(\'' + q.ch + '\')">수령</button>'
       : '<span class="quest-card-progress">' + Math.min(inCycle, 3) + ' / 3</span>';
     return '<div class="quest-card">' +
         '<div class="quest-card-info">' +
@@ -3623,7 +3639,7 @@ function _perfectCardsHtml(list) {
     const pending = q.earned - q.claimed;      // 수령 대기 횟수
     const inCycle = q.perfect - q.claimed * 3;  // 현재 사이클 누적(0~2)
     const tail = pending > 0
-      ? '<button class="quest-card-claim" onclick="claimPerfectQuest(' + q.level + ')">수령</button>'
+      ? '<button class="quest-card-claim" onclick="_playConfirmSfx();claimPerfectQuest(' + q.level + ')">수령</button>'
       : '<span class="quest-card-progress">' + Math.min(inCycle, 3) + ' / 3</span>';
     return '<div class="quest-card">' +
         '<div class="quest-card-info">' +
@@ -3763,7 +3779,7 @@ function _comboPerfectCardsHtml(list) {
     const pending = q.earned - q.claimed;      // 수령 대기 횟수
     const inCycle = q.perfect - q.claimed * 3;  // 현재 사이클 누적(0~2)
     const tail = pending > 0
-      ? '<button class="quest-card-claim" onclick="claimComboPerfectQuest(' + q.level + ')">수령</button>'
+      ? '<button class="quest-card-claim" onclick="_playConfirmSfx();claimComboPerfectQuest(' + q.level + ')">수령</button>'
       : '<span class="quest-card-progress">' + Math.min(inCycle, 3) + ' / 3</span>';
     return '<div class="quest-card">' +
         '<div class="quest-card-info">' +
@@ -3793,7 +3809,7 @@ function _questCardHtml(title, desc, reward, xp, total, nextDay, claimFn, progre
   const canClaim = total >= nextDay;
   const prog = progressText || (Math.min(total, nextDay) + ' / ' + nextDay);
   const tail = canClaim
-    ? '<button class="quest-card-claim" onclick="' + claimFn + '()">수령</button>'
+    ? '<button class="quest-card-claim" onclick="_playConfirmSfx();' + claimFn + '()">수령</button>'
     : '<span class="quest-card-progress">' + prog + '</span>';
   return '<div class="quest-card">' +
       '<div class="quest-card-info">' +
@@ -4385,6 +4401,7 @@ async function checkEventThanks130() {
 }
 
 async function claimEventThanks130() {
+  _playConfirmSfx();
   if (typeof closeEventModal === 'function') closeEventModal();
   const r = await _peakRpc('claim_event_130_reward');
   if (!r || !r.ok) return;

@@ -199,7 +199,7 @@ function _msTransitionQuestion(selector, render) {
 // ── 준비/로딩 버퍼 뷰 ──────────────────────────────────────────
 // 실제 로딩 시간과 무관하게 최소 MS_BUFFER_DURATION 동안 붙잡아두는 의도적 버퍼.
 // 목적 ① 유저가 기타를 가지러 갈 시간 확보 ② (추후) 유저 성향 데이터 fetch
-const MS_BUFFER_DURATION = 8000; // ms
+const MS_BUFFER_DURATION = 5000; // ms
 const MS_BUFFER_STATUS = [
   '학습 데이터를 불러오는 중',
   '실력에 맞는 문제를 고르는 중',
@@ -444,6 +444,7 @@ function _msBeginSession() {
 
 function msStartTraining() {
   _playTap();
+  _playConfirmSfx();
   if (typeof GuitarAudio !== 'undefined' && GuitarAudio.stop) GuitarAudio.stop();
   _msBeginSession();
   _msTransitionView(msShowPreQuizCountdown);
@@ -934,6 +935,7 @@ function renderScaleBlockPreviews() {
 
 function msScaleStart() {
   _playTap();
+  _playConfirmSfx();
   if (typeof GuitarAudio !== 'undefined' && GuitarAudio.stop) GuitarAudio.stop();
   _msTransitionView(msShowScaleQuizView);
 }
@@ -1198,6 +1200,7 @@ function _msScaleInitTap() {
 function msScaleSubmit() {
   if (_msScaleSubmitted) {
     _playTap();
+    _playConfirmSfx();
     if (typeof GuitarAudio !== 'undefined' && GuitarAudio.stop) GuitarAudio.stop();
     if (_msExamMode) {
       if (_msScaleIndex < _msExamSectionTotal) {
@@ -1220,6 +1223,7 @@ function msScaleSubmit() {
     return;
   }
   _playTap();
+  _playConfirmSfx();
   _msScaleSubmitted = true;
 
   const { block, startFret, hint } = _msScaleItem;
@@ -2119,7 +2123,7 @@ function _msShowRewardPopup(kind, onDone) {
   };
 
   document.getElementById('ms-reward-popup-ok').onclick = () => { _playTap(); settle(false); };
-  adBtn.onclick = () => { _playTap(); settle(true); };
+  adBtn.onclick = () => { _playTap(); _playConfirmSfx(); settle(true); };
 
   ov.classList.add('attendance-modal-overlay--show');
 }
@@ -2233,6 +2237,7 @@ function renderDiatonicTable() {
 
 function msComboStart() {
   _playTap();
+  _playConfirmSfx();
   if (typeof GuitarAudio !== 'undefined' && GuitarAudio.stop) GuitarAudio.stop();
   _msTransitionView(msShowComboQuizView);
 }
@@ -3059,6 +3064,7 @@ function closeMissionSession() {
     });
     return;
   }
+  _playConfirmSfx();
   _msDoCloseMissionSession();
 }
 
@@ -3563,6 +3569,7 @@ async function msPersonaPromoStart() {
   }
   consumePromoAttempt().then(left => { _msPromoAttemptsCache = left; }).catch(() => {}); // DB에는 실제 소진 그대로 기록
   if (typeof analytics !== 'undefined') analytics.track('persona_promo_started', { from_persona: _msPromoFromPersona });
+  _playConfirmSfx();
   _msTransitionView(() => msShowPersonaPromoSection(0));
 }
 
@@ -3609,6 +3616,7 @@ function msShowPersonaPromoSection(idx) {
 // 다음 섹션 안내로의 이동은 각 섹션 문제를 다 풀고 난 뒤(_msPromoQuizSectionDone 등)에 일어남
 function msPersonaPromoSectionNext(idx) {
   _playTap();
+  _playConfirmSfx();
   const sec = _msPromoSections()[idx];
   if (sec.key === 'quiz')  { _msTransitionView(() => msPersonaPromoQuizStart(sec));  return; }
   if (sec.key === 'scale') { _msTransitionView(() => msPersonaPromoScaleStart(sec)); return; }
@@ -3795,9 +3803,11 @@ function msShowPersonaPromoSuccess() {
 }
 function msPersonaPromoSuccessConfirm() {
   _playTap();
+  _playConfirmSfx();
   // setUserPersona()는 msPersonaPromoFinish()에서 이미 커밋됨(채점 통과 시점).
   // TODO: DB subscriptions.persona 갱신은 아직 미연동 — 로그인 기기 간 동기화 필요해지면 여기서 같이 호출
-  location.href = 'home.html';
+  // 사운드가 실제로 들리기 전에 페이지 이동이 끊어버리는 걸 방지 — 짧게 지연 후 이동
+  setTimeout(() => { location.href = 'home.html'; }, 150);
 }
 
 // ── 실패 화면 ── timedOut=true면 "제한시간 초과로 무제한 시간에 이어푼 것"이라는 안내 한 줄 추가.
@@ -3897,6 +3907,7 @@ async function msPersonaPromoFailRetry() {
   Object.keys(_msPromoRealResults).forEach(k => delete _msPromoRealResults[k]); // 지난 시도 채점 결과 초기화
   _msPromoFromPersona = MS_PERSONA.id;
   if (typeof analytics !== 'undefined') analytics.track('persona_promo_started', { from_persona: _msPromoFromPersona });
+  _playConfirmSfx();
   _msTransitionView(() => msShowPersonaPromoSection(0));
 }
 
@@ -4109,7 +4120,7 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   _msRevealPage(); // 이 경로는 정적 HTML의 기타 버퍼 화면을 그대로 보여주는 게 의도된 동작
-  _msStartBuffer(); // 버퍼 → 8초 후 코드맞추기 튜토리얼
+  _msStartBuffer(); // 버퍼 → 5초 후 코드맞추기 튜토리얼
   // 튜토리얼 단계에선 인디케이터 업데이트 안 함 — 게이지는 문제풀이(msShowQuizView) 진입 시점부터 시작
 
   let _resizeTimer = null;

@@ -4,8 +4,10 @@
 
 function dmGateStart() {
   _playTap();
+  _playConfirmSfx();
   if (typeof analytics !== 'undefined') analytics.track('daily_mission_gate_start', {});
-  location.href = 'mission-session.html';
+  // 사운드가 실제로 들리기 전에 페이지 이동이 끊어버리는 걸 방지 — 짧게 지연 후 이동
+  setTimeout(() => { location.href = 'mission-session.html'; }, 150);
 }
 
 // 오늘 미션을 이미 끝냈으면 게이트("시작할래요!")를 건너뛰고 바로 결산으로 보낸다.

@@ -34,6 +34,7 @@ function renderAttendanceCta() {
 // 완료 전엔 게이트로, 완료 후엔 결과화면으로 직행(?view=result — daily-mission.html의
 // "이미 봤으면 home으로" 게이트를 우회, 유저가 명시적으로 누른 거니 다시 보여준다).
 function attendanceCtaClick() {
+  _playTap();
   location.href = _attHasTodayMissionResult() ? 'mission-session.html?view=result' : 'daily-mission.html';
 }
 
@@ -95,6 +96,7 @@ async function attendanceMakeupClick() {
   await makeupAttendance();
   if (_attState.day === dayBefore) { if (btn) btn.disabled = false; return; } // 진행 안 됨(실패)
 
+  _playConfirmSfx();
   _attDoneToday = true; // 보충출석 성공 시 오늘 도장도 같이 찍힌 것으로 간주
   await _attAnimateStamp(_attState.day);
   renderAttendanceStatus();

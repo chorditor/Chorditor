@@ -9,6 +9,7 @@
   --text-secondary: #6b6560;
   --text-muted: #a09b95;
   --accent: #e03c31;
+  --brand: #1a1a1a; /* 브랜드컬러(로고 차콜블랙) — CTA 버튼 블루→브랜드 전환 작업용, 페이지별 순차 적용 */
   --blue: #4f7cff;
   --blue-light: rgba(59, 130, 246, 0.08);
   --charcoal-blue: #334155;
@@ -121,7 +122,7 @@
 .cd-btn--auto-width { width: auto; }
 
 .cd-btn--charcoal { background: var(--text-primary); color: var(--bg); }
-.cd-btn--blue { background: var(--blue); color: #fff; }
+.cd-btn--blue { background: var(--brand); color: #fff; }
 .cd-btn--gray { background: var(--gray-light); color: var(--text-primary); }
 .cd-btn--red { background: var(--accent); color: #fff; }
 
@@ -2943,7 +2944,7 @@ canvas {
 .btn-ghost:hover { background: var(--bg); color: var(--text-primary); }
 
 .btn-primary {
-  background: var(--blue);
+  background: var(--brand);
   color: #fff;
   border-color: var(--blue);
 }
@@ -3129,7 +3130,7 @@ canvas {
   cursor: pointer;
 }
 .ism-save-btn.locked {
-  background: var(--blue);
+  background: var(--brand);
   color: #fff;
   display: inline-flex;
   align-items: center;
@@ -9717,7 +9718,7 @@ canvas {
   border: 1px solid var(--border);
   width: calc(100% - 32px);
   max-width: 300px;
-  max-height: 80vh;
+  max-height: 65dvh;
   padding: 32px 24px 20px;
   display: flex;
   flex-direction: column;
@@ -9774,7 +9775,7 @@ canvas {
   box-sizing: border-box;
 }
 .update-notice-section-media img {
-  width: 50%;
+  width: 35%;
   height: auto;
   object-fit: contain;
   display: block;
@@ -9799,7 +9800,7 @@ canvas {
 }
 
 .update-notice-media--pair { display: flex; align-items: center; justify-content: center; gap: 28px; }
-.update-notice-media--pair i { font-size: 64px; color: var(--blue); }
+.update-notice-media--pair i { font-size: 64px; color: var(--brand); }
 
 .update-notice-past-version {
   font-family: 'Pretendard', sans-serif;
@@ -9822,7 +9823,7 @@ canvas {
   transition: opacity .15s;
 }
 .update-notice-btn--ghost { background: var(--surface-alt, #f1efe8); color: var(--text-primary); }
-.update-notice-btn--primary { background: var(--blue); color: #fff; }
+.update-notice-btn--primary { background: var(--brand); color: #fff; }
 .update-notice-btn:hover { opacity: 0.85; }
 .update-notice-btn:active { transform: scale(0.98); }
 .update-notice-dismiss {
@@ -9999,7 +10000,7 @@ canvas {
 .event-modal-btn {
   width: 100%;
   padding: 13px;
-  background: #4f7cff;
+  background: var(--brand);
   color: #fff;
   border: none;
   border-radius: 12px;
@@ -10195,7 +10196,7 @@ canvas {
   padding: 13px;
   border: none;
   border-radius: 12px;
-  background: var(--blue);
+  background: var(--brand);
   color: #fff;
   font-size: 15px;
   font-weight: 700;
@@ -10772,7 +10773,7 @@ canvas {
   font-size: 16px;
   font-weight: 600;
   color: #fff;
-  background: var(--blue);
+  background: var(--brand);
   border: none;
   border-radius: calc(var(--radius) - 4px);
   padding: 9px 16px;
@@ -12890,7 +12891,7 @@ canvas {
 }
 
 .level-action-btn--primary {
-  background: #4f7cff;
+  background: var(--brand);
   color: #fff;
 }
 
@@ -13276,7 +13277,7 @@ canvas {
 }
 
 .result-btn--retry {
-  background: #4f7cff;
+  background: var(--brand);
   color: #fff;
 }
 
@@ -13362,7 +13363,7 @@ canvas {
   height: 48px;
   border: none;
   border-radius: 14px;
-  background: #4f7cff;
+  background: var(--brand);
   color: #fff;
   font-size: 15px;
   font-weight: 700;
@@ -13905,7 +13906,7 @@ canvas {
   height: 50px;
   border: none;
   border-radius: 14px;
-  background: #4f7cff;
+  background: var(--brand);
   color: #fff;
   font-size: 16px;
   font-weight: 700;
@@ -14492,7 +14493,7 @@ canvas {
   margin-bottom: calc(12 * var(--cs));
   border: none;
   border-radius: calc(10 * var(--cs));
-  background: var(--blue);
+  background: var(--brand);
   color: #ffffff;
   font-size: 14px;
   font-weight: 600;
@@ -15171,7 +15172,7 @@ canvas {
   padding: calc(14 * var(--cs, 1px)) calc(32 * var(--cs, 1px));
   border-radius: calc(14 * var(--cs, 1px));
   border: none;
-  background: #4f7cff;
+  background: var(--brand);
   color: #ffffff;
   font-size: 14px;
   font-weight: 700;
@@ -15348,7 +15349,7 @@ canvas {
   white-space: nowrap;
   border-radius: 14px;
   border: none;
-  background: #4f7cff;
+  background: var(--brand);
   color: #ffffff;
   font-size: 15px;
   font-weight: 700;
@@ -16433,7 +16434,7 @@ canvas {
   height: var(--gate-height);
   border: none;
   border-radius: var(--gate-radius);
-  background: #4f7cff;
+  background: var(--brand);
   color: #fff;
   font-size: var(--gate-font);
   font-weight: 700;
@@ -16547,11 +16548,11 @@ canvas {
 }
 .leave-practice-btn:active { transform: scale(0.96); }
 .leave-practice-btn--ghost {
-  background: #F5F5F5;
-  color: #555;
+  background: var(--accent);
+  color: #fff;
 }
 .leave-practice-btn--primary {
-  background: #4f7cff;
+  background: var(--brand);
   color: #fff;
 }
 
@@ -16754,7 +16755,7 @@ canvas {
   color: #555;
 }
 .peakbox-btn--primary {
-  background: #4f7cff;
+  background: var(--brand);
   color: #fff;
 }
 
@@ -19634,7 +19635,7 @@ canvas {
   padding: 12px 24px;
   border: none;
   border-radius: 14px;
-  background: #4f7cff;
+  background: var(--brand);
   color: #fff;
   font-size: 15px;
   font-weight: 700;
@@ -20606,9 +20607,9 @@ body.tut-lock .modal-overlay {
   display: block;
   margin: 14px 0 0 auto;
   padding: 8px 14px;
-  /* 앱 표준 primary 컬러(.btn-primary와 동일한 var(--blue)) — 활성 상태가 한눈에 띄어야 한다 */
-  background: var(--blue);
-  border: 1px solid var(--blue);
+  /* 앱 표준 primary 컬러(.btn-primary와 동일한 var(--brand)) — 활성 상태가 한눈에 띄어야 한다 */
+  background: var(--brand);
+  border: 1px solid var(--brand);
   border-radius: 999px;
   font-family: 'Pretendard', sans-serif;
   font-size: 13px;
@@ -20796,7 +20797,7 @@ body.tut-lock .tut-allow * {
 .tut-list-btn {
   flex-shrink: 0;
   border: none;
-  background: var(--blue);
+  background: var(--brand);
   color: #FFFFFF;
   font-size: 12px;
   font-weight: 700;

@@ -1099,6 +1099,7 @@ const Tutorial = (() => {
   function next() {
     if (!_running) return;
     if (_advanceTimer) return; // 대기 중 중복 호출 무시 (알림이 연달아 와도 한 구간만)
+    _playConfirmSfx();
 
     // 펄스 링은 여기서 즉시 끈다. 해제를 다음 _render()의 _clearTarget()에만 맡기면
     // 전환 딜레이(500ms) 동안 이미 눌러버린 버튼에 링이 계속 남아 있다.
@@ -1440,6 +1441,7 @@ const Tutorial = (() => {
         btn.textContent = cleared ? '다시 보기' : '시작';
         if (cleared) btn.classList.add('tut-list-btn--again');
         btn.addEventListener('click', () => {
+          _playConfirmSfx();
           closeTutorialModal();
           // 이 경로는 startFromModal을 거치지 않아 tutorial_started가 안 찍혔다.
           // 안 찍으면 물음표로 들어온 유저가 퍼널 분모(started)에서 통째로 빠진다.

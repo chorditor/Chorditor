@@ -223,7 +223,7 @@ function _lwBuildDetailShell() {
   panel.querySelector('.level-action-btn--primary').addEventListener('pointerup', e => {
     e.stopPropagation();
     _playTap();
-    _playSfx('pop.mp3');
+    _playConfirmSfx();
     const cfg = LEVEL_CONFIGS[_lwRealIdx];
     // 프리미엄 체크 먼저 — locked여도 플랜 시트 노출
     if (cfg.premium && getPlan() === 'free') {
@@ -260,7 +260,7 @@ function _lwUpdateDetail() {
   panel.querySelector('.ldp-info').textContent    = cfg.info;
 
   const countEl = panel.querySelector('.ldp-count');
-  countEl.textContent   = cfg.count ? `${cfg.count}문제 · 문제 당 ${cfg.timePerQ}` : '';
+  countEl.textContent   = cfg.count ? `${cfg.count}문제` : '';
   countEl.style.display = cfg.count ? '' : 'none';
 
   // 통계 그리드 항상 표시 / 잠금 메시지 항상 숨김
@@ -313,7 +313,7 @@ function buildLevelList() {
       <div class="lw-row1">
         <span class="lw-badge">${badgeText}</span>
         <span class="lw-row1-right">
-          ${cfg.count ? `<span class="lw-count">${cfg.count}문제 · 문제 당 ${cfg.timePerQ}</span>` : ''}
+          ${cfg.count ? `<span class="lw-count">${cfg.count}문제</span>` : ''}
           ${cfg.premium ? '<i class="ph-fill ph-crown lw-premium-crown"></i>' : ''}
         </span>
       </div>
@@ -2257,6 +2257,7 @@ function closeResultModal() {
 
 async function retryFromResult() {
   if (!(await consumePeak(_quizPeakCost(_currentLevel)))) return;
+  _playConfirmSfx();
   analytics.track('quiz_retried', { level_id: _currentLevel, mode: _currentMode });
   hideResultModal();
   _currentView = 'quiz';
@@ -2277,6 +2278,7 @@ function showNewRecordModal(speedSec) {
 }
 
 function closeNewRecordModal() {
+  _playConfirmSfx();
   const overlay = document.getElementById('newrecord-modal-overlay');
   if (overlay) overlay.classList.remove('newrecord-modal-overlay--show');
 }
@@ -2304,7 +2306,12 @@ window.addEventListener('pagehide', () => trackQuizAbandon('pagehide'));
 // ── 뒤로 가기 ────────────────────────────────────────────────
 function handleBack() {
   _playTap();
-  if (_currentView === 'quiz' || _currentView === 'result') {
+  if (_currentView === 'quiz') {
+    showLeavePracticeModal(() => {
+      trackQuizAbandon('back_btn');
+      showModeSelect();
+    });
+  } else if (_currentView === 'result') {
     trackQuizAbandon('back_btn');
     showModeSelect();
   } else if (_currentView === 'mode-select') {
