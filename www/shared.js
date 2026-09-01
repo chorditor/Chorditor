@@ -6,7 +6,7 @@
 // ── 상수 ─────────────────────────────────────────────────────
 const SUPABASE_URL  = 'https://jbvkygeksohlysyvaoab.supabase.co';
 const SUPABASE_ANON = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Impidmt5Z2Vrc29obHlzeXZhb2FiIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzYzOTk5NjgsImV4cCI6MjA5MTk3NTk2OH0.6RSgChy0Yq0H2TJpZPSoMKQ2V-OYfR0XzE1aJBBZkXI';
-const APP_VERSION   = '1.3.5_pre1';
+const APP_VERSION   = '1.3.5_pre_dev';
 const SUPABASE_STORAGE_KEY = 'sb-jbvkygeksohlysyvaoab-auth-token';
 
 // 이용약관/개인정보처리방침 버전 — 광고식별자 수집 항목 추가(2026-09) 시 1로 올림.
@@ -598,6 +598,12 @@ const AD_UNIT_IDS = {
 };
 const PEAK_AD_UNIT_ID = AD_UNIT_IDS.peak_recharge; // 하위호환(기존 참조부 유지)
 const PEAK_AD_RECHARGE_AMOUNT = 3;
+
+// 광고 버튼/문구는 웹(iOS 등 앱이 없는 환경)에서도 그대로 노출하되, 클릭 시 실제 재생 대신
+// 이 안내로 막는다 — plan.html 구독 버튼의 웹 폴백과 동일한 정책(2026-09-01).
+function _adUnavailableOnWeb() {
+  alert('광고 시청은 Android 앱에서만 가능합니다.\nGoogle Play에서 Chorditor를 다운로드하세요.');
+}
 
 // 이 세션에서 쓸 isTesting 값 — 둘 중 하나라도 테스트모드거나 어드민 계정이면 전부 테스트로.
 function _adIsTesting() { return MS_AD_TESTING || PEAK_AD_TESTING || _isAdminUser(); }
@@ -2230,6 +2236,9 @@ function closePeakBuffer() {
 // "충전하기" — 광고 끝까지 봐야 지급. 중간이탈/실패면 아무 일도 안 일어남(모달 유지).
 async function _peakBufferWatchAd() {
   if (typeof analytics !== 'undefined') analytics.track('peak_buffer_ad_clicked', {});
+  // 버튼은 웹(iOS 등)에서도 그대로 노출 — 네이티브가 아니면 여기서 앱 다운로드 안내로 막고
+  // 끝낸다("광고를 끝까지 봐야 충전돼요" 토스트와 겹치지 않게 여기서 먼저 분기)
+  if (!window.Capacitor?.Plugins?.AdMob) { _adUnavailableOnWeb(); return; }
   const rewarded = await _playPeakRechargeAd();
   if (!rewarded) {
     if (typeof showTextToast === 'function') showTextToast('광고를 끝까지 봐야 충전돼요');

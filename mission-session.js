@@ -1795,11 +1795,14 @@ function _msAdUnitForPlacement(placement) {
 const MS_AD_STUB_GRANTS = false;
 
 const MissionAdProvider = {
-  // 광고를 지금 띄울 수 있는 상태인가(SDK 로드/재고 확인 자리 — 네이티브 플러그인 없는
-  // 브라우저 dev 환경에서는 항상 false)
-  // Pro는 광고 자체가 없는 플랜이라 여기서 한 번에 막는다 — 이 값이 false면 "광고 보고 2배"
-  // 버튼도, 재도전 광고 분기도 전부 자동으로 사라진다(_msShowRewardModal 등이 이걸 본다).
-  isReady() { return MS_AD_ENABLED && !isAdFreeUser() && !!window.Capacitor?.Plugins?.AdMob; },
+  // 광고 버튼/문구를 노출할지 — Pro는 광고 자체가 없는 플랜이라 여기서 막는다.
+  // 네이티브 여부는 안 본다: 웹(iOS 등 앱이 없는 환경)에서도 버튼은 그대로 보여주고,
+  // 클릭 시 실제 재생 대신 앱 다운로드 안내로 막는 게 정책(2026-09-01, iOS 유저 대응).
+  isEligible() { return MS_AD_ENABLED && !isAdFreeUser(); },
+  // 실제로 지금 재생까지 할 수 있는 상태인가(SDK 로드/재고 확인 자리 — 네이티브 플러그인
+  // 없는 웹/브라우저 dev 환경에서는 항상 false). isEligible() true인데 이게 false면
+  // "버튼은 있는데 눌러도 안 되는" 상태 — _msPlayRewardedAd가 그 경우 안내로 대신 막는다.
+  isReady() { return this.isEligible() && !!window.Capacitor?.Plugins?.AdMob; },
   // 리워드 광고 재생 → 유저가 끝까지 봐서 보상을 획득했을 때만 true.
   // 실제 로딩/재생·재적재 타이밍은 shared.js _showRewardedAd()가 플러그인 표준 이벤트
   // (Loaded/Reward/Dismissed/FailedToShow)로 관리한다(2026-08-31 재작성).
@@ -1809,8 +1812,12 @@ const MissionAdProvider = {
 };
 
 async function _msPlayRewardedAd(placement) {
+  if (!MissionAdProvider.isEligible()) return MS_AD_STUB_GRANTS; // Pro 등 애초에 대상 아님
   if (!MissionAdProvider.isReady()) {
-    return MS_AD_STUB_GRANTS;
+    // 버튼은 노출됐지만(isEligible) 네이티브가 아니라 실제 재생은 불가 — 웹 안내로 막고
+    // 광고를 안 본(거절한) 것과 동일하게 처리해 호출부 로직을 그대로 태운다
+    if (typeof _adUnavailableOnWeb === 'function') _adUnavailableOnWeb();
+    return false;
   }
   return MissionAdProvider.show(placement);
 }
@@ -1868,7 +1875,7 @@ function _msShowRewardModal(kind, R, proDoubled) {
     return;
   }
   // 광고 OFF거나 이미 2배를 쓴 kind면 2배 버튼 자체를 띄우지 않는다
-  const showAdBtn = MissionAdProvider.isReady() && !_msRewardIsClaimed(kind + '_ad');
+  const showAdBtn = MissionAdProvider.isEligible() && !_msRewardIsClaimed(kind + '_ad');
   if (!showAdBtn) {
     // 선택지가 없으면 앱 공용 피크상자 획득 연출(reward.mp3 + gift 등장)을 그대로 사용
     showPeakboxRewardModal(R.box);
@@ -2066,7 +2073,7 @@ function _msShowRewardPopup(kind, onDone) {
   const alreadyGot = _msRewardDone(kind);
   const copy = alreadyGot ? MS_REWARD_POPUP_COPY_AGAIN[kind]
     : (perfectBonus ? MS_REWARD_POPUP_COPY_PERFECT.clear : MS_REWARD_POPUP_COPY[kind]);
-  const adUsable = MissionAdProvider.isReady() && !alreadyGot && !_msRewardDone(kind + '_ad');
+  const adUsable = MissionAdProvider.isEligible() && !alreadyGot && !_msRewardDone(kind + '_ad');
 
   const ov = _msBuildRewardPopup();
   document.getElementById('ms-reward-popup-title').textContent = copy.title;
@@ -3539,7 +3546,7 @@ let _msPromoAdBonusGranted = false;
 async function msPersonaPromoStart() {
   _playTap();
   if (_msPromoAttemptsLeft() <= 0 && !_msPromoAdBonusGranted) {
-    if (!MissionAdProvider.isReady()) {
+    if (!MissionAdProvider.isEligible()) {
       if (typeof showTextToast === 'function') showTextToast('오늘 도전 횟수를 다 썼어요');
       return;
     }
@@ -3869,7 +3876,7 @@ function msPersonaPromoFailLater() {
 async function msPersonaPromoFailRetry() {
   _playTap();
   if (_msPromoAttemptsLeft() <= 0) {
-    if (!MissionAdProvider.isReady()) {
+    if (!MissionAdProvider.isEligible()) {
       if (typeof showTextToast === 'function') showTextToast('오늘 도전 횟수를 다 썼어요');
       return;
     }
