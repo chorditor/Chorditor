@@ -21,7 +21,7 @@
 const MS_PERSONA_POOLS = {
 
   // ── 언박싱 1일차 — 트라이어드만, C key ───────────────────────
-  // id는 shared.js PERSONA_STAGES / DB(subscriptions.persona)와 동일 표기로 통일(언더스코어, 접미어 없음)
+  // id는 shared.js PERSONA_STAGES / DB(user_persona_profile.persona)와 동일 표기로 통일(언더스코어, 접미어 없음)
   unboxing: {
     label:    '언박싱 1일차',
     tutorial: true,

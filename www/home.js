@@ -1803,46 +1803,125 @@ function _consumeAfterNotices() {
   cb();
 }
 
-// ── 업데이트 안내 모달 (튜너·메트로놈 출시, 1회성 — 로그인 여부 무관) ──────
-const UPDATE_NOTICE_SEEN_KEY = 'chorditor_update_notice_tuner_metronome_seen';
-let _updateNoticeDismissedThisLoad = false; // "다시 보지 않기" 안 눌러도 이번 페이지 로드에선 재노출 안 함
-function maybeShowUpdateNotice() {
-  if (_updateNoticeDismissedThisLoad) return false;
-  if (localStorage.getItem(UPDATE_NOTICE_SEEN_KEY)) return false;
-  document.getElementById('update-notice-overlay')?.classList.remove('hidden');
+// ── 앱 업데이트 공지 (버전별 신규기능 안내, 1회성 — 로그인 여부 무관) ──────
+// UI 껍데기(app-notice-overlay, home.html)는 고정, 내용은 여기 배열에 데이터로만 추가.
+// id는 seen 여부 localStorage 키(chorditor_notice_seen_<id>) 생성에 쓰임 — 한번 배포한 공지의
+// id는 절대 바꾸지 말 것(바꾸면 이미 본 유저에게 재노출됨). 오래된 공지부터 배열 앞쪽에 둔다.
+//
+// 공지 객체 형식:
+//   id           고유 식별자, 불변
+//   version      모달 상단 큰 타이틀 (예: '1.3.5 업데이트')
+//   sections     세로 스크롤로 훑는 섹션 목록. 섹션 하나 = 타이틀/설명/그래픽/추가정보 한 세트.
+//                [{ title: '데일리미션', desc: '매일 미션 깨고 보상 받아요.', image: 'image/xxx.png',
+//                   extra: '홈 → 출석체크에서 확인할 수 있어요.' }, ...]
+//                image(또는 mediaHtml) 없으면 그래픽 영역 자체를 생략.
+//                extra는 선택 — 경로 안내/부가설명/CTA 등 그래픽 아래 들어가는 작은 보조 텍스트, 없으면 생략.
+//   pastVersion    (선택) pastHighlights 그룹 위에 중앙정렬로 뜨는 소제목 (예: '1.3.4 업데이트')
+//   pastHighlights (선택) sections와 형식 동일 — 있으면 얇은 구분선 아래 "과거 업데이트 다시보기"로 이어붙임
+//   ghostBtn     (선택) {label} — 있으면 "그냥 닫기"용 보조 버튼이 primary 왼쪽에 생김
+//   primaryBtn   (선택) {label, action} — action 없으면 그냥 닫기, label 없으면 '확인'
+const APP_NOTICES = [
+  {
+    id: 'v1_3_5',
+    version: '1.3.5 업데이트',
+    sections: [
+      {
+        title: '매일 훈련 루틴&출석 시스템 개편',
+        desc: '매일 짧은 미션을 깨면서 훈련 습관을 만들어요.<br>출석 도장 모으고 보상도 챙기세요.',
+        image: 'image/calender.png',
+        extra: '<strong>홈 → 출석체크</strong>에서 데일리미션을 확인할 수 있어요.',
+      },
+      {
+        title: '승급 시스템',
+        desc: '레벨 없이도 훈련 실력을 인정받는 시스템이에요.<br>시험 통과하면 다음 단계 유저로 승급해요.',
+        image: 'image/trophy.png',
+        extra: '<strong>프로필</strong>의 5개 점을 누르면 단계를 원하는 대로 다시 조정할 수 있어요.',
+      },
+    ],
+    // 업데이트 주기가 빨라 놓쳤을 수 있는 과거 버전 기능 짧은 회고 — 구분선 아래 표시
+    pastVersion: '1.3.4 업데이트',
+    pastHighlights: [
+      {
+        title: '튜너',
+        desc: '마이크로 음정을 실시간으로 잡아줘요.<br>줄 하나하나 정확하게 맞춰보세요.',
+        mediaHtml: '<div class="update-notice-media--pair"><i class="ph-fill ph-waveform"></i></div>',
+      },
+      {
+        title: '메트로놈',
+        desc: '원하는 BPM으로 박자를 맞춰줘요.<br>연습 템포를 일정하게 유지해보세요.',
+        mediaHtml: '<div class="update-notice-media--pair"><i class="ph-fill ph-metronome"></i></div>',
+      },
+    ],
+    primaryBtn: { label: '확인' },
+  },
+];
+
+let _appNoticeDismissedThisLoad = false; // "다시 보지 않기" 안 눌러도 이번 페이지 로드에선 재노출 안 함
+let _appNoticeShowingId = null;
+
+function maybeShowAppNotice() {
+  if (_appNoticeDismissedThisLoad) return false;
+  const notice = APP_NOTICES.find(n => !localStorage.getItem('chorditor_notice_seen_' + n.id));
+  if (!notice) return false;
+  _renderAppNotice(notice);
   return true;
-}
-function closeUpdateNotice(goTools) {
-  document.getElementById('update-notice-overlay')?.classList.add('hidden');
-  _updateNoticeDismissedThisLoad = true;
-  // "다시 보지 않기" 체크된 경우, 또는 바로가기로 이동하는 경우(그 자체가 확인 의사) seen 마킹
-  // — 안 그러면 tools탭으로 이동한 페이지가 재로드되면서 checkAndShowNotice()가 다시 띄움
-  const dismissCheck = document.getElementById('update-notice-dismiss-check');
-  if (goTools || dismissCheck?.checked) localStorage.setItem(UPDATE_NOTICE_SEEN_KEY, '1');
-  if (goTools) { location.href = 'home.html?tab=tools'; return; } // 페이지 이동 — 콜백은 새 페이지 로드에서 다시 처리
-  checkAndShowNotice(); // 다음 공지 있으면 이어서, 없으면 출석 콜백 소비
 }
 
-// ── 태블릿·PC 반응형 개선 안내 (1회성 — 로그인 여부 무관) ────────────────
-const RESPONSIVE_NOTICE_SEEN_KEY = 'chorditor_responsive_notice_seen';
-let _responsiveNoticeDismissedThisLoad = false;
-function maybeShowResponsiveNotice() {
-  if (_responsiveNoticeDismissedThisLoad) return false;
-  if (localStorage.getItem(RESPONSIVE_NOTICE_SEEN_KEY)) return false;
-  document.getElementById('responsive-notice-overlay')?.classList.remove('hidden');
-  return true;
+// 섹션 목록 하나(공통 레이아웃: 타이틀/설명/그래픽/추가정보)를 HTML로 렌더 — 이번 버전
+// 섹션과 과거 업데이트 회고 섹션이 이 함수를 그대로 같이 씀
+function _renderNoticeSections(list) {
+  return (list || []).map(s => `
+    <div class="update-notice-section">
+      <div class="update-notice-section-title">${s.title}</div>
+      <p class="update-notice-section-desc">${s.desc}</p>
+      ${s.image ? `<div class="update-notice-section-media"><img src="${s.image}" alt=""></div>`
+        : s.mediaHtml ? `<div class="update-notice-section-media">${s.mediaHtml}</div>` : ''}
+      ${s.extra ? `<p class="update-notice-section-extra">${s.extra}</p>` : ''}
+    </div>
+  `).join('');
 }
-function closeResponsiveNotice() {
-  document.getElementById('responsive-notice-overlay')?.classList.add('hidden');
-  _responsiveNoticeDismissedThisLoad = true;
-  const dismissCheck = document.getElementById('responsive-notice-dismiss-check');
-  if (dismissCheck?.checked) localStorage.setItem(RESPONSIVE_NOTICE_SEEN_KEY, '1');
+
+function _renderAppNotice(notice) {
+  _appNoticeShowingId = notice.id;
+  document.getElementById('app-notice-version').textContent = notice.version || '';
+
+  // pastHighlights: 업데이트 주기가 빨라 놓쳤을 수 있는 과거 버전 기능을 얇은 구분선 아래
+  // 짧게 회고 — sections와 완전히 같은 레이아웃을 재사용
+  document.getElementById('app-notice-sections').innerHTML =
+    _renderNoticeSections(notice.sections)
+    + (notice.pastHighlights?.length
+        ? '<hr class="update-notice-divider">'
+          + (notice.pastVersion ? `<div class="update-notice-past-version">${notice.pastVersion}</div>` : '')
+          + _renderNoticeSections(notice.pastHighlights)
+        : '');
+
+  const ghostHtml = notice.ghostBtn
+    ? `<button class="update-notice-btn update-notice-btn--ghost" onclick="closeAppNotice(false)">${notice.ghostBtn.label || '확인'}</button>`
+    : '';
+  const primaryLabel = notice.primaryBtn?.label || '확인';
+  document.getElementById('app-notice-btns').innerHTML = ghostHtml
+    + `<button class="update-notice-btn update-notice-btn--primary" onclick="closeAppNotice(true)">${primaryLabel}</button>`;
+
+  document.getElementById('app-notice-overlay')?.classList.remove('hidden');
+  if (typeof lucide !== 'undefined') lucide.createIcons(); // 섹션 그래픽에 data-lucide 아이콘(도장) 쓰는 경우 렌더
+}
+
+// 버튼이 어느 쪽이든 닫히면 그걸로 "봤다"고 간주해 seen 마킹 — 체크박스는 즉시반영과
+// 무관하게 남겨둠(다음에도 다시 안 뜨는 걸 명시적으로 보장하고 싶은 유저용 습관적 UI)
+function closeAppNotice(primary) {
+  const notice = APP_NOTICES.find(n => n.id === _appNoticeShowingId);
+  document.getElementById('app-notice-overlay')?.classList.add('hidden');
+  _appNoticeDismissedThisLoad = true;
+  if (notice) localStorage.setItem('chorditor_notice_seen_' + notice.id, '1');
+  if (primary && notice?.primaryBtn?.action) {
+    notice.primaryBtn.action();
+    return; // action이 페이지 이동 등을 책임짐 — 콜백 체인은 새 로드에서 이어짐
+  }
   checkAndShowNotice(); // 다음 공지 있으면 이어서, 없으면 출석 콜백 소비
 }
 
 async function checkAndShowNotice() {
-  if (maybeShowResponsiveNotice()) return;
-  if (maybeShowUpdateNotice()) return; // 신규 기능 안내가 DB 공지보다 우선
+  if (maybeShowAppNotice()) return; // 신규 기능 안내가 DB 공지보다 우선
   if (!_authReady) { _consumeAfterNotices(); return; }
   const stored = localStorage.getItem(SUPABASE_STORAGE_KEY);
   if (!stored) { _consumeAfterNotices(); return; }
@@ -1978,8 +2057,6 @@ function renderAuthUI(user) {
 }
 
 
-// 플랜 관련 함수는 plan.js로 이전됨
-
 // ── 배율 옵션 잠금 제어 ─────────────────────────────────────────
 function updateExportScaleOptions() {
   const max = getPlanLimit('maxScale');
@@ -2080,9 +2157,7 @@ async function loadProfileFromDB() {
     }
 
     const resp = await fetch(
-      // persona는 폴백용으로만 유지 — user_persona_profile에 아직 행이 없는
-      // 신규가입 직후 유저(온보딩 시 subscriptions에만 기록됨)를 위함.
-      `${SUPABASE_URL}/rest/v1/subscriptions?user_id=eq.${userId}&select=nickname,plan,created_at,persona,promo_plan,promo_expires_at,promo_pending_days,invite_code`,
+      `${SUPABASE_URL}/rest/v1/subscriptions?user_id=eq.${userId}&select=nickname,plan,created_at,promo_plan,promo_expires_at,promo_pending_days,invite_code`,
       { headers: { 'apikey': SUPABASE_ANON, 'Authorization': `Bearer ${token}` } }
     );
     if (!resp.ok) {
@@ -2096,8 +2171,9 @@ async function loadProfileFromDB() {
     }
     const row = rows[0];
 
-    // user_persona_profile: persona는 즉시반영(승급/강등 시 setUserPersona가 씀),
-    // pref_type/skill_type/engagement_type은 30일 배치갱신 — 유저관리 총집합 테이블.
+    // user_persona_profile: persona 유일한 소스(2026-08-31, subscriptions.persona 삭제).
+    // 즉시반영(승급/강등 시 setUserPersona가 씀), pref_type/skill_type/engagement_type은
+    // 30일 배치갱신 — 유저관리 총집합 테이블.
     try {
       const ppResp = await fetch(
         `${SUPABASE_URL}/rest/v1/user_persona_profile?user_id=eq.${userId}&select=persona,pref_type,skill_type,engagement_type`,
@@ -5102,7 +5178,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
   } else {
     switchTab(_initTab, _initTab !== 'home');
-    // plan.html 복귀 시 서브뷰 복원 (에디터/라이브러리)
+    // ?subview= 붙여서 홈으로 돌아온 경우 서브뷰 복원(에디터/라이브러리)
     const _initSubview = _urlParams.get('subview');
     if (_initSubview && _initSubview !== 'home') {
       enterFromHome(_initSubview, true);

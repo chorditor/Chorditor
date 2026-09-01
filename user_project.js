@@ -772,8 +772,6 @@ function renderAuthUI(user) {
 }
 
 
-// 플랜 관련 함수는 plan.js로 이전됨
-
 // ── 배율 옵션 잠금 제어 ─────────────────────────────────────────
 function updateExportScaleOptions() {
   const max = getPlanLimit('maxScale');

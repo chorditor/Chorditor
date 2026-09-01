@@ -37,8 +37,8 @@
             <p class="attendance-desc">꾸준히 연습해서 실력을 키워봐요!</p>
           </div>
           <div class="attendance-cta-row">
-            <button class="attendance-cta-link" onclick="location.href='daily-mission.html'">
-              오늘의 훈련 루틴 하러가기 <i data-lucide="chevron-right" class="attendance-cta-link-icon"></i>
+            <button class="attendance-cta-link" id="attendance-cta-btn" onclick="attendanceCtaClick()">
+              <span id="attendance-cta-label">오늘의 훈련 루틴 하러가기</span> <i data-lucide="chevron-right" class="attendance-cta-link-icon"></i>
             </button>
           </div>
           <img src="image/calender.png" class="attendance-cal-icon" alt="">
@@ -47,7 +47,7 @@
             <div class="attend-cal-grid" id="attendance-cal-grid"></div>
             <span class="attendance-status" id="attendance-status"></span>
             <div class="attendance-makeup-row">
-              <button class="attendance-makeup-btn" id="attendance-makeup-btn" onclick="makeupAttendance()">
+              <button class="attendance-makeup-btn" id="attendance-makeup-btn" onclick="attendanceMakeupClick()">
                 보충출석 <span class="attendance-makeup-count" id="attendance-makeup-count">3</span>
               </button>
             </div>

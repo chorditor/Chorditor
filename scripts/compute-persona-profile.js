@@ -2,9 +2,10 @@
 // 프로덕션 배치 — pref_type/skill_type/engagement_type 계산 후 Supabase
 // user_persona_profile 테이블에 UPSERT. 30일마다 실행 예정(Task Scheduler 등록은 별도).
 //
-// persona(5단계)는 subscriptions.persona에서 그대로 복사해옴 — 승급/강등 기능이
-// 아직 미배포라 온보딩 시점 값이 곧 현재값(전원 동일). 기능 배포 후엔 subscriptions.persona가
-// 더 이상 갱신 안 되니 이 부분 재검토 필요([[persona_promo_demote_system]] 참고).
+// persona(5단계)는 이 배치가 절대 안 건드림 — 승급/강등(onboarding.js·shared.js
+// _syncPersonaToProfile)이 유일한 쓰기 경로. 여기서 같이 쓰면 30일마다 승급/강등이
+// 원상복구되는 사고가 나므로 payload에서 반드시 제외한다(2026-08-31 subscriptions.persona
+// 컬럼 자체 삭제와 함께 정리).
 //
 // 설계 근거: persona_clustering_pipeline_plan.md 전체 참고.
 
@@ -151,7 +152,7 @@ async function main() {
   console.log(`[persona] 유저 ${rows.length}명`);
 
   console.log('[persona] Supabase 가입일/닉네임 조회 중...');
-  const signupMap = await fetchSupabasePaginated('subscriptions', 'user_id,created_at,nickname,persona', 'user_id');
+  const signupMap = await fetchSupabasePaginated('subscriptions', 'user_id,created_at,nickname', 'user_id');
   console.log(`[persona] 가입정보 ${signupMap.size}명`);
 
   // ── pref_type: 활동자만의 population 평균(단위변환용) ──
@@ -220,7 +221,6 @@ async function main() {
     results.push({
       user_id: r.user_id,
       nickname,
-      persona: signup?.persona ?? null,
       pref_type: prefType,
       pref_scores: prefScores,
       skill_type: skillType,

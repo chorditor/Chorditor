@@ -14,15 +14,40 @@ function closeAttendancePage() {
   }
 }
 
-// ── 도장 달력 렌더 (디자인 전용 — DB/상태 조회 없이 목업 값으로 표시) ──
-const ATTENDANCE_MOCK_DAY = 7;
-const ATTENDANCE_MOCK_DONE_TODAY = false;
+// ── 상단 CTA (오늘의 훈련 루틴 / 오늘 훈련 결과보기) ─────────────
+// mission-session.js _msTodayKey()와 동일 형식(로컬 자정 기준, KST 아님 — 기존 그대로 맞춤).
+function _attTodayKey() {
+  const d = new Date();
+  return `${d.getFullYear()}-${d.getMonth() + 1}-${d.getDate()}`;
+}
+function _attHasTodayMissionResult() {
+  try {
+    const s = JSON.parse(localStorage.getItem('ms_today_result') || 'null');
+    return !!(s && s.date === _attTodayKey() && s.records);
+  } catch (_) { return false; }
+}
+function renderAttendanceCta() {
+  const label = document.getElementById('attendance-cta-label');
+  if (!label) return;
+  label.textContent = _attHasTodayMissionResult() ? '오늘 훈련 결과보기' : '오늘의 훈련 루틴 하러가기';
+}
+// 완료 전엔 게이트로, 완료 후엔 결과화면으로 직행(?view=result — daily-mission.html의
+// "이미 봤으면 home으로" 게이트를 우회, 유저가 명시적으로 누른 거니 다시 보여준다).
+function attendanceCtaClick() {
+  location.href = _attHasTodayMissionResult() ? 'mission-session.html?view=result' : 'daily-mission.html';
+}
+
+// ── 도장 달력 렌더 (실제 DB값 — shared.js loadAttendanceState()/_attState 기준) ──
+// 오늘 이미 도장을 찍었으면(doneToday) 마지막 찍은 칸(_attState.day)이 곧 "오늘" 칸이고,
+// 아직이면 다음에 찍을 칸(_attState.day + 1)이 "오늘" 칸 — 도장 자체는 여기서 찍지 않는다
+// (진행은 데일리미션 완료 시 advanceAttendance()가 찍음, 이 페이지는 조회 전용).
+let _attDoneToday = false;
 
 function renderAttendanceStatus() {
   const el = document.getElementById('attendance-status');
   if (!el) return;
-  el.textContent = ATTENDANCE_MOCK_DONE_TODAY ? '오늘은 출석을 완료했어요' : '아직 오늘 출석을 못했어요';
-  el.classList.toggle('attendance-status--done', ATTENDANCE_MOCK_DONE_TODAY);
+  el.textContent = _attDoneToday ? '오늘은 출석을 완료했어요' : '아직 오늘 출석을 못했어요';
+  el.classList.toggle('attendance-status--done', _attDoneToday);
 }
 
 function renderAttendanceMonth() {
@@ -32,12 +57,57 @@ function renderAttendanceMonth() {
   el.textContent = kstMonth + '월 출석';
 }
 
+function renderAttendanceMakeup() {
+  const row = document.querySelector('.attendance-makeup-row');
+  const countEl = document.getElementById('attendance-makeup-count');
+  if (!row) return;
+  row.hidden = !_attState.needs_makeup;
+  if (countEl) countEl.textContent = _attState.makeup_left;
+}
+
+// 이미 떠있는 달력의 해당 칸에 직접 도장을 찍는다 — mission-session.js _msRunStampFlow()와
+// 동일 CSS(.acc-cell--done/.acc-stamp/.acc-cell--animate, stamp-press 키프레임)·타이밍
+// (STAMP_ANIM_MS=1100ms, STAMP_IMPACT_OFFSET_MS=700ms) 재사용. 모달 없이 그 자리에서 연출.
+function _attAnimateStamp(day) {
+  return new Promise(resolve => {
+    const grid = document.getElementById('attendance-cal-grid');
+    const cell = grid?.querySelector(`.acc-cell[data-day="${day}"]`);
+    if (!cell || cell.classList.contains('acc-cell--done')) { resolve(); return; }
+    cell.scrollIntoView({ behavior: 'smooth', inline: 'center', block: 'nearest' });
+    cell.classList.add('acc-cell--done');
+    const stamp = document.createElement('span');
+    stamp.className = 'acc-stamp';
+    stamp.innerHTML = '<i data-lucide="guitar"></i>';
+    cell.appendChild(stamp);
+    if (typeof lucide !== 'undefined') lucide.createIcons();
+    cell.classList.add('acc-cell--animate');
+    if (typeof _playSfx === 'function') setTimeout(() => _playSfx('stamp.mp3'), STAMP_IMPACT_OFFSET_MS);
+    setTimeout(resolve, STAMP_ANIM_MS);
+  });
+}
+
+// 보충출석 클릭 → shared.js makeupAttendance() 실행 후 그 자리에서 도장 연출, 재렌더.
+// 마일스톤(피크상자) 획득 팝업은 shared.js makeupAttendance()가 자체 딜레이로 이미 띄워준다.
+async function attendanceMakeupClick() {
+  const btn = document.getElementById('attendance-makeup-btn');
+  if (btn) btn.disabled = true;
+  const dayBefore = _attState.day;
+  await makeupAttendance();
+  if (_attState.day === dayBefore) { if (btn) btn.disabled = false; return; } // 진행 안 됨(실패)
+
+  _attDoneToday = true; // 보충출석 성공 시 오늘 도장도 같이 찍힌 것으로 간주
+  await _attAnimateStamp(_attState.day);
+  renderAttendanceStatus();
+  renderAttendanceMakeup();
+  if (btn) btn.disabled = false;
+}
+
 function renderAttendanceCalendar() {
   const grid = document.getElementById('attendance-cal-grid');
   if (!grid) return;
 
-  const stamped = ATTENDANCE_MOCK_DAY;
-  const today = Math.min(stamped + 1, ATTENDANCE_TOTAL_DAYS); // 오늘 찍어야 할 날짜
+  const stamped = _attState.day;
+  const today = _attDoneToday ? stamped : Math.min(stamped + 1, ATTENDANCE_TOTAL_DAYS); // 오늘 칸
   const boxSvg = '<img src="image/gift.png" class="acc-box-icon" alt="">';
 
   let html = '';
@@ -111,7 +181,7 @@ function initGridMouseDrag(grid) {
 }
 
 // ── DOMContentLoaded ─────────────────────────────────────────
-document.addEventListener('DOMContentLoaded', () => {
+document.addEventListener('DOMContentLoaded', async () => {
 
   const shell = document.querySelector('.app-shell');
   if (shell) shell.classList.add('project-enter');
@@ -127,8 +197,16 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   renderAttendanceMonth();
+  renderAttendanceCta();
+  positionAttendanceCalIcon();
+  positionAttendanceGradient();
+
+  const state = await loadAttendanceState();
+  _attDoneToday = state.doneToday;
   renderAttendanceCalendar();
   renderAttendanceStatus();
+  renderAttendanceMakeup();
+  // 달력이 실제 도장 수로 새로 그려지면서 폭이 바뀔 수 있어 위치 재계산
   positionAttendanceCalIcon();
   positionAttendanceGradient();
 

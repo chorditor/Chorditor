@@ -6,12 +6,24 @@
 // ── 상수 ─────────────────────────────────────────────────────
 const SUPABASE_URL  = 'https://jbvkygeksohlysyvaoab.supabase.co';
 const SUPABASE_ANON = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Impidmt5Z2Vrc29obHlzeXZhb2FiIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzYzOTk5NjgsImV4cCI6MjA5MTk3NTk2OH0.6RSgChy0Yq0H2TJpZPSoMKQ2V-OYfR0XzE1aJBBZkXI';
-const APP_VERSION   = '1.3.4.2_pre';
+const APP_VERSION   = '1.3.4.2_pre11_dev';
 const SUPABASE_STORAGE_KEY = 'sb-jbvkygeksohlysyvaoab-auth-token';
+
+// 이용약관/개인정보처리방침 버전 — 광고식별자 수집 항목 추가(2026-09) 시 1로 올림.
+// subscriptions.terms_version이 이 값보다 낮으면 재동의 관문에서 막는다.
+const CURRENT_TERMS_VERSION = 1;
+
+// 개발자 어드민 계정 — 디버그 초기화 버튼 안전잠금 + 광고 강제테스트모드 판정용.
+// 실서비스에서 진짜 광고(isTesting:false)로 전환된 뒤에도 이 계정만은 항상 테스트광고를 받아서
+// 스스로 실광고를 클릭해 발생하는 "잘못된 트래픽" 정책위반 경고를 피한다.
+const ADMIN_USER_ID = '670dccca-b0bc-4ffa-9eb2-07380dcea27e';
+function _isAdminUser() { return getStoredAuth().userId === ADMIN_USER_ID; }
 
 // ── 온보딩 관문 판정 ──────────────────────────────────────────
 // persona 유무가 완료 여부의 유일한 기준. onboarding.html / home.html 양쪽이
 // 같은 판정을 쓰도록 여기 한 곳에만 둔다.
+// 2026-08-31: subscriptions.persona 컬럼 삭제(중복값이었음) → user_persona_profile이
+// persona의 유일한 소스. 온보딩 완료 시점부터 승급/강등까지 전부 이 테이블 하나만 본다.
 //
 // ⚠️ fail-closed: 조회가 끝내 실패하면 "온보딩 필요"로 본다. 예전 구현은
 // 실패 시 통과시켜서(fail-open) 네트워크 순단만으로 온보딩을 건너뛴 채
@@ -19,10 +31,23 @@ const SUPABASE_STORAGE_KEY = 'sb-jbvkygeksohlysyvaoab-auth-token';
 // 비로그인은 여기서 판단하지 않는다(호출부가 각자 처리).
 async function checkNeedsOnboarding(token, userId, retries = 2) {
   if (!token || !userId) return false;
+  // 토큰이 만료된 채로 조회하면 서버가 401만 반복하고, 그걸 "온보딩을 실제로 안 한 유저"랑
+  // 구분을 못 해서 이미 온보딩 끝낸 유저가 온보딩 화면으로 튕기는 버그가 있었음(2026-08-31,
+  // 앱을 오래 켜두거나 오랜만에 재개했을 때 토큰 만료로 재현). 조회 전에 만료 여부만 먼저
+  // 확인해서 만료면 새 토큰으로 갈아끼운다 — _peakRefreshToken은 이름과 달리 피크 전용이
+  // 아니라 그냥 Supabase 세션 리프레시라 여기서도 그대로 재사용 가능.
+  try {
+    const session = JSON.parse(localStorage.getItem(SUPABASE_STORAGE_KEY) || 'null');
+    const now = Math.floor(Date.now() / 1000);
+    if (session?.expires_at && session.expires_at <= now) {
+      const fresh = await _peakRefreshToken();
+      if (fresh) token = fresh;
+    }
+  } catch (_) {}
   for (let i = 0; i <= retries; i++) {
     try {
       const resp = await fetch(
-        `${SUPABASE_URL}/rest/v1/subscriptions?user_id=eq.${userId}&select=persona`,
+        `${SUPABASE_URL}/rest/v1/user_persona_profile?user_id=eq.${userId}&select=persona`,
         { headers: { 'apikey': SUPABASE_ANON, 'Authorization': `Bearer ${token}` } }
       );
       if (resp.ok) {
@@ -33,6 +58,27 @@ async function checkNeedsOnboarding(token, userId, retries = 2) {
     if (i < retries) await new Promise(r => setTimeout(r, 400 * (i + 1)));
   }
   return true;
+}
+
+// ── 재동의 관문 판정 ──────────────────────────────────────────
+// persona는 이미 있지만(=온보딩은 끝난 유저) terms_version이 낮아서 신규 약관에 아직
+// 동의 안 한 경우를 걸러낸다. 온보딩 관문(checkNeedsOnboarding)과 달리 조회 실패 시
+// fail-open(통과)로 둔다 — 신규 프로필 생성이 걸린 하드 게이트가 아니라 소급 재동의라,
+// 네트워크 순단만으로 기존 유저 전체가 앱을 못 쓰게 막는 건 과함.
+async function checkNeedsReConsent(token, userId) {
+  if (!token || !userId) return false;
+  try {
+    const resp = await fetch(
+      `${SUPABASE_URL}/rest/v1/subscriptions?user_id=eq.${userId}&select=terms_version`,
+      { headers: { 'apikey': SUPABASE_ANON, 'Authorization': `Bearer ${token}` } }
+    );
+    if (resp.ok) {
+      const rows = await resp.json();
+      const version = rows.length > 0 ? (rows[0].terms_version || 0) : 0;
+      return version < CURRENT_TERMS_VERSION;
+    }
+  } catch (_) {}
+  return false;
 }
 
 // localStorage 세션에서 토큰·유저ID 추출 (Android 네이티브 경로용)
@@ -510,6 +556,9 @@ function setPlan(plan) {
   if (typeof renderPlanBadge === 'function') renderPlanBadge();
   if (typeof renderPeakBadge === 'function') renderPeakBadge();
   if (prev !== plan && typeof renderSidebar === 'function') renderSidebar();
+  // 승급시험 재도전 배지는 Pro면 "무제한", Free면 "n/2"로 표시가 달라진다. 화면이 이미
+  // 그려진 상태에서 플랜이 바뀌면(구매 직후·강등) 캐시값이 옛 플랜 기준으로 남으므로 다시 조회.
+  if (prev !== plan && typeof _msPromoRefreshAttemptsBadge === 'function') _msPromoRefreshAttemptsBadge();
 }
 
 function getPlanLimit(key) {
@@ -530,36 +579,212 @@ function isProjectLocked(project, projects) {
 const PEAK_CAP = 30;
 const PEAKBOX_REWARD = 5;
 
-// ── 피크 완전소진 시 "광고 보고 충전하기" (2026-08-30) ──
-// 콘텐츠 종류 무관 공용 게이트(openPeakBuffer)에서 씀. mission-session.js의 MS_AD_ENABLED와는
-// 별개 플래그 — 이건 앱 전역(어느 페이지든 피크 게이트가 뜰 수 있어서) 이라 shared.js에 둠.
-const PEAK_AD_ENABLED = false; // 실기기 테스트 전까지 꺼둠(mission-session.js와 동일 원칙)
+// ── 리워드 광고 통합 설정 (2026-08-31 mission-session.js에 흩어져있던 것까지 전부 합침) ──
+// 이유: 클릭 시점에 prepareRewardVideoAd()부터 시작하면 네트워크 로딩 때문에 느림(유저가
+// 두 번 눌러야 겨우 뜨는 문제 발생) — 로그인 세션 시작(앱 진입) 시점에 3개 광고단위를
+// 전부 미리 로딩해두고, 클릭 시엔 이미 로딩된 걸 즉시 재생하는 구조로 바꿈.
+// 네이티브 쪽이 adId별로 따로 캐싱(preparedAds 맵)하는 구조라 3개 동시 preload 안전함
+// (showRewardVideoAd({adId})로 어느 걸 보여줄지 명시 가능, @capacitor-community/admob 8.1.0 기준).
+const MS_AD_ENABLED = true;  // pre 내부테스트용 전환(2026-08-31)
+const MS_AD_TESTING = true;
+const PEAK_AD_ENABLED = true; // 피크 완전소진 시 "광고 보고 충전하기". 콘텐츠 무관 공용 게이트라 여기 둠.
 const PEAK_AD_TESTING = true;
-const PEAK_AD_UNIT_ID = 'ca-app-pub-3016297895973220/9420279694'; // 피크 충전 전용
+// ⚠ DEV ONLY — 광고가 안 뜨는 원인 파악용 alert. logcat 확인 불가능한 환경에서 임시로 심음.
+const AD_DEBUG_ALERTS = false;
+const AD_UNIT_IDS = {
+  mission_reward:      'ca-app-pub-3016297895973220/6249417373', // 데일리미션 2배 보상
+  persona_promo_retry: 'ca-app-pub-3016297895973220/8572328382', // 승급시험 재도전
+  peak_recharge:       'ca-app-pub-3016297895973220/9420279694', // 피크 완전소진 충전
+};
+const PEAK_AD_UNIT_ID = AD_UNIT_IDS.peak_recharge; // 하위호환(기존 참조부 유지)
 const PEAK_AD_RECHARGE_AMOUNT = 3;
 
-// 리워드 광고 재생 → 끝까지 봐서 보상 획득 시에만 true (mission-session.js MissionAdProvider.show와 동일 패턴)
-async function _playPeakRechargeAd() {
-  if (!PEAK_AD_ENABLED) return false;
-  const AdMob = window.Capacitor?.Plugins?.AdMob;
-  if (!AdMob) return false;
-  try {
-    await AdMob.prepareRewardVideoAd({ adId: PEAK_AD_UNIT_ID, isTesting: PEAK_AD_TESTING });
-    const reward = await AdMob.showRewardVideoAd();
-    return !!reward;
-  } catch (e) { console.warn('[AdMob] peak recharge ad 실패:', e); return false; }
+// 이 세션에서 쓸 isTesting 값 — 둘 중 하나라도 테스트모드거나 어드민 계정이면 전부 테스트로.
+function _adIsTesting() { return MS_AD_TESTING || PEAK_AD_TESTING || _isAdminUser(); }
+
+// ── 리워드 광고: 플러그인 표준 이벤트 기반 (2026-08-31 재작성) ──
+// 이전엔 showRewardVideoAd()의 Promise 하나로 로딩/재생/보상/닫힘을 전부 추측해서 처리했음.
+// 근데 이 Promise는 "보상 획득" 시점에 resolve되는 거지 "광고화면이 실제로 닫힘"이 아니라서,
+// 재생 직후(광고 화면이 아직 떠있을 수 있는 시점)에 곧바로 다음 광고를 prepare해버려 네이티브
+// SDK 내부 상태가 꼬여 그 광고단위가 그 이후로 아예 안 뜨는 사고로 이어졌음(잘 되다가 갑자기
+// 광고 자체가 시작도 안 되는 증상).
+// 플러그인이 원래 이 5개 이벤트를 전부 제공하므로(reward-ad-plugin-events.enum.d.ts)
+// 그걸 그대로 쓴다 — 이게 업계 표준 패턴:
+//   Loaded/FailedToLoad → 로딩 결과   Reward → 보상 지급 시점   Dismissed → 광고화면이
+//   실제로 닫힌 시점(여기서만 다음 광고를 다시 채운다)   FailedToShow → 재생 자체 실패
+const _adReady   = {}; // adId(우리가 쓰는 광고단위ID) -> 로딩 완료(재생 가능)
+const _adLoadedAt = {}; // adId -> 로딩 완료된 시각(ms). 너무 오래 방치된 광고는 재생 시 검은화면만
+                         // 나오는 경우가 있어서(2026-08-31, 데일리미션 클리어 2배 광고에서 재현 —
+                         // 세션 시작 시 미리 로딩해두고 미션 다 풀 때까지(몇 분) 방치했다가 씀) 신선도를 잰다.
+const AD_STALE_MS = 3 * 60 * 1000; // 3분 넘게 방치됐으면 재생 안 하고 새로 로딩
+const _adWaiters = {}; // adId -> 로딩 결과를 기다리는 resolve 함수 배열
+const _adRealKey = {}; // adId -> 네이티브가 preparedAds에 실제로 저장한 키.
+                        // isTesting:true인데 기기가 AdMob "테스트기기"로 등록 안 돼있으면 플러그인이
+                        // 우리가 넘긴 adId를 구글 테스트용 ID로 몰래 바꿔서 로드함(AdViewIdHelper.getFinalAdId,
+                        // @capacitor-community/admob AdRewardExecutor.java) — onRewardedVideoAdLoaded가
+                        // 돌려주는 adUnitId는 그 바뀐 값이라 우리가 원래 요청한 adId와 다를 수 있음.
+                        // show() 호출 땐 반드시 이 실제 키를 써야 preparedAds에서 찾아짐(2026-08-31 발견 —
+                        // 이거 없이 원래 adId로 show()를 부르면 네이티브가 못 찾고 실패함).
+let _adLoadQueue  = []; // 순차 로딩 대기열 — FailedToLoad엔 adId가 안 실려있어서(플러그인 스펙)
+                         // 동시에 여러 개를 prepare하면 실패한 게 어느 건지 구분이 안 됨. 그래서 한 번에 하나씩만.
+let _adLoadingId  = null; // 지금 로딩 중인adId(우리 쪽 키) — 순차처리라 항상 한 개뿐이라서 이걸로 이벤트를 매칭한다
+let _adShowingId  = null; // 지금 화면에 떠있는 adId(우리 쪽 키)
+let _adShowSettle = null; // 현재 show() 호출의 resolve — Reward/Dismissed/FailedToShow가 채운다
+let _adListenersReady = false;
+
+function _adFlushWaiters(adId, ok) {
+  (_adWaiters[adId] || []).forEach(fn => fn(ok));
+  delete _adWaiters[adId];
 }
-// 광고 시청 보상 지급 — RPC 우선, 실패(dev/비로그인) 시 localStorage 폴백(_msGrantPeakbox와 동일 패턴)
+function _adPumpLoadQueue() {
+  if (_adLoadingId || !_adLoadQueue.length) return;
+  const AdMob = window.Capacitor?.Plugins?.AdMob;
+  if (!AdMob) { _adLoadQueue = []; return; }
+  _adLoadingId = _adLoadQueue.shift();
+  AdMob.prepareRewardVideoAd({ adId: _adLoadingId, isTesting: _adIsTesting() }).catch(() => {});
+  // 성공/실패는 Loaded/FailedToLoad 리스너가 처리 — 여기선 큐만 소비
+}
+// 특정 adId 하나를 백그라운드로 미리 로딩 대기열에 넣는다(이미 준비됐거나 대기 중이면 무시).
+function _preloadOne(adId) {
+  if (!adId || _adReady[adId] || _adLoadingId === adId || _adLoadQueue.includes(adId)) return;
+  _adLoadQueue.push(adId);
+  _adPumpLoadQueue();
+}
+// Pro는 광고가 아예 안 뜬다(2배 자동적용·피크 무제한·승급 재도전 무제한) — 광고 관련
+// 로딩/재생/버튼 노출을 판단하는 단일 지점. 각 호출부가 getPlan()을 따로 검사하지 않도록 여기로 모음.
+function isAdFreeUser() { return getPlan() === 'pro'; }
+
+// 로그인 세션 시작(AdMob.initialize 성공 직후) 시점에 활성화된 placement 전부 미리 로딩.
+function _preloadAllRewardedAds() {
+  if (isAdFreeUser()) return; // Pro는 광고를 쓸 일이 없으므로 트래픽·메모리 낭비 방지
+  _adRegisterListeners();
+  if (MS_AD_ENABLED) {
+    _preloadOne(AD_UNIT_IDS.mission_reward);
+    _preloadOne(AD_UNIT_IDS.persona_promo_retry);
+  }
+  if (PEAK_AD_ENABLED) _preloadOne(AD_UNIT_IDS.peak_recharge);
+}
+
+// 전역 1회만 등록 — 여러 페이지/여러 호출에서 중복 등록되지 않도록 플래그로 막는다.
+function _adRegisterListeners() {
+  const AdMob = window.Capacitor?.Plugins?.AdMob;
+  if (!AdMob || _adListenersReady) return;
+  _adListenersReady = true;
+
+  AdMob.addListener('onRewardedVideoAdLoaded', info => {
+    // 순차 로딩이라 지금 로딩 중이던 요청은 항상 _adLoadingId 하나뿐 — 이걸로 매칭한다.
+    // info.adUnitId는 테스트ID로 바뀌었을 수 있어서(위 _adRealKey 주석 참고) 매칭 키로 쓰면 안 됨 —
+    // 그걸로 매칭하려다 대기열 자체가 영영 멈추는 버그가 있었음(2026-08-31).
+    const id = _adLoadingId;
+    _adLoadingId = null;
+    if (id) {
+      _adRealKey[id] = info?.adUnitId || id; // show()에서 이 실제 키로 호출해야 함
+      _adReady[id] = true;
+      _adLoadedAt[id] = Date.now();
+      _adFlushWaiters(id, true);
+    }
+    _adPumpLoadQueue();
+  });
+  AdMob.addListener('onRewardedVideoAdFailedToLoad', error => {
+    if (AD_DEBUG_ALERTS) console.warn('[AdMob] 로딩 실패:', error);
+    const id = _adLoadingId;
+    _adLoadingId = null;
+    if (id) _adFlushWaiters(id, false);
+    _adPumpLoadQueue();
+  });
+  AdMob.addListener('onRewardedVideoAdReward', () => {
+    // 진짜 보상 획득 시점 — 광고화면은 아직 떠있을 수 있으니 다음 로딩은 여기서 걸지 않는다.
+    if (_adShowSettle) { _adShowSettle(true); _adShowSettle = null; }
+  });
+  AdMob.addListener('onRewardedVideoAdDismissed', () => {
+    // 광고화면이 실제로 닫힌 시점 — 다음 광고 재적재는 반드시 여기서만.
+    if (_adShowSettle) { _adShowSettle(false); _adShowSettle = null; } // 보상 이벤트 없이 닫혔으면(중도이탈) 실패
+    const id = _adShowingId; _adShowingId = null;
+    if (id) { _adReady[id] = false; _preloadOne(id); }
+  });
+  AdMob.addListener('onRewardedVideoAdFailedToShow', error => {
+    if (AD_DEBUG_ALERTS) console.warn('[AdMob] 재생 실패:', error);
+    if (_adShowSettle) { _adShowSettle(false); _adShowSettle = null; }
+    const id = _adShowingId; _adShowingId = null;
+    if (id) { _adReady[id] = false; _preloadOne(id); }
+  });
+}
+
+// 로딩 완료까지 대기(이미 로딩돼있으면 즉시 true). timeoutMs 지나도 안 끝나면 실패 처리 —
+// 예전엔 이 대기 자체가 없어서 로딩이 하염없이 안 끝나면 버튼이 그냥 멈춰있었음.
+function _adWaitForLoad(adId, timeoutMs = 15000) {
+  if (_adReady[adId]) return Promise.resolve(true);
+  return new Promise(resolve => {
+    let settled = false;
+    const done = ok => { if (settled) return; settled = true; resolve(ok); };
+    (_adWaiters[adId] = _adWaiters[adId] || []).push(done);
+    _preloadOne(adId);
+    setTimeout(() => done(false), timeoutMs);
+  });
+}
+
+// 리워드 광고 재생 → 끝까지 봐서 보상 획득 시에만 true.
+async function _showRewardedAd(adId, debugTag) {
+  // Pro 안전망 — 호출부가 버튼을 숨기는 게 1차 방어이고, 여기가 최종 방어선.
+  // (Pro 전환 직후 이미 열려있던 화면의 옛 버튼이 눌리는 경우 등)
+  if (isAdFreeUser()) return false;
+  const AdMob = window.Capacitor?.Plugins?.AdMob;
+  if (!AdMob) { if (AD_DEBUG_ALERTS) console.warn('[AdMob] ' + debugTag + ': Capacitor.Plugins.AdMob 없음'); return false; }
+  _adRegisterListeners();
+
+  // 로딩된 지 너무 오래된(3분+) 광고는 재생가능 상태여도 버리고 새로 로딩 — 방치된 광고는
+  // 화면전환은 되는데 소재가 검은화면만 나오는 경우가 있음(위 _adLoadedAt 주석 참고)
+  if (_adReady[adId] && Date.now() - (_adLoadedAt[adId] || 0) > AD_STALE_MS) {
+    _adReady[adId] = false;
+  }
+
+  if (!_adReady[adId]) {
+    const ok = await _adWaitForLoad(adId);
+    if (!ok) { console.warn('[AdMob] ' + debugTag + ': 로딩 실패/타임아웃'); return false; }
+  }
+  _adReady[adId] = false; // 소비
+  _adShowingId = adId;
+  const result = new Promise(resolve => { _adShowSettle = resolve; });
+  try {
+    // 네이티브 preparedAds는 실제 로드된 키(_adRealKey)로 저장돼있어서 우리 쪽 adId를 그대로
+    // 넘기면 못 찾는 경우가 있음(위 _adRealKey 선언부 주석 참고) — 반드시 실제 키로 호출.
+    await AdMob.showRewardVideoAd({ adId: _adRealKey[adId] || adId });
+  } catch (e) {
+    // 정상 흐름은 위 이벤트 리스너들이 처리 — 여기 catch는 이벤트 자체가 안 온 예외상황 대비
+    console.warn('[AdMob] ' + debugTag + ' show 실패:', e);
+    if (_adShowSettle) { _adShowSettle(false); _adShowSettle = null; }
+    _adShowingId = null;
+  }
+  return result;
+}
+
+// 리워드 광고 재생 → 끝까지 봐서 보상 획득 시에만 true
+async function _playPeakRechargeAd() {
+  if (!PEAK_AD_ENABLED) { if (AD_DEBUG_ALERTS) console.warn('[AdMob] PEAK_AD_ENABLED=false라 광고 안 켜짐'); return false; }
+  return _showRewardedAd(AD_UNIT_IDS.peak_recharge, 'peak');
+}
+// 광고 시청 보상 지급 — RPC 우선, 로컬 폴백은 "비로그인/dev"일 때만 성공으로 친다.
+// 로그인은 됐는데 RPC가 진짜 실패한 경우(함수 미배포, 네트워크 등)까지 로컬로 조용히
+// "성공"인 척하면 화면엔 +3 보였다가 다음 진짜 서버 조회 때 원상복구되는 유령잔액 버그가
+// 남는다(2026-08-31 실기기에서 재현됨) — 그 경우는 명확히 실패로 반환한다.
+// 반환값: true(정상 반영) / false(진짜 실패 — 호출부가 에러 안내를 띄워야 함)
 async function _peakGrantByAd() {
+  const { token, userId } = getStoredAuth();
   const r = await _peakRpc('grant_peak_ad');
   if (r && r.ok) {
     _peakState = { ..._peakState, balance: r.balance, peakbox_count: r.peakbox_count, loaded: true };
-  } else {
+    renderPeakBadge();
+    return true;
+  }
+  if (!token || !userId) { // 비로그인/dev — 로컬 시뮬레이션은 정상 동작이므로 성공 처리
     const local = _localPeakGet();
     _localPeakSet(local.balance + PEAK_AD_RECHARGE_AMOUNT, local.peakbox_count);
     _peakState = { ..._peakState, balance: (_peakState.balance || 0) + PEAK_AD_RECHARGE_AMOUNT, loaded: true };
+    renderPeakBadge();
+    return true;
   }
-  renderPeakBadge();
+  console.warn('[Peak] grant_peak_ad RPC 실패(로그인 상태) — 잔액 미반영');
+  return false;
 }
 
 // 효과음 프리로드 캐시 — 매번 new Audio()의 디스크 로드·디코드 지연 제거.
@@ -846,7 +1071,139 @@ function injectAppChrome() {
   }
 }
 
+// ⚠ DEV ONLY — 출시 전 제거할 것. 관리자 계정(ADMIN_USER_ID) 전용 플로팅 디버그 칩.
+// 2026-08-31: 페르소나 전환·승급 미리보기 등 전부 제거하고 DB까지 실제로 되돌리는 초기화
+// 2종만 남김. 안전잠금 — 지금 로그인된 계정이 ADMIN_USER_ID가 아니면 버튼을 눌러도 거부한다
+// (다른 실유저 계정으로 로그인된 채 실수로 눌러 그 사람 데이터를 건드리는 사고 방지).
+function _sharedInitDebugChip() {
+  if (document.getElementById('ms-dbg-chip')) return;
+
+  const style = document.createElement('style');
+  style.textContent = `
+    #ms-dbg-chip {
+      position: fixed; right: 16px; bottom: calc(16px + env(safe-area-inset-bottom, 0px));
+      width: 44px; height: 44px; border-radius: 50%; background: rgba(20,20,20,0.85);
+      display: flex; align-items: center; justify-content: center; font-size: 20px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.3); z-index: 9999; cursor: pointer; user-select: none;
+    }
+    #ms-dbg-panel {
+      position: fixed; right: 16px; bottom: calc(68px + env(safe-area-inset-bottom, 0px));
+      background: rgba(20,20,20,0.92); border-radius: 12px; padding: 10px; z-index: 9999;
+      display: none; flex-direction: column; gap: 6px; min-width: 200px;
+    }
+    #ms-dbg-panel.ms-dbg-panel--open { display: flex; }
+    #ms-dbg-panel button {
+      all: unset; box-sizing: border-box; width: 100%; padding: 8px 10px; border-radius: 8px;
+      color: #fff; font-size: 13px; font-family: 'Pretendard', sans-serif; cursor: pointer;
+    }
+    #ms-dbg-panel button:active { background: rgba(255,255,255,0.15); }
+  `;
+  document.head.appendChild(style);
+
+  const chip = document.createElement('div');
+  chip.id = 'ms-dbg-chip';
+  chip.textContent = '🐞';
+  document.body.appendChild(chip);
+
+  const panel = document.createElement('div');
+  panel.id = 'ms-dbg-panel';
+  panel.innerHTML =
+    `<button data-action="reset-mission">↺ 데일리미션 초기화</button>` +
+    `<button data-action="reset-promo">↺ 승급 도전 횟수 초기화</button>` +
+    `<button data-action="reset-attendance">↺ 출석 초기화</button>`;
+  document.body.appendChild(panel);
+
+  chip.addEventListener('pointerup', () => panel.classList.toggle('ms-dbg-panel--open'));
+  panel.addEventListener('pointerup', async e => {
+    const btn = e.target.closest('button');
+    if (!btn) return;
+    panel.classList.remove('ms-dbg-panel--open');
+    if (!_isAdminUser()) { alert('관리자 계정에서만 사용 가능합니다.'); return; }
+    if (btn.dataset.action === 'reset-mission')    { await _dbgResetDailyMission(); return; }
+    if (btn.dataset.action === 'reset-promo')      { await _dbgResetPromoAttempts(); return; }
+    if (btn.dataset.action === 'reset-attendance') { await _dbgResetAttendance(); return; }
+  });
+}
+
+// 데일리미션 초기화 — 로컬(오늘 완료/열람/보상 기록) + DB(오늘 도장·랜덤피크박스 날짜)를
+// 전부 되돌려서 오늘 다시 처음부터 완료 테스트가 가능하게 한다. att_day 자체(달력 진행칸수)는
+// 안 건드림 — 오늘 날짜 기록만 지워서 advance_attendance()/claim_daily_attendance()가 오늘
+// 다시 실행되게 하는 것.
+// DB의 att_day/att_last_date/att_makeup_left/attendance_claimed_date를 초기화할 때는
+// 항상 이 로컬 미러(training_stats)도 같이 지워야 함 — advanceAttendance()가 RPC 실패 시
+// 이 로컬 값으로 폴백하는데, DB만 지우고 이걸 안 지우면 "오늘 이미 도장 찍음"으로 잘못
+// 남아 도장 연출이 스킵된다(서버/로컬 불일치 버그, 2026-09 발견).
+function _dbgResetLocalAttendanceMirror() {
+  const s = JSON.parse(localStorage.getItem('training_stats') || '{}');
+  delete s.att_day;
+  delete s.att_last_date;
+  delete s.att_makeup_left;
+  delete s.attendance_claimed_date;
+  localStorage.setItem('training_stats', JSON.stringify(s));
+}
+
+async function _dbgResetDailyMission() {
+  ['ms_today_result', 'ms_today_result_seen', 'ms_reward_claimed', 'chorditor_dm_cleared_date']
+    .forEach(k => localStorage.removeItem(k));
+  _dbgResetLocalAttendanceMirror();
+  const { token, userId } = getStoredAuth();
+  if (token && userId === ADMIN_USER_ID) {
+    try {
+      await fetch(`${SUPABASE_URL}/rest/v1/subscriptions?user_id=eq.${userId}`, {
+        method: 'PATCH',
+        headers: { apikey: SUPABASE_ANON, Authorization: `Bearer ${token}`, 'Content-Type': 'application/json', Prefer: 'return=minimal' },
+        body: JSON.stringify({ att_last_date: null, attendance_claimed_date: null }),
+      });
+    } catch (e) { console.warn('[Debug] 데일리미션 DB 초기화 실패:', e); }
+  }
+  alert('데일리미션 초기화 완료 — 새로고침합니다.');
+  location.reload();
+}
+
+// 승급 도전 횟수 초기화 — user_persona_profile.promo_attempts_used/date를 되돌려 오늘 도전
+// 횟수를 다시 2회로 채운다.
+async function _dbgResetPromoAttempts() {
+  const { token, userId } = getStoredAuth();
+  if (!token || userId !== ADMIN_USER_ID) { alert('관리자 계정에서만 사용 가능합니다.'); return; }
+  try {
+    const resp = await fetch(`${SUPABASE_URL}/rest/v1/user_persona_profile?user_id=eq.${userId}`, {
+      method: 'PATCH',
+      headers: { apikey: SUPABASE_ANON, Authorization: `Bearer ${token}`, 'Content-Type': 'application/json', Prefer: 'return=minimal' },
+      body: JSON.stringify({ promo_attempts_used: 0, promo_attempts_date: null }),
+    });
+    if (!resp.ok) { alert('DB 갱신 실패: ' + resp.status + ' ' + await resp.text()); return; }
+  } catch (e) { alert('DB 갱신 예외: ' + (e?.message || e)); return; }
+  alert('승급 도전 횟수 초기화 완료 — 새로고침합니다.');
+  location.reload();
+}
+
+// 출석 초기화 — att_day(달력 진행칸수)를 0으로, att_last_date/att_makeup_left/
+// attendance_claimed_date도 전부 처음 상태로. _dbgResetDailyMission은 오늘 완료여부만
+// 되돌리고 att_day는 일부러 안 건드리는데(달력 진행 자체를 지우는 건 아니라서),
+// 이건 진짜로 출석 기록 자체를 리셋하는 별도 기능이다.
+async function _dbgResetAttendance() {
+  const { token, userId } = getStoredAuth();
+  if (!token || userId !== ADMIN_USER_ID) { alert('관리자 계정에서만 사용 가능합니다.'); return; }
+  _dbgResetLocalAttendanceMirror();
+  try {
+    const resp = await fetch(`${SUPABASE_URL}/rest/v1/subscriptions?user_id=eq.${userId}`, {
+      method: 'PATCH',
+      headers: { apikey: SUPABASE_ANON, Authorization: `Bearer ${token}`, 'Content-Type': 'application/json', Prefer: 'return=minimal' },
+      body: JSON.stringify({
+        att_day: 0,
+        att_last_date: null,
+        att_makeup_left: ATTENDANCE_MAKEUP_MAX,
+        attendance_claimed_date: null,
+      }),
+    });
+    if (!resp.ok) { alert('DB 갱신 실패: ' + resp.status + ' ' + await resp.text()); return; }
+  } catch (e) { alert('DB 갱신 예외: ' + (e?.message || e)); return; }
+  alert('출석 초기화 완료 — 새로고침합니다.');
+  location.reload();
+}
+
 document.addEventListener('DOMContentLoaded', () => {
+  _sharedInitDebugChip();
   injectAppChrome(); // 탑바 브랜드 + 데스크탑 사이드바 — 모든 페이지 공통(DOM 이동 로직보다 먼저)
 
   if (document.getElementById('currency-peak-count') || document.getElementById('currency-peakbox-count')) {
@@ -857,7 +1214,13 @@ document.addEventListener('DOMContentLoaded', () => {
   // 리워드 광고 SDK 초기화(2026-08-30) — 피크 게이트가 어느 페이지에서든 뜰 수 있어 전역 1회.
   // 네이티브 플러그인 없는 환경(브라우저 dev)에서는 조용히 스킵.
   if (window.Capacitor?.Plugins?.AdMob) {
-    window.Capacitor.Plugins.AdMob.initialize().catch((e) => console.warn('[AdMob] init 실패:', e));
+    window.Capacitor.Plugins.AdMob.initialize()
+      .then(() => {
+        _preloadAllRewardedAds(); // 리스너 등록 + 로그인 세션 시작 시 3개 광고 전부 미리 로딩(클릭 대기시간 제거)
+      })
+      .catch((e) => {
+        console.warn('[AdMob] init 실패:', e);
+      });
   }
 
   // 뒤로가기/피크바/퀴즈센터의 desktop-topbar ↔ #main-content > .top-bar 이동은
@@ -1314,7 +1677,7 @@ function saveSessionToStorage(rawJson) {
 const PROMO_UNTIL_KEY = 'chorditor_promo_until';
 
 // 플랜 시트 하단 안내(결제 구독 기본값). 프로모션 유저에겐 다른 문구로 교체된다.
-const PLAN_CANCEL_INFO_DEFAULT = '구독은 결제일 기준 매월 자동으로 갱신되며, 갱신 24시간 전까지 언제든 해지할 수 있습니다. 해지는 Google Play 스토어 > 구독 메뉴에서 가능합니다.';
+const PLAN_CANCEL_INFO_DEFAULT = '구독은 결제일 기준 결제 주기(월간 또는 연간)에 따라 자동으로 갱신되며, 갱신 24시간 전까지 언제든 해지할 수 있습니다. 해지는 Google Play 스토어 > 구독 메뉴에서 가능합니다.';
 
 // 유효한 프로모션 플랜이면 만료 Date, 아니면 null (만료 시각 지나면 자동 무효)
 function getPromoUntil() {
@@ -1704,6 +2067,7 @@ window._handleShareImport = function(rawCode) {
 const REVENUECAT_ANDROID_KEY = 'goog_KNGCSoBxhHnHfZuTVgJoNKglKhM';
 const ENTITLEMENT_PRO  = 'pro_entitlement';
 const PRODUCT_PRO      = 'pro_monthly';
+const PRODUCT_PRO_YEARLY = 'pro_yearly'; // Play Console/RevenueCat에 상품 등록 필요(배포 전 확인)
 
 let _billingReady = Promise.resolve();
 
@@ -1763,7 +2127,7 @@ function closeBillingFaq() {
   document.getElementById('billing-faq-modal')?.classList.add('hidden');
 }
 
-async function purchasePlan(planId) {
+async function purchasePlan(planId, cycle) {
   if (!window._RC) {
     alert('결제 초기화 중입니다. 잠시 후 다시 시도해주세요.');
     return;
@@ -1776,7 +2140,8 @@ async function purchasePlan(planId) {
   //   안내 내용(Play 결제 계정 ≠ 앱 로그인 계정 주의)은 결제 흐름을 막을 만한 것이 아니라
   //   모달을 되살리는 대신 그대로 삭제한다. → 구독하기 = 즉시 결제.
 
-  analytics.track('plan_upgrade_started', { from_plan: getPlan(), to_plan: planId });
+  cycle = cycle === 'yearly' ? 'yearly' : 'monthly';
+  analytics.track('plan_upgrade_started', { from_plan: getPlan(), to_plan: planId, cycle });
 
   try {
     const stored = localStorage.getItem(SUPABASE_STORAGE_KEY);
@@ -1786,7 +2151,7 @@ async function purchasePlan(planId) {
     }
   } catch(e) {}
 
-  const productId = PRODUCT_PRO;
+  const productId = cycle === 'yearly' ? PRODUCT_PRO_YEARLY : PRODUCT_PRO;
   try {
     const offeringsResult = await window._RC.getOfferings();
     const offerings = offeringsResult?.offerings ?? offeringsResult;
@@ -1814,22 +2179,17 @@ async function purchasePlan(planId) {
     setPlan(newPlan);
     await updateSupabasePlan(newPlan);
 
-    analytics.track('plan_upgrade_completed', { to_plan: newPlan });
+    analytics.track('plan_upgrade_completed', { to_plan: newPlan, cycle });
 
-    // 바텀시트에서 호출됐으면 시트 닫기, plan.html에서는 뒤로가기
-    const sheet = document.getElementById('plan-sheet');
-    if (sheet && sheet.classList.contains('plan-sheet--open')) {
-      closePlanSheet();
-    } else {
-      history.back();
-    }
+    // 구독은 항상 바텀시트에서 시작한다(plan.html 삭제로 다른 경로 없음) — 시트만 닫으면 됨
+    closePlanSheet();
   } catch(e) {
     const msg = (e?.message || e?.code || '').toLowerCase();
     const isCancelled = msg.includes('cancel');
     if (isCancelled) {
-      analytics.track('plan_upgrade_cancelled', { to_plan: planId });
+      analytics.track('plan_upgrade_cancelled', { to_plan: planId, cycle });
     } else {
-      analytics.track('plan_upgrade_failed', { to_plan: planId, error: e?.message || 'unknown' });
+      analytics.track('plan_upgrade_failed', { to_plan: planId, cycle, error: e?.message || 'unknown' });
       console.error('[Billing] purchasePlan 실패:', e);
       alert(e?.message || '결제 중 오류가 발생했습니다. 다시 시도해주세요.');
     }
@@ -1875,12 +2235,26 @@ async function _peakBufferWatchAd() {
     if (typeof showTextToast === 'function') showTextToast('광고를 끝까지 봐야 충전돼요');
     return;
   }
-  await _peakGrantByAd();
+  const granted = await _peakGrantByAd();
   closePeakBuffer();
+  if (!granted) {
+    // DB 반영 실패 — 성공한 척 안 하고 실패로 안내(잔액은 안 건드려서 유령잔액 방지)
+    if (typeof showTextToast === 'function') showTextToast('충전에 실패했어요. 다시 시도해주세요.');
+    return;
+  }
   if (typeof analytics !== 'undefined') {
     analytics.track('peak_recharged_by_ad', { amount: PEAK_AD_RECHARGE_AMOUNT, balance_after: _peakState.balance });
   }
-  if (typeof showTextToast === 'function') showTextToast(`피크 ${PEAK_AD_RECHARGE_AMOUNT}개 충전됐어요!`);
+  // DB 확정 반영 후에만 보상 팝업(다른 곳과 동일 컴포넌트 재사용 — 아이콘+"+3 피크" 등장 연출)
+  showPeakReveal(PEAK_AD_RECHARGE_AMOUNT, { subText: '광고 보상으로 충전됐어요!' });
+}
+
+// 연간/월간 카드 선택 상태 — 카드를 눌러 고르면 하단 CTA 버튼이 그 주기로 결제
+let _planSelectedCycle = 'yearly';
+function _planSelectCycle(cycle) {
+  _planSelectedCycle = cycle === 'monthly' ? 'monthly' : 'yearly';
+  document.getElementById('plan-card-yearly')?.classList.toggle('plan-card--highlight', _planSelectedCycle === 'yearly');
+  document.getElementById('plan-card-monthly')?.classList.toggle('plan-card--highlight', _planSelectedCycle === 'monthly');
 }
 
 function openPlanSheet(triggerSource) {
@@ -1894,6 +2268,8 @@ function openPlanSheet(triggerSource) {
   const plan     = getPlan();
   const isNative = window.Capacitor?.isNativePlatform();
 
+  _planSelectCycle('yearly'); // 시트 열 때마다 추천(연간)부터 기본 선택
+
   const btn = document.getElementById('plan-sheet-btn-pro');
   if (btn) {
     if (plan === 'pro') {
@@ -1904,7 +2280,7 @@ function openPlanSheet(triggerSource) {
       btn.disabled = false;
       if (isNative) {
         btn.textContent = '구독하기';
-        btn.onclick = () => purchasePlan('pro');
+        btn.onclick = () => purchasePlan('pro', _planSelectedCycle);
       } else {
         btn.textContent = '앱에서 구독';
         btn.onclick = () => alert('구독은 Android 앱에서 가능합니다.\nGoogle Play에서 Chorditor를 다운로드하세요.');
@@ -1943,8 +2319,6 @@ function closePlanSheet() {
 }
 
 function _initPlanSheet() {
-  // plan.html 자체 페이지는 자체 HTML 사용 — 주입 불필요
-  if (location.href.includes('plan.html')) return;
   // 이미 주입됐으면 스킵
   if (document.getElementById('plan-sheet')) return;
 
@@ -1966,17 +2340,27 @@ function _initPlanSheet() {
       <div class="plan-feature-row"><img class="plan-feature-icon" src="image/peak.svg" alt=""><span>피크 사용량 무제한</span></div>
       <div class="plan-feature-row"><img class="plan-feature-icon" src="image/photo.png" alt=""><span>코드 이미지 고급 설정 개방</span></div>
       <div class="plan-feature-row"><img class="plan-feature-icon" src="image/pencil.png" alt=""><span>노트 무제한, 편리한 저장 기능</span></div>
+      <div class="plan-feature-row"><img class="plan-feature-icon" src="image/no_ads.png" alt=""><span>광고 없이 데일리미션 보상 2배</span></div>
+      <div class="plan-feature-row"><img class="plan-feature-icon" src="image/badge.png" alt=""><span>승급 시험 재도전 무제한</span></div>
     </div>
-    <div class="plan-launch-banner">출시 할인가 적용<br>Pro 업그레이드하기</div>
-    <div class="plan-card plan-card--highlight">
-      <div class="plan-card-badge">추천</div>
-      <div class="plan-card-name">Pro</div>
-      <div class="plan-card-price">
-        <div class="price-top">
-          <span class="price-original">₩6,900</span>
-          <span class="price-badge">29% OFF</span>
+    <div class="plan-cards">
+      <span class="hint">플랜 정보</span>
+      <div class="plan-card" id="plan-card-yearly" onclick="_planSelectCycle('yearly')">
+        <div class="plan-card-badge">추천</div>
+        <div class="plan-card-name">Pro 연간</div>
+        <div class="plan-card-price">
+          <div class="price-top">
+            <span class="hint">약 5,000원/월</span>
+            <span class="price-badge">28% 할인</span>
+          </div>
+          <span class="price-amount">₩59,900<small>/년</small></span>
         </div>
-        <span class="price-amount">₩4,900<small>/월</small></span>
+      </div>
+      <div class="plan-card" id="plan-card-monthly" onclick="_planSelectCycle('monthly')">
+        <div class="plan-card-name">Pro 월간</div>
+        <div class="plan-card-price">
+          <span class="price-amount">₩6,900<small>/월</small></span>
+        </div>
       </div>
     </div>
     <div class="plan-page-footer">
@@ -1985,16 +2369,15 @@ function _initPlanSheet() {
         <span class="plan-restore-link" id="plan-sheet-restore-btn" onclick="restorePurchases()" style="display:none">구매 복원</span>
       </div>
     </div>
-  </div>
-  <div class="plan-sheet-footer">
     <div class="plan-legal-group">
-      <div class="plan-cancel-info" id="plan-cancel-info">구독은 결제일 기준 매월 자동으로 갱신되며, 갱신 24시간 전까지 언제든 해지할 수 있습니다. 해지는 Google Play 스토어 &gt; 구독 메뉴에서 가능합니다.</div>
+      <div class="plan-cancel-info" id="plan-cancel-info">구독은 결제일 기준 결제 주기(월간 또는 연간)에 따라 자동으로 갱신되며, 갱신 24시간 전까지 언제든 해지할 수 있습니다. 해지는 Google Play 스토어 &gt; 구독 메뉴에서 가능합니다.</div>
       <div class="plan-legal-links">
         <span class="plan-legal-link" onclick="window.open('Privacy.html', '_blank')">개인정보 처리방침</span>
         <span class="plan-legal-link" onclick="window.open('Terms.html', '_blank')">이용약관</span>
       </div>
     </div>
-    <div class="plan-sheet-divider"></div>
+  </div>
+  <div class="plan-sheet-footer">
     <button class="btn btn-primary plan-card-btn" id="plan-sheet-btn-pro">구독하기</button>
     <span class="hint">구독은 Google Play에서 언제든지 취소할 수 있습니다.</span>
   </div>
@@ -2018,7 +2401,7 @@ function _initPlanSheet() {
   <div class="peak-buffer-modal">
     <img class="peak-buffer-icon" src="image/peak.svg" alt="">
     <div class="peak-buffer-title">피크가 부족해요</div>
-    <div class="peak-buffer-desc">Pro 플랜이면 피크 걱정 없이<br>무제한으로 연습할 수 있어요.</div>
+    <div class="peak-buffer-desc">Pro 플랜이면 피크 걱정 없이<br>무제한으로 연습할 수 있어요!</div>
     <button class="peak-buffer-cta" onclick="_peakBufferWatchAd()">충전하기</button>
     <button class="peak-buffer-dismiss" onclick="closePeakBuffer()">그만하기</button>
   </div>
@@ -2374,9 +2757,9 @@ function _markMakeupPrompt() {
   localStorage.setItem(ATT_MAKEUP_PROMPT_KEY, _kstToday());
 }
 
-// 도장 진행 — 접속 자동호출 폐지됨(현재 호출부 없음). 데일리미션 완료 트리거로 재배선 예정.
-// 재배선 시 UI(피크상자 획득 연출 등)는 호출부에서 res를 보고 직접 구성할 것 — 예전 모달
-// 자동오픈 로직(openAttendanceCalendar 연결)은 페이지 전환(attendance.html)으로 대체되며 제거됨.
+// 도장 진행 — 데일리미션 완료 트리거로 배선됨(mission-session.js의 도장 연출 직전 호출).
+// UI(피크상자 획득 연출 등)는 호출부에서 res를 보고 직접 구성한다 — 예전 모달 자동오픈 로직
+// (openAttendanceCalendar 연결)은 페이지 전환(attendance.html)으로 대체되며 제거됨.
 async function advanceAttendance(onDone) {
   const r = await _peakRpc('advance_attendance');
   let res;
@@ -2390,6 +2773,38 @@ async function advanceAttendance(onDone) {
   renderPeakboxBadge();
   if (typeof onDone === 'function') onDone();
   return res;
+}
+
+// 읽기 전용 출석 상태 조회(attendance.html 진입용) — advanceAttendance()와 달리 진행을
+// 건드리지 않는다(도장은 데일리미션 완료 시점에만 advanceAttendance()가 찍음, 여기서 또
+// 찍으면 페이지만 열어도 진행이 앞으로 밀리는 사고가 남). subscriptions를 직접 select만 하고
+// makeup 필요 여부는 SQL advance_attendance()/makeup_attendance()의 갭 판정(gap>=2)을 그대로 미러.
+async function loadAttendanceState() {
+  const { token, userId } = getStoredAuth();
+  let day, last, makeup;
+  if (token && userId) {
+    try {
+      const resp = await fetch(
+        `${SUPABASE_URL}/rest/v1/subscriptions?user_id=eq.${userId}&select=att_day,att_last_date,att_makeup_left`,
+        { headers: { apikey: SUPABASE_ANON, Authorization: `Bearer ${token}` } }
+      );
+      if (resp.ok) {
+        const rows = await resp.json();
+        if (rows.length) {
+          day = rows[0].att_day || 0;
+          last = rows[0].att_last_date || null;
+          makeup = rows[0].att_makeup_left == null ? ATTENDANCE_MAKEUP_MAX : rows[0].att_makeup_left;
+        }
+      }
+    } catch (_) {}
+  }
+  if (day == null) { const a = _localAttGet(); day = a.day; last = a.last; makeup = a.makeup; }
+
+  const today = _kstToday();
+  const doneToday = last === today;
+  const needsMakeup = !doneToday && !!last && _dayDiff(last, today) >= 2 && makeup > 0;
+  _attState = { day, makeup_left: makeup, needs_makeup: needsMakeup, loaded: true };
+  return { ..._attState, doneToday };
 }
 
 // 접속 시 출석 플로우 오케스트레이터 (home 진입에서 호출).
@@ -3470,8 +3885,13 @@ function _localPromoAttemptsSet(used) {
   s.promo_attempt_used = used;
   localStorage.setItem('training_stats', JSON.stringify(s));
 }
+// Pro는 승급시험 재도전 무제한 — 남은횟수를 Infinity로 돌려서 모든 `<= 0` 소진검사를
+// 자연히 통과시킨다. 숫자를 그대로 화면에 찍는 곳(배지·버튼라벨)은 이 함수로 먼저 분기할 것.
+function isPromoAttemptsUnlimited() { return getPlan() === 'pro'; }
+
 // 오늘 남은 도전 횟수 조회. 실패 시(네트워크 등) 로컬 폴백값 반환 — 게임 흐름 막지 않음.
 async function getPromoAttemptsLeft() {
+  if (isPromoAttemptsUnlimited()) return Infinity;
   const today = _kstToday();
   const { token, userId } = getStoredAuth();
   if (!token || !userId) {
@@ -3495,6 +3915,9 @@ async function getPromoAttemptsLeft() {
 }
 // 시도 1회 소진 — 시험 실제 시작 시점(무료 최초 진입, 광고보고 재도전)에 호출. 반환값=소진 후 남은 횟수.
 async function consumePromoAttempt() {
+  // Pro는 소진 개념 자체가 없다 — DB/로컬 카운트를 건드리지 않는다.
+  // (강등 시 그날 쓴 횟수만큼 갑자기 차감돼 보이는 일이 없도록 기록도 남기지 않음)
+  if (isPromoAttemptsUnlimited()) return Infinity;
   const today = _kstToday();
   const { token, userId } = getStoredAuth();
   if (!token || !userId) {
@@ -3921,12 +4344,15 @@ const STAMP_IMPACT_OFFSET_MS = 700;
 
 // 마일스톤 피크상자 획득 모달. onClose = 확인/닫힘 시 콜백(다음 플로우 연결용).
 // 피크상자 획득 연출(마일스톤/보상). gift 아이콘 등장 + '피크상자 +N' 라벨. 확인/탭 시 onClose 실행.
-function showPeakboxRewardModal(count, onClose) {
+// opts.subText — 수량만으로는 설명이 안 되는 지급 사유를 한 줄 덧붙인다(예: Pro 자동 2배).
+// 안 넘기면 기존과 동일하게 수량만 보여준다.
+function showPeakboxRewardModal(count, onClose, opts) {
   if (count <= 0) { if (typeof onClose === 'function') onClose(); return; }
   _playSfx('reward.mp3');
   showPeakReveal(null, {
     icon: 'gift',
     labelText: '+' + count + ' 상자',
+    subText: (opts && opts.subText) || '',
     buttonText: '닫기',
     onButton: closePeakReveal,
     onClose: onClose,

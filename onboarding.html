@@ -105,21 +105,19 @@
     <div class="ob-consent-sheet">
       <p class="ob-consent-title">약관에 동의해 주세요</p>
       <p class="ob-consent-desc">여러분의 정보는 더 나은 코디터를 위해 활용됩니다. 여러분의 개인 정보는 꼭 지켜드릴게요.</p>
-      <button class="ob-consent-toggle" id="ob-consent-toggle" onpointerdown="obToggleTerms()">
-        <span>개인정보 수집·이용 약관 보기</span>
-        <span class="ob-consent-toggle-icon" id="ob-consent-toggle-icon">▾</span>
-      </button>
-      <div class="ob-consent-terms hidden" id="ob-consent-terms">
-        <table class="ob-terms-table">
-          <tr><th>수집 항목</th><td>성별, 나이대</td></tr>
-          <tr><th>수집·이용 목적</th><td>서비스 개선 및 맞춤형 콘텐츠 제공</td></tr>
-          <tr><th>보유·이용 기간</th><td>회원 탈퇴 시까지</td></tr>
-          <tr><th>거부 권리</th><td>동의를 거부할 수 있으며, 거부 시 일부 맞춤 서비스가 제공되지 않을 수 있습니다.</td></tr>
-        </table>
-      </div>
       <label class="ob-consent-check-row">
-        <input type="checkbox" id="ob-consent-checkbox" onchange="obOnConsentCheck()">
-        <span class="ob-consent-check-label"><span class="ob-consent-check-tag">(필수)</span> 위 내용을 확인했습니다</span>
+        <input type="checkbox" class="ob-consent-required" id="ob-terms-checkbox" onchange="obOnConsentCheck()">
+        <span class="ob-consent-check-label"><span class="ob-consent-check-tag">(필수)</span> 이용약관 동의</span>
+        <span class="plan-legal-link" onpointerdown="event.stopPropagation();window.open('Terms.html','_blank')">보기</span>
+      </label>
+      <label class="ob-consent-check-row">
+        <input type="checkbox" class="ob-consent-required" id="ob-privacy-checkbox" onchange="obOnConsentCheck()">
+        <span class="ob-consent-check-label"><span class="ob-consent-check-tag">(필수)</span> 개인정보처리방침 동의</span>
+        <span class="plan-legal-link" onpointerdown="event.stopPropagation();window.open('Privacy.html','_blank')">보기</span>
+      </label>
+      <label class="ob-consent-check-row">
+        <input type="checkbox" class="ob-consent-required" id="ob-age-checkbox" onchange="obOnConsentCheck()">
+        <span class="ob-consent-check-label"><span class="ob-consent-check-tag">(필수)</span> 만 14세 이상입니다</span>
       </label>
       <label class="ob-consent-check-row">
         <input type="checkbox" id="ob-push-checkbox">

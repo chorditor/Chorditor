@@ -32,13 +32,14 @@ window.msPersonaList = function () {
 };
 
 // ⚠ DEV ONLY — 출시 전 제거할 것. 오늘 미션을 이미 끝낸 상태를 지워서 몇 번이든 다시
-// 풀 수 있게 함. 지우는 키 3종:
+// 풀 수 있게 함. 지우는 키 4종:
 //  ms_today_result       — 오늘 결산(daily-mission.js 게이트가 이걸로 "이미 끝냈나" 판정)
+//  ms_today_result_seen  — 결산화면을 이미 봤는지(재접속 시 자동으로 다시 안 뜨게 하는 구분값)
 //  ms_reward_claimed     — 오늘 보상 수령 여부(하루 1회 제한)
 //  chorditor_dm_cleared_date — "나중에 할게요" 패스 여부
 // msResetToday() → 콘솔에서 실행 후 mission-session.html 새로고침(또는 daily-mission.html부터 재진입)
 window.msResetToday = function () {
-  ['ms_today_result', 'ms_reward_claimed', 'chorditor_dm_cleared_date'].forEach(k => localStorage.removeItem(k));
+  ['ms_today_result', 'ms_today_result_seen', 'ms_reward_claimed', 'chorditor_dm_cleared_date'].forEach(k => localStorage.removeItem(k));
   console.log('[MissionSession] 오늘 미션 상태 초기화 완료 — 새로고침하면 처음부터 다시 풀 수 있습니다.');
   location.reload();
 };
@@ -95,88 +96,9 @@ function _msGetDailyTotals(personaId) {
 const _msDailyTotals = _msGetDailyTotals(MS_PERSONA.id);
 
 
-// ⚠ DEV ONLY — 출시 전 제거할 것. 실기기(모바일)에서 콘솔 없이도 msResetToday()/msSetPersona()를
-// 쓸 수 있게 하는 플로팅 디버그 칩. 우하단 고정 버튼 → 탭하면 초기화+페르소나 5종 패널이 뜬다.
-function _msInitDebugChip() {
-  if (document.getElementById('ms-dbg-chip')) return;
-
-  const style = document.createElement('style');
-  style.textContent = `
-    #ms-dbg-chip {
-      position: fixed; right: 16px; bottom: calc(16px + env(safe-area-inset-bottom, 0px));
-      width: 44px; height: 44px; border-radius: 50%; background: rgba(20,20,20,0.85);
-      display: flex; align-items: center; justify-content: center; font-size: 20px;
-      box-shadow: 0 2px 8px rgba(0,0,0,0.3); z-index: 9999; cursor: pointer; user-select: none;
-    }
-    #ms-dbg-panel {
-      position: fixed; right: 16px; bottom: calc(68px + env(safe-area-inset-bottom, 0px));
-      background: rgba(20,20,20,0.92); border-radius: 12px; padding: 10px; z-index: 9999;
-      display: none; flex-direction: column; gap: 6px; min-width: 190px;
-    }
-    #ms-dbg-panel.ms-dbg-panel--open { display: flex; }
-    #ms-dbg-panel button {
-      all: unset; box-sizing: border-box; width: 100%; padding: 8px 10px; border-radius: 8px;
-      color: #fff; font-size: 13px; font-family: 'Pretendard', sans-serif; cursor: pointer;
-    }
-    #ms-dbg-panel button:active { background: rgba(255,255,255,0.15); }
-    #ms-dbg-panel .ms-dbg-reset {
-      color: #ff8a8a; font-weight: 700; border-bottom: 1px solid rgba(255,255,255,0.15);
-      margin-bottom: 4px; padding-bottom: 10px;
-    }
-    #ms-dbg-panel .ms-dbg-persona--active { color: #7fa8ff; font-weight: 700; }
-  `;
-  document.head.appendChild(style);
-
-  const chip = document.createElement('div');
-  chip.id = 'ms-dbg-chip';
-  chip.textContent = '🐞';
-  document.body.appendChild(chip);
-
-  const panel = document.createElement('div');
-  panel.id = 'ms-dbg-panel';
-  const personaBtns = Object.entries(MS_PERSONA_POOLS).map(([id, p]) =>
-    `<button class="${id === MS_PERSONA.id ? 'ms-dbg-persona--active' : ''}" data-persona="${id}">${p.label}</button>`
-  ).join('');
-  panel.innerHTML =
-    `<button class="ms-dbg-reset" data-action="reset">↺ 오늘 미션 초기화</button>` +
-    `<button data-action="promo">🏆 승급시험 안내 미리보기</button>` +
-    `<button data-action="promo-success">🎉 승급 성공화면 미리보기</button>` +
-    `<button data-action="promo-fail">💔 승급 실패화면 미리보기</button>` +
-    `<button data-action="promo-timeout">⏰ 제한시간초과 팝업 미리보기</button>` +
-    `<button data-action="promo-gauge">⏱ 남은시간 게이지 테스트(25초)</button>` +
-    `<button data-action="promo-quiz">🎯 코드맞추기 시험 바로 시작</button>` +
-    `<button data-action="promo-scale">🎸 스케일 시험 바로 시작</button>` +
-    `<button data-action="promo-combo">🧩 조합 시험 바로 시작</button>` +
-    personaBtns;
-  document.body.appendChild(panel);
-
-  const PROMO_DEBUG_ACTIONS = {
-    'promo':         msShowPersonaPromoIntro,
-    'promo-success': msShowPersonaPromoSuccess,
-    'promo-fail':    () => msShowPersonaPromoFail(),
-    'promo-timeout': msPersonaPromoTimeoutPopup,
-    'promo-gauge':   () => msPersonaPromoTimerStart(25, msPersonaPromoTimeoutPopup),
-    'promo-quiz':    () => msPersonaPromoQuizStart(_msPromoSections()[0]),
-    'promo-scale':   () => msPersonaPromoScaleStart(_msPromoSections()[1]),
-    'promo-combo':   () => msPersonaPromoComboStart(_msPromoSections()[2]),
-  };
-  chip.addEventListener('pointerup', () => panel.classList.toggle('ms-dbg-panel--open'));
-  panel.addEventListener('pointerup', e => {
-    const btn = e.target.closest('button');
-    if (!btn) return;
-    if (btn.dataset.action === 'reset') { window.msResetToday(); return; }
-    if (PROMO_DEBUG_ACTIONS[btn.dataset.action]) {
-      panel.classList.remove('ms-dbg-panel--open');
-      // 페이지가 이미 정상 로드된 상태(_msStartBuffer의 8초 타이머가 살아있음)에서 눌렀을 수
-      // 있으므로 먼저 꺼야 함 — 안 그러면 8초 뒤 원래 코드맞추기 튜토리얼로 뷰가 갈아치워짐
-      clearTimeout(_msBufferDoneTimer);
-      clearInterval(_msBufferStatusTimer);
-      PROMO_DEBUG_ACTIONS[btn.dataset.action]();
-      return;
-    }
-    if (btn.dataset.persona) window.msSetPersona(btn.dataset.persona);
-  });
-}
+// 디버그 플로팅 칩(🐞)은 shared.js _sharedInitDebugChip()으로 이전됨(2026-08-31) —
+// home.html 포함 모든 페이지에서 뜨도록. 이 파일엔 승급시험 미리보기용 함수들만 남아있고,
+// shared.js 쪽이 typeof 가드로 이 페이지에 있을 때만 그 버튼들을 노출한다.
 
 // 튜토리얼 페이지는 언박싱 1일차 전용 — 그 외 페르소나는 각 파트에서 바로 문제풀이로 들어감
 function _msEnterPart(tutorialFn, quizFn, stage) {
@@ -240,6 +162,10 @@ let _msComboSessionKey = 'C';
 const MS_VIEW_OUT_MS = 200; // style.css ms-view-out 길이와 동일해야 함
 const MS_VIEW_IN_MS  = 260; // style.css ms-view-in 길이와 동일 — 튜토리얼 스태거를 이 뒤에 시작시키는 데 씀
 function _msTransitionView(render) {
+  // 페이지전환은 전부 여기 한 곳을 거치므로, 이전 화면에서 재생 중이던 사운드를 여기서
+  // 끊는다. 일반 퀴즈흐름은 호출 직전에 개별로도 GuitarAudio.stop()을 부르지만(중복 호출,
+  // 무해), 승급시험 흐름엔 그게 하나도 없어서 결과화면까지 소리가 이어지던 버그가 있었음(2026-08-31).
+  if (typeof GuitarAudio !== 'undefined' && GuitarAudio.stop) GuitarAudio.stop();
   const inner = document.querySelector('.ms-scroll-inner');
   if (!inner) { render(); return; }
   inner.classList.remove('ms-view-in');
@@ -974,7 +900,9 @@ function _msScalePoolBlocks() {
 
 // 결산 리스트에 쓸 폼 이름만 반환 — 결산은 세션 부제로 타입을 이미 따로 보여주므로 폼만 필요
 function _msScaleBlockCaption(block) {
-  const entry = _msScalePoolEntries().find(e => e.block === block);
+  // id로 비교(참조비교 금지) — 오답풀기 큐의 block은 결산 저장/복원(JSON 왕복)을 거치면
+  // 원본 SCALE_BLOCKS 배열 객체와 참조가 끊긴 복사본이라 ===는 항상 실패함(2026-08-31)
+  const entry = _msScalePoolEntries().find(e => e.block.id === block.id);
   if (!entry) return (block.label || '').split(' ').pop();
   return block.label
     ? block.label.split(' ').pop()
@@ -985,7 +913,7 @@ function _msScaleBlockCaption(block) {
 // (폼 이름만 주면 "C폼"이 마이너 펜타토닉인지 메이저인지 알 길이 없어 문제가 안 풀림)
 function _msScaleQuestionLabel(block) {
   // 타입 2개가 섞인 세션(soloing)일 수 있어 전역값 말고 이 블럭 자체의 타입을 찾음
-  const entry = _msScaleAllPoolEntries().find(e => e.block === block);
+  const entry = _msScaleAllPoolEntries().find(e => e.block.id === block.id); // 위와 동일 이유로 id 비교
   const scaleKey = entry ? entry.scaleKey : _msScaleSessionType;
   const typeTitle = MS_SCALE_TITLES[scaleKey] || scaleKey || '';
   return `${typeTitle} 스케일 ${_msScaleBlockCaption(block)}`;
@@ -1569,7 +1497,10 @@ function _msResultComboSectionHTML() {
       const degree = (r.degrees || [])[si];
       const roman    = (typeof CC_DEGREE_TRIAD !== 'undefined' && CC_DEGREE_TRIAD[degree]?.alwaysLabel) || degree || '';
       const isCorrect = (r.slotResults || [])[si];
-      const ringCls   = isCorrect === undefined ? '' : (isCorrect ? ' ms-result-combo-diagram--correct' : ' ms-result-combo-diagram--wrong');
+      // == null로 undefined/null 둘 다 "채점 대상 아님(잠긴 슬롯)"으로 처리 — JSON.stringify가
+      // 배열 안의 undefined를 null로 바꿔버려서, 결과를 저장했다가 복원(재진입)하면 잠긴 슬롯이
+      // null이 되어 있었음. === undefined만 걸러서 그 경우 그대로 오답(빨강)으로 잘못 표시되던 버그(2026-08-31)
+      const ringCls   = isCorrect == null ? '' : (isCorrect ? ' ms-result-combo-diagram--correct' : ' ms-result-combo-diagram--wrong');
       return `
         <div class="ms-result-combo-diagram${ringCls}">
           <span class="ms-result-combo-diagram-roman">${roman}</span>
@@ -1647,6 +1578,7 @@ function msShowResultView() {
   if (typeof GuitarAudio !== 'undefined' && GuitarAudio.stop) GuitarAudio.stop();
   document.getElementById('mission-session-page').classList.add('ms-result-mode');
   _msResultReached = true; // 종료 시 출석 도장을 찍어도 되는 상태(문제풀이 완주)임을 표시
+  _msMarkTodayResultSeen(); // 이제 봤으니 다음 재접속부턴 자동으로 다시 안 띄운다
   _msHideTitleIcon();
 
   const scores  = _msComputeScores();
@@ -1690,16 +1622,24 @@ function msShowResultView() {
   // (틴트가 사실상 안 보임) — 결산화면은 고정값으로 충분히 내려서 자연스럽게 이어지게 함
   document.querySelector('.ms-scroll')?.style.setProperty('--ms-gradient-end', '220px');
   const quizRow = document.getElementById('ms-result-quiz-row');
-  if (quizRow) _msInitRowMouseDrag(quizRow, 'ms-result-quiz-row--dragging');
+  if (quizRow) {
+    _msInitRowMouseDrag(quizRow, 'ms-result-quiz-row--dragging');
+    // 안 넘칠 때만 중앙정렬 — 넘치면 flex-start 유지해 1번 칩부터 보이게(위 CSS 주석 참고)
+    quizRow.classList.toggle('ms-result-quiz-row--fit', quizRow.scrollWidth - quizRow.clientWidth <= 4);
+  }
   _msResultDrawComboDiagrams();
 
   _msResultSyncGiftLabel();
   _msSaveTodayResult();
 
-  // 클리어 보상은 결산에 들어오는 순간 팝업으로 지급 — 결산 등장 연출이 자리잡은 뒤에 띄운다
-  if (!_msRewardDone('clear')) {
-    setTimeout(() => _msShowRewardPopup('clear'), 700);
-  }
+  const showClearReward = () => {
+    if (!_msRewardDone('clear')) setTimeout(() => _msShowRewardPopup('clear'), 400);
+  };
+  // 출석 도장은 결산화면 도달=미션 1회 클리어 확정 시점에 바로 찍는다(2026-09 변경 — 이전엔
+  // "종료하기"를 눌러야만, 그것도 오답을 다 풀어야만 찍혔음). 도장 연출이 화면을 덮으므로
+  // 클리어 보상 팝업은 그게 끝나고(사용자가 도장 확인을 닫은 뒤) 띄운다.
+  if (!_msMockMode && !_msStampShown) _msRunStampFlow(showClearReward);
+  else showClearReward();
 }
 
 // ── 오늘 결산 저장/복원 ──────────────────────────────────────
@@ -1748,6 +1688,17 @@ function _msRestoreTodayResult() {
   return true;
 }
 
+// 결산화면을 실제로 한 번이라도 봤는지(msShowResultView 진입) — ms_today_result와 별개 플래그.
+// 결과 "데이터"는 하루 종일 남아있지만, 유저가 이미 한 번 확인했다면 앱 재접속 때마다
+// 다시 그 화면으로 튕기지 않고 home으로 보내기 위한 구분값.
+const MS_TODAY_RESULT_SEEN_KEY = 'ms_today_result_seen';
+function _msMarkTodayResultSeen() {
+  try { localStorage.setItem(MS_TODAY_RESULT_SEEN_KEY, _msTodayKey()); } catch (_) {}
+}
+function _msTodayResultSeen() {
+  try { return localStorage.getItem(MS_TODAY_RESULT_SEEN_KEY) === _msTodayKey(); } catch (_) { return false; }
+}
+
 // 결산 아이콘 아래 안내문구 — 보상 수령 상태에 따라 다음 행동을 가리킨다
 function _msResultSyncGiftLabel() {
   const label = document.getElementById('ms-result-gift-label');
@@ -1766,7 +1717,7 @@ function _msResultSyncGiftLabel() {
 //   review : 오답 전부 다시 맞춤(추가지급)
 // 지급 모달에서 "광고 보고 2배" 선택 시 상자만 같은 수량 1회 더 지급.
 // XP는 2배 대상 아님(레벨 곡선을 광고로 흔들지 않는다).
-// 광고는 현재 OFF(MS_AD_ENABLED=false) — 2배 버튼이 아예 안 뜬다.
+// 광고는 pre 내부테스트용으로 켜짐(shared.js MS_AD_ENABLED=true).
 // ⚠ 하루 1회 제한은 아직 localStorage 기준 — 서버 RPC(claim_daily_mission_reward)
 //   붙기 전까지는 앱 데이터 삭제로 우회 가능. 백엔드 연동 시 _msGrantPeakbox 교체.
 // ═══════════════════════════════════════════════════════════════
@@ -1830,49 +1781,44 @@ async function _msGrantPeakbox(count) {
 }
 
 // ── 리워드 광고 어댑터 ─────────────────────────────────────
-// @capacitor-community/admob 연동 완료(2026-08-30, AdMob App ID/Ad Unit ID 발급 완료).
-// MS_AD_ENABLED=false로 유지 중 — 이미 무광고로 출시된 앱이라 실기기 테스트 광고로 먼저
-// 검증한 뒤에 켤 것(갑자기 광고가 뜨면 정책/리뷰 리스크). 켤 준비되면 MS_AD_ENABLED=true로.
-const MS_AD_ENABLED = false;
-// 테스트 광고 강제 — 실계정으로 실제 심사/배포 준비되기 전까지는 true 유지(진짜 광고 소진 방지).
-const MS_AD_TESTING = true;
-// placement별 Ad Unit ID. 'mission_reward_clear'/'mission_reward_review'는 둘 다 같은
-// "데일리미션 2배 보상" 단위 하나를 씀(_msAdUnitForPlacement에서 기본값으로 처리).
-const MS_AD_UNIT_IDS = {
-  mission_reward: 'ca-app-pub-3016297895973220/6249417373',    // 데일리미션 2배 보상
-  persona_promo_retry: 'ca-app-pub-3016297895973220/8572328382', // 승급시험 재도전
-};
+// @capacitor-community/admob 연동 완료(2026-08-30). MS_AD_ENABLED/MS_AD_TESTING/AD_UNIT_IDS는
+// 전부 shared.js로 통합됨(2026-08-31) — 로그인 세션 시작 시 미리 로딩해두는 구조로 바뀌면서
+// 페이지 무관하게 한 곳에서 관리할 필요가 생김. 이 파일엔 placement 매핑만 남김.
+// 'mission_reward_clear'/'mission_reward_review'는 둘 다 같은 "데일리미션 2배 보상" 단위 하나를
+// 씀(_msAdUnitForPlacement가 기본값으로 처리).
 function _msAdUnitForPlacement(placement) {
-  return MS_AD_UNIT_IDS[placement] || MS_AD_UNIT_IDS.mission_reward;
+  return AD_UNIT_IDS[placement] || AD_UNIT_IDS.mission_reward;
 }
 // 광고 OFF 상태에서 2배 버튼을 눌렀을 때의 동작.
 //   true  = 광고 없이 그대로 2배 지급(UI/플로우 확인용)
 //   false = 아무 일도 일어나지 않음(실서비스에서 SDK 없이 배포될 때의 안전값)
-//   SDK를 붙이는 시점에 MS_AD_ENABLED=true 로 바꾸면 이 값은 더 이상 쓰이지 않는다.
 const MS_AD_STUB_GRANTS = false;
 
 const MissionAdProvider = {
   // 광고를 지금 띄울 수 있는 상태인가(SDK 로드/재고 확인 자리 — 네이티브 플러그인 없는
   // 브라우저 dev 환경에서는 항상 false)
-  isReady() { return MS_AD_ENABLED && !!window.Capacitor?.Plugins?.AdMob; },
+  // Pro는 광고 자체가 없는 플랜이라 여기서 한 번에 막는다 — 이 값이 false면 "광고 보고 2배"
+  // 버튼도, 재도전 광고 분기도 전부 자동으로 사라진다(_msShowRewardModal 등이 이걸 본다).
+  isReady() { return MS_AD_ENABLED && !isAdFreeUser() && !!window.Capacitor?.Plugins?.AdMob; },
   // 리워드 광고 재생 → 유저가 끝까지 봐서 보상을 획득했을 때만 true.
-  // showRewardVideoAd()는 보상 획득 시에만 resolve하는 API라 도달하면 곧 보상 확정.
-  // 중간이탈/미로드/실패는 전부 reject → catch에서 false.
+  // 실제 로딩/재생·재적재 타이밍은 shared.js _showRewardedAd()가 플러그인 표준 이벤트
+  // (Loaded/Reward/Dismissed/FailedToShow)로 관리한다(2026-08-31 재작성).
   async show(placement) {
-    const AdMob = window.Capacitor?.Plugins?.AdMob;
-    if (!AdMob) return false;
-    const adId = _msAdUnitForPlacement(placement);
-    await AdMob.prepareRewardVideoAd({ adId, isTesting: MS_AD_TESTING });
-    const reward = await AdMob.showRewardVideoAd();
-    return !!reward;
+    return _showRewardedAd(_msAdUnitForPlacement(placement), 'mission');
   },
 };
 
 async function _msPlayRewardedAd(placement) {
-  if (!MissionAdProvider.isReady()) return MS_AD_STUB_GRANTS;
-  try { return await MissionAdProvider.show(placement); }
-  catch (e) { console.warn('[AdMob] rewarded ad 실패:', e); return false; }
+  if (!MissionAdProvider.isReady()) {
+    return MS_AD_STUB_GRANTS;
+  }
+  return MissionAdProvider.show(placement);
 }
+
+// Pro 자동 2배로 추가 지급된 상자 수 누적값. msClaimMissionReward()는 항상 silent로 호출되고
+// 실제 획득 연출은 호출부(_msShowRewardPopup.settle)가 그리기 때문에, 지급량과 표시량이
+// 어긋나지 않도록 여기 담아 전달한다. 읽는 쪽이 지급 시작 전에 0으로 리셋한다.
+let _msProBonusBoxes = 0;
 
 // 보상 지급(기본분) + 지급 모달. kind = 'clear' | 'review'
 // opts.silent = 지급만 하고 모달은 띄우지 않음(호출부가 직접 연출을 붙일 때)
@@ -1887,12 +1833,40 @@ async function msClaimMissionReward(kind, opts) {
   if (typeof analytics !== 'undefined') {
     analytics.track('mission_reward_claimed', { kind, box: R.box, xp: R.xp, persona: MS_PERSONA.id });
   }
+
+  // Pro는 광고 없이 2배가 기본 — "광고 보고 2배" 버튼을 누르는 과정 없이 여기서 바로 한 번 더 지급.
+  // 광고 경로(msRewardWatchAd)와 똑같이 kind+'_ad'를 소진 처리해서, 재진입/강등 후에도
+  // 같은 kind에 2배가 두 번 나가지 않게 한다. XP는 광고 경로와 동일하게 2배 대상 아님.
+  const proDoubled = isAdFreeUser() && !_msRewardDone(kind + '_ad');
+  if (proDoubled) {
+    _msSessionClaimed[kind + '_ad'] = true;
+    _msRewardMark(kind + '_ad');
+    await _msGrantPeakbox(R.box);
+    _msProBonusBoxes += R.box; // 획득 연출에 표시할 합계를 호출부가 맞출 수 있도록 누적
+    if (typeof analytics !== 'undefined') {
+      analytics.track('mission_reward_doubled', { kind, box: R.box, source: 'pro' });
+    }
+  }
+
   _msSaveTodayResult(); // 재진입 시 같은 보상이 또 나가지 않도록 수령 상태를 남긴다
-  if (!(opts && opts.silent)) _msShowRewardModal(kind, R);
+  if (!(opts && opts.silent)) _msShowRewardModal(kind, R, proDoubled);
   return true;
 }
 
-function _msShowRewardModal(kind, R) {
+function _msShowRewardModal(kind, R, proDoubled) {
+  // Pro는 이미 2배가 적용된 상태로 도착한다 — 왜 상자가 평소보다 많은지 설명 없이 지나가지
+  // 않도록, 합산 수량과 "Pro 2배" 사유를 함께 보여준다(광고 2배 완료 모달과 같은 톤).
+  if (proDoubled) {
+    _playSfx('reward.mp3');
+    showPeakReveal(null, {
+      icon:       'gift',
+      labelText:  `피크상자 +${R.box * 2}`,
+      subText:    `경험치 +${R.xp}XP · Pro 보상 2배 적용!`,
+      buttonText: '확인',
+      onButton:   closePeakReveal,
+    });
+    return;
+  }
   // 광고 OFF거나 이미 2배를 쓴 kind면 2배 버튼 자체를 띄우지 않는다
   const showAdBtn = MissionAdProvider.isReady() && !_msRewardIsClaimed(kind + '_ad');
   if (!showAdBtn) {
@@ -1924,7 +1898,9 @@ async function msRewardWatchAd(kind, opts) {
 
   await _msGrantPeakbox(R.box);
   if (typeof analytics !== 'undefined') {
-    analytics.track('mission_reward_doubled', { kind, box: R.box });
+    // source로 광고 경로와 Pro 자동지급을 구분한다 — 안 나누면 "광고 시청 전환"
+    // 집계에 Pro 유저가 섞여 부풀려진다(과거 로그엔 source 없음 = 전부 광고 경로).
+    analytics.track('mission_reward_doubled', { kind, box: R.box, source: 'ad' });
   }
   if (opts && opts.silent) return true;
   showPeakReveal(null, {
@@ -1967,10 +1943,11 @@ function _msReviewCount(q) { return q.quiz.length + q.scale.length + q.combo.len
 function _msReviewPeek(stage) { return _msReviewQueue[stage][0] || null; }
 function _msReviewStageRemaining(stage) { return _msReviewQueue[stage].length > 0; }
 
-// 오답 풀기 버튼을 띄울 조건 — 틀린 문제가 있으면 언제든. 몇 번이든 다시 풀 수 있고,
-// 보상만 하루 한 번으로 막힌다(_msRewardDone). _msReviewDone 은 이제 문구 판정에만 쓴다.
+// 오답 풀기 버튼을 띄울 조건 — 틀린 문제가 있고, 아직 오답 풀기를 한 번도 완주하지
+// 않았을 때만. 하루 1회 제한(2026-09 변경) — 원본 채점기록(_msRecords)은 오답 풀기를
+// 완주해도 안 바뀌므로 _msReviewDone 체크가 없으면 다 풀고도 버튼이 계속 남는다.
 function _msReviewAvailable() {
-  return _msReviewCount(_msReviewBuildQueue()) > 0;
+  return !_msReviewDone && _msReviewCount(_msReviewBuildQueue()) > 0;
 }
 
 // 이번 사이클에 남았거나 다음 사이클로 넘어간 문제가 하나라도 있는가(버튼 문구 판정용)
@@ -2097,8 +2074,22 @@ function _msShowRewardPopup(kind, onDone) {
 
   const adBtn = document.getElementById('ms-reward-popup-ad');
   adBtn.style.display = adUsable ? '' : 'none';
+  // 광고 버튼이 숨겨지면 확인 버튼 혼자 flex:1로 늘어나 어색하게 왼쪽으로 치우쳐 보임 —
+  // 버튼 1개일 땐 폭 고정 + 가운데 정렬로 전환(2026-08-31)
+  ov.querySelector('.attendance-modal-actions').classList.toggle('attendance-modal-actions--single', !adUsable);
 
   const close = () => ov.classList.remove('attendance-modal-overlay--show');
+
+  // 팝업이 뜨자마자(유저가 문구 읽는 동안) 기본 보상 지급 RPC를 미리 백그라운드로 쏴둔다.
+  // "확인"을 눌렀을 때 그제서야 지급 RPC를 시작하면 서버 왕복하는 동안 화면이 비어있어서
+  // "보상이 한참 뒤에 뜬다"로 느껴짐(2026-08-31) — settle()은 이미 진행 중인 이 Promise를
+  // 기다리기만 해서 체감 지연을 없앤다. 광고 2배 경로는 광고 자체가 오래 걸리는 구간이라
+  // 그대로 클릭 시점에 시작.
+  _msProBonusBoxes = 0; // Pro 자동 2배 누적값 — 이번 지급분만 세도록 시작 전에 리셋
+  const _mspClaimPromise = alreadyGot ? null : (async () => {
+    await msClaimMissionReward(kind, { silent: true });
+    if (perfectBonus) await msClaimMissionReward('review', { silent: true }); // review 몫도 같이 지급·기록
+  })();
 
   // 어느 쪽을 고르든 기본 보상은 지급된다. 획득 연출은 앱 공용 피크상자 모달로 한 번만.
   const settle = async (useAd) => {
@@ -2107,14 +2098,17 @@ function _msShowRewardPopup(kind, onDone) {
       setTimeout(() => { if (typeof onDone === 'function') onDone(); }, 240);
       return;
     }
-    await msClaimMissionReward(kind, { silent: true });
-    if (perfectBonus) await msClaimMissionReward('review', { silent: true }); // review 몫도 같이 지급·기록
+    await _mspClaimPromise;
     let boxes = effR.box;
+    // Pro는 msClaimMissionReward()가 이미 광고 없이 2배분을 지급해뒀다 — 그 실제 지급량을
+    // 그대로 더해야 "지급은 2배인데 표시는 1배"로 어긋나지 않는다(만점 보너스 합산도 포함).
+    boxes += _msProBonusBoxes;
+    const proBonusGiven = _msProBonusBoxes > 0;
     if (useAd && await msRewardWatchAd(kind, { silent: true })) boxes += effR.box;
     setTimeout(() => showPeakboxRewardModal(boxes, () => {
       _msResultSyncGiftLabel();
       if (typeof onDone === 'function') onDone();
-    }), 240);
+    }, proBonusGiven ? { subText: 'Pro 보상 2배 적용!' } : null), 240);
   };
 
   document.getElementById('ms-reward-popup-ok').onclick = () => { _playTap(); settle(false); };
@@ -2131,8 +2125,9 @@ function msResultReviewWrong() {
   const total = _msReviewCount(queue);
   if (!total) return;
 
-  // 새 오답 풀기 회차 — 지난 회차에 미리 찍혀 있던 스케일 dot은 비우고 처음부터 채우게 한다
-  queue.scale.forEach(item => { item.prefilled = []; });
+  // queue.scale의 item은 원본 채점 기록(_msRecords.scale[i].item)과 같은 객체 참조라
+  // 데일리미션 본세션에서 맞혔던 dot 정보(prefilled)가 자연스럽게 이어짐 — 여기서 비우면
+  // 원본에서 맞힌 자리까지 오답풀기 진입 시 통째로 날아간다(2026-08-31 버그, 비우던 줄 제거).
 
   _msReviewQueue   = queue;
   _msReviewRetry   = { quiz: [], scale: [], combo: [] };
@@ -3064,9 +3059,9 @@ function _msDoCloseMissionSession() {
   clearInterval(_msBufferStatusTimer);
   clearTimeout(_msBufferDoneTimer);
 
-  // 출석 도장은 "미션을 실제로 끝낸" 두 경로에서만 — 무오답 클리어 후 종료 / 오답을 전부
-  // 풀고 보상까지 받은 뒤 종료. 오답을 남겨둔 채 나가면 도장은 찍히지 않는다.
-  if (_msResultReached && !_msStampShown && !_msReviewAvailable()) {
+  // 도장은 이제 결산화면 진입 시점(msShowResultView)에 바로 찍힌다 — 여기는 그게 무슨
+  // 이유로든(네트워크 실패 등) 못 찍혔을 때를 위한 안전망일 뿐.
+  if (_msResultReached && !_msStampShown) {
     _msRunStampFlow(_msExitToHome);
     return;
   }
@@ -3094,6 +3089,7 @@ const MS_STAMP_SCROLL_MS   = 1400; // 1일차 → 오늘 칸 이동 시간
 const MS_STAMP_PRESS_DELAY = 250;  // 스크롤 정지 → 도장 찍기까지의 숨
 let _msResultReached = false; // 결산 화면까지 도달했는가
 let _msStampShown    = false; // 이번 세션에서 도장 연출을 이미 돌렸는가
+let _msMockMode      = false; // ?mock=result 디자인 검수 진입 — 실제 출석 진행을 건드리면 안 됨
 
 function _msStampRenderGrid(grid, stamped, todayDay) {
   const boxImg = '<img src="image/gift.png" class="acc-box-icon" alt="">';
@@ -3469,6 +3465,9 @@ function _msPromoNextPersona() {
 const MS_PROMO_DAILY_ATTEMPTS = (typeof PROMO_DAILY_ATTEMPTS !== 'undefined') ? PROMO_DAILY_ATTEMPTS : 2;
 let _msPromoAttemptsCache = MS_PROMO_DAILY_ATTEMPTS; // intro 진입 시 갱신되기 전까지의 기본값
 function _msPromoAttemptsLeft() {
+  // Pro는 캐시 갱신(비동기 DB조회)을 기다릴 것도 없이 항상 무제한 — 갱신 전 기본값(2)이
+  // 잠깐 쓰여서 소진판정이 엇갈리는 일이 없도록 여기서 바로 끊는다.
+  if (isPromoAttemptsUnlimited()) return Infinity;
   return _msPromoAttemptsCache;
 }
 async function _msRefreshPromoAttemptsCache() {
@@ -3477,17 +3476,22 @@ async function _msRefreshPromoAttemptsCache() {
   } catch (_) { /* 실패 시 캐시 유지, 흐름 안 막음 */ }
 }
 function _msPromoAttemptsBadgeHTML() {
+  // Pro는 무제한 — 남은횟수가 Infinity라 "Infinity/2"가 찍히지 않도록 먼저 분기.
+  // 표기는 피크 배지(renderPeakBadge)와 동일하게 '∞'로 통일.
+  if (isPromoAttemptsUnlimited()) return `<span class="ms-promo-attempts">∞</span>`;
   const left = _msPromoAttemptsLeft();
   if (left <= 0) return `<span class="ms-promo-attempts ms-promo-attempts--depleted"><i class="ph-fill ph-play-circle"></i></span>`;
   return `<span class="ms-promo-attempts">${left}/${MS_PROMO_DAILY_ATTEMPTS}</span>`;
 }
 
 // ── 진입화면: 정보 + 시작버튼 ──
-async function msShowPersonaPromoIntro() {
+function msShowPersonaPromoIntro() {
   _msPromoFromPersona = MS_PERSONA.id;
   _msTrackPromoStage('intro');
   msPersonaPromoTimerReset(); // 안내화면은 시험 중이 아니므로 게이지 꺼둠
-  await _msRefreshPromoAttemptsCache(); // DB(user_persona_profile)에서 오늘 남은 횟수 갱신 후 렌더
+  // 예전엔 여기서 DB 조회(_msRefreshPromoAttemptsCache)를 기다린 뒤에야 화면을 그려서,
+  // 네트워크가 느리면 전환이 몇 초씩 멈춘 것처럼 보였음(2026-09 발견). 지금은 캐시값으로
+  // 즉시 그리고, 최신값은 아래 _msPromoRefreshAttemptsBadge()가 백그라운드로 받아와 배지만 갱신.
   const next = _msPromoNextPersona();
   const nextName = next.name || '다음 단계';
   document.getElementById('ms-title-text').textContent = `${nextName} 승급 시험`;
@@ -3512,28 +3516,42 @@ async function msShowPersonaPromoIntro() {
       <p class="ms-chord-hint ms-stagger-pending">영역마다 제한시간이 있어요</p>
     </div>
     <div class="ms-bottom-actions">
-      <button class="cd-btn cd-btn--blue ms-btn-pending" id="ms-promo-start-btn" onpointerup="msPersonaPromoStart()">시험 도전! ${_msPromoAttemptsBadgeHTML()}</button>
+      <button class="cd-btn cd-btn--blue ms-btn-pending" id="ms-promo-start-btn" onpointerup="msPersonaPromoStart()">시험 도전! <span id="ms-promo-attempts-badge">${_msPromoAttemptsBadgeHTML()}</span></button>
     </div>
   `;
   _msRunStaggerAndBindStartBtn('ms-promo-info-card', 'ms-promo-start-btn');
+  _msPromoRefreshAttemptsBadge(); // 최신 횟수 백그라운드 조회 — 화면은 이미 그려진 뒤라 안 막힘
+}
+// 배지를 스피너로 바꿔두고 DB에서 최신 남은 횟수를 받아오면 다시 채운다. await 없이
+// fire-and-forget으로 호출되므로, 응답 도착 시점엔 이미 다른 화면으로 넘어가 있을 수 있어
+// 그때마다 엘리먼트를 다시 찾아 존재 여부를 확인한다.
+async function _msPromoRefreshAttemptsBadge() {
+  const badge = document.getElementById('ms-promo-attempts-badge');
+  if (badge) badge.innerHTML = '<span class="ms-promo-attempts-spin"></span>';
+  await _msRefreshPromoAttemptsCache();
+  const el = document.getElementById('ms-promo-attempts-badge');
+  if (el) el.innerHTML = _msPromoAttemptsBadgeHTML();
 }
 // 광고 시청으로 얻은 "보너스 1회" — 하루 카운트(_msPromoAttemptsCache)와 별개로 딱 1회만 통과시킴.
 // msPersonaPromoFailRetry()에서 소진 후 광고 다 보면 true로 세팅, msPersonaPromoStart()에서 소비.
 let _msPromoAdBonusGranted = false;
 
-function msPersonaPromoStart() {
+async function msPersonaPromoStart() {
   _playTap();
   if (_msPromoAttemptsLeft() <= 0 && !_msPromoAdBonusGranted) {
-    if (MissionAdProvider.isReady()) {
-      if (typeof showTextToast === 'function') showTextToast('광고 보고 다시 도전해보세요');
-    } else {
+    if (!MissionAdProvider.isReady()) {
       if (typeof showTextToast === 'function') showTextToast('오늘 도전 횟수를 다 썼어요');
+      return;
     }
-    return;
+    // 예전엔 여기서 토스트만 띄우고 실제 광고는 안 띄웠음(2026-08-31 수정) — 재도전(fail
+    // 화면)과 동일하게 실제로 광고를 재생하고, 봐야만 보너스 1회를 준다.
+    const rewarded = await _msPlayRewardedAd('persona_promo_retry');
+    if (!rewarded) return;
+    _msPromoAdBonusGranted = true;
   }
   if (_msPromoAdBonusGranted) {
     _msPromoAdBonusGranted = false; // 보너스는 1회용 — 즉시 소진
-  } else {
+  } else if (!isPromoAttemptsUnlimited()) { // Pro는 소진 개념이 없어 캐시를 깎지 않는다
     _msPromoAttemptsCache = Math.max(0, _msPromoAttemptsCache - 1); // 배지 즉시반영(네트워크 응답 기다리지 않음)
   }
   consumePromoAttempt().then(left => { _msPromoAttemptsCache = left; }).catch(() => {}); // DB에는 실제 소진 그대로 기록
@@ -3657,13 +3675,19 @@ function _msPromoComboSectionDone() {
   _msTransitionView(msPersonaPromoFinish);
 }
 
-// 3영역 다 풀었을 때 최종 판정 — 실제 채점 결과(_msPromoRealResults) 기준, 전 영역 커트라인
-// 통과해야 승급. 결과화면(성공/실패)에 넘길 배열도 여기서 만듦
-function msPersonaPromoFinish() {
-  const sections = _msPromoSections().map(s => ({
+// 지금까지 채점된 실제 결과(_msPromoRealResults)로 3영역 배열을 조립 — 아직 안 끝난/시작도
+// 안 한 영역은 0개 맞음 처리. 정상완주(msPersonaPromoFinish)/시간초과(timeout) 양쪽에서 공용.
+function _msPromoRealResultSections() {
+  return _msPromoSections().map(s => ({
     ...s,
     correct: _msPromoRealResults[s.key]?.correct ?? 0,
   }));
+}
+
+// 3영역 다 풀었을 때 최종 판정 — 실제 채점 결과(_msPromoRealResults) 기준, 전 영역 커트라인
+// 통과해야 승급. 결과화면(성공/실패)에 넘길 배열도 여기서 만듦
+function msPersonaPromoFinish() {
+  const sections = _msPromoRealResultSections();
   const allPass = sections.every(s => s.correct >= s.cutoff);
   if (allPass) {
     // 결과화면 진입 전에 커밋 — 성공화면과 확인버튼 사이 이탈(앱종료 등)에도 승급이 남게
@@ -3804,11 +3828,11 @@ function msShowPersonaPromoFail(timedOut = false, resultOverride = null) {
           </div>`;
         }).join('')}
       </div>
-      <p class="ms-chord-hint">${attemptsLeft > 0 ? `오늘 ${attemptsLeft}번 더 도전할 수 있어요` : '오늘 도전 횟수를 다 썼어요'}</p>
+      <p class="ms-chord-hint">${isPromoAttemptsUnlimited() ? '언제든 다시 도전할 수 있어요' : (attemptsLeft > 0 ? `오늘 ${attemptsLeft}번 더 도전할 수 있어요` : '오늘 도전 횟수를 다 썼어요')}</p>
     </div>
     <div class="ms-bottom-actions ms-result-btn-row">
       <button class="cd-btn cd-btn--gray ms-btn-pending" id="ms-promo-fail-later-btn" onpointerup="msPersonaPromoFailLater()">나중에</button>
-      <button class="cd-btn cd-btn--blue ms-btn-pending" id="ms-promo-fail-retry-btn" onpointerup="msPersonaPromoFailRetry()">${attemptsLeft > 0 ? '다시 도전하기' : '광고 보고 도전'}</button>
+      <button class="cd-btn cd-btn--blue ms-btn-pending" id="ms-promo-fail-retry-btn" onpointerup="msPersonaPromoFailRetry()">재도전 ${isPromoAttemptsUnlimited() ? '∞' : `${attemptsLeft}/${MS_PROMO_DAILY_ATTEMPTS}${attemptsLeft <= 0 ? ' <i class="ph-fill ph-play-circle"></i>' : ''}`}</button>
     </div>
   `;
 
@@ -3853,7 +3877,20 @@ async function msPersonaPromoFailRetry() {
     if (!rewarded) return; // 광고 중간이탈/실패 — 그대로 실패화면에 머무름
     _msPromoAdBonusGranted = true;
   }
-  _msTransitionView(() => msShowPersonaPromoIntro());
+  // 안내화면(인트로)은 다시 안 거치지만, 첫 섹션 준비화면("시작하기" 버튼)에는 들러야 함
+  // (2026-09 변경 — 처음엔 바로 카운트다운까지 건너뛰게 했다가, 준비 없이 훅 시작하는 게
+  // 어색하다는 피드백으로 되돌림). 횟수 소진 처리는 msPersonaPromoStart()와 동일 로직을 여기
+  // 직접 둠(그 함수를 부르면 attemptsLeft를 다시 검사해서 광고가 또 뜰 수 있음)
+  if (_msPromoAdBonusGranted) {
+    _msPromoAdBonusGranted = false; // 보너스는 1회용 — 즉시 소진
+  } else if (!isPromoAttemptsUnlimited()) { // Pro는 소진 개념이 없어 캐시를 깎지 않는다
+    _msPromoAttemptsCache = Math.max(0, _msPromoAttemptsCache - 1); // 배지 즉시반영(네트워크 응답 기다리지 않음)
+  }
+  consumePromoAttempt().then(left => { _msPromoAttemptsCache = left; }).catch(() => {}); // DB에는 실제 소진 그대로 기록
+  Object.keys(_msPromoRealResults).forEach(k => delete _msPromoRealResults[k]); // 지난 시도 채점 결과 초기화
+  _msPromoFromPersona = MS_PERSONA.id;
+  if (typeof analytics !== 'undefined') analytics.track('persona_promo_started', { from_persona: _msPromoFromPersona });
+  _msTransitionView(() => msShowPersonaPromoSection(0));
 }
 
 // ── 승급시험 전용 상단 게이지 — 평소(데일리미션) "진행도" 대신 "남은시간"으로 동작.
@@ -3940,6 +3977,13 @@ function msPersonaPromoTimerReset() {
 function msPersonaPromoTimeoutPopup() {
   // 질문 화면의 개별 스톱워치 RAF가 안 멈춘 채 계속 돌면 낭비라 여기서 같이 끊음
   if (_msQuizTimerRAF) { cancelAnimationFrame(_msQuizTimerRAF); _msQuizTimerRAF = null; }
+  // 시간초과로 끊긴 섹션은 _msPromoQuizSectionDone류(정상완주 전용)를 못 거치므로
+  // _msPromoRealResults에 값이 없어 결과화면에서 0개로 보임(2026-09 버그) — 지금까지
+  // 채점된 만큼(_msExamRecords)을 여기서 대신 커밋
+  if (['quiz', 'scale', 'combo'].includes(_msPromoLastStage) && !_msPromoRealResults[_msPromoLastStage]) {
+    const correct = _msExamRecords.filter(r => r.isCorrect).length;
+    _msPromoRealResults[_msPromoLastStage] = { correct, total: _msExamSectionTotal };
+  }
   _msExamMode = false; // 시간초과=시험 이탈 확정, 남아있던 문제풀이 상태 정리
   let overlay = document.getElementById('ms-promo-timeout-overlay');
   if (!overlay) {
@@ -3961,23 +4005,20 @@ function msPersonaPromoTimeoutPopup() {
       _playTap();
       overlay.classList.remove('ms-promo-timeout-overlay--show');
       // TODO: 실제로는 여기서 남은 문제를 무제한 시간으로 이어서 풀게 해야 함
-      msShowPersonaPromoFail(true);
+      msShowPersonaPromoFail(true, _msPromoRealResultSections());
     });
     document.getElementById('ms-promo-timeout-exit').addEventListener('pointerup', () => {
       _playTap();
       overlay.classList.remove('ms-promo-timeout-overlay--show');
-      msShowPersonaPromoFail(true);
+      msShowPersonaPromoFail(true, _msPromoRealResultSections());
     });
   }
   requestAnimationFrame(() => overlay.classList.add('ms-promo-timeout-overlay--show'));
 }
 
-document.addEventListener('DOMContentLoaded', () => {
-  const shell = document.querySelector('.app-shell');
-  if (shell) shell.classList.add('project-enter');
-
-  lucide.createIcons();
-
+// 화면 가리개(#page-cover) 걷기 — 콘텐츠가 실제로 다 그려진 뒤에만 호출할 것. 먼저 불러버리면
+// 그 틈에 정적 HTML 기본값(기타 이미지 버퍼)이 순간 노출된다(2026-08-31 버그).
+function _msRevealPage() {
   const cover = document.getElementById('page-cover');
   if (cover) {
     requestAnimationFrame(() => {
@@ -3985,9 +4026,15 @@ document.addEventListener('DOMContentLoaded', () => {
       setTimeout(() => { cover.style.display = 'none'; }, 200);
     });
   }
+}
 
+document.addEventListener('DOMContentLoaded', () => {
+  const shell = document.querySelector('.app-shell');
+  if (shell) shell.classList.add('project-enter');
+
+  lucide.createIcons();
   positionMsGradient();
-  _msInitDebugChip();
+  // 디버그 칩은 shared.js DOMContentLoaded에서 전역 1회 처리(2026-08-31 이전)
 
   // Android 하드웨어 뒤로가기 — 모달 열려있으면 닫기만, 아니면 화면상 back-btn과 동일하게
   // closeMissionSession() 태워서 완주 전 이탈 확인모달 동일하게 적용(2026-08-29, strum-play.js와 동일 패턴).
@@ -4004,34 +4051,57 @@ document.addEventListener('DOMContentLoaded', () => {
   // 결산 디자인 작업용 목업 진입로 — ?mock=result 로 열면 퀴즈를 안 풀고 바로 결산 화면으로.
   // 임시 디버그용, 배포와 무관(URL 파라미터 없으면 원래 흐름 그대로).
   if (new URLSearchParams(location.search).get('mock') === 'result') {
+    _msMockMode = true; // 실제 출석 진행(advanceAttendance)이 안 타게 막음
     _msLoadMockResultData();
     msShowResultView();
+    _msRevealPage();
     return;
   }
   // 승급시험 디자인 검수용 목업 진입로 — ?mock=promo(안내) / promo-success(성공) / promo-fail(실패).
   // 문제풀이 자체는 아직 미구현이라 마지막 섹션의 "시작하기" 버튼은 스텁(TODO 로그만 남김).
   const mockParam = new URLSearchParams(location.search).get('mock');
-  if (mockParam === 'promo')         { msShowPersonaPromoIntro();   return; }
-  if (mockParam === 'promo-success') { msShowPersonaPromoSuccess(); return; }
-  if (mockParam === 'promo-fail')    { msShowPersonaPromoFail();    return; }
-  if (mockParam === 'promo-timeout') { msPersonaPromoTimeoutPopup(); return; }
-  if (mockParam === 'promo-quiz')    { msPersonaPromoQuizStart(_msPromoSections()[0]); return; }
-  if (mockParam === 'promo-scale')   { msPersonaPromoScaleStart(_msPromoSections()[1]); return; }
-  if (mockParam === 'promo-combo')   { msPersonaPromoComboStart(_msPromoSections()[2]); return; }
+  if (mockParam === 'promo')         { msShowPersonaPromoIntro(); _msRevealPage(); return; }
+  if (mockParam === 'promo-success') { msShowPersonaPromoSuccess(); _msRevealPage(); return; }
+  if (mockParam === 'promo-fail')    { msShowPersonaPromoFail();    _msRevealPage(); return; }
+  if (mockParam === 'promo-timeout') { msPersonaPromoTimeoutPopup(); _msRevealPage(); return; }
+  if (mockParam === 'promo-quiz')    { msPersonaPromoQuizStart(_msPromoSections()[0]); _msRevealPage(); return; }
+  if (mockParam === 'promo-scale')   { msPersonaPromoScaleStart(_msPromoSections()[1]); _msRevealPage(); return; }
+  if (mockParam === 'promo-combo')   { msPersonaPromoComboStart(_msPromoSections()[2]); _msRevealPage(); return; }
 
-  // 실제 진입로 — 프로필 페르소나 트랙의 다음 단계(eligible) dot 클릭 시 여기로 들어옴
+  // 실제 진입로 — 프로필 페르소나 트랙의 다음 단계(eligible) dot 클릭 시 여기로 들어옴.
+  // msShowPersonaPromoIntro()는 이제 캐시값으로 즉시 그리므로(2026-09), 그리자마자 가리개를 걷는다.
   if (new URLSearchParams(location.search).get('promo') === '1') {
     msShowPersonaPromoIntro();
+    _msRevealPage();
     return;
   }
 
-  // 오늘 루틴을 이미 끝냈으면 처음부터 다시 풀리지 않고 그날의 결산을 그대로 보여준다
+  // 유저가 직접 "오늘 훈련 결과보기"를 클릭한 경우(attendance.html) — 이미 봤어도
+  // 명시적 요청이니 자동 재접속과 달리 home으로 안 튕기고 그대로 보여준다.
+  if (new URLSearchParams(location.search).get('view') === 'result') {
+    if (_msRestoreTodayResult()) {
+      msShowResultView();
+      msUpdateProgress(MS_TOTAL_STEPS);
+      _msRevealPage();
+    } else {
+      location.href = 'home.html'; // 결과 데이터가 없으면(자정 넘어감 등) 조용히 home으로
+    }
+    return;
+  }
+
+  // 오늘 루틴을 이미 끝냈으면 처음부터 다시 풀리지 않고 그날의 결산을 그대로 보여준다.
+  // 단, 결산화면을 이미 한 번 봤다면(_msTodayResultSeen) 재접속 때마다 다시 그 화면으로
+  // 튕기지 않고 home으로 보낸다 — daily-mission.js 게이트가 여길로 보내는 것도 막아야 하지만
+  // 직접 URL 접근/뒤로가기 대비로 여기서도 한 번 더 막는다.
   if (_msRestoreTodayResult()) {
+    if (_msTodayResultSeen()) { location.href = 'home.html'; return; }
     msShowResultView();
     msUpdateProgress(MS_TOTAL_STEPS);
+    _msRevealPage();
     return;
   }
 
+  _msRevealPage(); // 이 경로는 정적 HTML의 기타 버퍼 화면을 그대로 보여주는 게 의도된 동작
   _msStartBuffer(); // 버퍼 → 8초 후 코드맞추기 튜토리얼
   // 튜토리얼 단계에선 인디케이터 업데이트 안 함 — 게이지는 문제풀이(msShowQuizView) 진입 시점부터 시작
 

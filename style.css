@@ -255,9 +255,6 @@
 @media (min-width: 769px) { :root { --tsc-value-size: 28px; } }
 @media (min-width: 1080px) { :root { --tsc-value-size: 24px; } }
 
-/* 통계 구분선 최대 간격 — 홈배너(--hdb-row-gap-max:150px)와 값 분리(2026-08-22) */
-:root { --tsc-row-gap-max: 200px; }
-
 /* 홈배너 하단(.hdb-row) 3요소 간격 상한 — 기본은 좌우끝 space-between으로 균등분배하되
    .hdb-divider(스페이서)가 이 값 이상 안 벌어지게 캡(2026-08-22, 뷰포트 무관 고정) */
 :root { --hdb-row-gap-max: 150px; }
@@ -5204,27 +5201,6 @@ canvas {
 }
 .price-amount small { font-size: 14px; font-weight: 500; color: var(--text-secondary); }
 
-/* 기능 목록 */
-.plan-card-features {
-  list-style: none;
-  padding: 0;
-  margin: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  flex: 1;
-}
-.plan-card-features li {
-  font-size: 14px;
-  color: var(--text-secondary);
-}
-.plan-card-features li::before {
-  content: '\2713';
-  color: #16a34a;
-  font-weight: 700;
-  margin-right: 6px;
-}
-
 /* CTA 버튼 */
 /* 결제 CTA — 기본 .btn(약 36px)을 그대로 쓰면 앱의 다른 주요 버튼보다 작다.
    모달 CTA(.leave-practice-btn)·온보딩 시작 버튼과 같은 48px로 맞춘다. */
@@ -7080,8 +7056,10 @@ canvas {
   list-style: none;
   margin: 0;
   display: flex;
-  justify-content: center; /* 내용이 영역을 안 넘치면 중앙정렬, 넘치면(overflow) 자동으로
-    왼쪽부터 스크롤 — flex는 넘칠 땐 분배할 여유공간이 없어서 center가 사실상 무효화됨 */
+  justify-content: flex-start; /* 기본은 왼쪽 정렬 — 안 넘칠 때만 JS가 --fit 클래스로 center 전환.
+    (2026-08-31 수정: overflow해도 justify-content:center는 그대로 적용돼서 넘친 영역이 좌우로
+    균등하게 퍼져 초기 scrollLeft:0이 중간부터 보이는 버그였음 — .ms-combo-blocks--scrollrow와
+    동일 패턴으로 통일) */
   gap: 8px;
   overflow-x: auto;
   -webkit-overflow-scrolling: touch;
@@ -7094,6 +7072,7 @@ canvas {
 }
 .ms-result-quiz-row::-webkit-scrollbar { display: none; }
 .ms-result-quiz-row--dragging { cursor: grabbing; user-select: none; }
+.ms-result-quiz-row--fit { justify-content: center; } /* 칩이 적어서 안 넘칠 때만 JS가 부여 */
 .ms-result-quiz-chip {
   flex-shrink: 0;
   width: 64px;
@@ -7217,10 +7196,26 @@ canvas {
   display: inline-flex;
   align-items: center;
   font: inherit; /* 버튼(.cd-btn) 폰트사이즈·굵기와 항상 일치하도록 — 하드코딩 금지 */
+  vertical-align: middle; /* inline-flex 기본 baseline 정렬이라 옆 텍스트("시험 도전!")와
+                              수직으로 안 맞았음(2026-09, 소진 시 재생아이콘만 있을 때 특히 눈에 띔) */
 }
 .ms-promo-attempts i {
   font-size: 1em; /* 부모(.ms-promo-attempts, 버튼 폰트 상속)와 동일 크기 */
 }
+/* 승급 안내화면 진입 시 남은 횟수 배지 자리에 잠깐 뜨는 로딩 스피너 — DB 최신값 조회 중
+   화면전환 자체는 막지 않고(캐시값으로 이미 그려짐) 배지만 갱신될 때까지 표시 */
+.ms-promo-attempts-spin {
+  display: inline-block;
+  width: 0.85em;
+  height: 0.85em;
+  border: 2px solid currentColor;
+  border-top-color: transparent;
+  border-radius: 50%;
+  opacity: 0.85;
+  vertical-align: -0.15em;
+  animation: ms-promo-attempts-spin 0.7s linear infinite;
+}
+@keyframes ms-promo-attempts-spin { to { transform: rotate(360deg); } }
 /* 실패화면 상단 — 제한시간 초과로 진입한 경우에만 노출되는 안내 한 줄 */
 .ms-promo-timeout-note {
   margin: 0;
@@ -8276,6 +8271,7 @@ canvas {
   flex-shrink: 0;
 }
 .ob-consent-check-label {
+  flex: 1;
   font-size: 13px;
   font-weight: 600;
   color: var(--text-primary);
@@ -9712,79 +9708,108 @@ canvas {
 .notice-modal-btn:hover { opacity: 0.85; }
 .notice-modal-btn:active { transform: scale(0.98); }
 
-/* ── 업데이트 안내 모달 (기능 소개 카드형, 5단계 반응형 max-width 토큰화) ── */
+/* ── 업데이트 안내 모달 (버전 소개, 세로 스크롤 섹션 나열형, 5단계 반응형 max-width 토큰화) ──
+   섹션 하나 = 타이틀/라벨 + 설명 + 이미지·그래픽 영역. 헤더(로고+버전)와 하단 버튼은
+   고정, 그 사이 .update-notice-sections만 스크롤(모달 자체 높이는 80vh로 캡) */
 .update-notice-modal {
   background: var(--surface);
   border-radius: 20px;
   border: 1px solid var(--border);
   width: calc(100% - 32px);
   max-width: 300px;
+  max-height: 80vh;
   padding: 32px 24px 20px;
   display: flex;
   flex-direction: column;
   align-items: center;
   text-align: center;
+  letter-spacing: -0.025em;
 }
-.update-notice-logo { width: 40px; height: 40px; object-fit: contain; margin-bottom: 16px; }
+.update-notice-logo { width: 40px; height: 40px; object-fit: contain; margin-bottom: 16px; flex-shrink: 0; }
 .update-notice-version {
   font-family: 'Pretendard', sans-serif;
   font-size: 20px;
   font-weight: 600;
   color: var(--text-primary);
   line-height: 1.35;
-  margin: 0 0 10px;
+  margin: 0 0 18px;
+  flex-shrink: 0;
 }
-.update-notice-subtitle {
-  font-size: 13px;
-  font-weight: 400;
-  color: var(--text-primary);
-  line-height: 1.5;
-  margin: 0 0 14px;
-}
-.update-notice-title {
-  font-family: 'Pretendard', sans-serif;
-  font-size: 20px;
-  font-weight: 600;
-  color: var(--text-primary);
-  line-height: 1.35;
-  margin: 0 0 10px;
-}
-.update-notice-message {
-  font-size: 13px;
-  color: var(--text-secondary);
-  line-height: 1.7;
-  margin: 0 0 20px;
-}
-.update-notice-features {
+.update-notice-sections {
   width: 100%;
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: 48px;
+  overflow-y: auto;
+  min-height: 0;
+  flex: 1;
   margin-bottom: 18px;
-}
-.update-notice-feature {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  border-radius: 12px;
-  padding: 12px 14px;
   text-align: left;
 }
-.update-notice-feature-icon {
-  width: 44px;
-  height: 44px;
-  border-radius: 10px;
-  background: var(--surface);
+.update-notice-section {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.update-notice-section-title {
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--text-primary);
+  margin: 0;
+}
+.update-notice-section-desc {
+  font-size: 13px;
+  color: var(--text-secondary);
+  line-height: 1.6;
+  margin: 0;
+}
+.update-notice-section-media {
+  width: 100%;
+  border-radius: 12px;
+  overflow: hidden;
   display: flex;
   align-items: center;
   justify-content: center;
-  flex-shrink: 0;
-  font-size: 24px;
-  color: var(--text-primary);
+  padding: 20px 0;
+  box-sizing: border-box;
 }
-.update-notice-feature-text { display: flex; flex-direction: column; }
-.update-notice-feature-name { font-size: 15px; font-weight: 400; color: var(--text-primary); }
-.update-notice-btns { width: 100%; display: flex; gap: 8px; margin-bottom: 16px; }
+.update-notice-section-media img {
+  width: 50%;
+  height: auto;
+  object-fit: contain;
+  display: block;
+  margin: auto;
+}
+.update-notice-section-extra {
+  font-size: 12px;
+  color: var(--text-muted);
+  line-height: 1.5;
+  margin: 0;
+}
+.update-notice-section-extra strong { color: var(--text-primary); font-weight: 700; }
+
+/* 섹션 사이 기본 gap(48px)을 24px로 줄이기 위한 상쇄 마진 — .update-notice-sections의
+   flex gap이 위아래로 이미 48px씩 잡혀있어 절반(24px)만큼 음수마진으로 깎는다 */
+.update-notice-divider {
+  width: 100%;
+  border: none;
+  border-top: 1px solid var(--border);
+  margin: -24px 0;
+  flex-shrink: 0;
+}
+
+.update-notice-media--pair { display: flex; align-items: center; justify-content: center; gap: 28px; }
+.update-notice-media--pair i { font-size: 64px; color: var(--blue); }
+
+.update-notice-past-version {
+  font-family: 'Pretendard', sans-serif;
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--text-primary);
+  text-align: center;
+}
+
+.update-notice-btns { width: 100%; display: flex; gap: 8px; margin-bottom: 16px; flex-shrink: 0; }
 .update-notice-btn {
   flex: 1;
   padding: 13px;
@@ -11795,19 +11820,19 @@ canvas {
   gap: 6px;
   padding: 0;
   min-width: 0;
+  position: relative;
 }
-/* 홈배너(.hdb-divider)와 동일 패턴 — 3요소 사이 간격 스페이서, 상한은 같은 토큰 재사용.
-   홈배너와 달리 여긴 실제 세로 구분선을 보여야 해서 ::after로 가운데 1px 선 추가 */
-.training-stat-divider {
-  flex: 1 1 0;
-  max-width: var(--tsc-row-gap-max);
-  align-self: stretch;
-  display: flex;
-  align-items: center;
-  justify-content: center;
+/* 구분선을 별도 flex아이템(.training-stat-divider)이 아닌 카드 자체의 ::before로 이동 —
+   기존엔 구분선이 카드와 동일한 flex:1 1 0이라 불필요하게 넓은 영역을 차지했음 */
+.training-stat-card + .training-stat-card {
+  padding-left: 16px;
 }
-.training-stat-divider::after {
+.training-stat-card + .training-stat-card::before {
   content: '';
+  position: absolute;
+  left: 0;
+  top: 50%;
+  transform: translateY(-50%);
   width: 1px;
   height: 100%;
   max-height: 60px;
@@ -13863,6 +13888,16 @@ canvas {
 
 .attendance-modal-actions[hidden] {
   display: none;
+}
+
+/* 버튼이 1개만 보일 때(광고 2배 버튼 숨김) — flex:1이 혼자 늘어나 왼쪽으로 치우쳐 보이던 것을
+   가운데 고정폭으로 전환(2026-08-31) */
+.attendance-modal-actions--single {
+  justify-content: center;
+}
+.attendance-modal-actions--single .attendance-modal-btn {
+  flex: none;
+  min-width: 140px;
 }
 
 .attendance-modal-btn {
@@ -19510,9 +19545,12 @@ canvas {
   scrollbar-width: none;
   cursor: grab;
   /* overflow-y:hidden이 .combo-block 그림자(상하)를 잘라서 padding으로 여유공간 확보,
-     margin으로 상쇄해 레이아웃 위치는 그대로 유지 (박스섀도우+overflow:hidden 클리핑 패턴) */
-  padding-block: 6px;
-  margin-block: -6px;
+     margin으로 상쇄해 레이아웃 위치는 그대로 유지 (박스섀도우+overflow:hidden 클리핑 패턴).
+     overflow-x:auto도 동일하게 첫/끝 카드 좌우 그림자를 잘라서(2026-08-31) 가로도 같은
+     패딩/마진 상쇄를 적용 — 스크롤 가능 폭 자체는 padding-inline이 늘려도 카드 레이아웃은
+     margin-inline로 도로 당겨서 시작/끝 위치 그대로 유지됨. */
+  padding: 6px;
+  margin: -6px;
 }
 .combo-quiz-blocks.ms-combo-blocks--scrollrow::-webkit-scrollbar { display: none; }
 /* 카드가 적어서 안 넘칠 때만 켜짐(_msComboUpdateScrollHint) — 왼쪽 붙임 대신 가운데 정렬 */
