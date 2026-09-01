@@ -2124,10 +2124,10 @@ function showResultView() {
     answers:       _answersPayload(),
   });
 
-  // 상단 통계 — 데일리미션 MissionPercentile.quiz() 그대로 재사용(records 키만 speedSec→timeSec 매핑)
+  // 상단 통계 — 레벨 자신의 실측 기준(quizByLevel). 예전엔 데일리미션 페르소나 기준
+  // quiz()를 그대로 재사용해서 "레벨과 무관한 값"이 나오는 문제가 있었음(2026-09-01 분리).
   const records = _results.map(r => ({ isCorrect: r.isCorrect, timeSec: r.speedSec }));
-  const persona = typeof getUserPersona === 'function' ? getUserPersona() : 'unboxing';
-  const st = MissionPercentile.quiz(records, persona);
+  const st = MissionPercentile.quizByLevel(records, _currentLevel);
 
   const headlineEl  = document.getElementById('result-stat-headline');
   const chartWrap    = document.getElementById('result-chart-wrap');

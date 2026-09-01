@@ -7531,6 +7531,14 @@ canvas {
 .ms-quiz-choice-card--wrong {
   box-shadow: 0 0 0 3px #FF3B30 inset, 0 6px 16px rgba(0,0,0,0.14);
 }
+/* 위 --text 전용 쉐도우 규칙(#chord-quiz-page 스코프)이 특이도가 더 높아서 텍스트모드에서
+   정답/오답 표시가 가려지던 버그(2026-09-01 발견) — 특이도 맞춰서 재정의 */
+#chord-quiz-page .ms-quiz-choice-card.ms-quiz-choice-card--text.ms-quiz-choice-card--correct {
+  box-shadow: 0 0 0 3px #34C759 inset, 0 2px 8px rgba(0,0,0,0.14);
+}
+#chord-quiz-page .ms-quiz-choice-card.ms-quiz-choice-card--text.ms-quiz-choice-card--wrong {
+  box-shadow: 0 0 0 3px #FF3B30 inset, 0 2px 8px rgba(0,0,0,0.14);
+}
 .ms-quiz-choice-canvas-slot {
   width: 80%;
   height: 80%;
@@ -13363,7 +13371,7 @@ canvas {
   height: 48px;
   border: none;
   border-radius: 14px;
-  background: var(--brand);
+  background: var(--blue);
   color: #fff;
   font-size: 15px;
   font-weight: 700;
