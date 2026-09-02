@@ -219,6 +219,15 @@ class AnalyticsSDK {
   }
 
   /**
+   * 큐 즉시 전송(keepalive) — 이탈 직전에 track()한 이벤트를 확실히 보내야 할 때 사용.
+   * SDK 자체 pagehide/appStateChange 리스너는 먼저 등록돼 있어 나중에 큐에 들어간
+   * 이벤트를 놓치므로, 그런 호출부가 직접 이 메서드를 불러 마무리한다.
+   */
+  flush() {
+    return this._flush(true);
+  }
+
+  /**
    * A/B 실험 변형 배정 (최초 1회, 이후 캐시 반환)
    * @param {string} experimentId - 실험 ID
    * @returns {string} variant - 배정된 변형 이름

@@ -120,14 +120,7 @@ function _msTrackStage(stage) {
   if (typeof analytics !== 'undefined') analytics.track('daily_mission_stage_entered', { stage });
 }
 
-// 완주 전에 페이지를 떠나면(뒤로가기/탭전환/앱종료) 마지막으로 도달한 단계를 남김.
-// pagehide는 visibilitychange보다 안정적으로 발화(iOS 사파리 unload 미지원 대응).
-window.addEventListener('pagehide', () => {
-  if (_msResultReached || !_msLastStage) return;
-  if (typeof analytics !== 'undefined') {
-    analytics.track('daily_mission_abandoned', { last_stage: _msLastStage });
-  }
-});
+// 이탈 로그(daily_mission_abandoned)는 아래 _msSendAbandonLogs()에서 승급시험분과 함께 처리.
 
 // ── 승급시험 퍼널 로그(2026-08-29) — 데일리미션과 별도 흐름이라 상태도 분리 ──
 let _msPromoActive = false;      // msShowPersonaPromoIntro 진입~성공/실패화면 도달 사이 true
@@ -147,12 +140,41 @@ function _msTrackPromoSectionResult(section, correct, total) {
     passed: cutoff != null ? correct >= cutoff : null,
   });
 }
-window.addEventListener('pagehide', () => {
-  if (!_msPromoActive || !_msPromoLastStage) return;
-  if (typeof analytics !== 'undefined') {
-    analytics.track('persona_promo_abandoned', { last_stage: _msPromoLastStage, from_persona: _msPromoFromPersona });
+// ── 이탈 로그 전송(데일리미션 + 승급시험 공통, 2026-09-02 수정) ────────────────
+// 기존엔 각각 pagehide에만 걸려 있었는데 두 가지 이유로 거의 안 찍혔다:
+//  1) 안드로이드는 홈버튼/앱전환 시 pagehide가 안정적으로 안 뜬다 — SDK도 같은 이유로
+//     네이티브에선 Capacitor appStateChange를 쓴다(analytics-sdk.js _setupLifecycleListeners).
+//  2) 떠도 SDK의 pagehide 리스너가 먼저 등록돼 있어 큐를 먼저 비우고 가버려서,
+//     그 뒤에 track()으로 들어간 이탈 이벤트는 전송되지 못한 채 폐기됐다.
+// → 네이티브/웹 양쪽 진입점을 다 걸고, track() 직후 analytics.flush()로 직접 마무리한다.
+let _msLeaveLogged = false; // 한 번의 이탈에서 pagehide/appStateChange 중복 발화 방지
+function _msSendAbandonLogs() {
+  if (_msLeaveLogged) return;
+  if (typeof analytics === 'undefined') return;
+
+  let sent = false;
+  if (!_msResultReached && _msLastStage) {
+    analytics.track('daily_mission_abandoned', { last_stage: _msLastStage });
+    sent = true;
   }
-});
+  if (_msPromoActive && _msPromoLastStage) {
+    analytics.track('persona_promo_abandoned', { last_stage: _msPromoLastStage, from_persona: _msPromoFromPersona });
+    sent = true;
+  }
+  if (!sent) return;
+
+  _msLeaveLogged = true;
+  analytics.flush?.(); // SDK 리스너가 이미 큐를 비운 뒤일 수 있으므로 직접 전송
+}
+
+window.addEventListener('pagehide', _msSendAbandonLogs);
+
+if (window.Capacitor?.Plugins?.App) {
+  window.Capacitor.Plugins.App.addListener('appStateChange', ({ isActive }) => {
+    if (isActive) _msLeaveLogged = false; // 복귀 후 다시 이탈하면 그 시점도 남긴다
+    else _msSendAbandonLogs();
+  });
+}
 
 // 코드 조합 훈련 대상 key(C/D/E/G/A) — 데일리미션 시작 시 1개만 랜덤 선택해서 세션 내내 고정
 const MS_COMBO_KEY_IDX_MAP = { C: 0, D: 2, E: 4, G: 7, A: 9 };

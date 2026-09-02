@@ -6,7 +6,7 @@
 // ── 상수 ─────────────────────────────────────────────────────
 const SUPABASE_URL  = 'https://jbvkygeksohlysyvaoab.supabase.co';
 const SUPABASE_ANON = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Impidmt5Z2Vrc29obHlzeXZhb2FiIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzYzOTk5NjgsImV4cCI6MjA5MTk3NTk2OH0.6RSgChy0Yq0H2TJpZPSoMKQ2V-OYfR0XzE1aJBBZkXI';
-const APP_VERSION   = '1.3.5_pre5';
+const APP_VERSION   = '1.3.5.1';
 const SUPABASE_STORAGE_KEY = 'sb-jbvkygeksohlysyvaoab-auth-token';
 
 // 이용약관/개인정보처리방침 버전 — 광고식별자 수집 항목 추가(2026-09) 시 1로 올림.
@@ -4844,10 +4844,12 @@ async function __pushApplyEnabled() {
 // ── 앱 버전 동기화: 세션 진입마다 subscriptions.app_version 갱신 ──
 // 네이티브 앱 진입 시 1일 1회, 로그인 유저만. checkForceUpdate()와 같은
 // 전역 DOMContentLoaded 훅에서 호출.
+// 스로틀 키에 버전을 포함시킨다 — 날짜만 쓰면 "구버전으로 접속 → 같은 날 업데이트"한 유저가
+// 가드에 걸려 다음날까지 구버전으로 남는다(2026-09-02 실측: 1.3.5 업데이트 당일 유저 미반영).
 async function _syncAppVersionToDB() {
   if (!window.Capacitor?.isNativePlatform()) return;
-  const today = _kstToday();
-  if (localStorage.getItem('_av_synced_date') === today) return;
+  const stamp = _kstToday() + '_' + APP_VERSION;
+  if (localStorage.getItem('_av_synced_date') === stamp) return;
 
   let accessToken = null, userId = null;
   try {
@@ -4871,7 +4873,7 @@ async function _syncAppVersionToDB() {
       },
       body: JSON.stringify({ app_version: APP_VERSION }),
     });
-    localStorage.setItem('_av_synced_date', today);
+    localStorage.setItem('_av_synced_date', stamp);
   } catch (_) {}
 }
 

@@ -82,6 +82,7 @@
     <!-- Permissions -->
 
     <uses-permission android:name="android.permission.INTERNET" />
+    <uses-permission android:name="com.google.android.gms.permission.AD_ID" />
 
     <!-- 로컬 알림 (Android 13+ 런타임 권한) -->
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
