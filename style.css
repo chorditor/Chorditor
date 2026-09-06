@@ -11970,6 +11970,9 @@ canvas {
   flex-direction: column;
   align-items: center;
   padding-block: 20px;
+  /* 하단 사지선다 카드가 안드로이드 제스처바/네비게이션 바에 가려지는 문제 —
+     #view-result .ms-bottom-actions(위, 2026-08-31)와 같은 이유로 여기도 누락돼 있었음 */
+  padding-bottom: calc(20px + env(safe-area-inset-bottom, 0px));
   /* 데일리미션은 #ms-main 자체엔 좌우 패딩이 없고, 그 부모 .ms-scroll-inner가
      padding-inline:var(--grid-margin) + max-width:var(--grid-container-max) 데스크탑 캡을
      담당함(style.css #mission-session-page .ms-scroll-inner) — #view-quiz는 그 부모 역할까지
