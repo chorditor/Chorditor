@@ -2360,6 +2360,7 @@ function showModeSelect() {
   const vqEl = document.getElementById('view-quiz');
   const vrEl = document.getElementById('view-result');
   vqEl.classList.add('quiz-view--right');
+  vqEl.classList.remove('quiz-view--left'); // 결산 뷰 진입 시 붙은 잔여 클래스 제거(안 지우면 재진입 시 화면 안 보임)
   vrEl.classList.add('quiz-view--right'); // 결산 뷰에서 나가는 경우도 같이 정리
   vmEl.classList.remove('quiz-view--left');
   updateTopBar('mode-select');
@@ -2401,6 +2402,7 @@ async function startQuiz(mode) {
   const vqEl = document.getElementById('view-quiz');
   vmEl.classList.add('quiz-view--left');
   vqEl.classList.remove('quiz-view--right');
+  vqEl.classList.remove('quiz-view--left'); // 방어: 잔여 클래스 있어도 진입 시 한 번 더 정리
   updateTopBar('quiz');
   initQuiz();
   window.Tutorial?.notify('quiz:started'); // 문제가 그려진 뒤에 알림
