@@ -271,6 +271,10 @@
         <div class="sg-swatch-box" style="background:var(--accent)"></div>
         <span class="sg-swatch-label">--accent</span>
       </div>
+      <div class="sg-swatch" data-tip-name="--brand" data-tip-vars="--brand">
+        <div class="sg-swatch-box" style="background:var(--brand)"></div>
+        <span class="sg-swatch-label">--brand</span>
+      </div>
       <div class="sg-swatch" data-tip-name="--blue" data-tip-vars="--blue">
         <div class="sg-swatch-box" style="background:var(--blue)"></div>
         <span class="sg-swatch-label">--blue</span>
@@ -347,8 +351,8 @@
         <tr><td>모바일</td><td>360~480px</td><td>6</td><td>20px</td><td>16px</td></tr>
         <tr><td>태블릿</td><td>481~768px</td><td>6</td><td>24px</td><td>24px</td></tr>
         <tr><td>큰 태블릿</td><td>769~1079px</td><td>8</td><td>28px</td><td>24px</td></tr>
-        <tr><td>태블릿 가로/랩탑</td><td>1080~1439px</td><td>12</td><td>32px</td><td>24px</td></tr>
-        <tr><td>데스크탑</td><td>1440px~</td><td>12</td><td>32px</td><td>24px</td></tr>
+        <tr><td>태블릿 가로/랩탑</td><td>1080~1599px</td><td>12</td><td>32px</td><td>24px</td></tr>
+        <tr><td>데스크탑</td><td>1600px~</td><td>12</td><td>32px</td><td>24px</td></tr>
       </tbody>
     </table>
 
@@ -388,7 +392,7 @@
   <!-- ══════════════ 3. cd-btn ══════════════ -->
   <section class="sg-section">
     <h2 class="sg-section-title">버튼</h2>
-    <p class="sg-sub" style="margin-bottom:20px;">variant(charcoal/blue/gray/red)별 행, 5단계는 열로 배치 — 리터럴 px 값(§12 실측) 사용.</p>
+    <p class="sg-sub" style="margin-bottom:20px;">variant(brand/gray/blue/red)별 행, 5단계는 열로 배치 — 리터럴 px 값(§12 실측) 사용.</p>
 
     <div class="sg-row-table-scroll">
       <div class="sg-btn-table">
@@ -415,10 +419,43 @@
     </div>
   </section>
 
+  <!-- ══════════════ 5. cd-modal ══════════════ -->
+  <section class="sg-section">
+    <h2 class="sg-section-title">모달 (정보성 팝업)</h2>
+    <p class="sg-sub" style="margin-bottom:20px;">§15 확정 스타일 3종 — 실제 오버레이 없이 박스만 나열(뷰포트 무관 고정폭이라 5단계 비교표 불필요).</p>
+    <div class="sg-demo-row" style="align-items:flex-start;">
+      <div class="cd-modal cd-modal--in">
+        <div class="cd-modal-title">스타일1</div>
+        <div class="cd-modal-desc">X 없음 · 버튼 가로배치</div>
+        <div class="cd-modal-actions">
+          <button class="cd-btn cd-btn--gray">취소</button>
+          <button class="cd-btn cd-btn--brand">확인</button>
+        </div>
+      </div>
+      <div class="cd-modal cd-modal--in">
+        <div class="cd-modal-title">스타일2</div>
+        <div class="cd-modal-desc">X 없음 · 버튼 세로배치</div>
+        <div class="cd-modal-actions cd-modal-actions--col">
+          <button class="cd-btn cd-btn--brand">확인</button>
+          <button class="cd-btn cd-btn--gray">취소</button>
+        </div>
+      </div>
+      <div class="cd-modal cd-modal--in">
+        <button class="cd-modal-close" style="font-size:24px;"><i class="ph-fill ph-x"></i></button>
+        <div class="cd-modal-title">스타일3</div>
+        <div class="cd-modal-desc">X 있음 · 버튼 가로배치<br>(실제 컴포넌트는 lucide "x" 사용 — 이 프리뷰엔 lucide 미로드라 phosphor로 대체 표시)</div>
+        <div class="cd-modal-actions">
+          <button class="cd-btn cd-btn--gray">취소</button>
+          <button class="cd-btn cd-btn--brand">확인</button>
+        </div>
+      </div>
+    </div>
+  </section>
+
   <div class="sg-tooltip" id="sg-tooltip"></div>
 
   <script>
-    // 폰트 5단계 테이블 데이터 — style.css §2 실측값(1440px까지 누적 캐스케이드) 그대로 하드코딩.
+    // 폰트 5단계 테이블 데이터 — style.css §2 실측값(1600px까지 누적 캐스케이드) 그대로 하드코딩.
     // 실제 뷰포트 폭과 무관하게 5단계를 동시에 병렬로 보여줘야 해서 var()가 아닌 리터럴 px 사용.
     const FONT_TIERS = ['모바일', '태블릿', '큰태블릿', '랩탑', '데스크탑'];
     const FONT_ROWS = [
@@ -426,8 +463,8 @@
       { token: '--font-label-sm',     weight: 400, sample: '라벨',             sizes: [12, 12, 13, 13, 13] },
       { token: '--font-label-lg',     weight: 400, sample: '라벨',             sizes: [14, 14, 14, 16, 16] },
       { token: '--font-body-sm',      weight: 400, sample: '본문 내용 텍스트', sizes: [13, 13, 14, 14, 14] },
-      { token: '--font-body',         weight: 400, sample: '본문 내용 텍스트', sizes: [16, 16, 16, 17, 17] },
-      { token: '--font-body-bold',    weight: 600, sample: '본문 내용 텍스트', sizes: [16, 16, 16, 17, 17] },
+      { token: '--font-body',         weight: 400, sample: '본문 내용 텍스트', sizes: [14, 16, 16, 17, 18] },
+      { token: '--font-body-bold',    weight: 600, sample: '본문 내용 텍스트', sizes: [14, 16, 16, 17, 18] },
       { token: '--font-title-sm',     weight: 600, sample: '제목/타이틀',      sizes: [16, 18, 18, 18, 18] },
       { token: '--font-title',        weight: 600, sample: '제목/타이틀',      sizes: [18, 20, 20, 22, 22] },
       { token: '--font-title-lg',     weight: 600, sample: '제목/타이틀',      sizes: [20, 22, 24, 24, 26] },
@@ -466,10 +503,10 @@
       radius:  [8, 10, 12, 14, 16],
     };
     const BTN_VARIANTS = [
-      { cls: 'cd-btn--charcoal', label: 'charcoal' },
-      { cls: 'cd-btn--blue',     label: 'blue' },
-      { cls: 'cd-btn--gray',     label: 'gray' },
-      { cls: 'cd-btn--red',      label: 'red' },
+      { cls: 'cd-btn--brand', label: 'brand' },
+      { cls: 'cd-btn--gray',  label: 'gray' },
+      { cls: 'cd-btn--blue',  label: 'blue' },
+      { cls: 'cd-btn--red',   label: 'red' },
     ];
     const btnTable = document.querySelector('.sg-btn-table');
     BTN_VARIANTS.forEach(v => {

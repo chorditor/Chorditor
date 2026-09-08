@@ -24,7 +24,7 @@
     <div class="main-content" id="main-content">
 
       <!-- ── 뒤로가기 + 피크바 ── -->
-      <div class="top-bar combo-top-bar top-bar--white">
+      <div class="top-bar combo-top-bar">
         <button id="back-btn" class="icon-btn" onpointerup="handleComboBack()">
           <i data-lucide="x"></i>
         </button>
@@ -972,7 +972,7 @@
 
       <!-- ── 퀴즈 뷰 ── -->
       <div id="combo-view-quiz" class="quiz-view quiz-view--right">
-        <div class="combo-quiz-wrap">
+        <div class="combo-quiz-wrap" id="combo-quiz-wrap">
 
           <!-- ① 문제 영역 -->
           <div class="combo-quiz-question">
@@ -1008,15 +1008,14 @@
             <div class="combo-hint-bubble" id="combo-hint-bubble" style="display:none"></div>
           </div>
 
-          <!-- ③ 카드블록 영역 -->
-          <div class="combo-quiz-blocks" id="combo-quiz-blocks">
-            <div class="combo-block">C</div>
-            <div class="combo-block">Dm</div>
-            <div class="combo-block">Em</div>
-            <div class="combo-block">F</div>
-            <div class="combo-block">G</div>
-            <div class="combo-block">Am7</div>
-            <div class="combo-block">G7</div>
+          <!-- ③ 카드블록 영역 — 1줄 고정+가로 스크롤(mission-session.js와 동일 패턴, 2026-09-08 통일).
+               ms-combo-* 클래스명은 원래 mission-session 전용으로 붙은 이름이지만 style.css 쪽
+               셀렉터가 클래스 기반(ID 무관)이라 그대로 재사용 — 리네임은 안 함.
+               .combo-tray-wrap 하나로 트레이+스크롤힌트를 묶어서, 트레이 높이가 커져도
+               힌트가 항상 트레이 바로 아래 상대위치에 오도록 관리(칩 대형화로 덮이던 문제 수정) -->
+          <div class="combo-tray-wrap">
+            <div class="combo-quiz-blocks ms-combo-blocks--scrollrow" id="combo-quiz-blocks"></div>
+            <div class="ms-combo-scroll-hint" id="combo-scroll-hint"><div class="ms-combo-scroll-dot"></div></div>
           </div>
 
           <!-- ④ 제출 버튼 -->
@@ -1030,6 +1029,19 @@
     </div><!-- /main-content -->
 
   </div><!-- /app-shell -->
+
+  <!-- 튜토리얼 진입 팝업 — cd-modal 스타일1(docs/style-guide.md §15). 페이지 진입 애니메이션
+       (.project-enter, 0.36s) 끝난 뒤 chord-combo.js DOMContentLoaded에서 표시 -->
+  <div class="modal-overlay hidden" id="tutorial-entry-overlay">
+    <div class="cd-modal">
+      <div class="cd-modal-title">코드 조합 훈련</div>
+      <div class="cd-modal-desc">코드 조합 훈련이 처음이시네요!<br>튜토리얼을 해보시겠어요?</div>
+      <div class="cd-modal-actions">
+        <button class="cd-btn cd-btn--gray" onclick="closeTutorialEntryModal()">나중에 할래요</button>
+        <button class="cd-btn cd-btn--brand" onclick="closeTutorialEntryModal()">지금 할래요!</button>
+      </div>
+    </div>
+  </div>
 
   <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.js"></script>
   <script src="https://unpkg.com/@phosphor-icons/web"></script>

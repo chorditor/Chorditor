@@ -173,7 +173,7 @@
         </div>
         <div class="ms-bottom-actions ms-result-btn-row">
           <button class="cd-btn cd-btn--gray" onpointerup="closeResultModal()">그만하기</button>
-          <button class="cd-btn cd-btn--blue" onpointerup="retryFromResult()">
+          <button class="cd-btn cd-btn--brand" onpointerup="retryFromResult()">
             다시하기
             <span class="ldp-peak-cost" id="retry-peak-cost">
               <img src="image/white_peak.svg" alt="" class="ldp-peak-cost-icon">
@@ -284,6 +284,19 @@
 
   <!-- 스와이프 유도 dot — 레이어 밖 body 직속. 어떤 요소에도 안 가리도록 최상위에 둔다 -->
   <div id="tut-scrollhint" hidden><div class="tut-swipe-dot"></div></div>
+
+  <!-- 튜토리얼 진입 팝업 — cd-modal 스타일1(docs/style-guide.md §15). startLevel()에서 화면전환
+       끝난 뒤 항상 표시(최초방문 판별은 나중). "할래요" 실제 튜토리얼 연결은 콘텐츠 만들 때 같이 -->
+  <div class="modal-overlay hidden" id="tutorial-entry-overlay">
+    <div class="cd-modal">
+      <div class="cd-modal-title">코드 맞추기</div>
+      <div class="cd-modal-desc">코드 맞추기가 처음이시네요!<br>튜토리얼을 해보시겠어요?</div>
+      <div class="cd-modal-actions">
+        <button class="cd-btn cd-btn--gray" onclick="closeTutorialEntryModal()">나중에 할래요</button>
+        <button class="cd-btn cd-btn--brand" onclick="closeTutorialEntryModal()">지금 할래요!</button>
+      </div>
+    </div>
+  </div>
 
   <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.js"></script>
   <script src="https://unpkg.com/@phosphor-icons/web"></script>

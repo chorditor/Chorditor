@@ -24,6 +24,7 @@
 --text-secondary: #6b6560;
 --text-muted: #a09b95;
 --accent: #e03c31;
+--brand: #1a1a1a; /* 로고 차콜블랙 — CTA 버튼 블루→브랜드 전환 이후 CTA 배경 표준(§12 charcoal 계열과는 별도 토큰) */
 --blue: #4f7cff;
 --blue-light: rgba(59, 130, 246, 0.08);
 --charcoal-blue: #334155;
@@ -63,7 +64,7 @@ Material 3 / iOS HIG 타입스케일을 앵커로 삼아 **Caption → Label →
 | Label | `--font-label-sm` | 작은 뱃지/칩("신규" 배지, 필박스 통화숫자) | 12 | 12 | 13 | 13 | 13 |
 | Label | `--font-label-lg` | 버튼 텍스트, 폼 라벨, 독바 라벨(데스크탑 사이드바) | 14 | 14 | 14 | 16 | 16 |
 | Body | `--font-body-sm` | 카드 설명문(홈블럭 desc, 배너 desc) | 13 | 13 | 14 | 14 | 14 |
-| Body | `--font-body` | 기본 본문, 페이지 안내문 | 16 | 16 | 16 | 17 | 17 |
+| Body | `--font-body` | 기본 본문, 페이지 안내문 | 14 | 16 | 16 | 17 | 18 |
 | Title | `--font-title-sm` | 작은 카드제목(`hdb-label`, 프로필 카드 제목) | 16 | 18 | 18 | 18 | 18 |
 | Title | `--font-title` | 섹션 제목(홈블럭 타이틀, 배너 타이틀) | 18 | 20 | 20 | 22 | 22 |
 | Title | `--font-title-lg` | 큰 섹션제목(카드 헤더, 모달 타이틀) | 20 | 22 | 24 | 24 | 26 |
@@ -403,14 +404,22 @@ daily-mission 게이트 작업 중 CTA형 사각버튼 스타일이 페이지마
 
 | variant | background | text |
 |---|---|---|
-| `--cd-btn-charcoal` | `var(--text-primary)` (#242729) | `var(--bg)` |
-| `--cd-btn-blue` | `var(--blue)` (#4f7cff) | `#fff` |
+| `--cd-btn-brand` | `var(--brand)` (#1a1a1a) | `#fff` |
 | `--cd-btn-gray` | `var(--gray-light)` (#ECECEA) | `var(--text-primary)` |
+| `--cd-btn-blue` | `var(--blue)` (#4f7cff) | `#fff` |
 | `--cd-btn-red` | `var(--accent)` (#e03c31) | `#fff` |
 
 연한그레이는 처음엔 `--border`(#d9d4cc)로 대체했으나 더 연한 톤 요청으로 2026-08-24
 `--gray-light`(#ECECEA, §1 참고) 신규 토큰화 — §8에 "시도했다 되돌림"으로 기록만 남아있던
 값을 정식 승격한 것.
+
+`--cd-btn-brand`는 원래 `--cd-btn-blue`였으나, CTA 블루→브랜드 전환(§1 `--brand` 참고) 이후
+실제 배경색이 `var(--brand)`(#1a1a1a)로 바뀌었는데도 이름이 "blue"로 남아있던 걸
+2026-09-08에 실체에 맞게 리네임(`.cd-btn--blue`→`.cd-btn--brand`, 4개 사용처 전부 반영).
+같은 날, 원래 있던 `--cd-btn-charcoal`(`var(--text-primary)`)은 검은색 계열을 `--brand`
+하나로 통일하기 위해 제거·`--cd-btn-brand`로 병합(실사용처 없어 마이그레이션 불필요).
+빈 자리엔 진짜 파랑(`var(--blue)`)을 쓰는 `--cd-btn-blue`를 신규 variant로 채워 화이트-블랙(brand)-
+레드/블루(보조색) 3색 조합 원칙(§1)에 맞춤 — 최종 4종: brand/gray/blue/red.
 
 ## 13. `.cd-cardlist` 컴포넌트 (Card List, 2026-08-24 확정)
 
@@ -452,6 +461,9 @@ daily-mission 게이트에서 "오늘 할 훈련 3가지"를 보여줄 목적으
 `--cd-cardlist-radius`도 `--cd-btn-radius`와 동일하게 처음엔 `var(--radius)`(16~24px) 재사용이었으나
 2026-08-24 전용 토큰(8~16px)으로 분리.
 
+**그림자(2026-09-08 확정, 5단계 무관 고정값)**: `box-shadow: 0 2px 8px rgba(0,0,0,0.20)` —
+y오프셋2px/블러8px/불투명도0.20, 여러 차례 조정 끝에 확정.
+
 ## 14. `docs/style-guide-preview.html` — 실물 미리보기 페이지 (2026-08-24 신설)
 
 이 문서(마크다운)는 값만 텍스트로 나열돼서 실제로 어떻게 생겼는지 눈으로 확인이 안 됨 —
@@ -463,7 +475,7 @@ daily-mission 게이트에서 "오늘 할 훈련 3가지"를 보여줄 목적으
 ### 구조 원칙
 
 - **섹션 = `<section class="sg-section">`**, 제목은 `<h2 class="sg-section-title">` (24px/800,
-  구분선 없음, 섹션간 여백 120px로 크게). 현재 순서: 색상 팔레트 → 뷰포트 → 텍스트 → 버튼 → 카드 리스트.
+  구분선 없음, 섹션간 여백 120px로 크게). 현재 순서: 색상 팔레트 → 뷰포트 → 텍스트 → 버튼 → 카드 리스트 → 모달.
   새 컴포넌트/토큰 추가 시 이 순서 뒤에 같은 패턴으로 섹션만 추가하면 됨.
 - **5단계 비교가 필요한 컴포넌트는 "row(variant) × column(5단계)" 테이블로 통일.**
   공용 CSS 클래스 `.sg-row-table-row`(그리드, 첫 칸은 라벨 120px + 나머지 5칸 max-content,
@@ -490,3 +502,112 @@ daily-mission 게이트에서 "오늘 할 훈련 3가지"를 보여줄 목적으
    `CL_...`)와 같은 패턴으로 행 생성 루프 작성, `data-tip-text`에 토큰명+구간+값 나열
 4. 기존 `document.querySelectorAll('[data-tip-vars], [data-tip-text]')` 툴팁 바인딩 코드는
    그대로 재사용됨(수정 불필요) — 스크립트 마지막에 있으므로 항상 그 앞에 렌더러 코드를 둘 것
+
+## 15. `.cd-modal` 컴포넌트 (정보성 팝업, 2026-09-08 확정)
+
+훈련콘텐츠별 튜토리얼 진입 팝업을 위해 신설. 실측(§ 논의 근거: `.attendance-modal`/`.result-modal`/
+`.newrecord-modal` 같은 "보상·축하 연출"용 모달과, `.event-modal`/`.tutorial-start-modal` 같은
+"정보 안내"용 모달 두 갈래가 이미 있었음 — `.cd-modal`은 후자(정보성) 계열을 표준화한 것.
+보상 연출용은 이 컴포넌트 대상이 아니고 그대로 유지.
+
+**오버레이는 새로 안 만듦** — 기존 `.modal-overlay`(z-index:500, `rgba(0,0,0,0.45)`, `hidden` 토글
+방식)를 그대로 재사용. `.cd-modal`은 그 안의 박스만 담당.
+
+### 크기·색상 (5단계 아님 — 뷰포트 무관 clamp 한 줄로 처리)
+
+| 토큰 | 값 |
+|---|---|
+| `--cd-modal-width` | `clamp(300px, 80vw, 480px)` |
+| `--cd-modal-padding` | `32px 24px 24px` |
+| radius | `var(--radius-lg)`(16px, 신규 토큰 없이 기존 재사용) |
+| border | `1px solid var(--border)` |
+| background | `var(--surface)` |
+| box-shadow | 없음(오버레이가 이미 어두워서 border만으로 경계 처리 — event-modal/tutorial-start-modal과 동일 관례) |
+| `--cd-modal-scale-from` | `0.8` (등장 애니메이션 시작 크기) |
+| `--cd-modal-duration` | `0.38s` |
+| `--cd-modal-ease` | `cubic-bezier(0.34, 1.5, 0.64, 1)` (attendance-modal과 동일한 통통 튀는 커브) |
+
+**폭 산출 근거**: 기존 정보성 모달 대다수(attendance/tutorial-start/event/newrecord)가 고정
+300px였고 유일한 예외인 `update-notice-modal`만 5단계 미디어쿼리로 300→420px까지 반응형이었음.
+`clamp(300px,80vw,480px)`로 실측하면 375px 미만에서만 하한(300px) 걸리고, 481px(태블릿 시작)부터
+데스크탑까지는 80vw가 상한(480px, 기존 범용 `.modal`과 동일 캡)에 걸려 쭉 고정 480px — 미디어쿼리
+없이 한 줄로 "모바일만 화면비율 대응, 그 이상은 480px 고정"이 자동 처리됨.
+
+**텍스트**: `.peak-buffer-modal`과 동일한 텍스트 계층 채택(§2 스케일 대신 리터럴 고정값) —
+제목 17px/800/`var(--text-primary)`, 설명 13px/500/`var(--text-secondary)`/line-height 1.5.
+
+### 마크업 구조
+
+```html
+<div class="modal-overlay hidden" id="...">
+  <div class="cd-modal">
+    <button class="cd-modal-close" onclick="...">  <!-- 스타일3에만 포함, 스타일1/2엔 아예 없음 -->
+      <i data-lucide="x"></i>
+    </button>
+    <div class="cd-modal-title">제목</div>
+    <div class="cd-modal-desc">설명</div>
+    <div class="cd-modal-actions">  <!-- 기본: 가로배치. --col 붙이면 세로배치 -->
+      <button class="cd-btn cd-btn--gray">취소</button>
+      <button class="cd-btn cd-btn--brand">확인</button>
+    </div>
+  </div>
+</div>
+```
+
+### 확정 스타일 3종 (2026-09-08, 이 3개만 사용 — 필요시 추후 추가)
+
+| 스타일 | X버튼 | 버튼 배치 |
+|---|---|---|
+| 스타일1 | 없음 | 가로(기본, `.cd-modal-actions`) |
+| 스타일2 | 없음 | 세로(`.cd-modal-actions--col`) |
+| 스타일3 | 있음(`.cd-modal-close`) | 가로(`.cd-modal-actions`) |
+
+버튼은 항상 2개 고정(1개·3개 케이스 없음). X 유무와 배치는 서로 독립된 요소라 조합상 세로판
+(X있음+세로배치)도 구조적으로 가능하지만, 지금은 위 3개만 실사용 — 필요해지면 그때 추가.
+
+### 등장 애니메이션 (`.cd-modal--in`)
+
+`.cd-modal` 기본 상태는 `transform:scale(var(--cd-modal-scale-from))` + `opacity:0`, `.cd-modal--in`
+모디파이어가 붙으면 `scale(1)`/`opacity:1`로 트랜지션. 오버레이의 `hidden` 클래스를 뗀 직후 바로
+`--in`을 붙이면 초기 스타일이 아직 페인트되기 전이라 트랜지션이 씹힐 수 있어서, 반드시 더블
+`requestAnimationFrame`으로 한 프레임 그려진 뒤에 붙여야 함(`chord-name-quiz.js` `startLevel()`
+참고). 닫을 때는 `--in`도 같이 떼야 다음에 다시 열 때 애니메이션이 재생됨.
+
+## 16. 콘텐츠앵커 상단 그라데이션 (`--fade-top-*` + `shared.js positionFadeTop()`, 2026-09-08 확정)
+
+daily-mission(`#dm-gate`)/attendance(`.attendance-page`)/mission-session에 각각 따로 구현돼있던
+"위쪽에 옅은 틴트가 깔리고, 다음 섹션이 시작되는 지점에서 정확히 사라지는" 상단 그라데이션 패턴을
+공용 헬퍼로 추출. `chord-combo.html`의 `.combo-card`에 처음 적용해봤으나, 화이트 단일색이
+낫다는 판단으로 2026-09-08 되돌림(기록만 남김, §8 패턴과 동일) — 헬퍼 자체는 살아있으니
+다음에 실제로 그라데이션이 필요한 컴포넌트 생기면 그때 이걸 씀.
+
+**CSS**: 그라데이션이 필요한 컨테이너 자신의 배경에 아래 형태로 선언(다른 background 규칙과
+공존 못 함 — 그 요소가 배경을 그라데이션 하나로 전담해야 함):
+
+```css
+.내-컨테이너 {
+  background: linear-gradient(to bottom,
+    var(--fade-top-tint, rgba(58, 46, 36, 0.04)),
+    var(--fade-top-base, var(--bg)) var(--fade-top-end, 300px));
+}
+```
+
+- `--fade-top-tint`: 시작 색(기본값 = 기존 3곳 전부가 쓰던 갈색계열 틴트, 대부분 그대로 씀)
+- `--fade-top-base`: 끝나는 색(페이지 배경과 맞춰야 함 — 회색 배경 위 컨테이너면 `var(--bg))`,
+  흰 배경 카드 위라면 `#fff`처럼 그 컨테이너 자신의 평소 배경색으로 오버라이드)
+- `--fade-top-end`: 그라데이션이 끝나는 지점(px) — JS가 실측해서 채움, 기본값은 JS 실행 전
+  잠깐 보일 폴백일 뿐이라 대략치로 둬도 됨
+
+**JS**: `shared.js`의 `positionFadeTop(containerEl, targetEl)` 호출 — `targetEl`이 `containerEl`
+기준으로 몇 px 지점에 있는지 실측해서 `--fade-top-end`에 그대로 채워 넣는다. 페이지 로드 시
+1회만 호출(리사이즈 재계산 없음 — 기존 3곳 패턴과 동일한 한계, 지금까지 문제 안 됨).
+
+**주의(chord-combo 사례로 확인된 함정)**: 그라데이션을 걸 컨테이너가 실제로 "보이는" 요소인지
+먼저 확인할 것. 두 번 헛짚었음 — ① `.combo-scroll`에 걸었더니 `.combo-sticky-head`(불투명
+sticky)가 위를 덮어서 안 보임, ② 그 다음 `.combo-content`에 걸었더니 이번엔 `.combo-card`
+자신의 불투명 배경(`#fff`)이 그 안쪽을 다 덮어서 안 보임 — 결국 그라데이션은 **실제로 눈에
+보이는 가장 안쪽 불투명 박스 자신**에 걸어야 함. 새로 적용할 때 그 컨테이너 위에 불투명
+배경을 가진 자식이나 sticky 형제가 있는지 먼저 grep으로 확인.
+
+**기존 3곳(daily-mission/attendance/mission-session)은 아직 이 공용 헬퍼로 안 옮김** — §6
+원칙과 동일, 지금 당장 안 건드리고 그 페이지들 손댈 일 있을 때 이 헬퍼로 교체.

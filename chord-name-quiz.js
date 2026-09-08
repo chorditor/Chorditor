@@ -2366,6 +2366,14 @@ function showModeSelect() {
   updateTopBar('mode-select');
 }
 
+// 튜토리얼 진입 팝업 닫기 — cd-modal--in도 같이 떼서 다음에 다시 뜰 때 등장 애니메이션 재생되게 함
+function closeTutorialEntryModal() {
+  const ov = document.getElementById('tutorial-entry-overlay');
+  if (!ov) return;
+  ov.classList.add('hidden');
+  ov.querySelector('.cd-modal')?.classList.remove('cd-modal--in');
+}
+
 // 레벨 선택 → 모드 선택
 function startLevel(levelId) {
   const cfg = LEVEL_CONFIGS.find(c => c.id === levelId);
@@ -2383,6 +2391,24 @@ function startLevel(levelId) {
   vmEl.classList.remove('quiz-view--right');
   updateTopBar('mode-select');
   window.Tutorial?.notify(`quizlevel:${levelId}`); // 뷰 전환이 반영된 뒤에 알림
+
+  // 튜토리얼 진입 팝업 — 2026-09-08 방식 변경으로 잠정 비활성화(코드는 보존, 삭제 안 함)
+  /*
+  // 화면전환(.quiz-view 트랜지션 0.32s, style.css:12345) 끝날 때까지 터치 막기 —
+  // 안 막으면 전환 애니메이션 도중에도 모드버튼이 눌려서 튜토리얼 팝업 없이 바로 진입 가능해짐
+  vmEl.style.pointerEvents = 'none';
+  setTimeout(() => {
+    vmEl.style.pointerEvents = '';
+    const ov = document.getElementById('tutorial-entry-overlay');
+    if (!ov) return;
+    ov.classList.remove('hidden'); // 지금은 항상 표시(최초방문 판별은 나중에)
+    // rAF 1번만으로는 hidden 해제 직후라 초기 스타일(scale(0.8)/opacity:0)이 아직 페인트되기 전이라
+    // 트랜지션이 씹힐 수 있음 — 더블 rAF로 한 프레임 확실히 그려진 뒤에 --in 붙임
+    requestAnimationFrame(() => requestAnimationFrame(() => {
+      ov.querySelector('.cd-modal')?.classList.add('cd-modal--in');
+    }));
+  }, 320);
+  */
 }
 
 // 레벨별 피크 소모량: 일반 레벨 전체 1 / 챌린지(c1~c3)만 2
