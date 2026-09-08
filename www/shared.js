@@ -1015,6 +1015,21 @@ async function consumePeak(cost) {
   return true;
 }
 
+// ── 콘텐츠앵커 상단 그라데이션 공용 헬퍼 (docs/style-guide.md §16) ────────────────
+// daily-mission(#dm-gate)/attendance(.attendance-page)에서 쓰던 "위쪽 옅은 틴트가 다음
+// 섹션 시작점에서 정확히 사라지는" 패턴을 공용 함수로 추출(2026-09-08, chord-combo.html
+// 신규 적용 때 처음 공용화 — 기존 3곳은 아직 자체 구현 그대로, 손댈 때 이 헬퍼로 교체 예정).
+// CSS 쪽은 컨테이너 배경에 다음 형태로 선언:
+//   background: linear-gradient(to bottom, var(--fade-top-tint, rgba(58,46,36,0.04)),
+//               var(--fade-top-base, var(--bg)) var(--fade-top-end, 300px));
+// targetEl이 containerEl 기준 몇 px 지점에 있는지 실측해서 --fade-top-end에 채워 넣는다.
+function positionFadeTop(containerEl, targetEl) {
+  if (!containerEl || !targetEl) return;
+  const end = targetEl.getBoundingClientRect().top - containerEl.getBoundingClientRect().top;
+  containerEl.style.setProperty('--fade-top-end', end + 'px');
+}
+window.positionFadeTop = positionFadeTop;
+
 // ── 앱 크롬(탑바 브랜드 + 데스크탑 사이드바) 자동 주입 ────────────────────────
 // 규칙: 데스크탑에서는 어떤 페이지를 가도 탑바(로고·타이틀)와 좌측 사이드바가 home.html과
 // 완전히 동일해야 한다. 페이지마다 마크업을 복붙하면 새 페이지를 만들 때마다 빠뜨리므로
@@ -2246,9 +2261,9 @@ async function restorePurchases() {
   }
 }
 
-// 피크부족 퍼널 — 2026-08-30: A/B 실험(즉시 구독시트 vs 완충모달) 종료, 항상 완충모달로 통일.
-// 완충모달의 "Pro 플랜 보기" CTA도 이번에 제거 — 설명 텍스트로만 Pro를 안내하고, 버튼은
-// "충전하기"(광고보고 +3)/"그만하기" 2개로 대체(사용자 지시, 논의 후 확정).
+// 피크부족 퍼널 — 2026-08-30: A/B 실험(즉시 구독시트 vs 완충모달) 종료, 항상 완충모달로 통일,
+// "Pro 플랜 보기" CTA는 그때 제거했었음. 2026-09-07: 광고충전과 구독시트를 대등노출로 재결합 —
+// 그만하기 버튼 제거하고 우상단 X로 대체, 그 자리에 "Pro 플랜 보기"(구독시트 오픈) 배치.
 function _openPeakInsufficientFunnel() {
   if (typeof openPeakBuffer === 'function') openPeakBuffer();
 }
@@ -2258,6 +2273,7 @@ function openPeakBuffer() {
   if (!ov) return;
   if (typeof analytics !== 'undefined') analytics.track('peak_buffer_shown', {});
   setTimeout(() => ov.classList.add('peak-buffer-overlay--open'), 0);
+  if (typeof lucide !== 'undefined') lucide.createIcons();
 }
 function closePeakBuffer() {
   document.getElementById('peak-buffer-overlay')?.classList.remove('peak-buffer-overlay--open');
@@ -2286,6 +2302,12 @@ async function _peakBufferWatchAd() {
   }
   // DB 확정 반영 후에만 보상 팝업(다른 곳과 동일 컴포넌트 재사용 — 아이콘+"+3 피크" 등장 연출)
   showPeakReveal(PEAK_AD_RECHARGE_AMOUNT, { subText: '광고 보상으로 충전됐어요!' });
+}
+// "Pro 플랜 보기" — 완충모달 닫고 구독시트 오픈 (2026-09-07 재도입, 광고충전과 대등노출)
+function _peakBufferOpenPlan() {
+  if (typeof analytics !== 'undefined') analytics.track('peak_buffer_plan_clicked', {});
+  closePeakBuffer();
+  openPlanSheet('peak_buffer');
 }
 
 // 연간/월간 카드 선택 상태 — 카드를 눌러 고르면 하단 CTA 버튼이 그 주기로 결제
@@ -2438,11 +2460,12 @@ function _initPlanSheet() {
 </div>
 <div class="peak-buffer-overlay" id="peak-buffer-overlay" onclick="if(event.target===this)closePeakBuffer()">
   <div class="peak-buffer-modal">
+    <button class="peak-buffer-close" onclick="closePeakBuffer()"><i data-lucide="x"></i></button>
     <img class="peak-buffer-icon" src="image/peak.svg" alt="">
     <div class="peak-buffer-title">피크가 부족해요</div>
     <div class="peak-buffer-desc">Pro 플랜이면 피크 걱정 없이<br>무제한으로 연습할 수 있어요!</div>
-    <button class="peak-buffer-cta" onclick="_peakBufferWatchAd()">충전하기</button>
-    <button class="peak-buffer-dismiss" onclick="closePeakBuffer()">그만하기</button>
+    <button class="peak-buffer-cta" onclick="_peakBufferWatchAd()">충전하기 <i class="ph-fill ph-play-circle"></i></button>
+    <button class="peak-buffer-plan" onclick="_peakBufferOpenPlan()">Pro 플랜 보기</button>
   </div>
 </div>`;
   while (el.firstChild) document.body.appendChild(el.firstChild);

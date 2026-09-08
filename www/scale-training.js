@@ -349,4 +349,28 @@ document.addEventListener('DOMContentLoaded', () => {
   restoreLastPosition();
 
   analytics.track('scale_training_viewed', {});
+
+  // 튜토리얼 진입 팝업 — 2026-09-08 방식 변경으로 잠정 비활성화(코드는 보존, 삭제 안 함)
+  /*
+  // 페이지 진입 애니메이션(.project-enter, style.css:460, 0.36s) 끝날 때까지 터치 막고,
+  // 끝나면 튜토리얼 진입 팝업 표시 — chord-name-quiz.js startLevel()과 동일 패턴
+  if (shell) shell.style.pointerEvents = 'none';
+  setTimeout(() => {
+    if (shell) shell.style.pointerEvents = '';
+    const ov = document.getElementById('tutorial-entry-overlay');
+    if (!ov) return;
+    ov.classList.remove('hidden'); // 지금은 항상 표시(최초방문 판별은 나중에)
+    requestAnimationFrame(() => requestAnimationFrame(() => {
+      ov.querySelector('.cd-modal')?.classList.add('cd-modal--in');
+    }));
+  }, 360);
+  */
 });
+
+// 튜토리얼 진입 팝업 닫기 — cd-modal--in도 같이 떼서 다음에 다시 뜰 때 등장 애니메이션 재생되게 함
+function closeTutorialEntryModal() {
+  const ov = document.getElementById('tutorial-entry-overlay');
+  if (!ov) return;
+  ov.classList.add('hidden');
+  ov.querySelector('.cd-modal')?.classList.remove('cd-modal--in');
+}

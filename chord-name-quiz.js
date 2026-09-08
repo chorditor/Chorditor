@@ -2411,10 +2411,10 @@ function startLevel(levelId) {
   */
 }
 
-// 레벨별 피크 소모량: 일반 레벨 전체 1 / 챌린지(c1~c3)만 2
+// 레벨별 피크 소모량: 일반 레벨 전체 2 / 챌린지(c1~c3)만 3
 function _quizPeakCost(levelId) {
-  if (levelId === 'c1' || levelId === 'c2' || levelId === 'c3') return 2;
-  return 1;
+  if (levelId === 'c1' || levelId === 'c2' || levelId === 'c3') return 3;
+  return 2;
 }
 
 // 모드 선택 → 퀴즈 시작

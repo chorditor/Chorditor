@@ -440,7 +440,7 @@ function msShowChordTutorial() {
       <p class="ms-chord-hint ms-stagger-pending">클릭하면 소리가 들려요!</p>
     </div>
     <div class="ms-bottom-actions">
-      <button class="cd-btn cd-btn--blue ms-btn-pending" id="ms-start-btn" onpointerup="msStartTraining()">준비됐어요!</button>
+      <button class="cd-btn cd-btn--brand ms-btn-pending" id="ms-start-btn" onpointerup="msStartTraining()">준비됐어요!</button>
     </div>
   `;
   renderTutorialChords();
@@ -858,7 +858,7 @@ function msShowScaleTutorial() {
       <p class="ms-chord-hint ms-stagger-pending">Tip. 2칸 차이, 3칸 차이에 주목해보세요!</p>
     </div>
     <div class="ms-bottom-actions">
-      <button class="cd-btn cd-btn--blue ms-btn-pending" id="ms-scale-start-btn" onpointerup="msScaleStart()">준비됐어요!</button>
+      <button class="cd-btn cd-btn--brand ms-btn-pending" id="ms-scale-start-btn" onpointerup="msScaleStart()">준비됐어요!</button>
     </div>
   `;
   renderScaleBlockPreviews();
@@ -996,7 +996,7 @@ function msShowScaleQuizView() {
       </div>
     </div>
     <div class="ms-bottom-actions">
-      <button class="cd-btn cd-btn--blue" id="ms-scale-submit-btn" onpointerup="msScaleSubmit()">제출하기</button>
+      <button class="cd-btn cd-btn--brand" id="ms-scale-submit-btn" onpointerup="msScaleSubmit()">제출하기</button>
     </div>
   `;
   _msScaleInitQuestion();
@@ -1641,7 +1641,7 @@ function msShowResultView() {
     </div>
     <div class="ms-bottom-actions ms-result-btn-row">
       ${_msReviewAvailable() ? '<button class="cd-btn cd-btn--gray" id="ms-result-review-btn" onpointerup="msResultReviewWrong()">오답 풀기</button>' : ''}
-      <button class="cd-btn cd-btn--blue" id="ms-result-exit-btn" onpointerup="closeMissionSession()">종료하기</button>
+      <button class="cd-btn cd-btn--brand" id="ms-result-exit-btn" onpointerup="closeMissionSession()">종료하기</button>
     </div>
   `;
   lucide.createIcons();
@@ -2197,7 +2197,7 @@ function msShowChordComboTutorial() {
       <p class="ms-chord-hint ms-stagger-pending">순서를 외워주세요!</p>
     </div>
     <div class="ms-bottom-actions">
-      <button class="cd-btn cd-btn--blue ms-btn-pending" id="ms-combo-start-btn" onpointerup="msComboStart()">준비됐어요!</button>
+      <button class="cd-btn cd-btn--brand ms-btn-pending" id="ms-combo-start-btn" onpointerup="msComboStart()">준비됐어요!</button>
     </div>
   `;
   renderComboKeyChips();
@@ -2289,8 +2289,10 @@ function msShowComboQuizView() {
         <span>힌트보기</span>
         <div class="combo-hint-bubble" id="ms-combo-hint-bubble" style="display:none"></div>
       </div>
-      <div class="combo-quiz-blocks ms-combo-blocks--scrollrow" id="ms-combo-quiz-blocks"></div>
-      <div class="ms-combo-scroll-hint" id="ms-combo-scroll-hint"><div class="ms-combo-scroll-dot"></div></div>
+      <div class="combo-tray-wrap">
+        <div class="combo-quiz-blocks ms-combo-blocks--scrollrow" id="ms-combo-quiz-blocks"></div>
+        <div class="ms-combo-scroll-hint" id="ms-combo-scroll-hint"><div class="ms-combo-scroll-dot"></div></div>
+      </div>
       <button class="combo-quiz-submit" id="ms-combo-submit-btn" onpointerup="msComboSubmit()">제출하기</button>
     </div>
   `;
@@ -2908,19 +2910,24 @@ function _msComboInitDragDrop() {
 }
 
 // ── 슬롯에 정답 코드 운지 다이어그램 표시 — chord-combo.js _comboDrawSlotDiagram 이식 ──
-const MS_COMBO_DIAGRAM_W = 64; // CSS px, 비율은 VoicingCanvas BASE_W:BASE_H 고정
+// 5단계 반응형 — 슬롯 크기(--combo-slot-width)에 맞춰 --combo-diagram-w도 단계별로 커짐
+function _msComboDiagramW() {
+  const v = getComputedStyle(document.documentElement).getPropertyValue('--combo-diagram-w');
+  return parseFloat(v) || 64;
+}
 function _msComboDrawSlotDiagram(slot, degree, chordStr) {
   if (typeof VoicingCanvas === 'undefined') return null;
   const dpr = window.devicePixelRatio || 1;
+  const diagramW = _msComboDiagramW();
   slot.querySelector('.combo-answer-diagram')?.remove();
   const voicing = _msComboResolveVoicing(degree, chordStr, MS_COMBO_KEY_IDX_MAP[_msComboSessionKey]);
   if (!voicing) return null;
   const canvas = document.createElement('canvas');
   canvas.className = 'combo-answer-diagram';
   slot.insertBefore(canvas, slot.firstChild);
-  VoicingCanvas.draw(canvas, voicing, { ratio: (MS_COMBO_DIAGRAM_W * dpr) / VoicingCanvas.BASE_W, transparent: true });
-  canvas.style.width  = MS_COMBO_DIAGRAM_W + 'px';
-  canvas.style.height = Math.round(MS_COMBO_DIAGRAM_W * VoicingCanvas.BASE_H / VoicingCanvas.BASE_W) + 'px';
+  VoicingCanvas.draw(canvas, voicing, { ratio: (diagramW * dpr) / VoicingCanvas.BASE_W, transparent: true });
+  canvas.style.width  = diagramW + 'px';
+  canvas.style.height = Math.round(diagramW * VoicingCanvas.BASE_H / VoicingCanvas.BASE_W) + 'px';
   return canvas;
 }
 
@@ -3553,7 +3560,7 @@ function msShowPersonaPromoIntro() {
       <p class="ms-chord-hint ms-stagger-pending">영역마다 제한시간이 있어요</p>
     </div>
     <div class="ms-bottom-actions">
-      <button class="cd-btn cd-btn--blue ms-btn-pending" id="ms-promo-start-btn" onpointerup="msPersonaPromoStart()">시험 도전! <span id="ms-promo-attempts-badge">${_msPromoAttemptsBadgeHTML()}</span></button>
+      <button class="cd-btn cd-btn--brand ms-btn-pending" id="ms-promo-start-btn" onpointerup="msPersonaPromoStart()">시험 도전! <span id="ms-promo-attempts-badge">${_msPromoAttemptsBadgeHTML()}</span></button>
     </div>
   `;
   _msRunStaggerAndBindStartBtn('ms-promo-info-card', 'ms-promo-start-btn');
@@ -3631,7 +3638,7 @@ function msShowPersonaPromoSection(idx) {
       <p class="ms-chord-hint ms-stagger-pending">준비됐으면 시험을 시작합니다!</p>
     </div>
     <div class="ms-bottom-actions">
-      <button class="cd-btn cd-btn--blue ms-btn-pending" id="ms-promo-section-btn" onpointerup="msPersonaPromoSectionNext(${idx})">시작하기</button>
+      <button class="cd-btn cd-btn--brand ms-btn-pending" id="ms-promo-section-btn" onpointerup="msPersonaPromoSectionNext(${idx})">시작하기</button>
     </div>
   `;
   _msRunStaggerAndBindStartBtn('ms-promo-info-card', 'ms-promo-section-btn');
@@ -3797,7 +3804,7 @@ function msShowPersonaPromoSuccess() {
       </div>
     </div>
     <div class="ms-bottom-actions">
-      <button class="cd-btn cd-btn--blue ms-btn-pending" id="ms-promo-success-btn" onpointerup="msPersonaPromoSuccessConfirm()">확인</button>
+      <button class="cd-btn cd-btn--brand ms-btn-pending" id="ms-promo-success-btn" onpointerup="msPersonaPromoSuccessConfirm()">확인</button>
     </div>
   `;
   if (typeof _playSfx === 'function') _playSfx('upgrade_persona2.mp3');
@@ -3873,7 +3880,7 @@ function msShowPersonaPromoFail(timedOut = false, resultOverride = null) {
     </div>
     <div class="ms-bottom-actions ms-result-btn-row">
       <button class="cd-btn cd-btn--gray ms-btn-pending" id="ms-promo-fail-later-btn" onpointerup="msPersonaPromoFailLater()">나중에</button>
-      <button class="cd-btn cd-btn--blue ms-btn-pending" id="ms-promo-fail-retry-btn" onpointerup="msPersonaPromoFailRetry()">재도전 ${isPromoAttemptsUnlimited() ? '∞' : `${attemptsLeft}/${MS_PROMO_DAILY_ATTEMPTS}${attemptsLeft <= 0 ? ' <i class="ph-fill ph-play-circle"></i>' : ''}`}</button>
+      <button class="cd-btn cd-btn--brand ms-btn-pending" id="ms-promo-fail-retry-btn" onpointerup="msPersonaPromoFailRetry()">재도전 ${isPromoAttemptsUnlimited() ? '∞' : `${attemptsLeft}/${MS_PROMO_DAILY_ATTEMPTS}${attemptsLeft <= 0 ? ' <i class="ph-fill ph-play-circle"></i>' : ''}`}</button>
     </div>
   `;
 

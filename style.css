@@ -14345,18 +14345,19 @@ canvas {
   gap: 9px;
 }
 
-/* 가로 캐러셀 — 카드 폭은 그리드 시스템(컬럼 스팬)으로 결정, 높이는 aspect-ratio:1/1.5로
-   폭에서 역산. --sc-offset = 첫 카드 시작점(왼쪽 padding). scroll-snap-align:center는
-   "뷰포트 진짜 중앙"으로 카드를 당겨서 그리드 계산값과 어긋나므로 align:start +
-   scroll-padding-left를 이 값과 똑같이 맞춰서 스냅 기준점 자체를 그리드 위치로 옮김 */
+/* 가로 캐러셀 — 카드 폭은 §4 5단계 고정 px(2026-09-08, 그리드 컬럼 계산 방식 폐기).
+   --sc-offset = calc((100% - 카드폭)/2) — 카드폭만 바뀌면 좌우 padding이 자동으로 대칭 재계산되므로
+   각 구간마다 offset을 따로 계산할 필요 없음(카드폭이 커스텀 프로퍼티라 사용 시점에 최신값으로 치환됨).
+   scroll-snap-align:center는 "뷰포트 진짜 중앙"으로 카드를 당겨서 이 계산값과 어긋나므로 align:start +
+   scroll-padding-left를 이 값과 똑같이 맞춰서 스냅 기준점을 카드 중앙정렬 위치로 옮김 */
 .scale-item-list--carousel {
-  --sc-card-w: 420px;
-  --sc-offset: calc((100vw - var(--sc-card-w)) / 2);
+  --sc-card-w: 260px; /* 모바일(360~480px) */
+  --sc-offset: calc((100% - var(--sc-card-w)) / 2);
   flex-direction: row;
   align-items: center;
   gap: 16px;
-  /* 좌우는 .scale-scroll의 자체 padding(16px) 상쇄(그리드 절대위치 맞춤용) — 상하는 auto로
-     둬서 .scale-chapter에 남는 공간이 있으면(=뷰포트를 안 넘치면) 캐러셀이 그 안에서
+  /* 좌우는 .scale-scroll의 자체 padding(16px) 상쇄(대칭 중앙정렬 계산 기준을 카드 폭에만 두기 위함)
+     — 상하는 auto로 둬서 .scale-chapter에 남는 공간이 있으면(=뷰포트를 안 넘치면) 캐러셀이 그 안에서
      세로 중앙에 옴. 넘치면 auto가 0으로 접혀서 그냥 자연스럽게 위에서부터 쌓임 */
   margin: auto -16px;
   padding-block: 20px;
@@ -14367,71 +14368,17 @@ canvas {
   overflow-y: hidden;   /* .scale-chapter가 자연 높이라 넘칠 일이 없음 — 넘치면 .scale-scroll이 통째로 스크롤 */
   scroll-snap-type: x mandatory;
 }
-@media (max-width: 480px) {
-  .scale-item-list--carousel {
-    /* col2~col5 (4트랙+3거터). col1(1트랙+1거터) 지나 col2 시작점에 맞춤 */
-    --sc-card-w: calc(4 * var(--grid-track) + 3 * var(--grid-gutter));
-    --sc-offset: calc(var(--grid-margin) + 1 * (var(--grid-track) + var(--grid-gutter)));
-  }
+@media (min-width: 481px) and (max-width: 768px) {
+  .scale-item-list--carousel { --sc-card-w: 260px; } /* 태블릿 */
 }
-@media (min-width: 481px) and (max-width: 786px) {
-  .scale-item-list--carousel {
-    /* col2 중간~col5 중간 (3트랙+3거터). col1(1트랙+1거터) 지나 col2 중간(0.5트랙)까지 */
-    --sc-card-w: calc(3 * var(--grid-track) + 3 * var(--grid-gutter));
-    --sc-offset: calc(var(--grid-margin) + 1 * (var(--grid-track) + var(--grid-gutter)) + 0.5 * var(--grid-track));
-  }
-}
-@media (min-width: 640px) and (max-width: 786px) {
-  .scale-item-list--carousel {
-    /* col3~col4 (2트랙+1거터). col1~2(2트랙+2거터) 지나 col3 시작점에 맞춤 */
-    --sc-card-w: calc(2 * var(--grid-track) + 1 * var(--grid-gutter));
-    --sc-offset: calc(var(--grid-margin) + 2 * (var(--grid-track) + var(--grid-gutter)));
-  }
-}
-/* 704×933 ~ 786×1133 세로 전용 — 위 640~786 블록보다 뒤라서 이 구간만 덮어씀 */
-@media (min-width: 704px) and (max-width: 786px) and (min-height: 933px) and (max-height: 1133px) {
-  .scale-item-list--carousel {
-    /* col2 중간~col5 중간 (3트랙+3거터). col1(1트랙+1거터) 지나 col2 중간(0.5트랙)까지 */
-    --sc-card-w: calc(3 * var(--grid-track) + 3 * var(--grid-gutter));
-    --sc-offset: calc(var(--grid-margin) + 1 * (var(--grid-track) + var(--grid-gutter)) + 0.5 * var(--grid-track));
-  }
-}
-@media (min-width: 787px) {
-  .scale-item-list--carousel {
-    /* 12컬럼 그리드 — col5~col8 (4컬럼 + 3거터). col1~4(4트랙+4거터) 지나 col5 시작점에 맞춤 */
-    --sc-card-w: calc(4 * var(--grid-track) + 3 * var(--grid-gutter));
-    --sc-offset: calc(var(--grid-margin) + 4 * (var(--grid-track) + var(--grid-gutter)));
-  }
-}
-/* Z Fold8 세로힌지 펼침(933×704) 전용 — 위 787px+ 규칙보다 뒤라서 이 구간만 덮어씀 */
-@media (min-width: 834px) and (max-width: 950px) and (min-height: 680px) and (max-height: 770px) {
-  .scale-item-list--carousel {
-    /* col5 중간~col8 중간 (3트랙+3거터). col1~4(4트랙+4거터) 지나 col5 중간(0.5트랙)까지 */
-    --sc-card-w: calc(3 * var(--grid-track) + 3 * var(--grid-gutter));
-    --sc-offset: calc(var(--grid-margin) + 4 * (var(--grid-track) + var(--grid-gutter)) + 0.5 * var(--grid-track));
-  }
+@media (min-width: 769px) and (max-width: 1079px) {
+  .scale-item-list--carousel { --sc-card-w: 280px; } /* 큰 태블릿 */
 }
 @media (min-width: 1080px) and (max-width: 1599px) {
-  .scale-item-list--carousel {
-    /* col5 중간~col8 중간 (3트랙+3거터). col1~4(4트랙+4거터) 지나 col5 중간(0.5트랙)까지 */
-    --sc-card-w: calc(3 * var(--grid-track) + 3 * var(--grid-gutter));
-    --sc-offset: calc(var(--grid-margin) + 4 * (var(--grid-track) + var(--grid-gutter)) + 0.5 * var(--grid-track));
-  }
+  .scale-item-list--carousel { --sc-card-w: 280px; } /* 태블릿가로/랩탑 */
 }
 @media (min-width: 1600px) {
-  .scale-item-list--carousel {
-    /* col5~col8 (4트랙+3거터). col1~4(4트랙+4거터) 지나 col5 시작점에 맞춤 */
-    --sc-card-w: calc(4 * var(--grid-track) + 3 * var(--grid-gutter));
-    --sc-offset: calc(var(--grid-margin) + 4 * (var(--grid-track) + var(--grid-gutter)));
-  }
-}
-/* 태블릿 세로(표준 820×1180 ~ 상한 1032×1376) 전용 — 세로로 긴 환경만 */
-@media (min-width: 820px) and (max-width: 1032px) and (min-height: 1180px) and (max-height: 1376px) and (max-aspect-ratio: 1/1) {
-  .scale-item-list--carousel {
-    /* col4~col9 (6트랙+5거터). col1~3(3트랙+3거터) 지나 col4 시작점에 맞춤 */
-    --sc-card-w: calc(6 * var(--grid-track) + 5 * var(--grid-gutter));
-    --sc-offset: calc(var(--grid-margin) + 3 * (var(--grid-track) + var(--grid-gutter)));
-  }
+  .scale-item-list--carousel { --sc-card-w: 280px; } /* 데스크탑 */
 }
 .scale-item-list--carousel::-webkit-scrollbar { display: none; }
 .scale-item-list--carousel { cursor: grab; }
@@ -16572,12 +16519,12 @@ canvas {
   opacity: 0.85;
 }
 
-/* Pro는 피크가 무제한이라 소모량 표시를 감춘다 (클래스는 shared.js applyPlanClass가 건다).
+/* 2026-09-08: 코스트 인상과 함께 전체 유저 대상으로 소모량 표시 자체를 숨김(원래는 Pro만 숨겼음).
    소모량 요소를 여닫는 코드가 인라인 style.display를 쓰는 자리가 있어(scale-level.js 등)
    !important 로 덮어야 한다. */
-.plan-pro .ldp-peak-cost,
-.plan-pro .stt-peak-cost,
-.plan-pro .practice-gate-cost { display: none !important; }
+.ldp-peak-cost,
+.stt-peak-cost,
+.practice-gate-cost { display: none !important; }
 
 .practice-gate-icon {
   width: var(--gate-icon-w);
@@ -19430,7 +19377,7 @@ canvas {
   flex-direction: column;
   padding-top: 20px;
   padding-inline: var(--grid-margin); /* 2026-09-08: 고정16px→§5 그리드마진(chord-combo/mission-session 공용) */
-  padding-bottom: calc(80px + env(safe-area-inset-bottom, 0px));
+  padding-bottom: calc(24px + env(safe-area-inset-bottom, 0px)); /* 2026-09-08: 80px→24px, 트레이+제출버튼을 하단에 24px로 붙임(아래 .combo-tray-wrap margin-top:auto와 세트) */
   gap: 20px;
   /* 안전장치: height:100% 고정 컨테이너라 콘텐츠가 넘치면 flex-shrink 기본값(1) 때문에
      자식이 찌그러지다 못해 0높이로 사라질 수 있음(2026-08-27 실기기에서 실제 발생 —
@@ -19690,6 +19637,7 @@ canvas {
    항상 트레이 바로 아래에 붙어있게 함. */
 .combo-tray-wrap {
   position: relative;
+  margin-top: auto; /* 2026-09-08: 남는 세로공간을 여기서 흡수해 트레이+제출버튼을 하단으로 밀착(문제 영역에 공간 더 확보) */
   padding-bottom: 18px; /* 힌트(absolute라 자체 높이 미반영)가 앉을 공간 확보 */
 }
 /* 스크롤 가능하다는 걸 알려주는 애니메이션 — 파란 점이 좌→우로 반복 이동하며 잔상(자기 자신의
@@ -19807,7 +19755,7 @@ canvas {
    두 화면이 동일 레이아웃 쓰기로 확정돼서 스코프 없이 공용 클래스 자체를 수정) */
 .combo-quiz-submit {
   align-self: center;
-  margin-top: 24px;
+  margin-top: 4px; /* 2026-09-08: 24px→4px. 부모(.combo-quiz-wrap) gap:20px와 합쳐 트레이와의 간격을 정확히 24px로 맞춤 */
   /* 라벨이 '제출하기'(4글자) ↔ '다음'(2글자)로 바뀌어도 버튼 폭 고정 —
      한글 글리프 1자 ≈ 1em + 좌우 padding(--cd-btn-padding-inline)×2 */
   min-width: calc(4em + var(--cd-btn-padding-inline) * 2);

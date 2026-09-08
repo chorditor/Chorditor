@@ -252,88 +252,28 @@ function renderComboQuestion() {
   _comboUpdateHintVisibility();
 }
 
-// ── 트레이 카드 배열 규칙 ──
-//   ① 1줄은 폭이 허용하는 만큼(최대 4개) 항상 꽉 채움
-//   ② 3줄이 되면 2번째 줄이 1·3번째 줄 이하 → 남는 카드를 반씩 나누되 작은 쪽을 가운데로
-const COMBO_TRAY_MAX_PER_ROW = 4;
-function _comboTrayRowCounts(n, maxPerRow) {
-  const MAX = maxPerRow || COMBO_TRAY_MAX_PER_ROW;
-  if (n <= 0) return [];
-  if (n <= MAX) return [n];
-  const first = MAX;
-  const rest  = Math.min(n, MAX * 3) - first;
-  if (rest <= MAX) return [first, rest];
-  const mid = Math.floor(rest / 2);
-  return [first, mid, rest - mid];
-}
-
-// ── 한 줄에 실제로 몇 장까지 안 넘치고 들어가는지 폭으로 측정 (최대 4) ──
-// 카드 폭이 코드명 길이에 따라 제각각(C vs D#m7(b5))이라, 어떤 카드가 어느 줄에 오든
-// 안전하도록 "가장 넓은 k장" 조합 기준으로 판정. 4장이 들어가면 항상 4장을 씀.
-function _comboMeasureMaxPerRow(items, blocksWrap) {
-  blocksWrap.innerHTML = '';
-  const widths = items.map(({ chord }) => {
-    const block = document.createElement('div');
-    block.className = 'combo-block';
-    block.innerHTML = _ccFormatB5(chord);
-    blocksWrap.appendChild(block);
-    return block.offsetWidth;
-  });
-  const containerW = blocksWrap.clientWidth;
-  const gap = parseFloat(getComputedStyle(blocksWrap).columnGap || getComputedStyle(blocksWrap).gap) || 0;
-  blocksWrap.innerHTML = '';
-
-  const widest = [...widths].sort((a, b) => b - a);
-  for (let k = COMBO_TRAY_MAX_PER_ROW; k > 1; k--) {
-    const need = widest.slice(0, k).reduce((a, b) => a + b, 0) + gap * (k - 1);
-    if (need <= containerW) return k;
-  }
-  return 1;
-}
-
-// fitted 배열을 위 행 배열 규칙대로 blocksWrap에 렌더(줄 사이엔 강제 줄바꿈 스페이서 삽입).
-function _comboRenderTrayBlocks(items, blocksWrap) {
-  const rows = _comboTrayRowCounts(items.length, _comboMeasureMaxPerRow(items, blocksWrap));
-  blocksWrap.innerHTML = '';
-  let idx = 0;
-  rows.forEach((count, r) => {
-    for (let i = 0; i < count && idx < items.length; i++) {
-      const { degree, chord } = items[idx++];
-      const block = document.createElement('div');
-      block.className = 'combo-block';
-      block.innerHTML = _ccFormatB5(chord);
-      block.dataset.degree = degree;
-      block.dataset.chord = chord;
-      blocksWrap.appendChild(block);
-    }
-    if (r < rows.length - 1) {
-      const br = document.createElement('div');
-      br.className = 'combo-block-break';
-      blocksWrap.appendChild(br);
-    }
-  });
-}
-
-// ── 트레이 후보를 실제 렌더 폭 기준 최대 3줄까지만 채워지도록 동적으로 개수 조절 ──
-// candidates: {degree,chord}[] 전체 후보. mustInclude: 반드시 포함되어야 할 정답 도수 배열.
-// 순서를 1번만 섞어서 그 순서 그대로 측정+렌더(측정 후 다시 섞으면 블록마다 폭이 달라서
-// 줄바꿈 지점이 어긋나는 버그가 있었음 — 측정에 쓴 순서를 최종 순서로 그대로 씀).
-function _comboFitTray(candidates, mustInclude, blocksWrap) {
+// ── 트레이 카드 배열 — 1줄 고정 + 가로 스크롤(2026-09-08, daily-mission 레이아웃과 통일) ──
+// 예전엔 최대 3줄로 줄바꿈해서 담았음(폭 측정+트리밍 로직 필요, mission-session.js
+// _msComboRenderTray 주석 참고 — 미션 레이아웃에서 3줄이면 제출버튼이 밀려나서 그쪽만
+// 먼저 스크롤로 바꿨던 걸 여기도 통일). 스크롤이면 트리밍이 필요 없어져 로직도 단순해짐.
+function _comboRenderTray(candidates, mustInclude, blocksWrap) {
   const mustSet = new Set(mustInclude);
   const must = candidates.filter(c => mustSet.has(c.degree));
   const rest = candidates.filter(c => !mustSet.has(c.degree));
   const ordered = _ccShuffle([...must, ...rest]);
 
-  const capacity = _comboMeasureMaxPerRow(ordered, blocksWrap) * 3; // 최대 3줄
-  let kept = ordered.slice(0, capacity);
-  // 잘려나간 정답이 있으면 마지막 자리와 바꿔서라도 반드시 포함시킴
-  const missingMust = must.filter(m => !kept.some(k => k.degree === m.degree));
-  if (missingMust.length) {
-    kept = kept.slice(0, Math.max(0, kept.length - missingMust.length)).concat(missingMust);
-  }
-
   blocksWrap.innerHTML = '';
-  return kept;
+  ordered.forEach(({ degree, chord }) => {
+    const block = document.createElement('div');
+    block.className = 'combo-block';
+    block.innerHTML = _ccFormatB5(chord);
+    block.dataset.degree = degree;
+    block.dataset.chord = chord;
+    blocksWrap.appendChild(block);
+  });
+
+  blocksWrap.scrollLeft = 0; // 새 문제는 항상 맨 왼쪽부터 보이게
+  _comboUpdateScrollHint();
 }
 
 // ── 문제 1개를 퀴즈 뷰 DOM에 렌더 ────────────────────────────
@@ -358,10 +298,7 @@ function renderCh1Question(difficulty) {
   });
 
   const blocksWrap = document.getElementById('combo-quiz-blocks');
-  if (blocksWrap) {
-    const fitted = _comboFitTray(q.tray, q.degrees, blocksWrap);
-    _comboRenderTrayBlocks(fitted, blocksWrap);
-  }
+  if (blocksWrap) _comboRenderTray(q.tray, q.degrees, blocksWrap);
 }
 
 // ── 2·3장 공용 문제 렌더: 배치형 = 1장과 동일, 교체형 = 원본 제시+1개 강조 교체 ──
@@ -444,8 +381,7 @@ function renderChapterQuestion(generatorFn, type, options = {}) {
   const blocksWrap = document.getElementById('combo-quiz-blocks');
   if (blocksWrap) {
     const mustInclude = type === 'placement' ? q.degrees : (q.substituteDegrees || [q.substituteDegree]);
-    const fitted = _comboFitTray(q.tray, mustInclude, blocksWrap);
-    _comboRenderTrayBlocks(fitted, blocksWrap);
+    _comboRenderTray(q.tray, mustInclude, blocksWrap);
   }
 }
 
@@ -515,7 +451,6 @@ function enterComboQuiz(difficulty, chapter) {
   }
   const currency = document.getElementById('topbar-currency');
   if (currency) currency.style.display = 'none';
-  document.querySelector('.combo-top-bar')?.classList.add('combo-top-bar--quiz');
 }
 
 // ── 제출 버튼 라벨을 "제출하기"로 초기화 ─────────────────────
@@ -543,7 +478,6 @@ function exitComboQuiz() {
   if (prog) prog.style.display = 'none';
   const currency = document.getElementById('topbar-currency');
   if (currency) currency.style.display = '';
-  document.querySelector('.combo-top-bar')?.classList.remove('combo-top-bar--quiz');
 }
 
 // 슬롯 인덱스 i의 정답 도수 — 오답 힌트 텍스트 클릭 시 사운드 재생용(comboPlayBlockSound가 degree로 조회).
@@ -625,19 +559,24 @@ function comboSubmitAnswer() {
 
 // ── 슬롯에 정답 코드의 운지 다이어그램 표시 ──────────────────
 // 보이싱은 _comboResolveVoicing 한 곳에서만 결정 → 화면의 운지와 클릭 사운드가 항상 같은 보이싱.
-const COMBO_DIAGRAM_W = 64; // CSS px (비율은 VoicingCanvas BASE_W:BASE_H 고정)
+// 5단계 반응형 — 슬롯 크기(§ .combo-answer-drop)에 맞춰 --combo-diagram-w도 단계별로 커짐
+function _comboDiagramW() {
+  const v = getComputedStyle(document.documentElement).getPropertyValue('--combo-diagram-w');
+  return parseFloat(v) || 64;
+}
 function _comboDrawSlotDiagram(slot, i) {
   if (typeof VoicingCanvas === 'undefined') return;
   const dpr = window.devicePixelRatio || 1;
+  const diagramW = _comboDiagramW();
   slot.querySelector('.combo-answer-diagram')?.remove();
   const voicing = _comboResolveVoicing(_comboCorrectDegreeForSlot(i), slot.dataset.answerChord);
   if (!voicing) return;
   const canvas = document.createElement('canvas');
   canvas.className = 'combo-answer-diagram';
   slot.insertBefore(canvas, slot.firstChild); // 슬롯 최상단(코드블록 위)
-  VoicingCanvas.draw(canvas, voicing, { ratio: (COMBO_DIAGRAM_W * dpr) / VoicingCanvas.BASE_W, transparent: true });
-  canvas.style.width  = COMBO_DIAGRAM_W + 'px';
-  canvas.style.height = Math.round(COMBO_DIAGRAM_W * VoicingCanvas.BASE_H / VoicingCanvas.BASE_W) + 'px';
+  VoicingCanvas.draw(canvas, voicing, { ratio: (diagramW * dpr) / VoicingCanvas.BASE_W, transparent: true });
+  canvas.style.width  = diagramW + 'px';
+  canvas.style.height = Math.round(diagramW * VoicingCanvas.BASE_H / VoicingCanvas.BASE_W) + 'px';
 }
 // 채점 후: 전체 슬롯(타겟 포함) 다이어그램 표시
 function _comboShowAnswerDiagrams() {
@@ -738,6 +677,75 @@ let _comboDragStartX     = 0;
 let _comboDragStartY     = 0;
 const COMBO_TAP_MOVE_THRESHOLD = 8; // px — 이 이하 이동이면 드래그가 아닌 짧은 터치로 판정
 
+// ── 트레이 가로스크롤 + 드래그 축판정(2026-09-08, mission-session.js에서 이식) ──
+// 트레이는 가로 스크롤과 "카드 꺼내기" 드래그가 같은 영역에서 겹친다. 정답 슬롯이 트레이
+// 바로 위에 있으므로 두 동작의 자연스러운 방향이 서로 직교함 → 첫 이동 방향으로 의도를 가른다.
+let _comboDragPending = false; // 트레이 카드: 가로(스크롤) vs 세로(꺼내기) 방향 판정 대기 중
+const COMBO_AXIS_LOCK_THRESHOLD = 6; // px — 이만큼 움직여야 방향을 판정
+let _comboScrolling = false;       // 방향 판정 결과 "가로=스크롤"로 확정됐는지
+let _comboScroller = null;         // 스크롤 대상 엘리먼트(#combo-quiz-blocks)
+let _comboScrollStartLeft = 0;
+let _comboScrollLastX = 0, _comboScrollLastT = 0, _comboScrollVelocity = 0;
+let _comboScrollMomentumId = null;
+
+function _comboScrollStopMomentum() {
+  if (_comboScrollMomentumId) { cancelAnimationFrame(_comboScrollMomentumId); _comboScrollMomentumId = null; }
+}
+function _comboScrollRunMomentum() {
+  const FRICTION = 0.88;
+  const step = () => {
+    _comboScrollVelocity *= FRICTION;
+    if (Math.abs(_comboScrollVelocity) < 0.01 || !_comboScroller) { _comboScrollMomentumId = null; return; }
+    _comboScroller.scrollLeft -= _comboScrollVelocity * 16;
+    _comboScrollMomentumId = requestAnimationFrame(step);
+  };
+  _comboScrollMomentumId = requestAnimationFrame(step);
+}
+
+// 스크롤 가능(오른쪽에 더 남음)할 때만 화살표 힌트 노출 — 끝까지 스크롤하면 사라짐
+function _comboUpdateScrollHint() {
+  const scroller = document.getElementById('combo-quiz-blocks');
+  const hint = document.getElementById('combo-scroll-hint');
+  if (!scroller || !hint) return;
+  const hasOverflow = scroller.scrollWidth - scroller.clientWidth > 4;
+  const atEnd = scroller.scrollLeft >= scroller.scrollWidth - scroller.clientWidth - 4;
+  hint.classList.toggle('ms-combo-scroll-hint--hidden', !hasOverflow || atEnd);
+  // 카드가 적어서 안 넘칠 땐 왼쪽 붙임 대신 가운데 정렬
+  scroller.classList.toggle('ms-combo-blocks--fit', !hasOverflow);
+}
+function _comboInitScrollHint() {
+  const scroller = document.getElementById('combo-quiz-blocks');
+  if (!scroller || scroller._scrollHintInit) return;
+  scroller._scrollHintInit = true;
+  scroller.addEventListener('scroll', _comboUpdateScrollHint);
+  window.addEventListener('resize', _comboUpdateScrollHint);
+}
+
+// ── 트레이 빈 공간(카드 사이 gap) 드래그로 가로스크롤 — 마우스 전용(터치는 overflow-x:auto가
+// 기본 처리하고 카드 위 드래그는 축 잠금이 따로 처리하므로 여기는 "카드가 아닌 곳에서
+// 시작한 마우스 드래그"만 다룬다) ──
+function _comboInitTrayBackgroundDrag(scroller) {
+  if (!scroller || scroller._dragInit) return;
+  scroller._dragInit = true;
+  let dragging = false, startX = 0, startScroll = 0;
+
+  scroller.addEventListener('pointerdown', e => {
+    if (e.pointerType !== 'mouse') return; // 터치는 네이티브 스크롤에 맡김
+    if (e.target.closest('.combo-block')) return; // 카드 위 시작은 축 잠금 로직에 양보
+    dragging = true;
+    startX = e.clientX;
+    startScroll = scroller.scrollLeft;
+    scroller.classList.add('ms-combo-blocks-scroll--dragging');
+  });
+  scroller.addEventListener('pointermove', e => {
+    if (!dragging) return;
+    scroller.scrollLeft = startScroll - (e.clientX - startX);
+  });
+  const endDrag = () => { dragging = false; scroller.classList.remove('ms-combo-blocks-scroll--dragging'); };
+  scroller.addEventListener('pointerup', endDrag);
+  scroller.addEventListener('pointerleave', endDrag);
+}
+
 function _comboGetDropTarget(x, y) {
   const el = document.elementFromPoint(x, y);
   if (!el) return null;
@@ -758,30 +766,126 @@ function _comboPopBlock(block) {
 // pointermove 리스너)가 남아있으면 다음 장에서 클릭/드래그가 먹통처럼 보일 수 있어 방어적으로 호출.
 function _comboResetDragState() {
   document.removeEventListener('pointermove', _comboBlockPointerMove);
+  document.removeEventListener('pointerup', _comboBlockPointerUp);
+  document.removeEventListener('pointercancel', _comboEndDragTracking);
   if (_comboDragClone) { _comboDragClone.remove(); _comboDragClone = null; }
+  _comboScroller?.classList.remove('ms-combo-blocks-scroll--dragging');
   _comboDragBlock = null;
   _comboDragFrom  = null;
   _comboDragSourceType = null;
+  _comboDragPending = false;
+  _comboScrolling = false;
+  _comboScroller = null;
+}
+
+// 실제 드래그 시각효과(고스트 클론) 시작 — 방향 판정이 "세로=꺼내기"로 확정된 뒤에 호출
+function _comboBeginDragVisual() {
+  const block = _comboDragBlock;
+  if (!block || _comboDragClone) return;
+  const rect = block.getBoundingClientRect();
+  _comboDragOffX = _comboDragStartX - rect.left;
+  _comboDragOffY = _comboDragStartY - rect.top;
+
+  const clone = block.cloneNode(true);
+  clone.classList.add('combo-block--dragging-clone');
+  clone.style.position = 'fixed';
+  clone.style.left = rect.left + 'px';
+  clone.style.top = rect.top + 'px';
+  clone.style.width = rect.width + 'px';
+  clone.style.pointerEvents = 'none';
+  clone.style.zIndex = 999;
+  document.body.appendChild(clone);
+  _comboDragClone = clone;
+
+  if (_comboDragSourceType === 'slot') block.classList.add('combo-block--source-hidden');
 }
 
 function _comboBlockPointerMove(e) {
+  // 방향 판정 대기 중(트레이 카드) — 가로 우세면 스크롤 시작, 세로 우세면 카드 꺼내기 시작
+  if (_comboDragPending) {
+    const dx = e.clientX - _comboDragStartX;
+    const dy = e.clientY - _comboDragStartY;
+    if (Math.hypot(dx, dy) < COMBO_AXIS_LOCK_THRESHOLD) return;
+    _comboDragPending = false;
+    // 드래그(문제 배치)가 주 동작이라 애매한 대각선은 드래그로 우선 판정 — 스크롤은
+    // 가로가 세로보다 뚜렷하게(1.4배 이상) 우세할 때만.
+    if (Math.abs(dx) > Math.abs(dy) * 1.4) {
+      _comboScrolling = true;
+      _comboScroller = document.getElementById('combo-quiz-blocks');
+      _comboScrollStopMomentum();
+      _comboScrollStartLeft = _comboScroller ? _comboScroller.scrollLeft : 0;
+      _comboScrollLastX = e.clientX;
+      _comboScrollLastT = performance.now();
+      _comboScrollVelocity = 0;
+      _comboScroller?.classList.add('ms-combo-blocks-scroll--dragging');
+    } else {
+      _comboBeginDragVisual();
+    }
+  }
+
+  if (_comboScrolling) {
+    if (_comboScroller) _comboScroller.scrollLeft = _comboScrollStartLeft - (e.clientX - _comboDragStartX);
+    const now = performance.now();
+    const dt = now - _comboScrollLastT;
+    if (dt > 0) _comboScrollVelocity = (e.clientX - _comboScrollLastX) / dt;
+    _comboScrollLastX = e.clientX;
+    _comboScrollLastT = now;
+    return;
+  }
+
   if (!_comboDragClone) return;
   _comboDragClone.style.left = (e.clientX - _comboDragOffX) + 'px';
   _comboDragClone.style.top  = (e.clientY - _comboDragOffY) + 'px';
 }
 
+// 드래그 추적 종료 + 상태 초기화. 브라우저가 제스처를 가로채 pointercancel이 올 때도 여기로 온다
+function _comboEndDragTracking() {
+  document.removeEventListener('pointermove', _comboBlockPointerMove);
+  document.removeEventListener('pointerup', _comboBlockPointerUp);
+  document.removeEventListener('pointercancel', _comboEndDragTracking);
+  if (_comboDragClone) { _comboDragClone.remove(); _comboDragClone = null; }
+  _comboScroller?.classList.remove('ms-combo-blocks-scroll--dragging');
+  _comboDragBlock?.classList.remove('combo-block--source-hidden');
+  _comboDragBlock = null;
+  _comboDragFrom = null;
+  _comboDragSourceType = null;
+  _comboDragPending = false;
+  _comboScrolling = false;
+  _comboScroller = null;
+}
+
 function _comboBlockPointerUp(e) {
   document.removeEventListener('pointermove', _comboBlockPointerMove);
+  document.removeEventListener('pointercancel', _comboEndDragTracking);
   if (_comboDragClone) { _comboDragClone.remove(); _comboDragClone = null; }
 
   const block      = _comboDragBlock;
   const from        = _comboDragFrom;
   const sourceType  = _comboDragSourceType;
+  const wasPending = _comboDragPending, wasScrolling = _comboScrolling;
   _comboDragBlock = null;
   _comboDragFrom  = null;
   _comboDragSourceType = null;
+  _comboDragPending = false;
+  if (wasScrolling) {
+    _comboScroller?.classList.remove('ms-combo-blocks-scroll--dragging');
+    const MAX_VELOCITY = 1.5;
+    _comboScrollVelocity = Math.max(-MAX_VELOCITY, Math.min(MAX_VELOCITY, _comboScrollVelocity));
+    if (Math.abs(_comboScrollVelocity) > 0.05) _comboScrollRunMomentum();
+    _comboScrolling = false;
+    _comboScroller = null;
+  }
   if (!block) return;
   block.classList.remove('combo-block--source-hidden');
+
+  // 방향 판정 전에 손을 뗐다(탭) 또는 스크롤로 끝났다 — 카드 이동/드롭 판정은 안 함
+  if (wasPending || wasScrolling) {
+    if (wasPending) {
+      const movedPending = Math.hypot(e.clientX - _comboDragStartX, e.clientY - _comboDragStartY);
+      if (movedPending < COMBO_TAP_MOVE_THRESHOLD) comboPlayBlockSound(block);
+    }
+    return;
+  }
 
   // 이동 거리가 짧으면(=드래그 아닌 짧은 터치) 사운드만 재생
   const moved = Math.hypot(e.clientX - _comboDragStartX, e.clientY - _comboDragStartY);
@@ -902,48 +1006,42 @@ async function comboPlayBlockSound(block) {
 function _comboBlockPointerDown(e) {
   const block = e.target.closest('.combo-block');
   if (!block) return;
-  e.preventDefault();
 
   // 교체형 잠긴 슬롯의 고정 코드는 드래그 금지 — 사운드만 재생
   const parentSlot = block.parentElement?.closest?.('.combo-answer-slot');
   if (parentSlot && parentSlot.dataset.locked === '1') {
+    e.preventDefault();
     comboPlayBlockSound(block);
     return;
   }
 
+  // 항상 preventDefault — 안 부르면 마우스는 텍스트 드래그선택이, 터치는 브라우저 네이티브
+  // 스크롤/줌 제스처가 가로채서 아무 반응이 없는 것처럼 보임. 가로 스크롤은 여기서 네이티브에
+  // 기대지 않고 JS로 직접 처리하므로(_comboBlockPointerMove) 막아도 무방.
+  e.preventDefault();
+
   _comboDragStartX = e.clientX;
   _comboDragStartY = e.clientY;
-
   _comboDragBlock = block;
   _comboDragFrom  = block.parentElement;
   _comboDragSourceType = (_comboDragFrom.id === 'combo-quiz-blocks') ? 'tray' : 'slot';
 
-  const rect = block.getBoundingClientRect();
-  _comboDragOffX = e.clientX - rect.left;
-  _comboDragOffY = e.clientY - rect.top;
-
-  const clone = block.cloneNode(true);
-  clone.classList.add('combo-block--dragging-clone');
-  clone.style.position = 'fixed';
-  clone.style.left = rect.left + 'px';
-  clone.style.top = rect.top + 'px';
-  clone.style.width = rect.width + 'px';
-  clone.style.pointerEvents = 'none';
-  clone.style.zIndex = 999;
-  document.body.appendChild(clone);
-  _comboDragClone = clone;
-
-  // 트레이에서 시작한 드래그는 원본을 그대로 두어(복사) 개수가 줄지 않게 함
-  if (_comboDragSourceType === 'slot') block.classList.add('combo-block--source-hidden');
+  // 트레이 카드는 가로 스크롤과 제스처가 겹치므로 방향이 확정될 때까지 드래그를 미룬다.
+  // (슬롯 안 카드는 스크롤 영역이 아니라서 예전처럼 즉시 드래그)
+  _comboDragPending = _comboDragSourceType === 'tray';
+  if (!_comboDragPending) _comboBeginDragVisual();
 
   document.addEventListener('pointermove', _comboBlockPointerMove);
   document.addEventListener('pointerup', _comboBlockPointerUp, { once: true });
+  document.addEventListener('pointercancel', _comboEndDragTracking, { once: true });
 }
 
 function initComboDragDrop() {
   const wrap = document.querySelector('.combo-quiz-wrap');
   if (!wrap) return;
   wrap.addEventListener('pointerdown', _comboBlockPointerDown);
+  _comboInitScrollHint();
+  _comboInitTrayBackgroundDrag(document.getElementById('combo-quiz-blocks'));
 }
 
 // 퀴즈 뷰 안쪽(.combo-quiz-wrap)의 최초(순정) HTML 스냅샷.
@@ -1115,4 +1213,28 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // 탭 닫기 / 하드웨어 뒤로가기 등 exitComboQuiz 를 안 거치는 이탈 경로 처리
   window.addEventListener('pagehide', _comboFlushTrainingTime, { once: true });
+
+  // 튜토리얼 진입 팝업 — 2026-09-08 방식 변경으로 잠정 비활성화(코드는 보존, 삭제 안 함)
+  /*
+  // 페이지 진입 애니메이션(.project-enter, style.css:460, 0.36s) 끝날 때까지 터치 막고,
+  // 끝나면 튜토리얼 진입 팝업 표시 — chord-name-quiz.js startLevel()과 동일 패턴
+  if (shell) shell.style.pointerEvents = 'none';
+  setTimeout(() => {
+    if (shell) shell.style.pointerEvents = '';
+    const ov = document.getElementById('tutorial-entry-overlay');
+    if (!ov) return;
+    ov.classList.remove('hidden'); // 지금은 항상 표시(최초방문 판별은 나중에)
+    requestAnimationFrame(() => requestAnimationFrame(() => {
+      ov.querySelector('.cd-modal')?.classList.add('cd-modal--in');
+    }));
+  }, 360);
+  */
 });
+
+// 튜토리얼 진입 팝업 닫기 — cd-modal--in도 같이 떼서 다음에 다시 뜰 때 등장 애니메이션 재생되게 함
+function closeTutorialEntryModal() {
+  const ov = document.getElementById('tutorial-entry-overlay');
+  if (!ov) return;
+  ov.classList.add('hidden');
+  ov.querySelector('.cd-modal')?.classList.remove('cd-modal--in');
+}
