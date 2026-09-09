@@ -3158,7 +3158,7 @@ renderFullNeck();
   document.getElementById('start-test-btn')?.addEventListener('pointerup', async () => {
     _playTap();
     _playConfirmSfx();
-    if (!(await consumePeak(2))) return;
+    if (!(await consumePeak(2, 'scale'))) return;
     analytics.track('scale_test_started', {
       scale_key: _scaleKey,
       root_name: (_useFlat ? KEY_NAMES_FLAT : KEY_NAMES)[_rootNote],
@@ -3175,7 +3175,7 @@ renderFullNeck();
     if (e.currentTarget.disabled) return;
     if (_testSubmitted) {
       _playConfirmSfx();
-      if (!(await consumePeak(2))) return;
+      if (!(await consumePeak(2, 'scale'))) return;
       analytics.track('scale_test_retry', {
         scale_key: _scaleKey,
         root_name: (_useFlat ? KEY_NAMES_FLAT : KEY_NAMES)[_rootNote],

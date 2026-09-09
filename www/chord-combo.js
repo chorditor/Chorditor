@@ -108,7 +108,7 @@ async function comboStartTraining(e) {
   const chapter = card?.dataset.chapter || '1';
   if (!['1', '2', '3', '4', '5', '6', '7', '8'].includes(chapter)) return;
   _playConfirmSfx();
-  if (!(await consumePeak(1))) return;
+  if (!(await consumePeak(1, 'chord_combo'))) return;
   const activeCard = card.querySelector('.combo-difficulty-card.active');
   const difficulty = activeCard?.dataset.difficulty === 'high' ? 'high'
     : activeCard?.dataset.difficulty === 'mid' ? 'mid' : 'low';
@@ -653,7 +653,7 @@ function _comboShowResultModal() {
     ov.querySelector('#combo-result-exit').onclick  = () => { ov.style.display = 'none'; exitComboQuiz(); };
     ov.querySelector('#combo-result-retry').onclick = async () => {
       _playSfx('pop.mp3');
-      if (!(await consumePeak(1))) return;
+      if (!(await consumePeak(1, 'chord_combo'))) return;
       ov.style.display = 'none';
       enterComboQuiz(_comboDifficulty, _comboChapter);
     };

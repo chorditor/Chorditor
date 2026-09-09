@@ -984,7 +984,9 @@ function renderPeakBadge() {
 
 // 훈련 콘텐츠 진입/재생 시 피크 소모(DB, 서버가 회복 반영 후 판정). 부족하면 false.
 // RPC가 null(비로그인/DB 미감지=dev)이면 localStorage 폴백으로 동작.
-async function consumePeak(cost) {
+// source: 어떤 훈련에서 소모를 시도했는지('quiz'/'chord_combo'/'scale'/'progression'/'strum') —
+// 피크부족→완충모달 경유 페이월(peak_buffer)의 properties.training_type으로 이어짐.
+async function consumePeak(cost, source) {
   if (getPlan() === 'pro') return true; // Pro: 피크 무제한 — 소모 없음
   const r = await _peakRpc('consume_peak', { p_cost: cost });
   if (r) {
@@ -992,7 +994,7 @@ async function consumePeak(cost) {
     renderPeakBadge();
     if (!r.ok) {
       analytics.track('peak_insufficient', { cost, balance: r.balance });
-      _openPeakInsufficientFunnel();
+      _openPeakInsufficientFunnel(source);
       return false;
     }
     analytics.track('peak_consumed', { cost, balance_after: r.balance });
@@ -1004,7 +1006,7 @@ async function consumePeak(cost) {
     _peakState = { balance: local.balance, peakbox_count: local.peakbox_count, loaded: true };
     renderPeakBadge();
     analytics.track('peak_insufficient', { cost, balance: local.balance });
-    _openPeakInsufficientFunnel();
+    _openPeakInsufficientFunnel(source);
     return false;
   }
   const newBal = local.balance - cost;
@@ -2264,13 +2266,18 @@ async function restorePurchases() {
 // 피크부족 퍼널 — 2026-08-30: A/B 실험(즉시 구독시트 vs 완충모달) 종료, 항상 완충모달로 통일,
 // "Pro 플랜 보기" CTA는 그때 제거했었음. 2026-09-07: 광고충전과 구독시트를 대등노출로 재결합 —
 // 그만하기 버튼 제거하고 우상단 X로 대체, 그 자리에 "Pro 플랜 보기"(구독시트 오픈) 배치.
-function _openPeakInsufficientFunnel() {
-  if (typeof openPeakBuffer === 'function') openPeakBuffer();
+function _openPeakInsufficientFunnel(source) {
+  if (typeof openPeakBuffer === 'function') openPeakBuffer(source);
 }
 
-function openPeakBuffer() {
+// _peakBufferSource: 완충모달이 떠있는 동안 어떤 훈련에서 왔는지 들고 있는 값 —
+// 모달이 열려있는 시간(광고보기/닫기/플랜보기 중 뭘 누를지 모름) 동안 유지했다가
+// _peakBufferOpenPlan()에서 페이월 트래킹에 실어보낸다.
+let _peakBufferSource = null;
+function openPeakBuffer(source) {
   const ov = document.getElementById('peak-buffer-overlay');
   if (!ov) return;
+  _peakBufferSource = source || null;
   if (typeof analytics !== 'undefined') analytics.track('peak_buffer_shown', {});
   setTimeout(() => ov.classList.add('peak-buffer-overlay--open'), 0);
   if (typeof lucide !== 'undefined') lucide.createIcons();
@@ -2307,7 +2314,7 @@ async function _peakBufferWatchAd() {
 function _peakBufferOpenPlan() {
   if (typeof analytics !== 'undefined') analytics.track('peak_buffer_plan_clicked', {});
   closePeakBuffer();
-  openPlanSheet('peak_buffer');
+  openPlanSheet('peak_buffer', { training_type: _peakBufferSource });
 }
 
 // 연간/월간 카드 선택 상태 — 카드를 눌러 고르면 하단 CTA 버튼이 그 주기로 결제
@@ -2318,12 +2325,12 @@ function _planSelectCycle(cycle) {
   document.getElementById('plan-card-monthly')?.classList.toggle('plan-card--highlight', _planSelectedCycle === 'monthly');
 }
 
-function openPlanSheet(triggerSource) {
+function openPlanSheet(triggerSource, extraProps) {
   const overlay = document.getElementById('plan-sheet-overlay');
   const sheet   = document.getElementById('plan-sheet');
   if (!sheet) return;
   if (typeof analytics !== 'undefined') {
-    analytics.track('paywall_viewed', { trigger_source: triggerSource || 'unknown', current_plan: getPlan() });
+    analytics.track('paywall_viewed', { trigger_source: triggerSource || 'unknown', current_plan: getPlan(), ...(extraProps || {}) });
   }
 
   const plan     = getPlan();

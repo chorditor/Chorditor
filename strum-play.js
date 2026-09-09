@@ -469,7 +469,7 @@ window._clearLeaveGuard = () => { if (STRUM_ITEM?.id != null) sessionStorage.rem
 async function strumUnlockPractice() {
   _playConfirmSfx();
   if (_strumPracticeUnlocked) return;
-  if (!(await consumePeak(2))) return;
+  if (!(await consumePeak(2, 'strum'))) return;
   _strumPracticeUnlocked = true;
   if (STRUM_ITEM?.id != null) sessionStorage.setItem(`sp_unlock_${STRUM_ITEM.id}`, '1'); // 새로고침해도 유지(새로고침은 이탈이 아님)
   const gate = document.getElementById('strum-practice-gate');

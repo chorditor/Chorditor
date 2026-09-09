@@ -25,7 +25,7 @@ function onScaleItemTap(el) {
 
   // 프리미엄 카드 + 무료 플랜 → 구독 모달
   if (PREMIUM_ENABLED && el.dataset.premium === '1' && getPlan() === 'free') {
-    analytics.track('paywall_viewed', { trigger_source: 'scale_premium', current_plan: 'free', level });
+    // openPlanSheet() 내부에서 이미 paywall_viewed를 트래킹하므로 여기서 중복 트래킹하지 않는다.
     openPlanSheet('scale_premium');
     return;
   }
