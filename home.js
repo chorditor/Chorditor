@@ -2108,6 +2108,106 @@ function closeUpgradeModal() {
   document.getElementById('upgrade-modal-overlay').classList.add('hidden');
 }
 
+// ── 7일 체험권 안내 모달 (1만 다운로드 기념) — cd-modal 스타일3, scale-training.js
+// closeTutorialEntryModal()과 동일한 등장/퇴장 애니메이션 패턴 ──
+function openTrialOfferModal() {
+  const ov = document.getElementById('trial-offer-overlay');
+  if (!ov) return;
+  ov.classList.remove('hidden');
+  requestAnimationFrame(() => requestAnimationFrame(() => {
+    ov.querySelector('.cd-modal')?.classList.add('cd-modal--in');
+  }));
+}
+function closeTrialOfferModal() {
+  const ov = document.getElementById('trial-offer-overlay');
+  if (!ov) return;
+  ov.classList.add('hidden');
+  ov.querySelector('.cd-modal')?.classList.remove('cd-modal--in');
+}
+// "나중에 할래요" — 체험권 모달 닫고, 프로필에서 언제든 받을 수 있다는 안내 모달로 이어짐
+function deferTrialOffer() {
+  closeTrialOfferModal();
+  const ov = document.getElementById('trial-defer-overlay');
+  if (!ov) return;
+  ov.classList.remove('hidden');
+  requestAnimationFrame(() => requestAnimationFrame(() => {
+    ov.querySelector('.cd-modal')?.classList.add('cd-modal--in');
+  }));
+}
+function closeTrialDeferModal() {
+  const ov = document.getElementById('trial-defer-overlay');
+  if (!ov) return;
+  ov.classList.add('hidden');
+  ov.querySelector('.cd-modal')?.classList.remove('cd-modal--in');
+}
+// 1만다운로드 체험권 캠페인 고정 코드 — supabase/trial_experiment_promo_code.sql 참고.
+// 유저가 입력하는 게 아니라 클라이언트가 이 값으로 redeem_promo_code를 직접 호출한다.
+const TRIAL_OFFER_PROMO_CODE = '10K_TRIAL_7D';
+
+// 모달 CTA/재확인모달/프로필 "체험하기" 버튼 공용 — 클릭해야만 실제로 활성화됨(강제 지급
+// 아님, 거절/보류 가능). source: 'modal_cta' | 'defer_modal' | 'profile_banner' — 3경로
+// 구분용 트래킹. 기존 submitProfileCode()와 동일한 redeem_promo_code RPC 재사용 —
+// promo_redemptions PK(code,user_id)가 "1인 1회"를 DB 제약으로 이미 보장하므로
+// 중복클레임 방지 로직을 따로 안 짜도 됨.
+let _claimingTrialOffer = false;
+async function claimTrialOffer(source) {
+  if (_claimingTrialOffer) return;
+  analytics.track('trial_offer_claim_clicked', { source: source || 'unknown' });
+  _claimingTrialOffer = true;
+  try {
+    const r = await _peakRpc('redeem_promo_code', { p_code: TRIAL_OFFER_PROMO_CODE });
+    if (!r || !r.ok) {
+      const reason = r?.reason;
+      analytics.track('trial_offer_claim_failed', { source: source || 'unknown', reason: reason || 'unknown' });
+      // already = 이미 이 기기/계정으로 받은 적 있음(정상 케이스로 취급, 에러톤 안 씀)
+      showTextToast(reason === 'already' ? '이미 받은 체험권이에요.' : '체험권 지급에 실패했어요. 다시 시도해주세요.');
+      return;
+    }
+    analytics.track('trial_offer_claimed', { source: source || 'unknown' });
+    if (r.pro_days > 0 && !r.pending) {
+      setPlan('pro');
+      await refreshPromoUntil();
+    }
+    await loadProfileFromDB(); // 플랜배너를 서버기준으로 다시 그림(체험하기→업그레이드로 복귀 포함)
+    if (typeof renderPeakBadge === 'function') renderPeakBadge();
+    if (typeof showPromoProModal === 'function') showPromoProModal(r);
+  } catch (e) {
+    showTextToast('체험권 지급에 실패했어요. 다시 시도해주세요.');
+  } finally {
+    _claimingTrialOffer = false;
+  }
+}
+// 프로필 "업그레이드" 버튼을 체험권 미클레임 상태면 "체험하기"로 바꿔치기(새 배너 없이 기존
+// 버튼 재활용). TODO: 실제 조건(캠페인 대상+30일 클레임기한+미클레임 여부 조회) 연결 필요
+// — 지금은 인자로 받은 값 그대로 반영만 함(loadProfileFromDB 등에서 호출 시 채워줄 것).
+function renderProfileUpgradeBtn(eligibleForTrial, claimDeadline) {
+  const btn = document.getElementById('profile-upgrade-btn');
+  const deadlineEl = document.getElementById('profile-upgrade-deadline');
+  if (!btn) return;
+  if (eligibleForTrial) {
+    btn.innerHTML = '체험하기<i data-lucide="chevron-right"></i>';
+    btn.onclick = () => { _playTap(); claimTrialOffer('profile_banner'); };
+    if (deadlineEl && claimDeadline) {
+      deadlineEl.textContent = `1만 다운로드 이벤트 · ${claimDeadline.toLocaleDateString('ko-KR', { month: 'long', day: 'numeric' })}까지`;
+      deadlineEl.hidden = false;
+    }
+  } else {
+    btn.innerHTML = '업그레이드<i data-lucide="chevron-right"></i>';
+    btn.onclick = () => { _playTap(); openPlanModal('profile'); };
+    if (deadlineEl) deadlineEl.hidden = true;
+  }
+  if (typeof lucide !== 'undefined') lucide.createIcons();
+}
+// ⚠ DEV ONLY — 디자인 검토용. 실제 지급 트리거(배포 로직) 아직 없어서 dev빌드에서
+// 홈 진입 시 바로 띄워서 눈으로 확인하기 위한 임시 훅. 출시 전 제거할 것.
+if (typeof APP_VERSION === 'string' && APP_VERSION.includes('_dev')) {
+  window.addEventListener('DOMContentLoaded', () => {
+    setTimeout(openTrialOfferModal, 400);
+    // TODO: 실제 캠페인 마감일(claim_deadline) 서버조회로 교체 — 지금은 오늘+30일로 목업
+    renderProfileUpgradeBtn(true, new Date(Date.now() + 30 * 86400000));
+  });
+}
+
 // ── 사이드바 플랜 배지 ─────────────────────────────────────────
 async function loadProfileFromDB() {
   const PLAN_DESC = {

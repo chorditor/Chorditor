@@ -101,5 +101,115 @@
 
 ## 6. 다음 단계
 
-1. (다른 세션) 이 문서 기반 목업데이터로 3개 카드 UI 완성
+1. ~~(다른 세션) 이 문서 기반 목업데이터로 3개 카드 UI 완성~~ — 완료
+   (Chorditor_dashboard `analytics-projects.html` FN_SECTIONS, 다크모드까지 포함)
 2. (이 세션, Chords_editor) 실제 쿼리/뷰/크론 구현, 위 이벤트 이름·조인 로직 그대로 사용
+   — 아래 §7 참고
+
+## 7. 데이터 수집 구현 계획 (2026-09-10, UI 완료 후 정리)
+
+### 7-1. 지급 대상자 식별 — 별도 테이블 불필요(2026-09-10 재설계로 폐기)
+
+~~`trial_experiment_recipients` 신규 테이블~~ 방식은 "배치 시점 전원 강제지급" 모델
+전제였는데, 2026-09-10에 **"클릭해야만 활성화"** 모델로 재설계되면서 불필요해짐
+(윤리적 이유 — 원치 않는 유저에게 강제로 Pro 적용하는 게 부적절하다는 판단, 아래
+§8 참고). 캠페인 전용 프로모 코드(`10K_TRIAL_7D`, `supabase/trial_experiment_promo_code.sql`)를
+만들어 기존 `redeem_promo_code` RPC로 클레임하는 방식으로 대체 — `promo_redemptions`
+테이블(PK: code+user_id)이 "누가 언제 클레임했는지"를 이미 다 갖고 있고 중복클레임
+방지도 DB 제약으로 자동 처리되므로, 지급 대상자 식별은 그냥:
+
+```sql
+select user_id, redeemed_at from public.promo_redemptions
+where code = '10K_TRIAL_7D';
+```
+
+### 7-2. 정지조건(진행카운터) — 실시간 쿼리로 충분, 별도 테이블 불필요
+
+배치지급이 아니라 **클레임 시점 개인별로 7일 카운트다운이 시작**되므로(§8),
+`subscriptions.promo_expires_at`(다른 프로모션과 공용 컬럼이라 값이 섞일 수 있음)
+대신 이 코드의 `redeemed_at` 기준으로 직접 계산한다:
+
+```sql
+select count(*) from public.promo_redemptions
+where code = '10K_TRIAL_7D'
+  and redeemed_at + interval '7 days' < now();
+```
+
+트래픽 낮고(최대 MAU 7,000명 규모) 300명 도달 여부만 보면 되므로 즉시집계로
+충분 — history 테이블 안 만듦(paywall처럼 장기간 반복집계 필요한 지표가 아님).
+
+### 7-3. 메인퍼널 + 코호트비교 — 일별 스냅샷 테이블 (paywall_path_history 패턴 재사용)
+
+퍼널 4단계(§3-1)와 코호트 3섹션(§3-3, 성별×나이대/페르소나/피크소진구간)을
+매번 실시간 조인하면 무거우므로, `paywall_path_*` 테이블에 썼던 동일 패턴으로
+하루 1회 스냅샷 갱신:
+
+```sql
+create table public.trial_experiment_funnel_daily (
+  day date not null,
+  segment_type text not null,   -- 'overall' | 'gender_age' | 'persona' | 'peak_bucket'
+  segment_key text not null,    -- 'overall' | '여성_20대' | '악보의존' | '2~4회' 등
+  granted int not null,
+  reopened int not null,
+  notice_shown int not null,
+  converted int not null,
+  primary key (day, segment_type, segment_key)
+);
+```
+
+`segment_type='overall'`, `segment_key='overall'` 한 행이 카드1(메인퍼널)이고,
+나머지 `segment_type`이 카드3(코호트비교) 3섹션. 갱신 함수는 delete-then-insert
+패턴(`refresh_paywall_path_history` 참고, upsert만 쓰면 세그먼트 라벨 바뀔 때
+스테일 로우 남는 버그 재발함) + `pg_cron`으로 매일 새벽 스케줄.
+
+### 7-4. 필요 이벤트 — 전부 기존 이벤트, 신규 트래킹 코드 불필요
+
+| 용도 | 이벤트 | 비고 |
+|---|---|---|
+| 재접속 판정 | `app_open` | 기존 |
+| 알림노출 판정 | `promo_expiry_notice_shown` | 기존, `checkPromoExpiryNotice()` |
+| 알림경유 결제판정 | `paywall_viewed` (`trigger_source='promo_expiry_notice'`) | 기존, [[paywall-trigger-sources.md]] |
+| 실결제 판정 | `plan_upgrade_completed` | 기존 |
+| 소진횟수(코호트) | `peak_insufficient`(구버전) + `peak_buffer_shown`(신버전) UNION | 기존 |
+
+즉 **코드 수정 없이 기존 analytics_events만으로 전부 커버됨** — 신규 테이블은
+`trial_experiment_recipients`(폐기, §7-1 참고) 대신 이미 존재하는 `promo_codes`/
+`promo_redemptions`만 있으면 됨.
+
+⚠ **§3-1 메인퍼널 재검토 필요(2026-09-10 재설계 영향)**: 원래 "지급→재접속→알림노출→
+결제" 순서는 배치선지급 전제였음. 지금은 클레임(=지급) 자체가 앱을 이미 켠 상태에서
+3경로(§8) 중 하나로 발생하므로 "지급→재접속" 순서가 안 맞음 — `granted` 필드를
+`claimed`로 바꾸고 1단계를 `promo_redemptions` 기준으로 재정의해야 함. 대시보드
+세션에서 이 문서 다음 갱신 시 반영할 것.
+
+### 7-5. 실행 순서
+
+1. ~~`trial_experiment_recipients` 테이블 생성~~ — 폐기, 불필요
+2. `supabase/trial_experiment_promo_code.sql` 실행 — **실제 배포일에** 실행할 것(expires_at이 `now()+30일`이라 미리 돌리면 클레임 기간이 그만큼 줄어듦, 2026-09-10 확인)
+3. `trial_experiment_funnel_daily` 갱신 함수 + `pg_cron` 등록(위 재검토 반영 후)
+4. `analytics-projects.html`의 `fnRenderTrialExperiment()` 목업 상수(`FUNNEL_VALUES`, `DEMO_FEMALE_PCT` 등)를 실제 REST 조회로 교체 — UI/차트 코드는 그대로 두고 데이터 소스만 스왑
+5. 진행카운터(§7-2)는 그대로 실시간 쿼리 유지
+
+## 8. 2026-09-10 모델 재설계 — 배치선지급 폐기, 클릭식 클레임으로 전환
+
+**배경**: 배치 시점에 전원에게 강제로 Pro를 지급하는 원래 설계는 (a) 정말 원치 않는
+유저에게 강제 적용하는 게 윤리적으로 부적절하고, (b) 클레임하지 않는 자유가 없어서
+"선물"이라는 명분과 안 맞았음.
+
+**바뀐 것**:
+- 지급 메커니즘: 배치 insert → **캠페인 전용 프로모 코드**(`10K_TRIAL_7D`,
+  `supabase/trial_experiment_promo_code.sql`) 클레임. 기존 `redeem_promo_code` RPC
+  그대로 재사용, 중복클레임 방지는 `promo_redemptions` PK가 자동 처리.
+- 활성화(7일 카운트다운 시작) 시점: 배치 실행 시각 → **클레임한 바로 그 순간**
+  (`promo_redemptions.redeemed_at` + `promo_codes.pro_days`). 유저가 언제 업데이트하든
+  본인 기준으로 온전한 7일을 씀.
+- 클레임 경로 3곳(전부 `home.js`의 `claimTrialOffer(source)` 공용 호출, `source`로 구분):
+  1. `modal_cta` — 1만다운로드 안내모달(`trial-offer-overlay`) "7일 체험 시작하기"
+  2. `defer_modal` — "나중에 할래요" 클릭 시 뜨는 재확인모달(`trial-defer-overlay`) "지금 받기"
+  3. `profile_banner` — 프로필 플랜배너의 "업그레이드" 버튼이 미클레임 상태면 "체험하기"로 바뀜(새 배너 아님, 기존 버튼 재활용)
+- 캠페인 자체의 클레임 마감: **30일**(`promo_codes.expires_at`) — 이건 유지, 개인별
+  7일 체험 기간과는 다른 값이니 혼동 금지.
+- 트래킹: `trial_offer_claim_clicked`/`trial_offer_claimed`/`trial_offer_claim_failed`
+  이벤트, `source` 프로퍼티로 3경로 구분.
+
+**영향받는 곳**: §3-1(메인퍼널 재정의 필요, 위 7-4 경고 참고), §7-1/7-2(반영 완료).
