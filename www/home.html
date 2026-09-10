@@ -522,16 +522,21 @@
           <!-- 컨테이너 2: 플랜 배너 -->
           <div class="profile-container profile-container--plan">
             <div class="profile-plan-banner">
-              <div class="profile-plan-left">
+              <div class="profile-plan-row">
                 <span class="profile-plan-label">현재 플랜</span>
-                <span class="profile-plan-name" id="profile-plan-name">Free</span>
-                <span class="profile-plan-expiry" id="profile-plan-expiry" hidden></span>
-                <span class="profile-plan-pending" id="profile-plan-pending" hidden></span>
+                <span class="profile-upgrade-deadline" id="profile-upgrade-deadline" hidden></span>
               </div>
-              <button class="profile-upgrade-btn" onclick="_playTap();openPlanModal('profile')">
-                업그레이드
-                <i data-lucide="chevron-right"></i>
-              </button>
+              <div class="profile-plan-row">
+                <div class="profile-plan-left">
+                  <span class="profile-plan-name" id="profile-plan-name">Free</span>
+                  <span class="profile-plan-expiry" id="profile-plan-expiry" hidden></span>
+                  <span class="profile-plan-pending" id="profile-plan-pending" hidden></span>
+                </div>
+                <button class="profile-upgrade-btn" id="profile-upgrade-btn" onclick="_playTap();openPlanModal('profile')">
+                  업그레이드
+                  <i data-lucide="chevron-right"></i>
+                </button>
+              </div>
             </div>
           </div>
 
@@ -1002,6 +1007,31 @@
       <h3 class="event-modal-title" id="promo-expiry-modal-title"></h3>
       <p class="event-modal-message" id="promo-expiry-modal-message"></p>
       <button class="event-modal-btn" onclick="promoExpiryUpgrade()">업그레이드</button>
+    </div>
+  </div>
+
+  <!-- ── 7일 체험권 안내 모달 (1만 다운로드 기념, cd-modal 스타일3 — docs/style-guide.md §15) ── -->
+  <div class="modal-overlay hidden" id="trial-offer-overlay">
+    <div class="cd-modal" onclick="event.stopPropagation()">
+      <img src="image/gift.png" alt="" class="trial-offer-modal-logo">
+      <div class="cd-modal-title trial-offer-modal-title">1만 다운로드 감사 선물</div>
+      <div class="cd-modal-desc trial-offer-modal-desc">많은 분들이 코디터와 함께해주셔서<br>감사의 마음을 담아 <span class="trial-offer-modal-highlight">Pro 7일</span> 체험권을 드립니다!<br>앞으로도 코디터와 함께 성장해나가요!</div>
+      <div class="cd-modal-actions cd-modal-actions--col">
+        <button class="cd-btn cd-btn--brand" onclick="closeTrialOfferModal(); claimTrialOffer('modal_cta');">7일 체험 시작하기</button>
+        <button class="cd-btn cd-btn--gray" onclick="deferTrialOffer()">나중에 할래요</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── "나중에 할래요" 재확인 모달 — cd-modal 스타일1(§15), 버튼 2개(재고 유도 + 보류확정) ── -->
+  <div class="modal-overlay hidden" id="trial-defer-overlay">
+    <div class="cd-modal" onclick="event.stopPropagation()">
+      <div class="cd-modal-title trial-offer-modal-title">정말 나중에 받으실래요?</div>
+      <div class="cd-modal-desc">프로필 탭에서 30일 안에<br>언제든 받을 수 있어요.</div>
+      <div class="cd-modal-actions">
+        <button class="cd-btn cd-btn--red" onclick="closeTrialDeferModal()">나중에 받기</button>
+        <button class="cd-btn cd-btn--brand" onclick="closeTrialDeferModal(); claimTrialOffer('defer_modal');">지금 받기</button>
+      </div>
     </div>
   </div>
 

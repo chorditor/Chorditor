@@ -3470,6 +3470,13 @@ canvas {
 .cd-modal-actions .cd-btn { flex: 1; width: auto; } /* 가로배치: cd-btn 기본 고정폭 대신 폭을 나눠 채움 */
 .cd-modal-actions--col .cd-btn { flex: none; width: 100%; } /* 세로배치: flex:1은 높이를 늘려버려서 별도로 폭만 100% */
 
+/* 2026-09-10: 7일 체험권 모달 전용 — cd-modal 표준엔 없는 상단 로고 아이콘.
+   이 모달만의 예외라 컴포넌트 자체(§15)엔 반영 안 함, style.css에도 이 한 곳에만 정의 */
+.trial-offer-modal-logo { width: 64px; height: 64px; object-fit: contain; margin-bottom: 12px; } /* tutorial-start-logo와 동일 컨벤션(투명배경 일러스트라 radius/배경 불필요) */
+.trial-offer-modal-title { font-size: 20px; margin-bottom: 16px; } /* cd-modal-title 기본 17px→20px, 하단여백도 8px→16px(§3 --space-4)로 넓힘 */
+.trial-offer-modal-desc  { font-size: 14px; } /* cd-modal-desc 기본 13px에서 한 단계 위(§2 Body-sm→Body) */
+.trial-offer-modal-highlight { color: var(--blue); font-weight: 700; }
+
 .modal-header {
   display: flex;
   align-items: center;
@@ -10732,13 +10739,20 @@ canvas {
 
 .profile-plan-banner {
   display: flex;
-  align-items: center;
-  justify-content: space-between;
+  flex-direction: column; /* 2026-09-10: 라벨행/값행 2줄로 분리 — 각 행 안에서 좌우 정렬해서
+    "현재 플랜"과 만료일라벨, "Free"와 업그레이드버튼이 각각 같은 행 기준으로 정렬됨 */
+  gap: 8px;
   background: #fff;
   border-radius: var(--radius);
   padding: 20px;
-  gap: 12px;
   box-shadow: 0 1px 4px rgba(0,0,0,0.06);
+}
+
+.profile-plan-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
 }
 
 .profile-plan-left {
@@ -10790,6 +10804,9 @@ canvas {
   white-space: nowrap;
   flex-shrink: 0;
 }
+
+/* 2026-09-10: "체험하기" 상태일 때 라벨행 우측에 이벤트 마감일 표기 */
+.profile-upgrade-deadline { font-size: 12px; font-weight: 500; color: var(--text-muted); white-space: nowrap; }
 .profile-upgrade-btn svg { width: 14px; height: 14px; }
 
 .profile-section-label {
