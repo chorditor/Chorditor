@@ -5,7 +5,7 @@
 function dmGateStart() {
   _playTap();
   _playConfirmSfx();
-  if (typeof analytics !== 'undefined') analytics.track('daily_mission_gate_start', {});
+  if (typeof analytics !== 'undefined') analytics.track('daily_mission_gate_start', { persona: getUserPersona() });
   // 사운드가 실제로 들리기 전에 페이지 이동이 끊어버리는 걸 방지 — 짧게 지연 후 이동
   setTimeout(() => { location.href = 'mission-session.html'; }, 150);
 }
@@ -48,7 +48,7 @@ async function _dmLoadNickname() {
 
 function dmGateLater() {
   _playTap();
-  if (typeof analytics !== 'undefined') analytics.track('daily_mission_gate_skipped', {});
+  if (typeof analytics !== 'undefined') analytics.track('daily_mission_gate_skipped', { persona: getUserPersona() });
   const today = new Date().toISOString().slice(0, 10);
   localStorage.setItem('chorditor_dm_cleared_date', today);
   location.href = 'home.html';
@@ -69,7 +69,7 @@ document.addEventListener('DOMContentLoaded', () => {
     location.href = _dmTodayResultSeen() ? 'home.html' : 'mission-session.html';
     return;
   }
-  if (typeof analytics !== 'undefined') analytics.track('daily_mission_gate_viewed', {});
+  if (typeof analytics !== 'undefined') analytics.track('daily_mission_gate_viewed', { persona: getUserPersona() });
   lucide.createIcons();
   positionDmGateGradient();
   _dmLoadNickname();

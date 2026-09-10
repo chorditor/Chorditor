@@ -117,7 +117,7 @@ function _msTrackStage(stage) {
   _msLastStage = stage;
   if (_msStageTracked.has(stage)) return; // 같은 단계 중복진입(리뷰 등) 방지
   _msStageTracked.add(stage);
-  if (typeof analytics !== 'undefined') analytics.track('daily_mission_stage_entered', { stage });
+  if (typeof analytics !== 'undefined') analytics.track('daily_mission_stage_entered', { stage, persona: MS_PERSONA.id });
 }
 
 // 이탈 로그(daily_mission_abandoned)는 아래 _msSendAbandonLogs()에서 승급시험분과 함께 처리.
@@ -154,7 +154,7 @@ function _msSendAbandonLogs() {
 
   let sent = false;
   if (!_msResultReached && _msLastStage) {
-    analytics.track('daily_mission_abandoned', { last_stage: _msLastStage });
+    analytics.track('daily_mission_abandoned', { last_stage: _msLastStage, persona: MS_PERSONA.id });
     sent = true;
   }
   if (_msPromoActive && _msPromoLastStage) {

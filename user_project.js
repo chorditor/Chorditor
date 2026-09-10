@@ -392,8 +392,8 @@ function closeNoteSaveChoice() {
 }
 
 // 프리미엄 게이트: 앱 공용 요금제 바텀시트 오픈
+// openPlanSheet() 내부에서 이미 paywall_viewed를 트래킹하므로 여기서 중복 트래킹하지 않는다.
 function _noteSaveGate() {
-  analytics.track('paywall_viewed', { trigger_source: 'note_save', current_plan: 'free' });
   openPlanSheet('note_save');
 }
 

@@ -2070,9 +2070,10 @@ function updateExportScaleOptions() {
 }
 
 // ── 요금제 바텀시트 열기 ──────────────────────────────────────
-function openPlanModal() {
-  analytics.track('paywall_viewed', { trigger_source: 'profile', current_plan: getPlan() });
-  openPlanSheet('profile');
+// source: 'profile'(프로필 화면 자발적 클릭) / 'note_limit'(노트 한도 강제유도, 화면이동 없음)
+// openPlanSheet() 내부에서 이미 paywall_viewed를 트래킹하므로 여기서 중복 트래킹하지 않는다.
+function openPlanModal(source) {
+  openPlanSheet(source || 'profile');
 }
 
 // ── 업그레이드 유도 모달 ───────────────────────────────────────
@@ -3081,7 +3082,7 @@ async function promptCreateProject() {
       current_count: loadProjects().length,
       plan_limit: getPlanLimit('maxProjects'),
     });
-    openPlanModal();
+    openPlanModal('note_limit');
     return;
   }
   const input = document.getElementById('create-project-name-input');
@@ -3098,7 +3099,7 @@ function confirmCreateProject() {
   if (!name) { input.focus(); return; }
   if (!canCreateProject()) {
     closeModal('modal-create-project');
-    openPlanModal();
+    openPlanModal('note_limit');
     return;
   }
 

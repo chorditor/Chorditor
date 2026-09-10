@@ -227,7 +227,7 @@ function _lwBuildDetailShell() {
     const cfg = LEVEL_CONFIGS[_lwRealIdx];
     // 프리미엄 체크 먼저 — locked여도 플랜 시트 노출
     if (cfg.premium && getPlan() === 'free') {
-      analytics.track('paywall_viewed', { trigger_source: 'quiz_level', current_plan: 'free' });
+      // openPlanSheet() 내부에서 이미 paywall_viewed를 트래킹하므로 여기서 중복 트래킹하지 않는다.
       openPlanSheet('quiz_level');
       return;
     }
@@ -2256,7 +2256,7 @@ function closeResultModal() {
 }
 
 async function retryFromResult() {
-  if (!(await consumePeak(_quizPeakCost(_currentLevel)))) return;
+  if (!(await consumePeak(_quizPeakCost(_currentLevel), 'quiz'))) return;
   _playConfirmSfx();
   analytics.track('quiz_retried', { level_id: _currentLevel, mode: _currentMode });
   hideResultModal();
@@ -2420,7 +2420,7 @@ function _quizPeakCost(levelId) {
 // 모드 선택 → 퀴즈 시작
 async function startQuiz(mode) {
   if (mode !== 'name-from-diagram' && mode !== 'diagram-from-name') return;
-  if (!(await consumePeak(_quizPeakCost(_currentLevel)))) return;
+  if (!(await consumePeak(_quizPeakCost(_currentLevel), 'quiz'))) return;
   analytics.track('quiz_mode_selected', { level_id: _currentLevel, mode });
   _currentMode = mode;
   _currentView = 'quiz';

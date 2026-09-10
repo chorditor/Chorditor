@@ -255,7 +255,7 @@ window._clearLeaveGuard = () => { if (_prog?.id) sessionStorage.removeItem(`pd_u
 async function unlockPractice() {
   _playConfirmSfx();
   if (_practiceUnlocked) return;
-  if (!(await consumePeak(2))) return;
+  if (!(await consumePeak(2, 'progression'))) return;
   _practiceUnlocked = true;
   if (_prog?.id) sessionStorage.setItem(`pd_unlock_${_prog.id}`, '1'); // 새로고침해도 유지(새로고침은 이탈이 아님)
   const gate = document.getElementById('detail-practice-gate');
