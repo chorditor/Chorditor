@@ -63,6 +63,8 @@ drop function if exists public.get_broadcast_targets(text);
 -- 캠페인 대상 조회: 토큰 있는 유저 중 min_version_exclude 버전이 아닌(또는 버전 미확인) 유저,
 -- 그리고 이 캠페인(p_broadcast_id)으로 이미 push_send_log에 발송기록 남은 유저는 제외
 -- (배치 재개 시 중복발송 방지). p_limit로 배치 크기 제한.
+-- 2026-09-10: 결제 Pro / 유효 프로모 Pro 유저는 전 브로드캐스트에서 제외
+-- (프로모/선물성 공지가 대부분이라 이미 Pro인 유저에겐 뜬금없음. 공용 함수라 앞으로도 적용됨).
 create or replace function public.get_broadcast_targets(
   p_min_version_exclude text default null,
   p_broadcast_id bigint default null,
@@ -82,6 +84,8 @@ as $$
   left join public.subscriptions sub on sub.user_id = pt.user_id
   where (p_min_version_exclude is null
      or sub.app_version is distinct from p_min_version_exclude)
+    and coalesce(sub.plan, 'free') <> 'pro'
+    and not (sub.promo_plan = 'pro' and sub.promo_expires_at > now())
     and not exists (
       select 1 from public.push_send_log l
       where l.user_id = pt.user_id
