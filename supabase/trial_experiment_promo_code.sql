@@ -8,7 +8,13 @@
 --   expires_at = 클레임 마감(30일, 캠페인 공지 시점 기준) — pro_days(7, 받은 뒤 실제
 --   체험 기간)와는 다른 값이니 혼동 주의.
 --
---   Supabase SQL Editor에서 1회 실행. 실제 배포 시점에 맞춰 expires_at 재확인할 것.
+--   ── 실행 흐름 (pre 테스트 → 프로덕션) ──────────────────────
+--   1. pre 실기기 테스트용: 아래 insert를 그대로 실행(expires_at = now()+2일, 짧게).
+--   2. 프로덕션 배포일: on conflict do nothing 이라 insert 재실행으론 안 바뀜.
+--      아래 UPDATE 문으로 마감일을 30일로 다시 세팅해야 캠페인 실제 시작:
+--        update public.promo_codes
+--        set expires_at = now() + interval '30 days', active = true
+--        where code = '10K_TRIAL_7D';
 -- ───────────────────────────────────────────────────────────
 
 insert into public.promo_codes (code, peakbox_amount, pro_days, max_uses, expires_at, active, memo)
@@ -17,7 +23,7 @@ values (
   0,
   7,
   null,                              -- 수량 무제한(MAU 전원 대상)
-  now() + interval '30 days',        -- 클레임 마감 — docs/trial-experiment-dashboard-plan.md §2 참고
+  now() + interval '2 days',         -- pre 테스트용 짧은 마감. 프로덕션 배포일에 UPDATE로 30일 재설정(위 주석)
   true,
   '1만 다운로드 기념 7일 체험권 (2026-09 캠페인)'
 )
