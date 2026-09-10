@@ -33,6 +33,7 @@ alter table public.trial_experiment_funnel_daily enable row level security;
 
 revoke select on public.trial_experiment_funnel_daily from anon, authenticated;
 
+drop policy if exists trial_experiment_funnel_daily_select_admin on public.trial_experiment_funnel_daily;
 create policy trial_experiment_funnel_daily_select_admin
   on public.trial_experiment_funnel_daily
   for select
@@ -143,6 +144,28 @@ end;
 $$;
 
 grant execute on function public.refresh_trial_experiment_funnel() to service_role;
+
+-- ── 진행카운터(§7-2) — 만료자 수 하나만 반환. 대시보드 프로그레스바 "N / 300" 용 ──
+-- 개인별 카운트다운(redeemed_at + 7일)이라 promo_redemptions 기준으로 직접 계산.
+create or replace function public.trial_experiment_progress()
+returns int
+language sql
+security definer
+set search_path = public
+as $$
+  select case
+    when auth.uid() = '670dccca-b0bc-4ffa-9eb2-07380dcea27e' then (
+      select count(*)::int
+      from public.promo_redemptions
+      where code = '10K_TRIAL_7D'
+        and redeemed_at + interval '7 days' < now()
+    )
+    else null
+  end;
+$$;
+
+-- 대시보드는 admin uid 로그인 상태로 호출. 그 외 유저는 null 반환(함수 내부에서 uid 체크).
+grant execute on function public.trial_experiment_progress() to authenticated;
 
 -- 최초 1회 즉시 채우기
 select public.refresh_trial_experiment_funnel();
