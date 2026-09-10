@@ -4837,6 +4837,10 @@ function initPushNotifications() {
     } else if (data.winback != null) {
       setEntry('winback');
       if (!/home\.html/.test(location.pathname)) go('home.html');
+    } else if (data.entry === 'trial_expiry') {
+      // 체험권 만료 리마인드 — 홈으로 보내면 checkPromoExpiryNotice()가 "N일 남음" 모달을 띄움
+      setEntry('trial_expiry');
+      if (!/home\.html/.test(location.pathname)) go('home.html');
     }
   });
 

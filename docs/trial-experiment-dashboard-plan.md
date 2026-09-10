@@ -138,57 +138,51 @@ where code = '10K_TRIAL_7D'
 트래픽 낮고(최대 MAU 7,000명 규모) 300명 도달 여부만 보면 되므로 즉시집계로
 충분 — history 테이블 안 만듦(paywall처럼 장기간 반복집계 필요한 지표가 아님).
 
-### 7-3. 메인퍼널 + 코호트비교 — 일별 스냅샷 테이블 (paywall_path_history 패턴 재사용)
+### 7-3. 메인퍼널 + 코호트비교 — 일별 스냅샷 테이블 (구현 완료, 2026-09-11)
 
-퍼널 4단계(§3-1)와 코호트 3섹션(§3-3, 성별×나이대/페르소나/피크소진구간)을
-매번 실시간 조인하면 무거우므로, `paywall_path_*` 테이블에 썼던 동일 패턴으로
-하루 1회 스냅샷 갱신:
+`supabase/trial_experiment_funnel.sql` — `trial_experiment_funnel_daily` 테이블 +
+`refresh_trial_experiment_funnel()` 함수 + admin uid RLS. 크론은
+`supabase/trial_experiment_funnel_cron.sql`(매일 05:10 KST, 순수 SQL 함수라
+Edge Function 불필요).
 
-```sql
-create table public.trial_experiment_funnel_daily (
-  day date not null,
-  segment_type text not null,   -- 'overall' | 'gender_age' | 'persona' | 'peak_bucket'
-  segment_key text not null,    -- 'overall' | '여성_20대' | '악보의존' | '2~4회' 등
-  granted int not null,
-  reopened int not null,
-  notice_shown int not null,
-  converted int not null,
-  primary key (day, segment_type, segment_key)
-);
-```
+퍼널 4단계(§8 재설계 반영 — `granted`→`claimed`):
 
-`segment_type='overall'`, `segment_key='overall'` 한 행이 카드1(메인퍼널)이고,
-나머지 `segment_type`이 카드3(코호트비교) 3섹션. 갱신 함수는 delete-then-insert
-패턴(`refresh_paywall_path_history` 참고, upsert만 쓰면 세그먼트 라벨 바뀔 때
-스테일 로우 남는 버그 재발함) + `pg_cron`으로 매일 새벽 스케줄.
+| 필드 | 정의 |
+|---|---|
+| `claimed` | `promo_redemptions`(code=`10K_TRIAL_7D`) 행 수 (= 지급 = 활성화, 한 이벤트) |
+| `reopened` | 클레임 후 `app_open` 1회 이상(체험을 실제로 열어봄) |
+| `notice_shown` | 클레임 후 `promo_expiry_notice_shown`(만료 하루전 인앱 모달) |
+| `converted` | 클레임 후 `plan_upgrade_completed` **AND** `paywall_viewed(trigger_source='promo_expiry_notice')` (알림경유 결제, §3-1 B안) |
 
-### 7-4. 필요 이벤트 — 전부 기존 이벤트, 신규 트래킹 코드 불필요
+`segment_type`: `overall`(카드1 메인퍼널) / `gender` / `age`(10살단위) /
+`persona`(user_persona_profile) / `peak_bucket`(클레임 이전 `peak_insufficient`+
+`peak_buffer_shown` 횟수: `0회`/`1~4회`/`5~9회`/`10회+`) — 뒤 4개가 카드3 코호트비교.
+
+⚠ **§3-1의 "지급→재접속" 순서는 배치선지급 전제라 폐기됨.** 위 표가 최종 정의.
+클릭식 모델에선 클레임 자체가 앱을 켠 상태에서 일어나므로 "재접속"은 1단계가 아니라
+"체험을 실제로 써봤나"를 보는 2단계 지표로 의미가 바뀜.
+
+### 7-4. 필요 이벤트
 
 | 용도 | 이벤트 | 비고 |
 |---|---|---|
+| 안내모달 노출 | `trial_offer_modal_shown` | **신규**(2026-09-11, `maybeShowTrialOfferModal()`) |
+| 클레임 클릭/성공/실패 | `trial_offer_claim_clicked` / `trial_offer_claimed` / `trial_offer_claim_failed` | **신규**, `source` 프로퍼티로 3경로 구분(§8) |
 | 재접속 판정 | `app_open` | 기존 |
 | 알림노출 판정 | `promo_expiry_notice_shown` | 기존, `checkPromoExpiryNotice()` |
 | 알림경유 결제판정 | `paywall_viewed` (`trigger_source='promo_expiry_notice'`) | 기존, [[paywall-trigger-sources.md]] |
 | 실결제 판정 | `plan_upgrade_completed` | 기존 |
 | 소진횟수(코호트) | `peak_insufficient`(구버전) + `peak_buffer_shown`(신버전) UNION | 기존 |
 
-즉 **코드 수정 없이 기존 analytics_events만으로 전부 커버됨** — 신규 테이블은
-`trial_experiment_recipients`(폐기, §7-1 참고) 대신 이미 존재하는 `promo_codes`/
-`promo_redemptions`만 있으면 됨.
-
-⚠ **§3-1 메인퍼널 재검토 필요(2026-09-10 재설계 영향)**: 원래 "지급→재접속→알림노출→
-결제" 순서는 배치선지급 전제였음. 지금은 클레임(=지급) 자체가 앱을 이미 켠 상태에서
-3경로(§8) 중 하나로 발생하므로 "지급→재접속" 순서가 안 맞음 — `granted` 필드를
-`claimed`로 바꾸고 1단계를 `promo_redemptions` 기준으로 재정의해야 함. 대시보드
-세션에서 이 문서 다음 갱신 시 반영할 것.
-
 ### 7-5. 실행 순서
 
 1. ~~`trial_experiment_recipients` 테이블 생성~~ — 폐기, 불필요
-2. `supabase/trial_experiment_promo_code.sql` 실행 — **실제 배포일에** 실행할 것(expires_at이 `now()+30일`이라 미리 돌리면 클레임 기간이 그만큼 줄어듦, 2026-09-10 확인)
-3. `trial_experiment_funnel_daily` 갱신 함수 + `pg_cron` 등록(위 재검토 반영 후)
-4. `analytics-projects.html`의 `fnRenderTrialExperiment()` 목업 상수(`FUNNEL_VALUES`, `DEMO_FEMALE_PCT` 등)를 실제 REST 조회로 교체 — UI/차트 코드는 그대로 두고 데이터 소스만 스왑
-5. 진행카운터(§7-2)는 그대로 실시간 쿼리 유지
+2. `supabase/trial_offer_status.sql` 실행 — eligibility 조회 RPC(지금 실행해도 무해, 코드 없으면 항상 eligible:false) ✅ 완료
+3. `supabase/trial_experiment_funnel.sql` + `trial_experiment_funnel_cron.sql` 실행 — 스냅샷 테이블/함수/크론
+4. `supabase/push_trial_expiry.sql` → push-trial-expiry Edge Function 배포 → `push_cron_trial_expiry.sql` (6일차 리마인드 푸시) ✅ 완료
+5. **실제 배포일에**: `supabase/trial_experiment_promo_code.sql` 실행 — `expires_at`이 `now()+30일`이라 미리 돌리면 클레임 기간이 그만큼 줄어듦
+6. (대시보드 세션) `analytics-projects.html`의 `fnRenderTrialExperiment()` 목업 상수를 `trial_experiment_funnel_daily` REST 조회로 교체, 진행카운터(§7-2)는 실시간 쿼리
+7. 앱 빌드/배포 (`1.3.5.5` — DEV 훅 없음, `APP_VERSION` `_dev` 제거)
 
 ## 8. 2026-09-10 모델 재설계 — 배치선지급 폐기, 클릭식 클레임으로 전환
 

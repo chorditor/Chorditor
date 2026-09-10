@@ -1955,6 +1955,7 @@ async function checkAndShowNotice() {
     const notices = noticesResp.ok ? await noticesResp.json() : [];
     // 노출할 공지 없으면 이벤트 보상 모달 → 없으면 리뷰 유도 모달 시도 (안전 시점)
     if (!notices?.length) {
+      if (typeof maybeShowTrialOfferModal === 'function' && await maybeShowTrialOfferModal()) return;
       if (typeof checkPromoExpiryNotice === 'function' && checkPromoExpiryNotice()) return;
       if (typeof checkEventThanks130 === 'function' && await checkEventThanks130()) return;
       if (typeof reviewMaybeShow === 'function') reviewMaybeShow();
@@ -2164,6 +2165,7 @@ async function claimTrialOffer(source) {
       return;
     }
     analytics.track('trial_offer_claimed', { source: source || 'unknown' });
+    _trialOfferStatusCache = null; // 클레임했으니 캐시 무효화 → 다음 조회 시 eligible:false
     if (r.pro_days > 0 && !r.pending) {
       setPlan('pro');
       await refreshPromoUntil();
@@ -2177,9 +2179,26 @@ async function claimTrialOffer(source) {
     _claimingTrialOffer = false;
   }
 }
+// 캠페인 노출 대상 여부 조회 — trial_offer_status RPC(supabase/trial_offer_status.sql).
+// { eligible, deadline } 반환. 세션 내 1회 캐시(홈 재진입마다 왕복 안 하도록).
+// 클레임 성공/실패 후엔 _trialOfferStatusCache=null 로 무효화하고 다시 부른다.
+let _trialOfferStatusCache;
+async function _trialOfferStatus(force) {
+  if (!force && _trialOfferStatusCache !== undefined) return _trialOfferStatusCache;
+  const r = await _peakRpc('trial_offer_status', {});
+  _trialOfferStatusCache = r && typeof r.eligible === 'boolean'
+    ? { eligible: r.eligible, deadline: r.deadline ? new Date(r.deadline) : null }
+    : { eligible: false, deadline: null };
+  return _trialOfferStatusCache;
+}
+// 프로필 "체험하기"/"업그레이드" 버튼 상태를 서버 판단대로 갱신 — loadProfileFromDB 끝에서 호출.
+async function refreshTrialOfferUI() {
+  const st = await _trialOfferStatus();
+  renderProfileUpgradeBtn(st.eligible, st.deadline);
+  return st;
+}
 // 프로필 "업그레이드" 버튼을 체험권 미클레임 상태면 "체험하기"로 바꿔치기(새 배너 없이 기존
-// 버튼 재활용). TODO: 실제 조건(캠페인 대상+30일 클레임기한+미클레임 여부 조회) 연결 필요
-// — 지금은 인자로 받은 값 그대로 반영만 함(loadProfileFromDB 등에서 호출 시 채워줄 것).
+// 버튼 재활용). eligibleForTrial/claimDeadline은 refreshTrialOfferUI()가 채워준다.
 function renderProfileUpgradeBtn(eligibleForTrial, claimDeadline) {
   const btn = document.getElementById('profile-upgrade-btn');
   const deadlineEl = document.getElementById('profile-upgrade-deadline');
@@ -2198,14 +2217,18 @@ function renderProfileUpgradeBtn(eligibleForTrial, claimDeadline) {
   }
   if (typeof lucide !== 'undefined') lucide.createIcons();
 }
-// ⚠ DEV ONLY — 디자인 검토용. 실제 지급 트리거(배포 로직) 아직 없어서 dev빌드에서
-// 홈 진입 시 바로 띄워서 눈으로 확인하기 위한 임시 훅. 출시 전 제거할 것.
-if (typeof APP_VERSION === 'string' && APP_VERSION.includes('_dev')) {
-  window.addEventListener('DOMContentLoaded', () => {
-    setTimeout(openTrialOfferModal, 400);
-    // TODO: 실제 캠페인 마감일(claim_deadline) 서버조회로 교체 — 지금은 오늘+30일로 목업
-    renderProfileUpgradeBtn(true, new Date(Date.now() + 30 * 86400000));
-  });
+// 1만다운로드 안내모달 최초 1회 노출 — 홈 진입 공지체인(checkAndShowNotice)에서 호출.
+// eligible한 대상에게 딱 한 번만 띄우고, 이후엔 프로필 "체험하기" 버튼으로만 접근.
+// "나중에"로 닫든 그냥 닫든 다시 안 뜸(완전 1회). localStorage 플래그로 기억.
+const _TRIAL_OFFER_SEEN_KEY = 'chorditor_trial_offer_seen';
+async function maybeShowTrialOfferModal() {
+  try { if (localStorage.getItem(_TRIAL_OFFER_SEEN_KEY)) return false; } catch (_) {}
+  const st = await _trialOfferStatus().catch(() => null);
+  if (!st?.eligible) return false;
+  try { localStorage.setItem(_TRIAL_OFFER_SEEN_KEY, '1'); } catch (_) {}
+  analytics.track('trial_offer_modal_shown', {}); // 퍼널 1단계(노출) — 대시보드 §7-3
+  openTrialOfferModal();
+  return true;
 }
 
 // ── 사이드바 플랜 배지 ─────────────────────────────────────────
@@ -2369,6 +2392,9 @@ async function loadProfileFromDB() {
   } catch(e) {
     console.warn('[Profile] catch:', e);
   }
+
+  // 체험권 캠페인 노출 대상이면 "업그레이드"→"체험하기"로 (독립 조회, 실패해도 무시)
+  refreshTrialOfferUI().catch(() => {});
 }
 
 function renderPlanBadge() {
