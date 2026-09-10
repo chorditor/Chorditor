@@ -85,7 +85,7 @@ as $$
   where (p_min_version_exclude is null
      or sub.app_version is distinct from p_min_version_exclude)
     and coalesce(sub.plan, 'free') <> 'pro'
-    and not (sub.promo_plan = 'pro' and sub.promo_expires_at > now())
+    and not coalesce(sub.promo_plan = 'pro' and sub.promo_expires_at > now(), false)
     and not exists (
       select 1 from public.push_send_log l
       where l.user_id = pt.user_id
