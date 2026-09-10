@@ -1955,6 +1955,7 @@ async function checkAndShowNotice() {
     const notices = noticesResp.ok ? await noticesResp.json() : [];
     // 노출할 공지 없으면 이벤트 보상 모달 → 없으면 리뷰 유도 모달 시도 (안전 시점)
     if (!notices?.length) {
+      if (typeof maybeShowTrialOfferModal === 'function' && await maybeShowTrialOfferModal()) return;
       if (typeof checkPromoExpiryNotice === 'function' && checkPromoExpiryNotice()) return;
       if (typeof checkEventThanks130 === 'function' && await checkEventThanks130()) return;
       if (typeof reviewMaybeShow === 'function') reviewMaybeShow();
@@ -2106,6 +2107,128 @@ function showUpgradeModal(reason) {
 
 function closeUpgradeModal() {
   document.getElementById('upgrade-modal-overlay').classList.add('hidden');
+}
+
+// ── 7일 체험권 안내 모달 (1만 다운로드 기념) — cd-modal 스타일3, scale-training.js
+// closeTutorialEntryModal()과 동일한 등장/퇴장 애니메이션 패턴 ──
+function openTrialOfferModal() {
+  const ov = document.getElementById('trial-offer-overlay');
+  if (!ov) return;
+  ov.classList.remove('hidden');
+  requestAnimationFrame(() => requestAnimationFrame(() => {
+    ov.querySelector('.cd-modal')?.classList.add('cd-modal--in');
+  }));
+}
+function closeTrialOfferModal() {
+  const ov = document.getElementById('trial-offer-overlay');
+  if (!ov) return;
+  ov.classList.add('hidden');
+  ov.querySelector('.cd-modal')?.classList.remove('cd-modal--in');
+}
+// "나중에 할래요" — 체험권 모달 닫고, 프로필에서 언제든 받을 수 있다는 안내 모달로 이어짐
+function deferTrialOffer() {
+  closeTrialOfferModal();
+  const ov = document.getElementById('trial-defer-overlay');
+  if (!ov) return;
+  ov.classList.remove('hidden');
+  requestAnimationFrame(() => requestAnimationFrame(() => {
+    ov.querySelector('.cd-modal')?.classList.add('cd-modal--in');
+  }));
+}
+function closeTrialDeferModal() {
+  const ov = document.getElementById('trial-defer-overlay');
+  if (!ov) return;
+  ov.classList.add('hidden');
+  ov.querySelector('.cd-modal')?.classList.remove('cd-modal--in');
+}
+// 1만다운로드 체험권 캠페인 고정 코드 — supabase/trial_experiment_promo_code.sql 참고.
+// 유저가 입력하는 게 아니라 클라이언트가 이 값으로 redeem_promo_code를 직접 호출한다.
+const TRIAL_OFFER_PROMO_CODE = '10K_TRIAL_7D';
+
+// 모달 CTA/재확인모달/프로필 "체험하기" 버튼 공용 — 클릭해야만 실제로 활성화됨(강제 지급
+// 아님, 거절/보류 가능). source: 'modal_cta' | 'defer_modal' | 'profile_banner' — 3경로
+// 구분용 트래킹. 기존 submitProfileCode()와 동일한 redeem_promo_code RPC 재사용 —
+// promo_redemptions PK(code,user_id)가 "1인 1회"를 DB 제약으로 이미 보장하므로
+// 중복클레임 방지 로직을 따로 안 짜도 됨.
+let _claimingTrialOffer = false;
+async function claimTrialOffer(source) {
+  if (_claimingTrialOffer) return;
+  analytics.track('trial_offer_claim_clicked', { source: source || 'unknown' });
+  _claimingTrialOffer = true;
+  try {
+    const r = await _peakRpc('redeem_promo_code', { p_code: TRIAL_OFFER_PROMO_CODE });
+    if (!r || !r.ok) {
+      const reason = r?.reason;
+      analytics.track('trial_offer_claim_failed', { source: source || 'unknown', reason: reason || 'unknown' });
+      // already = 이미 이 기기/계정으로 받은 적 있음(정상 케이스로 취급, 에러톤 안 씀)
+      showTextToast(reason === 'already' ? '이미 받은 체험권이에요.' : '체험권 지급에 실패했어요. 다시 시도해주세요.');
+      return;
+    }
+    analytics.track('trial_offer_claimed', { source: source || 'unknown' });
+    _trialOfferStatusCache = null; // 클레임했으니 캐시 무효화 → 다음 조회 시 eligible:false
+    if (r.pro_days > 0 && !r.pending) {
+      setPlan('pro');
+      await refreshPromoUntil();
+    }
+    await loadProfileFromDB(); // 플랜배너를 서버기준으로 다시 그림(체험하기→업그레이드로 복귀 포함)
+    if (typeof renderPeakBadge === 'function') renderPeakBadge();
+    if (typeof showPromoProModal === 'function') showPromoProModal(r);
+  } catch (e) {
+    showTextToast('체험권 지급에 실패했어요. 다시 시도해주세요.');
+  } finally {
+    _claimingTrialOffer = false;
+  }
+}
+// 캠페인 노출 대상 여부 조회 — trial_offer_status RPC(supabase/trial_offer_status.sql).
+// { eligible, deadline } 반환. 세션 내 1회 캐시(홈 재진입마다 왕복 안 하도록).
+// 클레임 성공/실패 후엔 _trialOfferStatusCache=null 로 무효화하고 다시 부른다.
+let _trialOfferStatusCache;
+async function _trialOfferStatus(force) {
+  if (!force && _trialOfferStatusCache !== undefined) return _trialOfferStatusCache;
+  const r = await _peakRpc('trial_offer_status', {});
+  _trialOfferStatusCache = r && typeof r.eligible === 'boolean'
+    ? { eligible: r.eligible, deadline: r.deadline ? new Date(r.deadline) : null }
+    : { eligible: false, deadline: null };
+  return _trialOfferStatusCache;
+}
+// 프로필 "체험하기"/"업그레이드" 버튼 상태를 서버 판단대로 갱신 — loadProfileFromDB 끝에서 호출.
+async function refreshTrialOfferUI() {
+  const st = await _trialOfferStatus();
+  renderProfileUpgradeBtn(st.eligible, st.deadline);
+  return st;
+}
+// 프로필 "업그레이드" 버튼을 체험권 미클레임 상태면 "체험하기"로 바꿔치기(새 배너 없이 기존
+// 버튼 재활용). eligibleForTrial/claimDeadline은 refreshTrialOfferUI()가 채워준다.
+function renderProfileUpgradeBtn(eligibleForTrial, claimDeadline) {
+  const btn = document.getElementById('profile-upgrade-btn');
+  const deadlineEl = document.getElementById('profile-upgrade-deadline');
+  if (!btn) return;
+  if (eligibleForTrial) {
+    btn.innerHTML = '체험하기<i data-lucide="chevron-right"></i>';
+    btn.onclick = () => { _playTap(); claimTrialOffer('profile_banner'); };
+    if (deadlineEl && claimDeadline) {
+      deadlineEl.textContent = `1만 다운로드 이벤트 · ${claimDeadline.toLocaleDateString('ko-KR', { month: 'long', day: 'numeric' })}까지`;
+      deadlineEl.hidden = false;
+    }
+  } else {
+    btn.innerHTML = '업그레이드<i data-lucide="chevron-right"></i>';
+    btn.onclick = () => { _playTap(); openPlanModal('profile'); };
+    if (deadlineEl) deadlineEl.hidden = true;
+  }
+  if (typeof lucide !== 'undefined') lucide.createIcons();
+}
+// 1만다운로드 안내모달 최초 1회 노출 — 홈 진입 공지체인(checkAndShowNotice)에서 호출.
+// eligible한 대상에게 딱 한 번만 띄우고, 이후엔 프로필 "체험하기" 버튼으로만 접근.
+// "나중에"로 닫든 그냥 닫든 다시 안 뜸(완전 1회). localStorage 플래그로 기억.
+const _TRIAL_OFFER_SEEN_KEY = 'chorditor_trial_offer_seen';
+async function maybeShowTrialOfferModal() {
+  try { if (localStorage.getItem(_TRIAL_OFFER_SEEN_KEY)) return false; } catch (_) {}
+  const st = await _trialOfferStatus().catch(() => null);
+  if (!st?.eligible) return false;
+  try { localStorage.setItem(_TRIAL_OFFER_SEEN_KEY, '1'); } catch (_) {}
+  analytics.track('trial_offer_modal_shown', {}); // 퍼널 1단계(노출) — 대시보드 §7-3
+  openTrialOfferModal();
+  return true;
 }
 
 // ── 사이드바 플랜 배지 ─────────────────────────────────────────
@@ -2269,6 +2392,9 @@ async function loadProfileFromDB() {
   } catch(e) {
     console.warn('[Profile] catch:', e);
   }
+
+  // 체험권 캠페인 노출 대상이면 "업그레이드"→"체험하기"로 (독립 조회, 실패해도 무시)
+  refreshTrialOfferUI().catch(() => {});
 }
 
 function renderPlanBadge() {
