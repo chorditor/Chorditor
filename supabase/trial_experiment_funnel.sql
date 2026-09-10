@@ -31,7 +31,11 @@ create table if not exists public.trial_experiment_funnel_daily (
 
 alter table public.trial_experiment_funnel_daily enable row level security;
 
-revoke select on public.trial_experiment_funnel_daily from anon, authenticated;
+-- anon만 회수. authenticated는 SELECT 권한을 유지하되(RLS 정책이 실제 필터),
+-- 아래 정책이 admin uid 한 명만 통과시킨다. authenticated까지 revoke하면
+-- 정책이 있어도 base 권한이 없어서 admin도 못 읽음(2026-09-11 대시보드 세션에서 확인).
+revoke select on public.trial_experiment_funnel_daily from anon;
+grant  select on public.trial_experiment_funnel_daily to authenticated;
 
 drop policy if exists trial_experiment_funnel_daily_select_admin on public.trial_experiment_funnel_daily;
 create policy trial_experiment_funnel_daily_select_admin
