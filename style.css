@@ -718,14 +718,23 @@ button, input, select, textarea {
   padding-bottom: 0;
   margin-inline: 0;
 }
-/* 데스크탑(1600px~) — §5 그리드 컨테이너 캡과 동일하게 중앙정렬(2026-09-23, 사이드바 폐기로
-   이제 .top-bar도 다른 콘텐츠(.scale-level-layout 등)처럼 1264px 캡+가운데정렬로 통일 —
-   그래야 뒤로가기 버튼(col1)과 본문 콘텐츠(col1)가 같은 기준으로 정렬됨) */
-@media (min-width: 1600px) {
+/* 4~5단계(1080px~) — §5 그리드 컨테이너 캡과 동일하게 중앙정렬(2026-09-23 최초 적용,
+   2026-09-27: 1080px부터로 확장 — --grid-track/#grid-overlay-debug는 이미 1080px+ 1440px
+   캡인데 .top-bar만 1600px+ 에서만 캡돼서 1440~1599px 구간에서 콘텐츠가 그리드보다 넓게
+   벗어나던 버그의 원인) */
+@media (min-width: 1080px) {
   .top-bar {
     width: 100%; /* flex item이라 이거 없으면 margin-inline:auto가 stretch를 꺼서 콘텐츠폭으로
                     쪼그라듦(2026-09-23에 겪은 col2 버그와 동일 원인) — 명시로 방지 */
-    max-width: 1600px; /* 그리드 시스템 자체를 1600px로 고정 — 그 이상은 margin-inline:auto가 흡수 */
+    max-width: 1440px; /* 그리드 시스템 자체를 1440px로 고정 — 그 이상은 margin-inline:auto가 흡수 */
+    margin-inline: auto;
+  }
+  /* .scale-level-layout 본체는 18476줄 부근(1600px+ 전용 블록) 안에 이미 있음 — 거긴 스케일
+     레벨 전용 다른 규칙들과 같이 묶여있어서 건드리지 않고, 폭 캡만 여기서 1080px부터 먼저 적용
+     (1600px+에서 값 겹쳐도 동일 1440px라 무해, 2026-09-27) */
+  .scale-level-layout {
+    width: 100%;
+    max-width: 1440px;
     margin-inline: auto;
   }
 }
@@ -1784,11 +1793,12 @@ button, input, select, textarea {
 }
 
 /* 와이드태블릿(787~1599px): 12컬럼 그리드 기준 col2~11(중앙 10칸) — 마찬가지로 col1/col12
-   여백 대칭이라 margin-inline 한 값으로 양쪽 다 맞음. 이 구간은 .app-shell이 grid로 안 바뀌어
-   (전환은 1600px, 15438줄) 100vw = main-content 폭 그대로 써도 됨. */
+   여백 대칭이라 margin-inline 한 값으로 양쪽 다 맞음. min(100vw,1440px) 캡 — 787~1079px(3단계)는
+   어차피 1440px 밑이라 100vw 그대로 동작, 1080~1599px(4단계)만 1440px에서 멈춤(2026-09-27,
+   전역 --grid-track 1440px 캡과 안 맞아서 여기만 따로 넘치던 버그). */
 @media (min-width: 787px) and (max-width: 1599px) {
   #view-project {
-    --grid-track: calc((100vw - var(--grid-margin) * 2 - var(--grid-gutter) * (var(--grid-cols) - 1)) / var(--grid-cols));
+    --grid-track: calc((min(100vw, 1440px) - var(--grid-margin) * 2 - var(--grid-gutter) * (var(--grid-cols) - 1)) / var(--grid-cols));
     width: calc(10 * var(--grid-track) + 9 * var(--grid-gutter));
     margin-inline: calc(var(--grid-margin) + var(--grid-track) + var(--grid-gutter));
   }
@@ -1797,7 +1807,7 @@ button, input, select, textarea {
    col2~11 공식이지만 100vw 대신 min(100vw,1600px) 기준. */
 @media (min-width: 1600px) {
   #view-project {
-    --grid-track: calc((min(100vw, 1600px) - var(--grid-margin) * 2 - var(--grid-gutter) * (var(--grid-cols) - 1)) / var(--grid-cols));
+    --grid-track: calc((min(100vw, 1440px) - var(--grid-margin) * 2 - var(--grid-gutter) * (var(--grid-cols) - 1)) / var(--grid-cols));
     width: calc(10 * var(--grid-track) + 9 * var(--grid-gutter));
     margin-inline: calc(var(--grid-margin) + var(--grid-track) + var(--grid-gutter));
   }
@@ -9380,8 +9390,8 @@ canvas {
   #view-library {
     display: grid;
     grid-template-columns:
-      calc(min(100vw, 1600px) * 0.05)
-      calc(min(100vw, 1600px) * 0.55)
+      calc(min(100vw, 1440px) * 0.05)
+      calc(min(100vw, 1440px) * 0.55)
       1fr;
     grid-template-rows: 3vh 6vh 50vh 15vh 3vh auto 1fr;
     overflow: hidden;
@@ -9495,7 +9505,7 @@ canvas {
 
   #view-library .lib-root-item {
     height: calc(100% / 12);
-    font-size: clamp(16px, calc(min(100vw, 1600px) * 0.014), 18px);
+    font-size: clamp(16px, calc(min(100vw, 1440px) * 0.014), 18px);
   }
 
   #view-library .lib-voicing-overlay,
@@ -15145,11 +15155,18 @@ canvas {
 .scale-mic-btn-row {
   display: flex;
   align-items: center;
-  justify-content: space-between; /* mic버튼 좌측끝 = desc label 좌측끝, play버튼 우측끝 = desc text 우측끝
-                                      (JS alignMicBtnRowToDesc가 실측해서 width/margin-left 세팅) */
-  align-self: flex-start; /* 부모(.scale-mic-wrap)의 align-items:center로 재중앙정렬되는 것 방지 —
-                              위치는 JS가 margin-left로 직접 잡음 */
+  justify-content: space-between; /* 버튼 사이 여백 자동 분배 */
+  width: 188px; /* 1~2단계(~768px) — scale-mic-desc와 동일한 리터럴 고정값(2026-09-26) */
   gap: 16px;
+  background: rgba(0,0,0,0.08); /* 임시 디버그 — scale-mic-desc 폭과 비교용(2026-09-26), 확인 끝나면 제거 */
+}
+.scale-mic-btn-row > * {
+  flex-shrink: 0; /* 버튼 크기 고정 — row 폭이 좁아져도 원이 타원으로 찌그러지지 않게(2026-09-25) */
+}
+@media (min-width: 769px) {
+  .scale-mic-btn-row {
+    width: 200px; /* 3~5단계(769px~) */
+  }
 }
 
 /* 모바일(스타일가이드 1단계, ~480px)에서 1:1.6보다 정사각형에 가까운 비율(Flip 분할화면 등) —
@@ -15180,27 +15197,41 @@ canvas {
 .main-content:has(> .scale-level-layout.scale-gap-scroll) {
   overflow-y: auto;
 }
+/* 상하 스크롤바 자체는 숨김(스크롤 기능은 그대로) — 미디어쿼리 안 걸고 전체 스코프에 공통 적용(2026-09-27) */
+.main-content:has(> .scale-level-layout) {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+.main-content:has(> .scale-level-layout)::-webkit-scrollbar {
+  display: none;
+}
 
 /* scale-mic-wrap이 더 이상 flex:1로 안 늘어나서(콘텐츠 크기만큼만 차지) —
    절대배치 트릭 필요없이 그냥 자연스러운 세로 흐름으로 배치 */
 .scale-mic-desc {
-  width: 80%;
+  width: 188px; /* 1~2단계(~768px) — 사용자 실측 리터럴 고정값(2026-09-26), scale-mic-btn-row와 동일폭 */
   margin: 0;
   text-align: left;
   font-size: 16px; /* 1~2단계(~768px) — 토큰 미사용, 리터럴 고정값 */
   font-weight: var(--weight-semibold);
   color: var(--brand);
+  background: rgba(0,0,0,0.08); /* 임시 디버그 — scale-mic-btn-row 폭과 비교용(2026-09-26), 확인 끝나면 제거 */
 }
 @media (min-width: 769px) {
   .scale-mic-desc {
-    font-size: 24px; /* 3~5단계(769px~) */
+    font-size: 18px; /* 3~5단계(769px~) */
+  }
+}
+@media (min-width: 769px) {
+  .scale-mic-desc {
+    width: 200px; /* 3~5단계(769px~) — 사용자 실측 리터럴 고정값(2026-09-26) */
   }
 }
 
 .scale-mic-desc-row {
   display: flex;
   align-items: baseline;
-  justify-content: center;
+  justify-content: space-between; /* 라벨=박스 좌측끝, 텍스트=박스 우측끝(2026-09-26, 188/260px 고정폭과 맞춤) */
   gap: 6px;
 }
 .scale-mic-desc-row + .scale-mic-desc-row {
@@ -15210,9 +15241,10 @@ canvas {
   color: var(--text-muted);
 }
 
+/* 버튼 3개(기타/재생/튜토리얼)로 늘어나서 크기 축소(2026-09-25, 기존 64/80px→52/64px) */
 .scale-mic-btn {
-  width: 64px;
-  height: 64px;
+  width: 52px;
+  height: 52px;
   border-radius: 50%;
   border: 2px solid var(--border);
   background: #ffffff;
@@ -15227,8 +15259,8 @@ canvas {
 /* scale-level.html 전용 스코프 — .play-all-btn 표준 크기(--icon-circle-size) 대신
    옆에 나란히 놓인 마이크버튼과 크기·테두리·아이콘색 맞춤 */
 .scale-mic-wrap .play-all-btn {
-  width: 64px;
-  height: 64px;
+  width: 52px;
+  height: 52px;
   border: 2px solid var(--border);
   box-shadow: none;
   color: var(--brand);
@@ -15243,28 +15275,28 @@ canvas {
 }
 .scale-mic-wrap .play-all-btn svg,
 .scale-mic-btn svg {
-  width: 28px; /* 1~2단계(64px 버튼) */
-  height: 28px;
+  width: 24px; /* 1~2단계(52px 버튼) */
+  height: 24px;
 }
 @media (min-width: 769px) {
   .scale-mic-wrap .play-all-btn svg,
   .scale-mic-btn svg {
-    width: 36px; /* 3~5단계(80px 버튼) */
-    height: 36px;
+    width: 24px; /* 3~5단계(56px 버튼) */
+    height: 24px;
   }
 }
 
 /* 물음표 아이콘 대신 텍스트 글리프 사용(2026-09-25) — svg 아이콘과 같은 px면 글자가 더
    작아 보여서 재생버튼(▷ svg)과 시각적 무게가 비슷해지도록 더 키움 */
 .scale-mic-help-glyph {
-  font-size: 34px;
+  font-size: 26px;
   font-weight: 400;
   line-height: 1;
   font-family: 'Pretendard', sans-serif;
 }
 @media (min-width: 769px) {
   .scale-mic-help-glyph {
-    font-size: 44px;
+    font-size: 30px;
   }
 }
 
@@ -15273,12 +15305,13 @@ canvas {
   opacity: 1;
 }
 
-/* 3~5단계(큰태블릿~데스크탑, 769px~)는 64px→80px로 확대 — §4 브레이크포인트 기준 */
+/* 3~5단계(큰태블릿~데스크탑, 769px~)는 52px→56px로 확대 — scale-mic-desc/btn-row
+   188→200px 고정값(2026-09-27, 200px일 때 버튼3개+gap 딱 맞는 값 56px = (200-32)/3)과 맞춤 */
 @media (min-width: 769px) {
   .scale-mic-btn,
   .scale-mic-wrap .play-all-btn {
-    width: 80px;
-    height: 80px;
+    width: 56px;
+    height: 56px;
   }
 }
 
@@ -18452,7 +18485,7 @@ canvas {
   .scale-level-layout {
     width: 100%; /* flex item이라 이거 없으면 margin-inline:auto가 stretch를 꺼서 쪼그라듦
                     (col2 버그와 동일 원인) — 명시로 방지 */
-    max-width: 1600px; /* 그리드 시스템 자체를 1600px로 고정 — .top-bar와 동일 기준,
+    max-width: 1440px; /* 그리드 시스템 자체를 1440px로 고정(2026-09-27, 1600→1440 하향) — .top-bar와 동일 기준,
                            그 이상은 margin-inline:auto가 흡수 */
     margin-inline: auto;
   }
@@ -18463,7 +18496,7 @@ canvas {
   }
   .fretboard-row {
     --fb-h-budget: 22vh;
-    --fb-span: min(var(--fb-h-budget), calc((min(100vw, 1600px) - 2 * var(--grid-margin) - 2 * var(--fb-arrow-w)) / var(--fb-ratio))); /* 사이드바 폐기 후 그리드 1600px 캡 기준으로 재계산 */
+    --fb-span: min(var(--fb-h-budget), calc((min(100vw, 1440px) - 2 * var(--grid-margin) - 2 * var(--fb-arrow-w)) / var(--fb-ratio))); /* 그리드 1440px 캡 기준(2026-09-27, 1600→1440 하향) */
   }
   .test-question-text { font-size: 24px; }
   .scale-test-top .icon-btn svg { width: 32px; height: 32px; }
@@ -18808,7 +18841,7 @@ canvas {
    카드와 동일 패턴), base 규칙 뒤에 위치시켜야 이김 */
 @media (min-width: 560px) and (min-height: 600px) {
   .combo-chapter-track {
-    --sc-frame: min(100vw, 1600px);
+    --sc-frame: min(100vw, 1440px);
   }
 }
 
@@ -20936,13 +20969,16 @@ body.tut-lock .tut-allow * {
     /* 태블릿 가로/랩탑(1080~1599px) */
     --grid-margin: 32px;
     --grid-cols: 12;
+    /* 1440px 도달 시 컬럼 폭 확대 중단, 그 이상은 margin-inline:auto가 흡수(2026-09-27) —
+       1600px+ 데스크탑과 같은 패턴, 상한만 1440px로 더 낮게 */
+    --grid-track: calc((min(100vw, 1440px) - var(--grid-margin) * 2 - var(--grid-gutter) * (var(--grid-cols) - 1)) / var(--grid-cols));
   }
 }
 @media (min-width: 1600px) {
   :root {
     /* 데스크탑(1600px~) — 사이드바 폐기(2026-09-23), 그리드 자체가 1600px에서 캡되고
        그 이상은 margin-inline:auto가 흡수하므로 100vw 대신 min(100vw,1600px) 기준 */
-    --grid-track: calc((min(100vw, 1600px) - var(--grid-margin) * 2 - var(--grid-gutter) * (var(--grid-cols) - 1)) / var(--grid-cols));
+    --grid-track: calc((min(100vw, 1440px) - var(--grid-margin) * 2 - var(--grid-gutter) * (var(--grid-cols) - 1)) / var(--grid-cols));
   }
 }
 
@@ -21042,14 +21078,16 @@ body.tut-lock .tut-allow * {
     margin-inline: calc((100cqw - var(--grid-content-w)) / 2 + var(--grid-margin));
   }
 
-  /* main-top-bar(뒤로가기+피크바, main-content 안에 있는 페이지용) — col1~col12, 캡 없음.
+  /* main-top-bar(뒤로가기+피크바, main-content 안에 있는 페이지용).
      border-bottom/box-shadow는 위 bare .top-bar 데스크탑 규칙(line ~15681, 진짜
-     desktop-topbar용 구분선)이 .main-content > .top-bar도 클래스 겸용이라 같이 걸려서 제거 */
+     desktop-topbar용 구분선)이 .main-content > .top-bar도 클래스 겸용이라 같이 걸려서 제거.
+     2026-09-27: 예전엔 --top-bar-inset(1264px cqw 기준)로 내부 패딩을 따로 계산했는데,
+     이게 .top-bar 자체의 1440px 캡+margin-inline:auto(위 1080px 블록, line ~725)와
+     기준이 달라서 back-btn/피크바가 그리드 col1/col12 경계와 안 맞았음 — 박스 자체가
+     이미 1440px로 캡+중앙정렬되니 내부 인셋은 base 규칙의 --grid-margin 패딩에 맡기고
+     여기선 제거 */
   .main-content > .top-bar {
     position: relative;
-    --grid-content-w: min(100cqw, 1264px);
-    --top-bar-inset: calc((100cqw - var(--grid-content-w)) / 2 + var(--grid-margin));
-    padding-inline: var(--top-bar-inset);
     border-bottom: none;
     box-shadow: none;
   }
@@ -21086,9 +21124,10 @@ body.tut-lock .tut-allow * {
     position: absolute;
     top: 50%;
     /* absolute 자식의 right는 부모의 padding 바깥쪽(진짜 테두리) 기준이라, right:0이면
-       bar의 padding-inline을 무시하고 화면 끝까지 붙어버림(실측으로 확인) — 위 --top-bar-inset과
-       동일 값을 직접 넣어야 col12 경계(캡 반영)에 정확히 맞음 */
-    right: var(--top-bar-inset) !important; /* line 15573 규칙이 right/margin에 !important 걸려있어서 여기도 필요 */
+       bar의 padding-inline을 무시하고 화면 끝까지 붙어버림(실측으로 확인) — .top-bar의
+       padding-inline과 동일한 --grid-margin을 직접 넣어야 col12 경계에 맞음.
+       (2026-09-27: 이 값이 참조하던 --top-bar-inset 선언을 위에서 제거해서 무효화됐던 것 수정) */
+    right: var(--grid-margin) !important; /* line 15573 규칙이 right/margin에 !important 걸려있어서 여기도 필요 */
     transform: translateY(-50%);
     margin: 0 !important;
     /* padding은 여기서 0으로 리셋 안 함 — 위 §7 규칙(padding-left/right:20px)이 이 뒤에 있으면
@@ -21134,11 +21173,13 @@ body.tut-lock .tut-allow * {
 #grid-overlay-debug.active { display: grid; }
 
 /* 2026-09-23: 사이드바 폐기로 좌측 240px 오프셋 규칙 제거.
-   1600px~ 마진은 .top-bar/.scale-level-layout과 동일하게 168px 고정(자라지 않음) —
-   max-width 캡은 이제 이 fixed margin이 대신 담당(0으로 무효화). */
-@media (min-width: 1600px) {
+   1600px~ 마진은 .top-bar/.scale-level-layout과 동일하게 고정(자라지 않음) —
+   max-width 캡은 이제 이 fixed margin이 대신 담당(0으로 무효화).
+   2026-09-27: 4단계(1080px~)도 --grid-track이 1440px에서 캡되므로 오버레이도 같은 폭으로
+   맞춰서 1080px부터 적용(기존엔 1600px~에만 있었음), 캡값도 1600→1440으로 하향. */
+@media (min-width: 1080px) {
   #grid-overlay-debug {
-    max-width: 1600px;
+    max-width: 1440px;
     margin-inline: auto;
   }
 }
@@ -21240,7 +21281,10 @@ body.tut-lock .tut-allow * {
 /* 태블릿 가로(1080~1599px) — 홈배너:홈블럭 1:1, 띠배너는 고정높이 */
 @media (min-width: 1080px) and (max-width: 1599px) {
   :root {
-    --grid-track: calc((100vw - var(--grid-margin) * 2 - var(--grid-gutter) * (var(--grid-cols) - 1)) / var(--grid-cols));
+    /* 2026-09-27: 이 :root 재선언이 위쪽 §5 그리드 토큰 블록(1080px+, 1440px 캡)보다 파일
+       순서상 뒤에 있어서 같은 :root 특이도로 그대로 덮어써 캡이 무효화되고 있었음 — 동일하게
+       1440px 캡 맞춤(4단계 그리드 넘침 버그의 실제 원인) */
+    --grid-track: calc((min(100vw, 1440px) - var(--grid-margin) * 2 - var(--grid-gutter) * (var(--grid-cols) - 1)) / var(--grid-cols));
   }
 
   /* top-bar: base 규칙(margin만)이 이미 col1 시작점 — 그대로 유지 */

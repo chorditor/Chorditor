@@ -143,6 +143,7 @@ const DOUBLE_DOT_FRETS = new Set([12]);
 // 프렛 이동도 이 기준좌표계 안에서 translateX로 처리(scale과 합성되어 자동으로 비율 유지됨).
 const FB_REF_WIDTH      = 360;
 const FB_ARROW_W        = 44;
+const FB_EDGE_FADE_MIN   = 24; // peek 없는 스코프(모바일)용 최소 페이드 폭(px)
 const FB_RATIO          = 2.3;
 const FB_REF_SPAN       = (FB_REF_WIDTH - 2 * FB_ARROW_W) / FB_RATIO;   // ≈125.22
 const FB_REF_NECK_H     = (FB_REF_SPAN - 2.25) * 6 / 5;                 // ≈147.57
@@ -195,10 +196,11 @@ function applyFbLayout() {
   if (viewport) {
     viewport.style.width  = (innerW + 2 * peekPx) + 'px';
     viewport.style.height = innerH + 'px';
-    // 고스트 peek 구간 페이드 — 양옆 peekPx만큼 투명→불투명, 가운데(실제 7프렛)는 항상 불투명
-    const mask = peekPx > 0
-      ? `linear-gradient(to right, transparent, black ${peekPx}px, black calc(100% - ${peekPx}px), transparent)`
-      : 'none';
+    // 고스트 peek 구간 페이드 — 양옆 peekPx만큼 투명→불투명, 가운데(실제 7프렛)는 항상 불투명.
+    // peek가 없는 스코프(모바일 등, peekPx=0)도 클리핑 경계가 딱 잘려보이지 않게 아주 작은
+    // 고정폭(FB_EDGE_FADE_MIN)으로 페이드 — 양옆 프렛이 살짝 있다는 느낌만 최소로 남김.
+    const fadePx = peekPx > 0 ? peekPx : FB_EDGE_FADE_MIN;
+    const mask = `linear-gradient(to right, transparent, black ${fadePx}px, black calc(100% - ${fadePx}px), transparent)`;
     viewport.style.maskImage = mask;
     viewport.style.webkitMaskImage = mask;
   }
@@ -269,29 +271,18 @@ function applyTestFbLayout() {
   if (wrapper) wrapper.style.transform = `scale(${scale})`;
 }
 
-// scale-mic-btn-row를 scale-mic-desc 첫 줄의 실제 텍스트(label~text) 좌우 경계에 정확히 맞춤 —
-// .scale-mic-desc-row 자체는 block-level flex라 부모 폭(80%) 그대로 차지해서 row를 통째로
-// 측정하면 안 됨(justify-content:center로 "속"만 가운데 몰려있음) — label/text 각자의
-// 실제 렌더 박스를 직접 재야 진짜 텍스트 경계가 나옴.
+// scale-mic-btn-row 폭 — scale-mic-desc(fit-content, 더 넓은 줄 기준) 텍스트 폭과
+// 버튼 3개 최소필요폭(버튼 크기 고정, flex-shrink:0) 중 더 큰 쪽을 사용.
+// 텍스트가 넓으면 텍스트 좌측경계에 맞춰 정렬, 버튼최소폭이 더 넓으면(텍스트가 짧을 때)
+// wrap 안에서 버튼row를 가운데 정렬 — 버튼 크기는 항상 고정, 줄어들거나 넘치지 않음.
+// scale-mic-desc/scale-mic-btn-row는 이제 CSS 리터럴 고정폭(188px/1080px~260px, 2026-09-26)이라
+// 여기선 같은 그룹의 .start-test-btn 폭만 그 값에 맞춰 동기화(이 버튼은 다른 그룹이라 CSS
+// align-items:center 자동정렬 대상이 아니라서 JS로 직접 맞춰야 함).
 function alignMicBtnRowToDesc() {
-  const label = document.querySelector('.scale-mic-desc-label');
-  const text = document.querySelector('.scale-mic-desc-text');
-  const btnRow = document.querySelector('.scale-mic-btn-row');
-  const wrap = document.querySelector('.scale-mic-wrap');
-  if (!label || !text || !btnRow || !wrap) return;
-  const leftEdge = label.getBoundingClientRect().left;
-  const rightEdge = text.getBoundingClientRect().right;
-  const wrapRect = wrap.getBoundingClientRect();
-  const width = rightEdge - leftEdge;
-  if (width <= 0) return;
-  btnRow.style.width = width + 'px';
-  btnRow.style.marginLeft = (leftEdge - wrapRect.left) + 'px';
-
-  // 테스트 시작 버튼(.start-test-btn) 폭도 이 row와 동일하게 맞춤 — scale-mic-btn-row가
-  // JS 실측값(뷰포트마다 다름)이라 CSS 토큰으로는 못 맞추고, 이 함수가 호출되는 모든
-  // 스코프(초기 렌더/폰트로드후/리사이즈)에서 같이 갱신해야 전역적으로 항상 동일 폭 유지됨.
   const startTestBtn = document.getElementById('start-test-btn');
-  if (startTestBtn) startTestBtn.style.width = width + 'px';
+  if (!startTestBtn) return;
+  const width = window.matchMedia('(min-width: 769px)').matches ? 200 : 188;
+  startTestBtn.style.width = width + 'px';
 }
 
 // ── 그룹1~4 간격 30px 미만 → 스크롤모드(40px 고정 gap) 전환 ──────────────────
@@ -3632,11 +3623,12 @@ renderFullNeck();
 
   initTestTap();
 
-  // "?" 버튼 — 마이크 기능을 튜토리얼로 교체 예정(2026-09-25). toggleScaleMic()는 당장 안 지우고
-  // 연결만 바꿔둠(다른 곳에서 재사용할 가능성 대비, CLAUDE.md §3 정밀한 변경 원칙)
-  document.getElementById('scale-mic-btn')?.addEventListener('pointerup', openTutorial);
+  // 기타 버튼 — 마이크로 직접 연주 감지(원래 기능, 2026-09-25 튜토리얼로 잠시 대체됐다가 복원)
+  document.getElementById('scale-mic-btn')?.addEventListener('pointerup', toggleScaleMic);
   // 재생 버튼 — 현재 블럭 낮은음→높은음→낮은음(+근음 재상행) 재생
   document.getElementById('scale-play-btn')?.addEventListener('pointerup', toggleScalePlay);
+  // "?" 버튼 — 튜토리얼 다시보기 (2026-09-25: 기타 버튼과 분리해서 별도 3번째 버튼으로)
+  document.getElementById('scale-tutorial-btn')?.addEventListener('pointerup', openTutorial);
 
   // 테스트 시작 버튼 (피크 2개 소모)
   document.getElementById('start-test-btn')?.addEventListener('pointerup', async () => {
