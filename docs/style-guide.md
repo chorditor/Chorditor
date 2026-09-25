@@ -611,3 +611,111 @@ sticky)가 위를 덮어서 안 보임, ② 그 다음 `.combo-content`에 걸�
 
 **기존 3곳(daily-mission/attendance/mission-session)은 아직 이 공용 헬퍼로 안 옮김** — §6
 원칙과 동일, 지금 당장 안 건드리고 그 페이지들 손댈 일 있을 때 이 헬퍼로 교체.
+
+## 17. 프렛보드 "사진 확대" 스케일 시스템 (`scale-level.html` 원본, 2026-09-22 확정)
+
+프렛보드(격자 두께·간격, dot 크기, 프렛번호 폰트 등)를 **모든 뷰포트에서 완전히 동일한
+비율**로 보이게 만드는 방식. 뷰포트마다 각 치수를 따로 계산하는 대신, **360px 기준
+디자인을 딱 한 번 고정**하고 그 결과물 전체를 `transform: scale()`로 통째로 확대/축소만
+한다 — "사진을 찍어서 확대"하는 것과 동일한 원리라 서브픽셀 반올림 오차가 전혀 없다.
+다른 페이지에 프렛보드(또는 비슷한 "내부 비율 고정 + 반응형 크기"가 필요한 컴포넌트)를
+새로 붙일 때 이 구조를 그대로 재사용한다.
+
+### 핵심 원칙
+
+1. **치수는 전부 360px 기준 1벌만 계산한다.** 뷰포트별 재계산 금지 — `calc(Nvw)`처럼
+   뷰포트에 따라 달라지는 값으로 내부 치수를 잡지 않는다.
+2. **실제 화면 반영은 오직 `transform: scale()` 하나로만 한다.** 폭 계산이 끝나면
+   `scale = 실제확보폭 / 기준폭`을 구해서 기준 디자인 전체에 곱한다.
+3. **panning(가로 이동)은 스케일 전에 적용한다** — `scale(S) translateX(X)` 순서(스케일이
+   왼쪽/먼저 적용). CSS는 오른쪽에서 왼쪽으로 변환을 합성하므로, 이 순서면 `translateX`가
+   **기준(pre-scale) 좌표계에서 먼저 이동한 뒤 전체(이동분 포함)가 균일하게 스케일링**된다.
+   `translateX(X) scale(S)`로 순서를 바꾸면 이동값이 스케일 안 먹어서 프렛 위치가 어긋난다.
+4. **터치 히트박스는 최소 44px.** 기준 디자인 자체의 시각 크기가 44px보다 작아도(dot 등),
+   보이지 않는 히트영역(`::before { inset: -Npx }`)을 CSS로 덧붙여 44px를 채운다.
+
+### JS 상수 (`scale-level.js` 145줄 부근)
+
+```js
+const FB_REF_WIDTH      = 360;   // 기준 디자인 폭
+const FB_ARROW_W        = 44;    // 좌우 화살표버튼 크기(터치타겟 44px)
+const FB_RATIO          = 2.3;   // fb-viewport 자체의 가로:세로 비율(폭 기준 고정)
+const FB_REF_SPAN       = (FB_REF_WIDTH - 2 * FB_ARROW_W) / FB_RATIO;
+const FB_REF_NECK_H     = (FB_REF_SPAN - 2.25) * 6 / 5;
+const FB_REF_FBU        = FB_REF_NECK_H / 160;           // 지판 내부 단위(fret-board-unit)
+const FB_REF_NUMS_GAP   = 6 * FB_REF_FBU;
+const FB_REF_NUMS_H     = 22 * FB_REF_FBU;
+const FB_REF_TOTAL_H    = FB_REF_NECK_H + FB_REF_NUMS_GAP + FB_REF_NUMS_H;
+const FB_REF_VIEWPORT_W = FB_REF_SPAN * FB_RATIO;
+const FB_REF_FULL_W     = FB_REF_VIEWPORT_W * (TOTAL_FRETS / FRETS_VISIBLE);
+```
+
+내부 치수(줄 두께, dot 크기, 프렛번호 폰트 등)는 전부 `calc(N * var(--fbu))`처럼 이
+`--fbu`(CSS) / `FB_REF_FBU`(JS) 하나만 곱해서 잡는다 — 새 치수 추가할 때도 이 규칙만 따르면
+자동으로 "사진 확대" 비율에 맞물린다.
+
+### 스케일 계산·적용 (`scale-level.js` 160줄 부근)
+
+```js
+function computeFbScale() {
+  const row = document.querySelector('.fretboard-row');
+  const rowWidth = row ? row.clientWidth : FB_REF_WIDTH;
+  // 실제 확보 가능한 폭 예산 — 여기 공식을 바꾸면 "무엇을 기준으로 크기를 정할지"가 바뀐다
+  // (현재: 부모 폭의 80%, 최대 600px 고정캡)
+  const widthBudget = Math.min((rowWidth * 0.8) / FB_RATIO, 600 / FB_RATIO);
+  return Math.max(widthBudget / FB_REF_SPAN, 0.01);
+}
+
+function applyFbScale() {
+  const scale = computeFbScale();
+  // #fb-viewport 실측 width/height = 기준값 × scale (JS가 인라인 style로 직접 세팅)
+  // #fb-full-wrapper.style.transform = `scale(${scale}) translateX(${panRef}px)`
+  // 화살표버튼 margin-top = 실제(스케일 적용된) 넥 높이 기준으로 세로중앙 재계산
+}
+```
+
+`applyFbScale()`은 **리사이즈 시마다 다시 호출**해야 한다(`window.addEventListener('resize', ...)`)
+— 순수 CSS `vw`/`vh` 기반이 아니라 JS가 매번 폭을 실측해서 계산하는 방식이라 자동 반응형이
+아니다.
+
+### CSS 구조
+
+```
+.fretboard-row                 flex, justify-content:space-between (화살표를 그리드 양끝에)
+  --fb-arrow-w: 44px            /* JS FB_ARROW_W와 반드시 동일하게 유지 */
+  --fb-ratio: 2.3
+  --fb-ref-width: 360px
+  --fb-ref-span / --fb-ref-neck-h / --fbu   /* JS 상수와 동일한 공식, CSS 쪽 계산용 */
+  ├─ .fb-arrow-btn (44×44, 터치영역) > svg (32×32, 실제 아이콘 크기)
+  ├─ .fb-viewport                overflow:hidden, position:relative
+  │    width/height             /* CSS 없음 — JS(applyFbScale)가 인라인으로 세팅 */
+  │    box-sizing: content-box  /* ⚠ 전역 *{box-sizing:border-box}를 여기서만 되돌림 —
+  │                                 안 하면 JS가 넣는 height가 padding까지 먹어버려서
+  │                                 콘텐츠가 잘리는 버그 발생(2026-09-22 실제 발견/수정) */
+  │    padding-top: 14px / margin-top: -14px  /* 위쪽 ripple 애니메이션 bleed 허용,
+  │                                              레이아웃 높이엔 영향 없음(패딩-마진 상쇄) */
+  │    └─ .fb-full-wrapper       transform-origin: 0 0
+  │         width               /* JS가 FB_REF_FULL_W × scale로 세팅 */
+  │         transform           /* JS가 scale()+translateX()로 세팅 */
+  │         ├─ .fb-full-neck    height: calc(160 * var(--fbu))
+  │         └─ .fb-full-nums    height: calc(22 * var(--fbu)), margin-top: calc(6 * var(--fbu))
+  └─ .fb-arrow-btn (반대쪽)
+```
+
+### 재사용 시 체크리스트
+
+1. 기준 디자인 폭(예: 360px)과 그 폭에서의 세부 치수를 먼저 확정한다(§1 디자인 검토 단계,
+   코드 짓기 전에).
+2. CSS 쪽 `--접두어-ref-*` 토큰과 JS 쪽 `PREFIX_REF_*` 상수를 **양쪽 다 만들고 항상 동기화**
+   시킨다 — 하나만 바꾸고 반대편을 놓치면 스케일이 어긋난다(이번 세션에 화살표버튼
+   36→44px 변경 때 CSS `--fb-arrow-w`와 JS `FB_ARROW_W`를 항상 같이 고쳤음).
+3. 스케일이 적용될 컨테이너에 `overflow: hidden`이 있고 그 안에 화면 밖으로 살짝 삐져나가는
+   애니메이션(ripple 등)이 있다면, `box-sizing: content-box`로 명시 전환 여부를 반드시
+   확인한다(전역 `border-box` 기본값과 충돌 가능).
+4. `resize` 리스너에서 재계산 함수를 반드시 호출한다.
+5. 터치 대상 요소는 시각 크기와 별개로 44px 히트박스를 `::before{inset:-Npx}` 패턴으로
+   보장한다.
+6. 폭 예산 공식(`computeFbScale()`의 `widthBudget`)은 컴포넌트마다 다를 수 있다 — "부모 폭의
+   N%", "고정 px", "vh 기준" 등 요구사항에 맞게 이 한 곳만 바꾸면 나머지 파이프라인은
+   전부 그대로 재사용된다.
+

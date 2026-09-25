@@ -137,6 +137,129 @@ const STRING_THICKNESS = [1, 1.5, 2, 2.5, 3, 3.5];
 const SINGLE_DOT_FRETS = new Set([3, 5, 7, 9, 15, 17, 19]);
 const DOUBLE_DOT_FRETS = new Set([12]);
 
+// ── 메인 연습용 지판 "사진 확대" 스케일 시스템 ──────────────────
+// 360px 기준으로 딱 한 번 고정 디자인을 만들고(--fbu 상수화, style.css .fretboard-row 참고),
+// 실제 화면에 맞는 배율만 계산해서 transform:scale로 통째로 확대/축소한다.
+// 프렛 이동도 이 기준좌표계 안에서 translateX로 처리(scale과 합성되어 자동으로 비율 유지됨).
+const FB_REF_WIDTH      = 360;
+const FB_ARROW_W        = 44;
+const FB_RATIO          = 2.3;
+const FB_REF_SPAN       = (FB_REF_WIDTH - 2 * FB_ARROW_W) / FB_RATIO;   // ≈125.22
+const FB_REF_NECK_H     = (FB_REF_SPAN - 2.25) * 6 / 5;                 // ≈147.57
+const FB_REF_FBU        = FB_REF_NECK_H / 160;                          // ≈0.9223
+const FB_REF_NUMS_GAP   = 6 * FB_REF_FBU;
+const FB_REF_NUMS_H     = 22 * FB_REF_FBU;
+const FB_REF_TOTAL_H    = FB_REF_NECK_H + FB_REF_NUMS_GAP + FB_REF_NUMS_H;
+const FB_REF_VIEWPORT_W = FB_REF_SPAN * FB_RATIO;                       // 7프렛 창 폭(기준좌표계)
+const FB_REF_FULL_W     = FB_REF_VIEWPORT_W * (TOTAL_FRETS / FRETS_VISIBLE);
+
+let _fbScale       = 1;
+let _fbPanRef       = 0; // 현재 translateX 값(기준좌표계 px)
+let _fbLastFret     = 0;
+
+function computeFbScale() {
+  const row = document.querySelector('.fretboard-row');
+  const rowWidth = row ? row.clientWidth : FB_REF_WIDTH;
+  const widthBudget = Math.min((rowWidth * 0.8) / FB_RATIO, 480 / FB_RATIO); // fb-viewport 실제 폭 = 화면(row) 폭의 80%, 최대 480px 고정캡(480/ratio로 나눠 span 단위로 환산)
+  return Math.max(widthBudget / FB_REF_SPAN, 0.01);
+}
+
+// 좌우 "고스트 프렛" peek 폭(실 px) — fretboard-row 안에서 화살표버튼 2개 + 실제 7프렛 뷰포트를
+// 뺀 나머지(좌우 각각)가 40px 이상일 때만, 그 남는 공간 전체를 peek로 씀. 그 미만이면 0(기존과 동일).
+function computeFbPeek(scale) {
+  const row = document.querySelector('.fretboard-row');
+  const rowWidth = row ? row.clientWidth : FB_REF_WIDTH;
+  const innerW = FB_REF_VIEWPORT_W * scale;
+  const slackEachSide = (rowWidth - 2 * FB_ARROW_W - innerW) / 2;
+  return slackEachSide >= 40 ? slackEachSide : 0;
+}
+
+function applyFbScale() {
+  _fbScale = computeFbScale();
+  const viewport = document.getElementById('fb-viewport');
+  const inner    = document.getElementById('fb-viewport-inner');
+  const wrapper  = document.getElementById('fb-full-wrapper');
+  const blockerL = document.getElementById('fb-peek-blocker-left');
+  const blockerR = document.getElementById('fb-peek-blocker-right');
+
+  const innerW = FB_REF_VIEWPORT_W * _fbScale;
+  const innerH = FB_REF_TOTAL_H * _fbScale;
+  const peekPx = computeFbPeek(_fbScale);
+
+  if (inner) {
+    inner.style.width  = innerW + 'px';
+    inner.style.height = innerH + 'px';
+  }
+  if (viewport) {
+    viewport.style.width  = (innerW + 2 * peekPx) + 'px';
+    viewport.style.height = innerH + 'px';
+    // 고스트 peek 구간 페이드 — 양옆 peekPx만큼 투명→불투명, 가운데(실제 7프렛)는 항상 불투명
+    const mask = peekPx > 0
+      ? `linear-gradient(to right, transparent, black ${peekPx}px, black calc(100% - ${peekPx}px), transparent)`
+      : 'none';
+    viewport.style.maskImage = mask;
+    viewport.style.webkitMaskImage = mask;
+  }
+  if (blockerL) blockerL.style.width = peekPx + 'px';
+  if (blockerR) blockerR.style.width = peekPx + 'px';
+
+  if (wrapper) {
+    // scale이 먼저(오른쪽) 적용돼야 translateX가 기준좌표계 값 그대로 유지되면서
+    // 전체(이동분 포함)가 한 배율로 같이 확대/축소됨 — 순서 바뀌면 이동량이 배율 영향을 안 받음
+    wrapper.style.transform = `scale(${_fbScale}) translateX(${_fbPanRef}px)`;
+  }
+  // 화살표 버튼 — 실제(스케일 적용된) 넥 높이 기준 세로중앙 정렬
+  const realNeckH = FB_REF_NECK_H * _fbScale;
+  const arrowMarginTop = Math.max((realNeckH - 44) / 2, 0) + 'px';
+  document.getElementById('fb-arrow-prev')?.style.setProperty('margin-top', arrowMarginTop);
+  document.getElementById('fb-arrow-next')?.style.setProperty('margin-top', arrowMarginTop);
+}
+
+function initFbScaleResize() {
+  window.addEventListener('resize', () => {
+    applyFbScale();
+    updateScaleGapScrollMode();
+    alignMicBtnRowToDesc();
+  });
+}
+
+// scale-mic-btn-row를 scale-mic-desc 첫 줄의 실제 텍스트(label~text) 좌우 경계에 정확히 맞춤 —
+// .scale-mic-desc-row 자체는 block-level flex라 부모 폭(80%) 그대로 차지해서 row를 통째로
+// 측정하면 안 됨(justify-content:center로 "속"만 가운데 몰려있음) — label/text 각자의
+// 실제 렌더 박스를 직접 재야 진짜 텍스트 경계가 나옴.
+function alignMicBtnRowToDesc() {
+  const label = document.querySelector('.scale-mic-desc-label');
+  const text = document.querySelector('.scale-mic-desc-text');
+  const btnRow = document.querySelector('.scale-mic-btn-row');
+  const wrap = document.querySelector('.scale-mic-wrap');
+  if (!label || !text || !btnRow || !wrap) return;
+  const leftEdge = label.getBoundingClientRect().left;
+  const rightEdge = text.getBoundingClientRect().right;
+  const wrapRect = wrap.getBoundingClientRect();
+  const width = rightEdge - leftEdge;
+  if (width <= 0) return;
+  btnRow.style.width = width + 'px';
+  btnRow.style.marginLeft = (leftEdge - wrapRect.left) + 'px';
+}
+
+// ── 그룹1~4 간격 30px 미만 → 스크롤모드(40px 고정 gap) 전환 ──────────────────
+// space-between이 실제로 만들 gap을 현재 모드와 무관하게 역산: main-content
+// 가용높이에서 4그룹 자체 높이(스크롤모드 여부와 무관하게 고정) 빼진 값을 3등분.
+function updateScaleGapScrollMode() {
+  const layout = document.querySelector('.scale-level-layout');
+  const mainContent = document.querySelector('.main-content');
+  const groups = [
+    document.querySelector('.scale-level-top'),
+    document.querySelector('.scale-mic-wrap'),
+    document.querySelector('.scale-test-btn-group'),
+    document.querySelector('.key-selector-section'),
+  ];
+  if (!layout || !mainContent || groups.some(g => !g)) return;
+  const sumH = groups.reduce((sum, g) => sum + g.offsetHeight, 0);
+  const naturalGap = (mainContent.clientHeight - sumH) / 3;
+  layout.classList.toggle('scale-gap-scroll', naturalGap < 30);
+}
+
 // ── 상태 ─────────────────────────────────────────────────────
 let _scaleKey  = 'major';
 let _scaleLevel = 0; // 레벨 첫완료 퀘스트용 (URL level 파라미터)
@@ -161,6 +284,212 @@ const OPEN_MIDI = [64, 59, 55, 50, 45, 40]; // E B G D A E (string 0=1번줄)
 function playScaleNote(stringIdx, absFret) {
   GuitarAudio.stop();
   GuitarAudio.playNote(OPEN_MIDI[stringIdx] + absFret, 2.5);
+}
+
+// ── 재생 버튼: 현재 블럭 낮은음→높은음→(근음 아니면 가장 가까운 근음까지 재상행) ──
+const SCALE_PLAY_NOTE_MS = 380;
+let _scalePlayTimer = null;
+
+function _getCurrentScaleNotesAsc() {
+  const neckEl = document.getElementById('fb-full-neck');
+  if (!neckEl) return [];
+  const notes = [...neckEl.querySelectorAll('.fb-note:not(.fb-note--ghost)')].map(el => {
+    const s = parseInt(el.dataset.s);
+    const absF = parseInt(el.dataset.absf);
+    return { el, s, absF, degree: el.dataset.degree, midi: OPEN_MIDI[s] + absF };
+  });
+  notes.sort((a, b) => a.midi - b.midi);
+  return notes;
+}
+
+function buildScalePlaySequence() {
+  const asc = _getCurrentScaleNotesAsc();
+  if (asc.length === 0) return [];
+  // 낮은음 → 높은음 → 다시 낮은음(정점 중복 방지 위해 slice(0,-1))
+  const seq = asc.concat(asc.slice(0, -1).reverse());
+  // 도착점(가장 낮은음)이 근음이 아니면, 가장 가까운 근음까지 재상행
+  if (asc[0].degree !== '1') {
+    const rootIdx = asc.findIndex((n, i) => i > 0 && n.degree === '1');
+    if (rootIdx > 0) seq.push(...asc.slice(1, rootIdx + 1));
+  }
+  return seq;
+}
+
+function stopScalePlay() {
+  clearTimeout(_scalePlayTimer);
+  _scalePlayTimer = null;
+  document.querySelectorAll('.fb-note--playing').forEach(el => el.classList.remove('fb-note--playing'));
+  GuitarAudio.stop();
+  document.getElementById('scale-play-btn')?.classList.remove('is-active');
+}
+
+function startScalePlay() {
+  const seq = buildScalePlaySequence();
+  if (seq.length === 0) return;
+  stopScaleMic(); // 마이크 모드 켜져있었으면 즉시 중단
+  document.getElementById('scale-play-btn')?.classList.add('is-active');
+
+  let i = 0;
+  const step = () => {
+    document.querySelectorAll('.fb-note--playing').forEach(el => el.classList.remove('fb-note--playing'));
+    if (i >= seq.length) { stopScalePlay(); return; }
+    const note = seq[i];
+    const isLast = i === seq.length - 1;
+    note.el.classList.add('fb-note--playing');
+    playScaleNote(note.s, note.absF);
+    i++;
+    _scalePlayTimer = setTimeout(step, isLast ? SCALE_PLAY_NOTE_MS * 4 : SCALE_PLAY_NOTE_MS);
+  };
+  step();
+}
+
+function toggleScalePlay() {
+  if (_scalePlayTimer) stopScalePlay();
+  else startScalePlay();
+}
+
+// ── 마이크 버튼: 같은 시퀀스를 실제 연주로 검증하며 진행 ──
+// 자기상관(autocorrelation) 단음 피치검출 — 사운드인식테스트.html 스케일연습에서 검증된 방식 재사용
+function _scaleAutoCorrelate(buf, sampleRate) {
+  const SIZE = buf.length;
+  let rms = 0;
+  for (let i = 0; i < SIZE; i++) rms += buf[i] * buf[i];
+  rms = Math.sqrt(rms / SIZE);
+  if (rms < 0.01) return -1;
+
+  let r1 = 0, r2 = SIZE - 1;
+  const thresh = 0.2;
+  for (let i = 0; i < SIZE / 2; i++) if (Math.abs(buf[i]) < thresh) { r1 = i; break; }
+  for (let i = 1; i < SIZE / 2; i++) if (Math.abs(buf[SIZE - i]) < thresh) { r2 = SIZE - i; break; }
+  const trimmed = buf.slice(r1, r2);
+  const n = trimmed.length;
+
+  const c = new Array(n).fill(0);
+  for (let lag = 0; lag < n; lag++)
+    for (let i = 0; i < n - lag; i++) c[lag] += trimmed[i] * trimmed[i + lag];
+
+  let d = 0;
+  while (d + 1 < n && c[d] > c[d + 1]) d++;
+  let maxVal = -1, maxPos = -1;
+  for (let i = d; i < n; i++) if (c[i] > maxVal) { maxVal = c[i]; maxPos = i; }
+  let T0 = maxPos;
+  if (T0 <= 0) return -1;
+
+  const x1 = c[T0 - 1] ?? c[T0], x2 = c[T0], x3 = c[T0 + 1] ?? c[T0];
+  const a = (x1 + x3 - 2 * x2) / 2, b = (x3 - x1) / 2;
+  if (a) T0 = T0 - b / (2 * a);
+
+  return T0 > 0 ? sampleRate / T0 : -1;
+}
+function _scaleFreqToMidi(f) { return Math.round(69 + 12 * Math.log2(f / 440)); }
+
+let _scaleMicStream = null, _scaleMicCtx = null, _scaleMicAnalyser = null, _scaleMicRaf = null;
+let _scaleMicTimeBuf = null, _scaleMicLastTrigger = 0;
+const SCALE_MIC_ONSET_RMS = 0.01, SCALE_MIC_COOLDOWN = 120;
+let _scaleMicSeq = [];
+let _scaleMicStepIdx = 0;
+
+function _scaleMicHighlightExpected() {
+  document.querySelectorAll('.fb-note--playing').forEach(el => el.classList.remove('fb-note--playing'));
+  const note = _scaleMicSeq[_scaleMicStepIdx];
+  if (note) note.el.classList.add('fb-note--playing');
+}
+
+function _scaleMicAdvance() {
+  _scaleMicStepIdx++;
+  if (_scaleMicStepIdx >= _scaleMicSeq.length) {
+    _finishScaleMicSequence();
+    return;
+  }
+  _scaleMicHighlightExpected();
+}
+
+function _scaleMicClassify() {
+  if (!_scaleMicAnalyser) return;
+  _scaleMicAnalyser.getFloatTimeDomainData(_scaleMicTimeBuf);
+  const freq = _scaleAutoCorrelate(_scaleMicTimeBuf, _scaleMicCtx.sampleRate);
+  if (freq < 0) return;
+  const detectedMidi = _scaleFreqToMidi(freq);
+  const expected = _scaleMicSeq[_scaleMicStepIdx];
+  if (!expected) return;
+  if (detectedMidi === expected.midi) {
+    _scaleMicLastTrigger = performance.now();
+    _scaleMicAdvance();
+  }
+}
+
+function _scaleMicListen() {
+  _scaleMicAnalyser.getFloatTimeDomainData(_scaleMicTimeBuf);
+  let sum = 0;
+  for (let i = 0; i < _scaleMicTimeBuf.length; i++) sum += _scaleMicTimeBuf[i] * _scaleMicTimeBuf[i];
+  const rms = Math.sqrt(sum / _scaleMicTimeBuf.length);
+  const now = performance.now();
+  if (rms > SCALE_MIC_ONSET_RMS && now - _scaleMicLastTrigger > SCALE_MIC_COOLDOWN) {
+    _scaleMicClassify();
+  }
+  _scaleMicRaf = requestAnimationFrame(_scaleMicListen);
+}
+
+let _scaleMicDescIdleHtml = null;
+function _setScaleMicDescActive(active) {
+  const el = document.getElementById('scale-mic-desc');
+  if (!el) return;
+  if (active) {
+    if (_scaleMicDescIdleHtml === null) _scaleMicDescIdleHtml = el.innerHTML;
+    el.innerHTML = '<div class="scale-mic-desc-row"><span class="scale-mic-desc-text">표시된 음을 직접 기타로 소리내보세요</span></div>';
+  } else if (_scaleMicDescIdleHtml !== null) {
+    el.innerHTML = _scaleMicDescIdleHtml;
+  }
+}
+
+async function startScaleMic() {
+  _scaleMicSeq = buildScalePlaySequence();
+  if (_scaleMicSeq.length === 0) return;
+  stopScalePlay();
+  try {
+    _scaleMicStream = await navigator.mediaDevices.getUserMedia({
+      audio: { autoGainControl: false, noiseSuppression: false, echoCancellation: false }
+    });
+    _scaleMicCtx = new (window.AudioContext || window.webkitAudioContext)();
+    _scaleMicAnalyser = _scaleMicCtx.createAnalyser();
+    _scaleMicAnalyser.fftSize = 2048;
+    _scaleMicCtx.createMediaStreamSource(_scaleMicStream).connect(_scaleMicAnalyser);
+    _scaleMicTimeBuf = new Float32Array(_scaleMicAnalyser.fftSize);
+    _scaleMicStepIdx = 0;
+    document.getElementById('scale-mic-btn')?.classList.add('is-active');
+    _setScaleMicDescActive(true);
+    _scaleMicHighlightExpected();
+    _scaleMicListen();
+  } catch (e) {
+    console.error('마이크 권한 거부됨 또는 사용 불가:', e);
+  }
+}
+
+function _teardownScaleMic() {
+  if (_scaleMicRaf) { cancelAnimationFrame(_scaleMicRaf); _scaleMicRaf = null; }
+  if (_scaleMicStream) _scaleMicStream.getTracks().forEach(t => t.stop());
+  if (_scaleMicCtx) { _scaleMicCtx.close(); _scaleMicCtx = null; }
+  _scaleMicStream = null; _scaleMicAnalyser = null;
+  document.querySelectorAll('.fb-note--playing').forEach(el => el.classList.remove('fb-note--playing'));
+  document.getElementById('scale-mic-btn')?.classList.remove('is-active');
+}
+
+function stopScaleMic() {
+  _teardownScaleMic();
+  _setScaleMicDescActive(false);
+}
+
+// 시퀀스를 끝까지 성공적으로 마쳤을 때 — 완료 문구를 잠깐 보여준 뒤 idle로 복귀
+function _finishScaleMicSequence() {
+  _teardownScaleMic();
+  const el = document.getElementById('scale-mic-desc');
+  if (el) el.innerHTML = '<div class="scale-mic-desc-row"><span class="scale-mic-desc-text">완료! 잘하셨어요.</span></div>';
+  setTimeout(() => _setScaleMicDescActive(false), 1500);
+}
+
+function toggleScaleMic() {
+  if (_scaleMicStream) stopScaleMic();
+  else startScaleMic();
 }
 
 // ── 정답/오답 효과음 (chord-name-quiz.js playSound 이식) ─────
@@ -1288,22 +1617,22 @@ function renderFullNeck(ids = {}) {
   const wrapper = document.getElementById(ids.wrapper || 'fb-full-wrapper');
   if (!neckEl || !numsEl || !wrapper) return;
 
-  // 전체 너비 = TOTAL_FRETS / VISIBLE_FRETS × 100%
-  const widthPct = `${(TOTAL_FRETS / FRETS_VISIBLE) * 100}%`;
-  wrapper.style.width = widthPct;
+  // 전체 너비 = 기준좌표계 고정값(더 이상 %/vw 아님 — transform:scale이 실제 크기를 담당)
+  wrapper.style.width = FB_REF_FULL_W + 'px';
   neckEl.style.width  = '100%';
   numsEl.style.width  = '100%';
 
   neckEl.innerHTML = '';
   numsEl.innerHTML = '';
 
-  // ── 줄 선 (뒤에서 먼저 생성) ──
+  // ── 줄 선 (뒤에서 먼저 생성) ── 두께도 기준배율(FB_REF_FBU)로 스케일 —
+  // 고정 px면 지판이 커지고 작아질 때 줄만 두께가 안 변해서 "사진 확대"가 아니게 됨
   const nutLeftPct = 1 / TOTAL_FRETS * 100;
   for (let s = 0; s < STRINGS; s++) {
     const topPct = (s + 0.5) / STRINGS * 100;
     const el = document.createElement('div');
     el.className = 'fb-string';
-    el.style.cssText = `top:${topPct}%; height:${STRING_THICKNESS[s]}px; left:${nutLeftPct}%;`;
+    el.style.cssText = `top:${topPct}%; height:${STRING_THICKNESS[s] * FB_REF_FBU}px; left:${nutLeftPct}%;`;
     neckEl.appendChild(el);
   }
 
@@ -1354,28 +1683,27 @@ function renderFullNeck(ids = {}) {
     el.textContent = fretNum;
     numsEl.appendChild(el);
   });
+
+  applyFbScale();
 }
 
-// ── 뷰포트 스크롤로 이동 ──────────────────────────────────────
-function scrollToFret(startFret, animate = true, viewportId = 'fb-viewport') {
-  const viewport = document.getElementById(viewportId);
-  if (!viewport) return;
+// ── 지판 이동(translateX, 기준좌표계) ────────────────────────
+function scrollToFret(startFret, animate = true) {
+  _fbLastFret = startFret;
+  const wrapper = document.getElementById('fb-full-wrapper');
+  if (!wrapper) return;
 
-  const vw = viewport.clientWidth;
-  // 釉붾윮 以묒븰 fret = startFret + FRETS_VISIBLE/2
-  // 해당 위치를 뷰포트 중앙에 오도록 계산
-  // targetLeft = (startFret + FRETS_VISIBLE/2) / FRETS_VISIBLE * vw - vw/2
-  //            = startFret / FRETS_VISIBLE * vw
-  const targetLeft = (startFret / FRETS_VISIBLE) * vw;
+  const targetPan = -(startFret / FRETS_VISIBLE) * FB_REF_VIEWPORT_W;
 
   if (!animate) {
-    viewport.scrollLeft = targetLeft;
+    _fbPanRef = targetPan;
+    applyFbScale();
     return;
   }
 
-  const startLeft = viewport.scrollLeft;
-  const diff      = targetLeft - startLeft;
-  if (Math.abs(diff) < 1) return;
+  const startPan = _fbPanRef;
+  const diff     = targetPan - startPan;
+  if (Math.abs(diff) < 0.5) { _fbPanRef = targetPan; applyFbScale(); return; }
 
   const duration  = 350;
   const startTime = performance.now();
@@ -1383,7 +1711,8 @@ function scrollToFret(startFret, animate = true, viewportId = 'fb-viewport') {
   function step(now) {
     const t    = Math.min((now - startTime) / duration, 1);
     const ease = 1 - Math.pow(1 - t, 3); // easeOutCubic
-    viewport.scrollLeft = startLeft + diff * ease;
+    _fbPanRef = startPan + diff * ease;
+    applyFbScale();
     if (t < 1) requestAnimationFrame(step);
   }
   requestAnimationFrame(step);
@@ -2944,7 +3273,7 @@ function updateStartTestBtnLabel() {
   const label = document.getElementById('start-test-btn-label');
   if (!label) return;
   const keyName = (_useFlat ? KEY_NAMES_FLAT : KEY_NAMES)[_rootNote];
-  label.textContent = `${keyName}key 테스트 시작`;
+  label.textContent = `${keyName}key 암기 테스트`;
 }
 
 // ── 임시/기록 관련 함수 ──────────────────────────────────────
@@ -3078,6 +3407,40 @@ function initDegreeToggle() {
 }
 
 // ── 키 선택 UI ───────────────────────────────────────────────
+// key-selector 가로스크롤 — 마우스 드래그로도 스크롤 가능하게(터치는 브라우저 기본 제공).
+// 드래그 발생 시 key-btn의 pointerup(키 선택)은 억제(capture 단계에서 stopPropagation).
+function initKeySelectorDragScroll(el) {
+  let isDown = false;
+  let dragged = false;
+  let startX = 0;
+  let startScroll = 0;
+
+  el.addEventListener('pointerdown', (e) => {
+    isDown = true;
+    dragged = false;
+    startX = e.clientX;
+    startScroll = el.scrollLeft;
+    el.classList.add('is-dragging');
+  });
+  el.addEventListener('pointermove', (e) => {
+    if (!isDown) return;
+    const dx = e.clientX - startX;
+    if (Math.abs(dx) > 3) dragged = true;
+    el.scrollLeft = startScroll - dx;
+  });
+  const endDrag = () => {
+    isDown = false;
+    el.classList.remove('is-dragging');
+  };
+  el.addEventListener('pointerup', endDrag);
+  el.addEventListener('pointerleave', endDrag);
+  el.addEventListener('pointercancel', endDrag);
+  // 드래그였으면 key-btn 클릭(키 선택) 무효화
+  el.addEventListener('pointerup', (e) => {
+    if (dragged) e.stopPropagation();
+  }, true);
+}
+
 function initKeySelector() {
   const el = document.getElementById('key-selector');
   if (!el) return;
@@ -3134,6 +3497,7 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   measureDegreeOffsets();    // 도수 라벨 정렬 오프셋 1차 측정
+  initFbScaleResize();       // 지판 "사진 확대" 스케일 — 창 크기 바뀌면 재계산
 renderFullNeck();
   renderNotes(false);        // 초기 렌더 — 애니메이션 없이 즉시 표시
 
@@ -3142,6 +3506,7 @@ renderFullNeck();
     document.fonts.ready.then(() => {
       measureDegreeOffsets();
       renderNotes(false);
+      alignMicBtnRowToDesc();
     });
   }
   updateFormLabel();
@@ -3150,9 +3515,17 @@ renderFullNeck();
   initAccidentalToggle();
   initDegreeToggle();
   initKeySelector();
+  initKeySelectorDragScroll(document.getElementById('key-selector'));
   updateStartTestBtnLabel();
+  updateScaleGapScrollMode(); // 그룹1~4 간격 30px 미만이면 스크롤모드로 초기 진입 — 모든 그룹 콘텐츠(타이틀/인디케이터/키선택 그리드) 확정 이후에 측정
+  alignMicBtnRowToDesc(); // scale-mic-btn-row를 desc 첫 줄 좌우 경계에 맞춤
 
   initTestTap();
+
+  // 마이크 버튼 — 시퀀스를 실제 연주로 검증하며 진행
+  document.getElementById('scale-mic-btn')?.addEventListener('pointerup', toggleScaleMic);
+  // 재생 버튼 — 현재 블럭 낮은음→높은음→낮은음(+근음 재상행) 재생
+  document.getElementById('scale-play-btn')?.addEventListener('pointerup', toggleScalePlay);
 
   // 테스트 시작 버튼 (피크 2개 소모)
   document.getElementById('start-test-btn')?.addEventListener('pointerup', async () => {

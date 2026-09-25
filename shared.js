@@ -6,7 +6,7 @@
 // ── 상수 ─────────────────────────────────────────────────────
 const SUPABASE_URL  = 'https://jbvkygeksohlysyvaoab.supabase.co';
 const SUPABASE_ANON = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Impidmt5Z2Vrc29obHlzeXZhb2FiIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzYzOTk5NjgsImV4cCI6MjA5MTk3NTk2OH0.6RSgChy0Yq0H2TJpZPSoMKQ2V-OYfR0XzE1aJBBZkXI';
-const APP_VERSION   = '1.3.5.5';
+const APP_VERSION   = '1.3.6.0_dev';
 const SUPABASE_STORAGE_KEY = 'sb-jbvkygeksohlysyvaoab-auth-token';
 
 // 이용약관/개인정보처리방침 버전 — 광고식별자 수집 항목 추가(2026-09) 시 1로 올림.
@@ -1037,66 +1037,9 @@ window.positionFadeTop = positionFadeTop;
 // 완전히 동일해야 한다. 페이지마다 마크업을 복붙하면 새 페이지를 만들 때마다 빠뜨리므로
 // shared.js가 .app-shell을 가진 모든 페이지에 없으면 자동으로 채워 넣는다.
 // (home.html은 이미 둘 다 갖고 있어서 자동으로 스킵됨)
-function injectAppChrome() {
-  const shell = document.querySelector('.app-shell');
-  if (!shell) return; // 온보딩·약관 등 앱셸 없는 페이지는 대상 아님
-
-  // 1) 탑바 브랜드(로고 + CHORDITOR + 버전) — #back-btn 바로 뒤에 삽입.
-  //    모바일 서브페이지는 뒤로가기+피크바만 보여야 하므로 CSS(.top-bar-title--auto)로 숨기고
-  //    데스크탑(1600px+)에서만 보이게 한다.
-  const topBar = document.querySelector('.top-bar');
-  if (topBar && !topBar.querySelector('.top-bar-title')) {
-    const title = document.createElement('span');
-    title.className = 'top-bar-title top-bar-title--auto';
-    title.innerHTML =
-      '<img src="image/Chorditor_logo.svg" alt="" class="top-bar-logo">CHORDITOR' +
-      '<span id="home-banner-version" class="top-bar-version"></span>';
-    const backBtn = topBar.querySelector('#back-btn');
-    if (backBtn) backBtn.after(title);
-    else topBar.prepend(title);
-  }
-
-  // 2) 데스크탑 좌측 사이드바 — .app-shell의 grid-area:nav 자리를 채운다.
-  //    탭 버튼은 home.html의 navTabPointerDown이 없는 페이지이므로 URL 이동으로 처리.
-  if (!shell.querySelector('.bottom-nav')) {
-    const nav = document.createElement('nav');
-    nav.className = 'bottom-nav';
-    nav.innerHTML = `
-      <div class="sidebar-brand"><span class="top-bar-title">CHORDITOR<span id="sidebar-brand-version" class="top-bar-version"></span></span></div>
-      <div class="sidebar-user">
-        <span class="sidebar-user-level">Lv.<span id="sidebar-user-lv">1</span></span>
-        <span class="sidebar-user-name" id="sidebar-user-name">—</span>
-        <span class="sidebar-user-plan" id="sidebar-user-plan">Free</span>
-      </div>
-      <div class="sidebar-user-xp profile-xp">
-        <div class="profile-xp-bar">
-          <div class="profile-xp-bar-fill" id="sidebar-user-xp-bar-fill"></div>
-        </div>
-        <span class="profile-xp-num" id="sidebar-user-xp-num">0 / 0 XP</span>
-      </div>
-      <button class="bottom-nav-item" onclick="location.href='home.html'">
-        <i data-lucide="home"></i>
-        <span>홈</span>
-      </button>
-      <button class="bottom-nav-item" onclick="location.href='home.html?tab=tools'">
-        <i data-lucide="wrench"></i>
-        <span>도구</span>
-      </button>
-      <button class="bottom-nav-item" onclick="location.href='home.html?tab=projects'">
-        <i data-lucide="book-open"></i>
-        <span>노트</span>
-      </button>
-      <button class="bottom-nav-item" onclick="location.href='home.html?tab=profile'">
-        <i data-lucide="user"></i>
-        <span>프로필</span>
-      </button>
-      <button class="icon-btn" id="sidebar-logout-btn" onclick="location.href='home.html?action=logout'" aria-label="로그아웃">
-        <i data-lucide="log-out"></i>
-        <span class="nav-label">로그아웃</span>
-      </button>`;
-    shell.appendChild(nav);
-  }
-}
+// 2026-09-23: 1600px+ 데스크탑 사이드바/탑바 브랜드 시스템 폐기 — 더 이상 아무것도 주입하지 않음
+// (예전엔 여기서 .top-bar에 로고+CHORDITOR 브랜드 span을, .app-shell에 좌측 사이드바 nav를 주입했음)
+function injectAppChrome() {}
 
 // ⚠ DEV ONLY — 출시 전 제거할 것. 관리자 계정(ADMIN_USER_ID) 전용 플로팅 디버그 칩.
 // 2026-08-31: 페르소나 전환·승급 미리보기 등 전부 제거하고 DB까지 실제로 되돌리는 초기화

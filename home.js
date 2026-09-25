@@ -5097,47 +5097,24 @@ document.addEventListener('DOMContentLoaded', async () => {
   const _sidebarVer = document.getElementById('sidebar-brand-version');
   if (_sidebarVer) _sidebarVer.textContent = _prodVer;
 
-  // 데스크탑(1600px~) — 튜토리얼/설정 아이콘을 좌측 사이드바로 이동 (hidden 토글 로직은 ID 기반이라 위치 이동 무관)
+  // 2026-09-23: 1600px+ 사이드바 폐기 — 튜토리얼/설정 아이콘은 항상 모바일/태블릿과
+  // 동일하게 상단 탑바에 고정(예전엔 데스크탑에서 좌측 사이드바로 옮겼음)
   (() => {
-    const _mq = window.matchMedia('(min-width: 1600px)');
     const _tutBtn = document.getElementById('tutorial-entry-btn');
     const _setBtn = document.getElementById('settings-btn');
-    const _logoutBtn = document.getElementById('sidebar-logout-btn');
-    const _nav = document.querySelector('.bottom-nav');
     const _topBar = document.querySelector('.desktop-topbar');
-    if (!_tutBtn || !_setBtn || !_nav || !_topBar) return;
-    const _place = () => {
-      if (_mq.matches) {
-        // 데스크탑 사이드바: 홈/노트/프로필 다음 4번째 튜토리얼, 설정은 맨 아래로, 그 밑에 로그아웃
-        _nav.appendChild(_tutBtn);
-        _nav.appendChild(_setBtn);
-        if (_logoutBtn) _nav.appendChild(_logoutBtn);
-      } else {
-        // 모바일/태블릿 탑바: 기존 순서(튜토리얼 → 설정) 유지
-        _topBar.appendChild(_tutBtn);
-        _topBar.appendChild(_setBtn);
-      }
-    };
-    _place();
-    _mq.addEventListener('change', _place);
+    if (!_tutBtn || !_setBtn || !_topBar) return;
+    _topBar.appendChild(_tutBtn);
+    _topBar.appendChild(_setBtn);
   })();
 
-  // 데스크탑 — 뒤로가기 버튼(#back-btn)을 top-bar(사이드바+메인 전체 폭을 가로지름)에서
-  // main-content(사이드바 오른쪽, 실제 콘텐츠 영역)로 이동. top-bar 안에 있으면 좌측 끝이
-  // 사이드바 위쪽에 떠서 메인 콘텐츠 좌상단과 안 맞았음 — CSS 포지션만으론 못 고치고
-  // DOM 위치 자체를 옮겨야 함(위 튜토리얼/설정 버튼과 동일 패턴).
+  // 2026-09-23: 1600px+ 사이드바/back-btn 절대배치 바 폐기 — #back-btn은 항상
+  // .desktop-topbar 안 정상 위치에 고정(예전엔 데스크탑에서 main-content로 옮겼음)
   (() => {
-    const _mq = window.matchMedia('(min-width: 1600px)');
     const _backBtn = document.getElementById('back-btn');
-    const _main = document.getElementById('main-content');
     const _topBar = document.querySelector('.desktop-topbar');
-    if (!_backBtn || !_main || !_topBar) return;
-    const _place = () => {
-      if (_mq.matches) _main.prepend(_backBtn);
-      else _topBar.prepend(_backBtn);
-    };
-    _place();
-    _mq.addEventListener('change', _place);
+    if (!_backBtn || !_topBar) return;
+    _topBar.prepend(_backBtn);
   })();
 
   // 코드 사전 와이드 레이아웃 — 12key 근음 레일(#lib-root-tabs)을 .lib-bottom 안에서

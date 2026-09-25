@@ -41,37 +41,13 @@
       </div>
       <div class="scale-level-layout">
 
-        <!-- 상단: 프랫보드 -->
-        <div class="scale-level-top">
+        <!-- 그룹1: 타이틀 + 키 선택(12key 그리드 먼저, #/b·핑거토글은 하단으로) -->
+        <div class="key-selector-section">
 
-          <div class="form-label" id="form-label"></div>
+          <div class="training-page-title" id="form-label"></div>
 
-          <div class="fretboard-row">
-            <button class="fb-arrow-btn" id="fb-arrow-prev">
-              <i data-lucide="chevron-left"></i>
-            </button>
-
-            <!-- 0~20프랫 슬라이딩 뷰포트 -->
-            <div class="fb-viewport" id="fb-viewport">
-              <div class="fb-full-wrapper" id="fb-full-wrapper">
-                <div class="fb-full-neck" id="fb-full-neck"></div>
-                <div class="fb-full-nums" id="fb-full-nums"></div>
-              </div>
-            </div>
-
-            <button class="fb-arrow-btn" id="fb-arrow-next">
-              <i data-lucide="chevron-right"></i>
-            </button>
-          </div>
-
-          <!-- 블럭 인디케이터 -->
-          <div class="block-indicator" id="block-indicator"></div>
-
-        </div>
-
-        <!-- 하단: 키 선택 -->
-        <div class="scale-level-bottom">
-          <div class="key-selector-section">
+          <div class="key-selector-top-row">
+            <span class="key-selector-label">KEY</span>
             <div class="accidental-toggle-row">
               <div class="accidental-toggle" id="accidental-toggle">
                 <span class="acc-btn active" id="toggle-sharp">#</span>
@@ -86,16 +62,77 @@
                 <i data-lucide="arrow-left-right"></i>
               </button>
             </div>
-            <span class="key-selector-label">KEY</span>
-            <div class="key-selector" id="key-selector"></div>
-            <button class="start-test-btn" id="start-test-btn">
-              <span id="start-test-btn-label"></span>
-              <span class="stt-peak-cost" id="stt-peak-cost">
-                <img src="image/white_peak.svg" alt="" class="stt-peak-cost-icon">
-                <span class="stt-peak-cost-count">x2</span>
-              </span>
+          </div>
+
+          <div class="key-selector" id="key-selector"></div>
+
+        </div>
+
+        <!-- 그룹2: 프랫보드 (독립 그룹, 타이틀은 그룹1로 이동함) -->
+        <div class="scale-level-top">
+
+          <div class="fretboard-row">
+            <button class="fb-arrow-btn" id="fb-arrow-prev">
+              <i data-lucide="chevron-left"></i>
+            </button>
+
+            <!-- 0~20프랫 슬라이딩 뷰포트 — 바깥(fb-viewport)은 좌우 여유공간이 있으면
+                 옆 프렛을 살짝 더 보여주는 "고스트" 클립 영역까지 넓어짐(마스크로 페이드,
+                 클릭 불가). 안쪽(fb-viewport-inner)은 실제 7프렛 폭 그대로, 클릭 가능 영역. -->
+            <div class="fb-viewport" id="fb-viewport">
+              <div class="fb-viewport-inner" id="fb-viewport-inner">
+                <div class="fb-full-wrapper" id="fb-full-wrapper">
+                  <div class="fb-full-neck" id="fb-full-neck"></div>
+                  <div class="fb-full-nums" id="fb-full-nums"></div>
+                </div>
+              </div>
+              <div class="fb-peek-blocker fb-peek-blocker--left" id="fb-peek-blocker-left"></div>
+              <div class="fb-peek-blocker fb-peek-blocker--right" id="fb-peek-blocker-right"></div>
+            </div>
+
+            <button class="fb-arrow-btn" id="fb-arrow-next">
+              <i data-lucide="chevron-right"></i>
             </button>
           </div>
+
+          <!-- 블럭 인디케이터 -->
+          <div class="block-indicator" id="block-indicator"></div>
+
+        </div>
+
+        <!-- 그룹3: 마이크/재생 버튼 (독립 그룹) -->
+        <div class="scale-mic-wrap">
+          <div class="scale-mic-desc" id="scale-mic-desc">
+            <div class="scale-mic-desc-row">
+              <span class="scale-mic-desc-label">기타 버튼</span>
+              <span class="scale-mic-desc-sep">|</span>
+              <span class="scale-mic-desc-text">직접 연주해보기</span>
+            </div>
+            <div class="scale-mic-desc-row">
+              <span class="scale-mic-desc-label">재생 버튼</span>
+              <span class="scale-mic-desc-sep">|</span>
+              <span class="scale-mic-desc-text">스케일 들어보기</span>
+            </div>
+          </div>
+          <div class="scale-mic-btn-row">
+            <button class="scale-mic-btn" id="scale-mic-btn">
+              <i data-lucide="guitar"></i>
+            </button>
+            <button class="play-all-btn" id="scale-play-btn">
+              <i data-lucide="play"></i>
+            </button>
+          </div>
+        </div>
+
+        <!-- 그룹4: 암기 테스트 버튼 (독립 그룹) -->
+        <div class="scale-test-btn-group">
+          <button class="start-test-btn cd-btn cd-btn--brand cd-btn--auto-width" id="start-test-btn">
+            <span id="start-test-btn-label"></span>
+            <span class="stt-peak-cost" id="stt-peak-cost">
+              <img src="image/white_peak.svg" alt="" class="stt-peak-cost-icon">
+              <span class="stt-peak-cost-count">x2</span>
+            </span>
+          </button>
         </div>
 
       </div>

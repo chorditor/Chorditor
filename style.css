@@ -15,7 +15,7 @@
   --charcoal-blue: #334155;
   --radius: 16px;
   --radius-lg: 16px;
-  --sidebar-w: 240px;
+  --sidebar-w: 0px; /* 2026-09-23: 1600px+ 사이드바 시스템 폐기 — 항상 0, 의존 calc()들 자동으로 사이드바 없는 값이 됨 */
   --picker-item-h: 30px; /* JS PICKER_ITEM_H ?�수?� 반드???�치 */
   --project-slot-size: 56px; /* .line-text 보조선 ?�비 계산?�도 공유 */
   --row-meter-rail-w: 14px; /* .row-meter-rail 실폭 — chord-row-wrapper padding-left와 공유(코드슬롯1↔line-text 좌측 정렬) */
@@ -674,10 +674,8 @@ button, input, select, textarea {
 /* 앱 로고탑바 — 데스크탑(1600px+) 전용 껍데기. 로고/브랜드/버전만 표기하고 절대 안 건드림.
    모바일/태블릿에선 완전히 숨김(2026-08-22: JS로 뒤로가기/피크바를 여기 옮겨넣던 방식 폐기 —
    #main-content > .top-bar가 항상 그 역할 고정 전담, 옮길 필요 자체가 없어짐) */
-.top-bar.desktop-topbar { display: none; }
-@media (min-width: 1600px) {
-  .top-bar.desktop-topbar { display: flex; }
-}
+.top-bar.desktop-topbar { display: none; } /* 2026-09-23: 1600px+ 전용 노출 규칙 폐기 —
+  항상 숨김(home.html은 아래 :has() 규칙으로 별도 항상노출이라 안 건드림) */
 /* home.html 전용 — 탑바를 desktop-topbar 하나로 통일(뒤로가기/튜토리얼/설정도 여기 포함,
    2026-08-22) — 모바일/데스크탑 전 구간에서 항상 노출. #main-content엔 별도 top-bar 없음 */
 .app-shell:has(#tab-view-home) .top-bar.desktop-topbar { display: flex; }
@@ -719,6 +717,17 @@ button, input, select, textarea {
   padding-inline: var(--grid-margin); /* 브레이크포인트별 그리드 마진 토큰 그대로 — 내부요소는 패딩/마진 없이 이 박스에 바로 붙음 */
   padding-bottom: 0;
   margin-inline: 0;
+}
+/* 데스크탑(1600px~) — §5 그리드 컨테이너 캡과 동일하게 중앙정렬(2026-09-23, 사이드바 폐기로
+   이제 .top-bar도 다른 콘텐츠(.scale-level-layout 등)처럼 1264px 캡+가운데정렬로 통일 —
+   그래야 뒤로가기 버튼(col1)과 본문 콘텐츠(col1)가 같은 기준으로 정렬됨) */
+@media (min-width: 1600px) {
+  .top-bar {
+    width: 100%; /* flex item이라 이거 없으면 margin-inline:auto가 stretch를 꺼서 콘텐츠폭으로
+                    쪼그라듦(2026-09-23에 겪은 col2 버그와 동일 원인) — 명시로 방지 */
+    max-width: 1600px; /* 그리드 시스템 자체를 1600px로 고정 — 그 이상은 margin-inline:auto가 흡수 */
+    margin-inline: auto;
+  }
 }
 .top-bar.hidden { display: none; }
 
@@ -1784,11 +1793,11 @@ button, input, select, textarea {
     margin-inline: calc(var(--grid-margin) + var(--grid-track) + var(--grid-gutter));
   }
 }
-/* 데스크탑(1600px~): .app-shell이 grid(240px 1fr)로 바뀌어 --sidebar-w(240px)만큼 실제
-   콘텐츠 폭이 100vw보다 작음 — 위와 같은 col2~11 공식이지만 100vw 대신 (100vw - --sidebar-w) 기준. */
+/* 데스크탑(1600px~): 사이드바 폐기(2026-09-23), 그리드 자체가 1600px 캡 — 위와 같은
+   col2~11 공식이지만 100vw 대신 min(100vw,1600px) 기준. */
 @media (min-width: 1600px) {
   #view-project {
-    --grid-track: calc((100vw - var(--sidebar-w) - var(--grid-margin) * 2 - var(--grid-gutter) * (var(--grid-cols) - 1)) / var(--grid-cols));
+    --grid-track: calc((min(100vw, 1600px) - var(--grid-margin) * 2 - var(--grid-gutter) * (var(--grid-cols) - 1)) / var(--grid-cols));
     width: calc(10 * var(--grid-track) + 9 * var(--grid-gutter));
     margin-inline: calc(var(--grid-margin) + var(--grid-track) + var(--grid-gutter));
   }
@@ -9350,11 +9359,8 @@ canvas {
 }
 
 /* 데스크탑(1600px~) — 코드 사전 와이드 레이아웃, 태블릿 가로 설계 그대로.
-   단 데스크탑은 좌측에 --sidebar-w(240px) 고정 사이드바가 있어서 #view-library의 실제 폭이
-   100vw가 아니라 (100vw - 사이드바)임. vw 값을 그대로 쓰면 비율이 어긋나므로
-   calc((100vw - var(--sidebar-w)) * N%)로 사이드바를 뺀 메인영역 기준으로 다시 계산.
-   그 외 로직·구조(rail·col2 내부그리드·.lib-viewer 병합 등)는 태블릿 블록과 완전히 동일 —
-   home.js의 libWideMq()가 이 폭 구간을 이미 포함하는지 확인 필요. */
+   사이드바 폐기(2026-09-23) — 그리드 자체가 1600px에서 캡되므로 100vw 대신
+   min(100vw,1600px)로 비율 계산. 그 외 로직·구조는 태블릿 블록과 완전히 동일. */
 @media (min-width: 1600px) {
   #view-library {
     --lib-grid-cols: 4;
@@ -9374,8 +9380,8 @@ canvas {
   #view-library {
     display: grid;
     grid-template-columns:
-      calc((100vw - var(--sidebar-w)) * 0.05)
-      calc((100vw - var(--sidebar-w)) * 0.55)
+      calc(min(100vw, 1600px) * 0.05)
+      calc(min(100vw, 1600px) * 0.55)
       1fr;
     grid-template-rows: 3vh 6vh 50vh 15vh 3vh auto 1fr;
     overflow: hidden;
@@ -9489,7 +9495,7 @@ canvas {
 
   #view-library .lib-root-item {
     height: calc(100% / 12);
-    font-size: clamp(16px, calc((100vw - var(--sidebar-w)) * 0.014), 18px);
+    font-size: clamp(16px, calc(min(100vw, 1600px) * 0.014), 18px);
   }
 
   #view-library .lib-voicing-overlay,
@@ -14657,9 +14663,15 @@ canvas {
 .scale-level-layout {
   display: flex;
   flex-direction: column;
-  height: 100%;
-  overflow: hidden;
+  flex: 1;
+  min-height: 0;
   background: #ffffff;
+  /* 4개 그룹 배치 — 그룹1(프랫보드) 맨 위 고정 / 그룹4(키선택) 맨 아래 고정(24px는 자체 padding-bottom),
+     그 사이 그룹2·3은 남는 공간을 균등 분배(space-between)해서 배치. 고정 px 간격 대신
+     "남는 공간 나누기" 방식이라 공간 부족해도 그룹끼리 겹치지 않고 간격만 줄어듦 */
+  justify-content: space-between;
+  /* 그리드 좌우 마진 — 타이틀/그룹1~4 전부 이 한 곳에서 인셋 통일(design_system_grid_foundation 패턴) */
+  padding-inline: var(--grid-margin);
   /* 375px 기준 확정 레이아웃(9:19.5/9:20) → 기기 폭에 비례해 프렛보드 시각비율 유지 */
   --cs: calc(100vw / 375);
   /* 세로 레이아웃 단위 — 기본은 실제 뷰포트 높이의 1%(=1vh).
@@ -14688,14 +14700,20 @@ canvas {
   align-items: center;
   background: #ffffff;
   position: relative;
+  flex-shrink: 0; /* 프랫보드+block-indicator는 절대 안 찌그러뜨림 — 공간 부족하면 scale-mic-wrap만 줄어듦 */
 }
-
-.scale-level-bottom {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  background: #ffffff;
-  overflow-y: auto;
+/* 타이틀은 .training-page-title 공용 컴포넌트로 통일(2026-09-22, form-label 폐기) —
+   부모가 align-items:center라 기본은 가운데정렬, 그리드 좌측 인셋에 맞춰 왼쪽 고정.
+   크기는 scale-level 전용 스코프로 Headline→Title 토큰 하향(원래 form-label이 18px/700이었음,
+   .training-page-title 기본(Headline)은 너무 커서 다른 페이지(home/metronome/progression/training)의
+   기본 크기는 안 건드리고 이 페이지만 낮춤) */
+.key-selector-section .training-page-title {
+  align-self: flex-start;
+  font-size: var(--font-title);
+  font-weight: 700; /* --weight-bold 토큰(비토큰, 특수강조 전용) 그대로 리터럴 사용 — 원래 form-label 700 유지 */
+  margin-left: 6px; /* 상단 뒤로가기 lucide 아이콘 광학정렬 보정 */
+  margin-bottom: 24px; /* 그룹 순서 변경(2026-09-22)으로 타이틀 바로 아래가 12key 그리드가 됨 —
+                           기존 "타이틀 24px 아래 고정" 규칙이 이제 여기로 이동 */
 }
 
 /* ?�?� ?�랫보드 ?�퍼 ?�?� */
@@ -14820,16 +14838,24 @@ canvas {
 .degrees-on .fb-note-deg { display: block; }
 .fb-note--open .fb-note-deg { color: #1a1a1a; }
 
-/* ?�치 ?��??�장 ???�각 ?�기 ?��?, ?�치 ?�역�??��? */
+/* 터치 히트영역 확장 — 시각 크기 그대로, 터치 영역만 키움.
+   360px 기준(dot ≈20.3px)에서 -12px씩 늘리면 최소 44px 확보(20.3+24=44.3) —
+   scale 배율이 1보다 작아지는 극단적으로 낮은 화면에서만 44px 미달 가능(허용 범위) */
 .fb-note::before {
   content: '';
   position: absolute;
-  inset: -10px;
+  inset: -12px;
   border-radius: 50%;
 }
 
 .fb-note--root {
   background: #1a1a1a;
+}
+
+/* 스케일 재생 중 현재 음 표시 (재생/근음 여부와 무관하게 항상 이김) */
+.fb-note--playing {
+  background: var(--blue) !important;
+  border-color: transparent !important;
 }
 
 .fb-note--blue5 {
@@ -14941,19 +14967,53 @@ canvas {
 /* ?�?� ?�라?�딩 뷰포???�?� */
 .fb-viewport {
   flex: none;
-  width: calc(var(--fb-span) * var(--fb-ratio)); /* = 7프렛 폭, 비율 2.3 고정 */
+  /* width/height는 JS(applyFbScale)가 실측 스케일로 설정 — 좌우 여유공간(40px 이상)이 있으면
+     7프렛 폭보다 넓게(고스트 프렛 peek 영역 포함) 설정됨. */
   overflow: hidden;
   position: relative;
+  display: flex;
+  justify-content: center; /* fb-viewport-inner(실제 7프렛 폭)를 가운데 고정 — 넓어진 만큼 좌우로 peek 노출 */
   min-width: 0;
   /* 가로 슬라이딩용 overflow:hidden 이 1번줄(최상단) dot 의 파동 애니메이션까지 세로로 잘랐음.
-     클리핑은 패딩박스 기준이라 상하 패딩만큼 잘림 경계가 넓어짐 — 같은 값의 음수 마진으로
-     레이아웃 높이는 그대로 유지. (1번줄 ripple 은 위로 약 11px 삐져나감) */
-  padding: 14px 0;
-  margin: -14px 0;
+     클리핑은 패딩박스 기준이라 위쪽 패딩만큼 잘림 경계가 넓어짐 — 같은 값의 음수 마진으로
+     레이아웃 높이는 그대로 유지. (1번줄 ripple 은 위로 약 11px 삐져나감)
+     ※ 아래쪽엔 리플 삐져나갈 일이 없는데도 대칭으로 14px 패딩을 줘서, fb-full-nums(프렛번호)가
+     그 아래쪽 패딩 영역까지 시각적으로 삐져나가 block-indicator와 겹치는 버그가 있었음(2026-09-22
+     발견) — 아래쪽은 0으로.
+     ※ 전역 `* { box-sizing: border-box }` 때문에 JS(applyFbScale)가 넣는 height 가 패딩을
+     포함한 값으로 해석돼, 콘텐츠 영역이 padding-top 만큼 줄어 fb-full-nums 아래가 잘렸음
+     — content-box 로 바꿔 JS 가 넣는 height 를 콘텐츠 높이 그대로 쓰게 함. */
+  box-sizing: content-box;
+  padding: 14px 0 0 0;
+  margin: -14px 0 0 0;
 }
 
+.fb-viewport-inner {
+  flex: none;
+  position: relative;
+  /* overflow:hidden 없음 — 실제 클립은 부모(#fb-viewport, 더 넓음)가 담당해서
+     양옆 프렛이 이 박스 경계를 넘어 살짝 보임(고스트 peek). 클릭 차단은 이 요소가 아니라
+     .fb-peek-blocker(양옆 투명 오버레이)가 담당 — pointer-events는 DOM 트리를 따라가서
+     이 요소가 overflow로 안 잘리는 이상 여기서 막을 수 없음. */
+}
+
+/* 고스트 peek 구간(양옆) 클릭 차단용 투명 오버레이 — JS가 width를 peekPx로 세팅,
+   peekPx=0이면 폭 0이라 사실상 없는 것과 동일 */
+.fb-peek-blocker {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 0;
+  z-index: 2;
+  pointer-events: auto;
+}
+.fb-peek-blocker--left { left: 0; }
+.fb-peek-blocker--right { right: 0; }
+
 .fb-full-wrapper {
-  /* width??JS?�서 ?�정 */
+  /* width는 JS(renderFullNeck)가 고정 기준값(FB_REF_FULL_W)으로 설정.
+     transform(scale+translateX)은 JS(applyFbScale/scrollToFret)가 매번 갱신 */
+  transform-origin: 0 0;
 }
 
 /* ?�?� ?� ???�?� */
@@ -14995,48 +15055,38 @@ canvas {
   white-space: nowrap;
 }
 
-/* ?�?� ???�이�??�?� */
-.form-label {
-  align-self: flex-start;
-  margin: calc(2 * var(--vhu)) 0 0 calc(2 * var(--vhu));
-  font-size: 18px;
-  font-weight: 700;
-  color: #1a1a1a;
-  letter-spacing: -0.3px;
-}
-
 /* ?�?� ?�랫보드 ?�살?????�?� */
 .fretboard-row {
   display: flex;
   align-items: center;
-  justify-content: center;
+  justify-content: space-between; /* 화살표버튼을 그리드 양끝(부모 grid-margin 인셋)으로 붙임 */
   width: 100%;
-  margin: calc(3 * var(--vhu)) 0 0;
+  margin: 0; /* 그룹 순서 변경(2026-09-22)으로 타이틀이 더 이상 이 위에 없음 — 기존 24px 규칙 제거 */
 
-  /* ── 지판 크기 단일 기준 ─────────────────────────────────────────
-     375×812에서 실측한 비율을 전 뷰포트에서 고정한다.
-       W = 7프렛 폭(.fb-viewport) / H = 6번줄~1번줄 줄span / W:H = 2.3
-     가용 폭과 가용 높이 중 좁은 쪽에 맞추고(min) 반대편도 같이 줄여서,
-     어느 뷰포트에서도 넘치지 않으면서 비율은 정확히 유지된다. */
-  --fb-arrow-w: 36px;
+  /* ── 지판 크기 단일 기준 — "사진 확대" 방식(2026-09-22) ──────────────
+     360px 기준으로 딱 한 번 고정 디자인을 만든다(--fbu가 더 이상 뷰포트에
+     안 좌우됨 — 상수). 실제 화면에 맞는 배율은 JS(computeFbScale/applyFbScale,
+     scale-level.js)가 계산해서 .fb-viewport 실측 크기 + .fb-full-wrapper의
+     transform:scale()로 적용한다. 요소별로 각자 calc()하던 예전 방식은
+     스케일마다 반올림 오차가 미세하게 달라질 수 있어서, 통째로 확대/축소하는
+     transform 방식으로 전환(오차 없이 항상 완전히 같은 비율 유지). */
+  --fb-arrow-w: 44px;
   --fb-ratio: 2.3;
-  --fb-h-budget: calc(17 * var(--vhu));
-  --fb-span: min(var(--fb-h-budget), calc((100vw - 2 * var(--fb-arrow-w)) / var(--fb-ratio)));
-  /* 줄은 넥 높이의 8.33%~91.67%(=5/6) 지점에 그려지고(scale-level.js:1300),
-     양끝 줄 두께 절반(0.5px + 1.75px)이 그 바깥으로 더 삐져나온다 */
-  --fb-neck-h: calc((var(--fb-span) - 2.25px) * 6 / 5);
-  /* 지판 내부 치수 단위 — 375 기준(넥 160px)에서 정확히 1px.
-     지판 내부 요소는 --cs(뷰포트 폭) 대신 이 값을 써야 지판과 같이 스케일된다.
-     .fretboard-row 밖(테스트 오버레이·카드 프리뷰)에서는 정의가 없어 --cs로 폴백됨 */
-  --fbu: calc(var(--fb-neck-h) / 160);
+  --fb-ref-width: 360px;
+  --fb-ref-span: calc((var(--fb-ref-width) - 2 * var(--fb-arrow-w)) / var(--fb-ratio));
+  --fb-ref-neck-h: calc((var(--fb-ref-span) - 2.25px) * 6 / 5);
+  /* 지판 내부 치수 단위 — 360px 기준(넥 160px)에서 고정. 지판 내부 요소는
+     --cs 대신 이 값을 써야 지판과 같이 스케일된다(.fretboard-row 밖에서는
+     정의가 없어 --cs로 폴백됨) */
+  --fbu: calc(var(--fb-ref-neck-h) / 160);
 }
 
 .fb-arrow-btn {
   flex-shrink: 0;
-  width: 36px;
-  height: 36px;
+  width: 44px;
+  height: 44px;
   align-self: flex-start;
-  margin-top: calc((160 * var(--fbu, var(--cs, 1px)) - 36px) / 2); /* 넥 높이(가변) 기준 중앙 */
+  margin-top: 0; /* 실제(스케일 적용된) 넥 높이 기준 중앙 정렬은 JS(applyFbScale)가 담당 */
   display: flex;
   align-items: center;
   justify-content: center;
@@ -15048,8 +15098,8 @@ canvas {
 }
 
 .fb-arrow-btn svg {
-  width: 22px;
-  height: 22px;
+  width: 32px;
+  height: 32px;
 }
 
 /* ?�?� 블럭 ?�디케?�터 ?�?� */
@@ -15057,7 +15107,7 @@ canvas {
   display: flex;
   gap: clamp(4px, calc(6 * var(--cs, 1px)), 8px);
   justify-content: center;
-  margin-bottom: calc(10 * var(--vhu));
+  margin-top: 16px;
 }
 
 .block-dot {
@@ -15071,6 +15121,142 @@ canvas {
   background: #1a1a1a;
 }
 
+/* ?�?� 스케일 마이크 버튼 (프랫보드~하단 사이, 기능 미부여) —
+   두 영역 사이 남는 공간을 이 wrap이 전부 흡수해서 그 안에서 정중앙 배치 */
+.scale-mic-wrap {
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 16px;
+}
+
+.scale-mic-btn-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between; /* mic버튼 좌측끝 = desc label 좌측끝, play버튼 우측끝 = desc text 우측끝
+                                      (JS alignMicBtnRowToDesc가 실측해서 width/margin-left 세팅) */
+  align-self: flex-start; /* 부모(.scale-mic-wrap)의 align-items:center로 재중앙정렬되는 것 방지 —
+                              위치는 JS가 margin-left로 직접 잡음 */
+  gap: 16px;
+}
+
+/* 모바일(스타일가이드 1단계, ~480px)에서 1:1.6보다 정사각형에 가까운 비율(Flip 분할화면 등) —
+   화면에 딱 맞추는 구조(space-between) 대신 위에서부터 쌓고 그룹 사이 40px 고정 여백, 넘치면 스크롤.
+   480px 초과(태블릿~데스크탑)는 이 스코프 밖 — 기본 space-between(화면 꽉채움) 유지. */
+@media (max-width: 480px) and (min-aspect-ratio: 1/1.6) {
+  .main-content:has(> .scale-level-layout) {
+    overflow-y: auto;
+  }
+  .scale-level-layout {
+    flex: none;
+    min-height: 100%;
+    overflow: visible;
+    justify-content: flex-start;
+    gap: 40px;
+  }
+}
+
+/* 그룹1~4 실제 gap이 30px 미만으로 줄어들면(JS updateScaleGapScrollMode가 측정) 스크롤모드 전환 —
+   뷰포트 폭/비율과 무관하게 전 구간 공통. 위 미디어쿼리와 동일한 스타일(스크롤 모드는 항상 이 구조) */
+.scale-level-layout.scale-gap-scroll {
+  flex: none;
+  min-height: 100%;
+  overflow: visible;
+  justify-content: flex-start;
+  gap: 40px;
+}
+.main-content:has(> .scale-level-layout.scale-gap-scroll) {
+  overflow-y: auto;
+}
+
+/* scale-mic-wrap이 더 이상 flex:1로 안 늘어나서(콘텐츠 크기만큼만 차지) —
+   절대배치 트릭 필요없이 그냥 자연스러운 세로 흐름으로 배치 */
+.scale-mic-desc {
+  width: 80%;
+  margin: 0;
+  text-align: left;
+  font-size: 16px; /* 1~2단계(~768px) — 토큰 미사용, 리터럴 고정값 */
+  font-weight: var(--weight-semibold);
+  color: var(--brand);
+}
+@media (min-width: 769px) {
+  .scale-mic-desc {
+    font-size: 24px; /* 3~5단계(769px~) */
+  }
+}
+
+.scale-mic-desc-row {
+  display: flex;
+  align-items: baseline;
+  justify-content: center;
+  gap: 6px;
+}
+.scale-mic-desc-row + .scale-mic-desc-row {
+  margin-top: 4px;
+}
+.scale-mic-desc-sep {
+  color: var(--text-muted);
+}
+
+.scale-mic-btn {
+  width: 64px;
+  height: 64px;
+  border-radius: 50%;
+  border: 2px solid var(--border);
+  background: #ffffff;
+  color: var(--brand);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* scale-level.html 전용 스코프 — .play-all-btn 표준 크기(--icon-circle-size) 대신
+   옆에 나란히 놓인 마이크버튼과 크기·테두리·아이콘색 맞춤 */
+.scale-mic-wrap .play-all-btn {
+  width: 64px;
+  height: 64px;
+  border: 2px solid var(--border);
+  box-shadow: none;
+  color: var(--brand);
+}
+
+/* 활성화 상태 — 브랜드컬러 채움 */
+.scale-mic-btn.is-active,
+.scale-mic-wrap .play-all-btn.is-active {
+  border: none;
+  background: var(--brand);
+  color: #ffffff;
+}
+.scale-mic-wrap .play-all-btn svg,
+.scale-mic-btn svg {
+  width: 28px; /* 1~2단계(64px 버튼) */
+  height: 28px;
+}
+@media (min-width: 769px) {
+  .scale-mic-wrap .play-all-btn svg,
+  .scale-mic-btn svg {
+    width: 36px; /* 3~5단계(80px 버튼) */
+    height: 36px;
+  }
+}
+
+/* .play-all-btn:hover{opacity:.75}가 브랜드컬러 활성 상태를 연하게 만들어서 이 페이지만 무효화 */
+.scale-mic-wrap .play-all-btn:hover {
+  opacity: 1;
+}
+
+/* 3~5단계(큰태블릿~데스크탑, 769px~)는 64px→80px로 확대 — §4 브레이크포인트 기준 */
+@media (min-width: 769px) {
+  .scale-mic-btn,
+  .scale-mic-wrap .play-all-btn {
+    width: 80px;
+    height: 80px;
+  }
+}
+
 /* progression-detail.html 전용 — 액션바(샵플랫 토글+핑거번호) 크기·정렬 제어용 래퍼 */
 .progd-action-wrap {
   width: 100%;
@@ -15081,8 +15267,8 @@ canvas {
   display: flex;
   justify-content: center;
   align-items: center;
-  height: calc(4 * var(--vhu));
-  gap: calc(2 * var(--vhu));
+  height: 32px;
+  gap: 16px;
   margin-bottom: 0;
 }
 
@@ -15156,9 +15342,20 @@ canvas {
 .key-selector-section {
   display: flex;
   flex-direction: column;
-  padding: calc(14 * var(--cs, 1px)) calc(16 * var(--cs, 1px)) calc(16 * var(--cs, 1px) + env(safe-area-inset-bottom, 0px));
-  flex: 1;
-  min-height: 0;
+  flex-shrink: 0;
+  padding: calc(14 * var(--cs, 1px)) calc(16 * var(--cs, 1px)) 24px;
+}
+/* scale-level.html 전용 — 부모(.scale-level-layout)가 이미 grid-margin으로 좌우 인셋을 주므로
+   여기선 이중 인셋 방지 위해 좌우 padding만 0으로 (progression-detail.html의 기본 규칙은 안 건드림) */
+.scale-level-layout .key-selector-section {
+  padding-left: 0;
+  padding-right: 0;
+  /* 폴드/태블릿가로/데스크탑 등 여러 breakpoint에 흩어진 bare .key-selector-section
+     {width:55~65vw/%; margin-inline:auto} 오버라이드들이 그리드 마진과 별개로 또
+     좁혀서(이중 인셋) 타이틀·그룹1이 그리드 시작점과 안 맞는 버그가 있었음(2026-09-22).
+     specificity로 전부 무효화하고 부모(grid-margin 인셋)에 폭을 맡김. */
+  width: auto;
+  margin-inline: 0;
 }
 /* progression-detail.html 전용 — 시작하기 버튼~액션바 사이 여백 (scale-level.html은 미적용) */
 .progd-layout .key-selector-section {
@@ -15167,26 +15364,73 @@ canvas {
   padding-bottom: calc(4 * var(--vhu, 1vh) + env(safe-area-inset-bottom, 0px));
 }
 
+/* scale-level.html 전용 — 그룹1 재배치(2026-09-22)로 accidental-toggle-row가 KEY 라벨 우측으로 옴 */
+.key-selector-top-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 16px; /* 기존 key-selector-label의 grid까지 간격을 이 행 전체로 이전 */
+}
+.scale-level-layout .key-selector-section .key-selector-label {
+  margin-bottom: 0; /* 간격을 .key-selector-top-row가 대신 담당(위 규칙) */
+}
+
 .key-selector-label {
   font-size: 12px;
   font-weight: 700;
   color: var(--text-muted);
   letter-spacing: 1.2px;
-  margin-bottom: calc(2 * var(--vhu));
+  margin-bottom: 16px;
 }
 
 .key-selector {
   display: grid;
   grid-template-columns: repeat(6, 1fr);
-  gap: calc(1 * var(--vhu));
+  gap: 8px;
+}
+/* scale-level.html 전용 — 2줄 그리드 대신 1줄 가로스크롤 (progression-detail.html의 2줄 그리드는 안 건드림) */
+.scale-level-layout .key-selector-section .key-selector {
+  display: flex;
+  overflow-x: auto;
+  gap: 8px;
+  scrollbar-width: none;
+  scroll-behavior: smooth;
+  -webkit-overflow-scrolling: touch; /* iOS 모멘텀 스크롤 */
+  cursor: grab;
+}
+.scale-level-layout .key-selector-section .key-selector.is-dragging {
+  cursor: grabbing;
+  scroll-behavior: auto; /* 드래그 중엔 smooth가 오히려 버벅임 유발 */
+}
+.scale-level-layout .key-selector-section .key-selector::-webkit-scrollbar {
+  display: none;
+}
+.scale-level-layout .key-selector-section .key-btn {
+  flex: none;
+  width: 48px;
+}
+/* 1단계(모바일, ~480px) — 축소 */
+@media (max-width: 480px) {
+  .scale-level-layout .key-selector-section .key-btn {
+    height: 36px;
+    font-size: 14px;
+  }
+}
+/* 3~5단계(큰태블릿~데스크탑, 769px~) — 확대 */
+@media (min-width: 769px) {
+  .scale-level-layout .key-selector-section .key-btn {
+    width: 72px;
+    height: 56px;
+    font-size: 22px;
+  }
 }
 
 .key-btn {
-  height: calc(5 * var(--vhu));
-  border-radius: calc(1 * var(--vhu));
+  height: 41px;
+  border-radius: 8px;
   border: 1.5px solid #e0e0e0;
   background: #ffffff;
-  font-size: calc(2 * var(--vhu));
+  font-size: 16px;
   font-weight: 600;
   color: #444;
   cursor: pointer;
@@ -15234,21 +15478,17 @@ canvas {
   align-items: center;
   justify-content: center;
   gap: calc(8 * var(--cs, 1px));
-  align-self: center;
-  margin-top: auto;
-  margin-bottom: auto;
-  padding: calc(14 * var(--cs, 1px)) calc(32 * var(--cs, 1px));
-  border-radius: calc(14 * var(--cs, 1px));
-  border: none;
-  background: var(--brand);
-  color: #ffffff;
-  font-size: 14px;
-  font-weight: 700;
-  font-family: 'Pretendard', sans-serif;
-  cursor: pointer;
   -webkit-tap-highlight-color: transparent;
-  transition: opacity 0.15s;
   white-space: nowrap;
+}
+
+/* 그룹3: 테스트버튼 — 독립 그룹, 가로 중앙정렬만 담당 */
+.scale-test-btn-group {
+  display: flex;
+  justify-content: center;
+  flex-shrink: 0;
+  padding-bottom: 24px; /* 그룹 순서 변경(2026-09-22)으로 이 그룹이 맨 아래로 이동 —
+                            "화면 하단에서 24px" 고정 규칙이 이제 여기 적용됨 */
 }
 
 .stt-peak-cost {
@@ -15271,10 +15511,6 @@ canvas {
   font-weight: 700;
   color: #fff;
   opacity: 0.85;
-}
-
-.start-test-btn:active {
-  opacity: 0.7;
 }
 
 /* ?�?� ?��????�스???�버?�이 ?�?� */
@@ -17092,32 +17328,6 @@ canvas {
   #view-mode-select,
   #view-quiz { padding-left: 7.5vw; padding-right: 7.5vw; box-sizing: border-box; }
 
-  /* 스케일 레벨 — 태블릿 가로(1133~1599) 공용. training-scroll(85vw)과 동일 폭 기준 */
-  .scale-level-layout {
-    padding: 0 7.5vw;
-  }
-  .fretboard-row {
-    --fb-h-budget: 22vh;
-    --fb-span: min(var(--fb-h-budget), calc((85vw - 2 * var(--fb-arrow-w)) / var(--fb-ratio)));
-  }
-  .scale-test-overlay {
-    --fb-h-budget: 22vh;
-    --fb-span: min(var(--fb-h-budget), calc((85vw - 2 * var(--fb-arrow-w)) / var(--fb-ratio)));
-  }
-  .test-question-text { font-size: 24px; }
-  .scale-test-top .icon-btn svg { width: 32px; height: 32px; }
-  .start-test-btn {
-    gap: 14px;
-    padding: 22px 56px;
-    border-radius: 20px;
-    font-size: 22px;
-  }
-  .form-label {
-    font-size: 24px;
-  }
-  .block-indicator {
-    margin-bottom: 3vh;
-  }
   .accidental-toggle-row {
     margin-bottom: 3vh;
   }
@@ -17300,28 +17510,6 @@ canvas {
   #view-mode-select,
   #view-quiz { padding-left: 5vw; padding-right: 5vw; box-sizing: border-box; }
 
-  /* 스케일 레벨 — 태블릿 세로 3종(하한774/표준820/상한1032) 공용: padding 방식으로 통일해서
-     Fold메인·Fold8와이드 스코프의 나중 padding 오버라이드가 그대로 이기게(같은 속성) */
-  .scale-level-layout {
-    padding: 0 5vw;
-  }
-  .fretboard-row {
-    --fb-h-budget: 20vh;
-    --fb-span: min(var(--fb-h-budget), calc((90vw - 2 * var(--fb-arrow-w)) / var(--fb-ratio)));
-  }
-  .scale-test-overlay {
-    --fb-h-budget: 20vh;
-    --fb-span: min(var(--fb-h-budget), calc((90vw - 2 * var(--fb-arrow-w)) / var(--fb-ratio)));
-  }
-  .test-question-text { font-size: 24px; }
-  .scale-test-top .icon-btn svg { width: 32px; height: 32px; }
-  .start-test-btn {
-    gap: 14px;
-    padding: 22px 56px;
-    border-radius: 20px;
-    font-size: 22px;
-  }
-
   /* #/b 토글·핑거번호·짝궁전환 — 공용 컴포넌트, 태블릿 세로 전역(scale-level 한정 아님,
      progression.html 등 같은 컴포넌트 쓰는 모든 페이지에 공통 적용) */
   .accidental-toggle {
@@ -17345,12 +17533,6 @@ canvas {
   .pair-transition-btn svg {
     width: 18px;
     height: 18px;
-  }
-  .form-label {
-    font-size: 24px;
-  }
-  .block-indicator {
-    margin-bottom: 3vh;
   }
   .accidental-toggle-row {
     margin-bottom: 3vh;
@@ -17439,30 +17621,6 @@ canvas {
 
 @media (max-width: 559px) and (max-height: 750px) {
   .scale-card-note { font-size: 20px; }
-
-  /* ── 스케일 레벨 — 대응되는 일반 모바일 뷰포트의 레이아웃을 그대로 쓰고 스크롤 ──
-     주소창에 세로가 깎였다고 레이아웃까지 압축되면 안 되므로, 세로 단위(--vhu)만
-     "대응 모바일" 높이 기준으로 고정하고(아래 폭별 스코프) 넘치는 만큼은 스크롤로 흡수한다.
-     min-height는 그 기준 높이에서 탑바를 뺀 값 — 이래야 시작버튼의 margin:auto 여백 분배까지
-     일반 모바일과 완전히 같은 결과가 나온다. */
-  .main-content:has(> .scale-level-layout) { overflow-y: auto; }
-  .scale-level-layout {
-    overflow: visible;
-    min-height: calc(100 * var(--vhu) - 54px - env(safe-area-inset-top, 0px));
-  }
-}
-
-/* 모바일 브라우저 하한 360×640 → 대응 모바일 360×800 */
-@media (min-width: 355px) and (max-width: 365px) and (max-height: 750px) {
-  .scale-level-layout { --vhu: 8px; }
-}
-/* 모바일 브라우저 표준 375×635 → 대응 모바일 375×812 */
-@media (min-width: 366px) and (max-width: 390px) and (max-height: 750px) {
-  .scale-level-layout { --vhu: 8.12px; }
-}
-/* 모바일 브라우저 상한 412×712 → 대응 모바일 412×915 */
-@media (min-width: 400px) and (max-width: 420px) and (max-height: 750px) {
-  .scale-level-layout { --vhu: 9.15px; }
 }
 
 /* Z Flip 분할(440×360, 멀티윈도우) — 360×440(모바일 브라우저 하한 스코프, --vhu:8px)에서
@@ -17488,49 +17646,6 @@ canvas {
     --cs: calc(360 / 375 * 1px);
     --fb-h-budget: 136px; /* 17 * --vhu(8px) — .scale-level-layout과 동일 기준 */
     --fb-span: min(var(--fb-h-budget), calc((360px - 2 * var(--fb-arrow-w)) / var(--fb-ratio)));
-  }
-  .scale-test-body {
-    overflow-y: auto;
-    justify-content: flex-start;
-  }
-  .test-question-text {
-    margin-top: auto;
-  }
-  .test-btn-row {
-    margin-bottom: auto;
-  }
-}
-
-/* 모바일 가로모드(회전된 폰·모바일 브라우저 가로 전부) — 세로 레이아웃 그대로 두고
-   스크롤만 허용(§0-1). 회전하면 가로폭이 곧 세로모드일 때의 높이이므로 --vhu를
-   1vh(실제 높이, 매우 작음) 대신 1vw(가로폭 1%)로 바꾸면 세로모드 크기가 그대로 이식됨.
-   .scale-level-bottom만 내부 스크롤이라 짧은 높이에선 상단(타이틀+지판)이 잘려서
-   아예 안 보일 수 있음 — 레이아웃 전체를 스크롤 컨테이너로 승격 */
-@media (min-width: 560px) and (max-height: 480px) {
-  /* 회전하면 두 축이 뒤바뀐다 — 세로모드의 가로폭 = 지금의 100vh, 세로높이 = 지금의 100vw.
-     레이아웃 박스를 그 값으로 직접 박아서 세로모드와 픽셀 단위로 같은 렌더 결과를 만들고,
-     화면 밖으로 넘치는 부분은 main-content 스크롤로 흡수한다.
-     flex 구조(bottom flex:1 / 시작버튼 margin:auto)는 그대로 둬야 여백 분배까지 똑같이 나옴 */
-  .scale-level-layout {
-    --vhu: 1vw;                /* 세로모드의 1vh */
-    --cs: calc(100vh / 375);   /* 세로모드의 100vw/375 */
-    width: 100vh;
-    margin-inline: auto;
-    height: calc(100vw - 54px - env(safe-area-inset-top, 0px)); /* 세로모드 main-content 높이 */
-    overflow: visible;
-  }
-  .fretboard-row {
-    --fb-span: min(var(--fb-h-budget), calc((100vh - 2 * var(--fb-arrow-w)) / var(--fb-ratio)));
-  }
-  /* 레이아웃 폭이 100vh로 좁아져 좌우에 main-content 배경(--bg 회색)이 드러남 —
-     이 페이지는 흰 배경이므로 컨테이너도 흰색으로 맞춤 */
-  .main-content:has(> .scale-level-layout) { overflow-y: auto; background: #ffffff; }
-
-  /* 스케일 문제 화면 — 회전 시 축이 바뀌므로 --cs도 세로모드의 100vw/375(=100vh/375)로 이식 */
-  .scale-test-overlay {
-    --cs: calc(100vh / 375);
-    --fb-h-budget: 17vw; /* 17 * --vhu(1vw) — .scale-level-layout과 동일 기준 */
-    --fb-span: min(var(--fb-h-budget), calc((100vh - 2 * var(--fb-arrow-w)) / var(--fb-ratio)));
   }
   .scale-test-body {
     overflow-y: auto;
@@ -17578,7 +17693,6 @@ canvas {
   .test-btn-row {
     margin-bottom: auto;
   }
-  .form-label { font-size: 20px; }
   /* scale-level.html 전용(스코프 좁혀서 다른 페이지 top-bar 피크바 누수 방지, 2026-08-31) */
   .app-shell:has(.scale-level-layout) #topbar-currency { margin-right: 70.4px !important; }
   .start-test-btn {
@@ -17774,18 +17888,17 @@ canvas {
   .scale-card-note { font-size: 24px; }
   .scale-card-practice-btn { font-size: 14px; }
 
-  /* 스케일 레벨 — training.html 폴드메인 스코프(13714줄 부근)와 동일 패턴: 좌우 10vw 패딩으로
-     콘텐츠 폭 80vw, 피크바도 같은 폭만큼 우측 정렬 */
+  /* 스케일 레벨 — 좌우 여백을 그리드 마진 토큰으로 통일(2026-09-22, 타이틀 그리드 시작점 불일치 수정) */
   .scale-level-layout {
-    padding: 0 10vw;
+    padding-inline: var(--grid-margin);
   }
   .fretboard-row {
     --fb-h-budget: 22vh;
-    --fb-span: min(var(--fb-h-budget), calc((80vw - 2 * var(--fb-arrow-w)) / var(--fb-ratio)));
+    --fb-span: min(var(--fb-h-budget), calc((100vw - 2 * var(--grid-margin) - 2 * var(--fb-arrow-w)) / var(--fb-ratio)));
   }
   .scale-test-overlay {
     --fb-h-budget: 22vh;
-    --fb-span: min(var(--fb-h-budget), calc((80vw - 2 * var(--fb-arrow-w)) / var(--fb-ratio)));
+    --fb-span: min(var(--fb-h-budget), calc((100vw - 2 * var(--grid-margin) - 2 * var(--fb-arrow-w)) / var(--fb-ratio)));
   }
   /* scale-level.html 전용(스코프 좁혀서 다른 페이지 top-bar 피크바 누수 방지, 2026-08-31) */
   .app-shell:has(.scale-level-layout) #topbar-currency { margin-right: 10vw !important; }
@@ -17796,11 +17909,6 @@ canvas {
     padding: 14px 32px;
     border-radius: 14px;
     font-size: 14px;
-  }
-  /* 태블릿 세로 스코프(min-width:560px, max-aspect-ratio:1/1)가 750×832(비율.901)도
-     같이 만족해서 그쪽 확대값이 새어들어옴 — 모바일 기준으로 명시 리셋 */
-  .form-label {
-    font-size: 18px;
   }
   .accidental-toggle {
     height: 32px;
@@ -17831,14 +17939,11 @@ canvas {
 @media (min-width: 690px) and (max-width: 720px) and (min-height: 900px) and (max-height: 960px) {
   .fretboard-row {
     --fb-h-budget: 20vh;
-    --fb-span: min(var(--fb-h-budget), calc((80vw - 2 * var(--fb-arrow-w)) / var(--fb-ratio)));
+    --fb-span: min(var(--fb-h-budget), calc((100vw - 2 * var(--grid-margin) - 2 * var(--fb-arrow-w)) / var(--fb-ratio)));
   }
   .scale-test-overlay {
     --fb-h-budget: 20vh;
-    --fb-span: min(var(--fb-h-budget), calc((80vw - 2 * var(--fb-arrow-w)) / var(--fb-ratio)));
-  }
-  .form-label {
-    font-size: 20px;
+    --fb-span: min(var(--fb-h-budget), calc((100vw - 2 * var(--grid-margin) - 2 * var(--fb-arrow-w)) / var(--fb-ratio)));
   }
   /* 액션바(#/b 토글·핑거번호) — 큰 스타일 가이드(태블릿세로 값과 동일 표준) */
   .accidental-toggle {
@@ -17966,15 +18071,15 @@ canvas {
    max-width로 상한을 잘라둠 */
 @media (min-width: 700px) and (max-width: 833px) and (min-height: 580px) and (max-height: 760px) and (min-aspect-ratio: 1/1) and (max-aspect-ratio: 4/3) {
   .scale-level-layout {
-    padding: 0 10vw;
+    padding-inline: var(--grid-margin);
   }
   .fretboard-row {
     --fb-h-budget: 22vh;
-    --fb-span: min(var(--fb-h-budget), calc((80vw - 2 * var(--fb-arrow-w)) / var(--fb-ratio)));
+    --fb-span: min(var(--fb-h-budget), calc((100vw - 2 * var(--grid-margin) - 2 * var(--fb-arrow-w)) / var(--fb-ratio)));
   }
   .scale-test-overlay {
     --fb-h-budget: 22vh;
-    --fb-span: min(var(--fb-h-budget), calc((80vw - 2 * var(--fb-arrow-w)) / var(--fb-ratio)));
+    --fb-span: min(var(--fb-h-budget), calc((100vw - 2 * var(--grid-margin) - 2 * var(--fb-arrow-w)) / var(--fb-ratio)));
   }
   /* scale-level.html 전용(스코프 좁혀서 다른 페이지 top-bar 피크바 누수 방지, 2026-08-31) */
   .app-shell:has(.scale-level-layout) #topbar-currency { margin-right: 10vw !important; }
@@ -18108,18 +18213,17 @@ canvas {
   .stat-unit { font-size: 16px; }
   .training-stat-label { font-size: clamp(13px, 3.2vw, 14px); }
 
-  /* 스케일 레벨 — 위 훈련소와 동일 패턴: 좌우 10vw 패딩으로 콘텐츠 폭 80vw,
-     피크바도 같은 폭만큼 우측 정렬 */
+  /* 스케일 레벨 — 좌우 여백을 그리드 마진 토큰으로 통일(2026-09-22, 타이틀 그리드 시작점 불일치 수정) */
   .scale-level-layout {
-    padding: 0 10vw;
+    padding-inline: var(--grid-margin);
   }
   .fretboard-row {
     --fb-h-budget: 25vh;
-    --fb-span: min(var(--fb-h-budget), calc((80vw - 2 * var(--fb-arrow-w)) / var(--fb-ratio)));
+    --fb-span: min(var(--fb-h-budget), calc((100vw - 2 * var(--grid-margin) - 2 * var(--fb-arrow-w)) / var(--fb-ratio)));
   }
   .scale-test-overlay {
     --fb-h-budget: 25vh;
-    --fb-span: min(var(--fb-h-budget), calc((80vw - 2 * var(--fb-arrow-w)) / var(--fb-ratio)));
+    --fb-span: min(var(--fb-h-budget), calc((100vw - 2 * var(--grid-margin) - 2 * var(--fb-arrow-w)) / var(--fb-ratio)));
   }
   /* scale-level.html 전용(스코프 좁혀서 다른 페이지 top-bar 피크바 누수 방지, 2026-08-31) */
   .app-shell:has(.scale-level-layout) #topbar-currency { margin-right: 10vw !important; }
@@ -18251,16 +18355,7 @@ canvas {
   }
   .profile-container--stats { min-height: 200px; }
 
-  .app-shell {
-    display: grid;
-    grid-template-columns: 240px 1fr;
-    grid-template-rows: auto 1fr;
-    grid-template-areas:
-      "topbar topbar"
-      "nav main";
-    max-width: none;
-    margin-inline: 0;
-  }
+  /* .app-shell 사이드바 grid 폐기(2026-09-23) — 항상 base(flex column) 유지 */
 
   /* 배너·홈블럭 크기는 그대로 두고 사이 간격만 3vh로 통일.
      margin-block: calc(20px - gap) 공식이 gap 값을 상쇄시키므로 margin-block도 0으로 같이 꺼서
@@ -18305,25 +18400,21 @@ canvas {
   .training-stats-title { font-size: 18px; }
   .training-stat-label { font-size: 16px; }
   .training-card-icon i { font-size: 40px !important; width: 40px !important; height: 40px !important; }
-  /* 카드 우측끝 — 사이드바(--sidebar-w) 뺀 main-content 기준 90%폭의 우측여백5% + padding16px.
-     탑바는 사이드바 위까지 풀폭이라 100vw 기준 vw는 못 쓰고 사이드바 보정 필요 */
-  /* shared.js가 #topbar-currency를 main-content(position:relative) 안으로 옮기므로
-     여기선 절대배치로 카드 우측끝에 맞춤 — 태블릿과 동일한 정렬 기준, 사이드바만큼만 다름.
-     #back-btn 전용 막대(56px, z-index:10)와 같은 상단대에 겹치므로 그 위로 뜨게 z-index 더 높임 */
-  #topbar-currency {
-    position: absolute;
-    top: 12px;
-    right: calc((100vw - var(--sidebar-w)) * 0.05 + 16px) !important;
-    margin: 0 !important;
-    z-index: 11;
-  }
+  /* 사이드바 폐기(2026-09-23) — #topbar-currency 절대배치 잔재 제거, .top-bar 안 정상 flex
+     흐름 그대로 둠(마크업 인라인 margin-left:auto로 우측정렬, .top-bar가 1600px 캡+중앙정렬되면
+     같이 따라감) — 크기값만 데스크탑 토큰으로 유지 */
   #topbar-currency .currency-icon-box { width: 30px; height: 34px; }
   #topbar-currency .currency-icon-box img { width: 22px; height: 22px; }
   #topbar-currency .currency-count { font-size: 16px; }
-  /* 스케일 레벨 — 데스크탑. training-scroll(90%)과 동일 폭 기준(사이드바 이미 제외된
-     main-content 안이라 vw 대신 %) */
+  /* 스케일 레벨 — 데스크탑. §5 그리드 컨테이너 캡 패턴(training-scroll과 동일) —
+     1264px 초과분은 좌우 margin-inline:auto로 자동 흡수(§5 문서 명시 표준). #back-btn이
+     있는 .top-bar는 아직 그리드 미마이그레이션 레거시 셸(§11)이라 기준으로 삼으면 안 됨 —
+     되돌림(2026-09-23, margin-inline:0 제거는 오진단이었음) */
   .scale-level-layout {
-    width: 90%;
+    width: 100%; /* flex item이라 이거 없으면 margin-inline:auto가 stretch를 꺼서 쪼그라듦
+                    (col2 버그와 동일 원인) — 명시로 방지 */
+    max-width: 1600px; /* 그리드 시스템 자체를 1600px로 고정 — .top-bar와 동일 기준,
+                           그 이상은 margin-inline:auto가 흡수 */
     margin-inline: auto;
   }
   .main-content:has(> .scale-level-layout) { background: #ffffff; }
@@ -18333,11 +18424,11 @@ canvas {
   }
   .fretboard-row {
     --fb-h-budget: 22vh;
-    --fb-span: min(var(--fb-h-budget), calc((90vw - 216px - 2 * var(--fb-arrow-w)) / var(--fb-ratio))); /* 90%×(100vw-240px 사이드바) */
+    --fb-span: min(var(--fb-h-budget), calc((min(100vw, 1600px) - 2 * var(--grid-margin) - 2 * var(--fb-arrow-w)) / var(--fb-ratio))); /* 사이드바 폐기 후 그리드 1600px 캡 기준으로 재계산 */
   }
   .scale-test-overlay {
     --fb-h-budget: 22vh;
-    --fb-span: min(var(--fb-h-budget), calc((90vw - 216px - 2 * var(--fb-arrow-w)) / var(--fb-ratio)));
+    --fb-span: min(var(--fb-h-budget), calc((min(100vw, 1600px) - 2 * var(--grid-margin) - 2 * var(--fb-arrow-w)) / var(--fb-ratio)));
   }
   .test-question-text { font-size: 24px; }
   .scale-test-top .icon-btn svg { width: 32px; height: 32px; }
@@ -18346,9 +18437,6 @@ canvas {
     padding: 22px 56px;
     border-radius: 20px;
     font-size: 22px;
-  }
-  .form-label {
-    font-size: 24px;
   }
   .block-indicator {
     margin-bottom: 3vh;
@@ -18414,189 +18502,11 @@ canvas {
     height: 24px;
   }
 
-  /* 전체 폭 상단 탑메뉴 — 코디터 이름/버전 표기, 흰 배경 + 구분선으로 하단 영역과 분리 */
-  .top-bar {
-    grid-area: topbar;
-    background: #ffffff;
-    box-shadow: 0 2px 8px rgba(0,0,0,0.08);
-    border-bottom: 1px solid var(--border);
-    padding-left: 16px;
-  }
-  .main-content { grid-area: main; }
-  /* #back-btn이 home.js에서 top-bar → main-content로 옮겨짐(데스크탑 전용). main-content는
-     이미 position:relative라 좌상단에 절대배치만 하면 됨.
-     코드 사전 와이드 레이아웃은 콘텐츠가 좌상단 끝까지 차서 이 좌표에 그냥 겹쳤음 —
-     버튼 자체를 전용 상단 바(전체 폭, 56px)로 만들어 겹치지 않게 함.
-     #back-btn.hidden은 그대로 유지되므로 안 보이는 뷰에선 바도 같이 사라짐. */
-  /* 버튼 자체를 100%×56px 막대로 만들었더니 막대 전체가 클릭돼서(애니메이션도 막대 전체가
-     눌리는 것처럼 보여서) 어색함 — 배경 막대는 #main-content::before로 분리해서 깔고,
-     #back-btn은 아이콘 크기 그대로 그 위에 얹어 아이콘 부분만 클릭되게 함 */
-  #main-content > #back-btn {
-    position: absolute;
-    top: 12px;
-    left: 20px;
-    z-index: 11;
-    transition: none;
-  }
-  #main-content > #back-btn:active {
-    transform: none;
-  }
-  /* :has()로 back-btn이 hidden 아닐 때만 막대 그림 — 아니면 home.html 기본 뷰처럼
-     back-btn 자체가 없거나 숨겨진 페이지에도 빈 회색 막대가 걸림 */
-  #main-content:has(> #back-btn:not(.hidden))::before {
-    content: '';
-    position: absolute;
-    top: 0;
-    left: 0;
-    width: 100%;
-    height: 56px;
-    background: var(--bg);
-    z-index: 10;
-    pointer-events: none;
-  }
-  /* 이 막대는 데스크탑에서 페이지 탑바(.top-bar) 역할을 대신하므로 배경도 그 페이지의
-     탑바와 같아야 함 — 태블릿과 동일하게 보이는 게 기준(기본 회색, .top-bar--white 쓰는
-     페이지만 흰색). #back-btn은 main-content로 옮겨졌지만 .top-bar 자체는 DOM에 남아있어
-     형제 선택자로 페이지 구분 가능 */
-  .top-bar--white ~ #main-content:has(> #back-btn:not(.hidden))::before {
-    background: #ffffff;
-  }
-  /* training-scroll은 #back-btn이 정상 flex 흐름(.top-bar 자체 높이 56px)에 있어서
-     절대배치 보정 불필요 — 2026-08-22 padding-top 제거, base padding(20px)+gap이 그대로 담당 */
-  .quiz-view {
-    padding-top: calc(56px + 20px);
-  }
-  /* shared.js가 #quiz-topbar-center를 main-content로 옮김 — #topbar-currency와 같은 이유로
-     top:12px 절대배치 + #back-btn 막대(z-index:10) 위로 뜨게 z-index 더 높임.
-     left:50%는 기존 base 규칙 그대로 두면 main-content 기준으로 자동 중앙정렬됨(사이드바 안 낌) */
-  #quiz-topbar-center {
-    top: 12px;
-    z-index: 11;
-  }
-  .bottom-nav {
-    grid-area: nav;
-    position: relative;
-    flex-direction: column;
-    justify-content: flex-start;
-    align-items: stretch;
-    gap: 4px;
-    width: 240px;
-    height: 100%;
-    padding: 16px 12px;
-    box-sizing: border-box;
-    border-top: none;
-    border-right: 1px solid var(--border);
-  }
-
-  /* 타이틀·버전이 상단 탑메뉴로 이동했으니 사이드바 안의 중복 타이틀은 숨김 */
-  .sidebar-brand {
-    display: none;
-  }
-
-  .sidebar-user {
-    display: flex;
-    align-items: center;
-    gap: 6px;
-    padding: 0 16px 6px;
-    font-size: 13px;
-    color: var(--text-primary);
-  }
-
-  /* 레벨/닉네임 아래쪽 경험치바 — 프로필 탭 XP바(.profile-xp) 그대로 재사용, 사이드바 폭에 맞춰 패딩만 조정 */
-  .sidebar-user-xp.profile-xp {
-    display: flex;
-    padding: 0 16px 32px;
-    /* 같은 데스크탑 블록 위쪽의 .profile-xp{width:calc(50% - 16px)}는 프로필 탭 XP바를
-       폴드 힌지 좌측에 맞추려던 값인데, 클래스를 공유하는 사이드바 XP바에도 새서
-       폭이 91.5px까지 줄어 바가 사라진 것처럼 보였음(실측 확인). 여기서 되돌린다. */
-    width: 100%;
-  }
-  .sidebar-user-level { font-weight: 700; color: var(--text-primary); }
-  .sidebar-user-name {
-    flex: 0 1 auto;
-    min-width: 0;
-    max-width: 90px;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    color: var(--text-primary);
-    font-weight: 600;
-  }
-  .sidebar-user-plan {
-    flex-shrink: 0;
-    font-size: 11px;
-    font-weight: 700;
-    color: var(--blue);
-    background: var(--bg, #f5f5f5);
-    border-radius: 999px;
-    padding: 2px 8px;
-  }
-
-  .bottom-nav-item {
-    flex: none;
-    flex-direction: row;
-    justify-content: flex-start;
-    align-items: center;
-    gap: 14px;
-    padding: 12px 16px;
-    border-radius: var(--radius);
-    font-size: 16px;
-    color: var(--text-primary); /* 비활성 탭도 진하게 — 사이드바는 목록형이라 muted면 흐려 보임 */
-  }
-  .bottom-nav-item svg { width: 24px; height: 24px; }
-  .bottom-nav-item.active {
-    background: var(--bg, #f5f5f5);
-  }
-
-  /* JS가 튜토리얼/설정/로그아웃을 .bottom-nav 안으로 옮겨넣음 — 4번째 튜토리얼, 설정은 맨 아래,
-     로그아웃은 그 밑. 홈/노트/프로필과 동일한 목록 행 스타일 적용. 사이드바는 전역 고정 메뉴라
-     탭별 .hidden 토글(홈 탭에서만 노출 등)을 무시하고 항상 노출 */
-  .bottom-nav #tutorial-entry-btn:not(.hidden),
-  .bottom-nav #settings-btn,
-  .bottom-nav #sidebar-logout-btn,
-  .bottom-nav #settings-btn.hidden {
-    display: flex;
-    width: 100%;
-    flex-direction: row;
-    justify-content: flex-start;
-    align-items: center;
-    gap: 14px;
-    padding: 12px 16px;
-    border-radius: var(--radius);
-    font-size: 16px;
-    color: var(--text-primary);
-    margin: 0 !important;
-  }
-  /* 설정/로그아웃을 화면 진짜 맨 아래에 고정 — flex margin-auto는 컨테이너 실제 높이 계산에
-     따라 안 먹는 경우가 있어서, 절대위치로 확실하게 바닥에 못박음 */
-  .bottom-nav #settings-btn,
-  .bottom-nav #sidebar-logout-btn {
-    position: absolute !important;
-    left: 12px;
-    right: 12px;
-    width: auto;
-    margin: 0 !important;
-  }
-  .bottom-nav #settings-btn { bottom: 56px; }
-  .bottom-nav #sidebar-logout-btn { bottom: 12px; }
-  .bottom-nav #tutorial-entry-btn svg,
-  .bottom-nav #settings-btn svg,
-  .bottom-nav #sidebar-logout-btn svg {
-    width: 24px;
-    height: 24px;
-  }
-  .bottom-nav #tutorial-entry-btn .nav-label,
-  .bottom-nav #settings-btn .nav-label,
-  .bottom-nav #sidebar-logout-btn .nav-label {
-    display: inline;
-  }
-
-  /* 사이드바에서는 버튼이 아이콘+라벨 가로행이라, dot을 아이콘(좌측 16~36px 구간) 우상단에 맞춤 */
-  .bottom-nav #tutorial-entry-btn .tut-entry-dot {
-    top: 12px;
-    left: 30px;
-    right: auto;
-  }
+  /* 사이드바/데스크탑 전용 탑바/back-btn 절대배치 바 전부 폐기(2026-09-23) —
+     .top-bar/.main-content/.bottom-nav grid-area 지정, #back-btn 절대배치+::before 바,
+     .quiz-view 보정 패딩, #quiz-topbar-center 보정, .sidebar-* 스타일 전부 제거.
+     이제 1600px+에서도 mobile/tablet과 동일한 흐름(.top-bar 안 back-btn 정상 flow,
+     .bottom-nav는 하단 고정바 그대로) */
 
   /* 코드 진행 디테일 — 캐러셀 크기·간격 */
   .progd-chord-view-inner {
@@ -20995,9 +20905,9 @@ body.tut-lock .tut-allow * {
 }
 @media (min-width: 1600px) {
   :root {
-    /* 데스크탑(1600px~) — 좌측 사이드바(240px)가 있어서 100vw가 실제 콘텐츠 폭보다 큼 —
-       --grid-track 계산에서 그만큼 빼줘야 col 경계가 실제 렌더 폭과 맞음 */
-    --grid-track: calc((100vw - 240px - var(--grid-margin) * 2 - var(--grid-gutter) * (var(--grid-cols) - 1)) / var(--grid-cols));
+    /* 데스크탑(1600px~) — 사이드바 폐기(2026-09-23), 그리드 자체가 1600px에서 캡되고
+       그 이상은 margin-inline:auto가 흡수하므로 100vw 대신 min(100vw,1600px) 기준 */
+    --grid-track: calc((min(100vw, 1600px) - var(--grid-margin) * 2 - var(--grid-gutter) * (var(--grid-cols) - 1)) / var(--grid-cols));
   }
 }
 
@@ -21188,11 +21098,14 @@ body.tut-lock .tut-allow * {
 }
 #grid-overlay-debug.active { display: grid; }
 
-/* 데스크탑(1600px~)은 좌측 사이드바(240px)가 있어서, base 규칙의 inset:0(전체폭)이
-   사이드바까지 덮음 — 파일에서 base 규칙보다 뒤에 둬야 캐스케이드로 이김.
-   사이드바 없는 페이지(온보딩 등)는 :has()로 걸러서 안 밀리게 함 */
+/* 2026-09-23: 사이드바 폐기로 좌측 240px 오프셋 규칙 제거.
+   1600px~ 마진은 .top-bar/.scale-level-layout과 동일하게 168px 고정(자라지 않음) —
+   max-width 캡은 이제 이 fixed margin이 대신 담당(0으로 무효화). */
 @media (min-width: 1600px) {
-  body:has(.bottom-nav) #grid-overlay-debug { left: 240px; }
+  #grid-overlay-debug {
+    max-width: 1600px;
+    margin-inline: auto;
+  }
 }
 
 #grid-overlay-debug span {
