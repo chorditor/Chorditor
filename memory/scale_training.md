@@ -1,7 +1,7 @@
 # 스케일 훈련 (scale-training / scale-level)
 
 ## 개요
-기타 스케일 블럭을 폼별로 학습하고, 셔플백 기반 테스트로 균등 반복 훈련하는 기능.
+기타 스케일 블럭을 폼별로 학습하고, 방금 보던 폼을 그 자리에서 테스트로 확인하며 훈련하는 기능.
 
 ## 파일 목록
 | 파일 | 역할 |
@@ -9,7 +9,10 @@
 | `scale-training.html/js` | 스케일 목록 페이지 (Ch.1 ~ 스케일 종류 카드) |
 | `scale-level.html/js` | 스케일 레벨 페이지 (프랫보드 뷰 + 테스트 오버레이) |
 | `scale-data.js` | 스케일 블럭 데이터 + ScaleData 접근 모듈 |
-| `shuffle-bag.js` | 셔플백 알고리즘 모듈 (범용) |
+
+`shuffle-bag.js`(셔플백 알고리즘 범용 모듈)는 2026-09-25 테스트 출제 방식 변경으로 scale-level에서
+더 이상 안 씀(아래 "테스트 핵심 흐름" 참고) — 다른 페이지에서도 안 쓰는 중이라 현재 프로젝트 전체
+미사용 상태. 파일 자체는 재사용 가능성 열어두려고 남겨뒀고, `scale-level.html`의 `<script>` include만 제거됨.
 
 ## 진입 흐름
 ```
@@ -62,7 +65,6 @@ let _testItem      = null;      // 현재 테스트 중인 { block, bi, startFre
 let _testHint      = null;      // 힌트로 표시된 근음 위치 { s, col }
 let _placedNotes   = new Set(); // 플레이어가 찍은 dot Set ("s,col")
 let _testSubmitted = false;
-let _shuffleBag    = null;      // ShuffleBag 인스턴스
 ```
 
 ### buildNavSequence()
@@ -72,9 +74,13 @@ let _shuffleBag    = null;      // ShuffleBag 인스턴스
 ```
 
 ### 테스트 핵심 흐름
+2026-09-25부터 무작위 출제(셔플백) 폐기 — **지금 fretboard-row에 보고 있는 블록을 그대로 테스트**
+(`seq[_navIdx]`). Ch.2(짝궁 전환)는 현재 원폼/짝궁폼 중 뭘 보고 있는지(`_pairTransitioned`)로
+전환 방향(`forward`)을 결정: 원폼 보는 중(`false`)이면 원폼→짝궁, 짝궁 보는 중(`true`)이면 짝궁→원폼.
 ```
 startTest()
-  → buildNavSequence() → ShuffleBag.next() → _testItem 결정
+  → buildNavSequence() → seq[_navIdx](현재 화면 블록) → _testItem 결정
+    (Ch.2는 { ...current, forward: !_pairTransitioned } 로 방향 부여)
   → renderTestNeck(startFret)  // 7프랫 고정 뷰
   → renderTestNotes()          // 힌트 근음 1개만 표시
   → 800ms 후 문제 텍스트 애니메이션
@@ -105,11 +111,12 @@ Karplus-Strong 알고리즘 — `playScaleNote(string, absFret)`
 
 ---
 
-## shuffle-bag.js (범용 모듈)
+## shuffle-bag.js (범용 모듈, scale-level에서는 2026-09-25부로 미사용)
 
 ### 개념
 셔플백(Shuffle Bag): 주머니에 모든 항목을 넣고 하나씩 꺼내는 방식.
-주머니가 비면 재충전 + 재셔플 → 균등 반복 보장.
+주머니가 비면 재충전 + 재셔플 → 균등 반복 보장. scale-level 테스트 출제가 "현재 화면 블록"
+방식으로 바뀌면서 여기선 더 이상 안 쓰지만, 범용 모듈이라 다른 기능에서 필요해지면 재사용 가능.
 
 ### 사용법
 ```javascript
@@ -124,16 +131,6 @@ bag.total         // 전체 개수
 ```
 키: 'shuffle-bag:<storageKey>'
 값: { version: 1, order: [2, 5, 0, 3, ...] }  // 남은 인덱스 순서
-```
-
-### scale-level에서 사용
-```javascript
-const bagKey = `scale-test:${_scaleKey}:${_rootNote}`;
-// 키/스케일 변경 시 새 인스턴스 생성, 동일 키면 localStorage에서 복원해 이어서 진행
-if (!_shuffleBag || _shuffleBag._storageKey !== `shuffle-bag:${bagKey}`) {
-  _shuffleBag = new ShuffleBag(bagKey, seq);
-}
-_testItem = _shuffleBag.next();
 ```
 
 ---

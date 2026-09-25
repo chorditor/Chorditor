@@ -116,7 +116,7 @@
           </div>
           <div class="scale-mic-btn-row">
             <button class="scale-mic-btn" id="scale-mic-btn">
-              <i data-lucide="guitar"></i>
+              <span class="scale-mic-help-glyph">?</span>
             </button>
             <button class="play-all-btn" id="scale-play-btn">
               <i data-lucide="play"></i>
@@ -127,7 +127,7 @@
         <!-- 그룹4: 암기 테스트 버튼 (독립 그룹) -->
         <div class="scale-test-btn-group">
           <button class="start-test-btn cd-btn cd-btn--brand cd-btn--auto-width" id="start-test-btn">
-            <span id="start-test-btn-label"></span>
+            <span id="start-test-btn-label">선택한 블럭 암기하기</span>
             <span class="stt-peak-cost" id="stt-peak-cost">
               <img src="image/white_peak.svg" alt="" class="stt-peak-cost-icon">
               <span class="stt-peak-cost-count">x2</span>
@@ -148,8 +148,12 @@
       <div class="scale-test-body">
         <p class="test-question-text" id="test-question-text"></p>
         <div class="scale-test-fb-wrap">
-          <div class="fb-full-neck" id="test-fb-full-neck"></div>
-          <div class="fb-full-nums" id="test-fb-full-nums"></div>
+          <div id="test-fb-viewport">
+            <div id="test-fb-full-wrapper">
+              <div class="fb-full-neck" id="test-fb-full-neck"></div>
+              <div class="fb-full-nums" id="test-fb-full-nums"></div>
+            </div>
+          </div>
         </div>
         <div class="test-result-row" id="test-result-row">
           <span class="test-result-score" id="test-result-score"></span>
@@ -157,7 +161,7 @@
         </div>
         <div class="test-btn-row">
           <button class="test-back-btn" id="test-back-btn">돌아가기</button>
-          <button class="test-submit-btn" id="test-submit-btn">
+          <button class="test-submit-btn cd-btn cd-btn--brand" id="test-submit-btn">
             <span id="test-submit-btn-label">제출하기</span>
             <span class="stt-peak-cost" id="test-retry-peak-cost" style="display:none">
               <img src="image/white_peak.svg" alt="" class="stt-peak-cost-icon">
@@ -175,7 +179,6 @@
   <script src="analytics-sdk.js"></script>
   <script src="shared.js"></script>
   <script src="scale-data.js"></script>
-  <script src="shuffle-bag.js"></script>
   <script src="guitar-samples.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/tone/14.8.49/Tone.js"></script>
   <script src="guitar-audio.js"></script>

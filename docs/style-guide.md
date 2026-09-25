@@ -661,8 +661,8 @@ function computeFbScale() {
   const row = document.querySelector('.fretboard-row');
   const rowWidth = row ? row.clientWidth : FB_REF_WIDTH;
   // 실제 확보 가능한 폭 예산 — 여기 공식을 바꾸면 "무엇을 기준으로 크기를 정할지"가 바뀐다
-  // (현재: 부모 폭의 80%, 최대 600px 고정캡)
-  const widthBudget = Math.min((rowWidth * 0.8) / FB_RATIO, 600 / FB_RATIO);
+  // (현재: 부모 폭의 80%, 최대 480px 고정캡)
+  const widthBudget = Math.min((rowWidth * 0.8) / FB_RATIO, 480 / FB_RATIO);
   return Math.max(widthBudget / FB_REF_SPAN, 0.01);
 }
 
