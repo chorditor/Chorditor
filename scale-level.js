@@ -2347,9 +2347,29 @@ function checkAnswer() {
   document.getElementById('test-back-btn')?.classList.add('is-visible');
 }
 
-// ── "?" 버튼 튜토리얼 (2026-09-25, 레벨1 메이저 기준 가이드 — UI 레이아웃만, 아직 기능 없음) ──
-// 테스트 오버레이를 그대로 재사용하되 문제설명/제출버튼을 숨기고, 지금 화면 상태가 아니라
-// 고정된 기준 폼(Ckey A폼)을 dot 없이 뼈대만 보여줌. 전환형 등 복잡한 스케일은 대상 아님(추후 결정).
+// ── "?" 버튼 튜토리얼 (2026-09-27, 레벨1 메이저 기준 가이드) ──────────────────
+// 테스트 오버레이를 재사용하되 제출버튼 대신 "다음"으로 단계 진행. 지금 화면 상태가 아니라
+// 고정된 기준 폼(Ckey A폼)을 사용. 전환형 등 복잡한 스케일은 대상 아님(추후 결정).
+const TUTORIAL_STEPS = [
+  { type: 'text', text: '메이저 스케일에 대해서 알아볼게요!' },
+  { type: 'text', text: "메이저 스케일은 우리에게 익숙한 '도레미파솔라시' 음계를 의미해요." },
+  { type: 'action', action: 'octaveRun' },
+  { type: 'text', text: '기타는 피아노와 달리 음이 잘 보이지 않죠?' },
+  { type: 'action', action: 'fillRemaining' },
+  { type: 'text', text: "그래서 기타에는 '스케일 블럭'이라는 개념이 존재해요!" },
+  { type: 'text', text: '이러한 블럭들이 많이 있는데, 코디터에서는 5가지의 블럭을 가지고 연습할게요!' },
+];
+let _tutorialStepIdx        = 0;
+let _tutorialStartFret      = 0; // 7프렛 고정 뷰 기준 col 계산용(renderTestNeck과 동일 startFret)
+let _tutorialRunNotes       = []; // C→다음C 옥타브 런(음높이 오름차순)
+let _tutorialRemainingNotes = []; // 그 외 블록 나머지 노트
+let _tutorialTimers         = []; // 액션 진행 중 예약된 타이머 — 중도 이탈 시 취소용
+
+function _tutorialClearTimers() {
+  _tutorialTimers.forEach(id => clearTimeout(id));
+  _tutorialTimers = [];
+}
+
 function openTutorial() {
   _tutorialMode = true;
   GuitarAudio.stop();
@@ -2358,16 +2378,107 @@ function openTutorial() {
 
   const block = ScaleData.getBlocks('major')[0]; // FORM_NAMES[0] = 'A폼'
   const startFret = ScaleData.getStartFrets(block, 0)[0]; // C key(rootNote=0) 기준
-  renderTestNeck(startFret); // renderTestNotes() 호출 안 함 — 스케일 dot 없이 뼈대만
+  _tutorialStartFret = startFret;
+  renderTestNeck(startFret); // dot은 튜토리얼 진행에 맞춰 순차 표시
+
+  // 블록 전체 노트를 음높이 오름차순 정렬 후, 첫 근음~다음 근음 구간을 "C→다음C 런"으로 분리
+  const notes = ScaleData.parseGrid(block.grid).notes
+    .map(n => ({ s: n.s, degree: n.degree, absF: startFret + n.col }))
+    .sort((a, b) => (OPEN_MIDI[a.s] + a.absF) - (OPEN_MIDI[b.s] + b.absF));
+  const rootIdxs = notes.reduce((acc, n, i) => (n.degree === 1 ? [...acc, i] : acc), []);
+  const [lowRootI, highRootI] = rootIdxs;
+  _tutorialRunNotes = notes.slice(lowRootI, highRootI + 1);
+  const runKeys = new Set(_tutorialRunNotes.map(n => n.s + ',' + n.absF));
+  _tutorialRemainingNotes = notes.filter(n => !runKeys.has(n.s + ',' + n.absF));
 
   const overlay = document.getElementById('scale-test-overlay');
   overlay?.classList.add('is-open', 'scale-test-overlay--tutorial');
   applyTestFbLayout();
+  showTutorialStep(0);
 }
 
 function closeTutorial() {
   _tutorialMode = false;
+  _tutorialClearTimers();
+  GuitarAudio.stop();
   document.getElementById('scale-test-overlay')?.classList.remove('is-open', 'scale-test-overlay--tutorial');
+}
+
+function showTutorialStep(idx) {
+  _tutorialClearTimers();
+  _tutorialStepIdx = idx;
+  const step  = TUTORIAL_STEPS[idx];
+  const qEl   = document.getElementById('test-question-text');
+  const label = document.getElementById('test-submit-btn-label');
+  const nextBtn = document.getElementById('test-submit-btn');
+  if (label) label.textContent = '다음';
+
+  if (step.type === 'text') {
+    if (qEl) {
+      // 기본 opacity:0 상태라 .test-question--in을 매번 다시 트리거해야 보임(startTest()와 동일 패턴) —
+      // remove 후 강제 리플로우 없이 바로 add하면 트랜지션이 안 씹히고 즉시 끝나버림
+      qEl.textContent = step.text;
+      qEl.classList.remove('test-question--in');
+      void qEl.offsetWidth;
+      qEl.classList.add('test-question--in');
+    }
+    if (nextBtn) nextBtn.disabled = false;
+  } else {
+    // 액션 단계 — 직전 텍스트 유지, 애니메이션(+소리) 끝나고 여유를 둔 뒤에만 다음 활성화
+    if (nextBtn) nextBtn.disabled = true;
+    runTutorialAction(step.action);
+  }
+}
+
+function advanceTutorialStep() {
+  const nextIdx = _tutorialStepIdx + 1;
+  if (nextIdx >= TUTORIAL_STEPS.length) { closeTutorial(); return; }
+  showTutorialStep(nextIdx);
+}
+
+// dot 하나를 테스트 지판에 추가(fb-note--spawn 페이드인 재사용, renderNotes()와 동일 패턴).
+// createNoteEl()은 진입화면의 23프렛 전체 절대좌표(TOTAL_FRETS 기준)로 위치를 잡기 때문에
+// 여기(7프렛 고정 뷰, addTestDot()과 동일 공식)에 그대로 쓰면 왼쪽으로 몰려서 찍히는 버그가 있었음
+// (2026-09-27 발견/수정) — col은 반드시 _tutorialStartFret 기준 상대값으로 계산해야 함.
+function _tutorialSpawnDot(note) {
+  const neckEl = document.getElementById('test-fb-full-neck');
+  if (!neckEl) return;
+  const col = note.absF - _tutorialStartFret;
+  const leftPct = (col + 0.5) / FRETS_VISIBLE * 100;
+  const topPct  = (note.s + 0.5) / STRINGS * 100;
+  const el = document.createElement('div');
+  el.className = 'fb-note fb-note--spawn' + (note.degree === 1 ? ' fb-note--root' : '');
+  el.style.cssText = `left:${leftPct}%; top:${topPct}%;`;
+  neckEl.appendChild(el);
+  requestAnimationFrame(() => requestAnimationFrame(() => {
+    el.classList.add('fb-note--spawn-in');
+    el.addEventListener('transitionend', () => {
+      el.classList.remove('fb-note--spawn', 'fb-note--spawn-in');
+    }, { once: true });
+  }));
+}
+
+function runTutorialAction(action) {
+  const nextBtn = document.getElementById('test-submit-btn');
+  const enableNextAfter = (delay) => {
+    const id = setTimeout(() => { if (nextBtn) nextBtn.disabled = false; }, delay);
+    _tutorialTimers.push(id);
+  };
+
+  if (action === 'octaveRun') {
+    const STEP_MS = 420;
+    _tutorialRunNotes.forEach((note, i) => {
+      const id = setTimeout(() => {
+        _tutorialSpawnDot(note);
+        playScaleNote(note.s, note.absF);
+      }, i * STEP_MS);
+      _tutorialTimers.push(id);
+    });
+    enableNextAfter(_tutorialRunNotes.length * STEP_MS + 500); // 마지막 음 이후 여유
+  } else if (action === 'fillRemaining') {
+    _tutorialRemainingNotes.forEach(note => _tutorialSpawnDot(note));
+    enableNextAfter(200 + 500); // 팝인 트랜지션(0.2s) + 여유
+  }
 }
 
 // ── 테스트 시작 ────────────────────────────────────────────────
@@ -2545,6 +2656,7 @@ function initTestTap() {
   });
 
   neckEl.addEventListener('pointerup', e => {
+    if (_tutorialMode) return;       // 튜토리얼은 보여주기 전용 — 유저가 직접 dot 못 찍음
     const dx = Math.abs(e.clientX - _tapStartX);
     const dy = Math.abs(e.clientY - _tapStartY);
     if (dx > 8 || dy > 8) return;   // 거리 초과 시 취소
@@ -3649,6 +3761,7 @@ renderFullNeck();
   // 제출하기 / 다시 풀기 버튼
   document.getElementById('test-submit-btn')?.addEventListener('pointerup', async (e) => {
     if (e.currentTarget.disabled) return;
+    if (_tutorialMode) { _playTap(); advanceTutorialStep(); return; }
     if (_testSubmitted) {
       _playConfirmSfx();
       if (!(await consumePeak(2, 'scale'))) return;

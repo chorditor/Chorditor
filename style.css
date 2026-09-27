@@ -15158,7 +15158,6 @@ canvas {
   justify-content: space-between; /* 버튼 사이 여백 자동 분배 */
   width: 188px; /* 1~2단계(~768px) — scale-mic-desc와 동일한 리터럴 고정값(2026-09-26) */
   gap: 16px;
-  background: rgba(0,0,0,0.08); /* 임시 디버그 — scale-mic-desc 폭과 비교용(2026-09-26), 확인 끝나면 제거 */
 }
 .scale-mic-btn-row > * {
   flex-shrink: 0; /* 버튼 크기 고정 — row 폭이 좁아져도 원이 타원으로 찌그러지지 않게(2026-09-25) */
@@ -15215,7 +15214,6 @@ canvas {
   font-size: 16px; /* 1~2단계(~768px) — 토큰 미사용, 리터럴 고정값 */
   font-weight: var(--weight-semibold);
   color: var(--brand);
-  background: rgba(0,0,0,0.08); /* 임시 디버그 — scale-mic-btn-row 폭과 비교용(2026-09-26), 확인 끝나면 제거 */
 }
 @media (min-width: 769px) {
   .scale-mic-desc {
@@ -15590,10 +15588,9 @@ canvas {
   pointer-events: auto;
 }
 
-/* "?" 버튼 튜토리얼(2026-09-25) — 테스트 오버레이 재사용, 문제설명/제출버튼만 숨기고
-   탑바+지판만 노출(레이아웃은 테스트 화면과 완전히 동일해야 함) */
-.scale-test-overlay--tutorial .test-question-text,
-.scale-test-overlay--tutorial .test-btn-row,
+/* "?" 버튼 튜토리얼(2026-09-25, 2026-09-27 단계별 설명 추가) — 테스트 오버레이 재사용.
+   문제설명은 단계 텍스트로, 제출버튼은 "다음"으로 용도만 바뀜(JS showTutorialStep 참고) —
+   채점 결과 영역만 튜토리얼과 무관해서 숨김 */
 .scale-test-overlay--tutorial .test-result-row {
   display: none;
 }
