@@ -151,11 +151,22 @@
       <div class="scale-test-body">
         <p class="test-question-text" id="test-question-text"></p>
         <div class="scale-test-fb-wrap">
-          <div id="test-fb-viewport">
-            <div id="test-fb-full-wrapper">
-              <div class="fb-full-neck" id="test-fb-full-neck"></div>
-              <div class="fb-full-nums" id="test-fb-full-nums"></div>
+          <div class="test-fb-label-row">
+            <span class="test-fb-form-label" id="test-fb-form-label"></span>
+          </div>
+          <div class="test-fb-neck-slot">
+            <div id="test-fb-viewport">
+              <div id="test-fb-full-wrapper">
+                <div class="fb-full-neck" id="test-fb-full-neck"></div>
+                <div class="fb-full-nums" id="test-fb-full-nums"></div>
+              </div>
             </div>
+            <button class="test-fb-arrow-btn test-fb-arrow-btn--prev" id="test-fb-arrow-prev">
+              <i data-lucide="chevron-left"></i>
+            </button>
+            <button class="test-fb-arrow-btn test-fb-arrow-btn--next" id="test-fb-arrow-next">
+              <i data-lucide="chevron-right"></i>
+            </button>
           </div>
         </div>
         <div class="test-result-row" id="test-result-row">
@@ -185,6 +196,7 @@
   <script src="guitar-samples.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/tone/14.8.49/Tone.js"></script>
   <script src="guitar-audio.js"></script>
+  <script src="chord-voicings.js"></script>
   <script src="scale-level.js"></script>
 </body>
 </html>

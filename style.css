@@ -15235,6 +15235,15 @@ canvas {
 .scale-mic-desc-row + .scale-mic-desc-row {
   margin-top: 4px;
 }
+.scale-mic-desc-row--active {
+  justify-content: center;
+  text-align: center;
+}
+.scale-mic-desc-row--active .scale-mic-desc-text {
+  min-width: 0;
+  word-break: keep-all;
+  overflow-wrap: break-word;
+}
 .scale-mic-desc-sep {
   color: var(--text-muted);
 }
@@ -15608,6 +15617,7 @@ canvas {
   text-align: center;
   margin: 0 0 20px;
   min-height: 90px;  /* 3�?고정 (20px × 1.5 × 3) ??출제?�결�??�랫보드 ?�치 고정 */
+  white-space: pre-line;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -15615,7 +15625,7 @@ canvas {
 }
 
 .test-question--in {
-  animation: test-question-in 1.2s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+  animation: test-question-in 1.5s cubic-bezier(0.22, 1, 0.36, 1) forwards;
 }
 
 @keyframes test-question-in {
@@ -15716,7 +15726,7 @@ canvas {
   gap: 8px;
   white-space: nowrap;
   -webkit-tap-highlight-color: transparent;
-  transition: opacity 0.15s;
+  transition: opacity 0.25s;
 }
 
 
@@ -15811,6 +15821,67 @@ canvas {
 #test-fb-full-neck,
 #test-fb-full-nums {
   width: 100%;
+}
+
+/* 튜토리얼 — 5폼(A-G-E-D-C) 유저 조작 네비게이션 화살표. 프랫보드 슬롯(.test-fb-neck-slot)
+   기준으로 절대배치 — 이 단계(.scale-test-overlay--form-nav)에서만 노출 */
+.test-fb-neck-slot {
+  position: relative;
+}
+
+.test-fb-arrow-btn {
+  display: none;
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  border: 2px solid var(--border);
+  background: #ffffff;
+  color: var(--brand);
+  align-items: center;
+  justify-content: center;
+  z-index: 5;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+.test-fb-arrow-btn svg { width: 22px; height: 22px; }
+.test-fb-arrow-btn--prev { left: 0; }
+.test-fb-arrow-btn--next { right: 0; }
+.scale-test-overlay--form-nav .test-fb-arrow-btn { display: flex; }
+
+/* 튜토리얼 — 프랫보드 슬롯 위 라벨 전용 칸. 라벨 텍스트 유무와 무관하게 항상
+   자리를 차지(min-height)해서, 폼 이름이 없는 다른 튜토리얼 단계에서도 프랫보드
+   위치가 그대로 유지되도록 함 */
+.test-fb-label-row {
+  display: block;
+  text-align: left;
+  font-size: 20px;
+  font-weight: 700;
+  letter-spacing: -0.5px;
+  line-height: 1;
+  color: #1a1a1a;
+  margin-bottom: 4px;
+  min-height: 20px;
+}
+
+/* 튜토리얼 — A폼 코드 운지 강조(하이라이트) 색 전환. 튜토리얼 스코프에서만 .fb-note가
+   background-color 트랜지션을 가짐(2026-09-27) */
+.scale-test-overlay--tutorial #test-fb-full-neck .fb-note {
+  transition: background-color 0.6s ease-out;
+}
+.fb-note--chord-highlight {
+  background: var(--blue);
+}
+
+/* 튜토리얼 — fillRemaining 단계(남은 dot 전부 동시 팝인)는 기본 .fb-note--spawn(0.2s)보다
+   느리게, 텍스트 등장(1.5s)과 속도를 맞춤. shorthand로 재선언해야 함 — .fb-note에 걸린 위
+   transition(background-color) shorthand가 이 longhand 없는 개별 선언과 만나면
+   transition-property 목록이 통째로 리셋돼서 조용히 무효화됨(style-guide.md gotcha) */
+.scale-test-overlay--tutorial #test-fb-full-neck .fb-note--spawn {
+  transition: opacity 1.5s cubic-bezier(0.22, 1, 0.36, 1),
+              transform 1.5s cubic-bezier(0.22, 1, 0.36, 1);
 }
 
 /* ?�?� ?�트?�크 ?�프?�인 ?�버?�이 ?�?� */

@@ -480,7 +480,7 @@ function _setScaleMicDescActive(active) {
   if (!el) return;
   if (active) {
     if (_scaleMicDescIdleHtml === null) _scaleMicDescIdleHtml = el.innerHTML;
-    el.innerHTML = '<div class="scale-mic-desc-row"><span class="scale-mic-desc-text">표시된 음을 직접 기타로 소리내보세요</span></div>';
+    el.innerHTML = '<div class="scale-mic-desc-row scale-mic-desc-row--active"><span class="scale-mic-desc-text">표시된 음을 직접 기타로 소리내보세요!</span></div>';
   } else if (_scaleMicDescIdleHtml !== null) {
     el.innerHTML = _scaleMicDescIdleHtml;
   }
@@ -2350,14 +2350,23 @@ function checkAnswer() {
 // ── "?" 버튼 튜토리얼 (2026-09-27, 레벨1 메이저 기준 가이드) ──────────────────
 // 테스트 오버레이를 재사용하되 제출버튼 대신 "다음"으로 단계 진행. 지금 화면 상태가 아니라
 // 고정된 기준 폼(Ckey A폼)을 사용. 전환형 등 복잡한 스케일은 대상 아님(추후 결정).
+const TUTORIAL_NEXT_BTN_BUFFER_MS = 100; // 다음 버튼 활성화 표준 버퍼 — 애니메이션 완전종료 + 0.1s (2026-09-27)
+const TUTORIAL_DOT_FADE_MS = 200; // .fb-note--spawn CSS transition(0.2s)과 동일값 — 여기만 참조
+const TUTORIAL_TEXT_SEQUENCE_PAUSE_MS = 1200; // texts[] 자동 넘김 시 읽는 시간(2026-09-27)
+const TUTORIAL_DOT_FADE_SLOW_MS = 1500; // fillRemaining 전체동시 팝인용 느린 트랜지션 — 텍스트 등장(1.5s)과 동일 맞춤(CSS와 짝, 2026-09-27)
 const TUTORIAL_STEPS = [
-  { type: 'text', text: '메이저 스케일에 대해서 알아볼게요!' },
-  { type: 'text', text: "메이저 스케일은 우리에게 익숙한 '도레미파솔라시' 음계를 의미해요." },
-  { type: 'action', action: 'octaveRun' },
+  { type: 'action', action: 'octaveRun', leadTexts: [
+    "이번 시간에는 '메이저 스케일'을 배워볼게요!",
+    "메이저 스케일은 우리에게 익숙한\n'도레미파솔라시'\n음계를 의미해요."
+  ] }, // 2026-09-27: 원래 text 단계 2개 + 별도 액션단계였던 걸 전부 한 단계로 합침(leadTexts 다 끝난 뒤 액션 시작)
   { type: 'text', text: '기타는 피아노와 달리 음이 잘 보이지 않죠?' },
-  { type: 'action', action: 'fillRemaining' },
-  { type: 'text', text: "그래서 기타에는 '스케일 블럭'이라는 개념이 존재해요!" },
-  { type: 'text', text: '이러한 블럭들이 많이 있는데, 코디터에서는 5가지의 블럭을 가지고 연습할게요!' },
+  { type: 'action', action: 'fillRemaining', text: "그래서 기타에는\n'스케일 블럭'이라는 개념이 존재해요!" }, // 2026-09-27: 원래 별도 text 단계였던 걸 이 액션단계로 합침
+  { type: 'text', text: "대표적으로 5개의 스케일 블럭을 알고 있어야,\n원하는 연주를 할 수 있을 거예요!" },
+  { type: 'action', action: 'highlightAShape', texts: [
+    "아래의 블럭은 A폼이라고 할게요.\nA코드 모양과 닮았기 때문이에요."
+  ] }, // 2026-09-27: 2줄 자동순차 대신 한 번에 같이 표시
+  { type: 'action', action: 'formNav', text: "좌우로 넘겨서 5가지 폼을 확인해보세요!\n점들을 클릭해서 소리도 들어보세요!" },
+  { type: 'text', text: "수고하셨어요! 스케일 블럭의 기본 개념을 배웠어요.\n이제 자유롭게 연습해보세요!" },
 ];
 let _tutorialStepIdx        = 0;
 let _tutorialStartFret      = 0; // 7프렛 고정 뷰 기준 col 계산용(renderTestNeck과 동일 startFret)
@@ -2394,14 +2403,42 @@ function openTutorial() {
   const overlay = document.getElementById('scale-test-overlay');
   overlay?.classList.add('is-open', 'scale-test-overlay--tutorial');
   applyTestFbLayout();
-  showTutorialStep(0);
+  // 1단계 진입 시 1.2초 딜레이 후 첫 문구 표시 — 그 사이엔 다음 버튼도 비활성.
+  // 라벨도 여기서 바로 "다음"으로 세팅해야 함 — showTutorialStep(0) 안에서만 바꾸면 그게 실행되는
+  // 1.2초 후까지 기본값("제출하기")이 남아있다가 뒤늦게 바뀌는 게 눈에 보임(2026-09-27 발견/수정).
+  const nextBtn = document.getElementById('test-submit-btn');
+  const label = document.getElementById('test-submit-btn-label');
+  if (label) label.textContent = '다음';
+  if (nextBtn) nextBtn.disabled = true;
+  const id = setTimeout(() => showTutorialStep(0), 1200);
+  _tutorialTimers.push(id);
 }
 
 function closeTutorial() {
   _tutorialMode = false;
+  _tutorialDotClickEnabled = false;
   _tutorialClearTimers();
   GuitarAudio.stop();
-  document.getElementById('scale-test-overlay')?.classList.remove('is-open', 'scale-test-overlay--tutorial');
+  document.getElementById('scale-test-overlay')?.classList.remove('is-open', 'scale-test-overlay--tutorial', 'scale-test-overlay--form-nav');
+}
+
+// texts[] 자동 순차재생 — 문구 하나 보여주고 등장애니메이션 끝나면 읽는시간(TUTORIAL_TEXT_SEQUENCE_PAUSE_MS)
+// 대기 후 다음 문구로, 마지막 문구는 표준 버퍼(TUTORIAL_NEXT_BTN_BUFFER_MS) 후 onDone() 콜백(2026-09-27,
+// onDone은 호출부가 결정 — 다음버튼 활성화일 수도, 이어서 액션 시작일 수도 있음)
+function _tutorialShowTextSequence(texts, idx, qEl, onDone) {
+  qEl.textContent = texts[idx];
+  qEl.classList.remove('test-question--in');
+  void qEl.offsetWidth;
+  qEl.classList.add('test-question--in');
+  qEl.addEventListener('animationend', () => {
+    if (idx < texts.length - 1) {
+      const id = setTimeout(() => _tutorialShowTextSequence(texts, idx + 1, qEl, onDone), TUTORIAL_TEXT_SEQUENCE_PAUSE_MS);
+      _tutorialTimers.push(id);
+    } else {
+      const id = setTimeout(onDone, TUTORIAL_NEXT_BTN_BUFFER_MS);
+      _tutorialTimers.push(id);
+    }
+  }, { once: true });
 }
 
 function showTutorialStep(idx) {
@@ -2411,22 +2448,58 @@ function showTutorialStep(idx) {
   const qEl   = document.getElementById('test-question-text');
   const label = document.getElementById('test-submit-btn-label');
   const nextBtn = document.getElementById('test-submit-btn');
-  if (label) label.textContent = '다음';
+  if (label) label.textContent = (idx === TUTORIAL_STEPS.length - 1) ? '완료' : '다음';
 
   if (step.type === 'text') {
-    if (qEl) {
+    if (nextBtn) nextBtn.disabled = true;
+    if (qEl && Array.isArray(step.texts)) {
+      // texts[] — 여러 문구를 자동으로 순차 넘김(2026-09-27), 마지막 문구까지 다 보여준 뒤에만 활성화
+      _tutorialShowTextSequence(step.texts, 0, qEl, () => { if (nextBtn) nextBtn.disabled = false; });
+    } else if (qEl) {
       // 기본 opacity:0 상태라 .test-question--in을 매번 다시 트리거해야 보임(startTest()와 동일 패턴) —
       // remove 후 강제 리플로우 없이 바로 add하면 트랜지션이 안 씹히고 즉시 끝나버림
       qEl.textContent = step.text;
       qEl.classList.remove('test-question--in');
       void qEl.offsetWidth;
       qEl.classList.add('test-question--in');
+      // 다음 버튼 활성화 타이밍 표준 규칙(2026-09-27): "다음"은 반드시 진행중 애니메이션이
+      // 실제로 끝난 후 +0.1s에만 활성화 — 하드코딩 duration 대신 실제 CSS 애니메이션의
+      // animationend를 그대로 청취해서, CSS쪽 1.5s가 나중에 바뀌어도 이 코드는 안 건드려도 됨.
+      qEl.addEventListener('animationend', () => {
+        const id = setTimeout(() => { if (nextBtn) nextBtn.disabled = false; }, TUTORIAL_NEXT_BTN_BUFFER_MS);
+        _tutorialTimers.push(id);
+      }, { once: true });
     }
-    if (nextBtn) nextBtn.disabled = false;
   } else {
-    // 액션 단계 — 직전 텍스트 유지, 애니메이션(+소리) 끝나고 여유를 둔 뒤에만 다음 활성화
+    // 액션 단계 — leadTexts(액션 전, 자동순차)/text(액션 전, 단일) 중 있는 쪽으로 먼저 갱신,
+    // 둘 다 없으면 직전 텍스트 유지. 텍스트가 먼저 다 끝난 뒤에만 액션(dot 등) 시작 —
+    // 동시재생하면 눈이 텍스트/지판 둘 다 못 따라가서 순차로 분리(2026-09-27)
     if (nextBtn) nextBtn.disabled = true;
-    runTutorialAction(step.action);
+    // 액션 완료 후 — texts[]가 있으면 자동 순차 문구로 이어가고(2026-09-27), 없으면 바로 다음버튼 활성화
+    const onActionDone = () => {
+      if (qEl && Array.isArray(step.texts)) {
+        // 액션(색전환 등) 끝난 직후 바로 텍스트가 뜨면 급해 보여서 0.5s 간격(2026-09-27)
+        const id = setTimeout(() => {
+          _tutorialShowTextSequence(step.texts, 0, qEl, () => { if (nextBtn) nextBtn.disabled = false; });
+        }, 500);
+        _tutorialTimers.push(id);
+      } else {
+        const id = setTimeout(() => { if (nextBtn) nextBtn.disabled = false; }, TUTORIAL_NEXT_BTN_BUFFER_MS);
+        _tutorialTimers.push(id);
+      }
+    };
+    if (qEl && Array.isArray(step.leadTexts)) {
+      // 액션 전에 먼저 여러 문구를 자동 순차재생(2026-09-27, 1+2단계 병합용) — 다 끝나면 액션 시작
+      _tutorialShowTextSequence(step.leadTexts, 0, qEl, () => runTutorialAction(step.action, onActionDone));
+    } else if (step.text && qEl) {
+      qEl.textContent = step.text;
+      qEl.classList.remove('test-question--in');
+      void qEl.offsetWidth;
+      qEl.classList.add('test-question--in');
+      qEl.addEventListener('animationend', () => runTutorialAction(step.action, onActionDone), { once: true });
+    } else {
+      runTutorialAction(step.action, onActionDone);
+    }
   }
 }
 
@@ -2449,6 +2522,8 @@ function _tutorialSpawnDot(note) {
   const el = document.createElement('div');
   el.className = 'fb-note fb-note--spawn' + (note.degree === 1 ? ' fb-note--root' : '');
   el.style.cssText = `left:${leftPct}%; top:${topPct}%;`;
+  el.dataset.s = note.s; // 나중에 특정 위치(코드모양 등)의 dot을 다시 찾아 강조표시하기 위한 식별자(2026-09-27)
+  el.dataset.absF = note.absF;
   neckEl.appendChild(el);
   requestAnimationFrame(() => requestAnimationFrame(() => {
     el.classList.add('fb-note--spawn-in');
@@ -2458,10 +2533,106 @@ function _tutorialSpawnDot(note) {
   }));
 }
 
-function runTutorialAction(action) {
-  const nextBtn = document.getElementById('test-submit-btn');
-  const enableNextAfter = (delay) => {
-    const id = setTimeout(() => { if (nextBtn) nextBtn.disabled = false; }, delay);
+// 5폼(A-G-E-D-C) 각각의 코드모양 패턴 — A/E/D는 chord-voicings.js CHORD_PATTERN(바레코드,
+// quality:'M')에 실제로 있어서 rootStr로 찾아 재사용. G/C는 코드사전에 바레패턴이 없어서(실제
+// 기타에서도 잘 안 씀) 오픈코드 CHORD_STATIC('G':'3 2 0 0 0 3', 'C':'x 3 2 0 1 0')과 대조검증한
+// 패턴을 직접 지정(2026-09-27, 사용자 제공값). 배열 순서는 FORM_NAMES/getBlocks('major')와 동일.
+const TUTORIAL_FORM_SHAPES = [
+  { rootStr: 5, pattern: null },                       // A폼 — CHORD_PATTERN에서 찾음
+  { rootStr: 6, pattern: 'r+3 r+2 r r r r+3' },         // G폼 — 오픈G 검증완료
+  { rootStr: 6, pattern: null },                        // E폼 — CHORD_PATTERN에서 찾음
+  { rootStr: 4, pattern: null },                        // D폼 — CHORD_PATTERN에서 찾음
+  { rootStr: 5, pattern: 'x r+3 r+2 r r+1 r' },         // C폼 — 오픈C 검증완료
+];
+
+function _tutorialGetFormShapeDef(formIdx) {
+  const cfg = TUTORIAL_FORM_SHAPES[formIdx];
+  if (!cfg) return null;
+  if (cfg.pattern) return { rootStr: cfg.rootStr, pattern: cfg.pattern };
+  const pat = (window.CHORD_PATTERN || []).find(p => p.rootStr === cfg.rootStr && p.quality === 'M' && p.barre);
+  return pat ? { rootStr: pat.rootStr, pattern: pat.pattern } : null;
+}
+
+// shapeDef(rootStr/pattern)을 블록 노트 목록과 대조해서 코드모양에 해당하는 (string, 절대프렛)
+// 좌표들을 역산한다(2026-09-27, 원래 A폼 전용이던 걸 5폼 공용으로 일반화).
+// CHORD_PATTERN류 문자열은 6번줄→1번줄 순서, ScaleData의 s는 반대(0=1번줄)라 s = 5 - 배열인덱스로 변환.
+// 'r'은 임의의 스윕 변수일 뿐이라(voicing-library.js와 동일 해석), 블록에 이미 있는 실제 루트음
+// 절대프렛으로 역산해서 r을 구한 뒤 나머지 줄의 절대프렛을 계산한다.
+function _tutorialGetShapeTargets(shapeDef, allNotes) {
+  if (!shapeDef) return [];
+  const tokens = shapeDef.pattern.trim().split(/\s+/); // 예: ['x','r+1','r+3','r+3','r+3','r+1']
+  const parseTok = (tok) => {
+    if (tok === 'x') return null;
+    const m = tok.match(/^r([+-]\d+)?$/);
+    return m ? (m[1] ? parseInt(m[1], 10) : 0) : parseInt(tok, 10);
+  };
+  const rootS = shapeDef.rootStr - 1; // rootStr(1~6, 1=high e) → ScaleData s(0=high e)
+  const rootPatIdx = tokens.findIndex((_, p) => (5 - p) === rootS);
+  const rootOffset = parseTok(tokens[rootPatIdx]);
+  const rootNote = allNotes.find(n => n.s === rootS && n.degree === 1);
+  if (!rootNote) return [];
+  const r = rootNote.absF - rootOffset;
+
+  const targets = [];
+  tokens.forEach((tok, p) => {
+    const offset = parseTok(tok);
+    if (offset === null) return; // 뮤트 줄
+    targets.push({ s: 5 - p, absF: r + offset });
+  });
+  return targets;
+}
+
+// 5폼 유저 조작 네비게이션 상태(2026-09-27)
+let _tutorialFormIdx = 0;
+let _tutorialDotClickEnabled = false;
+
+// 폼 전체를 "이미 완성된 상태"로 정적 렌더 — 스폰 애니메이션 없이 바로 opacity:1로 찍음
+// (좌우로 넘기면 화면만 이동하는 느낌, 새로 생성되는 느낌 배제). 그 폼의 코드모양(TUTORIAL_FORM_SHAPES)에
+// 해당하는 dot은 파란색으로 같이 표시.
+function _tutorialRenderFormStatic(formIdx) {
+  const block = ScaleData.getBlocks('major')[formIdx];
+  const startFret = ScaleData.getStartFrets(block, 0)[0];
+  _tutorialStartFret = startFret;
+  renderTestNeck(startFret);
+
+  const labelEl = document.getElementById('test-fb-form-label');
+  if (labelEl) labelEl.textContent = FORM_NAMES[formIdx];
+
+  const notes = ScaleData.parseGrid(block.grid).notes
+    .map(n => ({ s: n.s, degree: n.degree, absF: startFret + n.col }));
+
+  const shapeDef = _tutorialGetFormShapeDef(formIdx);
+  const targetKeys = new Set(_tutorialGetShapeTargets(shapeDef, notes).map(t => t.s + ',' + t.absF));
+
+  const neckEl = document.getElementById('test-fb-full-neck');
+  if (!neckEl) return;
+  notes.forEach(note => {
+    const col = note.absF - startFret;
+    const leftPct = (col + 0.5) / FRETS_VISIBLE * 100;
+    const topPct  = (note.s + 0.5) / STRINGS * 100;
+    const isHighlight = targetKeys.has(note.s + ',' + note.absF);
+    const el = document.createElement('div');
+    el.className = 'fb-note'
+      + (note.degree === 1 ? ' fb-note--root' : '')
+      + (isHighlight ? ' fb-note--chord-highlight' : '');
+    el.style.cssText = `left:${leftPct}%; top:${topPct}%;`;
+    el.dataset.s = note.s;
+    el.dataset.absF = note.absF;
+    neckEl.appendChild(el);
+  });
+}
+
+function _tutorialAdvanceForm(delta) {
+  _tutorialFormIdx = (_tutorialFormIdx + delta + 5) % 5;
+  _tutorialRenderFormStatic(_tutorialFormIdx);
+}
+
+function runTutorialAction(action, onDone) {
+  // 마지막 dot의 시작(stagger) + 그 dot 자신의 팝인(.fb-note--spawn 트랜지션 0.2s)까지
+  // 완전히 끝난 시점 + 0.1s 버퍼에 완료 콜백 — 노트 개수/간격이 바뀌어도 이 공식 그대로 따라감(2026-09-27).
+  const doneAfterNotes = (noteCount, stepMs) => {
+    const lastNoteEndMs = Math.max(noteCount - 1, 0) * stepMs + TUTORIAL_DOT_FADE_MS;
+    const id = setTimeout(onDone, lastNoteEndMs + TUTORIAL_NEXT_BTN_BUFFER_MS);
     _tutorialTimers.push(id);
   };
 
@@ -2474,10 +2645,33 @@ function runTutorialAction(action) {
       }, i * STEP_MS);
       _tutorialTimers.push(id);
     });
-    enableNextAfter(_tutorialRunNotes.length * STEP_MS + 500); // 마지막 음 이후 여유
+    doneAfterNotes(_tutorialRunNotes.length, STEP_MS);
   } else if (action === 'fillRemaining') {
+    // 순차 대신 전부 동시에 팝인, 그만큼 애니메이션 자체를 느리게(2026-09-27,
+    // .scale-test-overlay--tutorial 스코프의 .fb-note--spawn transition-duration과 짝)
     _tutorialRemainingNotes.forEach(note => _tutorialSpawnDot(note));
-    enableNextAfter(200 + 500); // 팝인 트랜지션(0.2s) + 여유
+    const id = setTimeout(onDone, TUTORIAL_DOT_FADE_SLOW_MS + TUTORIAL_NEXT_BTN_BUFFER_MS);
+    _tutorialTimers.push(id);
+  } else if (action === 'highlightAShape') {
+    // 이미 찍혀있는 dot들(옥타브런+나머지) 중 A폼 코드모양 좌표와 일치하는 것만 파란색으로
+    // 서서히 전환(.fb-note--chord-highlight, CSS transition) — 전환 끝나면 완료 콜백(2026-09-27)
+    const allNotes = _tutorialRunNotes.concat(_tutorialRemainingNotes);
+    const targets = _tutorialGetShapeTargets(_tutorialGetFormShapeDef(0), allNotes); // 0 = A폼
+    const dots = Array.from(document.querySelectorAll('#test-fb-full-neck .fb-note'));
+    const matched = targets
+      .map(t => dots.find(d => Number(d.dataset.s) === t.s && Number(d.dataset.absF) === t.absF))
+      .filter(Boolean);
+    if (matched.length === 0) { onDone(); return; }
+    matched.forEach(el => el.classList.add('fb-note--chord-highlight'));
+    matched[0].addEventListener('transitionend', onDone, { once: true });
+  } else if (action === 'formNav') {
+    // 5폼(A-G-E-D-C) 유저 조작 네비게이션 시작 — 화살표 노출 + dot 클릭 재생 허용 + A폼부터 정적표시(2026-09-27)
+    document.getElementById('scale-test-overlay')?.classList.add('scale-test-overlay--form-nav');
+    _tutorialDotClickEnabled = true;
+    _tutorialFormIdx = 0;
+    _tutorialRenderFormStatic(0);
+    const id = setTimeout(onDone, TUTORIAL_NEXT_BTN_BUFFER_MS);
+    _tutorialTimers.push(id);
   }
 }
 
@@ -2656,17 +2850,22 @@ function initTestTap() {
   });
 
   neckEl.addEventListener('pointerup', e => {
-    if (_tutorialMode) return;       // 튜토리얼은 보여주기 전용 — 유저가 직접 dot 못 찍음
     const dx = Math.abs(e.clientX - _tapStartX);
     const dy = Math.abs(e.clientY - _tapStartY);
     if (dx > 8 || dy > 8) return;   // 거리 초과 시 취소
-    if (_testSubmitted) return;      // 제출 후 입력 차단
 
     const rect = neckEl.getBoundingClientRect();
     const col  = Math.floor((e.clientX - rect.left) / rect.width  * FRETS_VISIBLE);
     const s    = Math.floor((e.clientY - rect.top)  / rect.height * STRINGS);
-
     if (col < 0 || col >= FRETS_VISIBLE || s < 0 || s >= STRINGS) return;
+
+    if (_tutorialMode) {
+      // 튜토리얼은 기본적으로 보여주기 전용이라 답 배치는 못 하지만, 5폼 네비게이션
+      // 단계(_tutorialDotClickEnabled)에서만 예외로 소리 재생 허용(2026-09-27)
+      if (_tutorialDotClickEnabled) playScaleNote(s, _tutorialStartFret + col);
+      return;
+    }
+    if (_testSubmitted) return;      // 제출 후 입력 차단
 
     // 힌트 위치 제외
     if (_testHint && _testHint.s === s && _testHint.col === col) return;
@@ -3800,6 +3999,9 @@ renderFullNeck();
     if (_tutorialMode) { closeTutorial(); return; }
     requestCloseTest(closeTestOverlay);
   });
+  // 튜토리얼 5폼 네비게이션 화살표 — formNav 단계에서만 노출(CSS), 유저가 직접 조작(2026-09-27)
+  document.getElementById('test-fb-arrow-prev')?.addEventListener('pointerup', () => _tutorialAdvanceForm(-1));
+  document.getElementById('test-fb-arrow-next')?.addEventListener('pointerup', () => _tutorialAdvanceForm(1));
   document.getElementById('test-back-btn')?.addEventListener('pointerup', () => {
     _playSfx('pop.mp3');
     requestCloseTest(() => {
