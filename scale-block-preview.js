@@ -66,6 +66,10 @@ const ScaleBlockPreview = (() => {
       const el = document.createElement('div');
       el.className = 'fb-note' + (isRoot ? ' fb-note--root' : '');
       el.style.cssText = `left:${leftPct}%; top:${topPct}%;`;
+      // 줄/칸 식별자 — 이 점을 나중에 다시 찾아 강조표시하려는 외부 호출부(연습모드 등)를 위한 것.
+      // 기존 렌더링에는 영향 없음(추가 속성일 뿐).
+      el.dataset.s   = note.s;
+      el.dataset.col = note.col;
       neckEl.appendChild(el);
     });
   }
