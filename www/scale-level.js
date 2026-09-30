@@ -137,6 +137,172 @@ const STRING_THICKNESS = [1, 1.5, 2, 2.5, 3, 3.5];
 const SINGLE_DOT_FRETS = new Set([3, 5, 7, 9, 15, 17, 19]);
 const DOUBLE_DOT_FRETS = new Set([12]);
 
+// ── 메인 연습용 지판 "사진 확대" 스케일 시스템 ──────────────────
+// 360px 기준으로 딱 한 번 고정 디자인을 만들고(--fbu 상수화, style.css .fretboard-row 참고),
+// 실제 화면에 맞는 배율만 계산해서 transform:scale로 통째로 확대/축소한다.
+// 프렛 이동도 이 기준좌표계 안에서 translateX로 처리(scale과 합성되어 자동으로 비율 유지됨).
+const FB_REF_WIDTH      = 360;
+const FB_ARROW_W        = 44;
+const FB_EDGE_FADE_MIN   = 24; // peek 없는 스코프(모바일)용 최소 페이드 폭(px)
+const FB_RATIO          = 2.3;
+const FB_REF_SPAN       = (FB_REF_WIDTH - 2 * FB_ARROW_W) / FB_RATIO;   // ≈125.22
+const FB_REF_NECK_H     = (FB_REF_SPAN - 2.25) * 6 / 5;                 // ≈147.57
+const FB_REF_FBU        = FB_REF_NECK_H / 160;                          // ≈0.9223
+const FB_REF_NUMS_GAP   = 6 * FB_REF_FBU;
+const FB_REF_NUMS_H     = 22 * FB_REF_FBU;
+const FB_REF_TOTAL_H    = FB_REF_NECK_H + FB_REF_NUMS_GAP + FB_REF_NUMS_H;
+const FB_REF_VIEWPORT_W = FB_REF_SPAN * FB_RATIO;                       // 7프렛 창 폭(기준좌표계)
+const FB_REF_FULL_W     = FB_REF_VIEWPORT_W * (TOTAL_FRETS / FRETS_VISIBLE);
+
+let _fbScale       = 1;
+let _fbPanRef       = 0; // 현재 translateX 값(기준좌표계 px)
+let _fbLastFret     = 0;
+let _fbAnimId       = null; // 진행 중인 scrollToFret rAF id — 연타 시 이전 루프와 충돌 방지용
+
+// 반복 조회되는 지판 엘리먼트 캐시 — .fretboard-row는 이 페이지에 1개뿐이라 매번 querySelector할
+// 필요 없음(성능 최적화, 2026-09-25). renderFullNeck()에서 1회 채워짐.
+let _fbEls = null;
+
+function computeFbScale() {
+  const rowWidth = _fbEls ? _fbEls.row.clientWidth : FB_REF_WIDTH;
+  const widthBudget = Math.min((rowWidth * 0.8) / FB_RATIO, 480 / FB_RATIO); // fb-viewport 실제 폭 = 화면(row) 폭의 80%, 최대 480px 고정캡(480/ratio로 나눠 span 단위로 환산)
+  return Math.max(widthBudget / FB_REF_SPAN, 0.01);
+}
+
+// 좌우 "고스트 프렛" peek 폭(실 px) — fretboard-row 안에서 화살표버튼 2개 + 실제 7프렛 뷰포트를
+// 뺀 나머지(좌우 각각)가 40px 이상일 때만, 그 남는 공간 전체를 peek로 씀. 그 미만이면 0(기존과 동일).
+function computeFbPeek(scale) {
+  const rowWidth = _fbEls ? _fbEls.row.clientWidth : FB_REF_WIDTH;
+  const innerW = FB_REF_VIEWPORT_W * scale;
+  const slackEachSide = (rowWidth - 2 * FB_ARROW_W - innerW) / 2;
+  return slackEachSide >= 40 ? slackEachSide : 0;
+}
+
+// 무거운 쪽 — 배율/뷰포트 크기/마스크/화살표 위치를 처음부터 다시 계산.
+// 컨테이너 실폭이 바뀔 수 있는 시점(초기 로드·리사이즈·즉시 점프)에만 호출.
+// 팬 애니메이션 매 프레임 호출 금지 — clientWidth 강제 리플로우가 여러 번 걸려 프레임 드랍의 원인이었음(2026-09-25).
+function applyFbLayout() {
+  _fbScale = computeFbScale();
+  const { viewport, inner, blockerL, blockerR } = _fbEls;
+
+  const innerW = FB_REF_VIEWPORT_W * _fbScale;
+  const innerH = FB_REF_TOTAL_H * _fbScale;
+  const peekPx = computeFbPeek(_fbScale);
+
+  if (inner) {
+    inner.style.width  = innerW + 'px';
+    inner.style.height = innerH + 'px';
+  }
+  if (viewport) {
+    viewport.style.width  = (innerW + 2 * peekPx) + 'px';
+    viewport.style.height = innerH + 'px';
+    // 고스트 peek 구간 페이드 — 양옆 peekPx만큼 투명→불투명, 가운데(실제 7프렛)는 항상 불투명.
+    // peek가 없는 스코프(모바일 등, peekPx=0)도 클리핑 경계가 딱 잘려보이지 않게 아주 작은
+    // 고정폭(FB_EDGE_FADE_MIN)으로 페이드 — 양옆 프렛이 살짝 있다는 느낌만 최소로 남김.
+    const fadePx = peekPx > 0 ? peekPx : FB_EDGE_FADE_MIN;
+    const mask = `linear-gradient(to right, transparent, black ${fadePx}px, black calc(100% - ${fadePx}px), transparent)`;
+    viewport.style.maskImage = mask;
+    viewport.style.webkitMaskImage = mask;
+  }
+  if (blockerL) blockerL.style.width = peekPx + 'px';
+  if (blockerR) blockerR.style.width = peekPx + 'px';
+
+  // 화살표 버튼 — 실제(스케일 적용된) 넥 높이 기준 세로중앙 정렬
+  const realNeckH = FB_REF_NECK_H * _fbScale;
+  const arrowMarginTop = Math.max((realNeckH - 44) / 2, 0) + 'px';
+  _fbEls.arrowPrev?.style.setProperty('margin-top', arrowMarginTop);
+  _fbEls.arrowNext?.style.setProperty('margin-top', arrowMarginTop);
+
+  applyFbPan(); // 배율이 바뀌었으니 transform도 같이 갱신
+}
+
+// 가벼운 쪽 — transform 한 줄만 갱신. scrollToFret() 팬 애니메이션의 매 프레임이 이걸 호출.
+function applyFbPan() {
+  if (!_fbEls || !_fbEls.wrapper) return;
+  // scale이 먼저(오른쪽) 적용돼야 translateX가 기준좌표계 값 그대로 유지되면서
+  // 전체(이동분 포함)가 한 배율로 같이 확대/축소됨 — 순서 바뀌면 이동량이 배율 영향을 안 받음
+  _fbEls.wrapper.style.transform = `scale(${_fbScale}) translateX(${_fbPanRef}px)`;
+}
+
+function initFbScaleResize() {
+  window.addEventListener('resize', () => {
+    applyFbLayout();
+    updateScaleGapScrollMode();
+    alignMicBtnRowToDesc();
+    if (document.getElementById('scale-test-overlay')?.classList.contains('is-open')) {
+      applyTestFbLayout();
+    }
+  });
+}
+
+// ── 테스트 화면 지판 "사진 확대" 스케일 시스템 (2026-09-25) ──────────────
+// 진입화면(.fretboard-row)과 같은 원리지만 화살표 버튼이 없어서 그 폭을 안 빼고,
+// 전체 폭을 그리드 컬럼 처음~끝(style.css #test-fb-viewport 부근)에 그대로 씀 —
+// 80%/480px 같은 비율·캡 없이 컨테이너 실측폭을 그대로 스케일 기준으로 삼음.
+const TEST_FB_REF_WIDTH    = 360;
+const TEST_FB_RATIO        = 2.3;
+const TEST_FB_REF_SPAN     = TEST_FB_REF_WIDTH / TEST_FB_RATIO;
+const TEST_FB_REF_NECK_H   = (TEST_FB_REF_SPAN - 2.25) * 6 / 5;
+const TEST_FB_REF_NUMS_GAP = 6 * (TEST_FB_REF_NECK_H / 160);
+const TEST_FB_REF_NUMS_H   = 22 * (TEST_FB_REF_NECK_H / 160);
+const TEST_FB_REF_TOTAL_H  = TEST_FB_REF_NECK_H + TEST_FB_REF_NUMS_GAP + TEST_FB_REF_NUMS_H;
+
+const TEST_FB_MAX_WIDTH = 520; // 실측 후 확정된 최대 크기 캡(2026-09-25)
+
+function computeTestFbScale() {
+  const wrap = document.querySelector('.scale-test-fb-wrap');
+  if (!wrap) return 1;
+  // clientWidth엔 .scale-test-fb-wrap 자신의 padding-inline(그리드 마진)이 포함돼있어서
+  // 그대로 쓰면 패딩 영역까지 지판 크기에 넣어버림 — 실제 콘텐츠 폭만 빼서 써야 함
+  const style = getComputedStyle(wrap);
+  const rowWidth = wrap.clientWidth - parseFloat(style.paddingLeft) - parseFloat(style.paddingRight);
+  const cappedWidth = Math.min(rowWidth, TEST_FB_MAX_WIDTH);
+  return Math.max(cappedWidth / TEST_FB_REF_WIDTH, 0.01);
+}
+
+function applyTestFbLayout() {
+  const scale    = computeTestFbScale();
+  const viewport = document.getElementById('test-fb-viewport');
+  const wrapper  = document.getElementById('test-fb-full-wrapper');
+  if (viewport) {
+    viewport.style.width  = (TEST_FB_REF_WIDTH * scale) + 'px';
+    viewport.style.height = (TEST_FB_REF_TOTAL_H * scale) + 'px';
+  }
+  if (wrapper) wrapper.style.transform = `scale(${scale})`;
+}
+
+// scale-mic-btn-row 폭 — scale-mic-desc(fit-content, 더 넓은 줄 기준) 텍스트 폭과
+// 버튼 3개 최소필요폭(버튼 크기 고정, flex-shrink:0) 중 더 큰 쪽을 사용.
+// 텍스트가 넓으면 텍스트 좌측경계에 맞춰 정렬, 버튼최소폭이 더 넓으면(텍스트가 짧을 때)
+// wrap 안에서 버튼row를 가운데 정렬 — 버튼 크기는 항상 고정, 줄어들거나 넘치지 않음.
+// scale-mic-desc/scale-mic-btn-row는 이제 CSS 리터럴 고정폭(188px/1080px~260px, 2026-09-26)이라
+// 여기선 같은 그룹의 .start-test-btn 폭만 그 값에 맞춰 동기화(이 버튼은 다른 그룹이라 CSS
+// align-items:center 자동정렬 대상이 아니라서 JS로 직접 맞춰야 함).
+function alignMicBtnRowToDesc() {
+  const startTestBtn = document.getElementById('start-test-btn');
+  if (!startTestBtn) return;
+  const width = window.matchMedia('(min-width: 769px)').matches ? 200 : 188;
+  startTestBtn.style.width = width + 'px';
+}
+
+// ── 그룹1~4 간격 30px 미만 → 스크롤모드(40px 고정 gap) 전환 ──────────────────
+// space-between이 실제로 만들 gap을 현재 모드와 무관하게 역산: main-content
+// 가용높이에서 4그룹 자체 높이(스크롤모드 여부와 무관하게 고정) 빼진 값을 3등분.
+function updateScaleGapScrollMode() {
+  const layout = document.querySelector('.scale-level-layout');
+  const mainContent = document.querySelector('.main-content');
+  const groups = [
+    document.querySelector('.scale-level-top'),
+    document.querySelector('.scale-mic-wrap'),
+    document.querySelector('.scale-test-btn-group'),
+    document.querySelector('.key-selector-section'),
+  ];
+  if (!layout || !mainContent || groups.some(g => !g)) return;
+  const sumH = groups.reduce((sum, g) => sum + g.offsetHeight, 0);
+  const naturalGap = (mainContent.clientHeight - sumH) / 3;
+  layout.classList.toggle('scale-gap-scroll', naturalGap < 30);
+}
+
 // ── 상태 ─────────────────────────────────────────────────────
 let _scaleKey  = 'major';
 let _scaleLevel = 0; // 레벨 첫완료 퀘스트용 (URL level 파라미터)
@@ -148,11 +314,12 @@ let _testItem    = null;        // 테스트 현재 아이템 { block, bi, start
 let _testHint      = null;        // 힌트 위치 { s, col } — 미리 찍어두는 dot 표시
 let _placedNotes   = new Set();   // 플레이어가 찍은 dot: "s,col" 문자열의 Set
 let _testSubmitted = false;       // 제출 후 입력 방지 플래그
-// shared.js 사이드바 네비 이탈 확인용 — 테스트 오버레이 열려있고 미제출일 때만 확인
+let _tutorialMode  = false;       // "?" 버튼 튜토리얼 오버레이(2026-09-25) — 테스트 오버레이 재사용 중
+// shared.js 사이드바 네비 이탈 확인용 — 테스트 오버레이 열려있고 미제출일 때만 확인(튜토리얼은 피크 소모가
+// 없어서 이탈 확인 자체가 불필요 — 제외)
 window._leaveGuardActive = () =>
-  !!document.getElementById('scale-test-overlay')?.classList.contains('is-open') && !_testSubmitted;
+  !!document.getElementById('scale-test-overlay')?.classList.contains('is-open') && !_testSubmitted && !_tutorialMode;
 
-let _shuffleBag = null;  // ShuffleBag 인스턴스 — lazy 초기화
 let _scaleSessionStart = 0; // 페이지 진입 시각 (훈련 시간 측정)
 
 // ── Audio Engine (Karplus-Strong) ───────────────────────────
@@ -161,6 +328,212 @@ const OPEN_MIDI = [64, 59, 55, 50, 45, 40]; // E B G D A E (string 0=1번줄)
 function playScaleNote(stringIdx, absFret) {
   GuitarAudio.stop();
   GuitarAudio.playNote(OPEN_MIDI[stringIdx] + absFret, 2.5);
+}
+
+// ── 재생 버튼: 현재 블럭 낮은음→높은음→(근음 아니면 가장 가까운 근음까지 재상행) ──
+const SCALE_PLAY_NOTE_MS = 380;
+let _scalePlayTimer = null;
+
+function _getCurrentScaleNotesAsc() {
+  const neckEl = document.getElementById('fb-full-neck');
+  if (!neckEl) return [];
+  const notes = [...neckEl.querySelectorAll('.fb-note:not(.fb-note--ghost)')].map(el => {
+    const s = parseInt(el.dataset.s);
+    const absF = parseInt(el.dataset.absf);
+    return { el, s, absF, degree: el.dataset.degree, midi: OPEN_MIDI[s] + absF };
+  });
+  notes.sort((a, b) => a.midi - b.midi);
+  return notes;
+}
+
+function buildScalePlaySequence() {
+  const asc = _getCurrentScaleNotesAsc();
+  if (asc.length === 0) return [];
+  // 낮은음 → 높은음 → 다시 낮은음(정점 중복 방지 위해 slice(0,-1))
+  const seq = asc.concat(asc.slice(0, -1).reverse());
+  // 도착점(가장 낮은음)이 근음이 아니면, 가장 가까운 근음까지 재상행
+  if (asc[0].degree !== '1') {
+    const rootIdx = asc.findIndex((n, i) => i > 0 && n.degree === '1');
+    if (rootIdx > 0) seq.push(...asc.slice(1, rootIdx + 1));
+  }
+  return seq;
+}
+
+function stopScalePlay() {
+  clearTimeout(_scalePlayTimer);
+  _scalePlayTimer = null;
+  document.querySelectorAll('.fb-note--playing').forEach(el => el.classList.remove('fb-note--playing'));
+  GuitarAudio.stop();
+  document.getElementById('scale-play-btn')?.classList.remove('is-active');
+}
+
+function startScalePlay() {
+  const seq = buildScalePlaySequence();
+  if (seq.length === 0) return;
+  stopScaleMic(); // 마이크 모드 켜져있었으면 즉시 중단
+  document.getElementById('scale-play-btn')?.classList.add('is-active');
+
+  let i = 0;
+  const step = () => {
+    document.querySelectorAll('.fb-note--playing').forEach(el => el.classList.remove('fb-note--playing'));
+    if (i >= seq.length) { stopScalePlay(); return; }
+    const note = seq[i];
+    const isLast = i === seq.length - 1;
+    note.el.classList.add('fb-note--playing');
+    playScaleNote(note.s, note.absF);
+    i++;
+    _scalePlayTimer = setTimeout(step, isLast ? SCALE_PLAY_NOTE_MS * 4 : SCALE_PLAY_NOTE_MS);
+  };
+  step();
+}
+
+function toggleScalePlay() {
+  if (_scalePlayTimer) stopScalePlay();
+  else startScalePlay();
+}
+
+// ── 마이크 버튼: 같은 시퀀스를 실제 연주로 검증하며 진행 ──
+// 자기상관(autocorrelation) 단음 피치검출 — 사운드인식테스트.html 스케일연습에서 검증된 방식 재사용
+function _scaleAutoCorrelate(buf, sampleRate) {
+  const SIZE = buf.length;
+  let rms = 0;
+  for (let i = 0; i < SIZE; i++) rms += buf[i] * buf[i];
+  rms = Math.sqrt(rms / SIZE);
+  if (rms < 0.01) return -1;
+
+  let r1 = 0, r2 = SIZE - 1;
+  const thresh = 0.2;
+  for (let i = 0; i < SIZE / 2; i++) if (Math.abs(buf[i]) < thresh) { r1 = i; break; }
+  for (let i = 1; i < SIZE / 2; i++) if (Math.abs(buf[SIZE - i]) < thresh) { r2 = SIZE - i; break; }
+  const trimmed = buf.slice(r1, r2);
+  const n = trimmed.length;
+
+  const c = new Array(n).fill(0);
+  for (let lag = 0; lag < n; lag++)
+    for (let i = 0; i < n - lag; i++) c[lag] += trimmed[i] * trimmed[i + lag];
+
+  let d = 0;
+  while (d + 1 < n && c[d] > c[d + 1]) d++;
+  let maxVal = -1, maxPos = -1;
+  for (let i = d; i < n; i++) if (c[i] > maxVal) { maxVal = c[i]; maxPos = i; }
+  let T0 = maxPos;
+  if (T0 <= 0) return -1;
+
+  const x1 = c[T0 - 1] ?? c[T0], x2 = c[T0], x3 = c[T0 + 1] ?? c[T0];
+  const a = (x1 + x3 - 2 * x2) / 2, b = (x3 - x1) / 2;
+  if (a) T0 = T0 - b / (2 * a);
+
+  return T0 > 0 ? sampleRate / T0 : -1;
+}
+function _scaleFreqToMidi(f) { return Math.round(69 + 12 * Math.log2(f / 440)); }
+
+let _scaleMicStream = null, _scaleMicCtx = null, _scaleMicAnalyser = null, _scaleMicRaf = null;
+let _scaleMicTimeBuf = null, _scaleMicLastTrigger = 0;
+const SCALE_MIC_ONSET_RMS = 0.01, SCALE_MIC_COOLDOWN = 120;
+let _scaleMicSeq = [];
+let _scaleMicStepIdx = 0;
+
+function _scaleMicHighlightExpected() {
+  document.querySelectorAll('.fb-note--playing').forEach(el => el.classList.remove('fb-note--playing'));
+  const note = _scaleMicSeq[_scaleMicStepIdx];
+  if (note) note.el.classList.add('fb-note--playing');
+}
+
+function _scaleMicAdvance() {
+  _scaleMicStepIdx++;
+  if (_scaleMicStepIdx >= _scaleMicSeq.length) {
+    _finishScaleMicSequence();
+    return;
+  }
+  _scaleMicHighlightExpected();
+}
+
+function _scaleMicClassify() {
+  if (!_scaleMicAnalyser) return;
+  _scaleMicAnalyser.getFloatTimeDomainData(_scaleMicTimeBuf);
+  const freq = _scaleAutoCorrelate(_scaleMicTimeBuf, _scaleMicCtx.sampleRate);
+  if (freq < 0) return;
+  const detectedMidi = _scaleFreqToMidi(freq);
+  const expected = _scaleMicSeq[_scaleMicStepIdx];
+  if (!expected) return;
+  if (detectedMidi === expected.midi) {
+    _scaleMicLastTrigger = performance.now();
+    _scaleMicAdvance();
+  }
+}
+
+function _scaleMicListen() {
+  _scaleMicAnalyser.getFloatTimeDomainData(_scaleMicTimeBuf);
+  let sum = 0;
+  for (let i = 0; i < _scaleMicTimeBuf.length; i++) sum += _scaleMicTimeBuf[i] * _scaleMicTimeBuf[i];
+  const rms = Math.sqrt(sum / _scaleMicTimeBuf.length);
+  const now = performance.now();
+  if (rms > SCALE_MIC_ONSET_RMS && now - _scaleMicLastTrigger > SCALE_MIC_COOLDOWN) {
+    _scaleMicClassify();
+  }
+  _scaleMicRaf = requestAnimationFrame(_scaleMicListen);
+}
+
+let _scaleMicDescIdleHtml = null;
+function _setScaleMicDescActive(active) {
+  const el = document.getElementById('scale-mic-desc');
+  if (!el) return;
+  if (active) {
+    if (_scaleMicDescIdleHtml === null) _scaleMicDescIdleHtml = el.innerHTML;
+    el.innerHTML = '<div class="scale-mic-desc-row scale-mic-desc-row--active"><span class="scale-mic-desc-text">표시된 음을 직접 기타로 소리내보세요!</span></div>';
+  } else if (_scaleMicDescIdleHtml !== null) {
+    el.innerHTML = _scaleMicDescIdleHtml;
+  }
+}
+
+async function startScaleMic() {
+  _scaleMicSeq = buildScalePlaySequence();
+  if (_scaleMicSeq.length === 0) return;
+  stopScalePlay();
+  try {
+    _scaleMicStream = await navigator.mediaDevices.getUserMedia({
+      audio: { autoGainControl: false, noiseSuppression: false, echoCancellation: false }
+    });
+    _scaleMicCtx = new (window.AudioContext || window.webkitAudioContext)();
+    _scaleMicAnalyser = _scaleMicCtx.createAnalyser();
+    _scaleMicAnalyser.fftSize = 2048;
+    _scaleMicCtx.createMediaStreamSource(_scaleMicStream).connect(_scaleMicAnalyser);
+    _scaleMicTimeBuf = new Float32Array(_scaleMicAnalyser.fftSize);
+    _scaleMicStepIdx = 0;
+    document.getElementById('scale-mic-btn')?.classList.add('is-active');
+    _setScaleMicDescActive(true);
+    _scaleMicHighlightExpected();
+    _scaleMicListen();
+  } catch (e) {
+    console.error('마이크 권한 거부됨 또는 사용 불가:', e);
+  }
+}
+
+function _teardownScaleMic() {
+  if (_scaleMicRaf) { cancelAnimationFrame(_scaleMicRaf); _scaleMicRaf = null; }
+  if (_scaleMicStream) _scaleMicStream.getTracks().forEach(t => t.stop());
+  if (_scaleMicCtx) { _scaleMicCtx.close(); _scaleMicCtx = null; }
+  _scaleMicStream = null; _scaleMicAnalyser = null;
+  document.querySelectorAll('.fb-note--playing').forEach(el => el.classList.remove('fb-note--playing'));
+  document.getElementById('scale-mic-btn')?.classList.remove('is-active');
+}
+
+function stopScaleMic() {
+  _teardownScaleMic();
+  _setScaleMicDescActive(false);
+}
+
+// 시퀀스를 끝까지 성공적으로 마쳤을 때 — 완료 문구를 잠깐 보여준 뒤 idle로 복귀
+function _finishScaleMicSequence() {
+  _teardownScaleMic();
+  const el = document.getElementById('scale-mic-desc');
+  if (el) el.innerHTML = '<div class="scale-mic-desc-row"><span class="scale-mic-desc-text">완료! 잘하셨어요.</span></div>';
+  setTimeout(() => _setScaleMicDescActive(false), 1500);
+}
+
+function toggleScaleMic() {
+  if (_scaleMicStream) stopScaleMic();
+  else startScaleMic();
 }
 
 // ── 정답/오답 효과음 (chord-name-quiz.js playSound 이식) ─────
@@ -1288,22 +1661,22 @@ function renderFullNeck(ids = {}) {
   const wrapper = document.getElementById(ids.wrapper || 'fb-full-wrapper');
   if (!neckEl || !numsEl || !wrapper) return;
 
-  // 전체 너비 = TOTAL_FRETS / VISIBLE_FRETS × 100%
-  const widthPct = `${(TOTAL_FRETS / FRETS_VISIBLE) * 100}%`;
-  wrapper.style.width = widthPct;
+  // 전체 너비 = 기준좌표계 고정값(더 이상 %/vw 아님 — transform:scale이 실제 크기를 담당)
+  wrapper.style.width = FB_REF_FULL_W + 'px';
   neckEl.style.width  = '100%';
   numsEl.style.width  = '100%';
 
   neckEl.innerHTML = '';
   numsEl.innerHTML = '';
 
-  // ── 줄 선 (뒤에서 먼저 생성) ──
+  // ── 줄 선 (뒤에서 먼저 생성) ── 두께도 기준배율(FB_REF_FBU)로 스케일 —
+  // 고정 px면 지판이 커지고 작아질 때 줄만 두께가 안 변해서 "사진 확대"가 아니게 됨
   const nutLeftPct = 1 / TOTAL_FRETS * 100;
   for (let s = 0; s < STRINGS; s++) {
     const topPct = (s + 0.5) / STRINGS * 100;
     const el = document.createElement('div');
     el.className = 'fb-string';
-    el.style.cssText = `top:${topPct}%; height:${STRING_THICKNESS[s]}px; left:${nutLeftPct}%;`;
+    el.style.cssText = `top:${topPct}%; height:${STRING_THICKNESS[s] * FB_REF_FBU}px; left:${nutLeftPct}%;`;
     neckEl.appendChild(el);
   }
 
@@ -1354,39 +1727,64 @@ function renderFullNeck(ids = {}) {
     el.textContent = fretNum;
     numsEl.appendChild(el);
   });
+
+  // 반복 조회 엘리먼트 캐시 — 이 함수는 페이지당 1회만 호출됨(항상 기본 id 사용)
+  _fbEls = {
+    row:       document.querySelector('.fretboard-row'),
+    viewport:  document.getElementById('fb-viewport'),
+    inner:     document.getElementById('fb-viewport-inner'),
+    wrapper,
+    blockerL:  document.getElementById('fb-peek-blocker-left'),
+    blockerR:  document.getElementById('fb-peek-blocker-right'),
+    arrowPrev: document.getElementById('fb-arrow-prev'),
+    arrowNext: document.getElementById('fb-arrow-next'),
+  };
+
+  applyFbLayout();
 }
 
-// ── 뷰포트 스크롤로 이동 ──────────────────────────────────────
-function scrollToFret(startFret, animate = true, viewportId = 'fb-viewport') {
-  const viewport = document.getElementById(viewportId);
-  if (!viewport) return;
+// ── 지판 이동(translateX, 기준좌표계) ────────────────────────
+function scrollToFret(startFret, animate = true) {
+  _fbLastFret = startFret;
+  if (!_fbEls || !_fbEls.wrapper) return;
 
-  const vw = viewport.clientWidth;
-  // 釉붾윮 以묒븰 fret = startFret + FRETS_VISIBLE/2
-  // 해당 위치를 뷰포트 중앙에 오도록 계산
-  // targetLeft = (startFret + FRETS_VISIBLE/2) / FRETS_VISIBLE * vw - vw/2
-  //            = startFret / FRETS_VISIBLE * vw
-  const targetLeft = (startFret / FRETS_VISIBLE) * vw;
+  // 이전 애니메이션이 아직 진행 중이면 취소 — 연타 시 두 rAF 루프가 동시에
+  // _fbPanRef를 덮어쓰면서 서로 밀어내 위치가 흔들리는(튀는) 문제 방지
+  if (_fbAnimId !== null) {
+    cancelAnimationFrame(_fbAnimId);
+    _fbAnimId = null;
+  }
+
+  const targetPan = -(startFret / FRETS_VISIBLE) * FB_REF_VIEWPORT_W;
 
   if (!animate) {
-    viewport.scrollLeft = targetLeft;
+    _fbPanRef = targetPan;
+    applyFbPan();
     return;
   }
 
-  const startLeft = viewport.scrollLeft;
-  const diff      = targetLeft - startLeft;
-  if (Math.abs(diff) < 1) return;
+  const startPan = _fbPanRef;
+  const diff     = targetPan - startPan;
+  if (Math.abs(diff) < 0.5) { _fbPanRef = targetPan; applyFbPan(); return; }
 
   const duration  = 350;
   const startTime = performance.now();
 
   function step(now) {
-    const t    = Math.min((now - startTime) / duration, 1);
-    const ease = 1 - Math.pow(1 - t, 3); // easeOutCubic
-    viewport.scrollLeft = startLeft + diff * ease;
-    if (t < 1) requestAnimationFrame(step);
+    const t = Math.min((now - startTime) / duration, 1);
+    // easeInOutSine — 코사인 기반 S커브(처음엔 점진 가속, 끝에서 감속). easeInOutCubic은
+    // t=0.5에서 서로 다른 3차 곡선 두 개가 이어붙는 이음매가 있어 가속도가 미세하게 꺾이는데,
+    // sine 곡선은 처음부터 끝까지 하나로 이어져 이음매 없이 매끄러움.
+    const ease = -(Math.cos(Math.PI * t) - 1) / 2;
+    _fbPanRef = startPan + diff * ease;
+    applyFbPan(); // 팬 중엔 스케일이 안 바뀌므로 transform만 갱신(레이아웃 재계산 없음, 2026-09-25 최적화)
+    if (t < 1) {
+      _fbAnimId = requestAnimationFrame(step);
+    } else {
+      _fbAnimId = null;
+    }
   }
-  requestAnimationFrame(step);
+  _fbAnimId = requestAnimationFrame(step);
 }
 
 // 도수 번호 라벨 문자열 (음수=플랫, 리디안 -5는 #4 표기)
@@ -1463,7 +1861,7 @@ function applyDegOffset(deg, lbl) {
 }
 
 // ── 노트 DOM 생성 함수 ───────────────────────────────────────
-function createNoteEl(absF, s, degree, ghost = false) {
+function createNoteEl(absF, s, degree, ghost = false, spawn = false) {
   const leftPct = (absF + 0.5) / TOTAL_FRETS * 100;
   const topPct  = (s + 0.5) / STRINGS * 100;
   const isRoot  = degree === 1;
@@ -1483,7 +1881,8 @@ function createNoteEl(absF, s, degree, ghost = false) {
     + (isNat7  ? ' fb-note--nat7'   : '')
     + (isChar  ? ' fb-note--char'   : '')
     + (isOpen  ? ' fb-note--open'   : '')
-    + (ghost   ? ' fb-note--ghost'  : '');
+    + (ghost   ? ' fb-note--ghost'  : '')
+    + (spawn   ? ' fb-note--spawn'  : '');
   el.style.cssText = `left:${leftPct}%; top:${topPct}%;`;
   el.dataset.s      = s;
   el.dataset.degree = degree;
@@ -1543,31 +1942,56 @@ function renderNotes(animate = true) {
   const seq = buildNavSequence();
   if (seq.length === 0) return;
 
+  // 현재 블럭 정보 먼저 확정 (ghost 가시범위 필터링에 필요)
+  const current = seq[_navIdx];
+
   // ghost 먼저 렌더 (z-index 낮게 배치)
   if (_scaleKey === 'secondary-iv' || _scaleKey === 'secondary-v' || _scaleKey === 'secondary-ii' || _scaleKey === 'secondary-vi' || _scaleKey === 'secondary-iii') {
     // Ch.2: 전환 대상(짝궁) 블럭을 ghost로 표시 (_pairTransitioned=false이므로 파트너폼)
     _refreshSecondaryGhost();
   } else {
-    // Ch.1/3: 인접 블럭 ghost 표시
+    // Ch.1/3: 인접 블럭 ghost 표시 — 23프렛 전체 좌표계엔 같은 폼이 여러 위치에 반복 존재하지만
+    // 화면엔 7프렛(+peek 여유 1프렛)만 보이므로, 그 범위와 안 겹치는 블록은 아예 안 만듦
+    // (전부 만들면 폼당 최대 100개 이상 DOM 생성 — 성능 최적화, 2026-09-25)
+    const visStart = current.startFret - 1;
+    const visEnd   = current.startFret + FRETS_VISIBLE;
     seq.forEach((item, i) => {
       if (i === _navIdx) return;
-      const parsed = ScaleData.parseGrid(item.block.grid);
-      parsed.notes.forEach(note => {
-        const absF = item.startFret + note.col;
-        if (absF < 0 || absF >= TOTAL_FRETS) return;
-        neckEl.appendChild(createNoteEl(absF, note.s, note.degree, true));
+      const notes = ScaleData.parseGrid(item.block.grid).notes
+        .map(n => ({ ...n, absF: item.startFret + n.col }))
+        .filter(n => n.absF >= 0 && n.absF < TOTAL_FRETS);
+      if (notes.length === 0) return;
+      const minF = Math.min(...notes.map(n => n.absF));
+      const maxF = Math.max(...notes.map(n => n.absF));
+      if (maxF < visStart || minF > visEnd) return; // 화면 밖 — 스킵
+      notes.forEach(note => {
+        neckEl.appendChild(createNoteEl(note.absF, note.s, note.degree, true, animate));
       });
     });
   }
 
   // 현재 블럭 렌더 (위에 쌓임)
-  const current = seq[_navIdx];
-  const parsed  = ScaleData.parseGrid(current.block.grid);
+  const parsed = ScaleData.parseGrid(current.block.grid);
   parsed.notes.forEach(note => {
     const absF = current.startFret + note.col;
     if (absF < 0 || absF >= TOTAL_FRETS) return;
-    neckEl.appendChild(createNoteEl(absF, note.s, note.degree, false));
+    neckEl.appendChild(createNoteEl(absF, note.s, note.degree, false, animate));
   });
+
+  // 방금 생성한 dot들 — 다음 프레임에 --spawn-in을 붙여 슬라이드와 같이 은은하게 페이드인
+  // (더블 rAF: 한 프레임 그려진 뒤에 붙여야 opacity:0→1 트랜지션이 제대로 걸림, cd-modal과 동일 패턴)
+  // 정리는 setTimeout 고정 시간 대신 transitionend로 — 연타 시 타이머가 계속 쌓이는 것 방지
+  if (animate) {
+    const spawned = neckEl.querySelectorAll('.fb-note--spawn');
+    requestAnimationFrame(() => requestAnimationFrame(() => {
+      spawned.forEach(el => {
+        el.classList.add('fb-note--spawn-in');
+        el.addEventListener('transitionend', () => {
+          el.classList.remove('fb-note--spawn', 'fb-note--spawn-in');
+        }, { once: true });
+      });
+    }));
+  }
 
   // secondary-iii C폼(bi=4): 실제 음은 그대로, 뷰포트만 오른쪽 1칸(startFret-1)으로 잡아 화면 중앙 배치
   const _scrollFret = (_scaleKey === 'secondary-iii' && current.bi === 4) ? current.startFret - 1 : current.startFret;
@@ -1923,6 +2347,334 @@ function checkAnswer() {
   document.getElementById('test-back-btn')?.classList.add('is-visible');
 }
 
+// ── "?" 버튼 튜토리얼 (2026-09-27, 레벨1 메이저 기준 가이드) ──────────────────
+// 테스트 오버레이를 재사용하되 제출버튼 대신 "다음"으로 단계 진행. 지금 화면 상태가 아니라
+// 고정된 기준 폼(Ckey A폼)을 사용. 전환형 등 복잡한 스케일은 대상 아님(추후 결정).
+const TUTORIAL_NEXT_BTN_BUFFER_MS = 100; // 다음 버튼 활성화 표준 버퍼 — 애니메이션 완전종료 + 0.1s (2026-09-27)
+const TUTORIAL_DOT_FADE_MS = 200; // .fb-note--spawn CSS transition(0.2s)과 동일값 — 여기만 참조
+const TUTORIAL_TEXT_SEQUENCE_PAUSE_MS = 1200; // texts[] 자동 넘김 시 읽는 시간(2026-09-27)
+const TUTORIAL_DOT_FADE_SLOW_MS = 1500; // fillRemaining 전체동시 팝인용 느린 트랜지션 — 텍스트 등장(1.5s)과 동일 맞춤(CSS와 짝, 2026-09-27)
+const TUTORIAL_STEPS = [
+  { type: 'action', action: 'octaveRun', leadTexts: [
+    "이번 시간에는 '메이저 스케일'을 배워볼게요!",
+    "메이저 스케일은 우리에게 익숙한\n'도레미파솔라시'\n음계를 의미해요."
+  ] }, // 2026-09-27: 원래 text 단계 2개 + 별도 액션단계였던 걸 전부 한 단계로 합침(leadTexts 다 끝난 뒤 액션 시작)
+  { type: 'text', text: '기타는 피아노와 달리 음이 잘 보이지 않죠?' },
+  { type: 'action', action: 'fillRemaining', text: "그래서 기타에는\n'스케일 블럭'이라는 개념이 존재해요!" }, // 2026-09-27: 원래 별도 text 단계였던 걸 이 액션단계로 합침
+  { type: 'text', text: "대표적으로 5개의 스케일 블럭을 알고 있어야,\n원하는 연주를 할 수 있을 거예요!" },
+  { type: 'action', action: 'highlightAShape', texts: [
+    "아래의 블럭은 A폼이라고 할게요.\nA코드 모양과 닮았기 때문이에요."
+  ] }, // 2026-09-27: 2줄 자동순차 대신 한 번에 같이 표시
+  { type: 'action', action: 'formNav', text: "좌우로 넘겨서 5가지 폼을 확인해보세요!\n점들을 클릭해서 소리도 들어보세요!" },
+  { type: 'text', text: "수고하셨어요! 스케일 블럭의 기본 개념을 배웠어요.\n이제 자유롭게 연습해보세요!" },
+];
+let _tutorialStepIdx        = 0;
+let _tutorialStartFret      = 0; // 7프렛 고정 뷰 기준 col 계산용(renderTestNeck과 동일 startFret)
+let _tutorialRunNotes       = []; // C→다음C 옥타브 런(음높이 오름차순)
+let _tutorialRemainingNotes = []; // 그 외 블록 나머지 노트
+let _tutorialTimers         = []; // 액션 진행 중 예약된 타이머 — 중도 이탈 시 취소용
+
+function _tutorialClearTimers() {
+  _tutorialTimers.forEach(id => clearTimeout(id));
+  _tutorialTimers = [];
+}
+
+function openTutorial() {
+  _tutorialMode = true;
+  GuitarAudio.stop();
+  clearTestDots();
+  _testHint = null;
+
+  const block = ScaleData.getBlocks('major')[0]; // FORM_NAMES[0] = 'A폼'
+  const startFret = ScaleData.getStartFrets(block, 0)[0]; // C key(rootNote=0) 기준
+  _tutorialStartFret = startFret;
+  renderTestNeck(startFret); // dot은 튜토리얼 진행에 맞춰 순차 표시
+
+  // 블록 전체 노트를 음높이 오름차순 정렬 후, 첫 근음~다음 근음 구간을 "C→다음C 런"으로 분리
+  const notes = ScaleData.parseGrid(block.grid).notes
+    .map(n => ({ s: n.s, degree: n.degree, absF: startFret + n.col }))
+    .sort((a, b) => (OPEN_MIDI[a.s] + a.absF) - (OPEN_MIDI[b.s] + b.absF));
+  const rootIdxs = notes.reduce((acc, n, i) => (n.degree === 1 ? [...acc, i] : acc), []);
+  const [lowRootI, highRootI] = rootIdxs;
+  _tutorialRunNotes = notes.slice(lowRootI, highRootI + 1);
+  const runKeys = new Set(_tutorialRunNotes.map(n => n.s + ',' + n.absF));
+  _tutorialRemainingNotes = notes.filter(n => !runKeys.has(n.s + ',' + n.absF));
+
+  const overlay = document.getElementById('scale-test-overlay');
+  overlay?.classList.add('is-open', 'scale-test-overlay--tutorial');
+  applyTestFbLayout();
+  // 1단계 진입 시 1.2초 딜레이 후 첫 문구 표시 — 그 사이엔 다음 버튼도 비활성.
+  // 라벨도 여기서 바로 "다음"으로 세팅해야 함 — showTutorialStep(0) 안에서만 바꾸면 그게 실행되는
+  // 1.2초 후까지 기본값("제출하기")이 남아있다가 뒤늦게 바뀌는 게 눈에 보임(2026-09-27 발견/수정).
+  const nextBtn = document.getElementById('test-submit-btn');
+  const label = document.getElementById('test-submit-btn-label');
+  if (label) label.textContent = '다음';
+  if (nextBtn) nextBtn.disabled = true;
+  const id = setTimeout(() => showTutorialStep(0), 1200);
+  _tutorialTimers.push(id);
+}
+
+function closeTutorial() {
+  _tutorialMode = false;
+  _tutorialDotClickEnabled = false;
+  _tutorialClearTimers();
+  GuitarAudio.stop();
+  document.getElementById('scale-test-overlay')?.classList.remove('is-open', 'scale-test-overlay--tutorial', 'scale-test-overlay--form-nav');
+}
+
+// texts[] 자동 순차재생 — 문구 하나 보여주고 등장애니메이션 끝나면 읽는시간(TUTORIAL_TEXT_SEQUENCE_PAUSE_MS)
+// 대기 후 다음 문구로, 마지막 문구는 표준 버퍼(TUTORIAL_NEXT_BTN_BUFFER_MS) 후 onDone() 콜백(2026-09-27,
+// onDone은 호출부가 결정 — 다음버튼 활성화일 수도, 이어서 액션 시작일 수도 있음)
+function _tutorialShowTextSequence(texts, idx, qEl, onDone) {
+  qEl.textContent = texts[idx];
+  qEl.classList.remove('test-question--in');
+  void qEl.offsetWidth;
+  qEl.classList.add('test-question--in');
+  qEl.addEventListener('animationend', () => {
+    if (idx < texts.length - 1) {
+      const id = setTimeout(() => _tutorialShowTextSequence(texts, idx + 1, qEl, onDone), TUTORIAL_TEXT_SEQUENCE_PAUSE_MS);
+      _tutorialTimers.push(id);
+    } else {
+      const id = setTimeout(onDone, TUTORIAL_NEXT_BTN_BUFFER_MS);
+      _tutorialTimers.push(id);
+    }
+  }, { once: true });
+}
+
+function showTutorialStep(idx) {
+  _tutorialClearTimers();
+  _tutorialStepIdx = idx;
+  const step  = TUTORIAL_STEPS[idx];
+  const qEl   = document.getElementById('test-question-text');
+  const label = document.getElementById('test-submit-btn-label');
+  const nextBtn = document.getElementById('test-submit-btn');
+  if (label) label.textContent = (idx === TUTORIAL_STEPS.length - 1) ? '완료' : '다음';
+
+  if (step.type === 'text') {
+    if (nextBtn) nextBtn.disabled = true;
+    if (qEl && Array.isArray(step.texts)) {
+      // texts[] — 여러 문구를 자동으로 순차 넘김(2026-09-27), 마지막 문구까지 다 보여준 뒤에만 활성화
+      _tutorialShowTextSequence(step.texts, 0, qEl, () => { if (nextBtn) nextBtn.disabled = false; });
+    } else if (qEl) {
+      // 기본 opacity:0 상태라 .test-question--in을 매번 다시 트리거해야 보임(startTest()와 동일 패턴) —
+      // remove 후 강제 리플로우 없이 바로 add하면 트랜지션이 안 씹히고 즉시 끝나버림
+      qEl.textContent = step.text;
+      qEl.classList.remove('test-question--in');
+      void qEl.offsetWidth;
+      qEl.classList.add('test-question--in');
+      // 다음 버튼 활성화 타이밍 표준 규칙(2026-09-27): "다음"은 반드시 진행중 애니메이션이
+      // 실제로 끝난 후 +0.1s에만 활성화 — 하드코딩 duration 대신 실제 CSS 애니메이션의
+      // animationend를 그대로 청취해서, CSS쪽 1.5s가 나중에 바뀌어도 이 코드는 안 건드려도 됨.
+      qEl.addEventListener('animationend', () => {
+        const id = setTimeout(() => { if (nextBtn) nextBtn.disabled = false; }, TUTORIAL_NEXT_BTN_BUFFER_MS);
+        _tutorialTimers.push(id);
+      }, { once: true });
+    }
+  } else {
+    // 액션 단계 — leadTexts(액션 전, 자동순차)/text(액션 전, 단일) 중 있는 쪽으로 먼저 갱신,
+    // 둘 다 없으면 직전 텍스트 유지. 텍스트가 먼저 다 끝난 뒤에만 액션(dot 등) 시작 —
+    // 동시재생하면 눈이 텍스트/지판 둘 다 못 따라가서 순차로 분리(2026-09-27)
+    if (nextBtn) nextBtn.disabled = true;
+    // 액션 완료 후 — texts[]가 있으면 자동 순차 문구로 이어가고(2026-09-27), 없으면 바로 다음버튼 활성화
+    const onActionDone = () => {
+      if (qEl && Array.isArray(step.texts)) {
+        // 액션(색전환 등) 끝난 직후 바로 텍스트가 뜨면 급해 보여서 0.5s 간격(2026-09-27)
+        const id = setTimeout(() => {
+          _tutorialShowTextSequence(step.texts, 0, qEl, () => { if (nextBtn) nextBtn.disabled = false; });
+        }, 500);
+        _tutorialTimers.push(id);
+      } else {
+        const id = setTimeout(() => { if (nextBtn) nextBtn.disabled = false; }, TUTORIAL_NEXT_BTN_BUFFER_MS);
+        _tutorialTimers.push(id);
+      }
+    };
+    if (qEl && Array.isArray(step.leadTexts)) {
+      // 액션 전에 먼저 여러 문구를 자동 순차재생(2026-09-27, 1+2단계 병합용) — 다 끝나면 액션 시작
+      _tutorialShowTextSequence(step.leadTexts, 0, qEl, () => runTutorialAction(step.action, onActionDone));
+    } else if (step.text && qEl) {
+      qEl.textContent = step.text;
+      qEl.classList.remove('test-question--in');
+      void qEl.offsetWidth;
+      qEl.classList.add('test-question--in');
+      qEl.addEventListener('animationend', () => runTutorialAction(step.action, onActionDone), { once: true });
+    } else {
+      runTutorialAction(step.action, onActionDone);
+    }
+  }
+}
+
+function advanceTutorialStep() {
+  const nextIdx = _tutorialStepIdx + 1;
+  if (nextIdx >= TUTORIAL_STEPS.length) { closeTutorial(); return; }
+  showTutorialStep(nextIdx);
+}
+
+// dot 하나를 테스트 지판에 추가(fb-note--spawn 페이드인 재사용, renderNotes()와 동일 패턴).
+// createNoteEl()은 진입화면의 23프렛 전체 절대좌표(TOTAL_FRETS 기준)로 위치를 잡기 때문에
+// 여기(7프렛 고정 뷰, addTestDot()과 동일 공식)에 그대로 쓰면 왼쪽으로 몰려서 찍히는 버그가 있었음
+// (2026-09-27 발견/수정) — col은 반드시 _tutorialStartFret 기준 상대값으로 계산해야 함.
+function _tutorialSpawnDot(note) {
+  const neckEl = document.getElementById('test-fb-full-neck');
+  if (!neckEl) return;
+  const col = note.absF - _tutorialStartFret;
+  const leftPct = (col + 0.5) / FRETS_VISIBLE * 100;
+  const topPct  = (note.s + 0.5) / STRINGS * 100;
+  const el = document.createElement('div');
+  el.className = 'fb-note fb-note--spawn' + (note.degree === 1 ? ' fb-note--root' : '');
+  el.style.cssText = `left:${leftPct}%; top:${topPct}%;`;
+  el.dataset.s = note.s; // 나중에 특정 위치(코드모양 등)의 dot을 다시 찾아 강조표시하기 위한 식별자(2026-09-27)
+  el.dataset.absF = note.absF;
+  neckEl.appendChild(el);
+  requestAnimationFrame(() => requestAnimationFrame(() => {
+    el.classList.add('fb-note--spawn-in');
+    el.addEventListener('transitionend', () => {
+      el.classList.remove('fb-note--spawn', 'fb-note--spawn-in');
+    }, { once: true });
+  }));
+}
+
+// 5폼(A-G-E-D-C) 각각의 코드모양 패턴 — A/E/D는 chord-voicings.js CHORD_PATTERN(바레코드,
+// quality:'M')에 실제로 있어서 rootStr로 찾아 재사용. G/C는 코드사전에 바레패턴이 없어서(실제
+// 기타에서도 잘 안 씀) 오픈코드 CHORD_STATIC('G':'3 2 0 0 0 3', 'C':'x 3 2 0 1 0')과 대조검증한
+// 패턴을 직접 지정(2026-09-27, 사용자 제공값). 배열 순서는 FORM_NAMES/getBlocks('major')와 동일.
+const TUTORIAL_FORM_SHAPES = [
+  { rootStr: 5, pattern: null },                       // A폼 — CHORD_PATTERN에서 찾음
+  { rootStr: 6, pattern: 'r+3 r+2 r r r r+3' },         // G폼 — 오픈G 검증완료
+  { rootStr: 6, pattern: null },                        // E폼 — CHORD_PATTERN에서 찾음
+  { rootStr: 4, pattern: null },                        // D폼 — CHORD_PATTERN에서 찾음
+  { rootStr: 5, pattern: 'x r+3 r+2 r r+1 r' },         // C폼 — 오픈C 검증완료
+];
+
+function _tutorialGetFormShapeDef(formIdx) {
+  const cfg = TUTORIAL_FORM_SHAPES[formIdx];
+  if (!cfg) return null;
+  if (cfg.pattern) return { rootStr: cfg.rootStr, pattern: cfg.pattern };
+  const pat = (window.CHORD_PATTERN || []).find(p => p.rootStr === cfg.rootStr && p.quality === 'M' && p.barre);
+  return pat ? { rootStr: pat.rootStr, pattern: pat.pattern } : null;
+}
+
+// shapeDef(rootStr/pattern)을 블록 노트 목록과 대조해서 코드모양에 해당하는 (string, 절대프렛)
+// 좌표들을 역산한다(2026-09-27, 원래 A폼 전용이던 걸 5폼 공용으로 일반화).
+// CHORD_PATTERN류 문자열은 6번줄→1번줄 순서, ScaleData의 s는 반대(0=1번줄)라 s = 5 - 배열인덱스로 변환.
+// 'r'은 임의의 스윕 변수일 뿐이라(voicing-library.js와 동일 해석), 블록에 이미 있는 실제 루트음
+// 절대프렛으로 역산해서 r을 구한 뒤 나머지 줄의 절대프렛을 계산한다.
+function _tutorialGetShapeTargets(shapeDef, allNotes) {
+  if (!shapeDef) return [];
+  const tokens = shapeDef.pattern.trim().split(/\s+/); // 예: ['x','r+1','r+3','r+3','r+3','r+1']
+  const parseTok = (tok) => {
+    if (tok === 'x') return null;
+    const m = tok.match(/^r([+-]\d+)?$/);
+    return m ? (m[1] ? parseInt(m[1], 10) : 0) : parseInt(tok, 10);
+  };
+  const rootS = shapeDef.rootStr - 1; // rootStr(1~6, 1=high e) → ScaleData s(0=high e)
+  const rootPatIdx = tokens.findIndex((_, p) => (5 - p) === rootS);
+  const rootOffset = parseTok(tokens[rootPatIdx]);
+  const rootNote = allNotes.find(n => n.s === rootS && n.degree === 1);
+  if (!rootNote) return [];
+  const r = rootNote.absF - rootOffset;
+
+  const targets = [];
+  tokens.forEach((tok, p) => {
+    const offset = parseTok(tok);
+    if (offset === null) return; // 뮤트 줄
+    targets.push({ s: 5 - p, absF: r + offset });
+  });
+  return targets;
+}
+
+// 5폼 유저 조작 네비게이션 상태(2026-09-27)
+let _tutorialFormIdx = 0;
+let _tutorialDotClickEnabled = false;
+
+// 폼 전체를 "이미 완성된 상태"로 정적 렌더 — 스폰 애니메이션 없이 바로 opacity:1로 찍음
+// (좌우로 넘기면 화면만 이동하는 느낌, 새로 생성되는 느낌 배제). 그 폼의 코드모양(TUTORIAL_FORM_SHAPES)에
+// 해당하는 dot은 파란색으로 같이 표시.
+function _tutorialRenderFormStatic(formIdx) {
+  const block = ScaleData.getBlocks('major')[formIdx];
+  const startFret = ScaleData.getStartFrets(block, 0)[0];
+  _tutorialStartFret = startFret;
+  renderTestNeck(startFret);
+
+  const labelEl = document.getElementById('test-fb-form-label');
+  if (labelEl) labelEl.textContent = FORM_NAMES[formIdx];
+
+  const notes = ScaleData.parseGrid(block.grid).notes
+    .map(n => ({ s: n.s, degree: n.degree, absF: startFret + n.col }));
+
+  const shapeDef = _tutorialGetFormShapeDef(formIdx);
+  const targetKeys = new Set(_tutorialGetShapeTargets(shapeDef, notes).map(t => t.s + ',' + t.absF));
+
+  const neckEl = document.getElementById('test-fb-full-neck');
+  if (!neckEl) return;
+  notes.forEach(note => {
+    const col = note.absF - startFret;
+    const leftPct = (col + 0.5) / FRETS_VISIBLE * 100;
+    const topPct  = (note.s + 0.5) / STRINGS * 100;
+    const isHighlight = targetKeys.has(note.s + ',' + note.absF);
+    const el = document.createElement('div');
+    el.className = 'fb-note'
+      + (note.degree === 1 ? ' fb-note--root' : '')
+      + (isHighlight ? ' fb-note--chord-highlight' : '');
+    el.style.cssText = `left:${leftPct}%; top:${topPct}%;`;
+    el.dataset.s = note.s;
+    el.dataset.absF = note.absF;
+    neckEl.appendChild(el);
+  });
+}
+
+function _tutorialAdvanceForm(delta) {
+  _tutorialFormIdx = (_tutorialFormIdx + delta + 5) % 5;
+  _tutorialRenderFormStatic(_tutorialFormIdx);
+}
+
+function runTutorialAction(action, onDone) {
+  // 마지막 dot의 시작(stagger) + 그 dot 자신의 팝인(.fb-note--spawn 트랜지션 0.2s)까지
+  // 완전히 끝난 시점 + 0.1s 버퍼에 완료 콜백 — 노트 개수/간격이 바뀌어도 이 공식 그대로 따라감(2026-09-27).
+  const doneAfterNotes = (noteCount, stepMs) => {
+    const lastNoteEndMs = Math.max(noteCount - 1, 0) * stepMs + TUTORIAL_DOT_FADE_MS;
+    const id = setTimeout(onDone, lastNoteEndMs + TUTORIAL_NEXT_BTN_BUFFER_MS);
+    _tutorialTimers.push(id);
+  };
+
+  if (action === 'octaveRun') {
+    const STEP_MS = 420;
+    _tutorialRunNotes.forEach((note, i) => {
+      const id = setTimeout(() => {
+        _tutorialSpawnDot(note);
+        playScaleNote(note.s, note.absF);
+      }, i * STEP_MS);
+      _tutorialTimers.push(id);
+    });
+    doneAfterNotes(_tutorialRunNotes.length, STEP_MS);
+  } else if (action === 'fillRemaining') {
+    // 순차 대신 전부 동시에 팝인, 그만큼 애니메이션 자체를 느리게(2026-09-27,
+    // .scale-test-overlay--tutorial 스코프의 .fb-note--spawn transition-duration과 짝)
+    _tutorialRemainingNotes.forEach(note => _tutorialSpawnDot(note));
+    const id = setTimeout(onDone, TUTORIAL_DOT_FADE_SLOW_MS + TUTORIAL_NEXT_BTN_BUFFER_MS);
+    _tutorialTimers.push(id);
+  } else if (action === 'highlightAShape') {
+    // 이미 찍혀있는 dot들(옥타브런+나머지) 중 A폼 코드모양 좌표와 일치하는 것만 파란색으로
+    // 서서히 전환(.fb-note--chord-highlight, CSS transition) — 전환 끝나면 완료 콜백(2026-09-27)
+    const allNotes = _tutorialRunNotes.concat(_tutorialRemainingNotes);
+    const targets = _tutorialGetShapeTargets(_tutorialGetFormShapeDef(0), allNotes); // 0 = A폼
+    const dots = Array.from(document.querySelectorAll('#test-fb-full-neck .fb-note'));
+    const matched = targets
+      .map(t => dots.find(d => Number(d.dataset.s) === t.s && Number(d.dataset.absF) === t.absF))
+      .filter(Boolean);
+    if (matched.length === 0) { onDone(); return; }
+    matched.forEach(el => el.classList.add('fb-note--chord-highlight'));
+    matched[0].addEventListener('transitionend', onDone, { once: true });
+  } else if (action === 'formNav') {
+    // 5폼(A-G-E-D-C) 유저 조작 네비게이션 시작 — 화살표 노출 + dot 클릭 재생 허용 + A폼부터 정적표시(2026-09-27)
+    document.getElementById('scale-test-overlay')?.classList.add('scale-test-overlay--form-nav');
+    _tutorialDotClickEnabled = true;
+    _tutorialFormIdx = 0;
+    _tutorialRenderFormStatic(0);
+    const id = setTimeout(onDone, TUTORIAL_NEXT_BTN_BUFFER_MS);
+    _tutorialTimers.push(id);
+  }
+}
+
 // ── 테스트 시작 ────────────────────────────────────────────────
 function startTest() {
   GuitarAudio.stop();   // 뷰 전환: 울리던 노트 페이드아웃 후 중단
@@ -1934,26 +2686,19 @@ function startTest() {
   _testHint      = null;
   _testSubmitted = false;
 
-  // 셔플백: 키/스케일 변경 시 새로 생성, 동일 키는 이어서 진행
-  const bagKey = `scale-test:${_scaleKey}:${_rootNote}`;
-  let bagItems = seq;
-  if (_scaleKey === 'secondary-iv' || _scaleKey === 'secondary-v' || _scaleKey === 'secondary-ii' || _scaleKey === 'secondary-vi' || _scaleKey === 'secondary-iii') {
-    // Ch.2: 각 블럭 × 정방향/역방향 = 2배 아이템
-    bagItems = seq.flatMap(item => [
-      { ...item, forward: true },
-      { ...item, forward: false }
-    ]);
-  }
-  if (!_shuffleBag || _shuffleBag._storageKey !== `shuffle-bag:${bagKey}`) {
-    _shuffleBag = new ShuffleBag(bagKey, bagItems);
-  }
-  _testItem = _shuffleBag.next();
+  // 지금 fretboard-row에 표시 중인 블록을 그대로 테스트 문제로 사용
+  // (2026-09-25, 셔플백 무작위 출제 폐기 — "방금 보던 걸 바로 확인"하는 흐름으로 변경)
+  const current = seq[_navIdx];
+  const isSecondaryPair = _scaleKey === 'secondary-iv' || _scaleKey === 'secondary-v' || _scaleKey === 'secondary-ii' || _scaleKey === 'secondary-vi' || _scaleKey === 'secondary-iii';
+  // Ch.2: 지금 원폼을 보고 있으면(_pairTransitioned=false) 원폼→짝궁 방향, 짝궁을 보고 있으면 반대 방향
+  _testItem = isSecondaryPair ? { ...current, forward: !_pairTransitioned } : current;
 
   const names = _useFlat ? KEY_NAMES_FLAT : KEY_NAMES;
 
   // 7-fret 고정 넥 렌더 (스크롤 없이 고정 표시)
   renderTestNeck(_testItem.startFret);
   renderTestNotes();
+  applyTestFbLayout(); // "사진 확대" 스케일 적용 — 오버레이가 열려 실측 가능해진 후 호출
 
   const resultRow = document.getElementById('test-result-row');
   if (resultRow) {
@@ -2108,13 +2853,19 @@ function initTestTap() {
     const dx = Math.abs(e.clientX - _tapStartX);
     const dy = Math.abs(e.clientY - _tapStartY);
     if (dx > 8 || dy > 8) return;   // 거리 초과 시 취소
-    if (_testSubmitted) return;      // 제출 후 입력 차단
 
     const rect = neckEl.getBoundingClientRect();
     const col  = Math.floor((e.clientX - rect.left) / rect.width  * FRETS_VISIBLE);
     const s    = Math.floor((e.clientY - rect.top)  / rect.height * STRINGS);
-
     if (col < 0 || col >= FRETS_VISIBLE || s < 0 || s >= STRINGS) return;
+
+    if (_tutorialMode) {
+      // 튜토리얼은 기본적으로 보여주기 전용이라 답 배치는 못 하지만, 5폼 네비게이션
+      // 단계(_tutorialDotClickEnabled)에서만 예외로 소리 재생 허용(2026-09-27)
+      if (_tutorialDotClickEnabled) playScaleNote(s, _tutorialStartFret + col);
+      return;
+    }
+    if (_testSubmitted) return;      // 제출 후 입력 차단
 
     // 힌트 위치 제외
     if (_testHint && _testHint.s === s && _testHint.col === col) return;
@@ -2937,14 +3688,6 @@ function updateKeyLabels() {
   document.querySelectorAll('.key-btn').forEach((btn, i) => {
     btn.textContent = names[i];
   });
-  updateStartTestBtnLabel();
-}
-
-function updateStartTestBtnLabel() {
-  const label = document.getElementById('start-test-btn-label');
-  if (!label) return;
-  const keyName = (_useFlat ? KEY_NAMES_FLAT : KEY_NAMES)[_rootNote];
-  label.textContent = `${keyName}key 테스트 시작`;
 }
 
 // ── 임시/기록 관련 함수 ──────────────────────────────────────
@@ -3078,6 +3821,40 @@ function initDegreeToggle() {
 }
 
 // ── 키 선택 UI ───────────────────────────────────────────────
+// key-selector 가로스크롤 — 마우스 드래그로도 스크롤 가능하게(터치는 브라우저 기본 제공).
+// 드래그 발생 시 key-btn의 pointerup(키 선택)은 억제(capture 단계에서 stopPropagation).
+function initKeySelectorDragScroll(el) {
+  let isDown = false;
+  let dragged = false;
+  let startX = 0;
+  let startScroll = 0;
+
+  el.addEventListener('pointerdown', (e) => {
+    isDown = true;
+    dragged = false;
+    startX = e.clientX;
+    startScroll = el.scrollLeft;
+    el.classList.add('is-dragging');
+  });
+  el.addEventListener('pointermove', (e) => {
+    if (!isDown) return;
+    const dx = e.clientX - startX;
+    if (Math.abs(dx) > 3) dragged = true;
+    el.scrollLeft = startScroll - dx;
+  });
+  const endDrag = () => {
+    isDown = false;
+    el.classList.remove('is-dragging');
+  };
+  el.addEventListener('pointerup', endDrag);
+  el.addEventListener('pointerleave', endDrag);
+  el.addEventListener('pointercancel', endDrag);
+  // 드래그였으면 key-btn 클릭(키 선택) 무효화
+  el.addEventListener('pointerup', (e) => {
+    if (dragged) e.stopPropagation();
+  }, true);
+}
+
 function initKeySelector() {
   const el = document.getElementById('key-selector');
   if (!el) return;
@@ -3095,7 +3872,6 @@ function initKeySelector() {
       renderNotes();
       updateFormLabel();
       updateBlockIndicator();
-      updateStartTestBtnLabel();
       analytics.track('scale_key_selected', {
         scale_key: _scaleKey,
         root_note: semitone,
@@ -3134,6 +3910,7 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   measureDegreeOffsets();    // 도수 라벨 정렬 오프셋 1차 측정
+  initFbScaleResize();       // 지판 "사진 확대" 스케일 — 창 크기 바뀌면 재계산
 renderFullNeck();
   renderNotes(false);        // 초기 렌더 — 애니메이션 없이 즉시 표시
 
@@ -3142,6 +3919,7 @@ renderFullNeck();
     document.fonts.ready.then(() => {
       measureDegreeOffsets();
       renderNotes(false);
+      alignMicBtnRowToDesc();
     });
   }
   updateFormLabel();
@@ -3150,9 +3928,18 @@ renderFullNeck();
   initAccidentalToggle();
   initDegreeToggle();
   initKeySelector();
-  updateStartTestBtnLabel();
+  initKeySelectorDragScroll(document.getElementById('key-selector'));
+  updateScaleGapScrollMode(); // 그룹1~4 간격 30px 미만이면 스크롤모드로 초기 진입 — 모든 그룹 콘텐츠(타이틀/인디케이터/키선택 그리드) 확정 이후에 측정
+  alignMicBtnRowToDesc(); // scale-mic-btn-row를 desc 첫 줄 좌우 경계에 맞춤
 
   initTestTap();
+
+  // 기타 버튼 — 마이크로 직접 연주 감지(원래 기능, 2026-09-25 튜토리얼로 잠시 대체됐다가 복원)
+  document.getElementById('scale-mic-btn')?.addEventListener('pointerup', toggleScaleMic);
+  // 재생 버튼 — 현재 블럭 낮은음→높은음→낮은음(+근음 재상행) 재생
+  document.getElementById('scale-play-btn')?.addEventListener('pointerup', toggleScalePlay);
+  // "?" 버튼 — 튜토리얼 다시보기 (2026-09-25: 기타 버튼과 분리해서 별도 3번째 버튼으로)
+  document.getElementById('scale-tutorial-btn')?.addEventListener('pointerup', openTutorial);
 
   // 테스트 시작 버튼 (피크 2개 소모)
   document.getElementById('start-test-btn')?.addEventListener('pointerup', async () => {
@@ -3173,6 +3960,7 @@ renderFullNeck();
   // 제출하기 / 다시 풀기 버튼
   document.getElementById('test-submit-btn')?.addEventListener('pointerup', async (e) => {
     if (e.currentTarget.disabled) return;
+    if (_tutorialMode) { _playTap(); advanceTutorialStep(); return; }
     if (_testSubmitted) {
       _playConfirmSfx();
       if (!(await consumePeak(2, 'scale'))) return;
@@ -3207,8 +3995,13 @@ renderFullNeck();
   };
 
   document.getElementById('test-close-btn')?.addEventListener('pointerup', () => {
+    // 튜토리얼은 피크 소모가 없어서 "제출 전 이탈 확인" 모달 자체가 불필요 — 바로 닫음
+    if (_tutorialMode) { closeTutorial(); return; }
     requestCloseTest(closeTestOverlay);
   });
+  // 튜토리얼 5폼 네비게이션 화살표 — formNav 단계에서만 노출(CSS), 유저가 직접 조작(2026-09-27)
+  document.getElementById('test-fb-arrow-prev')?.addEventListener('pointerup', () => _tutorialAdvanceForm(-1));
+  document.getElementById('test-fb-arrow-next')?.addEventListener('pointerup', () => _tutorialAdvanceForm(1));
   document.getElementById('test-back-btn')?.addEventListener('pointerup', () => {
     _playSfx('pop.mp3');
     requestCloseTest(() => {

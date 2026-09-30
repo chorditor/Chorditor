@@ -185,6 +185,7 @@ const GuitarAudio = (() => {
     });
   }
 
+
   // 코드 에디터/사전용 — MIDI 배열 직접 스트럼
   function strumNotes(midis, interval) {
     _run(() => {

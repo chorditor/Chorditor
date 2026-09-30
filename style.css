@@ -15616,7 +15616,7 @@ canvas {
   line-height: 1.5;
   text-align: center;
   margin: 0 0 20px;
-  min-height: 90px;  /* 3�?고정 (20px × 1.5 × 3) ??출제?�결�??�랫보드 ?�치 고정 */
+  min-height: var(--test-desc-min-height);  /* 3줄 고정 (20px × 1.5 × 3) — 프랫보드 위치 고정 */
   white-space: pre-line;
   display: flex;
   align-items: center;
@@ -15631,6 +15631,35 @@ canvas {
 @keyframes test-question-in {
   from { opacity: 0; transform: translateY(16px); }
   to   { opacity: 1; transform: translateY(0); }
+}
+
+/* 음이름/도수 3줄x7칸 정렬 — 표 태그 아님, 텍스트 그리드 정렬만(2026-09-29, 사용자 확정) */
+.test-note-grid {
+  display: none;
+  grid-template-columns: repeat(7, auto); /* 1fr(균등폭)이면 gap이 아니라 빈 칼럼폭이 간격을 결정해서 gap을 줄여도 안 좁혀짐 — 컨텐츠 크기로 전환(2026-09-29) */
+  justify-content: center;
+  gap: 6px 10px;
+  width: 100%;
+  max-width: 320px;
+  min-height: var(--test-desc-min-height); /* #test-question-text와 같은 슬롯 공유(2026-09-29) */
+  margin: 0 auto 20px;
+  padding: 0 20px;
+  box-sizing: border-box;
+  opacity: 0;
+}
+.test-note-grid.is-visible {
+  display: grid;
+  align-content: center;
+}
+.test-note-grid-cell {
+  text-align: center;
+  font-size: 24px;
+  font-weight: 700;
+  color: #1a1a1a;
+  letter-spacing: -0.3px;
+}
+.test-note-grid-cell:nth-child(n+15) {
+  color: var(--brand); /* 3번째 줄(도수 숫자) 강조 */
 }
 
 /* ?�?� 개방??비활???�트 ??(?�립 ?�래????.fb-note ?�속 ?�음) ?�?� */
@@ -15778,6 +15807,7 @@ canvas {
 }
 
 .scale-test-body {
+  --test-desc-min-height: 120px; /* #test-question-text/#test-note-grid 공유 슬롯 높이(2026-09-29) — 여기만 바꾸면 둘 다 반영 */
   flex: 1;
   display: flex;
   flex-direction: column;
@@ -15833,7 +15863,6 @@ canvas {
   display: none;
   position: absolute;
   top: 50%;
-  transform: translateY(-50%);
   width: 44px;
   height: 44px;
   border-radius: 50%;
@@ -15845,11 +15874,22 @@ canvas {
   z-index: 5;
   cursor: pointer;
   -webkit-tap-highlight-color: transparent;
+  opacity: 0;
+  transform: translateY(-50%) scale(0.85);
+  transition: opacity 0.2s ease-out, transform 0.2s ease-out; /* .fb-note--spawn과 동일 톤(2026-09-29) */
 }
 .test-fb-arrow-btn svg { width: 22px; height: 22px; }
 .test-fb-arrow-btn--prev { left: 0; }
 .test-fb-arrow-btn--next { right: 0; }
 .scale-test-overlay--form-nav .test-fb-arrow-btn { display: flex; }
+.scale-test-overlay--form-nav.scale-test-overlay--arrows-in .test-fb-arrow-btn {
+  opacity: 1;
+  transform: translateY(-50%) scale(1);
+}
+.scale-test-overlay--nav-locked .test-fb-arrow-btn {
+  pointer-events: none;
+  opacity: 0.35;
+} /* 특징음 강조 전환 애니메이션 도중 좌우 폼 넘기기 실제로 차단(2026-09-29) */
 
 /* 튜토리얼 — 프랫보드 슬롯 위 라벨 전용 칸. 라벨 텍스트 유무와 무관하게 항상
    자리를 차지(min-height)해서, 폼 이름이 없는 다른 튜토리얼 단계에서도 프랫보드
@@ -15873,6 +15913,9 @@ canvas {
 }
 .fb-note--chord-highlight {
   background: var(--blue);
+}
+.fb-note--blues-note {
+  background: var(--blue); /* 블루스 노트(b5) 색깔 표시(2026-09-29) */
 }
 
 /* 튜토리얼 — fillRemaining 단계(남은 dot 전부 동시 팝인)는 기본 .fb-note--spawn(0.2s)보다

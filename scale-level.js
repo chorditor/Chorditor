@@ -367,10 +367,83 @@ function stopScalePlay() {
   document.getElementById('scale-play-btn')?.classList.remove('is-active');
 }
 
+// ── Ch.2 secondary-iv 전용 재생: 상행=원폼, 정점에서 전환, 하행=짝궁폼 (2026-09-30 테스트) ──
+const SECONDARY_IV_TRANSITION_MS = 410; // transitionPair() DURATION(350)+마무리버퍼(60)와 동일
+
+function _buildSecondaryIVDescendSeq(peakMidi) {
+  const neckEl = document.getElementById('fb-full-neck');
+  if (!neckEl) return [];
+  const ghostsAsc = [...neckEl.querySelectorAll('.fb-note--ghost')].map(el => {
+    const s    = parseInt(el.dataset.s);
+    const absF = parseInt(el.dataset.absf);
+    return { el, s, absF, degree: el.dataset.degree, midi: OPEN_MIDI[s] + absF };
+  }).sort((a, b) => a.midi - b.midi);
+  if (!ghostsAsc.length) return [];
+  let desc = ghostsAsc.slice().reverse();
+  if (desc[0].midi === peakMidi) desc = desc.slice(1); // 정점 중복 방지
+  // 도착점(가장 낮은음)이 근음이 아니면, 가장 가까운 근음까지 재상행
+  if (desc.length && desc[desc.length - 1].degree !== '1') {
+    const rootIdx = ghostsAsc.findIndex((n, i) => i > 0 && n.degree === '1');
+    if (rootIdx > 0) desc = desc.concat(ghostsAsc.slice(1, rootIdx + 1));
+  }
+  return desc;
+}
+
+function _startSecondaryIVDescend(seq) {
+  let j = 0;
+  const step = () => {
+    document.querySelectorAll('.fb-note--playing').forEach(el => el.classList.remove('fb-note--playing'));
+    if (j >= seq.length) { stopScalePlay(); return; }
+    const note = seq[j];
+    const isLast = j === seq.length - 1;
+    note.el.classList.add('fb-note--playing');
+    playScaleNote(note.s, note.absF);
+    j++;
+    _scalePlayTimer = setTimeout(step, isLast ? SCALE_PLAY_NOTE_MS * 4 : SCALE_PLAY_NOTE_MS);
+  };
+  step();
+}
+
+function _startSecondaryIVAscendThenTransition() {
+  const asc = _getCurrentScaleNotesAsc();
+  if (asc.length === 0) return;
+  document.getElementById('scale-play-btn')?.classList.add('is-active');
+  let i = 0;
+  const step = () => {
+    document.querySelectorAll('.fb-note--playing').forEach(el => el.classList.remove('fb-note--playing'));
+    const note   = asc[i];
+    const isPeak = i === asc.length - 1;
+    note.el.classList.add('fb-note--playing');
+    playScaleNote(note.s, note.absF);
+    if (isPeak) {
+      // 마지막(정점) 음에 도달한 순간 — 대기 없이 바로 전환 트리거 + 하행 시작
+      const descSeq = _buildSecondaryIVDescendSeq(note.midi);
+      transitionPair();
+      _startSecondaryIVDescend(descSeq);
+      return;
+    }
+    i++;
+    _scalePlayTimer = setTimeout(step, SCALE_PLAY_NOTE_MS);
+  };
+  step();
+}
+
 function startScalePlay() {
+  stopScaleMic(); // 마이크 모드 켜져있었으면 즉시 중단
+
+  if (_scaleKey === 'secondary-iv') {
+    if (_pairTransitioned) {
+      // 이미 전환된 상태 — 원폼으로 먼저 되돌린 후 재생 시작(항상 원폼에서 출발)
+      transitionPair();
+      _scalePlayTimer = setTimeout(_startSecondaryIVAscendThenTransition, SECONDARY_IV_TRANSITION_MS);
+    } else {
+      _startSecondaryIVAscendThenTransition();
+    }
+    return;
+  }
+
   const seq = buildScalePlaySequence();
   if (seq.length === 0) return;
-  stopScaleMic(); // 마이크 모드 켜져있었으면 즉시 중단
   document.getElementById('scale-play-btn')?.classList.add('is-active');
 
   let i = 0;
@@ -2347,32 +2420,349 @@ function checkAnswer() {
   document.getElementById('test-back-btn')?.classList.add('is-visible');
 }
 
-// ── "?" 버튼 튜토리얼 (2026-09-27, 레벨1 메이저 기준 가이드) ──────────────────
+// ── "?" 버튼 튜토리얼 (2026-09-27 최초구현, 2026-09-27 레벨 일반화) ──────────────────
 // 테스트 오버레이를 재사용하되 제출버튼 대신 "다음"으로 단계 진행. 지금 화면 상태가 아니라
-// 고정된 기준 폼(Ckey A폼)을 사용. 전환형 등 복잡한 스케일은 대상 아님(추후 결정).
+// 고정된 기준 폼(TUTORIAL_SCALE_CONFIG의 스케일별 rootNote 기준 A폼)을 사용.
+// 전환형 등 복잡한 스케일은 대상 아님(추후 결정).
 const TUTORIAL_NEXT_BTN_BUFFER_MS = 100; // 다음 버튼 활성화 표준 버퍼 — 애니메이션 완전종료 + 0.1s (2026-09-27)
 const TUTORIAL_DOT_FADE_MS = 200; // .fb-note--spawn CSS transition(0.2s)과 동일값 — 여기만 참조
 const TUTORIAL_TEXT_SEQUENCE_PAUSE_MS = 1200; // texts[] 자동 넘김 시 읽는 시간(2026-09-27)
 const TUTORIAL_DOT_FADE_SLOW_MS = 1500; // fillRemaining 전체동시 팝인용 느린 트랜지션 — 텍스트 등장(1.5s)과 동일 맞춤(CSS와 짝, 2026-09-27)
-const TUTORIAL_STEPS = [
-  { type: 'action', action: 'octaveRun', leadTexts: [
-    "이번 시간에는 '메이저 스케일'을 배워볼게요!",
-    "메이저 스케일은 우리에게 익숙한\n'도레미파솔라시'\n음계를 의미해요."
-  ] }, // 2026-09-27: 원래 text 단계 2개 + 별도 액션단계였던 걸 전부 한 단계로 합침(leadTexts 다 끝난 뒤 액션 시작)
-  { type: 'text', text: '기타는 피아노와 달리 음이 잘 보이지 않죠?' },
-  { type: 'action', action: 'fillRemaining', text: "그래서 기타에는\n'스케일 블럭'이라는 개념이 존재해요!" }, // 2026-09-27: 원래 별도 text 단계였던 걸 이 액션단계로 합침
-  { type: 'text', text: "대표적으로 5개의 스케일 블럭을 알고 있어야,\n원하는 연주를 할 수 있을 거예요!" },
-  { type: 'action', action: 'highlightAShape', texts: [
-    "아래의 블럭은 A폼이라고 할게요.\nA코드 모양과 닮았기 때문이에요."
-  ] }, // 2026-09-27: 2줄 자동순차 대신 한 번에 같이 표시
-  { type: 'action', action: 'formNav', text: "좌우로 넘겨서 5가지 폼을 확인해보세요!\n점들을 클릭해서 소리도 들어보세요!" },
-  { type: 'text', text: "수고하셨어요! 스케일 블럭의 기본 개념을 배웠어요.\n이제 자유롭게 연습해보세요!" },
+// 레벨(스케일 타입)별 튜토리얼 데이터 — STEP1 문구/데모 키/데모 폼을 이 표에서 자동 조회(2026-09-27).
+// rootNote: 0=C ~ 11=B (scale-data.js 12키 계산용 인덱스와 동일).
+// demoForm: 튜토리얼이 보여줄 기준 폼(A/G/E/D/C폼) — 3~6프렛대에 걸리는 폼을 우선 선택(2026-09-28, 사용자 확정).
+// 새 레벨 추가 시 여기만 채우면 됨.
+const TUTORIAL_SCALE_CONFIG = {
+  'major':      { name: '메이저 스케일',          degreeNames: '도레미파솔라시', rootNote: 0, demoForm: 'A폼' },  // Ckey
+  'pentatonic': { name: '마이너 펜타토닉 스케일', rootNote: 9, demoForm: 'E폼' },  // Am key, E폼=3프렛 시작(2026-09-28)
+  'blues':      { name: '마이너 블루스 스케일',   rootNote: 9, demoForm: 'E폼' },  // Am key, E폼=3프렛 시작(2026-09-28)
+  'natural-minor': { name: '내추럴 마이너 스케일', rootNote: 9, demoForm: 'Em폼' },  // Am key, Em폼=3프렛 시작(2026-09-28, 사용자 확정)
+  'harmonic-minor': { name: '하모닉 마이너 스케일', rootNote: 0, demoForm: 'Am폼' },  // Ckey로 변경(2026-09-29, 사용자 확정) — Cm폼은 startFret -1(무효)이라 Am폼(startFret 2) 사용
+  // 아래부터는 챕터2(전환형 secondary-*) 제외한 나머지 전부 — Ckey 기준(2026-09-28, 사용자 확정)
+  'melodic-minor':      { name: '멜로딕 마이너 스케일',      rootNote: 0, demoForm: 'C폼' },  // idx4 블록 근음 5번줄 3프렛(2026-09-29 검증)
+  'phrygian-dominant':  { name: '프리지안 도미넌트 스케일',  rootNote: 0, demoForm: 'D폼' },
+  'mixolydian-b9b13':   { name: '믹솔리디안 b9 b13 스케일',  rootNote: 0, demoForm: 'E폼' },  // idx2 블록 근음 5번줄 3프렛(2026-09-29 검증) — 챕터4는 특징음 강조 없이 파생설명 방식
+  'mixolydian-b13':     { name: '믹솔리디안 9 b13 스케일',   rootNote: 0, demoForm: 'E폼' },  // idx2 블록 근음 5번줄 3프렛(2026-09-29 검증)
+  'lydian-dominant':    { name: '리디안 도미넌트 스케일',    rootNote: 0, demoForm: 'G폼' },
+  'locrian-sharp2':     { name: '로크리안 내추럴2 스케일',   rootNote: 0, demoForm: 'E폼' },  // idx2 블록 근음 5번줄 3프렛(2026-09-29 검증)
+  'locrian-sharp6':     { name: '로크리안 내추럴6 스케일',   rootNote: 0, demoForm: 'A폼' },  // idx0 블록 근음 5번줄 3프렛(2026-09-29 검증)
+  'altered':            { name: '얼터드 스케일',             rootNote: 0, demoForm: 'D폼' },  // idx3 블록 근음 5번줄 3프렛(2026-09-29 검증)
+  'mixolydian':         { name: '믹솔리디안 스케일',         rootNote: 0, demoForm: 'D폼', charDegree: -7 },  // idx3 블록 근음 5번줄 3프렛(2026-09-29 검증) / 특징음=b7
+  'ionian':             { name: '아이오니안 스케일',         rootNote: 0, demoForm: 'A폼', charDegree: 4 },  // 근음 5번줄 3프렛(A폼)로 변경(2026-09-29) / 특징음=4도
+  'dorian':             { name: '도리안 스케일',             rootNote: 0, demoForm: 'G폼', charDegree: 6 },  // idx1 블록의 근음이 5번줄 3프렛(2026-09-29 검증, positional fallback상 이름은 G폼이지만 실제 도형은 A폼 자리)
+  'phrygian':           { name: '프리지안 스케일',           rootNote: 0, demoForm: 'E폼', charDegree: -2 },  // idx2 블록 근음 5번줄 3프렛(2026-09-29 검증) / 특징음=b2
+  'lydian':             { name: '리디안 스케일',             rootNote: 0, demoForm: 'E폼', charDegree: -5 },  // idx2 블록 근음 5번줄 3프렛(2026-09-29 검증) / 특징음=#4
+  'aeolian':            { name: '에올리안 스케일',           rootNote: 0, demoForm: 'C폼', charDegree: -6 },  // idx4 블록 근음 5번줄 3프렛(2026-09-29 검증) / 특징음=b6
+  'locrian':            { name: '로크리안 스케일',           rootNote: 0, demoForm: 'A폼', charDegree: -5 },  // idx0 블록 근음 5번줄 3프렛(2026-09-29 검증) / 특징음=b5
+};
+
+// 모드 스케일 비교용 예시 멜로디(바흐 미뉴엣풍) — 도수로 저장, 다른 모드에 적용할 땐 이 도수 배열 그대로
+// 재사용하고 각 모드의 실제 음정만 갈아끼우면 됨(2026-09-29, 사용자 확정).
+const MODE_MELODY_DEGREES = [5, 1, 2, 3, 4, 5, 1, 1, 6, 4, 5, 6, 7, 8, 1, 1]; // 8=옥타브 위 근음(2026-09-29, 마지막 C-C-C 트리오의 첫 C)
+// 미뉴엣풍 3/4박자 리듬 — 한 구(8음)당 [긴-짧-짧-짧-짧-긴-긴-긴](4분-8분×4-4분-4분-4분,
+// 3/4박자 2마디) 패턴을 두 구(총 4마디)에 반복 적용(2026-09-29, 사용자 확정).
+const MODE_MELODY_DURATIONS = [
+  460, 230, 230, 230, 230, 460, 460, 460,
+  460, 230, 230, 230, 230, 460, 460, 1500, // 맨 마지막 음만 더 길게(2026-09-29, 사용자 확정)
 ];
+
+// 스케일의 도수 구성('1 b3 4 5 b7' 형식)을 블록 grid에서 그대로 계산 — 새 레벨 추가해도 손댈 필요 없음(2026-09-28).
+// 표기는 기존 degreeLabel()(1791줄) 그대로 재사용 — lydian의 b5→#4, altered/믹솔리디안b9b13 등의
+// 텐션 표기(b9/#9/#11/b13)까지 이미 스케일별로 맞춰져 있어서 중복 구현 안 함(2026-09-28).
+function _tutorialGetDegreeFormula(scaleKey) {
+  const block = ScaleData.getBlocks(scaleKey)[0];
+  if (!block) return '';
+  const notes = ScaleData.parseGrid(block.grid).notes;
+  const degSet = new Set(notes.map(n => n.degree));
+  const sorted = Array.from(degSet).sort((a, b) => {
+    const ka = Math.abs(a) * 10 + (a < 0 ? 0 : 1);
+    const kb = Math.abs(b) * 10 + (b < 0 ? 0 : 1);
+    return ka - kb;
+  });
+  return sorted.map(d => degreeLabel(d, scaleKey)).join(' ');
+}
+
+// 스케일 구성음을 알파벳 음이름으로 계산('A C D Eb E G' 형식) — 레벨2+ 전용,
+// 계이름(도레미파솔라시)은 도수 알테레이션(b5 등)을 표현 못 해서 음이름으로 대체(2026-09-28, 사용자 확정).
+function _tutorialGetNoteNames(scaleKey, rootNote) {
+  const block = ScaleData.getBlocks(scaleKey)[0];
+  if (!block) return '';
+  const startFret = ScaleData.getStartFrets(block, rootNote)[0];
+  const notes = ScaleData.parseGrid(block.grid).notes.map(n => ({ ...n, absF: startFret + n.col }));
+  const degSet = new Set(notes.map(n => n.degree));
+  const sorted = Array.from(degSet).sort((a, b) => {
+    const ka = Math.abs(a) * 10 + (a < 0 ? 0 : 1);
+    const kb = Math.abs(b) * 10 + (b < 0 ? 0 : 1);
+    return ka - kb;
+  });
+  return sorted.map(d => {
+    const note = notes.find(n => n.degree === d);
+    const pc = ((OPEN_MIDI[note.s] + note.absF) % 12 + 12) % 12;
+    // b도수(flat 표기, 예: b6)는 플랫 스펠링, 그 외(자연/증음정 도수, 예: harmonic-minor의 7=리딩톤)는
+    // 샵 스펠링 — 안 그러면 G#이 Ab로 잘못 표기됨(2026-09-28, harmonic-minor 검증 중 발견/수정).
+    // 예외: 리디안의 -5는 실제로 '#4'(증4도) 관행 표기라 항상 샵 스펠링(2026-09-29, degreeLabel과 동일 특례).
+    const useSharp = d >= 0 || (scaleKey === 'lydian' && d === -5);
+    return (useSharp ? KEY_NAMES : KEY_NAMES_FLAT)[pc];
+  }).join(' ');
+}
+
+// STEP1(도입) 문구만 스케일별로 자동 생성, 나머지 단계는 공용(2026-09-27).
+// 레벨1(메이저)은 기존 문구 유지, 레벨2부터는 "구성음 → 도수 공식" 2줄 설명으로 전환(2026-09-28, 사용자 확정).
+function buildTutorialSteps(scaleKey) {
+  const cfg = TUTORIAL_SCALE_CONFIG[scaleKey] || TUTORIAL_SCALE_CONFIG['major'];
+  const chordLetter = cfg.demoForm.replace(/폼$/, '');
+  const introLeadTexts = scaleKey === 'major' ? [
+    `이번 시간에는 '${cfg.name}'을 배워볼게요!`,
+    `${cfg.name}은 우리에게 익숙한\n'${cfg.degreeNames}'\n음계를 의미해요.`
+  ] : [
+    `이번 시간에는 '${cfg.name}'을 배워볼게요!`,
+    // 펜타토닉 전용 강조 문구(2026-09-29)
+    ...(scaleKey === 'pentatonic' ? [`거의 모든 멜로디의 뼈대가 되는\n중요한 스케일이에요.`] : []),
+    `${cfg.name}은\n'${_tutorialGetNoteNames(scaleKey, cfg.rootNote)}'로 이루어져요.`,
+    `도수로 표현한다면 ${_tutorialGetDegreeFormula(scaleKey)} 가 돼요!`
+  ];
+  // 레벨1~11(major/pentatonic/blues/natural-minor/harmonic-minor/ionian)은 기존 방식 유지,
+  // 레벨12(dorian)부터는 부가설명 줄인 새 도입부 템플릿 사용(2026-09-29, 사용자 확정).
+  const LEGACY_INTRO_KEYS = ['major', 'pentatonic', 'blues', 'natural-minor', 'harmonic-minor'];
+  // 아이오니안 제외 나머지 6개 모드 — 공통 연습권유+종료 문구에 사용(2026-09-29)
+  const CHAPTER3_MODE_KEYS = ['dorian', 'phrygian', 'lydian', 'mixolydian', 'aeolian', 'locrian'];
+  // 챕터4(재즈 스케일) — 미뉴엣 멜로디 데모 없음, 파생설명 방식으로 대체(2026-09-29, 사용자 확정)
+  const CHAPTER4_KEYS = ['mixolydian-b9b13', 'melodic-minor', 'altered', 'locrian-sharp6',
+    'lydian-dominant', 'mixolydian-b13', 'locrian-sharp2'];
+  // formNav 직후 바로 이어서 보여줄 특징음 설명 — formNav의 thenAction으로 체이닝(2026-09-29,
+  // 클릭 한번으로 formNav+특징음 강조까지 연달아 진행, 그동안 네비 클릭 잠금).
+  // 문구는 cfg.charDegree를 degreeLabel()로 그대로 표기(정확한 도수, 예: #4/b7) — "몇 번째 음"이
+  // 아니라 실제 도수 표기로 통일(2026-09-29, 사용자 확정).
+  const CHAR_NOTE_TEXTS = {};
+  Object.keys(TUTORIAL_SCALE_CONFIG).forEach(key => {
+    const c = TUTORIAL_SCALE_CONFIG[key];
+    if (c.charDegree != null) {
+      CHAR_NOTE_TEXTS[key] = `${c.name}의 특징음은\n${degreeLabel(c.charDegree, key)} 음이에요.`;
+    }
+  });
+  return [
+    ...(scaleKey === 'ionian' ? [
+      // 챕터3(모드 스케일) 개념 텍스트 먼저, 마지막 문구 뜬 뒤에 A폼 블럭 채움(2026-09-29, 사용자 확정)
+      { type: 'text', text: "챕터3에서는 모드 스케일에 대한\n개념을 배울거예요." },
+      { type: 'text', text: "모드란, 쉽게 말하자면\n'특색 있는 분위기'를 표현해주는 도구라고 생각하면 돼요." },
+      { type: 'text', text: "이번 챕터에서 여러가지\n모드들을 배워보도록 할게요!" },
+      { type: 'text', text: "그 첫번째는\n'아이오니안 스케일'이에요." },
+      { type: 'action', action: 'fillBlockInstant', thenAction: 'highlightOctaveRun' }, // 클릭 한번으로 채움+하이라이트 이어서(2026-09-29)
+    ] : LEGACY_INTRO_KEYS.includes(scaleKey) ? [
+      { type: 'action', action: 'octaveRun', leadTexts: introLeadTexts }, // 2026-09-27: 원래 text 단계 2개 + 별도 액션단계였던 걸 전부 한 단계로 합침(leadTexts 다 끝난 뒤 액션 시작)
+    ] : [
+      // 챕터3(모드 스케일) 공통 새 도입부: 인사 텍스트 뜬 뒤 A폼 블럭 채우고(2026-09-29) →
+      // (구성음/도수 7x2그리드 유지한 채로) 옥타브런은 파란색 하이라이트로 이어서 재생
+      { type: 'action', action: 'fillBlockInstant', text: `이번 시간에는 '${cfg.name}'을 배워볼게요!` }, // 인사 텍스트 뜬 뒤 바로 블럭 채움(2026-09-29, 1·2단계 병합)
+      { type: 'action', action: 'noteNameGrid', text: '구성음은 다음과 같아요!', thenAction: 'highlightOctaveRun', gridRows: [
+        _tutorialGetNoteNames(scaleKey, cfg.rootNote).split(' '),
+        _tutorialGetDegreeFormula(scaleKey).split(' '),
+      ] },
+      ...(CHAPTER4_KEYS.includes(scaleKey) ? [] : [
+        { type: 'action', action: 'playModeMelody', text: `${cfg.name.replace(/\s*스케일$/, '')}의 색을 입힌 미뉴엣은 어떤 느낌일 지 들어봅시다!` }, // 챕터3 공통 멜로디 데모 — 모드마다 자동으로 그 모드 음정으로 재생(2026-09-29)
+      ]),
+    ]),
+    ...(scaleKey === 'dorian' ? [
+      { type: 'text', texts: [
+        "도리안의 색채는\n어떻게 느껴졌나요?",
+        "일반적으로는 신비로움 또는\n웅장하고 영웅적인 분위기,\n중세 유럽같은 느낌을 낸다고 평가를 많이 해요."
+      ] },
+    ] : []),
+    ...(scaleKey === 'phrygian' ? [
+      { type: 'text', texts: [
+        "프리지안의 색채는\n어떻게 느껴졌나요?",
+        "일반적으로는 어둡고 강렬한 긴장감 있는 분위기,\n스페인 플라멩고 같은 느낌을 낸다고 평가를 많이 해요."
+      ] },
+    ] : []),
+    ...(scaleKey === 'lydian' ? [
+      { type: 'text', texts: [
+        "리디안의 색채는\n어떻게 느껴졌나요?",
+        "신비로운 미지의 세계,\n초현실적인 경험에 대한 설렘을 느끼게 해요.",
+        "디즈니, SF영화, 어드벤처 장르의\n배경음악으로 많이 들을 수 있어요."
+      ] },
+    ] : []),
+    ...(scaleKey === 'mixolydian' ? [
+      { type: 'text', texts: [
+        "믹솔리디안의 색채는\n어떻게 느껴졌나요?",
+        "호쾌하고 털털한\n분위기를 느끼게 해요.",
+        "영미권의 락 음악에서\n많이 들을 수 있어요."
+      ] },
+    ] : []),
+    ...(scaleKey === 'aeolian' ? [
+      { type: 'text', texts: [
+        "에올리안의 색채는\n어떻게 느껴졌나요?",
+        "사실 에올리안은\n'내추럴 마이너'의 다른 이름이에요.",
+        "슬프고 서정적인 음악을 할 때\n제일 많이 쓰이는 무난한 음계예요."
+      ] },
+    ] : []),
+    ...(scaleKey === 'locrian' ? [
+      { type: 'text', texts: [
+        "로크리안의 색채는\n어떻게 느껴졌나요?",
+        "기괴함과 공포,\n극도의 불안감을 자아내는 분위기예요.",
+        "대중음악보다는 영화음악처럼\n목적이 있는 곳에 많이 쓰여요."
+      ] },
+    ] : []),
+    // 음이름(알파벳)·도수(숫자) 개념 소개 — 레벨1(메이저)에서만, 다른 레벨은 이미 아는 개념이라 생략(2026-09-29).
+    // 설명 텍스트와 그리드를 별도 스텝으로 분리(2026-09-29, 사용자 확정).
+    ...(scaleKey === 'major' ? [
+      { type: 'text', text: "기타에서는 음이름을 알파벳으로 많이 표기해요.\n그 음의 순서를 숫자로도 나타낼 수 있어요." },
+      { type: 'action', action: 'noteNameGrid' },
+      { type: 'text', text: "앞으로는 음이름과 숫자(도수)를 사용할게요.\n기타에서는 두 방식이 주로 쓰여요." },
+    ] : []),
+    ...(scaleKey === 'pentatonic' ? [
+      { type: 'text', text: "그런데, 왜 C로 시작하지 않은 걸까요?" },
+      { type: 'text', text: "그건 단순히 A로 시작하는게 더 쉽기 때문이에요!" },
+      { type: 'text', text: "나중에 '마이너 스케일'을 배울 때\n자세히 알려드릴게요!" },
+    ] : []),
+    ...(scaleKey === 'blues' ? [
+      { type: 'action', action: 'highlightBluesNote', texts: [
+        "마이너 펜타토닉에 한 음을 더하면\n'블루스 스케일'이 돼요.",
+        "이렇게 추가된 음을\n'블루스 노트'라고 불러요."
+      ] },
+      { type: 'text', text: "블루스 노트의 엇나간 멜로디가\n느낌있는 멜로디 진행을 만들어요!" },
+      { type: 'text', text: "5가지 블럭에서 블루스 노트는\n색깔로 표시했어요!" },
+    ] : []),
+    ...(scaleKey === 'natural-minor' ? [
+      { type: 'text', text: "Am 마이너 스케일은 사실\nC메이저 스케일과 구성음이 같아요!" },
+      { type: 'text', text: "이렇게 구성음이 같은 관계를\n'나란한조'라고 불러요." },
+      { type: 'text', text: "C를 근음으로 마이너 스케일을 만들면\n3도·6도·7도가 반음씩 내려가요." },
+      { type: 'action', action: 'noteNameGrid', gridRows: [
+        ['C', 'D', 'Eb', 'F', 'G', 'Ab', 'Bb'],
+        ['1', '2', 'b3', '4', '5', 'b6', 'b7'],
+      ] },
+      { type: 'text', text: "대부분의 노래는\n메이저 곡과 마이너 곡으로 나뉘어요." },
+      { type: 'text', text: "발라드, 트로트, 슬로우 락 같은\n장르에서 많이 쓰인답니다!" },
+    ] : []),
+    ...(scaleKey === 'harmonic-minor' ? [
+      { type: 'text', text: "내추럴 마이너의 b7음을\n7로 올리면 하모닉 마이너가 돼요!" },
+      { type: 'text', text: "이 반음 하나 때문에\n아랍이나 인도 느낌의 신비로운 소리가 나요." },
+      { type: 'text', text: "나중에 배울 '세컨더리 도미넌트'라는 테크닉에서\n꼭 필요한 스케일이에요!" },
+    ] : []),
+    ...(scaleKey === 'ionian' ? [
+      { type: 'text', text: "사실 우리가 아는\n메이저 스케일이랑 똑같아요!" },
+      { type: 'action', action: 'playModeMelody' },
+    ] : []),
+    ...(scaleKey === 'mixolydian-b9b13' ? [
+      { type: 'text', text: "이 스케일은 사실\n'하모닉 마이너 스케일'에서 나왔어요." },
+      { type: 'text', text: "정확히는 하모닉 마이너의\n5번째 모드예요." },
+    ] : []),
+    ...(scaleKey === 'melodic-minor' ? [
+      { type: 'text', text: "멜로딕 마이너는\n재즈에서 아주 중요한 스케일이에요." },
+      { type: 'text', text: "이후 배울 여러 스케일들이\n사실 이 스케일에서 파생돼요." },
+    ] : []),
+    ...(scaleKey === 'altered' ? [
+      { type: 'text', text: "이 스케일은 사실\n'멜로딕 마이너 스케일'에서 나왔어요." },
+      { type: 'text', text: "정확히는 멜로딕 마이너의\n7번째 모드예요." },
+    ] : []),
+    ...(scaleKey === 'locrian-sharp6' ? [
+      { type: 'text', text: "이 스케일은 사실\n'하모닉 마이너 스케일'에서 나왔어요." },
+      { type: 'text', text: "정확히는 하모닉 마이너의\n2번째 모드예요." },
+    ] : []),
+    ...(scaleKey === 'lydian-dominant' ? [
+      { type: 'text', text: "이 스케일은 사실\n'멜로딕 마이너 스케일'에서 나왔어요." },
+      { type: 'text', text: "정확히는 멜로딕 마이너의\n4번째 모드예요." },
+    ] : []),
+    ...(scaleKey === 'mixolydian-b13' ? [
+      { type: 'text', text: "이 스케일은 사실\n'멜로딕 마이너 스케일'에서 나왔어요." },
+      { type: 'text', text: "정확히는 멜로딕 마이너의\n5번째 모드예요." },
+    ] : []),
+    ...(scaleKey === 'locrian-sharp2' ? [
+      { type: 'text', text: "이 스케일은 사실\n'멜로딕 마이너 스케일'에서 나왔어요." },
+      { type: 'text', text: "정확히는 멜로딕 마이너의\n6번째 모드예요." },
+    ] : []),
+    ...(scaleKey === 'major' ? [
+      { type: 'text', text: '기타는 피아노와 달리 음이 잘 보이지 않죠?' },
+    ] : []),
+    ...(scaleKey === 'major' ? [
+      { type: 'action', action: 'fillRemaining', text: "그래서 기타에는\n'스케일 블럭'이라는 개념이 존재해요!" }, // 2026-09-27: 원래 별도 text 단계였던 걸 이 액션단계로 합침
+      { type: 'text', text: "대표적으로 5개의 스케일 블럭을 알고 있어야,\n원하는 연주를 할 수 있을 거예요!" },
+      { type: 'action', action: 'highlightAShape', texts: [
+        `아래의 블럭은 ${cfg.demoForm}이라고 할게요.\n${chordLetter}코드 모양과 닮았기 때문이에요.`
+      ] }, // 2026-09-27: 2줄 자동순차 대신 한 번에 같이 표시
+      { type: 'action', action: 'formNav', text: "좌우로 넘겨서 5가지 폼을 확인해보세요!\n점들을 클릭해서 소리도 들어보세요!" },
+    ] : [
+      // '스케일 블럭' 개념·코드모양 대조는 레벨1에서 이미 설명함 — 다른 레벨은 바로 5개 폼 생성(2026-09-29).
+      // CHAR_NOTE_TEXTS에 등록된 모드는 formNav 완료 즉시 특징음 강조로 이어짐(2026-09-29).
+      { type: 'action', action: 'formNav', text: `${cfg.name}의\n5가지 블럭은 아래와 같아요.`,
+        ...(CHAR_NOTE_TEXTS[scaleKey] ? { thenAction: 'highlightCharacteristicNote', texts: [CHAR_NOTE_TEXTS[scaleKey]] } : {}) },
+    ]),
+    ...(scaleKey === 'ionian' ? [
+      { type: 'action', action: 'highlightCharacteristicNote', texts: [
+        "각 모드는 그 모드만의\n'특징음'을 가지고 있어요."
+      ] },
+      { type: 'text', text: "특징음은 그 모드의 분위기를\n가장 잘 보여주는 음이에요." },
+      { type: 'text', text: "아이오니안의 특징음은\n4번째 음(4도)이에요." },
+    ] : []),
+    ...(scaleKey === 'pentatonic' ? [
+      { type: 'text', text: "노래를 틀어놓고, 이 스케일을 아무렇게\n연주해보면서 감을 키워보는 연습을 해보세요!" },
+    ] : []),
+    ...(scaleKey === 'mixolydian-b9b13' ? [
+      { type: 'text', text: "마이너 코드로 해결되는 세컨더리 도미넌트에서\n정석적으로 활용되는 스케일이에요." },
+      { type: 'text', text: "대중음악에서도 아주 널리 쓰여서\n익혀두면 정말 유용한 스케일이에요." },
+    ] : []),
+    ...(scaleKey === 'melodic-minor' ? [
+      { type: 'text', text: "마이너 코드에서, 특히 재즈적인\n색채를 낼 때 많이 사용돼요." },
+      { type: 'text', text: "이후 나올 파생 스케일들의 기초가 되니\n잘 익혀두세요!" },
+    ] : []),
+    ...(scaleKey === 'altered' ? [
+      { type: 'text', text: "얼터드 도미넌트(7alt) 코드 위에서\n주로 쓰이는 대표적인 재즈 스케일이에요." },
+      { type: 'text', text: "모든 텐션(b9,#9,#11,b13)이 들어있어서\n다음 마이너 코드로 강하게 해결돼요." },
+    ] : []),
+    ...(scaleKey === 'locrian-sharp6' ? [
+      { type: 'text', text: "마이너 키의 ii-V-i에서\nm7(b5) 코드 위에 쓰여요." },
+      { type: 'text', text: "일반 로크리안보다\n조금 더 부드러운 느낌을 줘요." },
+    ] : []),
+    ...(scaleKey === 'lydian-dominant' ? [
+      { type: 'text', text: "도미넌트7(#11) 코드 위에서\n주로 쓰여요." },
+      { type: 'text', text: "리디안처럼 밝으면서도\n블루지한 느낌을 더해줘요." },
+    ] : []),
+    ...(scaleKey === 'mixolydian-b13' ? [
+      { type: 'text', text: "도미넌트7(b13) 코드 위에서\n주로 쓰여요." },
+      { type: 'text', text: "믹솔리디안보다 살짝\n어두운 느낌을 줘요." },
+    ] : []),
+    ...(scaleKey === 'locrian-sharp2' ? [
+      { type: 'text', text: "메이저 키의 ii-V-i에서\nm7(b5) 코드 위에 주로 쓰여요." },
+      { type: 'text', text: "'하프디미니시드 스케일'이라는\n다른 이름으로도 불려요." },
+    ] : []),
+    // 챕터3(모드 스케일, 아이오니안 제외 — 이미 자체 종료문구 있음) 공통 연습권유+종료 문구(2026-09-29)
+    ...(CHAPTER3_MODE_KEYS.includes(scaleKey) ? [
+      { type: 'text', text: `특징음을 중심으로 연습해서\n${cfg.name}에 익숙해져보세요!` },
+    ] : []),
+    ...(scaleKey === 'major' ? [
+      { type: 'text', text: "수고하셨어요! 스케일 블럭의\n기본 개념을 배웠어요!\n이제 자유롭게 연습해보세요!" },
+    ] : CHAPTER3_MODE_KEYS.includes(scaleKey) ? [
+      { type: 'text', text: `수고하셨어요! ${cfg.name}\n튜토리얼을 완료할게요!` },
+    ] : [
+      { type: 'text', text: `수고하셨어요! '${cfg.name}'을\n배웠어요. 자유롭게 연습해보세요!` },
+    ]),
+  ];
+}
+let TUTORIAL_STEPS = buildTutorialSteps('major'); // openTutorial()에서 실제 _scaleKey로 재생성됨
 let _tutorialStepIdx        = 0;
 let _tutorialStartFret      = 0; // 7프렛 고정 뷰 기준 col 계산용(renderTestNeck과 동일 startFret)
 let _tutorialRunNotes       = []; // C→다음C 옥타브 런(음높이 오름차순)
 let _tutorialRemainingNotes = []; // 그 외 블록 나머지 노트
 let _tutorialTimers         = []; // 액션 진행 중 예약된 타이머 — 중도 이탈 시 취소용
+let _tutorialAFormIdx       = 0; // 현재 _scaleKey 블록배열에서 "A폼"이 몇 번째인지(스케일마다 배열순서 다름, 2026-09-27)
+
+// block.label 끝이 FORM_NAMES/FORM_NAMES_HM 중 하나로 끝나면 그 이름, 라벨 없는 스케일(major 등)은
+// 배열 순서가 이미 FORM_NAMES와 동일하다고 가정하고 위치값으로 대체(2026-09-27, 레벨 일반화).
+function _tutorialFormNameForBlock(block, idx) {
+  if (block.label) {
+    const found = FORM_NAMES.find(n => block.label.endsWith(n)) || FORM_NAMES_HM.find(n => block.label.endsWith(n));
+    if (found) return found;
+  }
+  return FORM_NAMES[idx];
+}
+
+// scaleKey의 블록배열에서 targetName(예: 'A폼')에 해당하는 인덱스를 찾는다.
+function _tutorialFindFormIndex(scaleKey, targetName) {
+  const blocks = ScaleData.getBlocks(scaleKey);
+  for (let i = 0; i < blocks.length; i++) {
+    if (_tutorialFormNameForBlock(blocks[i], i) === targetName) return i;
+  }
+  return 0;
+}
 
 function _tutorialClearTimers() {
   _tutorialTimers.forEach(id => clearTimeout(id));
@@ -2384,9 +2774,13 @@ function openTutorial() {
   GuitarAudio.stop();
   clearTestDots();
   _testHint = null;
+  _tutorialCharNoteRevealed = false;
 
-  const block = ScaleData.getBlocks('major')[0]; // FORM_NAMES[0] = 'A폼'
-  const startFret = ScaleData.getStartFrets(block, 0)[0]; // C key(rootNote=0) 기준
+  TUTORIAL_STEPS = buildTutorialSteps(_scaleKey);
+  const cfg = TUTORIAL_SCALE_CONFIG[_scaleKey] || TUTORIAL_SCALE_CONFIG['major'];
+  _tutorialAFormIdx = _tutorialFindFormIndex(_scaleKey, cfg.demoForm);
+  const block = ScaleData.getBlocks(_scaleKey)[_tutorialAFormIdx];
+  const startFret = ScaleData.getStartFrets(block, cfg.rootNote)[0];
   _tutorialStartFret = startFret;
   renderTestNeck(startFret); // dot은 튜토리얼 진행에 맞춰 순차 표시
 
@@ -2419,7 +2813,7 @@ function closeTutorial() {
   _tutorialDotClickEnabled = false;
   _tutorialClearTimers();
   GuitarAudio.stop();
-  document.getElementById('scale-test-overlay')?.classList.remove('is-open', 'scale-test-overlay--tutorial', 'scale-test-overlay--form-nav');
+  document.getElementById('scale-test-overlay')?.classList.remove('is-open', 'scale-test-overlay--tutorial', 'scale-test-overlay--form-nav', 'scale-test-overlay--arrows-in');
 }
 
 // texts[] 자동 순차재생 — 문구 하나 보여주고 등장애니메이션 끝나면 읽는시간(TUTORIAL_TEXT_SEQUENCE_PAUSE_MS)
@@ -2444,6 +2838,9 @@ function _tutorialShowTextSequence(texts, idx, qEl, onDone) {
 function showTutorialStep(idx) {
   _tutorialClearTimers();
   _tutorialStepIdx = idx;
+  document.getElementById('test-note-grid')?.classList.remove('is-visible', 'test-question--in'); // 이전 스텝 잔상 정리(2026-09-29)
+  const qElReset = document.getElementById('test-question-text');
+  if (qElReset) qElReset.style.display = ''; // 그리드 스텝에서 숨겼던 걸 원복 — 두 요소가 같은 90px 슬롯 공유(2026-09-29)
   const step  = TUTORIAL_STEPS[idx];
   const qEl   = document.getElementById('test-question-text');
   const label = document.getElementById('test-submit-btn-label');
@@ -2476,7 +2873,7 @@ function showTutorialStep(idx) {
     // 동시재생하면 눈이 텍스트/지판 둘 다 못 따라가서 순차로 분리(2026-09-27)
     if (nextBtn) nextBtn.disabled = true;
     // 액션 완료 후 — texts[]가 있으면 자동 순차 문구로 이어가고(2026-09-27), 없으면 바로 다음버튼 활성화
-    const onActionDone = () => {
+    const finishStep = () => {
       if (qEl && Array.isArray(step.texts)) {
         // 액션(색전환 등) 끝난 직후 바로 텍스트가 뜨면 급해 보여서 0.5s 간격(2026-09-27)
         const id = setTimeout(() => {
@@ -2488,17 +2885,22 @@ function showTutorialStep(idx) {
         _tutorialTimers.push(id);
       }
     };
+    // thenAction이 있으면 화면(그리드 등)을 지우지 않은 채로 이어서 다음 액션 실행(2026-09-29, 그리드+옥타브런 한 단계로 묶기용)
+    const onActionDone = () => {
+      if (step.thenAction) runTutorialAction(step.thenAction, finishStep);
+      else finishStep();
+    };
     if (qEl && Array.isArray(step.leadTexts)) {
       // 액션 전에 먼저 여러 문구를 자동 순차재생(2026-09-27, 1+2단계 병합용) — 다 끝나면 액션 시작
-      _tutorialShowTextSequence(step.leadTexts, 0, qEl, () => runTutorialAction(step.action, onActionDone));
+      _tutorialShowTextSequence(step.leadTexts, 0, qEl, () => runTutorialAction(step.action, onActionDone, step.gridRows));
     } else if (step.text && qEl) {
       qEl.textContent = step.text;
       qEl.classList.remove('test-question--in');
       void qEl.offsetWidth;
       qEl.classList.add('test-question--in');
-      qEl.addEventListener('animationend', () => runTutorialAction(step.action, onActionDone), { once: true });
+      qEl.addEventListener('animationend', () => runTutorialAction(step.action, onActionDone, step.gridRows), { once: true });
     } else {
-      runTutorialAction(step.action, onActionDone);
+      runTutorialAction(step.action, onActionDone, step.gridRows);
     }
   }
 }
@@ -2536,20 +2938,34 @@ function _tutorialSpawnDot(note) {
 // 5폼(A-G-E-D-C) 각각의 코드모양 패턴 — A/E/D는 chord-voicings.js CHORD_PATTERN(바레코드,
 // quality:'M')에 실제로 있어서 rootStr로 찾아 재사용. G/C는 코드사전에 바레패턴이 없어서(실제
 // 기타에서도 잘 안 씀) 오픈코드 CHORD_STATIC('G':'3 2 0 0 0 3', 'C':'x 3 2 0 1 0')과 대조검증한
-// 패턴을 직접 지정(2026-09-27, 사용자 제공값). 배열 순서는 FORM_NAMES/getBlocks('major')와 동일.
-const TUTORIAL_FORM_SHAPES = [
-  { rootStr: 5, pattern: null },                       // A폼 — CHORD_PATTERN에서 찾음
-  { rootStr: 6, pattern: 'r+3 r+2 r r r r+3' },         // G폼 — 오픈G 검증완료
-  { rootStr: 6, pattern: null },                        // E폼 — CHORD_PATTERN에서 찾음
-  { rootStr: 4, pattern: null },                        // D폼 — CHORD_PATTERN에서 찾음
-  { rootStr: 5, pattern: 'x r+3 r+2 r r+1 r' },         // C폼 — 오픈C 검증완료
-];
+// 패턴을 직접 지정(2026-09-27, 사용자 제공값). 폼 이름을 키로 조회(2026-09-27, 레벨 일반화로 배열→객체 전환).
+// 폼 이름(A/G/E/D/C폼) 키로 조회 — 스케일마다 블록배열 순서가 달라서(2026-09-27, 레벨 일반화)
+// 배열 인덱스 대신 폼 이름으로 찾는다. 코드모양 자체는 CAGED 형태라 스케일 종류와 무관하게 공용.
+// 글자(A/G/E/D/C) 키로 조회 — 메이저/마이너 폼 둘 다 같은 물리적 CAGED 모양을 공유하므로
+// rootStr은 공통, 패턴만 quality별로 갈린다(2026-09-28, 내추럴마이너 등 마이너 스케일 일반화).
+const TUTORIAL_FORM_SHAPES = {
+  'A': { rootStr: 5, majorPattern: null,                     minorPattern: null },                       // 둘 다 CHORD_PATTERN에서 찾음
+  'G': { rootStr: 6, majorPattern: 'r+3 r+2 r r r r+3',       minorPattern: null },                       // 오픈G 검증완료, 오픈Gm 없음
+  'E': { rootStr: 6, majorPattern: null,                     minorPattern: null },                       // 둘 다 CHORD_PATTERN에서 찾음
+  'D': { rootStr: 4, majorPattern: null,                     minorPattern: null },                       // 둘 다 CHORD_PATTERN에서 찾음
+  'C': { rootStr: 5, majorPattern: 'x r+3 r+2 r r+1 r',       minorPattern: null },                       // 오픈C 검증완료, 오픈Cm 없음
+};
 
-function _tutorialGetFormShapeDef(formIdx) {
-  const cfg = TUTORIAL_FORM_SHAPES[formIdx];
+function _tutorialGetFormShapeDef(formName) {
+  const isMinor = formName.endsWith('m폼');
+  const letter = formName.replace(/m?폼$/, '');
+  const cfg = TUTORIAL_FORM_SHAPES[letter];
   if (!cfg) return null;
-  if (cfg.pattern) return { rootStr: cfg.rootStr, pattern: cfg.pattern };
-  const pat = (window.CHORD_PATTERN || []).find(p => p.rootStr === cfg.rootStr && p.quality === 'M' && p.barre);
+  const explicitPattern = isMinor ? cfg.minorPattern : cfg.majorPattern;
+  if (explicitPattern) return { rootStr: cfg.rootStr, pattern: explicitPattern };
+  // G/C는 rootStr을 각각 E/A와 공유하는데, major 쪽엔 전용 오픈코드 패턴이 있어서 괜찮지만
+  // minor 쪽은 그 전용 패턴이 없다(오픈Gm/Cm 자체가 실전에서 안 쓰임) — 이 상태로 그냥
+  // CHORD_PATTERN을 rootStr로만 찾으면 이웃(E/A)의 마이너 셰이프를 엉뚱하게 가져온다.
+  // majorPattern이 있는 글자(G/C)는 그 대체 셰이프가 없다는 뜻이므로 마이너일 땐 null로 끝낸다
+  // (2026-09-28, 내추럴마이너 등 마이너 스케일 일반화하며 발견).
+  if (isMinor && cfg.majorPattern) return null;
+  const quality = isMinor ? 'm' : 'M';
+  const pat = (window.CHORD_PATTERN || []).find(p => p.rootStr === cfg.rootStr && p.quality === quality && p.barre);
   return pat ? { rootStr: pat.rootStr, pattern: pat.pattern } : null;
 }
 
@@ -2585,24 +3001,29 @@ function _tutorialGetShapeTargets(shapeDef, allNotes) {
 // 5폼 유저 조작 네비게이션 상태(2026-09-27)
 let _tutorialFormIdx = 0;
 let _tutorialDotClickEnabled = false;
+let _tutorialFormNavLocked = false; // 특징음 강조 등 전환 애니메이션 도중 좌우 폼 넘기기 방지(2026-09-29)
+let _tutorialCharNoteRevealed = false; // 특징음 강조가 한번 트리거되면, 이후 5폼 전부에 계속 반영(2026-09-29)
 
 // 폼 전체를 "이미 완성된 상태"로 정적 렌더 — 스폰 애니메이션 없이 바로 opacity:1로 찍음
 // (좌우로 넘기면 화면만 이동하는 느낌, 새로 생성되는 느낌 배제). 그 폼의 코드모양(TUTORIAL_FORM_SHAPES)에
 // 해당하는 dot은 파란색으로 같이 표시.
 function _tutorialRenderFormStatic(formIdx) {
-  const block = ScaleData.getBlocks('major')[formIdx];
-  const startFret = ScaleData.getStartFrets(block, 0)[0];
+  const cfg = TUTORIAL_SCALE_CONFIG[_scaleKey] || TUTORIAL_SCALE_CONFIG['major'];
+  const block = ScaleData.getBlocks(_scaleKey)[formIdx];
+  const startFret = ScaleData.getStartFrets(block, cfg.rootNote)[0];
   _tutorialStartFret = startFret;
   renderTestNeck(startFret);
 
+  const formName = _tutorialFormNameForBlock(block, formIdx);
   const labelEl = document.getElementById('test-fb-form-label');
-  if (labelEl) labelEl.textContent = FORM_NAMES[formIdx];
+  if (labelEl) labelEl.textContent = formName;
 
   const notes = ScaleData.parseGrid(block.grid).notes
     .map(n => ({ s: n.s, degree: n.degree, absF: startFret + n.col }));
 
-  const shapeDef = _tutorialGetFormShapeDef(formIdx);
-  const targetKeys = new Set(_tutorialGetShapeTargets(shapeDef, notes).map(t => t.s + ',' + t.absF));
+  // 코드모양(파란) 강조는 레벨1(메이저)에서 highlightAShape로 이미 가르친 개념 재확인용 — 다른 레벨은 강조 없음(2026-09-29)
+  const shapeDef = _scaleKey === 'major' ? _tutorialGetFormShapeDef(formName) : null;
+  const targetKeys = new Set(shapeDef ? _tutorialGetShapeTargets(shapeDef, notes).map(t => t.s + ',' + t.absF) : []);
 
   const neckEl = document.getElementById('test-fb-full-neck');
   if (!neckEl) return;
@@ -2611,10 +3032,14 @@ function _tutorialRenderFormStatic(formIdx) {
     const leftPct = (col + 0.5) / FRETS_VISIBLE * 100;
     const topPct  = (note.s + 0.5) / STRINGS * 100;
     const isHighlight = targetKeys.has(note.s + ',' + note.absF);
+    const isBluesNote = _scaleKey === 'blues' && note.degree === -5; // 블루스 노트(b5) 색깔 표시(2026-09-29)
+    const isCharNote = _tutorialCharNoteRevealed && cfg.charDegree != null && note.degree === cfg.charDegree; // 특징음 강조, 한번 트리거되면 5폼 전부 반영(2026-09-29)
     const el = document.createElement('div');
     el.className = 'fb-note'
       + (note.degree === 1 ? ' fb-note--root' : '')
-      + (isHighlight ? ' fb-note--chord-highlight' : '');
+      + (isHighlight ? ' fb-note--chord-highlight' : '')
+      + (isBluesNote ? ' fb-note--blues-note' : '')
+      + (isCharNote ? ' fb-note--blues-note' : '');
     el.style.cssText = `left:${leftPct}%; top:${topPct}%;`;
     el.dataset.s = note.s;
     el.dataset.absF = note.absF;
@@ -2627,7 +3052,7 @@ function _tutorialAdvanceForm(delta) {
   _tutorialRenderFormStatic(_tutorialFormIdx);
 }
 
-function runTutorialAction(action, onDone) {
+function runTutorialAction(action, onDone, gridRows) {
   // 마지막 dot의 시작(stagger) + 그 dot 자신의 팝인(.fb-note--spawn 트랜지션 0.2s)까지
   // 완전히 끝난 시점 + 0.1s 버퍼에 완료 콜백 — 노트 개수/간격이 바뀌어도 이 공식 그대로 따라감(2026-09-27).
   const doneAfterNotes = (noteCount, stepMs) => {
@@ -2636,7 +3061,35 @@ function runTutorialAction(action, onDone) {
     _tutorialTimers.push(id);
   };
 
-  if (action === 'octaveRun') {
+  if (action === 'fillBlockInstant') {
+    // 챕터3(모드 스케일)부터는 시작하자마자 A폼 블럭 전체를 한번에 채워둔다(2026-09-29, 사용자 확정) —
+    // 이후 옥타브런은 새 dot을 만드는 대신 이미 있는 dot을 파란색으로 훑는 방식(highlightOctaveRun)으로 대체.
+    _tutorialRunNotes.concat(_tutorialRemainingNotes).forEach(note => _tutorialSpawnDot(note));
+    const id = setTimeout(onDone, TUTORIAL_DOT_FADE_SLOW_MS + TUTORIAL_NEXT_BTN_BUFFER_MS);
+    _tutorialTimers.push(id);
+  } else if (action === 'highlightOctaveRun') {
+    // fillBlockInstant로 이미 찍힌 dot들 중 옥타브런 구간(_tutorialRunNotes, 1→7→1)만
+    // 순서대로 파란색으로 훑어 보여준다(2026-09-29) — playModeMelody와 동일한 강조 방식.
+    const dots = Array.from(document.querySelectorAll('#test-fb-full-neck .fb-note'));
+    const findDot = n => dots.find(d => Number(d.dataset.s) === n.s && Number(d.dataset.absF) === n.absF);
+    const STEP_MS = 420;
+    let prevEl = null;
+    _tutorialRunNotes.forEach((note, i) => {
+      const id = setTimeout(() => {
+        if (prevEl) { prevEl.style.transition = 'none'; prevEl.classList.remove('fb-note--chord-highlight'); }
+        const el = findDot(note);
+        if (el) { el.style.transition = 'none'; el.classList.add('fb-note--chord-highlight'); } // 이징 없이 즉시 전환(2026-09-29)
+        prevEl = el;
+        playScaleNote(note.s, note.absF);
+      }, i * STEP_MS);
+      _tutorialTimers.push(id);
+    });
+    const finishId = setTimeout(() => {
+      if (prevEl) prevEl.classList.remove('fb-note--chord-highlight');
+      onDone();
+    }, _tutorialRunNotes.length * STEP_MS + TUTORIAL_NEXT_BTN_BUFFER_MS);
+    _tutorialTimers.push(finishId);
+  } else if (action === 'octaveRun') {
     const STEP_MS = 420;
     _tutorialRunNotes.forEach((note, i) => {
       const id = setTimeout(() => {
@@ -2656,7 +3109,8 @@ function runTutorialAction(action, onDone) {
     // 이미 찍혀있는 dot들(옥타브런+나머지) 중 A폼 코드모양 좌표와 일치하는 것만 파란색으로
     // 서서히 전환(.fb-note--chord-highlight, CSS transition) — 전환 끝나면 완료 콜백(2026-09-27)
     const allNotes = _tutorialRunNotes.concat(_tutorialRemainingNotes);
-    const targets = _tutorialGetShapeTargets(_tutorialGetFormShapeDef(0), allNotes); // 0 = A폼
+    const demoCfg = TUTORIAL_SCALE_CONFIG[_scaleKey] || TUTORIAL_SCALE_CONFIG['major'];
+    const targets = _tutorialGetShapeTargets(_tutorialGetFormShapeDef(demoCfg.demoForm), allNotes);
     const dots = Array.from(document.querySelectorAll('#test-fb-full-neck .fb-note'));
     const matched = targets
       .map(t => dots.find(d => Number(d.dataset.s) === t.s && Number(d.dataset.absF) === t.absF))
@@ -2664,14 +3118,122 @@ function runTutorialAction(action, onDone) {
     if (matched.length === 0) { onDone(); return; }
     matched.forEach(el => el.classList.add('fb-note--chord-highlight'));
     matched[0].addEventListener('transitionend', onDone, { once: true });
+  } else if (action === 'playModeMelody') {
+    // MODE_MELODY_DEGREES(1~7)를 "스케일 몇 번째 음인지"(포지션)로 해석해 현재 옥타브런(_tutorialRunNotes)에
+    // 매핑 — 리터럴 도수 숫자로 매칭하면 도리안(b3/b7만 있고 자연3/7은 없음) 같은 모드에서 음이 빠짐.
+    // _tutorialGetNoteNames와 동일한 정렬키를 써서 1번째~7번째 자리를 구하고, 그 자리의 실제 음(자연이든
+    // 플랫이든)을 그대로 재생 — 도수 숫자가 아니라 "몇 번째 스텝인지"만 재사용하는 방식(2026-09-29).
+    const degreeToNote = {};
+    _tutorialRunNotes.forEach(n => { if (!(n.degree in degreeToNote)) degreeToNote[n.degree] = n; });
+    const sortedDegrees = Object.keys(degreeToNote).map(Number).sort((a, b) => {
+      const ka = Math.abs(a) * 10 + (a < 0 ? 0 : 1);
+      const kb = Math.abs(b) * 10 + (b < 0 ? 0 : 1);
+      return ka - kb;
+    });
+    const positionToNote = {};
+    sortedDegrees.forEach((d, i) => { positionToNote[i + 1] = degreeToNote[d]; });
+    // 8 = 옥타브 위 근음(이미 옥타브런에서 찍힌 마지막 근음 dot 재사용, 2026-09-29)
+    const highRoot = _tutorialRunNotes[_tutorialRunNotes.length - 1];
+    const seq = MODE_MELODY_DEGREES.map(d => (d === 8 ? highRoot : positionToNote[d])).filter(Boolean);
+    if (seq.length === 0) { onDone(); return; }
+    const dots = Array.from(document.querySelectorAll('#test-fb-full-neck .fb-note'));
+    const findDot = n => dots.find(d => Number(d.dataset.s) === n.s && Number(d.dataset.absF) === n.absF);
+    let t = 0;
+    let prevEl = null;
+    seq.forEach((note, i) => {
+      const dur = MODE_MELODY_DURATIONS[i] || 460;
+      const id = setTimeout(() => {
+        if (prevEl) { prevEl.style.transition = 'none'; prevEl.classList.remove('fb-note--chord-highlight'); }
+        const el = findDot(note);
+        if (el) { el.style.transition = 'none'; el.classList.add('fb-note--chord-highlight'); } // 이징 없이 즉시 전환(2026-09-29)
+        prevEl = el;
+        playScaleNote(note.s, note.absF);
+      }, t);
+      _tutorialTimers.push(id);
+      t += dur;
+    });
+    const finishId = setTimeout(() => {
+      if (prevEl) prevEl.classList.remove('fb-note--chord-highlight');
+      onDone();
+    }, t + TUTORIAL_NEXT_BTN_BUFFER_MS);
+    _tutorialTimers.push(finishId);
+  } else if (action === 'highlightCharacteristicNote') {
+    // 모드 특징음(cfg.charDegree) 강조 — formNav로 표시된 현재 폼의 dot들 중 매칭되는 것만 파란색으로 전환(2026-09-29)
+    const demoCfg = TUTORIAL_SCALE_CONFIG[_scaleKey] || TUTORIAL_SCALE_CONFIG['major'];
+    const charDegree = demoCfg.charDegree;
+    const block = ScaleData.getBlocks(_scaleKey)[_tutorialFormIdx];
+    const charNotes = (charDegree != null && block)
+      ? ScaleData.parseGrid(block.grid).notes
+          .map(n => ({ s: n.s, degree: n.degree, absF: _tutorialStartFret + n.col }))
+          .filter(n => n.degree === charDegree)
+      : [];
+    const dots = Array.from(document.querySelectorAll('#test-fb-full-neck .fb-note'));
+    const matchedChar = charNotes
+      .map(n => dots.find(d => Number(d.dataset.s) === n.s && Number(d.dataset.absF) === n.absF))
+      .filter(Boolean);
+    if (matchedChar.length === 0) { onDone(); return; }
+    _tutorialFormNavLocked = true;
+    document.getElementById('scale-test-overlay')?.classList.add('scale-test-overlay--nav-locked'); // 화살표 실제로 안눌리게(pointer-events:none, 2026-09-29)
+    matchedChar.forEach(el => el.classList.add('fb-note--chord-highlight'));
+    matchedChar[0].addEventListener('transitionend', () => {
+      _tutorialFormNavLocked = false;
+      _tutorialCharNoteRevealed = true; // 이후 5폼 전부(재렌더 포함) 계속 파란색 유지(2026-09-29)
+      document.getElementById('scale-test-overlay')?.classList.remove('scale-test-overlay--nav-locked');
+      onDone();
+    }, { once: true });
+  } else if (action === 'highlightBluesNote') {
+    // 옥타브런에 이미 찍힌 dot 중 블루스 노트(b5)만 파란색으로 전환(2026-09-29)
+    const target = _tutorialRunNotes.find(n => n.degree === -5);
+    const dots = Array.from(document.querySelectorAll('#test-fb-full-neck .fb-note'));
+    const matchedBlues = target
+      ? dots.filter(d => Number(d.dataset.s) === target.s && Number(d.dataset.absF) === target.absF)
+      : [];
+    if (matchedBlues.length === 0) { onDone(); return; }
+    matchedBlues.forEach(el => el.classList.add('fb-note--chord-highlight'));
+    matchedBlues[0].addEventListener('transitionend', onDone, { once: true });
   } else if (action === 'formNav') {
     // 5폼(A-G-E-D-C) 유저 조작 네비게이션 시작 — 화살표 노출 + dot 클릭 재생 허용 + A폼부터 정적표시(2026-09-27)
-    document.getElementById('scale-test-overlay')?.classList.add('scale-test-overlay--form-nav');
+    const overlayEl = document.getElementById('scale-test-overlay');
+    overlayEl?.classList.add('scale-test-overlay--form-nav');
+    overlayEl?.classList.remove('scale-test-overlay--arrows-in'); // 재진입 대비 리셋
+    // 화살표도 dot과 동일한 페이드+스케일 팝인(2026-09-29) — 더블 rAF로 트리거(style-guide.md §15 패턴)
+    requestAnimationFrame(() => requestAnimationFrame(() => {
+      overlayEl?.classList.add('scale-test-overlay--arrows-in');
+    }));
     _tutorialDotClickEnabled = true;
-    _tutorialFormIdx = 0;
-    _tutorialRenderFormStatic(0);
+    _tutorialFormIdx = _tutorialAFormIdx;
+    _tutorialRenderFormStatic(_tutorialAFormIdx);
     const id = setTimeout(onDone, TUTORIAL_NEXT_BTN_BUFFER_MS);
     _tutorialTimers.push(id);
+  } else if (action === 'noteNameGrid') {
+    // 음이름(알파벳)/도수(숫자) 3줄 그리드 — 표가 아니라 셀 단위 텍스트를 grid로 정렬만
+    // 한다(2026-09-29, 사용자 확정: "표를 진짜로 만들지는 마").
+    // 직전 스텝(설명 텍스트)이 그대로 남아있으면 그리드와 동시에 보여서 겹친다 — 그리드 뜨기 전에
+    // 먼저 지운다(2026-09-29, 사용자 확정: 텍스트 끝나면 그리드로 "전환"되어야 함).
+    const qElForGrid = document.getElementById('test-question-text');
+    if (qElForGrid) {
+      qElForGrid.classList.remove('test-question--in');
+      qElForGrid.textContent = '';
+      qElForGrid.style.display = 'none'; // 빈 90px 박스가 그리드 아래 겹쳐 남는 것 방지 — 슬롯을 그리드에 완전히 넘김(2026-09-29)
+    }
+    const gridEl = document.getElementById('test-note-grid');
+    if (!gridEl) { onDone(); return; }
+    const ROWS = gridRows || [
+      ['도', '레', '미', '파', '솔', '라', '시'],
+      ['C', 'D', 'E', 'F', 'G', 'A', 'B'],
+      ['1', '2', '3', '4', '5', '6', '7'],
+    ];
+    gridEl.innerHTML = ROWS.map(row =>
+      row.map(cell => `<span class="test-note-grid-cell">${cell}</span>`).join('')
+    ).join('');
+    gridEl.classList.add('is-visible');
+    gridEl.classList.remove('test-question--in');
+    void gridEl.offsetWidth;
+    gridEl.classList.add('test-question--in'); // 텍스트 등장과 동일 애니메이션 재사용(1.5s, style-guide.md §18)
+    gridEl.addEventListener('animationend', () => {
+      const id = setTimeout(onDone, TUTORIAL_NEXT_BTN_BUFFER_MS);
+      _tutorialTimers.push(id);
+    }, { once: true });
   }
 }
 
@@ -2862,7 +3424,12 @@ function initTestTap() {
     if (_tutorialMode) {
       // 튜토리얼은 기본적으로 보여주기 전용이라 답 배치는 못 하지만, 5폼 네비게이션
       // 단계(_tutorialDotClickEnabled)에서만 예외로 소리 재생 허용(2026-09-27)
-      if (_tutorialDotClickEnabled) playScaleNote(s, _tutorialStartFret + col);
+      // 실제 생성된 dot 위치를 클릭했을 때만 재생(2026-09-29, 빈 칸 클릭 시 소리나던 버그 수정)
+      if (_tutorialDotClickEnabled && !_tutorialFormNavLocked) {
+        const absF = _tutorialStartFret + col;
+        const dotEl = neckEl.querySelector(`.fb-note[data-s="${s}"][data-abs-f="${absF}"]`);
+        if (dotEl) playScaleNote(s, absF);
+      }
       return;
     }
     if (_testSubmitted) return;      // 제출 후 입력 차단
@@ -4000,8 +4567,8 @@ renderFullNeck();
     requestCloseTest(closeTestOverlay);
   });
   // 튜토리얼 5폼 네비게이션 화살표 — formNav 단계에서만 노출(CSS), 유저가 직접 조작(2026-09-27)
-  document.getElementById('test-fb-arrow-prev')?.addEventListener('pointerup', () => _tutorialAdvanceForm(-1));
-  document.getElementById('test-fb-arrow-next')?.addEventListener('pointerup', () => _tutorialAdvanceForm(1));
+  document.getElementById('test-fb-arrow-prev')?.addEventListener('pointerup', () => { if (!_tutorialFormNavLocked) _tutorialAdvanceForm(-1); });
+  document.getElementById('test-fb-arrow-next')?.addEventListener('pointerup', () => { if (!_tutorialFormNavLocked) _tutorialAdvanceForm(1); });
   document.getElementById('test-back-btn')?.addEventListener('pointerup', () => {
     _playSfx('pop.mp3');
     requestCloseTest(() => {
