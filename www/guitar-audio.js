@@ -185,6 +185,7 @@ const GuitarAudio = (() => {
     });
   }
 
+
   // 코드 에디터/사전용 — MIDI 배열 직접 스트럼
   function strumNotes(midis, interval) {
     _run(() => {
@@ -339,8 +340,54 @@ const GuitarAudio = (() => {
     if (_ringGain) { _ringGain.dispose(); _ringGain = null; }
     if (_masterGain) { _masterGain.dispose(); _masterGain = null; }
     if (_outGain)  { _outGain.dispose();  _outGain = null; }
+    if (_pianoSynth) { _pianoSynth.dispose(); _pianoSynth = null; }
+    if (_pianoGain)  { _pianoGain.dispose();  _pianoGain = null; }
     _init();
   }
 
-  return { playChord, strumNotes, strumAt, strumAtCut, cutAt, playNote, stop, panic, ready, resume, syncContext, setOutputVolume, STRUM_INTERVAL_SAMPLE };
+  // ── 피아노 코드 백킹 (스케일 튜토리얼 코드진행 시연 전용, 2026-09-30) ──
+  // FluidR3_GM 사운드폰트(gleitz/midi-js-soundfonts) 실사용 — Salamander(콘서트그랜드 녹음)는 너무
+  // 고급진 톤이라 반려, 순수 신스 합성은 가짜같다고 반려됨. FluidR3_GM은 범용 GM 사운드폰트라
+  // Salamander보다 훨씬 평범한 "디지털 키보드" 톤(2026-09-30, 사용자 확정).
+  let _pianoSynth   = null;
+  let _pianoGain    = null;
+  let _pianoReady   = false;
+  let _pianoPending = [];
+  function _initPiano() {
+    if (_pianoSynth || typeof Tone === 'undefined') return;
+    _pianoGain = new Tone.Gain(0.6).toDestination();
+    _pianoSynth = new Tone.Sampler({
+      // 이 사운드폰트는 흰건반(자연음)만 샘플로 제공함(2026-09-30 확인, #/b 샘플 전부 404) —
+      // 자연음만 앵커로 주면 Sampler가 나머지(#/b)는 가장 가까운 샘플을 자동 피치시프트해서 재생.
+      urls: {
+        C3: 'C3.mp3', D3: 'D3.mp3', E3: 'E3.mp3', F3: 'F3.mp3', G3: 'G3.mp3', A3: 'A3.mp3', B3: 'B3.mp3',
+        C4: 'C4.mp3', D4: 'D4.mp3', E4: 'E4.mp3', F4: 'F4.mp3', G4: 'G4.mp3', A4: 'A4.mp3',
+      },
+      baseUrl: 'https://gleitz.github.io/midi-js-soundfonts/FluidR3_GM/acoustic_grand_piano-mp3/', // jsdelivr @gh-pages 버전태그의 '@'이 어딘가에서 encodeURIComponent(%40)되며 400 발생 — GitHub Pages 원본 직결로 우회(2026-09-30)
+      release: 1,
+      onload: () => {
+        _pianoReady = true;
+        _pianoPending.forEach(fn => fn());
+        _pianoPending = [];
+      },
+    }).connect(_pianoGain);
+  }
+  // midis: MIDI 배열(코드 구성음), duration: 초(triggerAttackRelease 지속시간)
+  function playPianoChord(midis, duration) {
+    if (typeof Tone === 'undefined') return;
+    _initPiano();
+    const run = () => _pianoSynth.triggerAttackRelease(midis.map(midiToName), duration ?? 1.5, Tone.now());
+    if (_pianoReady) run(); else _pianoPending.push(run);
+  }
+  function stopPiano() {
+    if (_pianoSynth) _pianoSynth.releaseAll();
+  }
+  // CDN 샘플 로딩을 미리 시작 — playPianoChord() 첫 호출 시점에 로딩 지연으로 백킹이
+  // 늦게 울리는 문제 방지(호출부에서 데모 시작 전 미리 불러둠)
+  function warmupPiano() {
+    if (typeof Tone === 'undefined') return;
+    _initPiano();
+  }
+
+  return { playChord, strumNotes, strumAt, strumAtCut, cutAt, playNote, stop, panic, ready, resume, syncContext, setOutputVolume, STRUM_INTERVAL_SAMPLE, playPianoChord, stopPiano, warmupPiano };
 })();

@@ -145,7 +145,7 @@ function onScalePracticeTap(btn) {
   const level = parseInt(card.dataset.level, 10);
 
   // 복귀 시 이 위치(챕터+레벨)로 되돌아오도록 저장
-  const chapterEl = card.closest('.scale-chapter[id^="ch-"]');
+  const chapterEl = card.closest('.scale-item-list[id^="ch-"]');
   const chapter = chapterEl ? parseInt(chapterEl.id.replace('ch-', ''), 10) : 1;
   try {
     sessionStorage.setItem('scaleReturnState', JSON.stringify({ chapter, level }));
@@ -162,25 +162,30 @@ function onScalePracticeTap(btn) {
   }
 }
 
+// ── 챕터 전환: 선택 챕터의 캐러셀만 표시 + 점 활성 + 헤더 글자 교체. 선택된 캐러셀 반환 ──
+function _showChapter(n) {
+  document.querySelectorAll('.st-dot').forEach(dot => {
+    dot.classList.toggle('active', parseInt(dot.dataset.chapter, 10) === n);
+  });
+  document.querySelectorAll('.scale-item-list[id^="ch-"]').forEach(list => {
+    list.classList.toggle('scale-item-list--hidden', list.id !== `ch-${n}`);
+  });
+  const list = document.getElementById(`ch-${n}`);
+  if (list) {
+    document.querySelector('.scale-chapter-title').textContent = list.dataset.title;
+    document.querySelector('.scale-chapter-subtitle').textContent = list.dataset.subtitle;
+  }
+  return list;
+}
+
 // ── 챕터 탭: 클릭한 챕터만 표시, 나머지는 완전히 숨김 ───────────
 function onChapterTabTap(el) {
   _playTap();
-  const n = parseInt(el.dataset.chapter, 10);
+  const list = _showChapter(parseInt(el.dataset.chapter, 10));
 
-  document.querySelectorAll('.st-node').forEach(node => {
-    const nn = parseInt(node.dataset.chapter, 10);
-    node.classList.toggle('active', nn === n);
-    node.classList.toggle('done', nn < n);
-  });
-
-  document.querySelectorAll('.scale-chapter[id^="ch-"]').forEach(ch => {
-    ch.classList.toggle('scale-chapter--hidden', ch.id !== `ch-${n}`);
-  });
-
-  document.querySelector('.scale-scroll').scrollTo({ top: 0, behavior: 'auto' });
+  document.querySelector('.cd-main').scrollTo({ top: 0, behavior: 'auto' });
 
   // 선택 챕터의 캐러셀: 중앙 카드 pop-in (통통 튀는 이징)
-  const list = document.getElementById(`ch-${n}`)?.querySelector('.scale-item-list--carousel');
   if (list) {
     list.scrollLeft = 0;
     _updateCarouselScale(list);
@@ -198,38 +203,38 @@ function onChapterTabTap(el) {
   }
 }
 
-// ── 캐러셀 원근감: 스냅 기준점(scroll-padding-left)에서 멀어질수록 카드 축소·흐려짐 ─────
+// ── 캐러셀 원근감: 스냅 기준점(캐러셀 중앙)에서 멀어질수록 카드 축소 ─────
 const CAROUSEL_MIN_SCALE   = 0.88;
-const CAROUSEL_MIN_OPACITY = 0.15;
-const CAROUSEL_FALLOFF     = 0.6;  // 화면폭 대비 거리로 축소량 정규화
 
-// CSS scroll-snap-align:start + scroll-padding-left(=--sc-offset, 그리드로 계산한 카드
-// 시작 x좌표)가 실제 정렬 기준점 — 뷰포트/캐러셀 진짜 중앙(center)으로 하면
-// 그리드 위치와 어긋나서(37px 등) 여기 원근감·스크롤 계산도 전부 이 기준으로 통일
+// CSS scroll-snap-align:center — 카드 중앙이 캐러셀 중앙에 오는 것이 정렬 기준점
+// (첫/마지막 카드는 ::before/::after 스페이서가 이 위치에 놓음)
 function _snapAnchor(list) {
-  return list.getBoundingClientRect().left + parseFloat(getComputedStyle(list).scrollPaddingLeft || 0);
+  const r = list.getBoundingClientRect();
+  return r.left + r.width / 2;
 }
 
 function _updateCarouselScale(list) {
-  const listRect = list.getBoundingClientRect();
   const anchor = _snapAnchor(list);
+  const first = list.querySelector('.scale-item-card');
+  if (!first) return;
+  const pitch = first.offsetWidth + (parseFloat(getComputedStyle(list).columnGap) || 0);  // 카드 1장 간격
   let closestCard = null, closestDist = Infinity;
   list.querySelectorAll('.scale-item-card').forEach(card => {
     const rect = card.getBoundingClientRect();
-    const dist = Math.abs(rect.left - anchor) / listRect.width;
-    const scale = Math.max(CAROUSEL_MIN_SCALE, 1 - dist / CAROUSEL_FALLOFF * (1 - CAROUSEL_MIN_SCALE));
-    const opacity = Math.max(CAROUSEL_MIN_OPACITY, 1 - dist / CAROUSEL_FALLOFF * (1 - CAROUSEL_MIN_OPACITY));
+    const dist = Math.abs(rect.left + rect.width / 2 - anchor) / pitch;  // 중앙 0, 바로 옆 카드 1
+    const scale = Math.max(CAROUSEL_MIN_SCALE, 1 - dist * (1 - CAROUSEL_MIN_SCALE));
     card.style.transform = `scale(${scale})`;
-    card.style.opacity = opacity;
     card.classList.remove('scale-item-card--selected');
     if (dist < closestDist) { closestDist = dist; closestCard = card; }
   });
   if (closestCard) closestCard.classList.add('scale-item-card--selected');
 }
 
-// 해당 카드를 스냅 기준점(scroll-padding-left)에 맞추는 스크롤 위치 계산
+// 해당 카드를 캐러셀 중앙(스냅 기준점)에 맞추는 스크롤 위치 계산
+// (카드 transform:scale은 중심 기준이라 getBoundingClientRect 중심값이 안 바뀜)
 function _centerScrollLeft(list, card) {
-  return card.offsetLeft - parseFloat(getComputedStyle(list).scrollPaddingLeft || 0);
+  const lr = list.getBoundingClientRect(), cr = card.getBoundingClientRect();
+  return list.scrollLeft + (cr.left + cr.width / 2) - (lr.left + lr.width / 2);
 }
 
 // 현재 스크롤 위치에서 가장 가까운 카드로 스냅
@@ -289,7 +294,7 @@ function _initCarouselDrag(list) {
 }
 
 function initCarousels() {
-  document.querySelectorAll('.scale-item-list--carousel').forEach(list => {
+  document.querySelectorAll('.scale-item-list').forEach(list => {
     list.scrollLeft = 0;
     _updateCarouselScale(list);
     list.addEventListener('scroll', () => _updateCarouselScale(list), { passive: true });
@@ -302,22 +307,11 @@ function restoreLastPosition() {
   let st = null;
   try { st = JSON.parse(sessionStorage.getItem('scaleReturnState')); } catch (e) {}
   if (!st || !st.chapter) return;
-  const n = st.chapter;
-
-  document.querySelectorAll('.st-node').forEach(node => {
-    const nn = parseInt(node.dataset.chapter, 10);
-    node.classList.toggle('active', nn === n);
-    node.classList.toggle('done', nn < n);
-  });
-  document.querySelectorAll('.scale-chapter[id^="ch-"]').forEach(ch => {
-    ch.classList.toggle('scale-chapter--hidden', ch.id !== `ch-${n}`);
-  });
-
-  const list = document.getElementById(`ch-${n}`)?.querySelector('.scale-item-list--carousel');
+  const list = _showChapter(st.chapter);
   if (list) {
     const card = list.querySelector(`.scale-item-card[data-level="${st.level}"]`);
     if (card) {
-      // 해당 레벨 카드를 스냅 기준점(scroll-padding-left)에 맞춤
+      // 해당 레벨 카드를 스냅 기준점(캐러셀 중앙)에 맞춤
       list.scrollLeft = _centerScrollLeft(list, card);
     }
     _updateCarouselScale(list);

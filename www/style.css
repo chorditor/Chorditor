@@ -70,6 +70,8 @@
   --cd-btn-padding-inline: 20px;
   --cd-btn-font-size: 15px;
   --cd-btn-radius: 8px;
+  --cd-btn-icon-size: 16px;   /* 아이콘 있는 버튼 전용 */
+  --cd-btn-icon-gap: 4px;
 }
 @media (min-width: 481px) {
   :root {
@@ -85,6 +87,8 @@
     --cd-btn-padding-inline: 24px;
     --cd-btn-font-size: 16px;
     --cd-btn-radius: 12px;
+    --cd-btn-icon-size: 18px;
+    --cd-btn-icon-gap: 8px;
   }
 }
 @media (min-width: 1080px) {
@@ -100,6 +104,7 @@
     --cd-btn-width: 112px;
     --cd-btn-padding-inline: 28px;
     --cd-btn-radius: 16px;
+    --cd-btn-icon-size: 20px;
   }
 }
 
@@ -275,26 +280,55 @@
   --font-card: 14px;
 }
 
-/* 폰트 두께 토큰 (docs/style-guide.md §2, 2026-08-22 확정, 2026-08-24 --weight-headline 추가)
-   본문류(Caption/Label/Body)=regular, Title/Display=semibold, Headline=headline(800, 더 진하게),
-   특수 강조는 토큰 없이 개별 700 지정 */
+/* 폰트 두께 토큰 (docs/style-guide.md §2)
+   본문류(Caption/Label/Body)=regular, Title/Display=semibold, Headline=bold */
 :root {
   --weight-regular: 400;
   --weight-semibold: 600;
-  --weight-headline: 800;
   --weight-bold: 700;
   --font-body-bold: 600; /* --font-body와 크기는 동일, 두께만 600(세미볼드) */
 }
+
+/* 타입 토큰 — 두께·크기·행간·글꼴을 한 줄로 묶음. 사용: `font: var(--type-headline)` (docs/style-guide.md §2-2)
+   크기는 --font-*가 뷰포트별로 바뀌므로 그대로 반응형. 한 줄 요소는 행간 1.2, 여러 줄 본문(Body)은 1.4 */
+:root {
+  --font-family: 'Pretendard', -apple-system, BlinkMacSystemFont, sans-serif;
+  --type-caption:     var(--weight-regular)  var(--font-caption)/var(--leading-tight)  var(--font-family);
+  --type-label-sm:    var(--weight-regular)  var(--font-label-sm)/var(--leading-tight) var(--font-family);
+  --type-label-lg:    var(--weight-regular)  var(--font-label-lg)/var(--leading-tight) var(--font-family);
+  --type-body-sm:     var(--weight-regular)  var(--font-body-sm)/var(--leading-normal) var(--font-family);
+  --type-body:        var(--weight-regular)  var(--font-body)/var(--leading-normal)    var(--font-family);
+  --type-body-bold:   var(--weight-semibold) var(--font-body)/var(--leading-normal)    var(--font-family);
+  --type-title-sm:    var(--weight-semibold) var(--font-title-sm)/var(--leading-tight) var(--font-family);
+  --type-title:       var(--weight-semibold) var(--font-title)/var(--leading-tight)    var(--font-family);
+  --type-title-lg:    var(--weight-semibold) var(--font-title-lg)/var(--leading-tight) var(--font-family);
+  --type-headline-sm: var(--weight-bold) var(--font-headline-sm)/var(--leading-tight) var(--font-family);
+  --type-headline:    var(--weight-bold) var(--font-headline)/var(--leading-tight) var(--font-family);
+  --type-display-sm:  var(--weight-semibold) var(--font-display-sm)/var(--leading-tight) var(--font-family);
+  --type-display:     var(--weight-semibold) var(--font-display)/var(--leading-tight)    var(--font-family);
+  --tracking-base: -0.04em; /* 전 텍스트 공통 자간(-4%) — font 단축에 안 들어가서 아래 .type-* 클래스가 함께 적용 */
+}
+/* 크기·두께·행간·자간 4가지를 클래스 하나로 — `class="type-headline"` 또는 CSS에서 같은 2줄 */
+.type-caption     { font: var(--type-caption);     letter-spacing: var(--tracking-base); }
+.type-label-sm    { font: var(--type-label-sm);    letter-spacing: var(--tracking-base); }
+.type-label-lg    { font: var(--type-label-lg);    letter-spacing: var(--tracking-base); }
+.type-body-sm     { font: var(--type-body-sm);     letter-spacing: var(--tracking-base); }
+.type-body        { font: var(--type-body);        letter-spacing: var(--tracking-base); }
+.type-body-bold   { font: var(--type-body-bold);   letter-spacing: var(--tracking-base); }
+.type-title-sm    { font: var(--type-title-sm);    letter-spacing: var(--tracking-base); }
+.type-title       { font: var(--type-title);       letter-spacing: var(--tracking-base); }
+.type-title-lg    { font: var(--type-title-lg);    letter-spacing: var(--tracking-base); }
+.type-headline-sm { font: var(--type-headline-sm); letter-spacing: var(--tracking-base); }
+.type-headline    { font: var(--type-headline);    letter-spacing: var(--tracking-base); }
+.type-display-sm  { font: var(--type-display-sm);  letter-spacing: var(--tracking-base); }
+.type-display     { font: var(--type-display);     letter-spacing: var(--tracking-base); }
 @media (min-width: 481px) {
   :root {
     --font-body: 16px;
     --font-title-sm: 18px;
     --font-title: 20px;
     --font-title-lg: 22px;
-    --font-headline-sm: 26px;
-    --font-headline: 30px;
-    --font-display-sm: 34px;
-    --font-display: 44px;
+    --font-display: 42px;
   }
 }
 @media (min-width: 769px) {
@@ -302,11 +336,10 @@
     --font-caption: 12px;
     --font-label-sm: 13px;
     --font-body-sm: 14px;
-    --font-title-lg: 24px;
-    --font-headline-sm: 28px;
-    --font-headline: 32px;
-    --font-display-sm: 36px;
-    --font-display: 48px;
+    --font-headline-sm: 26px;
+    --font-headline: 30px;
+    --font-display-sm: 34px;
+    --font-display: 44px;
     --font-card: 18px;
   }
 }
@@ -315,17 +348,17 @@
     --font-label-lg: 16px;
     --font-body: 17px;
     --font-title: 22px;
-    --font-headline-sm: 32px;
-    --font-headline: 36px;
+    --font-title-lg: 24px;
+    --font-headline-sm: 28px;
+    --font-headline: 32px;
+    --font-display-sm: 36px;
+    --font-display: 46px;
   }
 }
 @media (min-width: 1600px) {
   :root {
     --font-body: 18px;
-    --font-title-lg: 26px;
-    --font-headline-sm: 36px;
-    --font-headline: 40px;
-    --font-display: 56px;
+    --font-display: 48px;
     --font-card: 20px;
   }
 }
@@ -337,7 +370,7 @@
   --tracking-tighter: -0.03em;
   --tracking-tightest: -0.04em;
   --leading-tight: 1.2;
-  --leading-normal: 1.4;
+  --leading-normal: 1.5;
 }
 @media (min-width: 769px) {
   :root {
@@ -379,6 +412,7 @@ button, input, select, textarea {
 .app-shell {
   display: flex;
   flex-direction: column;
+  width: 100%; /* 항상 뷰포트 전체 — 폭 캡은 안쪽 뼈대(cd-topbar/cd-main)가 담당 */
   height: 100vh; /* dvh 미지원 폴백 */
   height: 100dvh;
   overflow: hidden;
@@ -6312,7 +6346,7 @@ canvas {
   align-items: center;
   gap: 10px;
   font-size: var(--font-headline);
-  font-weight: var(--weight-headline);
+  font-weight: var(--weight-bold);
 }
 .ob-title-icon {
   width: 1em;
@@ -6324,7 +6358,7 @@ canvas {
 #dm-gate .ob-step8-desc {
   font-size: var(--font-body);
   font-weight: var(--font-body-bold);
-  line-height: var(--leading-normal); /* 140%, §2 기존 토큰 재사용 */
+  line-height: var(--leading-normal); /* 150%, §2 기존 토큰 재사용 */
 }
 .dm-gate-desc-accent { color: var(--blue); }
 
@@ -6362,7 +6396,7 @@ canvas {
    .ob-main은 다른 온보딩 스텝과 공유하는 클래스라 여기서 직접 못 건드리고 #dm-gate 스코프로 덮어씀.
    좌우 padding만 --grid-margin으로 교체(고정 32px 대신) — 5단계(모바일~데스크탑)+Fold/Flip은
    --grid-margin 토큰 자체가 이미 대응하므로 별도 분기 불필요. 데스크탑(1600px~)은
-   --grid-container-max(1264px 캡)로 중앙정렬. */
+   --grid-container-max(1440px 캡)로 중앙정렬. */
 #dm-gate .ob-main {
   width: 100%;
   max-width: var(--grid-container-max);
@@ -6491,7 +6525,7 @@ canvas {
   width: 100%;
   margin-bottom: 24px;
   font-size: var(--font-headline);
-  font-weight: var(--weight-headline);
+  font-weight: var(--weight-bold);
   color: var(--text-primary);
 }
 
@@ -10973,9 +11007,9 @@ canvas {
   align-items: center;
   justify-content: space-between;
 }
-.training-page-title {
-  font-size: var(--font-headline);
-  font-weight: var(--weight-headline);
+.page-title {
+  font: var(--type-headline-sm);
+  letter-spacing: var(--tracking-base);
   color: var(--text-primary);
 }
 
@@ -11065,7 +11099,7 @@ canvas {
   gap: 16px;
 }
 .app-shell:has(.metronome-scroll) #back-btn { padding: 0; }
-.metronome-scroll .training-page-title {
+.metronome-scroll .page-title {
   margin-bottom: 4px;
   margin-left: 2px;
 }
@@ -11520,9 +11554,9 @@ canvas {
 @media (min-width: 1600px) {
   /* 타이틀(메트로놈)은 .metronome-scroll의 좌우 padding 기준으로 위치함 — 그게 그냥
      var(--grid-margin) 고정값이라 top-bar의 X버튼(--top-bar-inset, 폭 넓을수록 커지는
-     비율값)과 어긋남. 1264px 넘는 폭에서 동일 공식으로 맞춤 */
+     비율값)과 어긋남. 1440px 넘는 폭에서 동일 공식으로 맞춤 */
   .metronome-scroll {
-    --grid-content-w: min(100cqw, 1264px);
+    --grid-content-w: min(100cqw, 1440px);
     padding-inline: calc((100cqw - var(--grid-content-w)) / 2 + var(--grid-margin));
   }
 }
@@ -11771,7 +11805,7 @@ canvas {
     margin-inline-start: calc(1 * (var(--grid-track) + var(--grid-gutter)));
   }
 }
-/* 1080~1599px: col4~9(6트랙) — 이 구간은 캡(1264px) 없이 100vw 기준 var(--grid-track) 그대로 씀 */
+/* 1080~1599px: col4~9(6트랙) — 이 구간은 캡(1440px) 없이 100vw 기준 var(--grid-track) 그대로 씀 */
 @media (min-width: 1080px) and (max-width: 1599px) {
   #tuner-pitch-live, #tuner-pitch-target {
     width: calc(6 * var(--grid-track) + 5 * var(--grid-gutter));
@@ -11786,7 +11820,7 @@ canvas {
   .tuner-wire-scroll {
     max-width: var(--grid-container-max);
     margin-inline: auto;
-    --grid-content-w: min(100cqw, 1264px);
+    --grid-content-w: min(100cqw, 1440px);
     --grid-track: calc((var(--grid-content-w) - var(--grid-margin) * 2 - var(--grid-gutter) * (var(--grid-cols) - 1)) / var(--grid-cols));
   }
   #tuner-pitch-live, #tuner-pitch-target {
@@ -11794,7 +11828,7 @@ canvas {
     margin-inline-start: calc(3 * (var(--grid-track) + var(--grid-gutter)));
   }
   #tuner-preset-area {
-    --grid-content-w: min(100cqw, 1264px);
+    --grid-content-w: min(100cqw, 1440px);
     padding-inline: calc((100cqw - var(--grid-content-w)) / 2 + var(--grid-margin));
   }
 }
@@ -14251,110 +14285,56 @@ canvas {
    ?��????�련 (scale-training.html)
 ?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═??*/
 
-.scale-scroll {
-  height: 100%;
-  box-sizing: border-box;
-  overflow-y: auto;
-  overflow-x: hidden;
-  padding: 0 16px calc(32px + env(safe-area-inset-bottom, 0px));
-  display: flex;
-  flex-direction: column;
-  gap: 20px;
-}
-.scale-scroll::-webkit-scrollbar { display: none; }
-
+/* 스크롤·좌우 그리드마진·1440 캡·세로배치는 뼈대(.cd-main, 파일 끝 페이지 셸 섹션)가 전담 */
 .scale-sticky-bar {
   position: sticky;
   top: 0;
   z-index: 5;
-  margin: 0 -16px;
-  padding: 20px 16px 14px;
+  margin: 0 calc(var(--cd-inset) * -1); /* 좌우: .cd-main 패딩 상쇄(풀블리드 배경). 아래 간격은 .scale-chapter-header margin-top이 담당 */
+  padding: 20px var(--cd-inset) 14px;
   background: var(--bg-primary, #fff);
-}
-
-.scale-sticky-title {
-  font-size: 20px;
-  font-weight: 800;
-  color: var(--text-primary);
-  display: block;
 }
 
 .st-track {
   display: flex;
-  align-items: center;
-  margin: 16px -16px 0; /* 부모 .scale-sticky-bar 16px 좌우 패딩 상쇄 → 화면 끝까지 확장 */
-  padding-bottom: 14px;
+  justify-content: space-between; /* 첫/끝 점이 그리드 양끝, 나머지 균등 배치 */
+  margin: 16px calc(var(--cd-inset) * -1) 0; /* 구분선·그림자는 뷰포트 전체 — 부모 .scale-sticky-bar 패딩 상쇄 */
+  padding: 0 var(--cd-inset) 14px; /* 점은 그리드 col1~끝 안쪽 */
   border-bottom: 1px solid var(--border-color, #eee);
   box-shadow: 0 6px 10px -6px rgba(0,0,0,0.12);
-}
-
-.st-node {
-  display: grid;
-  justify-items: center;
-  flex: 1;
-  min-width: 0;
+  /* 점 연결선 — 그리드 양끝 길이 1줄, 점 뒤에 깔림. y = (점 44px − 선 2px) / 2 */
+  background: linear-gradient(#e2e8f0, #e2e8f0) var(--cd-inset) 21px / calc(100% - var(--cd-inset) * 2) 2px no-repeat;
 }
 
 .st-dot {
-  width: 26px;
-  height: 26px;
+  width: 44px;
+  height: 44px;
   border-radius: 50%;
   background: #e2e8f0;
-  border: 2px solid #e2e8f0;
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 13px;
+  font-size: 16px;
   font-weight: 700;
   color: var(--text-muted);
-  transition: background .25s, border-color .25s, color .25s;
+  transition: background .25s, color .25s;
 }
 
-/* 현재 선택한 원만 채움 (done은 채우지 않고 기본 상태 유지) */
-.st-node.active .st-dot {
+/* 현재 선택한 원만 채움 */
+.st-dot.active {
   background: var(--charcoal-blue);
-  border-color: var(--charcoal-blue);
   color: #fff;
 }
 
-.st-line {
-  flex: 1;
-  height: 2px;
-  background: #e2e8f0;
-  margin: 0 -2px;
-}
-
-/* .scale-chapter는 flex:1로 .scale-scroll의 남는 공간을 알되, min-height는 기본값(auto) —
-   내용(헤더+카드)보다 작게는 안 줄어들어서 넘치면 그대로 .scale-scroll이 스크롤 흡수.
-   내용이 뷰포트보다 작으면 남는 공간이 생기는데, 그 안에서 캐러셀만 margin:auto로
-   중앙 정렬(아래 .scale-item-list--carousel 참고) */
-.scale-chapter {
-  display: flex;
-  flex-direction: column;
-  gap: 14px;
-  flex: 1;
-}
-
-.scale-chapter--hidden {
-  display: none;
-}
-
-.scale-scroll > .scale-chapter {
-  margin-top: 0;
-}
-
+/* 챕터 헤더 — .cd-main 직속, 스티키바 바로 아래(스크롤됨). 글자는 챕터 점 클릭 시 JS(_showChapter)가 교체.
+   좌우는 .cd-main 패딩(--cd-inset)이 담당 → 왼쪽 끝이 그리드 col1(타이틀·첫 점과 같은 선), 별도 마진 없음 */
 .scale-chapter-header {
   display: flex;
   flex-direction: column;
   align-items: flex-start;
   gap: 3px;
-  margin-top: 20px;
+  margin-top: 40px; /* 스티키바와의 간격(스티키바는 아래 마진 없음) */
   flex-shrink: 0;
-}
-
-/* 캐러셀 카드 좌측 가장자리(리스트 padding 44px - scroll padding 16px)와 정렬 */
-.scale-chapter-header:has(+ .scale-item-list--carousel) {
-  margin-left: 28px;
 }
 
 .scale-chapter-label {
@@ -14366,69 +14346,57 @@ canvas {
 }
 
 .scale-chapter-title {
-  font-size: 20px;
-  font-weight: 800;
+  font: var(--type-headline-sm);
+  letter-spacing: var(--tracking-base);
   color: var(--text-primary);
-  letter-spacing: -0.4px;
 }
 
+
+/* 가로 캐러셀 — 카드 크기는 캐러셀 "높이"가 결정: 카드 높이 = 캐러셀 높이의 80%(단, 위아래 여백 최소 24px 보장),
+   폭 = 높이 ÷ 1.6(비율 고정). 캐러셀을 container-type:size로 만들어 자식(카드·양끝 스페이서)이 cqh/cqw로
+   캐러셀 크기를 직접 참조 — 캐러셀 자기 자신의 padding에는 cqh를 못 쓰므로 첫 카드 위치는 ::before/::after
+   스페이서로 잡음. 카드 폭은 옆 카드가 --sc-peek(40px)만큼 보이도록 상한(화면폭 − 2×(gap+peek)), 카드 최소 높이 400px(폭 250px)이 그보다 우선 — 남은 높이가 448px 밑이면 카드를 줄이지 않고 .cd-main이 스크롤. 카드 중앙 스냅(scroll-snap-align:center). */
 .scale-item-list {
+  --sc-gap: 16px;
+  --sc-peek: 40px;       /* 좁은 화면에서 양옆 카드가 보일 최소 폭 */
+  --sc-card-h: max(400px, min(80cqh, calc(100cqh - 48px), calc((100cqw - 2 * (var(--sc-gap) + var(--sc-peek))) * 1.6)));
+  --sc-card-w: calc(var(--sc-card-h) / 1.6);
   display: flex;
-  flex-direction: column;
-  gap: 9px;
-}
-
-/* 가로 캐러셀 — 카드 폭은 §4 5단계 고정 px(2026-09-08, 그리드 컬럼 계산 방식 폐기).
-   --sc-offset = calc((100% - 카드폭)/2) — 카드폭만 바뀌면 좌우 padding이 자동으로 대칭 재계산되므로
-   각 구간마다 offset을 따로 계산할 필요 없음(카드폭이 커스텀 프로퍼티라 사용 시점에 최신값으로 치환됨).
-   scroll-snap-align:center는 "뷰포트 진짜 중앙"으로 카드를 당겨서 이 계산값과 어긋나므로 align:start +
-   scroll-padding-left를 이 값과 똑같이 맞춰서 스냅 기준점을 카드 중앙정렬 위치로 옮김 */
-.scale-item-list--carousel {
-  --sc-card-w: 260px; /* 모바일(360~480px) */
-  --sc-offset: calc((100% - var(--sc-card-w)) / 2);
   flex-direction: row;
   align-items: center;
-  gap: 16px;
-  /* 좌우는 .scale-scroll의 자체 padding(16px) 상쇄(대칭 중앙정렬 계산 기준을 카드 폭에만 두기 위함)
-     — 상하는 auto로 둬서 .scale-chapter에 남는 공간이 있으면(=뷰포트를 안 넘치면) 캐러셀이 그 안에서
-     세로 중앙에 옴. 넘치면 auto가 0으로 접혀서 그냥 자연스럽게 위에서부터 쌓임 */
-  margin: auto -16px;
-  padding-block: 20px;
-  padding-left: var(--sc-offset);
-  padding-right: var(--sc-offset);
-  scroll-padding-left: var(--sc-offset);
+  gap: var(--sc-gap);
+  /* 좌우는 .cd-main의 padding(var(--cd-inset)) 상쇄 → 캐러셀은 뷰포트 전체 폭 */
+  margin: 0 calc(var(--cd-inset) * -1);
+  flex: 1 1 0;          /* 헤더 아래 남은 세로 공간 전부 차지(높이 확정 → cqh 기준). 카드는 align-items:center로 세로 중앙 */
+  min-height: 448px;    /* 최소 카드 높이 400 + 위아래 여백 24×2 — 이보다 낮으면 카드를 줄이지 않고 .cd-main이 스크롤 */
+  container-type: size;
   overflow-x: auto;
-  overflow-y: hidden;   /* .scale-chapter가 자연 높이라 넘칠 일이 없음 — 넘치면 .scale-scroll이 통째로 스크롤 */
+  overflow-y: hidden;
   scroll-snap-type: x mandatory;
 }
-@media (min-width: 481px) and (max-width: 768px) {
-  .scale-item-list--carousel { --sc-card-w: 260px; } /* 태블릿 */
+/* 첫/마지막 카드를 캐러셀 중앙에 놓는 양끝 스페이서(카드 중앙 = 캐러셀 중앙, gap 보정) */
+.scale-item-list::before,
+.scale-item-list::after {
+  content: '';
+  flex: 0 0 max(0px, calc((100cqw - var(--sc-card-w)) / 2 - var(--sc-gap)));
 }
-@media (min-width: 769px) and (max-width: 1079px) {
-  .scale-item-list--carousel { --sc-card-w: 280px; } /* 큰 태블릿 */
-}
-@media (min-width: 1080px) and (max-width: 1599px) {
-  .scale-item-list--carousel { --sc-card-w: 280px; } /* 태블릿가로/랩탑 */
-}
-@media (min-width: 1600px) {
-  .scale-item-list--carousel { --sc-card-w: 280px; } /* 데스크탑 */
-}
-.scale-item-list--carousel::-webkit-scrollbar { display: none; }
-.scale-item-list--carousel { cursor: grab; }
-.scale-item-list--carousel.carousel--dragging { cursor: grabbing; user-select: none; }
-.scale-item-list--carousel .scale-item-card {
-  flex: 0 0 var(--sc-card-w);
-  width: var(--sc-card-w);
-  aspect-ratio: 1 / 1.5;
-  height: auto;
+.scale-item-list::-webkit-scrollbar { display: none; }
+.scale-item-list--hidden { display: none; } /* 반드시 위 .scale-item-list{display:flex}보다 뒤에 둘 것(같은 우선순위라 나중 규칙이 이김) */
+.scale-item-list { cursor: grab; }
+.scale-item-list.carousel--dragging { cursor: grabbing; user-select: none; }
+.scale-item-list .scale-item-card {
+  flex: 0 0 auto;
+  height: var(--sc-card-h);
+  aspect-ratio: 1 / 1.6;   /* 폭은 높이에서 자동 계산(= --sc-card-w) */
+  width: auto;
   min-height: 0;   /* .scale-item-card--template(공용 클래스)의 min-height:415px가 같이
-                       붙어있어서 좁은 폭에선 비율보다 그 하한이 이김 — 여기서 상쇄 */
-  scroll-snap-align: start;
+                      붙어있어서 비율보다 그 하한이 이김 — 여기서 상쇄 */
+  scroll-snap-align: center;
 }
 
 /* 카드 내부 스케일 단위: 기준 뷰포트 375px(카드폭 287px)에서 1px.
    내부 요소 크기·여백을 전부 --cs 배수로 지정 → 기기 폭이 달라도 여백 비율 동일. */
-.scale-item-list--carousel .scale-item-card {
+.scale-item-list .scale-item-card {
   --cs: calc(var(--sc-card-w) / 287);
 }
 .scale-item-card--template {
@@ -14468,7 +14436,7 @@ canvas {
 .scale-item-card--soon:active { transform: none !important; }
 
 /* 캐러셀에서 현재 중앙(선택된) 카드 강조 — JS(_updateCarouselScale)가 거리 계산해서 토글 */
-.scale-item-list--carousel .scale-item-card--selected {
+.scale-item-list .scale-item-card--selected {
   border-color: rgba(0, 0, 0, 0.6);
   box-shadow:
     0 0 0 1.5px rgba(0, 0, 0, 0.6),
@@ -14493,7 +14461,7 @@ canvas {
   min-height: 415px;
   align-items: flex-start;
   justify-content: flex-start;
-  padding: calc(20 * var(--cs));
+  padding: calc(22 * var(--cs));
   border-radius: calc(14 * var(--cs));
   box-shadow:
     0 12px 28px rgba(90, 110, 160, 0.22),
@@ -14503,38 +14471,42 @@ canvas {
 
 .scale-item-card--template .lw-badge {
   color: #9ca3af;
-  font-size: 12px;
+  font: var(--type-label-sm);
+  letter-spacing: -0.02em;
 }
 
 .scale-card-header {
   display: flex;
   flex-direction: column;
-  gap: calc(14 * var(--cs));
   align-self: stretch;
   background: linear-gradient(180deg, rgba(210, 216, 230, 0.1) 0%, rgba(210, 216, 230, 0) 100%);
   border-radius: calc(14 * var(--cs)) calc(14 * var(--cs)) 0 0;
-  padding: calc(20 * var(--cs));
-  margin: calc(-20 * var(--cs)) calc(-20 * var(--cs)) 0;
+  padding: calc(22 * var(--cs));
+  margin: calc(-22 * var(--cs)) calc(-22 * var(--cs)) 0;
   position: relative;
 }
 .scale-card-header::after {
   content: '';
   position: absolute;
-  left: calc(20 * var(--cs));
-  right: calc(20 * var(--cs));
+  left: calc(22 * var(--cs));
+  right: calc(22 * var(--cs));
   bottom: 0;
   height: 1px;
   background: rgba(170, 190, 225, 0.35);
 }
 
+.scale-card-header .lw-row1 { margin-bottom: 0; }   /* 공용 .lw-row1의 2px 상쇄 — 간격은 아래 요소(.lw-name) margin-top 한 곳 */
 .scale-item-card--template .lw-name {
-  font-size: 16px;
+  margin-top: 8px;
+  font: var(--type-title);
+  font-weight: 800;
+  letter-spacing: var(--tracking-base);
 }
 
 .scale-card-shot {
   align-self: center;
   width: calc(220 * var(--cs));
-  margin-top: calc(64 * var(--cs));
+  margin-top: auto;   /* 버튼 margin-top:auto와 남는 공간을 반씩 나눠 지판+음이름 묶음을 헤더·버튼 사이 정중앙에 */
   zoom: 0.75;
 }
 /* 샷 내부 고정 px(넥 높이·dot·프렛번호)도 --cs 배수로 → 가로/세로 비율 유지 */
@@ -14555,9 +14527,11 @@ canvas {
 }
 
 .scale-card-note {
-  font-size: 18px;
+  font-family: var(--font-family);
+  font-size: calc(24 * var(--cs));
   font-weight: 800;
-  letter-spacing: -0.5px;
+  line-height: 1.2;
+  letter-spacing: -0.04em;
   color: #1a1a1a;
 }
 
@@ -14574,26 +14548,26 @@ canvas {
   font-family: 'Pretendard', sans-serif;
   align-self: center;
   margin-top: auto;
-  margin-bottom: calc(12 * var(--cs));
   border: none;
-  border-radius: calc(10 * var(--cs));
+  height: var(--cd-btn-height);
+  border-radius: var(--cd-btn-radius);
   background: var(--brand);
   color: #ffffff;
-  font-size: 14px;
+  font-size: var(--cd-btn-font-size);
   font-weight: 600;
-  padding: calc(12 * var(--cs)) calc(28 * var(--cs)) calc(12 * var(--cs)) calc(24 * var(--cs));
+  padding: 0 var(--cd-btn-padding-inline);
   cursor: pointer;
   -webkit-tap-highlight-color: transparent;
   transition: transform 0.1s, filter 0.1s;
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: calc(5 * var(--cs));
+  gap: var(--cd-btn-icon-gap);
 }
 .scale-card-practice-btn i,
 .scale-card-practice-btn svg {
-  width: calc(15 * var(--cs));
-  height: calc(15 * var(--cs));
+  width: var(--cd-btn-icon-size);
+  height: var(--cd-btn-icon-size);
   fill: currentColor;
 }
 .scale-card-practice-btn:active {
@@ -14617,8 +14591,8 @@ canvas {
 
 
 .scale-chapter-subtitle {
-  font-size: 14px;
-  font-weight: 600;
+  font: var(--type-title);
+  letter-spacing: var(--tracking-base);
   color: #64748b;
 }
 
@@ -14705,12 +14679,12 @@ canvas {
   position: relative;
   flex-shrink: 0; /* 프랫보드+block-indicator는 절대 안 찌그러뜨림 — 공간 부족하면 scale-mic-wrap만 줄어듦 */
 }
-/* 타이틀은 .training-page-title 공용 컴포넌트로 통일(2026-09-22, form-label 폐기) —
+/* 타이틀은 .page-title 공용 컴포넌트로 통일(2026-09-22, form-label 폐기) —
    부모가 align-items:center라 기본은 가운데정렬, 그리드 좌측 인셋에 맞춰 왼쪽 고정.
    크기는 scale-level 전용 스코프로 Headline→Title 토큰 하향(원래 form-label이 18px/700이었음,
-   .training-page-title 기본(Headline)은 너무 커서 다른 페이지(home/metronome/progression/training)의
+   .page-title 기본(Headline)은 너무 커서 다른 페이지(home/metronome/progression/training)의
    기본 크기는 안 건드리고 이 페이지만 낮춤) */
-.key-selector-section .training-page-title {
+.key-selector-section .page-title {
   align-self: flex-start;
   font-size: var(--font-title);
   font-weight: 700; /* --weight-bold 토큰(비토큰, 특수강조 전용) 그대로 리터럴 사용 — 원래 form-label 700 유지 */
@@ -15616,7 +15590,7 @@ canvas {
   line-height: 1.5;
   text-align: center;
   margin: 0 0 20px;
-  min-height: 90px;  /* 3�?고정 (20px × 1.5 × 3) ??출제?�결�??�랫보드 ?�치 고정 */
+  min-height: var(--test-desc-min-height);  /* 3줄 고정 (20px × 1.5 × 3) — 프랫보드 위치 고정 */
   white-space: pre-line;
   display: flex;
   align-items: center;
@@ -15631,6 +15605,61 @@ canvas {
 @keyframes test-question-in {
   from { opacity: 0; transform: translateY(16px); }
   to   { opacity: 1; transform: translateY(0); }
+}
+
+/* 음이름/도수 3줄x7칸 정렬 — 표 태그 아님, 텍스트 그리드 정렬만(2026-09-29, 사용자 확정) */
+.test-note-grid {
+  display: none;
+  grid-template-columns: repeat(7, auto); /* 1fr(균등폭)이면 gap이 아니라 빈 칼럼폭이 간격을 결정해서 gap을 줄여도 안 좁혀짐 — 컨텐츠 크기로 전환(2026-09-29) */
+  justify-content: center;
+  gap: 6px 10px;
+  width: 100%;
+  max-width: 320px;
+  min-height: var(--test-desc-min-height); /* #test-question-text와 같은 슬롯 공유(2026-09-29) */
+  margin: 0 auto 20px;
+  padding: 0 20px;
+  box-sizing: border-box;
+  opacity: 0;
+}
+.test-note-grid.is-visible {
+  display: grid;
+  align-content: center;
+}
+.test-note-grid-cell {
+  text-align: center;
+  font-size: 24px;
+  font-weight: 700;
+  color: #1a1a1a;
+  letter-spacing: -0.3px;
+}
+.test-note-grid-cell:nth-child(n+15) {
+  color: var(--brand); /* 3번째 줄(도수 숫자) 강조 */
+}
+
+/* 짝궁 전환 데모(playPairTransitionDemo) 코드라벨(C/C7/F 등) — 현재 재생중인 코드만 파란 강조(2026-09-30) */
+.test-chord-labels {
+  display: none;
+  align-items: center;
+  justify-content: center;
+  gap: 20px;
+  width: 100%;
+  min-height: var(--test-desc-min-height); /* #test-question-text와 같은 슬롯 공유 */
+  margin: 0 auto 20px;
+  padding: 0 20px;
+  box-sizing: border-box;
+  opacity: 0;
+}
+.test-chord-labels.is-visible {
+  display: flex;
+}
+.test-chord-label {
+  font-size: 24px;
+  font-weight: 700;
+  color: var(--text-muted);
+  transition: color 0.2s ease;
+}
+.test-chord-label.is-active {
+  color: var(--blue);
 }
 
 /* ?�?� 개방??비활???�트 ??(?�립 ?�래????.fb-note ?�속 ?�음) ?�?� */
@@ -15778,6 +15807,7 @@ canvas {
 }
 
 .scale-test-body {
+  --test-desc-min-height: 120px; /* #test-question-text/#test-note-grid 공유 슬롯 높이(2026-09-29) — 여기만 바꾸면 둘 다 반영 */
   flex: 1;
   display: flex;
   flex-direction: column;
@@ -15833,7 +15863,6 @@ canvas {
   display: none;
   position: absolute;
   top: 50%;
-  transform: translateY(-50%);
   width: 44px;
   height: 44px;
   border-radius: 50%;
@@ -15845,11 +15874,22 @@ canvas {
   z-index: 5;
   cursor: pointer;
   -webkit-tap-highlight-color: transparent;
+  opacity: 0;
+  transform: translateY(-50%) scale(0.85);
+  transition: opacity 0.2s ease-out, transform 0.2s ease-out; /* .fb-note--spawn과 동일 톤(2026-09-29) */
 }
 .test-fb-arrow-btn svg { width: 22px; height: 22px; }
 .test-fb-arrow-btn--prev { left: 0; }
 .test-fb-arrow-btn--next { right: 0; }
 .scale-test-overlay--form-nav .test-fb-arrow-btn { display: flex; }
+.scale-test-overlay--form-nav.scale-test-overlay--arrows-in .test-fb-arrow-btn {
+  opacity: 1;
+  transform: translateY(-50%) scale(1);
+}
+.scale-test-overlay--nav-locked .test-fb-arrow-btn {
+  pointer-events: none;
+  opacity: 0.35;
+} /* 특징음 강조 전환 애니메이션 도중 좌우 폼 넘기기 실제로 차단(2026-09-29) */
 
 /* 튜토리얼 — 프랫보드 슬롯 위 라벨 전용 칸. 라벨 텍스트 유무와 무관하게 항상
    자리를 차지(min-height)해서, 폼 이름이 없는 다른 튜토리얼 단계에서도 프랫보드
@@ -15873,6 +15913,9 @@ canvas {
 }
 .fb-note--chord-highlight {
   background: var(--blue);
+}
+.fb-note--blues-note {
+  background: var(--blue); /* 블루스 노트(b5) 색깔 표시(2026-09-29) */
 }
 
 /* 튜토리얼 — fillRemaining 단계(남은 dot 전부 동시 팝인)는 기본 .fb-note--spawn(0.2s)보다
@@ -17320,19 +17363,8 @@ canvas {
     안 해서 검증 자체가 막힘 — 제거함. 비슷한 창크기의 노트북/데스크탑도 태블릿 스타일 탈 수 있는
     트레이드오프는 감수) */
 @media (min-width: 560px) and (min-height: 600px) {
-  .app-shell {
-    max-width: 1600px;
-    margin-inline: auto;
-  }
-
   /* 카드 폰트 고정값 상향(태블릿) — 모바일 기준 12/16/12/18/14px보다 한 단계씩 키움 */
-  .scale-item-card--template .lw-badge { font-size: 12px; }
-  .scale-item-card--template .lw-name { font-size: 24px; }
   .scale-card-shot .fb-fret-num { font-size: 20px; }
-  .scale-card-note { font-size: 32px; }
-  .scale-card-practice-btn { font-size: 16px; }
-  .scale-chapter-title { font-size: 24px; }
-  .scale-chapter-subtitle { font-size: 18px; }
 
   /* 띠배너·홈배너 둘 다 고정높이 토큰(--ad-banner-h/--daily-board-h)이라 flex 미참여.
      남는 공간은 홈블럭이 전부 흡수(2026-08-22 확정) */
@@ -17469,7 +17501,7 @@ canvas {
 
 /* 훈련소 — 태블릿 가로모드 전용(데스크탑 1600px+ 제외). 메인영역 요소 전부 85vw만 차지 */
 @media (min-width: 1133px) and (max-width: 1599px) and (min-height: 600px) and (min-aspect-ratio: 1/1) {
-  /* 훈련소(.training-scroll/.training-page-title 등) 관련 오버라이드는 2026-08-22 그리드
+  /* 훈련소(.training-scroll/.page-title 등) 관련 오버라이드는 2026-08-22 그리드
      시스템 도입으로 전부 제거 — 표준 5단계(태블릿가로/랩탑 1080-1599) 규칙이 담당.
      이 스코프는 아래 chord-name-quiz/scale-level 전용 값만 유지(별도 검토 전까지 유지) */
   /* chord-name-quiz 전용(.quiz-view는 chord-combo와 공유 클래스라 ID로 좁힘).
@@ -17769,7 +17801,6 @@ canvas {
    (폴드 접힘폭은 360~412라 580/760 범위와 안 겹침 — 접힘은 아래쪽 일반 모바일 레이아웃 그대로) */
 
 @media (max-width: 559px) and (max-height: 750px) {
-  .scale-card-note { font-size: 20px; }
 }
 
 /* Z Flip 분할(440×360, 멀티윈도우) — 360×440(모바일 브라우저 하한 스코프, --vhu:8px)에서
@@ -17872,49 +17903,23 @@ canvas {
 /* 태블릿 하한 가로모드(1133×774) — 위 표준(1180×820)과 동일 방식, 폭만 프레임(1133px) 기준으로
    역산: (1133-280)/2≈427px, 카드+gap(286px)의 1.5배 정도라 두번째 이웃이 절반쯤 보임 */
 @media (min-width: 1133px) and (max-width: 1156px) and (min-height: 600px) and (min-aspect-ratio: 1/1) {
-  .scale-item-card--template .lw-badge { font-size: 12px; }
-  .scale-item-card--template .lw-name { font-size: 18px; }
   .scale-card-shot .fb-fret-num { font-size: 18px; }
-  .scale-card-note { font-size: 24px; }
-  .scale-card-practice-btn { font-size: 16px; }
-  .scale-chapter-title { font-size: 24px; }
-  .scale-chapter-subtitle { font-size: 18px; }
   .scale-sticky-bar {
-    padding: 16px 16px 10px;
+    padding: 16px var(--cd-inset) 10px;
   }
   .scale-chapter-header {
-    margin-top: 14px;
-  }
-  .scale-item-list--carousel {
-    padding-top: 28px;
-    padding-bottom: 28px;
-  }
-  .scale-scroll {
-    padding-bottom: calc(20px + env(safe-area-inset-bottom, 0px));
+    margin-top: 32px;
   }
 }
 
 @media (min-width: 1157px) and (max-width: 1278px) and (min-height: 600px) and (min-aspect-ratio: 1/1) {
-  .scale-item-card--template .lw-badge { font-size: 12px; }
-  .scale-item-card--template .lw-name { font-size: 18px; }
   .scale-card-shot .fb-fret-num { font-size: 18px; }
-  .scale-card-note { font-size: 24px; }
-  .scale-card-practice-btn { font-size: 16px; }
-  .scale-chapter-title { font-size: 24px; }
-  .scale-chapter-subtitle { font-size: 18px; }
   /* 상하 여백 살짝 축소해서 공간 확보 */
   .scale-sticky-bar {
-    padding: 16px 16px 10px;
+    padding: 16px var(--cd-inset) 10px;
   }
   .scale-chapter-header {
-    margin-top: 14px;
-  }
-  .scale-item-list--carousel {
-    padding-top: 28px;
-    padding-bottom: 28px;
-  }
-  .scale-scroll {
-    padding-bottom: calc(20px + env(safe-area-inset-bottom, 0px));
+    margin-top: 32px;
   }
 }
 
@@ -17941,25 +17946,12 @@ canvas {
 /* 태블릿 상한 가로모드(1376×1032) — 위와 동일 방식, 폭만 프레임(1376px) 기준으로 역산:
    (1376-340)/2=518px, 카드+gap(346px)의 1.5배라 두번째 이웃이 절반쯤 보임 */
 @media (min-width: 1279px) and (max-width: 1599px) and (min-height: 600px) and (min-aspect-ratio: 1/1) {
-  .scale-item-card--template .lw-badge { font-size: 12px; }
-  .scale-item-card--template .lw-name { font-size: 18px; }
   .scale-card-shot .fb-fret-num { font-size: 18px; }
-  .scale-card-note { font-size: 24px; }
-  .scale-card-practice-btn { font-size: 16px; }
-  .scale-chapter-title { font-size: 24px; }
-  .scale-chapter-subtitle { font-size: 18px; }
   .scale-sticky-bar {
-    padding: 16px 16px 10px;
+    padding: 16px var(--cd-inset) 10px;
   }
   .scale-chapter-header {
-    margin-top: 14px;
-  }
-  .scale-item-list--carousel {
-    padding-top: 28px;
-    padding-bottom: 28px;
-  }
-  .scale-scroll {
-    padding-bottom: calc(20px + env(safe-area-inset-bottom, 0px));
+    margin-top: 32px;
   }
 }
 
@@ -17984,7 +17976,7 @@ canvas {
   .app-shell:has(.training-scroll) #topbar-currency .currency-icon-box { width: 22px; height: 26px; }
   .app-shell:has(.training-scroll) #topbar-currency .currency-icon-box img { width: 16px; height: 16px; }
   .app-shell:has(.training-scroll) #topbar-currency .currency-count { font-size: 12px; }
-  .training-page-title { font-size: 22px; }
+  .page-title { font-size: 22px; }
   .training-stats-title { font-size: 15px; }
   .training-stat-value { font-size: 24px; }
   .stat-unit { font-size: 16px; }
@@ -18017,25 +18009,14 @@ canvas {
 
   /* 카드가 캡에 걸려 더 못 커지는 상태라, 다른 여백을 줄여서 공간 확보 */
   .scale-sticky-bar {
-    padding: 10px 16px 8px;
+    padding: 10px var(--cd-inset) 8px;
   }
   .scale-chapter-header {
-    margin-top: 8px;
-  }
-  .scale-item-list--carousel {
-    padding-top: 16px;
-    padding-bottom: 16px;
-  }
-  .scale-scroll {
-    padding-bottom: calc(12px + env(safe-area-inset-bottom, 0px));
+    margin-top: 28px;
   }
   /* 이 스코프(580~760×700~)가 태블릿 스코프(min-width:560px, min-height:600px) 조건도
      같이 만족해서 거기서 키운 폰트가 새어 들어옴 — 모바일 기본값으로 명시 복원 */
-  .scale-item-card--template .lw-badge { font-size: 12px; }
-  .scale-item-card--template .lw-name { font-size: 18px; }
   .scale-card-shot .fb-fret-num { font-size: 14px; }
-  .scale-card-note { font-size: 24px; }
-  .scale-card-practice-btn { font-size: 14px; }
 
   /* 스케일 레벨 — 좌우 여백을 그리드 마진 토큰으로 통일(2026-09-22, 타이틀 그리드 시작점 불일치 수정) */
   .scale-level-layout {
@@ -18113,23 +18094,12 @@ canvas {
 @media (min-width: 400px) and (max-width: 420px) and (min-height: 850px) and (max-height: 950px) {
   /* 카드가 캡에 걸려 더 못 커지는 상태라, 다른 여백을 아주 조금 줄여서 공간 확보 */
   .scale-sticky-bar {
-    padding: 16px 16px 10px;
+    padding: 16px var(--cd-inset) 10px;
   }
   .scale-chapter-header {
-    margin-top: 14px;
+    margin-top: 32px;
   }
-  .scale-item-list--carousel {
-    padding-top: 28px;
-    padding-bottom: 28px;
-  }
-  .scale-scroll {
-    padding-bottom: calc(20px + env(safe-area-inset-bottom, 0px));
-  }
-  .scale-item-card--template .lw-badge { font-size: 12px; }
-  .scale-item-card--template .lw-name { font-size: 18px; }
   .scale-card-shot .fb-fret-num { font-size: 14px; }
-  .scale-card-note { font-size: 24px; }
-  .scale-card-practice-btn { font-size: 14px; }
 }
 
 /* Z Fold8 접힘(커버 스크린, 412×658) — 폭은 일반 폰과 비슷하지만 세로가 짧아서(658) 기본
@@ -18137,17 +18107,10 @@ canvas {
    줄여서 한 화면(중앙 카드 1개)에 스크롤 없이 들어가게 함(폴드8 와이드 스코프와 동일 패턴) */
 @media (min-width: 400px) and (max-width: 420px) and (min-height: 600px) and (max-height: 700px) {
   .scale-sticky-bar {
-    padding: 10px 16px 8px;
+    padding: 10px var(--cd-inset) 8px;
   }
   .scale-chapter-header {
-    margin-top: 8px;
-  }
-  .scale-item-list--carousel {
-    padding-top: 16px;
-    padding-bottom: 16px;
-  }
-  .scale-scroll {
-    padding-bottom: calc(12px + env(safe-area-inset-bottom, 0px));
+    margin-top: 28px;
   }
 }
 
@@ -18191,25 +18154,14 @@ canvas {
 
   /* 카드가 더 못 커지는 한계라 위/아래 다른 여백을 줄여서 캐러셀에 공간을 더 내준다 */
   .scale-sticky-bar {
-    padding: 10px 16px 8px;
+    padding: 10px var(--cd-inset) 8px;
   }
   .scale-chapter-header {
-    margin-top: 8px;
-  }
-  .scale-item-list--carousel {
-    padding-top: 16px;
-    padding-bottom: 16px;
-  }
-  .scale-scroll {
-    padding-bottom: calc(12px + env(safe-area-inset-bottom, 0px));
+    margin-top: 28px;
   }
   /* 이 스코프(933×704)가 태블릿 스코프(min-width:560/900px, min-height:600px) 조건도
      같이 만족해서 거기서 키운 폰트가 새어 들어옴 — 모바일 기본값으로 명시 복원 */
-  .scale-item-card--template .lw-badge { font-size: 12px; }
-  .scale-item-card--template .lw-name { font-size: 16px; }
   .scale-card-shot .fb-fret-num { font-size: 12px; }
-  .scale-card-note { font-size: 18px; }
-  .scale-card-practice-btn { font-size: 14px; }
 }
 
 /* Z Fold 가로힌지(폴드메인 90도 회전, 832×750) — 독립 스코프로 새로 설계, 스크롤 없이
@@ -18530,8 +18482,8 @@ canvas {
   /* 훈련소 — 데스크탑: 컬럼 수는 base @media(min-width:769px) 표준 규칙(4열)이 담당,
      여기선 카드 높이만 조정(2행까지만 보이도록). 상수는 임시값 — 실측 후 보정 예정 */
   .training-card { aspect-ratio: unset; height: calc((100vh - 495px) / 2); }
-  /* §5 컨테이너 캡(1264px) — .grid-12와 동일 패턴. 1920px 등 넓은 화면에서 그리드가
-     끝없이 늘어나지 않고 1264px에서 멈추고 남는 폭은 좌우 margin으로 흡수됨 */
+  /* §5 컨테이너 캡(1440px) — .grid-12와 동일 패턴. 1920px 등 넓은 화면에서 그리드가
+     끝없이 늘어나지 않고 1440px에서 멈추고 남는 폭은 좌우 margin으로 흡수됨 */
   .training-scroll {
     max-width: var(--grid-container-max);
     margin-inline: auto;
@@ -18547,13 +18499,13 @@ canvas {
   #topbar-currency .currency-icon-box img { width: 22px; height: 22px; }
   #topbar-currency .currency-count { font-size: 16px; }
   /* 스케일 레벨 — 데스크탑. §5 그리드 컨테이너 캡 패턴(training-scroll과 동일) —
-     1264px 초과분은 좌우 margin-inline:auto로 자동 흡수(§5 문서 명시 표준). #back-btn이
+     1440px 초과분은 좌우 margin-inline:auto로 자동 흡수(§5 문서 명시 표준). #back-btn이
      있는 .top-bar는 아직 그리드 미마이그레이션 레거시 셸(§11)이라 기준으로 삼으면 안 됨 —
      되돌림(2026-09-23, margin-inline:0 제거는 오진단이었음) */
   .scale-level-layout {
     width: 100%; /* flex item이라 이거 없으면 margin-inline:auto가 stretch를 꺼서 쪼그라듦
                     (col2 버그와 동일 원인) — 명시로 방지 */
-    max-width: 1440px; /* 그리드 시스템 자체를 1440px로 고정(2026-09-27, 1600→1440 하향) — .top-bar와 동일 기준,
+    max-width: 1440px; /* 그리드 시스템 자체를 1440px로 고정 — .top-bar와 동일 기준,
                            그 이상은 margin-inline:auto가 흡수 */
     margin-inline: auto;
   }
@@ -18564,7 +18516,7 @@ canvas {
   }
   .fretboard-row {
     --fb-h-budget: 22vh;
-    --fb-span: min(var(--fb-h-budget), calc((min(100vw, 1440px) - 2 * var(--grid-margin) - 2 * var(--fb-arrow-w)) / var(--fb-ratio))); /* 그리드 1440px 캡 기준(2026-09-27, 1600→1440 하향) */
+    --fb-span: min(var(--fb-h-budget), calc((min(100vw, 1440px) - 2 * var(--grid-margin) - 2 * var(--fb-arrow-w)) / var(--fb-ratio))); /* 그리드 1440px 캡 기준 */
   }
   .test-question-text { font-size: 24px; }
   .scale-test-top .icon-btn svg { width: 32px; height: 32px; }
@@ -18693,25 +18645,12 @@ canvas {
    올라오면서 최소폭(1600)에서 이미 캡(1360)에 걸리므로 별도 소형화면 구간 불필요(병합).
    (1360-340)/2=510px, 카드+gap(346px)의 1.47배라 두번째 이웃이 절반쯤 보임 */
 @media (min-width: 1600px) {
-  .scale-item-card--template .lw-badge { font-size: 12px; }
-  .scale-item-card--template .lw-name { font-size: 18px; }
   .scale-card-shot .fb-fret-num { font-size: 18px; }
-  .scale-card-note { font-size: 24px; }
-  .scale-card-practice-btn { font-size: 16px; }
-  .scale-chapter-title { font-size: 24px; }
-  .scale-chapter-subtitle { font-size: 18px; }
   .scale-sticky-bar {
-    padding: 16px 16px 10px;
+    padding: 16px var(--cd-inset) 10px;
   }
   .scale-chapter-header {
-    margin-top: 14px;
-  }
-  .scale-item-list--carousel {
-    padding-top: 28px;
-    padding-bottom: 28px;
-  }
-  .scale-scroll {
-    padding-bottom: calc(20px + env(safe-area-inset-bottom, 0px));
+    margin-top: 32px;
   }
 }
 
@@ -18825,10 +18764,6 @@ canvas {
 .strum-top-bar {
   background: #ffffff;
 }
-/* 스케일 훈련(scale-training.html)도 흰 배경 */
-.scale-training-top-bar {
-  background: #ffffff;
-}
 .combo-sticky-head {
   position: sticky;
   top: 0;
@@ -18861,7 +18796,7 @@ canvas {
   justify-content: center;
   padding: 16px 0 calc(32px + env(safe-area-inset-bottom, 0px));
 }
-/* 스케일훈련 레벨 카드(.scale-item-list--carousel)와 동일한 --sc-frame/--sc-card-w
+/* 스케일훈련 레벨 카드(.scale-item-list)와 동일한 --sc-frame/--sc-card-w
    변수 시스템 재사용 — 프레임(뷰포트/셸 폭)과 카드폭을 변수로 분리해서, 카드폭이 바뀌면
    좌우 peek(패딩)이 자동으로 재계산되게 함. 고정 44px/88px 매직넘버 방식 폐기 */
 .combo-chapter-track {
@@ -18872,7 +18807,7 @@ canvas {
   width: auto;
   margin: 0 -16px;
   /* 상하 padding 0이면 overflow-x:auto가 overflow-y도 clip 시켜서(스펙상 auto로 전산)
-     .combo-card 그림자(2px/8px)가 트랙 높이에 딱 붙어 잘림 — .scale-item-list--carousel의
+     .combo-card 그림자(2px/8px)가 트랙 높이에 딱 붙어 잘림 — .scale-item-list의
      padding-block과 동일한 이유로 세로 여유 부여 */
   padding: 10px calc((var(--sc-frame) - var(--sc-card-w)) / 2);
   overflow-x: auto;
@@ -19018,9 +18953,9 @@ canvas {
   /* 위 주석의 "content-body가 이미 col2~11로 인셋" 전제가 실제로는 틀렸음(2026-09-08 확인) —
      .content-body는 --grid-content-w/--grid-track 변수만 계산할 뿐 실제 margin/max-width를
      안 걸어서, .quiz-view(position:absolute;inset:0)가 그대로 화면 끝까지 퍼져 정답트레이가
-     1264px 그리드 컬럼을 넘어감. .main-content > .top-bar와 동일한 공식으로 직접 캡+중앙정렬 */
+     1440px 그리드 컬럼을 넘어감. .main-content > .top-bar와 동일한 공식으로 직접 캡+중앙정렬 */
   .combo-quiz-wrap {
-    --grid-content-w: min(100cqw, 1264px);
+    --grid-content-w: min(100cqw, 1440px);
     padding-inline: calc((100cqw - var(--grid-content-w)) / 2 + var(--grid-margin));
   }
   .combo-sticky-head {
@@ -19477,7 +19412,7 @@ canvas {
 }
 .combo-quiz-key {
   font-size: var(--font-headline-sm);
-  font-weight: var(--weight-headline);
+  font-weight: var(--weight-bold);
   color: var(--text-primary, #1a1a1a);
 }
 .combo-quiz-prompt {
@@ -20011,9 +19946,7 @@ canvas {
 .strum-list-page .main-content,
 .strum-list-page .top-bar,
 .scale-training-page,
-.scale-training-page .app-shell,
-.scale-training-page .main-content,
-.scale-training-page .top-bar {
+.scale-training-page .app-shell {
   background: #FFFFFF;
 }
 
@@ -21116,9 +21049,9 @@ body.tut-lock .tut-allow * {
 }
 @media (min-width: 1600px) {
   :root {
-    /* 데스크탑(1600px~) — 마진/거터는 와이드태블릿과 동일. 컨테이너 캡 1264px(2026-08-22 확정) —
+    /* 데스크탑(1600px~) — 마진/거터는 와이드태블릿과 동일. 컨테이너 캡 1440px(2026-08-22 확정) —
        12컬럼+거터24px+마진32px×2 조합에서 정수로 떨어지는 값(트랙 78px)으로 역산해서 고름 */
-    --grid-container-max: min(100%, 1264px);
+    --grid-container-max: min(100%, 1440px);
   }
 
   /* 데스크탑은 top-bar(사이드바 포함 전체폭)는 그리드 미적용 — 모바일/태블릿과 다른 점.
@@ -21128,8 +21061,8 @@ body.tut-lock .tut-allow * {
      금지) --grid-track은 그 자식인 .tab-view에서 계산 */
   .main-content { container-type: inline-size; }
   .tab-view {
-    /* 컨테이너 캡 1264px — 이 폭 넘으면 트랙 더 안 키우고 남는 폭 전부 margin-inline으로 흡수(아래) */
-    --grid-content-w: min(100cqw, 1264px);
+    /* 컨테이너 캡 1440px — 이 폭 넘으면 트랙 더 안 키우고 남는 폭 전부 margin-inline으로 흡수(아래) */
+    --grid-content-w: min(100cqw, 1440px);
     --grid-track: calc((var(--grid-content-w) - var(--grid-margin) * 2 - var(--grid-gutter) * (var(--grid-cols) - 1)) / var(--grid-cols));
   }
   /* #view-home 기본 padding-left/right:20px(--view-home-inset)가 아래 margin-inline과
@@ -21137,7 +21070,7 @@ body.tut-lock .tut-allow * {
   #view-home { padding-left: 0; padding-right: 0; }
   /* 태블릿과 달리 #tab-view-home 쪽에 사전 margin 인셋이 없어서(데스크탑은 그 구조 자체를
      안 씀) --grid-margin만 더하면 col1 시작점에 맞음(track+gutter는 안 더함 — col1~last).
-     1264px 캡 넘는 폭(예: 1920px)에서는 cqw와 content-w 차이만큼(남는 여백) 좌우로 추가
+     1440px 캡 넘는 폭(예: 1920px)에서는 cqw와 content-w 차이만큼(남는 여백) 좌우로 추가
      분배해서 그리드 자체가 항상 화면 중앙에 오도록 함 */
   .home-daily-board,
   .home-ad-banner,
@@ -21149,7 +21082,7 @@ body.tut-lock .tut-allow * {
   /* main-top-bar(뒤로가기+피크바, main-content 안에 있는 페이지용).
      border-bottom/box-shadow는 위 bare .top-bar 데스크탑 규칙(line ~15681, 진짜
      desktop-topbar용 구분선)이 .main-content > .top-bar도 클래스 겸용이라 같이 걸려서 제거.
-     2026-09-27: 예전엔 --top-bar-inset(1264px cqw 기준)로 내부 패딩을 따로 계산했는데,
+     2026-09-27: 예전엔 --top-bar-inset(1440px cqw 기준)로 내부 패딩을 따로 계산했는데,
      이게 .top-bar 자체의 1440px 캡+margin-inline:auto(위 1080px 블록, line ~725)와
      기준이 달라서 back-btn/피크바가 그리드 col1/col12 경계와 안 맞았음 — 박스 자체가
      이미 1440px로 캡+중앙정렬되니 내부 인셋은 base 규칙의 --grid-margin 패딩에 맡기고
@@ -21180,8 +21113,8 @@ body.tut-lock .tut-allow * {
      동일하게 margin으로 부모 박스 자체를 줄여야 함 */
   .content-body {
     /* margin은 안 줌(요청) — 변수만 여기서 계산해서 자식(combo-sticky-head 등)이 상속해 쓰도록.
-       컨테이너 캡 1264px — .tab-view/.main-content > .top-bar와 동일 */
-    --grid-content-w: min(100cqw, 1264px);
+       컨테이너 캡 1440px — .tab-view/.main-content > .top-bar와 동일 */
+    --grid-content-w: min(100cqw, 1440px);
     --grid-track: calc((var(--grid-content-w) - var(--grid-margin) * 2 - var(--grid-gutter) * (var(--grid-cols) - 1)) / var(--grid-cols));
   }
   .main-content > .top-bar #back-btn { padding: 0; }
@@ -21531,15 +21464,60 @@ body.tut-lock .tut-allow * {
   margin-inline: var(--grid-margin);
 }
 
-/* 데스크탑(1600px~)만 컨테이너 캡 1264px 적용(§5 컨테이너 표 — 사이드바 있는 홈과 동일 캡값,
+/* 데스크탑(1600px~)만 컨테이너 캡 1440px 적용(§5 컨테이너 표 — 사이드바 있는 홈과 동일 캡값,
    온보딩은 사이드바가 없어 100vw 기준으로 그대로 계산). 캡을 넘는 폭은 중앙정렬 후 남는
    여백을 margin으로 흡수 — col1~last는 캡 안에서 여전히 grid-margin만큼만 안쪽 */
 @media (min-width: 1600px) {
   .onboarding-overlay,
   .ob-overlay--step {
-    --grid-content-w: min(100vw, 1264px);
+    --grid-content-w: min(100vw, 1440px);
     max-width: calc(var(--grid-content-w) - var(--grid-margin) * 2);
     margin-inline: calc((100vw - var(--grid-content-w)) / 2 + var(--grid-margin));
   }
+}
+
+/* ══ 페이지 셸 — cd-topbar / cd-main / cd-dockbar (docs/style-guide.md §11) ══
+   뼈대 규칙은 여기 한 곳에만. 페이지 간 차이는 수식어(--modifier)·CSS 변수로만 표현. */
+:root {
+  /* 뼈대 좌우 패딩 — 박스는 뷰포트 전체, 내용만 그리드(1440 캡) 안에 가운데 정렬.
+     1440 이하 = --grid-margin / 초과분은 좌우로 균등 분배. 풀블리드 자식은 margin-inline: calc(var(--cd-inset) * -1) */
+  --cd-inset: max(var(--grid-margin), calc((100vw - 1440px) / 2 + var(--grid-margin)));
+}
+.cd-topbar {
+  height: calc(56px + env(safe-area-inset-top));
+  padding-top: env(safe-area-inset-top);
+  padding-inline: var(--cd-inset);
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  background: var(--topbar-bg, var(--bg));
+}
+.cd-topbar--white { --topbar-bg: #fff; }
+
+.cd-main {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding-inline: var(--cd-inset);
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+  display: flex;
+  flex-direction: column;
+}
+.cd-main::-webkit-scrollbar { display: none; }
+
+@media (min-width: 481px) {
+  .cd-topbar { height: 56px; }
+}
+
+/* 피크바 데스크탑 크기(§7). 1600px+ 전역 #topbar-currency 30/34px 규칙을 특이도로 이김 */
+@media (min-width: 1600px) {
+  .cd-topbar .currency-item { gap: 4px; padding-block: 8px; }
+  .cd-topbar #topbar-currency .currency-icon-box { width: 24px; height: 24px; }
+  .cd-topbar #topbar-currency .currency-icon-box img { width: 24px; height: 24px; }
+  .cd-topbar #topbar-currency .currency-count { font-size: 18px; }
+  .cd-topbar #topbar-currency { padding-left: 20px; padding-right: 20px; }
+  .cd-topbar #topbar-currency .currency-item:first-child { padding-left: 20px; margin-left: -20px; }
+  .cd-topbar #topbar-currency .currency-item:last-child { padding-right: 20px; margin-right: -20px; }
 }
 
