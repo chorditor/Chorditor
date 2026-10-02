@@ -286,11 +286,11 @@ function alignMicBtnRowToDesc() {
 }
 
 // ── 그룹1~4 간격 30px 미만 → 스크롤모드(40px 고정 gap) 전환 ──────────────────
-// space-between이 실제로 만들 gap을 현재 모드와 무관하게 역산: main-content
+// space-between이 실제로 만들 gap을 현재 모드와 무관하게 역산: cd-main
 // 가용높이에서 4그룹 자체 높이(스크롤모드 여부와 무관하게 고정) 빼진 값을 3등분.
 function updateScaleGapScrollMode() {
   const layout = document.querySelector('.scale-level-layout');
-  const mainContent = document.querySelector('.main-content');
+  const mainContent = document.querySelector('.cd-main');
   const groups = [
     document.querySelector('.scale-level-top'),
     document.querySelector('.scale-mic-wrap'),
@@ -4923,6 +4923,17 @@ function initKeySelectorDragScroll(el) {
   }, true);
 }
 
+// key-selector 가장자리 흐림 — 더 스크롤할 수 있는 쪽에만 .fade-l/.fade-r (481px~에서만 CSS가 mask로 표시)
+function initKeySelectorFade(el) {
+  const update = () => {
+    el.classList.toggle('fade-l', el.scrollLeft > 1);
+    el.classList.toggle('fade-r', el.scrollLeft < el.scrollWidth - el.clientWidth - 1);
+  };
+  el.addEventListener('scroll', update, { passive: true });
+  window.addEventListener('resize', update);
+  update();
+}
+
 function initKeySelector() {
   const el = document.getElementById('key-selector');
   if (!el) return;
@@ -4997,6 +5008,7 @@ renderFullNeck();
   initDegreeToggle();
   initKeySelector();
   initKeySelectorDragScroll(document.getElementById('key-selector'));
+  initKeySelectorFade(document.getElementById('key-selector'));
   updateScaleGapScrollMode(); // 그룹1~4 간격 30px 미만이면 스크롤모드로 초기 진입 — 모든 그룹 콘텐츠(타이틀/인디케이터/키선택 그리드) 확정 이후에 측정
   alignMicBtnRowToDesc(); // scale-mic-btn-row를 desc 첫 줄 좌우 경계에 맞춤
 

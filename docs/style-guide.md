@@ -240,6 +240,7 @@ lucide 아이콘은 viewBox 안쪽에 획이 그려져 시각 중심이 살짝 �
 |---|---|
 | `cd-topbar` 높이 | 모바일 `56px + safe-area-inset-top` / 481px~ `56px` |
 | `cd-topbar` 좌우 | `padding-inline: var(--cd-inset)` (박스는 뷰포트 전체) |
+| `cd-main` 배경 | 기본 투명(앱 배경), `cd-main--white` 수식어 = `#fff` |
 | `cd-topbar` 배경 | `var(--topbar-bg, var(--bg))`, `--white` 수식어 = `#fff` |
 | `cd-main` | `flex:1` + `overflow-y:auto` + `padding-inline: var(--cd-inset)` + `padding-bottom: env(safe-area-inset-bottom)` + 세로 flex + 스크롤바 숨김 (박스는 뷰포트 전체) |
 | `--cd-inset` | `max(var(--grid-margin), calc((100vw - 1440px) / 2 + var(--grid-margin)))` — 1440 이하 = 그리드 마진, 초과분은 좌우 균등 분배. `%`가 아니라 `vw`인 이유: 패딩과 자식 마진에서 기준이 달라지지 않게 |
@@ -268,7 +269,8 @@ lucide 아이콘은 viewBox 안쪽에 획이 그려져 시각 중심이 살짝 �
 | 페이지 | 상태 |
 |---|---|
 | `scale-training.html` | ✅ 완료(2026-10-02), 구조는 §19-1 |
-| 그 외 서브페이지 13개 / `home.html` | 미착수 |
+| `scale-level.html` | ✅ 뼈대 이식(2026-10-02) — 안쪽 `.scale-level-layout` 래퍼는 space-between 배치 때문에 유지 |
+| 그 외 서브페이지 12개 / `home.html` | 미착수 |
 
 ### 11-6. 미정
 
