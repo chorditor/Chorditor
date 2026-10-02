@@ -16,54 +16,45 @@
 
   <div class="app-shell">
 
-    <!-- ── 앱 로고탑바(데스크탑 전용) — injectAppChrome이 로고 주입하는 진짜 대상.
-         main-content보다 먼저(DOM 앞) 와야 document.querySelector('.top-bar')가 이걸 먼저 잡음 ── -->
-    <div class="top-bar top-bar--white desktop-topbar"></div>
-
-    <!-- ── 메인 콘텐츠 ── -->
-    <div class="main-content" id="main-content">
-
-      <!-- ── 뒤로가기 + 피크바 ── -->
-      <div class="top-bar scale-training-top-bar top-bar--white">
-        <button id="back-btn" class="icon-btn" onpointerup="closeScaleTraining()">
-          <i data-lucide="x"></i>
-        </button>
-        <div class="topbar-currency" id="topbar-currency" style="margin-left:auto;">
-          <div class="currency-item currency-item--clickable" onclick="openPeakboxModal()">
-            <span class="currency-count" id="currency-peakbox-count">0</span>
-            <div class="currency-icon-box"><img src="image/gift.png" alt=""></div>
-          </div>
-          <div class="currency-item currency-item--clickable" onclick="openPeakTimerPopup(event)">
-            <span class="currency-count" id="currency-peak-count">30/30</span>
-            <div class="currency-icon-box"><img src="image/peak.svg" alt=""></div>
-          </div>
+    <!-- ── 탑바: 뒤로가기 + 피크바 (style-guide.md §11 cd-topbar) ── -->
+    <header class="cd-topbar cd-topbar--white">
+      <button id="back-btn" class="icon-btn" onpointerup="closeScaleTraining()">
+        <i data-lucide="x"></i>
+      </button>
+      <div class="topbar-currency" id="topbar-currency" style="margin-left:auto;">
+        <div class="currency-item currency-item--clickable" onclick="openPeakboxModal()">
+          <span class="currency-count" id="currency-peakbox-count">0</span>
+          <div class="currency-icon-box"><img src="image/gift.png" alt=""></div>
+        </div>
+        <div class="currency-item currency-item--clickable" onclick="openPeakTimerPopup(event)">
+          <span class="currency-count" id="currency-peak-count">30/30</span>
+          <div class="currency-icon-box"><img src="image/peak.svg" alt=""></div>
         </div>
       </div>
+    </header>
 
-      <div class="scale-scroll">
+    <!-- ── 메인 (style-guide.md §11 cd-main) ── -->
+    <main class="cd-main">
 
         <!-- 상단 스티키 바 -->
         <div class="scale-sticky-bar">
-          <span class="scale-sticky-title">스케일 훈련</span>
+          <div class="page-title">스케일 훈련</div>
           <div class="st-track">
-            <div class="st-node active" data-chapter="1" onpointerup="onChapterTabTap(this)"><div class="st-dot">1</div></div>
-            <div class="st-line"></div>
-            <div class="st-node" data-chapter="2" onpointerup="onChapterTabTap(this)"><div class="st-dot">2</div></div>
-            <div class="st-line"></div>
-            <div class="st-node" data-chapter="3" onpointerup="onChapterTabTap(this)"><div class="st-dot">3</div></div>
-            <div class="st-line"></div>
-            <div class="st-node" data-chapter="4" onpointerup="onChapterTabTap(this)"><div class="st-dot">4</div></div>
+            <div class="st-dot active" data-chapter="1" onpointerup="onChapterTabTap(this)">1</div>
+            <div class="st-dot" data-chapter="2" onpointerup="onChapterTabTap(this)">2</div>
+            <div class="st-dot" data-chapter="3" onpointerup="onChapterTabTap(this)">3</div>
+            <div class="st-dot" data-chapter="4" onpointerup="onChapterTabTap(this)">4</div>
           </div>
         </div>
 
-        <!-- ── Ch. 1: 마이너 펜타토닉 스케일 ── -->
-        <div class="scale-chapter" id="ch-1">
-          <div class="scale-chapter-header">
-            <span class="scale-chapter-title">Ch. 1</span>
-            <span class="scale-chapter-subtitle">기초 스케일 연습</span>
-          </div>
+        <!-- 챕터 헤더: 챕터 점을 누르면 JS가 선택 챕터의 data-title/data-subtitle로 글자 교체 -->
+        <div class="scale-chapter-header">
+          <span class="scale-chapter-title">Ch. 1</span>
+          <span class="scale-chapter-subtitle">기초 스케일 연습</span>
+        </div>
 
-          <div class="scale-item-list scale-item-list--carousel">
+        <!-- ── Ch. 1: 기초 스케일 연습 ── -->
+          <div class="scale-item-list" id="ch-1" data-title="Ch. 1" data-subtitle="기초 스케일 연습">
 
             <!-- 1. 메이저 스케일 -->
             <div class="scale-item-card scale-item-card--template" data-key="major" data-level="1">
@@ -320,16 +311,9 @@
             </div>
 
           </div><!-- /scale-item-list -->
-        </div><!-- /scale-chapter -->
 
         <!-- ── Ch. 2: 세컨더리 도미넌트 활용 ── -->
-        <div class="scale-chapter scale-chapter--hidden" id="ch-2">
-          <div class="scale-chapter-header">
-            <span class="scale-chapter-title">Ch. 2</span>
-            <span class="scale-chapter-subtitle">세컨더리 도미넌트 활용</span>
-          </div>
-
-          <div class="scale-item-list scale-item-list--carousel">
+          <div class="scale-item-list scale-item-list--hidden" id="ch-2" data-title="Ch. 2" data-subtitle="세컨더리 도미넌트 활용">
 
             <!-- 6. 4도 세컨더리 도미넌트 -->
             <div class="scale-item-card scale-item-card--template" data-key="secondary-iv" data-level="6">
@@ -594,16 +578,9 @@
             </div>
 
           </div><!-- /scale-item-list -->
-        </div><!-- /scale-chapter -->
 
         <!-- ── Ch. 3: 모드 스케일 ── -->
-        <div class="scale-chapter scale-chapter--hidden" id="ch-3">
-          <div class="scale-chapter-header">
-            <span class="scale-chapter-title">Ch. 3</span>
-            <span class="scale-chapter-subtitle">모드 스케일</span>
-          </div>
-
-          <div class="scale-item-list scale-item-list--carousel">
+          <div class="scale-item-list scale-item-list--hidden" id="ch-3" data-title="Ch. 3" data-subtitle="모드 스케일">
 
             <!-- 11. 아이오니안 스케일 -->
             <div class="scale-item-card scale-item-card--template" data-key="ionian" data-level="11">
@@ -972,16 +949,9 @@
             </div>
 
           </div><!-- /scale-item-list -->
-        </div><!-- /scale-chapter -->
 
         <!-- ── Ch. 4: 고급 스케일 ── -->
-        <div class="scale-chapter scale-chapter--hidden" id="ch-4">
-          <div class="scale-chapter-header">
-            <span class="scale-chapter-title">Ch. 4</span>
-            <span class="scale-chapter-subtitle">고급 스케일</span>
-          </div>
-
-          <div class="scale-item-list scale-item-list--carousel">
+          <div class="scale-item-list scale-item-list--hidden" id="ch-4" data-title="Ch. 4" data-subtitle="고급 스케일">
 
             <!-- 18. 믹솔리디안 b9 b13 스케일 -->
             <div class="scale-item-card scale-item-card--template" data-key="mixolydian-b9b13" data-level="18">
@@ -1355,10 +1325,8 @@
             </div>
 
           </div><!-- /scale-item-list -->
-        </div><!-- /scale-chapter -->
 
-      </div><!-- /scale-scroll -->
-    </div><!-- /main-content -->
+    </main><!-- /cd-main -->
 
   </div><!-- /app-shell -->
 

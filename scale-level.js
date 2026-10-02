@@ -368,7 +368,7 @@ function stopScalePlay() {
 }
 
 // ── Ch.2 secondary-iv 전용 재생: 상행=원폼, 정점에서 전환, 하행=짝궁폼 (2026-09-30 테스트) ──
-const SECONDARY_IV_TRANSITION_MS = 410; // transitionPair() DURATION(350)+마무리버퍼(60)와 동일
+const SECONDARY_IV_TRANSITION_MS = 410; // transitionPair() DURATION(350)+마무리버퍼(60)와 동일, 재생버튼 클릭 시 원폼 복귀 대기시간
 
 function _buildSecondaryIVDescendSeq(peakMidi) {
   const neckEl = document.getElementById('fb-full-neck');
@@ -389,14 +389,23 @@ function _buildSecondaryIVDescendSeq(peakMidi) {
   return desc;
 }
 
+// 위치(줄+프렛)로 살아있는 dot을 다시 찾음 — 전환 애니메이션 중 ghost가 통째로
+// 재생성되면서 기존 el 참조가 죽는 문제 방지(항상 신선한 DOM으로 강조)
+function _findNoteElAt(neckEl, s, absF) {
+  return neckEl.querySelector('.fb-note:not(.fb-note--ghost)[data-s="' + s + '"][data-absf="' + absF + '"]')
+      || neckEl.querySelector('.fb-note--ghost[data-s="' + s + '"][data-absf="' + absF + '"]');
+}
+
 function _startSecondaryIVDescend(seq) {
+  const neckEl = document.getElementById('fb-full-neck');
   let j = 0;
   const step = () => {
     document.querySelectorAll('.fb-note--playing').forEach(el => el.classList.remove('fb-note--playing'));
     if (j >= seq.length) { stopScalePlay(); return; }
     const note = seq[j];
     const isLast = j === seq.length - 1;
-    note.el.classList.add('fb-note--playing');
+    const el = neckEl && _findNoteElAt(neckEl, note.s, note.absF);
+    if (el) el.classList.add('fb-note--playing');
     playScaleNote(note.s, note.absF);
     j++;
     _scalePlayTimer = setTimeout(step, isLast ? SCALE_PLAY_NOTE_MS * 4 : SCALE_PLAY_NOTE_MS);
@@ -416,10 +425,13 @@ function _startSecondaryIVAscendThenTransition() {
     note.el.classList.add('fb-note--playing');
     playScaleNote(note.s, note.absF);
     if (isPeak) {
-      // 마지막(정점) 음에 도달한 순간 — 대기 없이 바로 전환 트리거 + 하행 시작
+      // 마지막(정점) 음에 도달한 순간 — 전환은 강조색이 한 프레임 그려진 뒤 즉시 시작(체감상 동시).
+      // 단, 하행 시작(오디오 포함)은 다른 음과 동일하게 SCALE_PLAY_NOTE_MS만큼 지연 —
+      // 안 그러면 하행 첫 음의 playScaleNote()가 GuitarAudio.stop()을 즉시 호출해서
+      // 정점 음이 16ms만에 끊겨 사실상 안 들리는 문제 발생(2026-09-30 확인).
       const descSeq = _buildSecondaryIVDescendSeq(note.midi);
-      transitionPair();
-      _startSecondaryIVDescend(descSeq);
+      requestAnimationFrame(() => { transitionPair(); });
+      _scalePlayTimer = setTimeout(() => { _startSecondaryIVDescend(descSeq); }, SCALE_PLAY_NOTE_MS);
       return;
     }
     i++;
@@ -431,7 +443,7 @@ function _startSecondaryIVAscendThenTransition() {
 function startScalePlay() {
   stopScaleMic(); // 마이크 모드 켜져있었으면 즉시 중단
 
-  if (_scaleKey === 'secondary-iv') {
+  if (_scaleKey === 'secondary-iv' || _scaleKey === 'secondary-v' || _scaleKey === 'secondary-ii' || _scaleKey === 'secondary-vi' || _scaleKey === 'secondary-iii') {
     if (_pairTransitioned) {
       // 이미 전환된 상태 — 원폼으로 먼저 되돌린 후 재생 시작(항상 원폼에서 출발)
       transitionPair();
@@ -676,6 +688,11 @@ function buildNavSequence() {
     startFrets.forEach(sf => {
       // secondary-iii: 전환 타겟(슬라이드+spawn) dot이 하나라도 유효범위(0~22) 밖이면 블럭 자체 제외
       if (_scaleKey === 'secondary-iii' && !_secondaryIIITargetFits(block, bi, sf)) return;
+      // secondary-iv/v/ii/vi: 전환 타겟 dot이 하나라도 유효범위 밖이면 블럭 자체 제외
+      if (_scaleKey === 'secondary-iv' && !_pairTargetFits('major', PAIR_PARTNER_BI[bi], PAIR_STARTFRET_OFFSET[bi] || 0, sf)) return;
+      if (_scaleKey === 'secondary-v'  && !_pairTargetFits('major', PAIR_PARTNER_BI_V[bi], PAIR_STARTFRET_OFFSET_V[bi] || 0, sf)) return;
+      if (_scaleKey === 'secondary-ii' && !_pairTargetFits('harmonic-minor', PAIR_PARTNER_BI_II[bi], PAIR_STARTFRET_OFFSET_II[bi] || 0, sf)) return;
+      if (_scaleKey === 'secondary-vi' && !_pairTargetFits('harmonic-minor', PAIR_PARTNER_BI_VI[bi], PAIR_STARTFRET_OFFSET_VI[bi] || 0, sf)) return;
       seq.push({ block, bi, startFret: sf });
     });
   });
@@ -699,6 +716,18 @@ function _secondaryIIITargetFits(majorBlock, bi, sf) {
     if (!inRange(sf + sp.off)) return false;
   }
   return true;
+}
+
+// secondary-iv/v/ii/vi 공용: 전환 타겟 블럭(다른 scale key일 수 있음) 모든 dot이
+// [0, TOTAL_FRETS) 안에 드는지 — 음 하나 빠진 스케일 블럭이 존재해선 안 됨 (2026-09-30)
+function _pairTargetFits(targetScaleKey, partnerBi, offset, sf) {
+  const targetBlock = ScaleData.getBlocks(targetScaleKey)[partnerBi];
+  if (!targetBlock) return true;
+  const gsf = sf + offset;
+  return ScaleData.parseGrid(targetBlock.grid).notes.every(n => {
+    const absF = gsf + n.col;
+    return absF >= 0 && absF < TOTAL_FRETS;
+  });
 }
 
 // ── 페이지 초기화 ────────────────────────────────────────────
@@ -2454,6 +2483,203 @@ const TUTORIAL_SCALE_CONFIG = {
   'lydian':             { name: '리디안 스케일',             rootNote: 0, demoForm: 'E폼', charDegree: -5 },  // idx2 블록 근음 5번줄 3프렛(2026-09-29 검증) / 특징음=#4
   'aeolian':            { name: '에올리안 스케일',           rootNote: 0, demoForm: 'C폼', charDegree: -6 },  // idx4 블록 근음 5번줄 3프렛(2026-09-29 검증) / 특징음=b6
   'locrian':            { name: '로크리안 스케일',           rootNote: 0, demoForm: 'A폼', charDegree: -5 },  // idx0 블록 근음 5번줄 3프렛(2026-09-29 검증) / 특징음=b5
+  // 챕터2(전환형 secondary-*) — 세컨더리 도미넌트 스케일. name=도미넌트7코드→타겟코드 진행 설명용(2026-09-30).
+  'secondary-iv': { name: '4도 메이저 전환', rootNote: 0, demoForm: 'A폼' },  // Ckey, A폼(bi=0)↔D폼(bi=3), C7→F
+  'secondary-v':  { name: '5도 메이저 전환', rootNote: 0, demoForm: 'A폼' },  // Ckey, A폼(bi=0)↔E폼(bi=2), D7→G
+  'secondary-ii': { name: '6도 마이너 전환', rootNote: 0, demoForm: 'A폼' },  // Ckey, A폼(bi=0)↔Gm폼(harmonic-minor bi=0), E7→Am
+  'secondary-vi': { name: '2도 마이너 전환', rootNote: 0, demoForm: 'A폼' },  // Ckey, A폼(bi=0)↔Cm폼(harmonic-minor bi=3), A7→Dm
+  'secondary-iii': { name: '3도 마이너 전환', rootNote: 0, demoForm: 'A폼' },  // Ckey, A폼(bi=0)↔E하모닉마이너(델타시스템), B7→Em
+};
+
+// 챕터2(secondary-iv) 전용 시연 멜로디 — 사용자가 직접 지정(2026-09-30, C7→F 진행 예시).
+// chords: 코드라벨 3개(C/C7/F) — chords[note.chordIdx]가 그 음이 울릴 때 강조표시할 코드.
+// notes: s(0~5, 0=1번줄/high E)·absF(실제 프렛)·chordIdx로 17음 고정 시퀀스.
+// 전환 애니메이션(fade/slide/spawn) 자체는 _tutorialAnimateSecondaryIVTransition()에 A폼↔D폼
+// 전용으로 하드코딩됨 — 다른 레벨(7~10) 추가 시 그 레벨 전용 애니메이션 함수를 따로 만들어야 함.
+const PAIR_TRANSITION_DEMO = {
+  'secondary-iv': {
+    chords: ['C', 'C7', 'F'],
+    // 코드 백킹(피아노) — 각 코드 시작 노트 인덱스(barStartIdx)에 해당 구성음(MIDI)을 그만큼 울림.
+    // C3(48) 근처로 배치해 멜로디(2~4옥타브대)보다 낮은 백킹 톤으로 깔림(2026-09-30).
+    // 4마디 체계(2026-10-01 확정): 1·2마디는 기존 승인된 멜로디 그대로, 3·4마디만 신규 추가
+    // (착지음에서 5음 상행+3음 하행 / 4마디 최종 착지).
+    chordBacking: [
+      { atIdx: 0,  midis: [48, 52, 55],     durationSec: 3.0 },  // C  (1마디, 8음×380ms)
+      { atIdx: 8,  midis: [48, 52, 55, 58], durationSec: 3.0 },  // C7 (2마디, 8음×380ms)
+      { atIdx: 16, midis: [53, 57, 60],     durationSec: 4.2 },  // F  (3+4마디, 9음)
+    ],
+    notes: [
+      { s: 2, absF: 5, chordIdx: 0 }, // C  (3번줄5F)
+      { s: 1, absF: 3, chordIdx: 0 }, // D  (2번줄3F)
+      { s: 1, absF: 5, chordIdx: 0 }, // E  (2번줄5F)
+      { s: 1, absF: 6, chordIdx: 0 }, // F  (2번줄6F)
+      { s: 0, absF: 3, chordIdx: 0 }, // G  (1번줄3F)
+      { s: 1, absF: 6, chordIdx: 0 }, // F
+      { s: 1, absF: 5, chordIdx: 0 }, // E
+      { s: 1, absF: 3, chordIdx: 0 }, // D
+      { s: 2, absF: 5, chordIdx: 1 }, // C  (전환 시작 — 공유음)
+      { s: 2, absF: 3, chordIdx: 1 }, // Bb (3번줄3F)
+      { s: 2, absF: 2, chordIdx: 1 }, // A  (3번줄2F)
+      { s: 3, absF: 5, chordIdx: 1 }, // G  (4번줄5F)
+      { s: 3, absF: 3, chordIdx: 1 }, // F  (4번줄3F, 전환블럭 루트)
+      { s: 3, absF: 2, chordIdx: 1 }, // E  (4번줄2F)
+      { s: 4, absF: 5, chordIdx: 1 }, // D  (5번줄5F)
+      { s: 3, absF: 2, chordIdx: 1 }, // E
+      { s: 3, absF: 3, chordIdx: 2 }, // F  (착지음 — 3마디 시작, 역전환 후 다이어토닉 원폼)
+      { s: 3, absF: 5, chordIdx: 2 }, // G
+      { s: 2, absF: 2, chordIdx: 2 }, // A
+      { s: 2, absF: 4, chordIdx: 2 }, // B
+      { s: 2, absF: 5, chordIdx: 2 }, // C  (5음 상행 종료)
+      { s: 2, absF: 4, chordIdx: 2 }, // B
+      { s: 2, absF: 2, chordIdx: 2 }, // A
+      { s: 3, absF: 5, chordIdx: 2 }, // G  (3음 하행 종료)
+      { s: 3, absF: 3, chordIdx: 2 }, // F  (최종 착지음, 4마디)
+    ],
+  },
+  'secondary-v': {
+    chords: ['Dm7', 'D7', 'G7'],
+    // 4마디 체계(2026-10-01 확정): 1·2마디는 기존 승인된 멜로디 그대로, 3·4마디만 신규 추가
+    // (착지음에서 5음 상행+3음 하행 / 4마디 최종 착지).
+    chordBacking: [
+      { atIdx: 0,  midis: [50, 53, 57, 60], durationSec: 3.0 },  // Dm7 (1마디)
+      { atIdx: 8,  midis: [50, 54, 57, 60], durationSec: 3.0 },  // D7  (2마디)
+      { atIdx: 16, midis: [55, 59, 62, 65], durationSec: 4.2 },  // G7  (3+4마디, 9음)
+    ],
+    notes: [
+      { s: 1, absF: 3, chordIdx: 0 }, // D  (2번줄3F)
+      { s: 1, absF: 5, chordIdx: 0 }, // E  (2번줄5F)
+      { s: 1, absF: 6, chordIdx: 0 }, // F  (2번줄6F)
+      { s: 0, absF: 3, chordIdx: 0 }, // G  (1번줄3F)
+      { s: 0, absF: 5, chordIdx: 0 }, // A  (1번줄5F)
+      { s: 0, absF: 3, chordIdx: 0 }, // G
+      { s: 1, absF: 6, chordIdx: 0 }, // F
+      { s: 1, absF: 5, chordIdx: 0 }, // E
+      { s: 1, absF: 3, chordIdx: 1 }, // D  (전환 시작 — 공유음)
+      { s: 2, absF: 5, chordIdx: 1 }, // C  (3번줄5F)
+      { s: 2, absF: 4, chordIdx: 1 }, // B  (3번줄4F)
+      { s: 2, absF: 2, chordIdx: 1 }, // A  (3번줄2F)
+      { s: 3, absF: 5, chordIdx: 1 }, // G  (4번줄5F)
+      { s: 3, absF: 4, chordIdx: 1 }, // F# (4번줄4F, 전환블럭 루트 한음 아래=리딩톤)
+      { s: 3, absF: 2, chordIdx: 1 }, // E  (4번줄2F)
+      { s: 3, absF: 4, chordIdx: 1 }, // F#
+      { s: 3, absF: 5, chordIdx: 2 }, // G  (착지음 — 3마디 시작, G믹솔리디안=C는 어보이드노트라 건너뜀)
+      { s: 2, absF: 2, chordIdx: 2 }, // A
+      { s: 2, absF: 4, chordIdx: 2 }, // B
+      { s: 1, absF: 3, chordIdx: 2 }, // D  (C 건너뜀)
+      { s: 1, absF: 5, chordIdx: 2 }, // E  (5음 상행 종료)
+      { s: 1, absF: 3, chordIdx: 2 }, // D
+      { s: 2, absF: 4, chordIdx: 2 }, // B
+      { s: 2, absF: 2, chordIdx: 2 }, // A  (3음 하행 종료)
+      { s: 3, absF: 5, chordIdx: 2 }, // G  (최종 착지음, 4마디)
+    ],
+  },
+  'secondary-ii': {
+    chords: ['C', 'E7', 'Am'],
+    // 4마디 체계(2026-10-01 확정): 1마디 원폼런 / 2마디 전환화성음(G#) 고음→저음 완주하행 /
+    // 3마디 착지음에서 5음 상행+3음 하행 / 4마디 최종 착지.
+    chordBacking: [
+      { atIdx: 0,  midis: [48, 52, 55],     durationSec: 3.0 },  // C   (1마디)
+      { atIdx: 8,  midis: [52, 56, 59, 62], durationSec: 3.0 },  // E7  (2마디)
+      { atIdx: 16, midis: [57, 60, 64],     durationSec: 4.2 },  // Am  (3+4마디, 9음)
+    ],
+    notes: [
+      { s: 2, absF: 5, chordIdx: 0 }, // C  (3번줄5F)
+      { s: 1, absF: 3, chordIdx: 0 }, // D  (2번줄3F)
+      { s: 1, absF: 5, chordIdx: 0 }, // E  (2번줄5F)
+      { s: 1, absF: 6, chordIdx: 0 }, // F  (2번줄6F)
+      { s: 0, absF: 3, chordIdx: 0 }, // G  (1번줄3F)
+      { s: 1, absF: 6, chordIdx: 0 }, // F
+      { s: 1, absF: 5, chordIdx: 0 }, // E
+      { s: 1, absF: 3, chordIdx: 0 }, // D
+      { s: 0, absF: 4, chordIdx: 1 }, // G# (1번줄4F, 전환 시작 — 증2도 고음)
+      { s: 1, absF: 6, chordIdx: 1 }, // F
+      { s: 1, absF: 5, chordIdx: 1 }, // E
+      { s: 1, absF: 3, chordIdx: 1 }, // D
+      { s: 2, absF: 5, chordIdx: 1 }, // C
+      { s: 2, absF: 4, chordIdx: 1 }, // B
+      { s: 2, absF: 2, chordIdx: 1 }, // A
+      { s: 3, absF: 6, chordIdx: 1 }, // G# (4번줄6F, 증2도 저음 — 한옥타브 완주하행 종료)
+      { s: 2, absF: 2, chordIdx: 2 }, // A  (3번줄2F, 착지음 — 3마디 시작)
+      { s: 2, absF: 4, chordIdx: 2 }, // B
+      { s: 2, absF: 5, chordIdx: 2 }, // C
+      { s: 1, absF: 3, chordIdx: 2 }, // D
+      { s: 1, absF: 5, chordIdx: 2 }, // E  (5음 상행 종료)
+      { s: 1, absF: 3, chordIdx: 2 }, // D
+      { s: 2, absF: 5, chordIdx: 2 }, // C
+      { s: 2, absF: 4, chordIdx: 2 }, // B  (3음 하행 종료)
+      { s: 2, absF: 2, chordIdx: 2 }, // A  (최종 착지음, 4마디)
+    ],
+  },
+  'secondary-vi': {
+    chords: ['C', 'A7', 'Dm'],
+    chordBacking: [
+      { atIdx: 0,  midis: [48, 52, 55],     durationSec: 3.0 },  // C   (1마디)
+      { atIdx: 8,  midis: [45, 49, 52, 55], durationSec: 3.0 },  // A7  (2마디)
+      { atIdx: 16, midis: [50, 53, 57],     durationSec: 4.2 },  // Dm  (3+4마디, 9음)
+    ],
+    notes: [
+      { s: 2, absF: 5, chordIdx: 0 }, // C  (3번줄5F)
+      { s: 1, absF: 3, chordIdx: 0 }, // D  (2번줄3F)
+      { s: 1, absF: 5, chordIdx: 0 }, // E  (2번줄5F)
+      { s: 1, absF: 6, chordIdx: 0 }, // F  (2번줄6F)
+      { s: 0, absF: 3, chordIdx: 0 }, // G  (1번줄3F)
+      { s: 1, absF: 6, chordIdx: 0 }, // F
+      { s: 1, absF: 5, chordIdx: 0 }, // E
+      { s: 1, absF: 3, chordIdx: 0 }, // D
+      { s: 2, absF: 6, chordIdx: 1 }, // C# (3번줄6F, 전환 시작 — 리딩톤 고음)
+      { s: 2, absF: 3, chordIdx: 1 }, // Bb (3번줄3F)
+      { s: 2, absF: 2, chordIdx: 1 }, // A  (3번줄2F)
+      { s: 3, absF: 5, chordIdx: 1 }, // G  (4번줄5F)
+      { s: 3, absF: 3, chordIdx: 1 }, // F  (4번줄3F)
+      { s: 3, absF: 2, chordIdx: 1 }, // E  (4번줄2F)
+      { s: 4, absF: 5, chordIdx: 1 }, // D  (5번줄5F)
+      { s: 4, absF: 4, chordIdx: 1 }, // C# (5번줄4F, 저음 — 한옥타브 완주하행 종료)
+      { s: 4, absF: 5, chordIdx: 2 }, // D  (5번줄5F, 착지음 — 3마디 시작, 역전환 후 다이어토닉 원폼)
+      { s: 3, absF: 2, chordIdx: 2 }, // E
+      { s: 3, absF: 3, chordIdx: 2 }, // F
+      { s: 3, absF: 5, chordIdx: 2 }, // G
+      { s: 2, absF: 2, chordIdx: 2 }, // A  (5음 상행 종료)
+      { s: 3, absF: 5, chordIdx: 2 }, // G
+      { s: 3, absF: 3, chordIdx: 2 }, // F
+      { s: 3, absF: 2, chordIdx: 2 }, // E  (3음 하행 종료)
+      { s: 4, absF: 5, chordIdx: 2 }, // D  (최종 착지음, 4마디)
+    ],
+  },
+  'secondary-iii': {
+    chords: ['C', 'B7', 'Em'],
+    chordBacking: [
+      { atIdx: 0,  midis: [48, 52, 55],     durationSec: 3.0 },  // C   (1마디)
+      { atIdx: 8,  midis: [47, 51, 54, 57], durationSec: 3.0 },  // B7  (2마디, B D# F# A)
+      { atIdx: 16, midis: [52, 55, 59],     durationSec: 4.2 },  // Em  (3+4마디, 9음)
+    ],
+    notes: [
+      { s: 2, absF: 5, chordIdx: 0 }, // C  (3번줄5F)
+      { s: 1, absF: 3, chordIdx: 0 }, // D  (2번줄3F)
+      { s: 1, absF: 5, chordIdx: 0 }, // E  (2번줄5F)
+      { s: 1, absF: 6, chordIdx: 0 }, // F  (2번줄6F)
+      { s: 0, absF: 3, chordIdx: 0 }, // G  (1번줄3F)
+      { s: 1, absF: 6, chordIdx: 0 }, // F
+      { s: 1, absF: 5, chordIdx: 0 }, // E
+      { s: 1, absF: 3, chordIdx: 0 }, // D
+      { s: 1, absF: 4, chordIdx: 1 }, // D# (2번줄4F, 전환 시작 — 리딩톤 고음)
+      { s: 2, absF: 5, chordIdx: 1 }, // C  (3번줄5F)
+      { s: 2, absF: 4, chordIdx: 1 }, // B  (3번줄4F)
+      { s: 2, absF: 2, chordIdx: 1 }, // A  (3번줄2F)
+      { s: 3, absF: 5, chordIdx: 1 }, // G  (4번줄5F)
+      { s: 3, absF: 4, chordIdx: 1 }, // F# (4번줄4F)
+      { s: 3, absF: 2, chordIdx: 1 }, // E  (4번줄2F)
+      { s: 4, absF: 6, chordIdx: 1 }, // D# (5번줄6F, 저음 — 한옥타브 완주하행 종료)
+      { s: 3, absF: 2, chordIdx: 2 }, // E  (4번줄2F, 착지음 — 3마디 시작, E프리지안=F·C 둘 다 어보이드노트라 건너뜀)
+      { s: 3, absF: 5, chordIdx: 2 }, // G  (F 건너뜀)
+      { s: 2, absF: 2, chordIdx: 2 }, // A
+      { s: 2, absF: 4, chordIdx: 2 }, // B
+      { s: 1, absF: 3, chordIdx: 2 }, // D  (C 건너뜀, 5음 상행 종료)
+      { s: 2, absF: 4, chordIdx: 2 }, // B
+      { s: 2, absF: 2, chordIdx: 2 }, // A
+      { s: 3, absF: 5, chordIdx: 2 }, // G  (3음 하행 종료)
+      { s: 3, absF: 2, chordIdx: 2 }, // E  (최종 착지음, 4마디)
+    ],
+  },
 };
 
 // 모드 스케일 비교용 예시 멜로디(바흐 미뉴엣풍) — 도수로 저장, 다른 모드에 적용할 땐 이 도수 배열 그대로
@@ -2466,11 +2692,17 @@ const MODE_MELODY_DURATIONS = [
   460, 230, 230, 230, 230, 460, 460, 1500, // 맨 마지막 음만 더 길게(2026-09-29, 사용자 확정)
 ];
 
+// 튜토리얼 전용: secondary-*(짝궁 전환형)는 scale-data.js에 자체 블록이 없고 buildNavSequence()처럼
+// 항상 'major' 블록을 사용 — 그대로 넘기면 getBlocks가 빈 배열을 반환해 크래시남(2026-09-30 발견).
+function _tutorialBlockKey(scaleKey) {
+  return (scaleKey === 'secondary-iv' || scaleKey === 'secondary-v' || scaleKey === 'secondary-ii' || scaleKey === 'secondary-vi' || scaleKey === 'secondary-iii') ? 'major' : scaleKey;
+}
+
 // 스케일의 도수 구성('1 b3 4 5 b7' 형식)을 블록 grid에서 그대로 계산 — 새 레벨 추가해도 손댈 필요 없음(2026-09-28).
 // 표기는 기존 degreeLabel()(1791줄) 그대로 재사용 — lydian의 b5→#4, altered/믹솔리디안b9b13 등의
 // 텐션 표기(b9/#9/#11/b13)까지 이미 스케일별로 맞춰져 있어서 중복 구현 안 함(2026-09-28).
 function _tutorialGetDegreeFormula(scaleKey) {
-  const block = ScaleData.getBlocks(scaleKey)[0];
+  const block = ScaleData.getBlocks(_tutorialBlockKey(scaleKey))[0];
   if (!block) return '';
   const notes = ScaleData.parseGrid(block.grid).notes;
   const degSet = new Set(notes.map(n => n.degree));
@@ -2485,7 +2717,7 @@ function _tutorialGetDegreeFormula(scaleKey) {
 // 스케일 구성음을 알파벳 음이름으로 계산('A C D Eb E G' 형식) — 레벨2+ 전용,
 // 계이름(도레미파솔라시)은 도수 알테레이션(b5 등)을 표현 못 해서 음이름으로 대체(2026-09-28, 사용자 확정).
 function _tutorialGetNoteNames(scaleKey, rootNote) {
-  const block = ScaleData.getBlocks(scaleKey)[0];
+  const block = ScaleData.getBlocks(_tutorialBlockKey(scaleKey))[0];
   if (!block) return '';
   const startFret = ScaleData.getStartFrets(block, rootNote)[0];
   const notes = ScaleData.parseGrid(block.grid).notes.map(n => ({ ...n, absF: startFret + n.col }));
@@ -2509,6 +2741,13 @@ function _tutorialGetNoteNames(scaleKey, rootNote) {
 // STEP1(도입) 문구만 스케일별로 자동 생성, 나머지 단계는 공용(2026-09-27).
 // 레벨1(메이저)은 기존 문구 유지, 레벨2부터는 "구성음 → 도수 공식" 2줄 설명으로 전환(2026-09-28, 사용자 확정).
 function buildTutorialSteps(scaleKey) {
+  // 챕터2(짝궁 전환형)는 "세컨더리 도미넌트" 개념 자체가 다른 챕터와 완전히 다른 서사라
+  // 공용 템플릿을 거치지 않고 레벨별 전용 스텝을 그대로 반환(2026-09-30, 사용자 확정 흐름).
+  if (scaleKey === 'secondary-iv') return _buildSecondaryIVTutorialSteps();
+  if (scaleKey === 'secondary-v') return _buildSecondaryVTutorialSteps();
+  if (scaleKey === 'secondary-ii') return _buildSecondaryIITutorialSteps();
+  if (scaleKey === 'secondary-vi') return _buildSecondaryVITutorialSteps();
+  if (scaleKey === 'secondary-iii') return _buildSecondaryIIITutorialSteps();
   const cfg = TUTORIAL_SCALE_CONFIG[scaleKey] || TUTORIAL_SCALE_CONFIG['major'];
   const chordLetter = cfg.demoForm.replace(/폼$/, '');
   const introLeadTexts = scaleKey === 'major' ? [
@@ -2737,6 +2976,78 @@ function buildTutorialSteps(scaleKey) {
     ]),
   ];
 }
+
+// 챕터2 레벨6(secondary-iv, 4도 메이저 전환) 전용 튜토리얼 — 세컨더리 도미넌트 개념 도입 +
+// C7→F 시연(사용자 확정 10단계 흐름, 2026-09-30).
+function _buildSecondaryIVTutorialSteps() {
+  const cfg = TUTORIAL_SCALE_CONFIG['secondary-iv'];
+  return [
+    { type: 'text', text: "챕터2에서는\n'스케일 전환'을 알아볼게요!" },
+    { type: 'text', text: "패밀리코드라는 개념을 알고 있어야\n이해할 수 있을거예요." },
+    { type: 'text', text: "코드를 진행하다보면 패밀리코드가 아닌\n'7'코드가 종종 등장해요." },
+    { type: 'text', text: "그 '7'코드 뒤에 나오는 패밀리코드에 따라\n사용할 스케일이 달라져요!" },
+    { type: 'action', action: 'fillBlockInstant', text: "레벨6에서는 4도로 이어지는 '7'코드에\n쓸 수 있는 스케일을 배울거예요." },
+    { type: 'action', action: 'playPairTransitionDemo', text: "직접 들어볼까요?" },
+    { type: 'text', text: "처음엔 개념이 조금 어려울 수 있어요.\n보통은 바뀌는 음에 익숙해지는 방법이 있어요." },
+    { type: 'text', text: "그리고 바뀐 후의 스케일블럭을 보면,\nF메이저 스케일이랑 똑같다는 걸 알 수 있어요!" },
+    { type: 'text', text: "각자 받아들이기 편한 방법을 찾아서\n숙달해보세요!" },
+    { type: 'text', text: `수고하셨어요! ${cfg.name}는\n여기서 마칠게요!` },
+  ];
+}
+
+// 챕터2 레벨7(secondary-v, 5도 메이저 전환) 전용 튜토리얼 — 레벨6에서 이미 개념(패밀리코드/7코드)을
+// 배웠으므로 재설명 없이 바로 전개, Dm7→D7→G7 시연(2026-10-01).
+function _buildSecondaryVTutorialSteps() {
+  const cfg = TUTORIAL_SCALE_CONFIG['secondary-v'];
+  return [
+    { type: 'action', action: 'fillBlockInstant', text: "이번엔 5도로 이어지는 '7'코드에\n쓸 수 있는 스케일을 배워볼게요." },
+    { type: 'action', action: 'playPairTransitionDemo', text: "직접 들어볼까요?" },
+    { type: 'text', text: "바뀐 후의 스케일블럭을 보면,\nG메이저 스케일이랑 똑같다는 걸 알 수 있어요!" },
+    { type: 'text', text: "마찬가지로, 바뀌는 음에\n익숙해지는 연습을 해보세요!" },
+    { type: 'text', text: `수고하셨어요! ${cfg.name}는\n여기서 마칠게요!` },
+  ];
+}
+
+// 챕터2 레벨8(secondary-ii, 6도 마이너 전환) 전용 튜토리얼 — 타겟이 메이저가 아닌 '마이너'로
+// 바뀌는 첫 사례. C→E7→Am 시연(2026-10-01).
+function _buildSecondaryIITutorialSteps() {
+  const cfg = TUTORIAL_SCALE_CONFIG['secondary-ii'];
+  return [
+    { type: 'action', action: 'fillBlockInstant', text: "이번엔 6도로 이어지는 '7'코드에\n쓸 수 있는 스케일을 배워볼게요." },
+    { type: 'action', action: 'playPairTransitionDemo', text: "직접 들어볼까요?" },
+    { type: 'text', text: "이번엔 메이저가 아니라\n'마이너'로 전환됐어요!" },
+    { type: 'text', text: "바뀐 후의 스케일블럭을 보면,\nA 하모닉 마이너 스케일이랑 똑같다는 걸 알 수 있어요!" },
+    { type: 'text', text: "마찬가지로, 바뀌는 음에\n익숙해지는 연습을 해보세요!" },
+    { type: 'text', text: `수고하셨어요! ${cfg.name}는\n여기서 마칠게요!` },
+  ];
+}
+
+// 챕터2 레벨9(secondary-vi, 2도 마이너 전환) — C→A7→Dm 시연(2026-10-01).
+function _buildSecondaryVITutorialSteps() {
+  const cfg = TUTORIAL_SCALE_CONFIG['secondary-vi'];
+  return [
+    { type: 'action', action: 'fillBlockInstant', text: "이번엔 2도로 이어지는 '7'코드에\n쓸 수 있는 스케일을 배워볼게요." },
+    { type: 'action', action: 'playPairTransitionDemo', text: "직접 들어볼까요?" },
+    { type: 'text', text: "이번에도 메이저가 아니라\n'마이너'로 전환돼요!" },
+    { type: 'text', text: "바뀐 후의 스케일블럭을 보면,\nD 하모닉 마이너 스케일이랑 똑같다는 걸 알 수 있어요!" },
+    { type: 'text', text: "마찬가지로, 바뀌는 음에\n익숙해지는 연습을 해보세요!" },
+    { type: 'text', text: `수고하셨어요! ${cfg.name}는\n여기서 마칠게요!` },
+  ];
+}
+
+// 챕터2 레벨10(secondary-iii, 3도 마이너 전환) — C→B7→Em 시연. 챕터2의 마지막 전환 레벨(2026-10-01).
+function _buildSecondaryIIITutorialSteps() {
+  const cfg = TUTORIAL_SCALE_CONFIG['secondary-iii'];
+  return [
+    { type: 'action', action: 'fillBlockInstant', text: "이번엔 3도로 이어지는 '7'코드에\n쓸 수 있는 스케일을 배워볼게요." },
+    { type: 'action', action: 'playPairTransitionDemo', text: "직접 들어볼까요?" },
+    { type: 'text', text: "이번에도 메이저가 아니라\n'마이너'로 전환돼요!" },
+    { type: 'text', text: "바뀐 후의 스케일블럭을 보면,\nE 하모닉 마이너 스케일이랑 똑같다는 걸 알 수 있어요!" },
+    { type: 'text', text: "마찬가지로, 바뀌는 음에\n익숙해지는 연습을 해보세요!" },
+    { type: 'text', text: "이걸로 챕터2의 5가지 전환을\n모두 배웠어요!" },
+    { type: 'text', text: `수고하셨어요! ${cfg.name}는\n여기서 마칠게요!` },
+  ];
+}
 let TUTORIAL_STEPS = buildTutorialSteps('major'); // openTutorial()에서 실제 _scaleKey로 재생성됨
 let _tutorialStepIdx        = 0;
 let _tutorialStartFret      = 0; // 7프렛 고정 뷰 기준 col 계산용(renderTestNeck과 동일 startFret)
@@ -2757,7 +3068,7 @@ function _tutorialFormNameForBlock(block, idx) {
 
 // scaleKey의 블록배열에서 targetName(예: 'A폼')에 해당하는 인덱스를 찾는다.
 function _tutorialFindFormIndex(scaleKey, targetName) {
-  const blocks = ScaleData.getBlocks(scaleKey);
+  const blocks = ScaleData.getBlocks(_tutorialBlockKey(scaleKey));
   for (let i = 0; i < blocks.length; i++) {
     if (_tutorialFormNameForBlock(blocks[i], i) === targetName) return i;
   }
@@ -2776,10 +3087,14 @@ function openTutorial() {
   _testHint = null;
   _tutorialCharNoteRevealed = false;
 
+  // 짝궁 전환 데모(코드 백킹)가 있는 레벨은 CDN 피아노 샘플을 미리 로드해둠 — 안 그러면
+  // 데모 시작 시점(첫 코드)에 로딩 지연으로 백킹이 멜로디 첫음보다 늦게 울림(2026-09-30 발견).
+  if (PAIR_TRANSITION_DEMO[_scaleKey]) GuitarAudio.warmupPiano();
+
   TUTORIAL_STEPS = buildTutorialSteps(_scaleKey);
   const cfg = TUTORIAL_SCALE_CONFIG[_scaleKey] || TUTORIAL_SCALE_CONFIG['major'];
   _tutorialAFormIdx = _tutorialFindFormIndex(_scaleKey, cfg.demoForm);
-  const block = ScaleData.getBlocks(_scaleKey)[_tutorialAFormIdx];
+  const block = ScaleData.getBlocks(_tutorialBlockKey(_scaleKey))[_tutorialAFormIdx];
   const startFret = ScaleData.getStartFrets(block, cfg.rootNote)[0];
   _tutorialStartFret = startFret;
   renderTestNeck(startFret); // dot은 튜토리얼 진행에 맞춰 순차 표시
@@ -2813,6 +3128,7 @@ function closeTutorial() {
   _tutorialDotClickEnabled = false;
   _tutorialClearTimers();
   GuitarAudio.stop();
+  GuitarAudio.stopPiano();
   document.getElementById('scale-test-overlay')?.classList.remove('is-open', 'scale-test-overlay--tutorial', 'scale-test-overlay--form-nav', 'scale-test-overlay--arrows-in');
 }
 
@@ -2839,6 +3155,7 @@ function showTutorialStep(idx) {
   _tutorialClearTimers();
   _tutorialStepIdx = idx;
   document.getElementById('test-note-grid')?.classList.remove('is-visible', 'test-question--in'); // 이전 스텝 잔상 정리(2026-09-29)
+  document.getElementById('test-chord-labels')?.classList.remove('is-visible', 'test-question--in'); // 짝궁 전환 데모 코드라벨 잔상 정리(2026-09-30)
   const qElReset = document.getElementById('test-question-text');
   if (qElReset) qElReset.style.display = ''; // 그리드 스텝에서 숨겼던 걸 원복 — 두 요소가 같은 90px 슬롯 공유(2026-09-29)
   const step  = TUTORIAL_STEPS[idx];
@@ -3009,7 +3326,7 @@ let _tutorialCharNoteRevealed = false; // 특징음 강조가 한번 트리거�
 // 해당하는 dot은 파란색으로 같이 표시.
 function _tutorialRenderFormStatic(formIdx) {
   const cfg = TUTORIAL_SCALE_CONFIG[_scaleKey] || TUTORIAL_SCALE_CONFIG['major'];
-  const block = ScaleData.getBlocks(_scaleKey)[formIdx];
+  const block = ScaleData.getBlocks(_tutorialBlockKey(_scaleKey))[formIdx];
   const startFret = ScaleData.getStartFrets(block, cfg.rootNote)[0];
   _tutorialStartFret = startFret;
   renderTestNeck(startFret);
@@ -3050,6 +3367,110 @@ function _tutorialRenderFormStatic(formIdx) {
 function _tutorialAdvanceForm(delta) {
   _tutorialFormIdx = (_tutorialFormIdx + delta + 5) % 5;
   _tutorialRenderFormStatic(_tutorialFormIdx);
+}
+
+// 위치(줄+프렛)로 튜토리얼 넥의 dot을 찾음 — 튜토리얼 dot은 dataset.absF(대문자 F) 컨벤션이라
+// 메인넥용 _findNoteElAt()(소문자 data-absf 셀렉터)과 어트리뷰트명이 달라 그대로 못 씀(2026-09-30 확인,
+// 재생 강조가 전혀 안 먹던 버그의 원인).
+function _tutorialFindNoteEl(neckEl, s, absF) {
+  return neckEl.querySelector('.fb-note[data-s="' + s + '"][data-abs-f="' + absF + '"]');
+}
+
+// 짝궁 전환 데모(playPairTransitionDemo) 전용 — 기존 transitionPair() bi=0(A폼↔D폼) 정방향
+// 애니메이션 레시피(fade/slide/spawn, 타이밍·이징 전부 동일)를 그대로 재사용하되, 좌표만 튜토리얼
+// 넥의 윈도우 좌표계(FRETS_VISIBLE 기준, _tutorialStartFret 오프셋)로 재계산함 — 메인넥은
+// TOTAL_FRETS 기준 절대좌표라 그대로 재사용하면 위치가 어긋남(2026-09-30 확인).
+// 짝궁 전환 데모 공용 — fade/slide/spawn 레시피(레벨별 PAIR_TRANSITION_RECIPE)를 받아 튜토리얼 넥
+// (윈도우 좌표계)에 재현. 실제 transitionPair()의 해당 bi=0 정방향 분기에서 좌표값만 그대로
+// 뽑아온 것 — 타이밍/이징도 동일(350ms+60ms, cubic-bezier)(2026-10-01, secondary-v 추가하며 공용화).
+// fades: [{s,absF}], slides: [{s,fromAbsF,toAbsF}], spawns: [{s,absF}] — absF는 전부 gsf 기준 상대값.
+function _tutorialAnimatePairTransition(gsf, { fades, slides, spawns }) {
+  const neckEl = document.getElementById('test-fb-full-neck');
+  if (!neckEl) return;
+  const DURATION = 350;
+  const activeEls = [...neckEl.querySelectorAll('.fb-note')];
+  activeEls.forEach(el => {
+    el.style.transition =
+      'left ' + DURATION + 'ms cubic-bezier(0.4,0,0.2,1),' +
+      'opacity ' + Math.round(DURATION * 0.6) + 'ms ease,' +
+      'transform ' + DURATION + 'ms cubic-bezier(0.4,0,0.2,1)';
+  });
+  void neckEl.offsetHeight;
+
+  fades.forEach(f => activeEls.forEach(el => {
+    if (parseInt(el.dataset.s) === f.s && parseInt(el.dataset.absF) === gsf + f.absF) {
+      el.style.opacity   = '0';
+      el.style.transform = 'translate(-50%, -50%) scale(0)';
+    }
+  }));
+  slides.forEach(sl => activeEls.forEach(el => {
+    if (parseInt(el.dataset.s) === sl.s && parseInt(el.dataset.absF) === gsf + sl.fromAbsF) {
+      const newAbsF = gsf + sl.toAbsF;
+      const col = newAbsF - _tutorialStartFret;
+      el.style.left   = ((col + 0.5) / FRETS_VISIBLE * 100) + '%';
+      el.dataset.absF = newAbsF;
+    }
+  }));
+
+  setTimeout(() => {
+    // 위치(fades 레시피)로만 판정 — opacity===0 조건을 같이 걸면, 전환이 "다음 음 미리트리거"로
+    // 당겨진 뒤(2026-10-01) 그 fade 대상 dot이 하필 "현재 재생 중인 마지막 음"과 겹칠 때 강조코드가
+    // opacity를 1로 되돌려놔서 여기서 영영 제거를 못 하는 경우가 생김 — 위치만으로 판정하면 안전.
+    neckEl.querySelectorAll('.fb-note').forEach(el => {
+      const s = parseInt(el.dataset.s), absF = parseInt(el.dataset.absF);
+      if (fades.some(f => f.s === s && absF === gsf + f.absF)) el.remove();
+    });
+    // fade/slide용으로 걸어둔 임시 transition 인라인스타일 정리 — 안 지우면 전환 후 dot들만
+    // 이후 .fb-note--playing 토글에서도 계속 350ms 이징을 타서 전환 전(C코드 구간) 강조와
+    // 다르게 보임(2026-09-30 발견).
+    neckEl.querySelectorAll('.fb-note').forEach(el => { el.style.transition = ''; });
+    spawns.forEach(sp => {
+      // _spawnNote()과 동일한 바운스 이징, 윈도우 좌표계만 다름
+      const spawnAbsF = gsf + sp.absF;
+      const col = spawnAbsF - _tutorialStartFret;
+      const newEl = document.createElement('div');
+      newEl.className = 'fb-note';
+      newEl.style.cssText = `left:${(col + 0.5) / FRETS_VISIBLE * 100}%; top:${(sp.s + 0.5) / STRINGS * 100}%;`;
+      newEl.dataset.s = sp.s;
+      newEl.dataset.absF = spawnAbsF;
+      newEl.style.opacity   = '0';
+      newEl.style.transform = 'translate(-50%, -50%) scale(0)';
+      newEl.style.transition = 'opacity 200ms ease, transform 360ms cubic-bezier(0.34, 1.56, 0.64, 1)';
+      neckEl.appendChild(newEl);
+      void newEl.offsetHeight;
+      newEl.style.opacity   = '1';
+      newEl.style.transform = 'translate(-50%, -50%) scale(1)';
+      newEl.addEventListener('transitionend', () => { newEl.style.transition = ''; }, { once: true });
+    });
+  }, DURATION + 60);
+}
+
+// 레벨별 전환 레시피 — 실제 transitionPair()의 bi=0 정방향 분기(fade/slide/spawn 대상)에서 그대로
+// 옮겨온 값. 새 레벨(8~10) 추가 시 해당 _transitionPairXX()의 bi=0 분기를 보고 여기만 추가하면 됨.
+const PAIR_TRANSITION_RECIPE = {
+  'secondary-iv': { fades: [{ s: 4, absF: 1 }], slides: [{ s: 2, fromAbsF: 3, toAbsF: 2 }], spawns: [{ s: 5, absF: 5 }] },
+  'secondary-v':  { fades: [{ s: 1, absF: 5 }], slides: [{ s: 3, fromAbsF: 2, toAbsF: 3 }], spawns: [{ s: 0, absF: 1 }, { s: 5, absF: 1 }] },
+  // secondary-ii: 페이드/스폰 없이 순수 3곳 슬라이드만(G→G# +1프렛, s=0/3/5 동시)
+  // fromAbsF/toAbsF는 gsf 기준 상대값(gsf=1일 때 실제 프렛 3→4, 5→6, 3→4) — 절대값 그대로
+  // 넣으면 +1칸 밀려서 엉뚱한 dot을 찾는 버그 발생(2026-10-01 발견).
+  'secondary-ii': { fades: [], slides: [{ s: 0, fromAbsF: 2, toAbsF: 3 }, { s: 3, fromAbsF: 4, toAbsF: 5 }, { s: 5, fromAbsF: 2, toAbsF: 3 }], spawns: [] },
+  'secondary-vi': { fades: [{ s: 4, absF: 1 }], slides: [{ s: 2, fromAbsF: 3, toAbsF: 2 }, { s: 2, fromAbsF: 4, toAbsF: 5 }, { s: 4, fromAbsF: 2, toAbsF: 3 }], spawns: [{ s: 5, absF: 5 }] },
+  // secondary-iii: 실제 로직은 degree 2/4 전체 +1슬라이드 → 특정위치 페이드 → 2곳 스폰인데(SECONDARY_III_DELTA),
+  // s=1의 degree4(F)는 슬라이드 후 바로 페이드되는 과도 상태라 시각적으로는 원위치에서 바로 페이드되는
+  // 것과 동일 — 여기선 그 중간 슬라이드 단계를 생략하고 원위치 페이드로 단순화(최종 결과 동일, 2026-10-01
+  // node로 양쪽 결과셋 일치 검증 완료).
+  'secondary-iii': { fades: [{ s: 1, absF: 5 }], slides: [{ s: 1, fromAbsF: 2, toAbsF: 3 }, { s: 4, fromAbsF: 4, toAbsF: 5 }, { s: 3, fromAbsF: 2, toAbsF: 3 }], spawns: [{ s: 0, absF: 1 }, { s: 5, absF: 1 }] },
+};
+
+// 레벨별 역레시피를 손으로 따로 적지 않고 forward 레시피에서 자동 역산 — fade↔spawn 교체,
+// slide는 from/to를 뒤바꿈. 레벨 추가될 때마다 역방향 값을 따로 틀리게 적는 사고를 원천 차단
+// (2026-10-01, 3마디 시작 시 다이어토닉 원폼 복귀용 역전환에 사용).
+function _reversePairRecipe(recipe) {
+  return {
+    fades: recipe.spawns.map(sp => ({ s: sp.s, absF: sp.absF })),
+    slides: recipe.slides.map(sl => ({ s: sl.s, fromAbsF: sl.toAbsF, toAbsF: sl.fromAbsF })),
+    spawns: recipe.fades.map(f => ({ s: f.s, absF: f.absF })),
+  };
 }
 
 function runTutorialAction(action, onDone, gridRows) {
@@ -3161,7 +3582,7 @@ function runTutorialAction(action, onDone, gridRows) {
     // 모드 특징음(cfg.charDegree) 강조 — formNav로 표시된 현재 폼의 dot들 중 매칭되는 것만 파란색으로 전환(2026-09-29)
     const demoCfg = TUTORIAL_SCALE_CONFIG[_scaleKey] || TUTORIAL_SCALE_CONFIG['major'];
     const charDegree = demoCfg.charDegree;
-    const block = ScaleData.getBlocks(_scaleKey)[_tutorialFormIdx];
+    const block = ScaleData.getBlocks(_tutorialBlockKey(_scaleKey))[_tutorialFormIdx];
     const charNotes = (charDegree != null && block)
       ? ScaleData.parseGrid(block.grid).notes
           .map(n => ({ s: n.s, degree: n.degree, absF: _tutorialStartFret + n.col }))
@@ -3234,6 +3655,86 @@ function runTutorialAction(action, onDone, gridRows) {
       const id = setTimeout(onDone, TUTORIAL_NEXT_BTN_BUFFER_MS);
       _tutorialTimers.push(id);
     }, { once: true });
+  } else if (action === 'playPairTransitionDemo') {
+    // 짝궁 전환 코드진행 시연(C7→F 등) — 사용자가 직접 지정한 멜로디(PAIR_TRANSITION_DEMO)를 순차재생,
+    // 코드라벨(C/C7/F) 중 현재 음이 속한 코드만 파란 강조, 전환 시점의 음부터 실제 타겟 블록으로
+    // 화면도 같이 바뀜(2026-09-30).
+    const demo = PAIR_TRANSITION_DEMO[_scaleKey];
+    if (!demo) { onDone(); return; }
+    const qElForDemo = document.getElementById('test-question-text');
+    if (qElForDemo) {
+      qElForDemo.classList.remove('test-question--in');
+      qElForDemo.textContent = '';
+      qElForDemo.style.display = 'none'; // 리드텍스트와 같은 슬롯 공유 — noteNameGrid와 동일 패턴
+    }
+    const labelsEl = document.getElementById('test-chord-labels');
+    const offset = (PAIR_STARTFRET_OFFSET[_tutorialAFormIdx] || 0);
+    const gsf = _tutorialStartFret + offset;
+    let transitionStage = 0; // 0=원폼 / 1=도미넌트7 전환됨 / 2=다이어토닉 원폼으로 역전환됨
+    let i = 0;
+    const step = () => {
+      document.querySelectorAll('#test-chord-labels .test-chord-label').forEach(el => el.classList.remove('is-active'));
+      document.querySelectorAll('#test-fb-full-neck .fb-note--playing').forEach(el => {
+        el.style.transition = 'none';
+        el.classList.remove('fb-note--playing');
+      });
+      if (i >= demo.notes.length) {
+        const id = setTimeout(onDone, TUTORIAL_NEXT_BTN_BUFFER_MS);
+        _tutorialTimers.push(id);
+        return;
+      }
+      const note = demo.notes[i];
+      const backing = demo.chordBacking && demo.chordBacking.find(b => b.atIdx === i);
+      if (backing) GuitarAudio.playPianoChord(backing.midis, backing.durationSec);
+      const recipe = PAIR_TRANSITION_RECIPE[_scaleKey];
+      const nextNote = demo.notes[i + 1]; // 전환 애니메이션은 해당 음이 울리기 '한 박 전'에 미리 시작
+      // (2026-10-01, 사용자 확정: 트리거음 재생 시점엔 이미 전환이 끝나 있어야 체감상 안 늦음)
+      if (recipe && transitionStage === 0 && nextNote && nextNote.chordIdx >= 1) {
+        transitionStage = 1;
+        _tutorialAnimatePairTransition(gsf, recipe);
+      } else if (recipe && transitionStage === 1 && nextNote && nextNote.chordIdx >= 2) {
+        // 3마디 시작 — 도미넌트7 전용음(Bb/F#/G#)은 더 이상 안 쓰므로 다이어토닉 원폼으로 역전환
+        // (2026-10-01, 사용자 확정: 이론상 스케일 전환은 2마디뿐, 타겟코드는 원래 조성 그대로 사용).
+        transitionStage = 2;
+        _tutorialAnimatePairTransition(gsf, _reversePairRecipe(recipe));
+      }
+      const labelEl = labelsEl && labelsEl.querySelector('[data-idx="' + note.chordIdx + '"]');
+      if (labelEl) labelEl.classList.add('is-active');
+      const neckEl = document.getElementById('test-fb-full-neck');
+      const el = neckEl && _tutorialFindNoteEl(neckEl, note.s, note.absF);
+      if (el) {
+        // fillBlockInstant 팝인(1.5s)·전환 fade/slide(350ms) 등 남아있을 수 있는 트랜지션을
+        // 전부 무시하고 강제 즉시 스냅 — 강조는 언제나 애니메이션 없이 즉각 파랗게(2026-09-30, 사용자 확정)
+        el.classList.remove('fb-note--spawn', 'fb-note--spawn-in');
+        el.style.transition = 'none';
+        // 전환이 "다음 음 미리트리거"로 당겨진 뒤(2026-10-01), 마디 마지막 음이 하필 전환의
+        // 페이드 대상 dot과 겹치면 opacity가 이미 0으로 가는 중이라 강조(배경색만 바꿈)가 안 보임 —
+        // 강조하는 동안은 무조건 보이게 강제.
+        el.style.opacity   = '1';
+        el.style.transform = 'translate(-50%, -50%) scale(1)';
+        void el.offsetWidth;
+        el.classList.add('fb-note--playing');
+      }
+      playScaleNote(note.s, note.absF);
+      i++;
+      const isLast = i >= demo.notes.length;
+      const id = setTimeout(step, isLast ? SCALE_PLAY_NOTE_MS * 3 : SCALE_PLAY_NOTE_MS);
+      _tutorialTimers.push(id);
+    };
+    // 코드라벨(C/C7/F) 등장 애니메이션이 완전히 끝난 뒤에 시연 시작(2026-09-30, 사용자 확정)
+    if (labelsEl) {
+      labelsEl.innerHTML = demo.chords.map((c, idx) => `<span class="test-chord-label" data-idx="${idx}">${c}</span>`).join('');
+      labelsEl.classList.add('is-visible');
+      labelsEl.classList.remove('test-question--in');
+      void labelsEl.offsetWidth;
+      labelsEl.classList.add('test-question--in'); // 텍스트 등장과 동일 애니메이션 재사용
+      labelsEl.addEventListener('animationend', () => {
+        const id = setTimeout(step, TUTORIAL_NEXT_BTN_BUFFER_MS);
+        _tutorialTimers.push(id);
+      }, { once: true });
+    } else {
+      step();
+    }
   }
 }
 
