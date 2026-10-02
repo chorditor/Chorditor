@@ -86,7 +86,7 @@ Material 3 / iOS HIG 타입스케일 기반 6카테고리 12토큰, §4 5단계�
   한 번에 쓰려면 **`.type-*` 클래스**(예: `class="type-headline"`) 또는 CSS 두 줄
   `font: var(--type-body); letter-spacing: var(--tracking-base);`. 클래스 13개는 `--type-*`와 1:1.
 - 예외 크기·두께가 필요하면 단축 뒤에 해당 longhand만 덮어씀(예: `font: var(--type-title); font-weight: 700;`).
-- 적용 현황: `.page-title`·`.scale-chapter-title`·`.scale-chapter-subtitle`만 적용(§19-2). 나머지는 기존 `font-size: var(--font-*)` 방식 → 점진 전환.
+- 적용 현황: `.page-title`·`.scale-chapter-title`·`.scale-chapter-subtitle`·scale 카드 뱃지/이름만 적용(§19-2). 나머지는 기존 `font-size: var(--font-*)` 방식 → 점진 전환.
 
 ## 3. 여백(spacing) — 4px 배수
 
@@ -521,12 +521,12 @@ const FB_REF_FULL_W     = FB_REF_VIEWPORT_W * (TOTAL_FRETS / FRETS_VISIBLE);
     `(100cqw − 카드폭)/2 − gap`)로 캐러셀 중앙에 놓고, 스냅은 `scroll-snap-align:center`. JS(`_snapAnchor`·`_centerScrollLeft`)도
     같은 기준(캐러셀 중앙)이라 둘을 같이 바꿀 것.
   - **`.scale-item-list--hidden{display:none}`은 `.scale-item-list{display:flex}`보다 파일에서 뒤에 둘 것**(같은 우선순위라 나중 규칙이 이김).
-- 카드 내부 크기 단위 `--cs` = 카드폭 ÷ 287 → 카드가 커지면 내부도 같은 비율. 낮은 화면 특수 스코프 8곳은
-  `.scale-sticky-bar`·`.scale-chapter-header`·폰트 오버라이드(`.lw-badge`/`.lw-name`)를 조정 → `grep -n "^  \.scale-chapter-header {" style.css`.
+- 카드 내부 크기 단위 `--cs` = 카드폭 ÷ 287 → 카드가 커지면 내부도 같은 비율(§19-3). 낮은 화면 특수 스코프 8곳은
+  `.scale-sticky-bar`·`.scale-chapter-header`를 조정 → `grep -n "^  \.scale-chapter-header {" style.css`.
 
 ### 19-2. 남은 TODO (미정리)
 
-- **`--type-*` 적용 현황**: `.page-title`, `.scale-chapter-title`(headline-sm), `.scale-chapter-subtitle`(title)만. 나머지 약 70곳은 `font-size: var(--font-*)` 그대로.
+- **`--type-*` 적용 현황**: `.page-title`, `.scale-chapter-title`(headline-sm), `.scale-chapter-subtitle`(title), scale 카드 뱃지(label-sm)·이름(title)만. 나머지 약 70곳은 `font-size: var(--font-*)` 그대로.
 - **자간**: `--tracking-base`(-0.04em) 신규. 옛 `--tracking-tight/-tighter/-tightest`와 사용 4곳(style.css 943·1280·1530·1539줄) 미정리 — 정리하면 -2~-3% → -4%로 바뀜.
 - `--font-headline-sm` 사용 7곳이 `font-weight: 800` 리터럴(토큰 아님) — Headline=700과 불일치.
 - 여백 스케일(§3) 밖 값: 스티키바 하단 패딩 14 / 10 / 8px, `.st-track` `padding-bottom: 14px`(12 또는 16 권장).
@@ -534,18 +534,15 @@ const FB_REF_FULL_W     = FB_REF_VIEWPORT_W * (TOTAL_FRETS / FRETS_VISIBLE);
 - `.scale-chapter-label` CSS는 어디서도 안 씀(삭제 후보). `scale-training.html`의 캐러셀 내부 들여쓰기 미정리(약 1300줄).
 - 하단 안전영역: `.cd-main { padding-bottom: env(safe-area-inset-bottom) }`로 처리함(2026-10-02). 실기기(제스처바 있는 기기, Capacitor WebView가 env 값을 실제로 주는지)에서 카드 아래가 가려지지 않는지 확인 필요.
 - `.desktop-topbar` 처리 미정(§11-6). `scale-level.js` 481줄 주석이 삭제된 `사운드인식테스트.html`을 언급(동작 무관).
-- **동기화**: 이번 작업은 워크트리 → 루트 복사까지만 했음. `www/`와 `android/app/src/main/assets/public/`은 **미동기화**.
+- **동기화**: scale-training 작업은 커밋(`956b99a`) 후 `www/`·android assets·cap sync 3단계 동기화 완료(2026-10-02). 이후 수정분은 다시 동기화 필요.
 
-### 19-3. 다음 작업 — 카드 "내부" 디자인 튜닝 (카드 외형·배치는 확정)
+### 19-3. 카드 내부 디자인 — 완료 (2026-10-02)
 
-**확정(2026-10-02)**: 카드 높이=캐러셀 높이 80%(기준은 높이), 비율 1:1.6 고정, 위아래 여백 최소 24px, 카드 최소 높이 400px(폭 250px),
-카드는 캐러셀 중앙(규칙 3), 좁은 화면 옆 카드 40px 노출(`--sc-peek`). 중앙 카드 판별(`scale-item-card--selected`)과 0.88배 축소는
-`_updateCarouselScale`(JS)가 카드 1장 간격 기준으로 계산하고, **불투명도 흐림은 폐지**(그래서 "COMING SOON" 카드는 CSS `.scale-item-card--soon`의 0.42로 보임).
-
-**다음 작업 대상**: 카드 안쪽 — `.scale-item-card--template` 계열(`.lw-badge`, `.lw-name`, `.scale-card-header`, `.scale-card-shot`, 연습 버튼 등).
-내부 크기는 `--cs`(= 카드폭 ÷ 287) 배수라 카드 크기를 따라가는데, 낮은 화면 특수 스코프 8곳의 `.lw-badge`/`.lw-name` 폰트 오버라이드(12px, 16~24px 고정값)가
-카드 크기와 어긋날 수 있어 정리 대상. 폰트는 `--type-*` 토큰 전환(§2-2) 후보. 카드 폭이 250~(화면폭−112)px로 달라지므로 250px·최대 폭 양끝에서 확인할 것.
-기기 기준 뷰포트는 메모리 `mobile_viewport_reference` 참고.
+카드 외형·배치(위 19-1)와 내부 디자인 모두 확정. 내부 구조만 요약:
+- 위→아래: **헤더**(`.scale-card-header`: 레벨 뱃지 + 스케일 이름 + 구분선, 카드 패딩을 음수 마진으로 상쇄해 위·좌·우 끝에 붙음) → **지판+음이름 묶음**(`.scale-card-shot` + `.scale-card-notes`, 지판 `margin-top:auto`와 버튼 `margin-top:auto`가 남는 공간을 반씩 나눠 헤더 구분선~버튼 사이 정중앙) → **연습하기 버튼**(맨 아래).
+- 카드 패딩·간격은 `--cs` 배수(`--cs` = 카드폭 ÷ 287 → 카드가 커지면 내부도 같은 비율). 토큰은 `:root`에서 `--cs`를 못 쓰므로 규칙 안에서 `calc(N * var(--cs))`로 직접 씀.
+- 글자: 뱃지·이름은 `--type-*` 토큰(뱃지 `label-sm`, 이름 `title`), 음이름은 `--cs` 기반 직접 지정. 연습하기 버튼은 `.cd-btn` 토큰(§12, 아이콘은 `--cd-btn-icon-*`)을 참조.
+- 낮은 화면 특수 스코프 8곳의 카드 글자 오버라이드는 삭제함(토큰을 덮어쓰므로). 스코프는 이제 `.scale-sticky-bar`·`.scale-chapter-header`만 조정.
 
 **미정**: 넓은 화면에서 첫 카드를 그리드 좌측 컬럼에 맞추는 규칙(규칙 4)과 3↔4 전환 기준, 카드 최대 크기 상한(1920×1080 등 큰 화면에서 카드가 매우 커짐),
 모바일 카드 노출 폭 40px가 0.88배 축소 때문에 실제로 약 14px 덜 보이는 문제(축소 완화 여부).
