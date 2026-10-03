@@ -140,7 +140,7 @@ Material 3 / iOS HIG 타입스케일 기반 6카테고리 12토큰, §4 5단계�
 - `.app-shell`·`cd-topbar`·`cd-main` 박스는 항상 뷰포트 전체 폭. 캡은 박스가 아니라 **안쪽 패딩
   `--cd-inset`**(§11)으로 걸어 내용만 1440px 그리드 안에 가운데 정렬.
 - 캡 사용처: `--cd-inset`, `--grid-track`(`min(100vw, 1440px)` 기준), `--grid-container-max`,
-  `--grid-content-w`, `.top-bar`/`.scale-level-layout` `max-width`. 변수화 안 됨 — 바꿀 땐
+  `--grid-content-w`, `.top-bar` `max-width`. 변수화 안 됨 — 바꿀 땐
   style.css `1440px` 전수 grep 후 일괄 교체.
 
 ### 5-1. "그리드에 맞춰줘" 작업 순서
@@ -246,6 +246,40 @@ lucide 아이콘은 viewBox 안쪽에 획이 그려져 시각 중심이 살짝 �
 | `--cd-inset` | `max(var(--grid-margin), calc((100vw - 1440px) / 2 + var(--grid-margin)))` — 1440 이하 = 그리드 마진, 초과분은 좌우 균등 분배. `%`가 아니라 `vw`인 이유: 패딩과 자식 마진에서 기준이 달라지지 않게 |
 | 피크바 | 마크업 인라인 `margin-left:auto`로 우측 끝. 1600px~ 크기는 §7 |
 
+### 11-3a. `cd-main` 안쪽 — `cd-head` / `cd-body` (2026-10-03)
+
+`cd-main` 직속 자식 공통 구조. 타이틀+셀렉터 묶음(헤드)과 페이지 고유 콘텐츠(본문)를 나눔.
+
+```html
+<main class="cd-main">
+  <header class="cd-head">                 <!-- 스크롤 중 상단 고정이면 cd-head--sticky 추가 -->
+    <div class="cd-title">제목</div>
+    <div class="cd-selector">…</div>       <!-- 선택 요소(키 선택기, 챕터 점 등). 없으면 생략 -->
+  </header>
+  <section class="cd-body">…페이지 고유 콘텐츠…</section>
+</main>
+```
+
+| 요소 | 규격 |
+|---|---|
+| `cd-head` | `flex-shrink:0` + 세로 flex + `padding-top: var(--cd-head-pad)`(탑바↔타이틀) |
+| `cd-title` | `font: var(--type-headline-sm)` + `letter-spacing: var(--tracking-base)`, `align-self:flex-start` |
+| `cd-selector` | `margin-top: var(--cd-title-gap)`(타이틀↔셀렉터). 안쪽 배치는 페이지 고유 |
+| `cd-body` | `flex:1; min-height:0` + 세로 flex + `margin-top: var(--cd-head-gap)`(헤드↔본문) |
+| `cd-head--sticky` | `position:sticky; top:0; z-index:5` + `margin-inline: calc(var(--cd-inset) * -1)` + `padding-inline: var(--cd-inset)` + 배경 `var(--bg-primary, #fff)` (배경·구분선 풀블리드, 내용은 그리드 안) |
+
+간격 토큰 (`:root`, 5단계 중 3구간만 분기):
+
+| 토큰 | 의미 | 모바일 | 481px~ | 769px~ |
+|---|---|---|---|---|
+| `--cd-head-pad` | 탑바 ↔ 타이틀 | 16px | 20px | 24px |
+| `--cd-title-gap` | 타이틀 ↔ 셀렉터 | 16px | 16px | 20px |
+| `--cd-head-gap` | 헤드 ↔ 본문 | 24px | 24px | 32px |
+
+- 간격 규칙(아래 요소 `margin-top` 한 곳)은 §19-1과 동일. 탑바↔타이틀만 `cd-head` 상단 패딩.
+- 간격은 토큰만 사용. 페이지별 간격 오버라이드 금지(공통 토큰을 바꿔서 전 페이지 일괄 적용).
+- 본문이 `min-height`로 커지면 `cd-main`이 스크롤(예: scale-training `.cd-body{min-height:auto}`).
+
 ### 11-4. 규칙
 
 - 뼈대 CSS는 "페이지 셸" 섹션 한 곳에만. 페이지별 구역에 뼈대 규칙 금지.
@@ -253,10 +287,10 @@ lucide 아이콘은 viewBox 안쪽에 획이 그려져 시각 중심이 살짝 �
   새 변종은 수식어 추가 후 여기 등록.
 - 피크바 유무는 마크업으로 결정(필요한 페이지만 넣음, CSS로 숨기지 않음).
 - **불필요한 wrapper 금지.** 뼈대 바로 안에 내용물. 레이아웃 목적만의 중간 div(`.main-content`/
-  `.xxx-scroll` 류) 금지. wrapper는 내용상 묶음일 때만(예: 같이 sticky되는 `.scale-sticky-bar`).
+  `.xxx-scroll` 류) 금지. wrapper는 내용상 묶음일 때만(예: 같이 sticky되는 `cd-head--sticky`).
 - 내용물은 페이지 고유 클래스 유지, 자기 좌우 마진 없음(이중 인셋 방지).
 - 뷰포트 끝까지 닿아야 하는 풀블리드 요소(구분선, 바 배경, 캐러셀)는 `margin-inline: calc(var(--cd-inset) * -1)`로
-  `cd-main` 패딩 상쇄 (예: `.scale-sticky-bar`, `.st-track`, `.scale-item-list`). 안쪽 패딩도
+  `cd-main` 패딩 상쇄 (예: `.cd-head--sticky`, `.st-track`, `.scale-item-list`). 안쪽 패딩도
   `--cd-inset`으로 되돌려 내용은 그리드 안에 유지.
 - 하단 안전영역(`safe-area-inset-bottom`)은 `cd-main`이 `padding-bottom`으로 전담. **이전하는 페이지가 안쪽 요소에서 이미 같은 값을 쓰고 있으면 이중 적용 → 이전 시 안쪽 값을 뺄 것.**
 - **새 페이지는 반드시 `cd-*` 뼈대** → 그리드 마진·캡·중앙정렬 자동. 컬럼 배치(col2~11 등)는 콘텐츠별 판단.
@@ -268,8 +302,8 @@ lucide 아이콘은 viewBox 안쪽에 획이 그려져 시각 중심이 살짝 �
 
 | 페이지 | 상태 |
 |---|---|
-| `scale-training.html` | ✅ 완료(2026-10-02), 구조는 §19-1 |
-| `scale-level.html` | ✅ 뼈대 이식(2026-10-02) — 안쪽 `.scale-level-layout` 래퍼는 space-between 배치 때문에 유지 |
+| `scale-training.html` | ✅ 완료(2026-10-02), `cd-head--sticky`/`cd-body` 이식(2026-10-03), 구조는 §19-1 |
+| `scale-level.html` | ✅ 뼈대 + `cd-head`/`cd-body` 이식(2026-10-03) — `.scale-level-layout` 제거됨. `.scale-level-main .cd-*` 오버라이드가 style.css에 남아 있음(정리 대상) |
 | 그 외 서브페이지 12개 / `home.html` | 미착수 |
 
 ### 11-6. 미정
@@ -496,22 +530,26 @@ const FB_REF_FULL_W     = FB_REF_VIEWPORT_W * (TOTAL_FRETS / FRETS_VISIBLE);
   - 텍스트: `animationend` 이벤트 청취.
   - 액션: `(개수-1) × stepMs + TUTORIAL_DOT_FADE_MS(0.2s)` + 버퍼.
 
-## 19. 작업 인수인계 (2026-10-02, scale-training 파일럿 완료 기준)
+## 19. 작업 인수인계 (2026-10-02 scale-training 파일럿, 2026-10-03 cd-head/cd-body 이식 반영)
 
-### 19-1. scale-training.html 구조 — `cd-main` 직속 자식(위→아래)
+### 19-1. scale-training.html 구조 — `cd-main` 안쪽(위→아래, 공통 구조는 §11-3a)
 
 ```
-.scale-sticky-bar        타이틀(.page-title) + .st-track(점 4개). sticky, 풀블리드(margin -cd-inset)
-.scale-chapter-header    "Ch. N" + 부제. 1개, 스크롤됨. 글자는 JS가 교체
-.scale-item-list #ch-1~4 캐러셀 4개. 처음에 전부 DOM에 있고 선택 챕터만 표시(나머지 --hidden)
+header.cd-head.cd-head--sticky   스티키, 풀블리드
+  ├─ .cd-title                   "스케일 훈련"
+  └─ .cd-selector.st-track       챕터 점 4개
+section.cd-body                  (.scale-training-main .cd-body { min-height:auto })
+  ├─ .scale-chapter-header       "Ch. N" + 부제. 1개, 스크롤됨. 글자는 JS가 교체
+  └─ .scale-item-list #ch-1~4    캐러셀 4개. 처음에 전부 DOM에 있고 선택 챕터만 표시(나머지 --hidden)
 ```
 
 - 챕터 이름은 각 캐러셀의 `data-title`/`data-subtitle`. `_showChapter(n)`(scale-training.js) = 점 활성 + 캐러셀 표시/숨김 + 헤더 글자 교체.
   점 클릭(`onChapterTabTap`)과 복귀 복원(`restoreLastPosition`)이 공용으로 호출.
-- **간격 규칙: 형제 사이 간격은 한쪽(아래 요소의 `margin-top`)에만.** 스티키바↔헤더 = 헤더 `margin-top`
-  (기본 40 / 낮은 화면 설정 32·28, 스티키바 아래 마진 없음). 헤더↔캐러셀 = 간격 없음(카드는 남은 공간 정중앙).
+- **간격 규칙: 형제 사이 간격은 한쪽(아래 요소의 `margin-top`)에만.** 탑바↔타이틀 = `--cd-head-pad`,
+  타이틀↔점 = `--cd-title-gap`, 헤드↔본문(챕터 헤더) = `--cd-head-gap`(전부 §11-3a 토큰, 페이지별 오버라이드 없음).
+  챕터 헤더↔캐러셀 = 간격 없음(카드는 남은 공간 정중앙).
 - 캐러셀(`.scale-item-list`) 핵심 — **카드 크기는 캐러셀 "높이"가 결정**:
-  - `flex: 1 1 0` + `container-type: size` — 헤더 아래 남은 세로 공간을 전부 차지(높이 확정)하고, 자식(카드·스페이서)이
+  - `flex: 1 1 0` + `container-type: size` — `cd-body` 안에서 챕터 헤더 아래 남은 세로 공간을 전부 차지(높이 확정)하고, 자식(카드·스페이서)이
     `cqh`/`cqw`로 캐러셀 크기를 직접 참조. 카드는 `align-items:center`로 그 안에서 세로 정중앙. 상하 마진·패딩 0
     (상하 패딩이 비대칭이면 카드가 중앙에서 벗어남). 캐러셀 자기 자신의 속성(padding 등)에는 `cqh`를 못 씀.
   - 카드 높이 `--sc-card-h` = `max(400px, min(80cqh, 100cqh − 48px, (100cqw − 2×(gap+peek))×1.6))` — 캐러셀 높이의 80%,
@@ -523,15 +561,15 @@ const FB_REF_FULL_W     = FB_REF_VIEWPORT_W * (TOTAL_FRETS / FRETS_VISIBLE);
     `(100cqw − 카드폭)/2 − gap`)로 캐러셀 중앙에 놓고, 스냅은 `scroll-snap-align:center`. JS(`_snapAnchor`·`_centerScrollLeft`)도
     같은 기준(캐러셀 중앙)이라 둘을 같이 바꿀 것.
   - **`.scale-item-list--hidden{display:none}`은 `.scale-item-list{display:flex}`보다 파일에서 뒤에 둘 것**(같은 우선순위라 나중 규칙이 이김).
-- 카드 내부 크기 단위 `--cs` = 카드폭 ÷ 287 → 카드가 커지면 내부도 같은 비율(§19-3). 낮은 화면 특수 스코프 8곳은
-  `.scale-sticky-bar`·`.scale-chapter-header`를 조정 → `grep -n "^  \.scale-chapter-header {" style.css`.
+- 카드 내부 크기 단위 `--cs` = 카드폭 ÷ 287 → 카드가 커지면 내부도 같은 비율(§19-3).
+  낮은 화면 특수 스코프(스티키바·챕터 헤더 간격 조정)는 cd-head/cd-body 이식 때 삭제됨 — 간격은 공통 토큰만 사용.
 
 ### 19-2. 남은 TODO (미정리)
 
-- **`--type-*` 적용 현황**: `.page-title`, `.scale-chapter-title`(headline-sm), `.scale-chapter-subtitle`(title), scale 카드 뱃지(label-sm)·이름(title)만. 나머지 약 70곳은 `font-size: var(--font-*)` 그대로.
+- **`--type-*` 적용 현황**: `.cd-title`·`.page-title`, `.scale-chapter-title`(headline-sm), `.scale-chapter-subtitle`(title), scale 카드 뱃지(label-sm)·이름(title)만. 나머지 약 70곳은 `font-size: var(--font-*)` 그대로.
 - **자간**: `--tracking-base`(-0.04em) 신규. 옛 `--tracking-tight/-tighter/-tightest`와 사용 4곳(style.css 943·1280·1530·1539줄) 미정리 — 정리하면 -2~-3% → -4%로 바뀜.
 - `--font-headline-sm` 사용 7곳이 `font-weight: 800` 리터럴(토큰 아님) — Headline=700과 불일치.
-- 여백 스케일(§3) 밖 값: 스티키바 하단 패딩 14 / 10 / 8px, `.st-track` `padding-bottom: 14px`(12 또는 16 권장).
+- 여백 스케일(§3) 밖 값: `.st-track` `padding-bottom: 14px`(12 또는 16 권장).
 - 컴포넌트 폰트 비토큰: `--cd-btn-font-size` 15px(§6 홀수 위반), `.cd-modal` 제목 17px/두께 800(두께 토큰에 800 없음, §15).
 - `.scale-chapter-label` CSS는 어디서도 안 씀(삭제 후보). `scale-training.html`의 캐러셀 내부 들여쓰기 미정리(약 1300줄).
 - 하단 안전영역: `.cd-main { padding-bottom: env(safe-area-inset-bottom) }`로 처리함(2026-10-02). 실기기(제스처바 있는 기기, Capacitor WebView가 env 값을 실제로 주는지)에서 카드 아래가 가려지지 않는지 확인 필요.
@@ -544,7 +582,7 @@ const FB_REF_FULL_W     = FB_REF_VIEWPORT_W * (TOTAL_FRETS / FRETS_VISIBLE);
 - 위→아래: **헤더**(`.scale-card-header`: 레벨 뱃지 + 스케일 이름 + 구분선, 카드 패딩을 음수 마진으로 상쇄해 위·좌·우 끝에 붙음) → **지판+음이름 묶음**(`.scale-card-shot` + `.scale-card-notes`, 지판 `margin-top:auto`와 버튼 `margin-top:auto`가 남는 공간을 반씩 나눠 헤더 구분선~버튼 사이 정중앙) → **연습하기 버튼**(맨 아래).
 - 카드 패딩·간격은 `--cs` 배수(`--cs` = 카드폭 ÷ 287 → 카드가 커지면 내부도 같은 비율). 토큰은 `:root`에서 `--cs`를 못 쓰므로 규칙 안에서 `calc(N * var(--cs))`로 직접 씀.
 - 글자: 뱃지·이름은 `--type-*` 토큰(뱃지 `label-sm`, 이름 `title`), 음이름은 `--cs` 기반 직접 지정. 연습하기 버튼은 `.cd-btn` 토큰(§12, 아이콘은 `--cd-btn-icon-*`)을 참조.
-- 낮은 화면 특수 스코프 8곳의 카드 글자 오버라이드는 삭제함(토큰을 덮어쓰므로). 스코프는 이제 `.scale-sticky-bar`·`.scale-chapter-header`만 조정.
+- 낮은 화면 특수 스코프의 카드 글자 오버라이드는 삭제함(토큰을 덮어쓰므로). 스코프 자체도 cd-head/cd-body 이식으로 모두 제거됨.
 
 **미정**: 넓은 화면에서 첫 카드를 그리드 좌측 컬럼에 맞추는 규칙(규칙 4)과 3↔4 전환 기준, 카드 최대 크기 상한(1920×1080 등 큰 화면에서 카드가 매우 커짐),
 모바일 카드 노출 폭 40px가 0.88배 축소 때문에 실제로 약 14px 덜 보이는 문제(축소 완화 여부).
