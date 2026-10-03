@@ -657,8 +657,8 @@ function togglePracticeMenu(e, kind) {
 }
 
 function initPracticeMode() {
-  document.getElementById('scale-mic-btn')?.addEventListener('pointerup', togglePracticeMode);
-  document.getElementById('practice-play-btn')?.addEventListener('pointerup', togglePracticePlay);
+  document.getElementById('scale-mic-btn')?.addEventListener('pointerup', () => { _playConfirmSfx(); togglePracticeMode(); });
+  document.getElementById('practice-play-btn')?.addEventListener('pointerup', () => { _playConfirmSfx(); togglePracticePlay(); });
   document.getElementById('practice-bpm-card')?.addEventListener('pointerup', (e) => togglePracticeMenu(e, 'bpm'));
   document.getElementById('practice-style-card')?.addEventListener('pointerup', (e) => togglePracticeMenu(e, 'style'));
   document.addEventListener('pointerup', closePracticeMenus); // 바깥 탭하면 드롭업 닫기
@@ -1853,9 +1853,34 @@ function _transitionPairV() {
   }
 }
 
+// ── 연습 입장 언락 (scale-training '연습하기'에서 피크 5개 소모 후 sessionStorage에 저장) ──
+// 새로고침은 이탈이 아니라 유지, 뒤로가기로 나가면 해제(다시 들어오려면 피크 재소모).
+// 저장소를 못 쓰는 환경(예외)에서는 입장을 막지 않음 — 막으면 연습하기↔리다이렉트 무한 반복.
+function _scaleUnlockKey() { return `scale_unlock_${_scaleKey}_${_scaleLevel}`; }
+function _isScaleUnlocked() {
+  try { return sessionStorage.getItem(_scaleUnlockKey()) === '1'; } catch (e) { return true; }
+}
+function _clearScaleUnlock() {
+  try { sessionStorage.removeItem(_scaleUnlockKey()); } catch (e) {}
+}
+
+// 뒤로가기(탑바·Android·브라우저 제스처 전부 여기로 옴) — 나가면 피크가 다시 필요하므로 한 번 확인
 async function closeScaleLevel() {
   _playTap();
+  if (isLeavePracticeOpen()) return;
+  const peakAtStake = getPlan() !== 'pro'; // Pro는 피크를 안 쓰므로 "피크 다시 필요" 경고 불필요
+  if (_tutorialMode) {
+    // 모달이 연달아 두 번 뜨지 않게 하나로: 피크 경고(기본 문구) 우선, Pro면 튜토리얼 문구
+    showLeavePracticeModal(() => { _tutorialAbort(); _leaveScaleLevel(); }, peakAtStake ? undefined : _TUTORIAL_LEAVE_OPTS);
+    return;
+  }
+  if (peakAtStake) { showLeavePracticeModal(_leaveScaleLevel); return; }
+  _leaveScaleLevel();
+}
+
+async function _leaveScaleLevel() {
   exitPracticeMode();
+  _clearScaleUnlock();
   _recordScaleSessionTime();
   await GuitarAudio.stop({ wait: true });
   const shell = document.querySelector('.app-shell');
@@ -2559,8 +2584,6 @@ function checkAnswer() {
   // 버튼 상태 갱신 + 뒤로가기 표시
   const label = document.getElementById('test-submit-btn-label');
   if (label) label.textContent = '다시 풀기';
-  const retryCost = document.getElementById('test-retry-peak-cost');
-  if (retryCost) retryCost.style.display = '';
   document.getElementById('test-back-btn')?.classList.add('is-visible');
 }
 
@@ -3256,11 +3279,48 @@ function openTutorial() {
 
 function closeTutorial() {
   _tutorialMode = false;
+  _tutorialStepIdx = 0;
   _tutorialDotClickEnabled = false;
   _tutorialClearTimers();
   GuitarAudio.stop();
   GuitarAudio.stopPiano();
   document.getElementById('scale-test-overlay')?.classList.remove('is-open', 'scale-test-overlay--tutorial', 'scale-test-overlay--form-nav', 'scale-test-overlay--arrows-in');
+}
+
+// 튜토리얼 이탈 확인 모달(X 버튼·뒤로가기) — 확인(그만할래요) 시 _tutorialAbort 후 onLeave 실행.
+// 모달이 떠 있는 동안 튜토리얼은 계속 진행(2026-10-03 사용자 확정). 이미 열려 있으면 무시.
+const _TUTORIAL_LEAVE_OPTS = {
+  title: '튜토리얼을 그만두시겠어요?',
+  desc:  '지금 나가면 튜토리얼을<br>처음부터 다시 봐야 해요.',
+};
+function _requestTutorialExit(onLeave) {
+  if (isLeavePracticeOpen()) return;
+  showLeavePracticeModal(() => { _tutorialAbort(); onLeave(); }, _TUTORIAL_LEAVE_OPTS);
+}
+
+// 튜토리얼 이탈(pagehide·앱 전환 = 확인 없이 / X 버튼·뒤로가기 = 확인 후) 전용 즉각 중단 — 정상 종료(closeTutorial: 마지막 소리 페이드 유지)와 구분.
+// 사운드 하드컷 + 텍스트/그리드/코드라벨 즉시 비움 + 남아있는 animationend/transitionend 리스너 제거 + 진행 상태 초기화.
+function _tutorialAbort() {
+  if (!_tutorialMode) return;
+  closeTutorial(); // 모드 플래그·타이머·오버레이 클래스·소프트 stop
+  GuitarAudio.panic();      // 기타: 출력 그래프 즉시 절단(예약된 소리까지 폐기)
+  GuitarAudio.resetPiano(); // 피아노 백킹: 샘플러 폐기(release 꼬리·예약 코드 제거)
+
+  // 텍스트·그리드·코드라벨: 내용/클래스/인라인 스타일을 비우고 요소를 복제본으로 교체 —
+  // 취소된 애니메이션 때문에 영영 안 올 animationend 리스너가 다음 튜토리얼 때 늦게 발화하는 것 방지
+  ['test-question-text', 'test-note-grid', 'test-chord-labels'].forEach(id => {
+    const el = document.getElementById(id);
+    if (!el) return;
+    const fresh = el.cloneNode(false);
+    fresh.classList.remove('test-question--in', 'is-visible');
+    fresh.style.display = '';
+    fresh.textContent = '';
+    el.replaceWith(fresh);
+  });
+
+  _tutorialFormNavLocked = false;
+  _tutorialCharNoteRevealed = false;
+  document.getElementById('scale-test-overlay')?.classList.remove('scale-test-overlay--nav-locked');
 }
 
 // texts[] 자동 순차재생 — 문구 하나 보여주고 등장애니메이션 끝나면 읽는시간(TUTORIAL_TEXT_SEQUENCE_PAUSE_MS)
@@ -3272,6 +3332,7 @@ function _tutorialShowTextSequence(texts, idx, qEl, onDone) {
   void qEl.offsetWidth;
   qEl.classList.add('test-question--in');
   qEl.addEventListener('animationend', () => {
+    if (!_tutorialMode) return; // 이탈로 튜토리얼이 초기화된 뒤에 늦게 도착한 애니메이션 종료는 무시
     if (idx < texts.length - 1) {
       const id = setTimeout(() => _tutorialShowTextSequence(texts, idx + 1, qEl, onDone), TUTORIAL_TEXT_SEQUENCE_PAUSE_MS);
       _tutorialTimers.push(id);
@@ -3354,6 +3415,9 @@ function showTutorialStep(idx) {
 }
 
 function advanceTutorialStep() {
+  // 다음 버튼 → 재생 중이던 소리(기타 울림·피아노 백킹)를 짧은 페이드(60ms)로 끊고 진행
+  GuitarAudio.stop();
+  GuitarAudio.fadeOutPiano();
   const nextIdx = _tutorialStepIdx + 1;
   if (nextIdx >= TUTORIAL_STEPS.length) { closeTutorial(); return; }
   showTutorialStep(nextIdx);
@@ -3543,7 +3607,7 @@ function _tutorialAnimatePairTransition(gsf, { fades, slides, spawns }) {
     }
   }));
 
-  setTimeout(() => {
+  const tailId = setTimeout(() => {
     // 위치(fades 레시피)로만 판정 — opacity===0 조건을 같이 걸면, 전환이 "다음 음 미리트리거"로
     // 당겨진 뒤(2026-10-01) 그 fade 대상 dot이 하필 "현재 재생 중인 마지막 음"과 겹칠 때 강조코드가
     // opacity를 1로 되돌려놔서 여기서 영영 제거를 못 하는 경우가 생김 — 위치만으로 판정하면 안전.
@@ -3574,6 +3638,7 @@ function _tutorialAnimatePairTransition(gsf, { fades, slides, spawns }) {
       newEl.addEventListener('transitionend', () => { newEl.style.transition = ''; }, { once: true });
     });
   }, DURATION + 60);
+  _tutorialTimers.push(tailId); // 이탈 시 취소 대상에 포함 — 안 그러면 이탈 후에도 spawn dot이 추가됨
 }
 
 // 레벨별 전환 레시피 — 실제 transitionPair()의 bi=0 정방향 분기(fade/slide/spawn 대상)에서 그대로
@@ -3904,8 +3969,6 @@ function startTest() {
   }
   const submitLabel = document.getElementById('test-submit-btn-label');
   if (submitLabel) submitLabel.textContent = '제출하기';
-  const retryCostReset = document.getElementById('test-retry-peak-cost');
-  if (retryCostReset) retryCostReset.style.display = 'none';
   document.getElementById('test-back-btn')?.classList.remove('is-visible');
 
   // 질문 텍스트 초기화 (애니메이션 이후 바뀌도록 숨김)
@@ -5142,6 +5205,11 @@ document.addEventListener('DOMContentLoaded', () => {
   const params = new URLSearchParams(location.search);
   _scaleKey = params.get('key') || 'major';
   _scaleLevel = parseInt(params.get('level'), 10) || 0;
+  // 연습하기(피크 소모)를 거치지 않은 진입(주소 직접 입력·오래된 북마크 등)은 목록으로 돌려보냄 — 해당 카드가 선택된 채로
+  if (!_isScaleUnlocked()) {
+    location.replace(`scale-training.html?key=${encodeURIComponent(_scaleKey)}` + (_scaleLevel ? `&level=${_scaleLevel}` : ''));
+    return;
+  }
   _keyUi = LEVEL_KEY_UI[_scaleLevel] || null;
   if (_keyUi) _rootNote = _keyUi.root; // 레벨별 진입 시 기본 키
   _navIdx = defaultNavIdx();           // 진입 시 기본 폼 = 2~6프랫 폼
@@ -5189,20 +5257,22 @@ renderFullNeck();
   // 기타 버튼 — 연습모드(BPM·스타일 옵션 + 백킹 재생)
   initPracticeMode();
   // 재생 버튼 — 현재 블럭 낮은음→높은음→낮은음(+근음 재상행) 재생
-  document.getElementById('scale-play-btn')?.addEventListener('pointerup', toggleScalePlay);
+  document.getElementById('scale-play-btn')?.addEventListener('pointerup', () => { _playConfirmSfx(); toggleScalePlay(); });
   // "?" 버튼 — 튜토리얼 다시보기 (2026-09-25: 기타 버튼과 분리해서 별도 3번째 버튼으로)
-  document.getElementById('scale-tutorial-btn')?.addEventListener('pointerup', openTutorial);
+  document.getElementById('scale-tutorial-btn')?.addEventListener('pointerup', () => { _playConfirmSfx(); openTutorial(); });
+  // 튜토리얼 중 페이지 이탈/백그라운드 전환 시 무조건 초기화(자동재생 소리·타이머 정리)
+  document.addEventListener('visibilitychange', () => {
+    if (!document.hidden || !_tutorialMode) return;
+    hideLeavePracticeModal(); // 확인 모달이 떠 있었다면 같이 닫음 — 튜토리얼이 이미 초기화돼 의미 없음
+    _tutorialAbort();
+  });
+  window.addEventListener('pagehide', _tutorialAbort);
 
-  // 테스트 시작 버튼 (피크 2개 소모)
-  document.getElementById('start-test-btn')?.addEventListener('pointerup', async () => {
+  // 테스트 시작 버튼 (피크 소모 없음 — 연습 입장 시 5개 소모로 포함)
+  document.getElementById('start-test-btn')?.addEventListener('pointerup', () => {
     _playTap();
     _playConfirmSfx();
-    if (!(await consumePeak(2, 'scale'))) return;
     exitPracticeMode(); // 백킹 재생 중이면 테스트 시작 전에 종료
-    analytics.track('scale_test_started', {
-      scale_key: _scaleKey,
-      root_name: (_useFlat ? KEY_NAMES_FLAT : KEY_NAMES)[_rootNote],
-    });
     analytics.track('scale_test_started', {
       scale_key: _scaleKey,
       root_name: (_useFlat ? KEY_NAMES_FLAT : KEY_NAMES)[_rootNote],
@@ -5211,12 +5281,11 @@ renderFullNeck();
   });
 
   // 제출하기 / 다시 풀기 버튼
-  document.getElementById('test-submit-btn')?.addEventListener('pointerup', async (e) => {
+  document.getElementById('test-submit-btn')?.addEventListener('pointerup', (e) => {
     if (e.currentTarget.disabled) return;
     if (_tutorialMode) { _playTap(); advanceTutorialStep(); return; }
     if (_testSubmitted) {
       _playConfirmSfx();
-      if (!(await consumePeak(2, 'scale'))) return;
       analytics.track('scale_test_retry', {
         scale_key: _scaleKey,
         root_name: (_useFlat ? KEY_NAMES_FLAT : KEY_NAMES)[_rootNote],
@@ -5249,7 +5318,7 @@ renderFullNeck();
 
   document.getElementById('test-close-btn')?.addEventListener('pointerup', () => {
     // 튜토리얼은 피크 소모가 없어서 "제출 전 이탈 확인" 모달 자체가 불필요 — 바로 닫음
-    if (_tutorialMode) { closeTutorial(); return; }
+    if (_tutorialMode) { _requestTutorialExit(() => {}); return; } // 확인 후 _tutorialAbort가 오버레이까지 닫음
     requestCloseTest(closeTestOverlay);
   });
   // 튜토리얼 5폼 네비게이션 화살표 — formNav 단계에서만 노출(CSS), 유저가 직접 조작(2026-09-27)

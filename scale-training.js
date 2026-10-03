@@ -136,13 +136,29 @@ function renderScaleCardNotes() {
   });
 }
 
-// ── 연습하기 버튼 → 레벨 진입 (피크 소모 없음, pop 사운드) ──────
-function onScalePracticeTap(btn) {
+// ── 연습하기 버튼 → 피크 5개 소모 후 레벨 진입 (pop 사운드) ──────
+// 소모 성공 직후 sessionStorage 언락을 저장하고 이동 — 이동이 실패해 다시 눌러도 언락이 있으면 재차감 안 함.
+// scale-level은 이 언락이 없으면 이 페이지로 되돌려보냄(연습하기 우회 진입 차단), 뒤로가기로 나가면 해제됨.
+const SCALE_PRACTICE_PEAK_COST = 5;
+let _practiceEntering = false; // 소모 처리 중 연타로 이중 차감되는 것 방지
+async function onScalePracticeTap(btn) {
   _playConfirmSfx();
+  if (_practiceEntering) return;
   const card  = btn.closest('.scale-item-card');
   if (!card) return;
   const key   = card.dataset.key;
   const level = parseInt(card.dataset.level, 10);
+
+  const unlockKey = `scale_unlock_${key}_${level}`;
+  let unlocked = false;
+  try { unlocked = sessionStorage.getItem(unlockKey) === '1'; } catch (e) {}
+  if (!unlocked) {
+    _practiceEntering = true;
+    let ok = false;
+    try { ok = await consumePeak(SCALE_PRACTICE_PEAK_COST, 'scale'); } finally { _practiceEntering = false; }
+    if (!ok) return; // 피크 부족 — consumePeak이 충전 모달을 띄움
+    try { sessionStorage.setItem(unlockKey, '1'); } catch (e) {}
+  }
 
   // 복귀 시 이 위치(챕터+레벨)로 되돌아오도록 저장
   const chapterEl = card.closest('.scale-item-list[id^="ch-"]');
@@ -303,9 +319,22 @@ function initCarousels() {
 }
 
 // ── 복귀 시 마지막 진입 위치(챕터+레벨) 복원 ──────────────────
+// 딥링크(?key=…[&level=…], 푸시 알림·scale-level 직접 진입 되돌림)가 있으면 그 카드가 우선 — 키는 카드마다 유일
+function _deepLinkPosition() {
+  const params = new URLSearchParams(location.search);
+  const key = params.get('key');
+  if (!key) return null;
+  const card = document.querySelector(`.scale-item-card[data-key="${CSS.escape(key)}"]`);
+  const list = card && card.closest('.scale-item-list[id^="ch-"]');
+  if (!list) return null;
+  return { chapter: parseInt(list.id.replace('ch-', ''), 10), level: parseInt(card.dataset.level, 10) };
+}
+
 function restoreLastPosition() {
-  let st = null;
-  try { st = JSON.parse(sessionStorage.getItem('scaleReturnState')); } catch (e) {}
+  let st = _deepLinkPosition();
+  if (!st) {
+    try { st = JSON.parse(sessionStorage.getItem('scaleReturnState')); } catch (e) {}
+  }
   if (!st || !st.chapter) return;
   const list = _showChapter(st.chapter);
   if (list) {

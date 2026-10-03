@@ -402,6 +402,14 @@ const GuitarAudio = (() => {
     _pianoPending = [];
     _initPiano(); // 다음 재생 대비 미리 로드
   }
+  // 짧은 페이드로 끄고(기본 60ms, 기타 stop()과 동일) 샘플러를 폐기·재초기화 — 정상 진행 중 소리를 끊을 때
+  // (resetPiano는 하드컷이라 뚝 끊김, stopPiano는 release 1s 꼬리가 남음). 페이드 도중 resetPiano가 따로 불리면 gen이 달라 건너뜀.
+  function fadeOutPiano(seconds = 0.06) {
+    if (!_pianoSynth || !_pianoGain) return;
+    const gen = _pianoGen;
+    try { _pianoGain.gain.rampTo(0, seconds); } catch (e) {}
+    setTimeout(() => { if (gen === _pianoGen) resetPiano(); }, seconds * 1000 + 20);
+  }
   // CDN 샘플 로딩을 미리 시작 — playPianoChord() 첫 호출 시점에 로딩 지연으로 백킹이
   // 늦게 울리는 문제 방지(호출부에서 데모 시작 전 미리 불러둠)
   function warmupPiano() {
@@ -409,5 +417,5 @@ const GuitarAudio = (() => {
     _initPiano();
   }
 
-  return { playChord, strumNotes, strumAt, strumAtCut, cutAt, playNote, stop, panic, ready, resume, syncContext, setOutputVolume, STRUM_INTERVAL_SAMPLE, playPianoChord, pianoReady, stopPiano, resetPiano, warmupPiano };
+  return { playChord, strumNotes, strumAt, strumAtCut, cutAt, playNote, stop, panic, ready, resume, syncContext, setOutputVolume, STRUM_INTERVAL_SAMPLE, playPianoChord, pianoReady, stopPiano, resetPiano, fadeOutPiano, warmupPiano };
 })();

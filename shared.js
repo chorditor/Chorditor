@@ -4825,7 +4825,7 @@ function initPushNotifications() {
       go('chord-name-quiz.html?level=' + encodeURIComponent(data.quizLevel));
     } else if (data.scaleKey != null) {
       setEntry('scale');
-      go('scale-level.html?key=' + encodeURIComponent(data.scaleKey));
+      go('scale-training.html?key=' + encodeURIComponent(data.scaleKey)); // 연습하기(피크 소모)를 거치도록 목록에서 해당 카드 선택된 채로 열림
     } else if (data.strumId != null) {
       setEntry('strum');
       go('strum-play.html?id=' + encodeURIComponent(data.strumId));
