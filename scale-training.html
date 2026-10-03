@@ -34,18 +34,21 @@
     </header>
 
     <!-- ── 메인 (style-guide.md §11 cd-main) ── -->
-    <main class="cd-main">
+    <main class="cd-main scale-training-main">
 
-        <!-- 상단 스티키 바 -->
-        <div class="scale-sticky-bar">
-          <div class="page-title">스케일 훈련</div>
-          <div class="st-track">
+      <!-- 헤드(스티키): 타이틀 + 챕터 점 트랙 -->
+      <header class="cd-head cd-head--sticky">
+          <div class="cd-title">스케일 훈련</div>
+          <div class="cd-selector st-track">
             <div class="st-dot active" data-chapter="1" onpointerup="onChapterTabTap(this)">1</div>
             <div class="st-dot" data-chapter="2" onpointerup="onChapterTabTap(this)">2</div>
             <div class="st-dot" data-chapter="3" onpointerup="onChapterTabTap(this)">3</div>
             <div class="st-dot" data-chapter="4" onpointerup="onChapterTabTap(this)">4</div>
           </div>
-        </div>
+      </header>
+
+      <!-- 본문: 챕터 헤더 + 챕터별 캐러셀 -->
+      <section class="cd-body">
 
         <!-- 챕터 헤더: 챕터 점을 누르면 JS가 선택 챕터의 data-title/data-subtitle로 글자 교체 -->
         <div class="scale-chapter-header">
@@ -1422,6 +1425,8 @@
             </div>
 
           </div><!-- /scale-item-list -->
+
+      </section><!-- /cd-body -->
 
     </main><!-- /cd-main -->
 

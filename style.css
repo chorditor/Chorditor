@@ -14278,19 +14278,13 @@ canvas {
 ?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═??*/
 
 /* 스크롤·좌우 그리드마진·1440 캡·세로배치는 뼈대(.cd-main, 파일 끝 페이지 셸 섹션)가 전담 */
-.scale-sticky-bar {
-  position: sticky;
-  top: 0;
-  z-index: 5;
-  margin: 0 calc(var(--cd-inset) * -1); /* 좌우: .cd-main 패딩 상쇄(풀블리드 배경). 아래 간격은 .scale-chapter-header margin-top이 담당 */
-  padding: 20px var(--cd-inset) 14px;
-  background: var(--bg-primary, #fff);
-}
+/* 스크롤 컨테이너 안쪽 간격은 cd-head/cd-body 토큰이 담당(.cd-head--sticky = 풀블리드 스티키 헤드) */
+.scale-training-main .cd-body { min-height: auto; } /* 캐러셀 min-height(448px)만큼 본문이 커지고 .cd-main이 스크롤 */
 
 .st-track {
   display: flex;
   justify-content: space-between; /* 첫/끝 점이 그리드 양끝, 나머지 균등 배치 */
-  margin: 16px calc(var(--cd-inset) * -1) 0; /* 구분선·그림자는 뷰포트 전체 — 부모 .scale-sticky-bar 패딩 상쇄 */
+  margin-inline: calc(var(--cd-inset) * -1); /* 구분선·그림자는 뷰포트 전체 — 부모 .cd-head--sticky 패딩 상쇄. 위 간격은 .cd-selector margin-top 토큰 */
   padding: 0 var(--cd-inset) 14px; /* 점은 그리드 col1~끝 안쪽 */
   border-bottom: 1px solid var(--border-color, #eee);
   box-shadow: 0 6px 10px -6px rgba(0,0,0,0.12);
@@ -14325,7 +14319,6 @@ canvas {
   flex-direction: column;
   align-items: flex-start;
   gap: 3px;
-  margin-top: 40px; /* 스티키바와의 간격(스티키바는 아래 마진 없음) */
   flex-shrink: 0;
 }
 
@@ -14636,17 +14629,7 @@ canvas {
    ?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═?�═ */
 
 /* ?�?� ?�단/?�단 반반 ?�이?�웃 ?�?� */
-.scale-level-layout {
-  display: flex;
-  flex-direction: column;
-  flex: 1;
-  min-height: 0;
-  background: #ffffff;
-  /* 4개 그룹 배치 — 그룹1(프랫보드) 맨 위 고정 / 그룹4(키선택) 맨 아래 고정(24px는 자체 padding-bottom),
-     그 사이 그룹2·3은 남는 공간을 균등 분배(space-between)해서 배치. 고정 px 간격 대신
-     "남는 공간 나누기" 방식이라 공간 부족해도 그룹끼리 겹치지 않고 간격만 줄어듦 */
-  justify-content: space-between;
-  /* 좌우 인셋은 부모 .cd-main(--cd-inset)이 담당 — 여기 padding 없음(이중 인셋 방지) */
+.scale-level-main {
   /* 375px 기준 확정 레이아웃(9:19.5/9:20) → 기기 폭에 비례해 프렛보드 시각비율 유지 */
   --cs: calc(100vw / 375);
   /* 세로 레이아웃 단위 — 기본은 실제 뷰포트 높이의 1%(=1vh).
@@ -14654,6 +14637,12 @@ canvas {
      높이 기준으로 바꿔서, 레이아웃은 그대로 두고 넘치는 부분만 스크롤로 흡수한다.
      이 페이지의 세로 값은 전부 vh 대신 이 변수를 써야 한다. */
   --vhu: 1vh;
+}
+/* 본문 3개 그룹(프랫보드 / 마이크·재생 / 암기 버튼) — 첫 그룹 맨 위, 마지막 그룹 맨 아래 고정,
+   그 사이는 남는 공간을 균등 분배(space-between). 공간이 부족해도 겹치지 않고 간격만 줄어듦 */
+.scale-level-main .cd-body {
+  justify-content: space-between;
+  background: #ffffff;
 }
 
 /* 테스트 오버레이는 .scale-level-layout 형제 노드라 --cs 별도 정의 필요(지판 외 다른 요소가 씀).
@@ -14669,19 +14658,6 @@ canvas {
   background: #ffffff;
   position: relative;
   flex-shrink: 0; /* 프랫보드+block-indicator는 절대 안 찌그러뜨림 — 공간 부족하면 scale-mic-wrap만 줄어듦 */
-}
-/* 타이틀은 .page-title 공용 컴포넌트로 통일(2026-09-22, form-label 폐기) —
-   부모가 align-items:center라 기본은 가운데정렬, 그리드 좌측 인셋에 맞춰 왼쪽 고정.
-   크기는 scale-level 전용 스코프로 Headline→Title 토큰 하향(원래 form-label이 18px/700이었음,
-   .page-title 기본(Headline)은 너무 커서 다른 페이지(home/metronome/progression/training)의
-   기본 크기는 안 건드리고 이 페이지만 낮춤) */
-.key-selector-section .page-title {
-  align-self: flex-start;
-  font-size: var(--font-title);
-  font-weight: 700; /* --weight-bold 토큰(비토큰, 특수강조 전용) 그대로 리터럴 사용 — 원래 form-label 700 유지 */
-  margin-left: 6px; /* 상단 뒤로가기 lucide 아이콘 광학정렬 보정 */
-  margin-bottom: 24px; /* 그룹 순서 변경(2026-09-22)으로 타이틀 바로 아래가 12key 그리드가 됨 —
-                           기존 "타이틀 24px 아래 고정" 규칙이 이제 여기로 이동 */
 }
 
 /* ?�?� ?�랫보드 ?�퍼 ?�?� */
@@ -15152,9 +15128,8 @@ canvas {
    화면에 딱 맞추는 구조(space-between) 대신 위에서부터 쌓고 그룹 사이 40px 고정 여백, 넘치면 스크롤.
    480px 초과(태블릿~데스크탑)는 이 스코프 밖 — 기본 space-between(화면 꽉채움) 유지. */
 @media (max-width: 480px) and (min-aspect-ratio: 1/1.6) {
-  .scale-level-layout {
+  .scale-level-main .cd-body {
     flex: none;
-    min-height: 100%;
     overflow: visible;
     justify-content: flex-start;
     gap: 40px;
@@ -15163,9 +15138,8 @@ canvas {
 
 /* 그룹1~4 실제 gap이 30px 미만으로 줄어들면(JS updateScaleGapScrollMode가 측정) 스크롤모드 전환 —
    뷰포트 폭/비율과 무관하게 전 구간 공통. 위 미디어쿼리와 동일한 스타일(스크롤 모드는 항상 이 구조) */
-.scale-level-layout.scale-gap-scroll {
+.scale-level-main .cd-body.scale-gap-scroll {
   flex: none;
-  min-height: 100%;
   overflow: visible;
   justify-content: flex-start;
   gap: 40px;
@@ -15487,18 +15461,6 @@ canvas {
   flex-shrink: 0;
   padding: calc(14 * var(--cs, 1px)) calc(16 * var(--cs, 1px)) 24px;
 }
-/* scale-level.html 전용 — 부모(.scale-level-layout)가 이미 grid-margin으로 좌우 인셋을 주므로
-   여기선 이중 인셋 방지 위해 좌우 padding만 0으로 (progression-detail.html의 기본 규칙은 안 건드림) */
-.scale-level-layout .key-selector-section {
-  padding-left: 0;
-  padding-right: 0;
-  /* 폴드/태블릿가로/데스크탑 등 여러 breakpoint에 흩어진 bare .key-selector-section
-     {width:55~65vw/%; margin-inline:auto} 오버라이드들이 그리드 마진과 별개로 또
-     좁혀서(이중 인셋) 타이틀·그룹1이 그리드 시작점과 안 맞는 버그가 있었음(2026-09-22).
-     specificity로 전부 무효화하고 부모(grid-margin 인셋)에 폭을 맡김. */
-  width: auto;
-  margin-inline: 0;
-}
 /* progression-detail.html 전용 — 시작하기 버튼~액션바 사이 여백 (scale-level.html은 미적용) */
 .progd-layout .key-selector-section {
   margin-top: calc(2 * var(--vhu, 1vh));
@@ -15516,44 +15478,43 @@ canvas {
 /* KEY 줄 배치 — ~480px: [KEY 라벨 | 토글] 한 줄 + 아래 키 선택기(전폭 가로스크롤).
    481px~: 토글 행을 항상 키 선택기 줄의 우측 끝에 두고, 키 선택기는 남는 폭만 보이게(가로스크롤) +
    더 스크롤할 수 있는 쪽 가장자리를 흐리게(JS initKeySelectorFade가 .fade-l/.fade-r 토글). 마크업 그대로, 격자 영역만 교체 */
-.scale-level-layout .key-selector-section {
+.scale-level-main .cd-selector {
   --key-btn-w: 40px;
   --key-btn-h: 36px;
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
-  grid-template-areas: "title title" "label toggle" "keys keys";
+  grid-template-areas: "label toggle" "keys keys";
   align-items: center;
 }
-.scale-level-layout .key-selector-section .page-title { grid-area: title; }
-.scale-level-layout .key-selector-section .key-selector-top-row { display: contents; }
-.scale-level-layout .key-selector-section .key-selector-label { grid-area: label; margin-bottom: 0; line-height: 1; }   /* 라벨·토글 행을 같은 줄에서 세로 가운데 정렬(align-items:center) — 둘 다 마진 0이어야 마진 박스 때문에 어긋나지 않음 */
-.scale-level-layout .key-selector-section .accidental-toggle-row { grid-area: toggle; justify-self: end; margin-bottom: 0; }   /* 자체 margin-bottom(일부 스코프 3vh)은 0으로 — 정렬이 마진 박스 기준이라 */
-.scale-level-layout .key-selector-section .key-selector {
+.scale-level-main .cd-selector .key-selector-top-row { display: contents; }
+.scale-level-main .cd-selector .key-selector-label { grid-area: label; margin-bottom: 0; line-height: 1; }   /* 라벨·토글 행을 같은 줄에서 세로 가운데 정렬(align-items:center) — 둘 다 마진 0이어야 마진 박스 때문에 어긋나지 않음 */
+.scale-level-main .cd-selector .accidental-toggle-row { grid-area: toggle; justify-self: end; margin-bottom: 0; }   /* 자체 margin-bottom(일부 스코프 3vh)은 0으로 — 정렬이 마진 박스 기준이라 */
+.scale-level-main .cd-selector .key-selector {
   grid-area: keys;
   margin-top: 16px;   /* KEY 줄 ↔ 키 선택기 (예전 .key-selector-top-row margin-bottom) */
 }
 @media (min-width: 481px) {
-  .scale-level-layout .key-selector-section {
+  .scale-level-main .cd-selector {
     --key-btn-w: 44px;
     --key-btn-h: 40px;
-    grid-template-areas: "title title" "label label" "keys toggle";
+    grid-template-areas: "label label" "keys toggle";
     column-gap: 16px;
     align-items: start;
   }
-  .scale-level-layout .key-selector-section .key-selector-label { margin-bottom: 16px; }
-  .scale-level-layout .key-selector-section #key-selector { margin-top: 0; }
-  .scale-level-layout .key-selector-section .accidental-toggle-row {
+  .scale-level-main .cd-selector .key-selector-label { margin-bottom: 16px; }
+  .scale-level-main .cd-selector #key-selector { margin-top: 0; }
+  .scale-level-main .cd-selector .accidental-toggle-row {
     margin-top: calc((var(--key-btn-h) - 32px) / 2); /* 키 버튼 줄 높이 기준 세로 가운데(토글 행 높이 32px) */
   }
-  .scale-level-layout .key-selector-section #key-selector.fade-r {
+  .scale-level-main .cd-selector #key-selector.fade-r {
     -webkit-mask-image: linear-gradient(to right, #000 calc(100% - 56px), transparent);
     mask-image: linear-gradient(to right, #000 calc(100% - 56px), transparent);
   }
-  .scale-level-layout .key-selector-section #key-selector.fade-l {
+  .scale-level-main .cd-selector #key-selector.fade-l {
     -webkit-mask-image: linear-gradient(to left, #000 calc(100% - 56px), transparent);
     mask-image: linear-gradient(to left, #000 calc(100% - 56px), transparent);
   }
-  .scale-level-layout .key-selector-section #key-selector.fade-l.fade-r {
+  .scale-level-main .cd-selector #key-selector.fade-l.fade-r {
     -webkit-mask-image: linear-gradient(to right, transparent, #000 56px, #000 calc(100% - 56px), transparent);
     mask-image: linear-gradient(to right, transparent, #000 56px, #000 calc(100% - 56px), transparent);
   }
@@ -15573,7 +15534,7 @@ canvas {
   gap: 8px;
 }
 /* scale-level.html 전용 — 2줄 그리드 대신 1줄 가로스크롤 (progression-detail.html의 2줄 그리드는 안 건드림) */
-.scale-level-layout .key-selector-section .key-selector {
+.scale-level-main .cd-selector .key-selector {
   display: flex;
   overflow-x: auto;
   gap: 8px;
@@ -15582,14 +15543,14 @@ canvas {
   -webkit-overflow-scrolling: touch; /* iOS 모멘텀 스크롤 */
   cursor: grab;
 }
-.scale-level-layout .key-selector-section .key-selector.is-dragging {
+.scale-level-main .cd-selector .key-selector.is-dragging {
   cursor: grabbing;
   scroll-behavior: auto; /* 드래그 중엔 smooth가 오히려 버벅임 유발 */
 }
-.scale-level-layout .key-selector-section .key-selector::-webkit-scrollbar {
+.scale-level-main .cd-selector .key-selector::-webkit-scrollbar {
   display: none;
 }
-.scale-level-layout .key-selector-section .key-btn {
+.scale-level-main .cd-selector .key-btn {
   flex: none;
   width: var(--key-btn-w);
   height: var(--key-btn-h);
@@ -17947,12 +17908,17 @@ canvas {
    스왑이 아니라 그 스코프의 고정값 자체를 그대로 재사용). 폭 360px 고정 + 중앙정렬,
    높이는 그 스코프의 main-content 높이(440-54)를 그대로 고정, 넘치면 스크롤. */
 @media (min-width: 420px) and (max-width: 460px) and (min-height: 340px) and (max-height: 380px) {
-  .scale-level-layout {
+  .scale-level-main {
     --vhu: 8px;
     --cs: calc(360 / 375 * 1px);
+  }
+  .scale-level-main .cd-head,
+  .scale-level-main .cd-body {
     width: 360px;
     margin-inline: auto;
-    height: calc(440px - 54px - env(safe-area-inset-top, 0px));
+  }
+  .scale-level-main .cd-body {
+    flex: none;
     overflow: visible;
   }
   .fretboard-row {
@@ -17982,14 +17948,19 @@ canvas {
    줄어드므로, 704×933 기준 고정 px로 --vhu·--cs와 그 스코프의 vw/vh값들을 전부 박는다.
    레이아웃 폭도 704px 고정 — 좁아진 만큼(658<704)은 넘쳐서 스크롤로 흡수 */
 @media (min-width: 640px) and (max-width: 680px) and (min-height: 390px) and (max-height: 430px) {
-  .scale-level-layout {
+  .scale-level-main {
     --vhu: 9.33px;   /* 933px / 100 — 704×933 기준 1vh 고정 */
     --cs: calc(704 / 375 * 1px); /* 704×933 기준 --cs 고정 */
+  }
+  .scale-level-main .cd-head,
+  .scale-level-main .cd-body {
     width: 704px;
     margin-inline: 0;
-    height: 879px; /* 704×933 기준 main-content 높이: 933 - 54(탑바) */
+    padding-inline: 70.4px; /* 704px의 10% 고정 */
+  }
+  .scale-level-main .cd-body {
+    flex: none;
     overflow: visible;
-    padding: 0 70.4px; /* 704px의 10% 고정 */
   }
   .fretboard-row {
     --fb-h-budget: 186.6px; /* 933px의 20% 고정 */
@@ -18039,23 +18010,11 @@ canvas {
    역산: (1133-280)/2≈427px, 카드+gap(286px)의 1.5배 정도라 두번째 이웃이 절반쯤 보임 */
 @media (min-width: 1133px) and (max-width: 1156px) and (min-height: 600px) and (min-aspect-ratio: 1/1) {
   .scale-card-shot .fb-fret-num { font-size: 18px; }
-  .scale-sticky-bar {
-    padding: 16px var(--cd-inset) 10px;
-  }
-  .scale-chapter-header {
-    margin-top: 32px;
-  }
 }
 
 @media (min-width: 1157px) and (max-width: 1278px) and (min-height: 600px) and (min-aspect-ratio: 1/1) {
   .scale-card-shot .fb-fret-num { font-size: 18px; }
   /* 상하 여백 살짝 축소해서 공간 확보 */
-  .scale-sticky-bar {
-    padding: 16px var(--cd-inset) 10px;
-  }
-  .scale-chapter-header {
-    margin-top: 32px;
-  }
 }
 
 /* 랩탑(1280×800)은 위 태블릿 상한 가로(1279~1599w) 대역 안에 걸리지만 높이가 짧아서
@@ -18082,12 +18041,6 @@ canvas {
    (1376-340)/2=518px, 카드+gap(346px)의 1.5배라 두번째 이웃이 절반쯤 보임 */
 @media (min-width: 1279px) and (max-width: 1599px) and (min-height: 600px) and (min-aspect-ratio: 1/1) {
   .scale-card-shot .fb-fret-num { font-size: 18px; }
-  .scale-sticky-bar {
-    padding: 16px var(--cd-inset) 10px;
-  }
-  .scale-chapter-header {
-    margin-top: 32px;
-  }
 }
 
 @media (min-width: 580px) and (max-width: 768px) and (min-height: 700px) and (min-aspect-ratio: 3/4) and (max-aspect-ratio: 1/1) {
@@ -18143,12 +18096,6 @@ canvas {
   .training-card-icon i { font-size: 40px !important; width: 40px !important; height: 40px !important; }
 
   /* 카드가 캡에 걸려 더 못 커지는 상태라, 다른 여백을 줄여서 공간 확보 */
-  .scale-sticky-bar {
-    padding: 10px var(--cd-inset) 8px;
-  }
-  .scale-chapter-header {
-    margin-top: 28px;
-  }
   /* 이 스코프(580~760×700~)가 태블릿 스코프(min-width:560px, min-height:600px) 조건도
      같이 만족해서 거기서 키운 폰트가 새어 들어옴 — 모바일 기본값으로 명시 복원 */
   .scale-card-shot .fb-fret-num { font-size: 14px; }
@@ -18219,12 +18166,6 @@ canvas {
    폭 미달이라 안 걸림. 폰트만 여기서 별도로 키움 */
 @media (min-width: 400px) and (max-width: 420px) and (min-height: 850px) and (max-height: 950px) {
   /* 카드가 캡에 걸려 더 못 커지는 상태라, 다른 여백을 아주 조금 줄여서 공간 확보 */
-  .scale-sticky-bar {
-    padding: 16px var(--cd-inset) 10px;
-  }
-  .scale-chapter-header {
-    margin-top: 32px;
-  }
   .scale-card-shot .fb-fret-num { font-size: 14px; }
 }
 
@@ -18232,12 +18173,6 @@ canvas {
    흐름(flex:1로 남는공간 채움)으로는 스크롤이 생김. 카드 비율 1.5 고정 + 다른 여백도
    줄여서 한 화면(중앙 카드 1개)에 스크롤 없이 들어가게 함(폴드8 와이드 스코프와 동일 패턴) */
 @media (min-width: 400px) and (max-width: 420px) and (min-height: 600px) and (max-height: 700px) {
-  .scale-sticky-bar {
-    padding: 10px var(--cd-inset) 8px;
-  }
-  .scale-chapter-header {
-    margin-top: 28px;
-  }
 }
 
 /* ⚠️ DEV ONLY — 폴드 힌지(세로) 위치 시각화용 반투명 오버레이. 배포 전 이 블록 반드시 제거.
@@ -18279,12 +18214,6 @@ canvas {
      통일(style.css 16096 부근 동일 조건 블록 참고, 중복 스코프였음) */
 
   /* 카드가 더 못 커지는 한계라 위/아래 다른 여백을 줄여서 캐러셀에 공간을 더 내준다 */
-  .scale-sticky-bar {
-    padding: 10px var(--cd-inset) 8px;
-  }
-  .scale-chapter-header {
-    margin-top: 28px;
-  }
   /* 이 스코프(933×704)가 태블릿 스코프(min-width:560/900px, min-height:600px) 조건도
      같이 만족해서 거기서 키운 폰트가 새어 들어옴 — 모바일 기본값으로 명시 복원 */
   .scale-card-shot .fb-fret-num { font-size: 12px; }
@@ -18612,7 +18541,7 @@ canvas {
   #topbar-currency .currency-icon-box img { width: 22px; height: 22px; }
   #topbar-currency .currency-count { font-size: 16px; }
   /* 12key 하단에 여백을 줘서 그리드 높이를 줄임(고정 높이 박스라 하단 패딩만큼 콘텐츠 영역이 줄어듦) */
-  .scale-level-layout .key-selector {
+  .scale-level-main .key-selector {
     padding-bottom: 40px;
   }
   .fretboard-row {
@@ -18747,12 +18676,6 @@ canvas {
    (1360-340)/2=510px, 카드+gap(346px)의 1.47배라 두번째 이웃이 절반쯤 보임 */
 @media (min-width: 1600px) {
   .scale-card-shot .fb-fret-num { font-size: 18px; }
-  .scale-sticky-bar {
-    padding: 16px var(--cd-inset) 10px;
-  }
-  .scale-chapter-header {
-    margin-top: 32px;
-  }
 }
 
 /* 홈탭에서 뜨는 모달 — 태블릿부터 폭만 확대(세로 패딩은 그대로 둬서 가로로 안 벌어지고
@@ -21608,8 +21531,49 @@ body.tut-lock .tut-allow * {
 .cd-main::-webkit-scrollbar { display: none; }
 .cd-main--white { background: #fff; }
 
+/* 헤드(타이틀 + 셀렉터) / 본문 — cd-main 안쪽 공통 레이아웃.
+   간격은 아래 요소의 margin-top 한 곳에만(탑바↔타이틀은 cd-head 상단 패딩). 값은 5단계별 토큰. */
+:root {
+  --cd-head-pad: 16px;    /* 탑바 ↔ 타이틀 */
+  --cd-title-gap: 16px;   /* 타이틀 ↔ 셀렉터 */
+  --cd-head-gap: 24px;    /* 헤드 ↔ 본문 */
+}
+.cd-head {
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  padding-top: var(--cd-head-pad);
+}
+.cd-title {
+  align-self: flex-start;
+  font: var(--type-headline-sm);
+  letter-spacing: var(--tracking-base);
+  color: var(--text-primary);
+}
+/* 스크롤 중 상단 고정되는 헤드 — 배경·구분선은 뷰포트 전체(풀블리드) */
+.cd-head--sticky {
+  position: sticky;
+  top: 0;
+  z-index: 5;
+  margin-inline: calc(var(--cd-inset) * -1);
+  padding-inline: var(--cd-inset);
+  background: var(--bg-primary, #fff);
+}
+.cd-selector { margin-top: var(--cd-title-gap); }
+.cd-body {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  margin-top: var(--cd-head-gap);
+}
+
 @media (min-width: 481px) {
   .cd-topbar { height: 56px; }
+  :root { --cd-head-pad: 20px; }
+}
+@media (min-width: 769px) {
+  :root { --cd-head-pad: 24px; --cd-title-gap: 20px; --cd-head-gap: 32px; }
 }
 
 /* 피크바 데스크탑 크기(§7). 1600px+ 전역 #topbar-currency 30/34px 규칙을 특이도로 이김 */

@@ -293,21 +293,22 @@ function alignMicBtnRowToDesc() {
 }
 
 // ── 그룹1~4 간격 30px 미만 → 스크롤모드(40px 고정 gap) 전환 ──────────────────
-// space-between이 실제로 만들 gap을 현재 모드와 무관하게 역산: cd-main
-// 가용높이에서 4그룹 자체 높이(스크롤모드 여부와 무관하게 고정) 빼진 값을 3등분.
+// space-between이 실제로 만들 gap을 현재 모드와 무관하게 역산: cd-main 가용높이에서
+// 헤드(+헤드↔본문 간격)와 본문 3그룹 자체 높이(스크롤모드 여부와 무관하게 고정) 뺀 값을 2등분.
 function updateScaleGapScrollMode() {
-  const layout = document.querySelector('.scale-level-layout');
+  const body = document.querySelector('.scale-level-main .cd-body');
+  const head = document.querySelector('.scale-level-main .cd-head');
   const mainContent = document.querySelector('.cd-main');
   const groups = [
     document.querySelector('.scale-level-top'),
     document.querySelector('.scale-mic-wrap'),
     document.querySelector('.scale-test-btn-group'),
-    document.querySelector('.key-selector-section'),
   ];
-  if (!layout || !mainContent || groups.some(g => !g)) return;
+  if (!body || !head || !mainContent || groups.some(g => !g)) return;
   const sumH = groups.reduce((sum, g) => sum + g.offsetHeight, 0);
-  const naturalGap = (mainContent.clientHeight - sumH) / 3;
-  layout.classList.toggle('scale-gap-scroll', naturalGap < 30);
+  const headGap = parseFloat(getComputedStyle(body).marginTop) || 0;
+  const naturalGap = (mainContent.clientHeight - head.offsetHeight - headGap - sumH) / 2;
+  body.classList.toggle('scale-gap-scroll', naturalGap < 30);
 }
 
 // ── 상태 ─────────────────────────────────────────────────────

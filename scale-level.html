@@ -34,13 +34,14 @@
     </header>
 
     <!-- ── 메인 (style-guide.md §11 cd-main) ── -->
-    <main class="cd-main cd-main--white">
-      <div class="scale-level-layout">
+    <main class="cd-main cd-main--white scale-level-main">
 
-        <!-- 그룹1: 타이틀 + 키 선택(12key 그리드 먼저, #/b·핑거토글은 하단으로) -->
-        <div class="key-selector-section">
+      <!-- 헤드: 타이틀 + 셀렉터(KEY 라벨·#/b·핑거토글·12key 스트립) -->
+      <header class="cd-head">
 
-          <div class="page-title" id="form-label"></div>
+        <div class="cd-title" id="form-label"></div>
+
+        <div class="cd-selector">
 
           <div class="key-selector-top-row">
             <span class="key-selector-label">KEY</span>
@@ -64,7 +65,12 @@
 
         </div>
 
-        <!-- 그룹2: 프랫보드 (독립 그룹, 타이틀은 그룹1로 이동함) -->
+      </header>
+
+      <!-- 본문: 그룹 3개를 남는 높이에 균등 분배 -->
+      <section class="cd-body">
+
+        <!-- 그룹1: 프랫보드 -->
         <div class="scale-level-top">
 
           <div class="fretboard-row">
@@ -96,7 +102,7 @@
 
         </div>
 
-        <!-- 그룹3: 마이크/재생 버튼 (독립 그룹) -->
+        <!-- 그룹2: 마이크/재생 버튼 (독립 그룹) -->
         <div class="scale-mic-wrap">
           <div class="scale-mic-info" id="scale-mic-info">
             <div class="scale-mic-desc" id="scale-mic-desc">
@@ -149,7 +155,7 @@
           </div>
         </div>
 
-        <!-- 그룹4: 암기 테스트 버튼 (독립 그룹) -->
+        <!-- 그룹3: 암기 테스트 버튼 (독립 그룹) -->
         <div class="scale-test-btn-group">
           <button class="start-test-btn cd-btn cd-btn--brand cd-btn--auto-width" id="start-test-btn">
             <span id="start-test-btn-label">선택한 블럭 암기하기</span>
@@ -160,7 +166,7 @@
           </button>
         </div>
 
-      </div>
+      </section>
     </main>
 
     <!-- ── 스케일 테스트 오버레이 ── -->
