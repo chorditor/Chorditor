@@ -353,8 +353,10 @@ const GuitarAudio = (() => {
   let _pianoGain    = null;
   let _pianoReady   = false;
   let _pianoPending = [];
+  let _pianoGen     = 0; // resetPiano() 후 이전 샘플러의 늦은 onload가 새 상태를 덮어쓰지 않게
   function _initPiano() {
     if (_pianoSynth || typeof Tone === 'undefined') return;
+    const gen = ++_pianoGen;
     _pianoGain = new Tone.Gain(0.6).toDestination();
     _pianoSynth = new Tone.Sampler({
       // 이 사운드폰트는 흰건반(자연음)만 샘플로 제공함(2026-09-30 확인, #/b 샘플 전부 404) —
@@ -366,6 +368,7 @@ const GuitarAudio = (() => {
       baseUrl: 'https://gleitz.github.io/midi-js-soundfonts/FluidR3_GM/acoustic_grand_piano-mp3/', // jsdelivr @gh-pages 버전태그의 '@'이 어딘가에서 encodeURIComponent(%40)되며 400 발생 — GitHub Pages 원본 직결로 우회(2026-09-30)
       release: 1,
       onload: () => {
+        if (gen !== _pianoGen) return;
         _pianoReady = true;
         _pianoPending.forEach(fn => fn());
         _pianoPending = [];
@@ -373,14 +376,31 @@ const GuitarAudio = (() => {
     }).connect(_pianoGain);
   }
   // midis: MIDI 배열(코드 구성음), duration: 초(triggerAttackRelease 지속시간)
-  function playPianoChord(midis, duration) {
+  // time: 절대 오디오 시각(초, 미지정 시 지금) — 백킹 트랙처럼 미리 예약할 때 사용. velocity: 0~1(미지정 시 Tone 기본)
+  function playPianoChord(midis, duration, time, velocity) {
     if (typeof Tone === 'undefined') return;
     _initPiano();
-    const run = () => _pianoSynth.triggerAttackRelease(midis.map(midiToName), duration ?? 1.5, Tone.now());
+    const run = () => _pianoSynth.triggerAttackRelease(midis.map(midiToName), duration ?? 1.5, time ?? Tone.now(), velocity);
     if (_pianoReady) run(); else _pianoPending.push(run);
+  }
+  // 피아노 샘플 로드 완료 시 resolve — 예약 재생(백킹 트랙)은 로딩 끝난 뒤에 시작해야 시각이 어긋나지 않음
+  function pianoReady() {
+    if (typeof Tone === 'undefined') return Promise.resolve();
+    _initPiano();
+    return _pianoReady ? Promise.resolve() : new Promise(res => _pianoPending.push(res));
   }
   function stopPiano() {
     if (_pianoSynth) _pianoSynth.releaseAll();
+  }
+  // 즉각 무음 + 초기화 — releaseAll은 release(1s) 꼬리와 미리 예약된 코드가 남아서, 샘플러를 통째로 폐기하고
+  // 새로 만듦(샘플은 브라우저 캐시라 재로딩 빠름). 백킹 트랙 정지용.
+  function resetPiano() {
+    _pianoGen++;
+    if (_pianoSynth) { try { _pianoSynth.dispose(); } catch (e) {} _pianoSynth = null; }
+    if (_pianoGain)  { try { _pianoGain.dispose();  } catch (e) {} _pianoGain  = null; }
+    _pianoReady = false;
+    _pianoPending = [];
+    _initPiano(); // 다음 재생 대비 미리 로드
   }
   // CDN 샘플 로딩을 미리 시작 — playPianoChord() 첫 호출 시점에 로딩 지연으로 백킹이
   // 늦게 울리는 문제 방지(호출부에서 데모 시작 전 미리 불러둠)
@@ -389,5 +409,5 @@ const GuitarAudio = (() => {
     _initPiano();
   }
 
-  return { playChord, strumNotes, strumAt, strumAtCut, cutAt, playNote, stop, panic, ready, resume, syncContext, setOutputVolume, STRUM_INTERVAL_SAMPLE, playPianoChord, stopPiano, warmupPiano };
+  return { playChord, strumNotes, strumAt, strumAtCut, cutAt, playNote, stop, panic, ready, resume, syncContext, setOutputVolume, STRUM_INTERVAL_SAMPLE, playPianoChord, pianoReady, stopPiano, resetPiano, warmupPiano };
 })();

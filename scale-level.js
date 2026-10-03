@@ -4,6 +4,8 @@
 // ── 상수 ─────────────────────────────────────────────────────
 const SCALE_TITLES = {
   'major':          '메이저 스케일',
+  'major-pentatonic': '메이저 펜타토닉 스케일',
+  'major-blues':      '메이저 블루스 스케일',
   'pentatonic':     '마이너 펜타토닉 스케일',
   'blues':          '마이너 블루스 스케일',
   'natural-minor':  '내추럴 마이너 스케일',
@@ -27,6 +29,8 @@ const SCALE_TITLES = {
 
 const SCALE_SHORT_NAMES = {
   'major':          '메이저',
+  'major-pentatonic': '메이저 펜타토닉',
+  'major-blues':      '메이저 블루스',
   'pentatonic':     '마이너 펜타토닉',
   'blues':          '마이너 블루스',
   'natural-minor':  '내추럴 마이너',
@@ -163,18 +167,21 @@ let _fbAnimId       = null; // 진행 중인 scrollToFret rAF id — 연타 시 
 // 필요 없음(성능 최적화, 2026-09-25). renderFullNeck()에서 1회 채워짐.
 let _fbEls = null;
 
+// 지판(fb-viewport) 폭 — 360px 화면(row 320px)에서 312px이 되고, 화면(row) 폭에 비례해 커짐. 최대 480px 캡.
+const FB_BASE_VIEWPORT_W = 312;
+const FB_BASE_ROW_W = 320;   // 위 폭의 기준이 되는 row 폭(360px 화면 − 좌우 그리드 마진 20×2)
 function computeFbScale() {
   const rowWidth = _fbEls ? _fbEls.row.clientWidth : FB_REF_WIDTH;
-  const widthBudget = Math.min((rowWidth * 0.8) / FB_RATIO, 480 / FB_RATIO); // fb-viewport 실제 폭 = 화면(row) 폭의 80%, 최대 480px 고정캡(480/ratio로 나눠 span 단위로 환산)
-  return Math.max(widthBudget / FB_REF_SPAN, 0.01);
+  const viewportW = Math.min(rowWidth * FB_BASE_VIEWPORT_W / FB_BASE_ROW_W, 480);
+  return Math.max(viewportW / FB_REF_VIEWPORT_W, 0.01);
 }
 
-// 좌우 "고스트 프렛" peek 폭(실 px) — fretboard-row 안에서 화살표버튼 2개 + 실제 7프렛 뷰포트를
-// 뺀 나머지(좌우 각각)가 40px 이상일 때만, 그 남는 공간 전체를 peek로 씀. 그 미만이면 0(기존과 동일).
+// 좌우 "고스트 프렛" peek 폭(실 px) — fretboard-row에서 실제 7프렛 뷰포트를 뺀 나머지(좌우 각각)가
+// 40px 이상일 때만, 그 남는 공간 전체를 peek로 씀. 그 미만이면 0. (화살표 버튼은 지판 아래 줄로 이동해서 폭을 안 뺌)
 function computeFbPeek(scale) {
   const rowWidth = _fbEls ? _fbEls.row.clientWidth : FB_REF_WIDTH;
   const innerW = FB_REF_VIEWPORT_W * scale;
-  const slackEachSide = (rowWidth - 2 * FB_ARROW_W - innerW) / 2;
+  const slackEachSide = (rowWidth - innerW) / 2;
   return slackEachSide >= 40 ? slackEachSide : 0;
 }
 
@@ -207,11 +214,9 @@ function applyFbLayout() {
   if (blockerL) blockerL.style.width = peekPx + 'px';
   if (blockerR) blockerR.style.width = peekPx + 'px';
 
-  // 화살표 버튼 — 실제(스케일 적용된) 넥 높이 기준 세로중앙 정렬
+  // 화살표 버튼 — 실제(스케일 적용된) 넥 높이 기준 세로중앙 (지판 위 오버레이, style.css .fb-arrow-btn의 top)
   const realNeckH = FB_REF_NECK_H * _fbScale;
-  const arrowMarginTop = Math.max((realNeckH - 44) / 2, 0) + 'px';
-  _fbEls.arrowPrev?.style.setProperty('margin-top', arrowMarginTop);
-  _fbEls.arrowNext?.style.setProperty('margin-top', arrowMarginTop);
+  _fbEls.row.style.setProperty('--fb-arrow-top', Math.max((realNeckH - 44) / 2, 0) + 'px');
 
   applyFbPan(); // 배율이 바뀌었으니 transform도 같이 갱신
 }
@@ -269,6 +274,8 @@ function applyTestFbLayout() {
     viewport.style.height = (TEST_FB_REF_TOTAL_H * scale) + 'px';
   }
   if (wrapper) wrapper.style.transform = `scale(${scale})`;
+  // 좌우 화살표 세로 위치 = 넥 높이의 중앙 (슬롯은 프렛번호 줄까지 포함해서 50%면 아래로 치우침)
+  document.querySelector('.test-fb-neck-slot')?.style.setProperty('--test-fb-arrow-top', (TEST_FB_REF_NECK_H * scale / 2) + 'px');
 }
 
 // scale-mic-btn-row 폭 — scale-mic-desc(fit-content, 더 넓은 줄 기준) 텍스트 폭과
@@ -307,6 +314,10 @@ function updateScaleGapScrollMode() {
 let _scaleKey  = 'major';
 let _scaleLevel = 0; // 레벨 첫완료 퀘스트용 (URL level 파라미터)
 let _rootNote  = 0;
+// 레벨별 키 선택기 설정 — root: 기본 선택 키이자 목록 맨 앞 키(반음, 0=C), minor: 버튼 표기에 m 붙임(Am).
+// 없는 레벨은 C부터 12키 순서, 표기는 키 이름만. (키 버튼 순서만 바뀌고 _rootNote 값은 그대로 반음 번호)
+const LEVEL_KEY_UI = { 2: { root: 9, minor: true }, 3: { root: 9, minor: true }, 4: { root: 9, minor: true }, 5: { root: 9, minor: true } };
+let _keyUi = null;
 let _navIdx    = 0;
 let _useFlat   = false;
 let _showDegrees = false;
@@ -368,7 +379,11 @@ function stopScalePlay() {
 }
 
 // ── Ch.2 secondary-iv 전용 재생: 상행=원폼, 정점에서 전환, 하행=짝궁폼 (2026-09-30 테스트) ──
-const SECONDARY_IV_TRANSITION_MS = 410; // transitionPair() DURATION(350)+마무리버퍼(60)와 동일, 재생버튼 클릭 시 원폼 복귀 대기시간
+// 짝궁 전환 애니메이션 타이밍 — 슬라이드·제거·생성이 동시에 재생되어 전체 PAIR_SLIDE_MS + PAIR_WAIT_BUFFER_MS(=290ms) 안에 끝남(목표 300ms 이내).
+// 반주 BPM과 무관한 고정값. transitionPair 계열 5개 함수의 DURATION, _spawnNote의 생성 애니메이션이 이 값을 씀.
+const PAIR_SLIDE_MS = 250;        // 슬라이드·페이드아웃·생성 애니메이션 길이
+const PAIR_WAIT_BUFFER_MS = 40;   // 애니메이션 종료 후 정리(제거·도수 재표기·마무리)까지 여유
+const SECONDARY_IV_TRANSITION_MS = PAIR_SLIDE_MS + PAIR_WAIT_BUFFER_MS; // 재생버튼 클릭 시 원폼 복귀 대기시간(전환 전체 시간과 동일)
 
 function _buildSecondaryIVDescendSeq(peakMidi) {
   const neckEl = document.getElementById('fb-full-neck');
@@ -441,7 +456,7 @@ function _startSecondaryIVAscendThenTransition() {
 }
 
 function startScalePlay() {
-  stopScaleMic(); // 마이크 모드 켜져있었으면 즉시 중단
+  exitPracticeMode(); // 연습모드 켜져있었으면 즉시 종료
 
   if (_scaleKey === 'secondary-iv' || _scaleKey === 'secondary-v' || _scaleKey === 'secondary-ii' || _scaleKey === 'secondary-vi' || _scaleKey === 'secondary-iii') {
     if (_pairTransitioned) {
@@ -477,148 +492,178 @@ function toggleScalePlay() {
   else startScalePlay();
 }
 
-// ── 마이크 버튼: 같은 시퀀스를 실제 연주로 검증하며 진행 ──
-// 자기상관(autocorrelation) 단음 피치검출 — 사운드인식테스트.html 스케일연습에서 검증된 방식 재사용
-function _scaleAutoCorrelate(buf, sampleRate) {
-  const SIZE = buf.length;
-  let rms = 0;
-  for (let i = 0; i < SIZE; i++) rms += buf[i] * buf[i];
-  rms = Math.sqrt(rms / SIZE);
-  if (rms < 0.01) return -1;
+// ── 연습모드 (기타 버튼): desc 자리가 BPM - 재생 - 스타일 옵션으로 교체됨 ──
+// 백킹 트랙 설계는 docs/backing-tracks.md. 지금은 UI(옵션 선택·표시)만, 소리 연동은 아직 없음.
+// 드롭업 메뉴는 메트로놈 옵션 카드(.metronome-option-card/-menu) 스타일 재사용.
+const PRACTICE_BPM_OPTIONS = Array.from({ length: 17 }, (_, i) => 60 + i * 5); // 60~140, 5단위
+const PRACTICE_STYLE_OPTIONS = [{ id: 'basic', label: '기본' }]; // id = BackingTrack STYLES 키
+let _practiceOn = false;
+let _practicePlaying = false;
+let _practiceBpm = 90;
+let _practiceStyle = PRACTICE_STYLE_OPTIONS[0].id;
 
-  let r1 = 0, r2 = SIZE - 1;
-  const thresh = 0.2;
-  for (let i = 0; i < SIZE / 2; i++) if (Math.abs(buf[i]) < thresh) { r1 = i; break; }
-  for (let i = 1; i < SIZE / 2; i++) if (Math.abs(buf[SIZE - i]) < thresh) { r2 = SIZE - i; break; }
-  const trimmed = buf.slice(r1, r2);
-  const n = trimmed.length;
-
-  const c = new Array(n).fill(0);
-  for (let lag = 0; lag < n; lag++)
-    for (let i = 0; i < n - lag; i++) c[lag] += trimmed[i] * trimmed[i + lag];
-
-  let d = 0;
-  while (d + 1 < n && c[d] > c[d + 1]) d++;
-  let maxVal = -1, maxPos = -1;
-  for (let i = d; i < n; i++) if (c[i] > maxVal) { maxVal = c[i]; maxPos = i; }
-  let T0 = maxPos;
-  if (T0 <= 0) return -1;
-
-  const x1 = c[T0 - 1] ?? c[T0], x2 = c[T0], x3 = c[T0 + 1] ?? c[T0];
-  const a = (x1 + x3 - 2 * x2) / 2, b = (x3 - x1) / 2;
-  if (a) T0 = T0 - b / (2 * a);
-
-  return T0 > 0 ? sampleRate / T0 : -1;
-}
-function _scaleFreqToMidi(f) { return Math.round(69 + 12 * Math.log2(f / 440)); }
-
-let _scaleMicStream = null, _scaleMicCtx = null, _scaleMicAnalyser = null, _scaleMicRaf = null;
-let _scaleMicTimeBuf = null, _scaleMicLastTrigger = 0;
-const SCALE_MIC_ONSET_RMS = 0.01, SCALE_MIC_COOLDOWN = 120;
-let _scaleMicSeq = [];
-let _scaleMicStepIdx = 0;
-
-function _scaleMicHighlightExpected() {
-  document.querySelectorAll('.fb-note--playing').forEach(el => el.classList.remove('fb-note--playing'));
-  const note = _scaleMicSeq[_scaleMicStepIdx];
-  if (note) note.el.classList.add('fb-note--playing');
+function _setPracticeUi(on) {
+  document.getElementById('scale-mic-info')?.classList.toggle('is-practice', on);
+  document.getElementById('scale-mic-btn')?.classList.toggle('is-active', on);
 }
 
-function _scaleMicAdvance() {
-  _scaleMicStepIdx++;
-  if (_scaleMicStepIdx >= _scaleMicSeq.length) {
-    _finishScaleMicSequence();
+function enterPracticeMode() {
+  stopScalePlay(); // 스케일 들어보기 재생 중이면 중단
+  GuitarAudio.warmupPiano(); // 피아노 샘플 미리 로드 → 재생 버튼 누를 때 지연 최소화
+  _practiceOn = true;
+  renderPracticeChords();
+  _setPracticeUi(true);
+}
+
+function exitPracticeMode() {
+  if (!_practiceOn) return;
+  _practiceOn = false;
+  _setPracticePlaying(false);
+  closePracticeMenus();
+  _setPracticeUi(false);
+}
+
+function togglePracticeMode() {
+  if (_practiceOn) exitPracticeMode();
+  else enterPracticeMode();
+}
+
+// 재생 중인 코드 파란색 강조 — rAF가 오디오 시계 기준 현재 코드 인덱스를 읽음(setTimeout 금지: 시간이 갈수록 어긋남)
+// 챕터2 자동 전환 — 반주 진행의 전환 신호('orig' | 'pair')에 맞춰 스케일 블럭을 원래 폼 ↔ 전환 폼으로 자동 전환.
+// 전환 중이면(_transitioning) 끝난 뒤 다음 프레임에 이어서 맞춤.
+let _practiceDesiredForm = null;
+let _practiceAutoSwitched = false; // 자동 전환을 한 적 있음 → 정지 시 원래 폼으로 복귀(사용자 수동 전환은 건드리지 않음)
+function _reconcilePracticeForm() {
+  if (!_practiceDesiredForm || _transitioning || !_scaleKey.startsWith('secondary-')) return;
+  const wantPair = _practiceDesiredForm === 'pair';
+  _practiceDesiredForm = null;
+  if (wantPair === _pairTransitioned) return;
+  _practiceAutoSwitched = true;
+  _pairPersist = wantPair;
+  transitionPair();
+}
+
+let _practiceChordRaf = null;
+let _practiceChordShown = -2;
+function _startPracticeChordHighlight(on) {
+  if (_practiceChordRaf) { cancelAnimationFrame(_practiceChordRaf); _practiceChordRaf = null; }
+  _practiceChordShown = -2;
+  document.querySelectorAll('#scale-practice-chords .scale-chord-item').forEach(el => el.classList.remove('is-playing'));
+  if (!on) return;
+  const loop = () => {
+    const cue = BackingTrack.consumeDueForm();
+    if (cue) _practiceDesiredForm = cue;
+    _reconcilePracticeForm();
+    const idx = BackingTrack.getCurrentChordIndex();
+    if (idx !== _practiceChordShown) {
+      _practiceChordShown = idx;
+      // 매번 새로 조회 — #/b 토글로 renderPracticeChords가 span을 다시 만들 수 있음
+      document.querySelectorAll('#scale-practice-chords .scale-chord-item').forEach((el, i) => el.classList.toggle('is-playing', i === idx));
+    }
+    _practiceChordRaf = requestAnimationFrame(loop);
+  };
+  _practiceChordRaf = requestAnimationFrame(loop);
+}
+
+// 백킹 재생 상태 단일 진입점 — 상태·소리·버튼 아이콘(재생 ▶ / 재생 중 ⏸)을 항상 같이 바꿈
+function _setPracticePlaying(playing) {
+  _practicePlaying = playing;
+  if (!playing) {
+    BackingTrack.stop();
+    _practiceDesiredForm = null;
+    // 자동 전환으로 전환 폼에 가 있으면 정지하면서 원래 폼으로 복귀
+    if (_practiceAutoSwitched) {
+      _practiceAutoSwitched = false;
+      if (_pairTransitioned && !_transitioning) { _pairPersist = false; transitionPair(); }
+    }
+  } else if (_scaleKey.startsWith('secondary-')) {
+    _practiceDesiredForm = 'orig'; // 재생은 항상 원래 폼에서 시작(전환 폼에 있으면 먼저 복귀)
+  }
+  _startPracticeChordHighlight(playing);
+  const btn = document.getElementById('practice-play-btn');
+  if (!btn) return;
+  btn.classList.toggle('is-active', playing);
+  btn.innerHTML = `<i data-lucide="${playing ? 'pause' : 'play'}"></i>`;
+  lucide.createIcons();
+}
+
+async function togglePracticePlay() {
+  if (_practicePlaying) {
+    _setPracticePlaying(false);
     return;
   }
-  _scaleMicHighlightExpected();
+  _setPracticePlaying(true);
+  const ok = await BackingTrack.start(
+    () => ({ bpm: _practiceBpm, root: _rootNote, level: _scaleLevel }), // 재생 중 BPM 바꾸면 다음 스텝부터 반영 (키는 재생 중 잠금)
+    _practiceStyle
+  );
+  if (!ok && _practicePlaying) _setPracticePlaying(false); // 시작 대기 중 이미 정지된 경우 외엔 원복
 }
 
-function _scaleMicClassify() {
-  if (!_scaleMicAnalyser) return;
-  _scaleMicAnalyser.getFloatTimeDomainData(_scaleMicTimeBuf);
-  const freq = _scaleAutoCorrelate(_scaleMicTimeBuf, _scaleMicCtx.sampleRate);
-  if (freq < 0) return;
-  const detectedMidi = _scaleFreqToMidi(freq);
-  const expected = _scaleMicSeq[_scaleMicStepIdx];
-  if (!expected) return;
-  if (detectedMidi === expected.midi) {
-    _scaleMicLastTrigger = performance.now();
-    _scaleMicAdvance();
-  }
-}
-
-function _scaleMicListen() {
-  _scaleMicAnalyser.getFloatTimeDomainData(_scaleMicTimeBuf);
-  let sum = 0;
-  for (let i = 0; i < _scaleMicTimeBuf.length; i++) sum += _scaleMicTimeBuf[i] * _scaleMicTimeBuf[i];
-  const rms = Math.sqrt(sum / _scaleMicTimeBuf.length);
-  const now = performance.now();
-  if (rms > SCALE_MIC_ONSET_RMS && now - _scaleMicLastTrigger > SCALE_MIC_COOLDOWN) {
-    _scaleMicClassify();
-  }
-  _scaleMicRaf = requestAnimationFrame(_scaleMicListen);
-}
-
-let _scaleMicDescIdleHtml = null;
-function _setScaleMicDescActive(active) {
-  const el = document.getElementById('scale-mic-desc');
+// 코드 진행 4마디 표시 — BackingTrack 진행(루트 기준 반음거리) + 현재 키/샵플랫 설정으로 코드명 계산
+function renderPracticeChords() {
+  const el = document.getElementById('scale-practice-chords');
   if (!el) return;
-  if (active) {
-    if (_scaleMicDescIdleHtml === null) _scaleMicDescIdleHtml = el.innerHTML;
-    el.innerHTML = '<div class="scale-mic-desc-row scale-mic-desc-row--active"><span class="scale-mic-desc-text">표시된 음을 직접 기타로 소리내보세요!</span></div>';
-  } else if (_scaleMicDescIdleHtml !== null) {
-    el.innerHTML = _scaleMicDescIdleHtml;
-  }
+  const names = _useFlat ? KEY_NAMES_FLAT : KEY_NAMES;
+  el.innerHTML = BackingTrack.getProgression(_scaleLevel || 1)
+    .map(c => `<span class="scale-chord-item">${c.repeat ? '%' : names[(_rootNote + c.offset) % 12] + c.suffix + (c.sup ? `<sup class="scale-chord-sup">${c.sup}</sup>` : '') + (c.bass != null ? '/' + names[(_rootNote + c.bass) % 12] : '')}${c.label ? `<span class="scale-chord-label">${c.label}</span>` : ''}</span>`).join('');
+  _practiceChordShown = -2; // 재생 중이면 다음 프레임에 강조 다시 입힘
 }
 
-async function startScaleMic() {
-  _scaleMicSeq = buildScalePlaySequence();
-  if (_scaleMicSeq.length === 0) return;
-  stopScalePlay();
-  try {
-    _scaleMicStream = await navigator.mediaDevices.getUserMedia({
-      audio: { autoGainControl: false, noiseSuppression: false, echoCancellation: false }
-    });
-    _scaleMicCtx = new (window.AudioContext || window.webkitAudioContext)();
-    _scaleMicAnalyser = _scaleMicCtx.createAnalyser();
-    _scaleMicAnalyser.fftSize = 2048;
-    _scaleMicCtx.createMediaStreamSource(_scaleMicStream).connect(_scaleMicAnalyser);
-    _scaleMicTimeBuf = new Float32Array(_scaleMicAnalyser.fftSize);
-    _scaleMicStepIdx = 0;
-    document.getElementById('scale-mic-btn')?.classList.add('is-active');
-    _setScaleMicDescActive(true);
-    _scaleMicHighlightExpected();
-    _scaleMicListen();
-  } catch (e) {
-    console.error('마이크 권한 거부됨 또는 사용 불가:', e);
-  }
+function closePracticeMenus() {
+  document.querySelectorAll('#scale-practice-opts .metronome-option-menu').forEach(el => el.classList.add('hidden'));
 }
 
-function _teardownScaleMic() {
-  if (_scaleMicRaf) { cancelAnimationFrame(_scaleMicRaf); _scaleMicRaf = null; }
-  if (_scaleMicStream) _scaleMicStream.getTracks().forEach(t => t.stop());
-  if (_scaleMicCtx) { _scaleMicCtx.close(); _scaleMicCtx = null; }
-  _scaleMicStream = null; _scaleMicAnalyser = null;
-  document.querySelectorAll('.fb-note--playing').forEach(el => el.classList.remove('fb-note--playing'));
-  document.getElementById('scale-mic-btn')?.classList.remove('is-active');
+function _renderPracticeMenu(kind) {
+  const menu = document.getElementById(`practice-${kind}-menu`);
+  if (!menu) return;
+  menu.innerHTML = '';
+  const opts = kind === 'bpm'
+    ? PRACTICE_BPM_OPTIONS.map(v => ({ value: v, label: String(v) }))
+    : PRACTICE_STYLE_OPTIONS.map(o => ({ value: o.id, label: o.label }));
+  const current = kind === 'bpm' ? _practiceBpm : _practiceStyle;
+  opts.forEach(o => {
+    const item = document.createElement('button');
+    item.type = 'button';
+    item.className = 'metronome-option-menu-item';
+    if (o.value === current) item.classList.add('metronome-option-menu-item--active');
+    item.textContent = o.label;
+    item.addEventListener('pointerup', (e) => { e.stopPropagation(); _setPracticeOption(kind, o.value, o.label); });
+    menu.appendChild(item);
+  });
 }
 
-function stopScaleMic() {
-  _teardownScaleMic();
-  _setScaleMicDescActive(false);
+function _setPracticeOption(kind, value, label) {
+  if (kind === 'bpm') _practiceBpm = value;
+  else _practiceStyle = value;
+  const valueEl = document.getElementById(`practice-${kind}-value`);
+  if (valueEl) valueEl.textContent = label;
+  closePracticeMenus();
 }
 
-// 시퀀스를 끝까지 성공적으로 마쳤을 때 — 완료 문구를 잠깐 보여준 뒤 idle로 복귀
-function _finishScaleMicSequence() {
-  _teardownScaleMic();
-  const el = document.getElementById('scale-mic-desc');
-  if (el) el.innerHTML = '<div class="scale-mic-desc-row"><span class="scale-mic-desc-text">완료! 잘하셨어요.</span></div>';
-  setTimeout(() => _setScaleMicDescActive(false), 1500);
+function togglePracticeMenu(e, kind) {
+  e.stopPropagation();
+  if (typeof _playTap === 'function') _playTap();
+  const menu = document.getElementById(`practice-${kind}-menu`);
+  if (!menu) return;
+  const willOpen = menu.classList.contains('hidden');
+  closePracticeMenus();
+  if (!willOpen) return;
+  _renderPracticeMenu(kind);
+  menu.classList.remove('hidden');
+  const active = menu.querySelector('.metronome-option-menu-item--active');
+  if (active) menu.scrollTop = active.offsetTop - (menu.clientHeight - active.offsetHeight) / 2; // 현재 값이 보이게
 }
 
-function toggleScaleMic() {
-  if (_scaleMicStream) stopScaleMic();
-  else startScaleMic();
+function initPracticeMode() {
+  document.getElementById('scale-mic-btn')?.addEventListener('pointerup', togglePracticeMode);
+  document.getElementById('practice-play-btn')?.addEventListener('pointerup', togglePracticePlay);
+  document.getElementById('practice-bpm-card')?.addEventListener('pointerup', (e) => togglePracticeMenu(e, 'bpm'));
+  document.getElementById('practice-style-card')?.addEventListener('pointerup', (e) => togglePracticeMenu(e, 'style'));
+  document.addEventListener('pointerup', closePracticeMenus); // 바깥 탭하면 드롭업 닫기
+  // 앱/탭이 백그라운드로 가거나 페이지를 떠나면 반주 즉시 중단
+  document.addEventListener('visibilitychange', () => { if (document.hidden) exitPracticeMode(); });
+  window.addEventListener('pagehide', exitPracticeMode);
 }
 
 // ── 정답/오답 효과음 (chord-name-quiz.js playSound 이식) ─────
@@ -825,8 +870,45 @@ function _relabelSecondaryIIIAsHM(neckEl) {
 }
 
 // 전환 완료 공통 마무리 — 상태 저장 + 버튼 라벨 + 폼 라벨 + ghost 갱신 + 뷰포트 + 잠금 해제
+// ── 전환에서 달라지는 음(도수) 강조 — dot의 이동/생성이 아니라 "음" 기준 ──
+// 연습자가 보고 싶은 것: 전환 전엔 어떤 음이 바뀔지, 전환 후엔 어떤 음이 새로 생겼고(=원래대로 돌아갈 때 바뀔지).
+// 그래서 원래 스케일(major)과 전환 대상 스케일의 구성음(피치클래스)을 비교해,
+//  - 원래 폼:   원래에만 있는 음(바뀔 음)이 찍힌 dot 전부 (이동하든 사라지든 상관없이)
+//  - 전환 후 폼: 대상에만 있는 음(새로 생긴 음=돌아가면 바뀔 음)이 찍힌 dot 전부
+// 에 .fb-note--pair-move(특성음과 같은 어두운 파랑)를 입힌다. 챕터2 레벨별 전환 대상 스케일:
+const PAIR_TARGET_SCALE = {
+  'secondary-iv':  { scale: 'major',          offset: 5 },   // 4도 메이저 (C→F)
+  'secondary-v':   { scale: 'major',          offset: 7 },   // 5도 메이저 (C→G)
+  'secondary-ii':  { scale: 'harmonic-minor', offset: 9 },   // 6도 하모닉 마이너 (C→Am)
+  'secondary-vi':  { scale: 'harmonic-minor', offset: 2 },   // 2도 하모닉 마이너 (C→Dm)
+  'secondary-iii': { scale: 'harmonic-minor', offset: 4 },   // 3도 하모닉 마이너 (C→Em)
+};
+const PAIR_SCALE_INTERVALS = { 'major': [0, 2, 4, 5, 7, 9, 11], 'harmonic-minor': [0, 2, 3, 5, 7, 8, 11] };
+function _pairChangePcs() {
+  const t = PAIR_TARGET_SCALE[_scaleKey];
+  if (!t) return null;
+  const pcs = (root, scale) => new Set(PAIR_SCALE_INTERVALS[scale].map(i => (root + i) % 12));
+  const orig = pcs(_rootNote, 'major');
+  const targ = pcs((_rootNote + t.offset) % 12, t.scale);
+  return {
+    changing: new Set([...orig].filter(p => !targ.has(p))),   // 원래 폼에서 바뀔 음
+    arriving: new Set([...targ].filter(p => !orig.has(p))),   // 전환 후 폼에서 새로 생긴 음
+  };
+}
+const _notePc = el => (OPEN_MIDI[parseInt(el.dataset.s)] + parseInt(el.dataset.absf)) % 12;
+// 현재 폼(_pairTransitioned) 기준으로 모든 실제 dot 표시. renderNotes()와 _finishTransition() 직후 호출.
+function markPairMovers(neckEl) {
+  const c = _pairChangePcs();
+  if (!c) return;
+  const set = _pairTransitioned ? c.arriving : c.changing;
+  neckEl.querySelectorAll('.fb-note:not(.fb-note--ghost)').forEach(el => {
+    el.classList.toggle('fb-note--pair-move', set.has(_notePc(el)));
+  });
+}
+
 function _finishTransition(forward) {
   _pairTransitioned = forward;
+  if (document.getElementById('fb-full-neck')) document.querySelectorAll('#fb-full-neck [data-pair-spawn]').forEach(el => el.removeAttribute('data-pair-spawn'));
   // 전환 후 도수 라벨 전체 재작성 — 슬라이드로 dataset.degree만 바뀐 노트까지 포함
   const neckEl = document.getElementById('fb-full-neck');
   if (neckEl) {
@@ -840,6 +922,10 @@ function _finishTransition(forward) {
   }
   updateFormLabel();
   _refreshSecondaryGhost();
+  if (neckEl) {   // ghost가 새 상태로 갱신된 뒤에 표시(ghost와 비교하는 레벨이 있음)
+    const cur = buildNavSequence()[_navIdx];
+    if (cur) markPairMovers(neckEl);
+  }
   _transitioning = false;
   _instantPair = false;
 }
@@ -862,7 +948,7 @@ function _setNoteDegreeLabel(el, degVal) {
 }
 
 function _applyDegMap(neckEl, degMap) {
-  neckEl.querySelectorAll('.fb-note:not(.fb-note--ghost)').forEach(el => {
+  neckEl.querySelectorAll('.fb-note:not(.fb-note--ghost):not([data-pair-spawn])').forEach(el => {
     const nd = degMap[el.dataset.s + ',' + el.dataset.degree];
     if (nd !== undefined) {
       el.dataset.degree = nd;
@@ -878,10 +964,14 @@ function _applyDegMap(neckEl, degMap) {
 function _spawnNote(neckEl, absF, s, degree) {
   if (absF < 0 || absF >= TOTAL_FRETS) return;   // 유효 프랫(0~22) 밖엔 생성하지 않음
   const newEl = createNoteEl(absF, s, degree, false);
+  // 생성되는 순간부터 색 판정 — 전환 "도착" 폼 기준(정방향이면 새로 생긴 음, 복귀면 바뀔 음). 이후 _finishTransition에서 전체 재판정
+  const _pc = _pairChangePcs();
+  if (_pc && (_pairTransitioned ? _pc.changing : _pc.arriving).has(_notePc(newEl))) newEl.classList.add('fb-note--pair-move');
+  newEl.dataset.pairSpawn = '1';   // 생성이 슬라이드와 동시라 이후 _applyDegMap(옛 도수 기준 재표기)이 건드리지 않도록 표시 — _finishTransition에서 해제
   if (_instantPair) { neckEl.appendChild(newEl); return; }   // 즉시 전환: 생성 애니메이션 없이 완성 상태
   newEl.style.opacity   = '0';
   newEl.style.transform = 'translate(-50%, -50%) scale(0)';
-  newEl.style.transition = 'opacity 200ms ease, transform 360ms cubic-bezier(0.34, 1.56, 0.64, 1)';
+  newEl.style.transition = 'opacity ' + Math.round(PAIR_SLIDE_MS * 0.6) + 'ms ease, transform ' + PAIR_SLIDE_MS + 'ms cubic-bezier(0.34, 1.56, 0.64, 1)';
   neckEl.appendChild(newEl);
   void newEl.offsetHeight;
   newEl.style.opacity   = '1';
@@ -906,7 +996,7 @@ function transitionPair(instant = false) {
   const activeEls = [...neckEl.querySelectorAll('.fb-note:not(.fb-note--ghost)')];
   if (!activeEls.length) { _instantPair = false; return; }
 
-  const DURATION = _instantPair ? 0 : 350;
+  const DURATION = _instantPair ? 0 : PAIR_SLIDE_MS;
   _transitioning = true;
 
   activeEls.forEach(el => {
@@ -936,6 +1026,8 @@ function transitionPair(instant = false) {
           el.dataset.degree = 4;
         }
       });
+      // 새 dot 생성은 슬라이드·제거와 동시에 재생 (끝날 때까지 기다리지 않음)
+      _spawnNote(neckEl, cur.startFret + 4, 2, 4);
       setTimeout(function() {
         neckEl.querySelectorAll('.fb-note:not(.fb-note--ghost)').forEach(el => {
           if (parseInt(el.dataset.s) === 1 && parseFloat(el.style.opacity) === 0) el.remove();
@@ -948,9 +1040,8 @@ function transitionPair(instant = false) {
           '4,6':3,'4,4':4,'4,1':5,
           '5,3':7,'5,4':1,'5,5':2,
         });
-        _spawnNote(neckEl, cur.startFret + 4, 2, 4);
         _finishTransition(true);
-      }, DURATION + 60);
+      }, DURATION + PAIR_WAIT_BUFFER_MS);
 
     } else {
       // E폼 → C폼
@@ -969,6 +1060,8 @@ function transitionPair(instant = false) {
           el.dataset.degree = 7;
         }
       });
+      // 새 dot 생성은 슬라이드·제거와 동시에 재생 (끝날 때까지 기다리지 않음)
+      _spawnNote(neckEl, cur.startFret + 1, 1, 7);
       setTimeout(function() {
         neckEl.querySelectorAll('.fb-note:not(.fb-note--ghost)').forEach(el => {
           if (parseInt(el.dataset.s) === 2 && parseFloat(el.style.opacity) === 0) el.remove();
@@ -981,9 +1074,8 @@ function transitionPair(instant = false) {
           '4,3':6,'4,7':7,'4,5':1,
           '5,7':3,'5,1':4,'5,2':5,
         });
-        _spawnNote(neckEl, cur.startFret + 1, 1, 7);
         _finishTransition(false);
-      }, DURATION + 60);
+      }, DURATION + PAIR_WAIT_BUFFER_MS);
     }
 
   // ── A폼 (bi=0) ↔ D폼 ──────────────────────────────────────────
@@ -1007,6 +1099,9 @@ function transitionPair(instant = false) {
           el.dataset.degree = 4;
         }
       });
+      // 새 dot 생성은 슬라이드·제거와 동시에 재생 (끝날 때까지 기다리지 않음)
+      // 6번줄(s=5) degree=6 오른쪽에 degree=4 생성 (startFret+5)
+      _spawnNote(neckEl, cur.startFret + 5, 5, 4);
       setTimeout(function() {
         neckEl.querySelectorAll('.fb-note:not(.fb-note--ghost)').forEach(el => {
           if (parseInt(el.dataset.s) === 4 && parseFloat(el.style.opacity) === 0) el.remove();
@@ -1019,10 +1114,8 @@ function transitionPair(instant = false) {
           '4,1':5, '4,2':6,
           '5,5':2, '5,6':3,
         });
-        // 6번줄(s=5) degree=6 오른쪽에 degree=4 생성 (startFret+5)
-        _spawnNote(neckEl, cur.startFret + 5, 5, 4);
         _finishTransition(true);
-      }, DURATION + 60);
+      }, DURATION + PAIR_WAIT_BUFFER_MS);
 
     } else {
       // D폼 → A폼 (역전환)
@@ -1043,6 +1136,9 @@ function transitionPair(instant = false) {
           el.dataset.degree = 7;
         }
       });
+      // 새 dot 생성은 슬라이드·제거와 동시에 재생 (끝날 때까지 기다리지 않음)
+      // 5번줄(s=4) degree=7 생성 (startFret+1)
+      _spawnNote(neckEl, cur.startFret + 1, 4, 7);
       setTimeout(function() {
         neckEl.querySelectorAll('.fb-note:not(.fb-note--ghost)').forEach(el => {
           if (parseInt(el.dataset.s) === 5 && parseFloat(el.style.opacity) === 0) el.remove();
@@ -1055,10 +1151,8 @@ function transitionPair(instant = false) {
           '4,5':1, '4,6':2,
           '5,2':5, '5,3':6,
         });
-        // 5번줄(s=4) degree=7 생성 (startFret+1)
-        _spawnNote(neckEl, cur.startFret + 1, 4, 7);
         _finishTransition(false);
-      }, DURATION + 60);
+      }, DURATION + PAIR_WAIT_BUFFER_MS);
     }
 
   // ── G폼 (bi=1) ↔ C폼 ──────────────────────────────────────────
@@ -1092,6 +1186,9 @@ function transitionPair(instant = false) {
           el.dataset.degree = 4;
         }
       });
+      // 새 dot 생성은 슬라이드·제거와 동시에 재생 (끝날 때까지 기다리지 않음)
+      // 4번줄(s=3) degree=4 생성 (startFret+5)
+      _spawnNote(neckEl, cur.startFret + 5, 3, 4);
       setTimeout(function() {
         neckEl.querySelectorAll('.fb-note:not(.fb-note--ghost)').forEach(el => {
           if (parseInt(el.dataset.s) === 2 && parseFloat(el.style.opacity) === 0) el.remove();
@@ -1104,10 +1201,8 @@ function transitionPair(instant = false) {
           '4,2':6, '4,3':7, '4,4':1,
           '5,6':3, '5,1':5,
         });
-        // 4번줄(s=3) degree=4 생성 (startFret+5)
-        _spawnNote(neckEl, cur.startFret + 5, 3, 4);
         _finishTransition(true);
-      }, DURATION + 60);
+      }, DURATION + PAIR_WAIT_BUFFER_MS);
 
     } else {
       // C폼 → G폼 (역전환)
@@ -1138,6 +1233,9 @@ function transitionPair(instant = false) {
           el.dataset.degree = 7;
         }
       });
+      // 새 dot 생성은 슬라이드·제거와 동시에 재생 (끝날 때까지 기다리지 않음)
+      // 3번줄(s=2) degree=7 생성 (startFret+1)
+      _spawnNote(neckEl, cur.startFret + 1, 2, 7);
       setTimeout(function() {
         neckEl.querySelectorAll('.fb-note:not(.fb-note--ghost)').forEach(el => {
           if (parseInt(el.dataset.s) === 3 && parseFloat(el.style.opacity) === 0) el.remove();
@@ -1150,10 +1248,8 @@ function transitionPair(instant = false) {
           '4,6':2, '4,7':3, '4,1':4,
           '5,3':6, '5,5':1,
         });
-        // 3번줄(s=2) degree=7 생성 (startFret+1)
-        _spawnNote(neckEl, cur.startFret + 1, 2, 7);
         _finishTransition(false);
-      }, DURATION + 60);
+      }, DURATION + PAIR_WAIT_BUFFER_MS);
     }
 
   // ── E폼 (bi=2) ↔ A폼 ──────────────────────────────────────────
@@ -1178,6 +1274,9 @@ function transitionPair(instant = false) {
           el.dataset.degree = 4;
         }
       });
+      // 새 dot 생성은 슬라이드·제거와 동시에 재생 (끝날 때까지 기다리지 않음)
+      // 2번줄(s=1) degree=4 생성 (startFret+5)
+      _spawnNote(neckEl, cur.startFret + 5, 1, 4);
       setTimeout(function() {
         neckEl.querySelectorAll('.fb-note:not(.fb-note--ghost)').forEach(el => {
           if (parseFloat(el.style.opacity) === 0) el.remove();
@@ -1190,10 +1289,8 @@ function transitionPair(instant = false) {
           '4,3':7, '4,4':1, '4,5':2,
           '5,1':5, '5,2':6,
         });
-        // 2번줄(s=1) degree=4 생성 (startFret+5)
-        _spawnNote(neckEl, cur.startFret + 5, 1, 4);
         _finishTransition(true);
-      }, DURATION + 60);
+      }, DURATION + PAIR_WAIT_BUFFER_MS);
 
     } else {
       // A폼 → E폼 (역전환)
@@ -1214,6 +1311,10 @@ function transitionPair(instant = false) {
           el.dataset.degree = 7;
         }
       });
+      // 새 dot 생성은 슬라이드·제거와 동시에 재생 (끝날 때까지 기다리지 않음)
+      // 1번줄(s=0), 6번줄(s=5) degree=7 생성 (startFret+1)
+      _spawnNote(neckEl, cur.startFret + 1, 0, 7);
+      _spawnNote(neckEl, cur.startFret + 1, 5, 7);
       setTimeout(function() {
         neckEl.querySelectorAll('.fb-note:not(.fb-note--ghost)').forEach(el => {
           if (parseFloat(el.style.opacity) === 0) el.remove();
@@ -1226,11 +1327,8 @@ function transitionPair(instant = false) {
           '4,7':3, '4,1':4, '4,2':5,
           '5,5':1, '5,6':2,
         });
-        // 1번줄(s=0), 6번줄(s=5) degree=7 생성 (startFret+1)
-        _spawnNote(neckEl, cur.startFret + 1, 0, 7);
-        _spawnNote(neckEl, cur.startFret + 1, 5, 7);
         _finishTransition(false);
-      }, DURATION + 60);
+      }, DURATION + PAIR_WAIT_BUFFER_MS);
     }
 
   // ── D폼 (bi=3) ↔ G폼 ──────────────────────────────────────────
@@ -1254,6 +1352,11 @@ function transitionPair(instant = false) {
           el.dataset.degree = 4;
         }
       });
+      // 새 dot 생성은 슬라이드·제거와 동시에 재생 (끝날 때까지 기다리지 않음)
+      // 1번줄(s=0) degree=1 생성 (startFret+5)
+      _spawnNote(neckEl, cur.startFret + 5, 0, 1);
+      // 5번줄(s=4) degree=4 생성 (startFret+5)
+      _spawnNote(neckEl, cur.startFret + 5, 4, 4);
       setTimeout(function() {
         neckEl.querySelectorAll('.fb-note:not(.fb-note--ghost)').forEach(el => {
           if (parseFloat(el.style.opacity) === 0) el.remove();
@@ -1266,12 +1369,8 @@ function transitionPair(instant = false) {
           '4,5':2, '4,6':3,
           '5,2':6, '5,3':7, '5,4':1,
         });
-        // 1번줄(s=0) degree=1 생성 (startFret+5)
-        _spawnNote(neckEl, cur.startFret + 5, 0, 1);
-        // 5번줄(s=4) degree=4 생성 (startFret+5)
-        _spawnNote(neckEl, cur.startFret + 5, 4, 4);
         _finishTransition(true);
-      }, DURATION + 60);
+      }, DURATION + PAIR_WAIT_BUFFER_MS);
 
     } else {
       // G폼 → D폼 (역전환)
@@ -1294,6 +1393,9 @@ function transitionPair(instant = false) {
           el.dataset.degree = 7;
         }
       });
+      // 새 dot 생성은 슬라이드·제거와 동시에 재생 (끝날 때까지 기다리지 않음)
+      // 4번줄(s=3) degree=7 생성 (startFret+1)
+      _spawnNote(neckEl, cur.startFret + 1, 3, 7);
       setTimeout(function() {
         neckEl.querySelectorAll('.fb-note:not(.fb-note--ghost)').forEach(el => {
           if (parseFloat(el.style.opacity) === 0) el.remove();
@@ -1306,10 +1408,8 @@ function transitionPair(instant = false) {
           '4,2':5, '4,3':6,
           '5,6':2, '5,7':3, '5,1':4,
         });
-        // 4번줄(s=3) degree=7 생성 (startFret+1)
-        _spawnNote(neckEl, cur.startFret + 1, 3, 7);
         _finishTransition(false);
-      }, DURATION + 60);
+      }, DURATION + PAIR_WAIT_BUFFER_MS);
     }
 
   } else {
@@ -1331,7 +1431,7 @@ function _transitionPairV() {
   const activeEls = [...neckEl.querySelectorAll('.fb-note:not(.fb-note--ghost)')];
   if (!activeEls.length) return;
 
-  const DURATION = _instantPair ? 0 : 350;
+  const DURATION = _instantPair ? 0 : PAIR_SLIDE_MS;
   _transitioning = true;
 
   activeEls.forEach(el => {
@@ -1363,6 +1463,9 @@ function _transitionPairV() {
           el.dataset.degree = 7;
         }
       });
+      // 새 dot 생성은 슬라이드·제거와 동시에 재생 (끝날 때까지 기다리지 않음)
+      _spawnNote(neckEl, cur.startFret + 1, 0, 7);
+      _spawnNote(neckEl, cur.startFret + 1, 5, 7);
       setTimeout(function() {
         neckEl.querySelectorAll('.fb-note:not(.fb-note--ghost)').forEach(el => {
           if (parseInt(el.dataset.s) === 1 && parseFloat(el.style.opacity) === 0) el.remove();
@@ -1375,10 +1478,8 @@ function _transitionPairV() {
           '4,7':3, '4,1':4, '4,2':5,
           '5,5':1, '5,6':2,
         });
-        _spawnNote(neckEl, cur.startFret + 1, 0, 7);
-        _spawnNote(neckEl, cur.startFret + 1, 5, 7);
         _finishTransition(true);
-      }, DURATION + 60);
+      }, DURATION + PAIR_WAIT_BUFFER_MS);
 
     } else {
       // E폼 → A폼 (역전환)
@@ -1400,6 +1501,8 @@ function _transitionPairV() {
           el.dataset.degree = 4;
         }
       });
+      // 새 dot 생성은 슬라이드·제거와 동시에 재생 (끝날 때까지 기다리지 않음)
+      _spawnNote(neckEl, cur.startFret + 5, 1, 4);
       setTimeout(function() {
         neckEl.querySelectorAll('.fb-note:not(.fb-note--ghost)').forEach(el => {
           if (parseFloat(el.style.opacity) === 0) el.remove();
@@ -1412,9 +1515,8 @@ function _transitionPairV() {
           '4,3':7, '4,4':1, '4,5':2,
           '5,1':5, '5,2':6,
         });
-        _spawnNote(neckEl, cur.startFret + 5, 1, 4);
         _finishTransition(false);
-      }, DURATION + 60);
+      }, DURATION + PAIR_WAIT_BUFFER_MS);
     }
 
   // ── G폼 (bi=1) ↔ D폼 ──────────────────────────────────────────
@@ -1445,6 +1547,8 @@ function _transitionPairV() {
           el.dataset.degree = 7;
         }
       });
+      // 새 dot 생성은 슬라이드·제거와 동시에 재생 (끝날 때까지 기다리지 않음)
+      _spawnNote(neckEl, cur.startFret + 1, 3, 7);
       setTimeout(function() {
         neckEl.querySelectorAll('.fb-note:not(.fb-note--ghost)').forEach(el => {
           if (parseFloat(el.style.opacity) === 0) el.remove();
@@ -1457,9 +1561,8 @@ function _transitionPairV() {
           '4,2':5, '4,3':6,
           '5,6':2, '5,7':3, '5,1':4,
         });
-        _spawnNote(neckEl, cur.startFret + 1, 3, 7);
         _finishTransition(true);
-      }, DURATION + 60);
+      }, DURATION + PAIR_WAIT_BUFFER_MS);
 
     } else {
       // D폼 → G폼 (역전환)
@@ -1480,6 +1583,9 @@ function _transitionPairV() {
           el.dataset.degree = 4;
         }
       });
+      // 새 dot 생성은 슬라이드·제거와 동시에 재생 (끝날 때까지 기다리지 않음)
+      _spawnNote(neckEl, cur.startFret + 5, 0, 1);
+      _spawnNote(neckEl, cur.startFret + 5, 4, 4);
       setTimeout(function() {
         neckEl.querySelectorAll('.fb-note:not(.fb-note--ghost)').forEach(el => {
           if (parseFloat(el.style.opacity) === 0) el.remove();
@@ -1492,10 +1598,8 @@ function _transitionPairV() {
           '4,5':2, '4,6':3,
           '5,2':6, '5,3':7, '5,4':1,
         });
-        _spawnNote(neckEl, cur.startFret + 5, 0, 1);
-        _spawnNote(neckEl, cur.startFret + 5, 4, 4);
         _finishTransition(false);
-      }, DURATION + 60);
+      }, DURATION + PAIR_WAIT_BUFFER_MS);
     }
 
   // ── E폼 (bi=2) ↔ C폼 ──────────────────────────────────────────
@@ -1519,6 +1623,8 @@ function _transitionPairV() {
           el.dataset.degree = 7;
         }
       });
+      // 새 dot 생성은 슬라이드·제거와 동시에 재생 (끝날 때까지 기다리지 않음)
+      _spawnNote(neckEl, cur.startFret + 1, 1, 7);
       setTimeout(function() {
         neckEl.querySelectorAll('.fb-note:not(.fb-note--ghost)').forEach(el => {
           if (parseInt(el.dataset.s) === 2 && parseFloat(el.style.opacity) === 0) el.remove();
@@ -1531,9 +1637,8 @@ function _transitionPairV() {
           '4,3':6, '4,5':1,
           '5,7':3, '5,1':4, '5,2':5,
         });
-        _spawnNote(neckEl, cur.startFret + 1, 1, 7);
         _finishTransition(true);
-      }, DURATION + 60);
+      }, DURATION + PAIR_WAIT_BUFFER_MS);
 
     } else {
       // C폼 → E폼 (역전환)
@@ -1554,6 +1659,8 @@ function _transitionPairV() {
           el.dataset.degree = 4;
         }
       });
+      // 새 dot 생성은 슬라이드·제거와 동시에 재생 (끝날 때까지 기다리지 않음)
+      _spawnNote(neckEl, cur.startFret + 4, 2, 4);
       setTimeout(function() {
         neckEl.querySelectorAll('.fb-note:not(.fb-note--ghost)').forEach(el => {
           if (parseInt(el.dataset.s) === 1 && parseFloat(el.style.opacity) === 0) el.remove();
@@ -1566,9 +1673,8 @@ function _transitionPairV() {
           '4,6':3, '4,1':5,
           '5,3':7, '5,4':1, '5,5':2,
         });
-        _spawnNote(neckEl, cur.startFret + 4, 2, 4);
         _finishTransition(false);
-      }, DURATION + 60);
+      }, DURATION + PAIR_WAIT_BUFFER_MS);
     }
 
   // ── D폼 (bi=3) ↔ A폼 ──────────────────────────────────────────
@@ -1592,6 +1698,8 @@ function _transitionPairV() {
           el.dataset.degree = 7;
         }
       });
+      // 새 dot 생성은 슬라이드·제거와 동시에 재생 (끝날 때까지 기다리지 않음)
+      _spawnNote(neckEl, cur.startFret + 1, 4, 7);
       setTimeout(function() {
         neckEl.querySelectorAll('.fb-note:not(.fb-note--ghost)').forEach(el => {
           if (parseInt(el.dataset.s) === 5 && parseFloat(el.style.opacity) === 0) el.remove();
@@ -1604,9 +1712,8 @@ function _transitionPairV() {
           '4,5':1, '4,6':2,
           '5,2':5, '5,3':6,
         });
-        _spawnNote(neckEl, cur.startFret + 1, 4, 7);
         _finishTransition(true);
-      }, DURATION + 60);
+      }, DURATION + PAIR_WAIT_BUFFER_MS);
 
     } else {
       // A폼 → D폼 (역전환)
@@ -1627,6 +1734,8 @@ function _transitionPairV() {
           el.dataset.degree = 4;
         }
       });
+      // 새 dot 생성은 슬라이드·제거와 동시에 재생 (끝날 때까지 기다리지 않음)
+      _spawnNote(neckEl, cur.startFret + 5, 5, 4);
       setTimeout(function() {
         neckEl.querySelectorAll('.fb-note:not(.fb-note--ghost)').forEach(el => {
           if (parseInt(el.dataset.s) === 4 && parseFloat(el.style.opacity) === 0) el.remove();
@@ -1639,9 +1748,8 @@ function _transitionPairV() {
           '4,1':5, '4,2':6,
           '5,5':2, '5,6':3,
         });
-        _spawnNote(neckEl, cur.startFret + 5, 5, 4);
         _finishTransition(false);
-      }, DURATION + 60);
+      }, DURATION + PAIR_WAIT_BUFFER_MS);
     }
 
   // ── C폼 (bi=4) ↔ G폼 (offset = −1) ───────────────────────────
@@ -1675,6 +1783,8 @@ function _transitionPairV() {
           el.dataset.degree = 7;
         }
       });
+      // 새 dot 생성은 슬라이드·제거와 동시에 재생 (끝날 때까지 기다리지 않음)
+      _spawnNote(neckEl, cur.startFret, 2, 7);
       setTimeout(function() {
         neckEl.querySelectorAll('.fb-note:not(.fb-note--ghost)').forEach(el => {
           if (parseInt(el.dataset.s) === 3 && parseFloat(el.style.opacity) === 0) el.remove();
@@ -1687,9 +1797,8 @@ function _transitionPairV() {
           '4,6':2, '4,7':3, '4,1':4,
           '5,3':6, '5,5':1,
         });
-        _spawnNote(neckEl, cur.startFret, 2, 7);
         _finishTransition(true);
-      }, DURATION + 60);
+      }, DURATION + PAIR_WAIT_BUFFER_MS);
 
     } else {
       // G폼 → C폼 (역전환)
@@ -1720,6 +1829,8 @@ function _transitionPairV() {
           el.dataset.degree = 4;
         }
       });
+      // 새 dot 생성은 슬라이드·제거와 동시에 재생 (끝날 때까지 기다리지 않음)
+      _spawnNote(neckEl, cur.startFret + 4, 3, 4);
       setTimeout(function() {
         neckEl.querySelectorAll('.fb-note:not(.fb-note--ghost)').forEach(el => {
           if (parseInt(el.dataset.s) === 2 && parseFloat(el.style.opacity) === 0) el.remove();
@@ -1732,9 +1843,8 @@ function _transitionPairV() {
           '4,2':6, '4,3':7, '4,4':1,
           '5,6':3, '5,1':5,
         });
-        _spawnNote(neckEl, cur.startFret + 4, 3, 4);
         _finishTransition(false);
-      }, DURATION + 60);
+      }, DURATION + PAIR_WAIT_BUFFER_MS);
     }
 
   } else {
@@ -1744,6 +1854,7 @@ function _transitionPairV() {
 
 async function closeScaleLevel() {
   _playTap();
+  exitPracticeMode();
   _recordScaleSessionTime();
   await GuitarAudio.stop({ wait: true });
   const shell = document.querySelector('.app-shell');
@@ -1967,7 +2078,8 @@ function createNoteEl(absF, s, degree, ghost = false, spawn = false) {
   const leftPct = (absF + 0.5) / TOTAL_FRETS * 100;
   const topPct  = (s + 0.5) / STRINGS * 100;
   const isRoot  = degree === 1;
-  const isBlue5 = degree === -5 && _scaleKey !== 'altered';   // altered #11은 특징음 강조 없음
+  const isBlue5 = (degree === -5 && _scaleKey !== 'altered')   // altered #11은 특징음 강조 없음
+               || (degree === -3 && _scaleKey === 'major-blues');   // 메이저 블루스의 블루스 노트는 b3
   const isNat7  = degree === 7 && _scaleKey === 'harmonic-minor';
   const isChar  = (degree === 4 && _scaleKey === 'ionian')
                || (degree === 6 && _scaleKey === 'dorian')
@@ -2094,6 +2206,8 @@ function renderNotes(animate = true) {
       });
     }));
   }
+
+  markPairMovers(neckEl);
 
   // secondary-iii C폼(bi=4): 실제 음은 그대로, 뷰포트만 오른쪽 1칸(startFret-1)으로 잡아 화면 중앙 배치
   const _scrollFret = (_scaleKey === 'secondary-iii' && current.bi === 4) ? current.startFret - 1 : current.startFret;
@@ -2463,6 +2577,8 @@ const TUTORIAL_DOT_FADE_SLOW_MS = 1500; // fillRemaining 전체동시 팝인용 
 // 새 레벨 추가 시 여기만 채우면 됨.
 const TUTORIAL_SCALE_CONFIG = {
   'major':      { name: '메이저 스케일',          degreeNames: '도레미파솔라시', rootNote: 0, demoForm: 'A폼' },  // Ckey
+  'major-pentatonic': { name: '메이저 펜타토닉 스케일', rootNote: 0, demoForm: 'A폼' },  // Ckey, A폼 = 근음 5번줄 3프렛(2~5프렛)
+  'major-blues':      { name: '메이저 블루스 스케일',   rootNote: 0, demoForm: 'A폼', bluesDegree: -3 },  // Ckey, 블루스 노트 = b3
   'pentatonic': { name: '마이너 펜타토닉 스케일', rootNote: 9, demoForm: 'E폼' },  // Am key, E폼=3프렛 시작(2026-09-28)
   'blues':      { name: '마이너 블루스 스케일',   rootNote: 9, demoForm: 'E폼' },  // Am key, E폼=3프렛 시작(2026-09-28)
   'natural-minor': { name: '내추럴 마이너 스케일', rootNote: 9, demoForm: 'Em폼' },  // Am key, Em폼=3프렛 시작(2026-09-28, 사용자 확정)
@@ -2757,12 +2873,13 @@ function buildTutorialSteps(scaleKey) {
     `이번 시간에는 '${cfg.name}'을 배워볼게요!`,
     // 펜타토닉 전용 강조 문구(2026-09-29)
     ...(scaleKey === 'pentatonic' ? [`거의 모든 멜로디의 뼈대가 되는\n중요한 스케일이에요.`] : []),
+    ...(scaleKey === 'major-pentatonic' ? [`가요, 팝, 록, J-pop 같은\n대중음악 멜로디의 뼈대가 되는 스케일이에요.`] : []),
     `${cfg.name}은\n'${_tutorialGetNoteNames(scaleKey, cfg.rootNote)}'로 이루어져요.`,
     `도수로 표현한다면 ${_tutorialGetDegreeFormula(scaleKey)} 가 돼요!`
   ];
   // 레벨1~11(major/pentatonic/blues/natural-minor/harmonic-minor/ionian)은 기존 방식 유지,
   // 레벨12(dorian)부터는 부가설명 줄인 새 도입부 템플릿 사용(2026-09-29, 사용자 확정).
-  const LEGACY_INTRO_KEYS = ['major', 'pentatonic', 'blues', 'natural-minor', 'harmonic-minor'];
+  const LEGACY_INTRO_KEYS = ['major', 'major-pentatonic', 'major-blues', 'pentatonic', 'blues', 'natural-minor', 'harmonic-minor'];
   // 아이오니안 제외 나머지 6개 모드 — 공통 연습권유+종료 문구에 사용(2026-09-29)
   const CHAPTER3_MODE_KEYS = ['dorian', 'phrygian', 'lydian', 'mixolydian', 'aeolian', 'locrian'];
   // 챕터4(재즈 스케일) — 미뉴엣 멜로디 데모 없음, 파생설명 방식으로 대체(2026-09-29, 사용자 확정)
@@ -2848,6 +2965,18 @@ function buildTutorialSteps(scaleKey) {
       { type: 'action', action: 'noteNameGrid' },
       { type: 'text', text: "앞으로는 음이름과 숫자(도수)를 사용할게요.\n기타에서는 두 방식이 주로 쓰여요." },
     ] : []),
+    ...(scaleKey === 'major-pentatonic' ? [
+      { type: 'text', text: "메이저 스케일에서 4도와 7도를 빼면\n메이저 펜타토닉이 돼요." },
+      { type: 'text', text: "음이 5개뿐이라 어느 음을 눌러도\n어색하지 않아서 연습하기 좋아요." },
+    ] : []),
+    ...(scaleKey === 'major-blues' ? [
+      { type: 'action', action: 'highlightBluesNote', texts: [
+        "메이저 펜타토닉에 한 음을 더하면\n'메이저 블루스 스케일'이 돼요.",
+        "이렇게 추가된 음(b3)을\n'블루스 노트'라고 불러요."
+      ] },
+      { type: 'text', text: "블루스 노트의 엇나간 멜로디가\n느낌있는 멜로디 진행을 만들어요!" },
+      { type: 'text', text: "5가지 블럭에서 블루스 노트는\n색깔로 표시했어요!" },
+    ] : []),
     ...(scaleKey === 'pentatonic' ? [
       { type: 'text', text: "그런데, 왜 C로 시작하지 않은 걸까요?" },
       { type: 'text', text: "그건 단순히 A로 시작하는게 더 쉽기 때문이에요!" },
@@ -2932,7 +3061,7 @@ function buildTutorialSteps(scaleKey) {
       { type: 'text', text: "특징음은 그 모드의 분위기를\n가장 잘 보여주는 음이에요." },
       { type: 'text', text: "아이오니안의 특징음은\n4번째 음(4도)이에요." },
     ] : []),
-    ...(scaleKey === 'pentatonic' ? [
+    ...(scaleKey === 'pentatonic' || scaleKey === 'major-pentatonic' ? [
       { type: 'text', text: "노래를 틀어놓고, 이 스케일을 아무렇게\n연주해보면서 감을 키워보는 연습을 해보세요!" },
     ] : []),
     ...(scaleKey === 'mixolydian-b9b13' ? [
@@ -2986,7 +3115,7 @@ function _buildSecondaryIVTutorialSteps() {
     { type: 'text', text: "패밀리코드라는 개념을 알고 있어야\n이해할 수 있을거예요." },
     { type: 'text', text: "코드를 진행하다보면 패밀리코드가 아닌\n'7'코드가 종종 등장해요." },
     { type: 'text', text: "그 '7'코드 뒤에 나오는 패밀리코드에 따라\n사용할 스케일이 달라져요!" },
-    { type: 'action', action: 'fillBlockInstant', text: "레벨6에서는 4도로 이어지는 '7'코드에\n쓸 수 있는 스케일을 배울거예요." },
+    { type: 'action', action: 'fillBlockInstant', text: "레벨8에서는 4도로 이어지는 '7'코드에\n쓸 수 있는 스케일을 배울거예요." },
     { type: 'action', action: 'playPairTransitionDemo', text: "직접 들어볼까요?" },
     { type: 'text', text: "처음엔 개념이 조금 어려울 수 있어요.\n보통은 바뀌는 음에 익숙해지는 방법이 있어요." },
     { type: 'text', text: "그리고 바뀐 후의 스케일블럭을 보면,\nF메이저 스케일이랑 똑같다는 걸 알 수 있어요!" },
@@ -3081,6 +3210,7 @@ function _tutorialClearTimers() {
 }
 
 function openTutorial() {
+  exitPracticeMode();
   _tutorialMode = true;
   GuitarAudio.stop();
   clearTestDots();
@@ -3349,7 +3479,7 @@ function _tutorialRenderFormStatic(formIdx) {
     const leftPct = (col + 0.5) / FRETS_VISIBLE * 100;
     const topPct  = (note.s + 0.5) / STRINGS * 100;
     const isHighlight = targetKeys.has(note.s + ',' + note.absF);
-    const isBluesNote = _scaleKey === 'blues' && note.degree === -5; // 블루스 노트(b5) 색깔 표시(2026-09-29)
+    const isBluesNote = (_scaleKey === 'blues' || _scaleKey === 'major-blues') && note.degree === (cfg.bluesDegree ?? -5); // 블루스 노트(b5) 색깔 표시(2026-09-29)
     const isCharNote = _tutorialCharNoteRevealed && cfg.charDegree != null && note.degree === cfg.charDegree; // 특징음 강조, 한번 트리거되면 5폼 전부 반영(2026-09-29)
     const el = document.createElement('div');
     el.className = 'fb-note'
@@ -3604,7 +3734,7 @@ function runTutorialAction(action, onDone, gridRows) {
     }, { once: true });
   } else if (action === 'highlightBluesNote') {
     // 옥타브런에 이미 찍힌 dot 중 블루스 노트(b5)만 파란색으로 전환(2026-09-29)
-    const target = _tutorialRunNotes.find(n => n.degree === -5);
+    const target = _tutorialRunNotes.find(n => n.degree === (TUTORIAL_SCALE_CONFIG[_scaleKey]?.bluesDegree ?? -5));
     const dots = Array.from(document.querySelectorAll('#test-fb-full-neck .fb-note'));
     const matchedBlues = target
       ? dots.filter(d => Number(d.dataset.s) === target.s && Number(d.dataset.absF) === target.absF)
@@ -3964,7 +4094,7 @@ function _transitionPairII() {
   const activeEls = [...neckEl.querySelectorAll('.fb-note:not(.fb-note--ghost)')];
   if (!activeEls.length) return;
 
-  const DURATION = _instantPair ? 0 : 350;
+  const DURATION = _instantPair ? 0 : PAIR_SLIDE_MS;
   _transitioning = true;
 
   activeEls.forEach(el => {
@@ -4000,7 +4130,7 @@ function _transitionPairII() {
           '5,3':'5',  '5,4':'b6',
         });
         _finishTransition(true);
-      }, DURATION + 60);
+      }, DURATION + PAIR_WAIT_BUFFER_MS);
 
     } else {
       // Am폼 → C폼: s=0,2,5 에서 deg7 slide -1
@@ -4033,7 +4163,7 @@ function _transitionPairII() {
           el.classList.remove('fb-note--root');
         });
         _finishTransition(false);
-      }, DURATION + 60);
+      }, DURATION + PAIR_WAIT_BUFFER_MS);
     }
   }
 
@@ -4062,7 +4192,7 @@ function _transitionPairII() {
           '5,6':1,
         });
         _finishTransition(true);
-      }, DURATION + 60);
+      }, DURATION + PAIR_WAIT_BUFFER_MS);
 
     } else {
       // Gm폼 → A폼: s=0,3,5 에서 deg7 slide -1 (degree는 degMap 이후에 변경)
@@ -4092,7 +4222,7 @@ function _transitionPairII() {
           el.classList.remove('fb-note--root');
         });
         _finishTransition(false);
-      }, DURATION + 60);
+      }, DURATION + PAIR_WAIT_BUFFER_MS);
     }
   }
 
@@ -4121,7 +4251,7 @@ function _transitionPairII() {
           '5,7':'2',  '5,1':'b3', '5,2':'4',
         });
         _finishTransition(true);
-      }, DURATION + 60);
+      }, DURATION + PAIR_WAIT_BUFFER_MS);
 
     } else {
       // Dm폼 → E폼: s=1,4 에서 deg7 slide -1 (degree는 degMap 이후 변경)
@@ -4151,7 +4281,7 @@ function _transitionPairII() {
           el.classList.remove('fb-note--root');
         });
         _finishTransition(false);
-      }, DURATION + 60);
+      }, DURATION + PAIR_WAIT_BUFFER_MS);
     }
   }
 
@@ -4180,7 +4310,7 @@ function _transitionPairII() {
           '5,2':'4',  '5,3':'5',  '5,4':'b6',
         });
         _finishTransition(true);
-      }, DURATION + 60);
+      }, DURATION + PAIR_WAIT_BUFFER_MS);
 
     } else {
       // Cm폼 → D폼: s=2,4 에서 deg7 slide -1 (degree는 degMap 이후 변경)
@@ -4210,7 +4340,7 @@ function _transitionPairII() {
           el.classList.remove('fb-note--root');
         });
         _finishTransition(false);
-      }, DURATION + 60);
+      }, DURATION + PAIR_WAIT_BUFFER_MS);
     }
   }
 
@@ -4237,6 +4367,9 @@ function _transitionPairII() {
           el.dataset.degree = 7;
         }
       });
+      // 새 dot 생성은 슬라이드·제거와 동시에 재생 (끝날 때까지 기다리지 않음)
+      _spawnNote(neckEl, cur.startFret + 1, 0, 7);
+      _spawnNote(neckEl, cur.startFret + 1, 5, 7);
       setTimeout(function() {
         neckEl.querySelectorAll('.fb-note:not(.fb-note--ghost)').forEach(el => {
           if (parseInt(el.dataset.s) === 1 && parseFloat(el.style.opacity) === 0) el.remove();
@@ -4249,10 +4382,8 @@ function _transitionPairII() {
           '4,2':'4',   '4,3':'5',   '4,4':'b6',
           '5,6':1,     '5,7':'2',   '5,1':'b3',
         });
-        _spawnNote(neckEl, cur.startFret + 1, 0, 7);
-        _spawnNote(neckEl, cur.startFret + 1, 5, 7);
         _finishTransition(true);
-      }, DURATION + 60);
+      }, DURATION + PAIR_WAIT_BUFFER_MS);
 
     } else {
       // Em폼 → G폼: s=0,s=5 deg7 fade, s=3 deg7 slide-1 (degree는 degMap 이후 변경)
@@ -4276,6 +4407,8 @@ function _transitionPairII() {
           slidNodes.push(el);
         }
       });
+      // 새 dot 생성은 슬라이드·제거와 동시에 재생 (끝날 때까지 기다리지 않음)
+      _spawnNote(neckEl, cur.startFret + 5, 1, 5);
       setTimeout(function() {
         neckEl.querySelectorAll('.fb-note:not(.fb-note--ghost)').forEach(el => {
           if ((parseInt(el.dataset.s) === 0 || parseInt(el.dataset.s) === 5) &&
@@ -4293,9 +4426,8 @@ function _transitionPairII() {
           el.dataset.degree = 5;
           el.classList.remove('fb-note--root');
         });
-        _spawnNote(neckEl, cur.startFret + 5, 1, 5);
         _finishTransition(false);
-      }, DURATION + 60);
+      }, DURATION + PAIR_WAIT_BUFFER_MS);
     }
   }
 }
@@ -4314,7 +4446,7 @@ function _transitionPairVI() {
   const activeEls = [...neckEl.querySelectorAll('.fb-note:not(.fb-note--ghost)')];
   if (!activeEls.length) return;
 
-  const DURATION = _instantPair ? 0 : 350;
+  const DURATION = _instantPair ? 0 : PAIR_SLIDE_MS;
   _transitioning = true;
 
   activeEls.forEach(el => {
@@ -4339,13 +4471,14 @@ function _transitionPairVI() {
         if (s === 4 && d === '7' && absf === sf+3)   { el.style.left = ((sf+2+0.5)/TOTAL_FRETS*100)+'%'; el.dataset.absf = sf+2; el.classList.toggle('fb-note--open', sf+2===0); el.dataset.degree = 'b6'; el.classList.remove('fb-note--root'); }
         if (s === 4 && d === '1' && absf === sf+4)   { el.style.left = ((sf+5+0.5)/TOTAL_FRETS*100)+'%'; el.dataset.absf = sf+5; el.classList.toggle('fb-note--open', sf+5===0); slidNodes.push(el); }
       });
+      // 새 dot 생성은 슬라이드·제거와 동시에 재생 (끝날 때까지 기다리지 않음)
+      _spawnNote(neckEl, sf+4, 2, 'b6');
       setTimeout(function() {
         neckEl.querySelectorAll('.fb-note:not(.fb-note--ghost)').forEach(el => { if (parseFloat(el.style.opacity) === 0) el.remove(); });
         _applyDegMap(neckEl, { '0,3':'2','0,4':'b3','0,5':'4', '1,2':1, '2,5':'4','2,6':'5', '3,2':1,'3,3':'2','3,4':'b3', '4,6':'5', '5,3':'2','5,4':'b3','5,5':'4' });
         slidNodes.forEach(el => { el.dataset.degree = 7; el.classList.remove('fb-note--root'); });
-        _spawnNote(neckEl, sf+4, 2, 'b6');
         _finishTransition(true);
-      }, DURATION + 60);
+      }, DURATION + PAIR_WAIT_BUFFER_MS);
     } else {
       // Dm폼→C폼: fade s2-b6@sf+4, slidNode s1-7@sf+3→sf+2(→1), slide s4-b6@sf+2→sf+3(7), slidNode s4-7@sf+5→sf+4(→1)
       const slidNodes = [];
@@ -4358,13 +4491,14 @@ function _transitionPairVI() {
         if (s === 4 && d === 'b6' && absf === sf+2)  { el.style.left = ((sf+3+0.5)/TOTAL_FRETS*100)+'%'; el.dataset.absf = sf+3; el.classList.toggle('fb-note--open', sf+3===0); el.dataset.degree = '7'; }
         if (s === 4 && d === '7'  && absf === sf+5)  { el.style.left = ((sf+4+0.5)/TOTAL_FRETS*100)+'%'; el.dataset.absf = sf+4; el.classList.toggle('fb-note--open', sf+4===0); slidNodes.push(el); }
       });
+      // 새 dot 생성은 슬라이드·제거와 동시에 재생 (끝날 때까지 기다리지 않음)
+      _spawnNote(neckEl, sf+1, 1, 7);
       setTimeout(function() {
         neckEl.querySelectorAll('.fb-note:not(.fb-note--ghost)').forEach(el => { if (parseFloat(el.style.opacity) === 0) el.remove(); });
         _applyDegMap(neckEl, { '0,2':'3','0,b3':'4','0,4':'5', '1,1':'2', '2,4':'5','2,5':'6', '3,1':'2','3,2':'3','3,b3':'4', '4,5':'6', '5,2':'3','5,b3':'4','5,4':'5' });
         slidNodes.forEach(el => { el.dataset.degree = 1; el.classList.add('fb-note--root'); });
-        _spawnNote(neckEl, sf+1, 1, 7);
         _finishTransition(false);
-      }, DURATION + 60);
+      }, DURATION + PAIR_WAIT_BUFFER_MS);
     }
   }
 
@@ -4382,13 +4516,14 @@ function _transitionPairVI() {
         if (s === 2 && d === '1' && absf === sf+4) { const nf=sf+5; el.style.left=((nf+0.5)/TOTAL_FRETS*100)+'%'; el.dataset.absf=nf; el.classList.toggle('fb-note--open',nf===0); slidNodes.push(el); }
         if (s === 4 && d === '1' && absf === sf+2) { const nf=sf+3; el.style.left=((nf+0.5)/TOTAL_FRETS*100)+'%'; el.dataset.absf=nf; el.classList.toggle('fb-note--open',nf===0); slidNodes.push(el); }
       });
+      // 새 dot 생성은 슬라이드·제거와 동시에 재생 (끝날 때까지 기다리지 않음)
+      _spawnNote(neckEl, sf+5, 5, 'b6');
       setTimeout(function() {
         neckEl.querySelectorAll('.fb-note:not(.fb-note--ghost)').forEach(el => { if (parseFloat(el.style.opacity) === 0) el.remove(); });
         _applyDegMap(neckEl, { '0,5':'4','0,6':'5', '1,2':1,'1,3':'2','1,4':'b3', '2,6':'5', '3,3':'2','3,4':'b3','3,5':'4', '4,2':1, '5,5':'4','5,6':'5' });
         slidNodes.forEach(el => { el.dataset.degree = '7'; el.classList.remove('fb-note--root'); });
-        _spawnNote(neckEl, sf+5, 5, 'b6');
         _finishTransition(true);
-      }, DURATION + 60);
+      }, DURATION + PAIR_WAIT_BUFFER_MS);
     } else {
       // Cm폼→A폼: fade s5-b6@sf+5, slide s2-b6@sf+2→sf+3(7), slidNode s2-7@sf+5→sf+4(→1), slidNode s4-7@sf+3→sf+2(→1), spawn s4 7@sf+1
       const slidNodes = [];
@@ -4401,13 +4536,14 @@ function _transitionPairVI() {
         if (s === 2 && d === '7'  && absf === sf+5) { const nf=sf+4; el.style.left=((nf+0.5)/TOTAL_FRETS*100)+'%'; el.dataset.absf=nf; el.classList.toggle('fb-note--open',nf===0); slidNodes.push(el); }
         if (s === 4 && d === '7'  && absf === sf+3) { const nf=sf+2; el.style.left=((nf+0.5)/TOTAL_FRETS*100)+'%'; el.dataset.absf=nf; el.classList.toggle('fb-note--open',nf===0); slidNodes.push(el); }
       });
+      // 새 dot 생성은 슬라이드·제거와 동시에 재생 (끝날 때까지 기다리지 않음)
+      _spawnNote(neckEl, sf+1, 4, 7);
       setTimeout(function() {
         neckEl.querySelectorAll('.fb-note:not(.fb-note--ghost)').forEach(el => { if (parseFloat(el.style.opacity) === 0) el.remove(); });
         _applyDegMap(neckEl, { '0,4':'5','0,5':'6', '1,1':'2','1,2':'3','1,b3':'4', '2,5':'6', '3,2':'3','3,b3':'4','3,4':'5', '4,1':'2', '5,4':'5','5,5':'6' });
         slidNodes.forEach(el => { el.dataset.degree = 1; el.classList.add('fb-note--root'); });
-        _spawnNote(neckEl, sf+1, 4, 7);
         _finishTransition(false);
-      }, DURATION + 60);
+      }, DURATION + PAIR_WAIT_BUFFER_MS);
     }
   }
 
@@ -4427,13 +4563,14 @@ function _transitionPairVI() {
         if (s === 5 && d === '7' && absf === sf+4) { const nf=sf+3; el.style.left=((nf+0.5)/TOTAL_FRETS*100)+'%'; el.dataset.absf=nf; el.classList.toggle('fb-note--open',nf===0); el.dataset.degree='b6'; el.classList.remove('fb-note--root'); }
         if (s === 5 && d === '1' && absf === sf+5) { const nf=sf+6; el.style.left=((nf+0.5)/TOTAL_FRETS*100)+'%'; el.dataset.absf=nf; el.classList.toggle('fb-note--open',nf===0); slidNodes.push(el); }
       });
+      // 새 dot 생성은 슬라이드·제거와 동시에 재생 (끝날 때까지 기다리지 않음)
+      _spawnNote(neckEl, sf+5, 3, 'b6');
       setTimeout(function() {
         neckEl.querySelectorAll('.fb-note:not(.fb-note--ghost)').forEach(el => { if (parseFloat(el.style.opacity) === 0) el.remove(); });
         _applyDegMap(neckEl, { '0,6':'5', '1,3':'2','1,4':'b3','1,5':'4', '2,2':1, '3,5':'4','3,6':'5', '4,2':1,'4,3':'2','4,4':'b3', '5,6':'5' });
         slidNodes.forEach(el => { el.dataset.degree = '7'; el.classList.remove('fb-note--root'); });
-        _spawnNote(neckEl, sf+5, 3, 'b6');
         _finishTransition(true);
-      }, DURATION + 60);
+      }, DURATION + PAIR_WAIT_BUFFER_MS);
     } else {
       // Am폼→G폼: fade s3-b6@sf+5, slide s0-b6@sf+3→sf+4(7), slidNode s0-7@sf+6→sf+5(→1), slidNode s2-7@sf+3→sf+2(→1), slide s5-b6@sf+3→sf+4(7), slidNode s5-7@sf+6→sf+5(→1), spawn s2 7@sf+1
       const slidNodes = [];
@@ -4448,13 +4585,14 @@ function _transitionPairVI() {
         if (s === 5 && d === 'b6' && absf === sf+3) { const nf=sf+4; el.style.left=((nf+0.5)/TOTAL_FRETS*100)+'%'; el.dataset.absf=nf; el.classList.toggle('fb-note--open',nf===0); el.dataset.degree='7'; el.classList.remove('fb-note--root'); }
         if (s === 5 && d === '7'  && absf === sf+6) { const nf=sf+5; el.style.left=((nf+0.5)/TOTAL_FRETS*100)+'%'; el.dataset.absf=nf; el.classList.toggle('fb-note--open',nf===0); slidNodes.push(el); }
       });
+      // 새 dot 생성은 슬라이드·제거와 동시에 재생 (끝날 때까지 기다리지 않음)
+      _spawnNote(neckEl, sf+1, 2, 7);
       setTimeout(function() {
         neckEl.querySelectorAll('.fb-note:not(.fb-note--ghost)').forEach(el => { if (parseFloat(el.style.opacity) === 0) el.remove(); });
         _applyDegMap(neckEl, { '0,5':'6', '1,2':'3','1,b3':'4','1,4':'5', '2,1':'2', '3,4':'5','3,5':'6', '4,1':'2','4,2':'3','4,b3':'4', '5,5':'6' });
         slidNodes.forEach(el => { el.dataset.degree = 1; el.classList.add('fb-note--root'); });
-        _spawnNote(neckEl, sf+1, 2, 7);
         _finishTransition(false);
-      }, DURATION + 60);
+      }, DURATION + PAIR_WAIT_BUFFER_MS);
     }
   }
 
@@ -4474,13 +4612,14 @@ function _transitionPairVI() {
         if (s === 5 && d === '7' && absf === sf+1) { el.style.opacity = '0'; el.style.transform = 'translate(-50%,-50%) scale(0)'; }
         if (s === 5 && d === '1' && absf === sf+2) { const nf=sf+3; el.style.left=((nf+0.5)/TOTAL_FRETS*100)+'%'; el.dataset.absf=nf; el.classList.toggle('fb-note--open',nf===0); slidNodes.push(el); }
       });
+      // 새 dot 생성은 슬라이드·제거와 동시에 재생 (끝날 때까지 기다리지 않음)
+      _spawnNote(neckEl, sf+5, 1, 'b6');
       setTimeout(function() {
         neckEl.querySelectorAll('.fb-note:not(.fb-note--ghost)').forEach(el => { if (parseFloat(el.style.opacity) === 0) el.remove(); });
         _applyDegMap(neckEl, { '0,2':1, '1,5':'4','1,6':'5', '2,2':1,'2,3':'2','2,4':'b3', '3,6':'5', '4,3':'2','4,4':'b3','4,5':'4', '5,2':1 });
         slidNodes.forEach(el => { el.dataset.degree = '7'; el.classList.remove('fb-note--root'); });
-        _spawnNote(neckEl, sf+5, 1, 'b6');
         _finishTransition(true);
-      }, DURATION + 60);
+      }, DURATION + PAIR_WAIT_BUFFER_MS);
     } else {
       // Gm폼→E폼: fade s1-b6@sf+5, slidNode s0-7@sf+3→sf+2(→1), slide s3-b6@sf+2→sf+3(7), slidNode s3-7@sf+5→sf+4(→1), slidNode s5-7@sf+3→sf+2(→1), spawn s0 7@sf+1, spawn s5 7@sf+1
       const slidNodes = [];
@@ -4494,14 +4633,15 @@ function _transitionPairVI() {
         if (s === 3 && d === '7'  && absf === sf+5) { const nf=sf+4; el.style.left=((nf+0.5)/TOTAL_FRETS*100)+'%'; el.dataset.absf=nf; el.classList.toggle('fb-note--open',nf===0); slidNodes.push(el); }
         if (s === 5 && d === '7'  && absf === sf+3) { const nf=sf+2; el.style.left=((nf+0.5)/TOTAL_FRETS*100)+'%'; el.dataset.absf=nf; el.classList.toggle('fb-note--open',nf===0); slidNodes.push(el); }
       });
+      // 새 dot 생성은 슬라이드·제거와 동시에 재생 (끝날 때까지 기다리지 않음)
+      _spawnNote(neckEl, sf+1, 0, 7);
+      _spawnNote(neckEl, sf+1, 5, 7);
       setTimeout(function() {
         neckEl.querySelectorAll('.fb-note:not(.fb-note--ghost)').forEach(el => { if (parseFloat(el.style.opacity) === 0) el.remove(); });
         _applyDegMap(neckEl, { '0,1':'2', '1,4':'5','1,5':'6', '2,1':'2','2,2':'3','2,b3':'4', '3,5':'6', '4,2':'3','4,b3':'4','4,4':'5', '5,1':'2' });
         slidNodes.forEach(el => { el.dataset.degree = 1; el.classList.add('fb-note--root'); });
-        _spawnNote(neckEl, sf+1, 0, 7);
-        _spawnNote(neckEl, sf+1, 5, 7);
         _finishTransition(false);
-      }, DURATION + 60);
+      }, DURATION + PAIR_WAIT_BUFFER_MS);
     }
   }
 
@@ -4519,16 +4659,17 @@ function _transitionPairVI() {
         if (s === 3 && d === '7' && absf === sf+1) { el.style.opacity = '0'; el.style.transform = 'translate(-50%,-50%) scale(0)'; }
         if (s === 3 && d === '1' && absf === sf+2) { const nf=sf+3; el.style.left=((nf+0.5)/TOTAL_FRETS*100)+'%'; el.dataset.absf=nf; el.classList.toggle('fb-note--open',nf===0); slidNodes.push(el); }
       });
+      // 새 dot 생성은 슬라이드·제거와 동시에 재생 (끝날 때까지 기다리지 않음)
+      _spawnNote(neckEl, sf+1, 0, 7);
+      _spawnNote(neckEl, sf+5, 0, 'b3');
+      _spawnNote(neckEl, sf+5, 4, 'b6');
+      _spawnNote(neckEl, sf+1, 5, 7);
       setTimeout(function() {
         neckEl.querySelectorAll('.fb-note:not(.fb-note--ghost)').forEach(el => { if (parseFloat(el.style.opacity) === 0) el.remove(); });
         _applyDegMap(neckEl, { '0,2':1,'0,3':'2', '1,6':'5', '2,3':'2','2,4':'b3','2,5':'4', '3,2':1, '4,5':'4','4,6':'5', '5,2':1,'5,3':'2','5,4':'b3' });
         slidNodes.forEach(el => { el.dataset.degree = '7'; el.classList.remove('fb-note--root'); });
-        _spawnNote(neckEl, sf+1, 0, 7);
-        _spawnNote(neckEl, sf+5, 0, 'b3');
-        _spawnNote(neckEl, sf+5, 4, 'b6');
-        _spawnNote(neckEl, sf+1, 5, 7);
         _finishTransition(true);
-      }, DURATION + 60);
+      }, DURATION + PAIR_WAIT_BUFFER_MS);
     } else {
       // Em폼→D폼: fade s0-7@sf+1 s0-b3@sf+5 s4-b6@sf+5 s5-7@sf+1, slide s1-b6@sf+3→sf+4(7), slidNode s3-7@sf+3→sf+2(→1), spawn s1 1@sf+5, spawn s3 7@sf+1
       const slidNodes = [];
@@ -4543,14 +4684,15 @@ function _transitionPairVI() {
         if (s === 1 && d === 'b6' && absf === sf+3) { const nf=sf+4; el.style.left=((nf+0.5)/TOTAL_FRETS*100)+'%'; el.dataset.absf=nf; el.classList.toggle('fb-note--open',nf===0); el.dataset.degree='7'; el.classList.remove('fb-note--root'); }
         if (s === 3 && d === '7'  && absf === sf+3) { const nf=sf+2; el.style.left=((nf+0.5)/TOTAL_FRETS*100)+'%'; el.dataset.absf=nf; el.classList.toggle('fb-note--open',nf===0); slidNodes.push(el); }
       });
+      // 새 dot 생성은 슬라이드·제거와 동시에 재생 (끝날 때까지 기다리지 않음)
+      _spawnNote(neckEl, sf+1, 3, 7);
+      _spawnNote(neckEl, sf+5, 1, 1);
       setTimeout(function() {
         neckEl.querySelectorAll('.fb-note:not(.fb-note--ghost)').forEach(el => { if (parseFloat(el.style.opacity) === 0) el.remove(); });
         _applyDegMap(neckEl, { '0,1':'2','0,2':'3', '1,5':'6', '2,2':'3','2,b3':'4','2,4':'5', '3,1':'2', '4,4':'5','4,5':'6', '5,1':'2','5,2':'3','5,b3':'4' });
         slidNodes.forEach(el => { el.dataset.degree = 1; el.classList.add('fb-note--root'); });
-        _spawnNote(neckEl, sf+1, 3, 7);
-        _spawnNote(neckEl, sf+5, 1, 1);
         _finishTransition(false);
-      }, DURATION + 60);
+      }, DURATION + PAIR_WAIT_BUFFER_MS);
     }
   }
 }
@@ -4568,7 +4710,7 @@ function _transitionPairIII() {
   if (!cur) { _transitioning = false; return; }
   const sf = cur.startFret;
   const bi = cur.bi;
-  const DURATION = _instantPair ? 0 : 350;
+  const DURATION = _instantPair ? 0 : PAIR_SLIDE_MS;
   const forward  = !_pairTransitioned;
   const delta    = SECONDARY_III_DELTA[bi] || { spawn: [], remove: [] };
 
@@ -4605,14 +4747,15 @@ function _transitionPairIII() {
         el.style.transform = 'translate(-50%,-50%) scale(0)';
       }
     });
+    // 새 dot 생성은 슬라이드·제거와 동시에 재생 (끝날 때까지 기다리지 않음)
+    delta.spawn.forEach(sp => _spawnNote(neckEl, sf + sp.off, sp.s, sp.degree));
     setTimeout(function() {
       neckEl.querySelectorAll('.fb-note:not(.fb-note--ghost)').forEach(el => {
         if (parseFloat(el.style.opacity) === 0) el.remove();
       });
       slidNodes.forEach(({ el, finalDeg }) => { el.dataset.degree = finalDeg; });
-      delta.spawn.forEach(sp => _spawnNote(neckEl, sf + sp.off, sp.s, sp.degree));
       _finishTransition(true);
-    }, DURATION + 60);
+    }, DURATION + PAIR_WAIT_BUFFER_MS);
 
   } else {
     // 역방향: 델타 spawn 제거 → #2→2, #4→4 (-1프랫) → 델타 remove 복구
@@ -4633,14 +4776,15 @@ function _transitionPairIII() {
         slidNodes.push({ el, finalDeg: d === '#2' ? '2' : '4' });
       }
     });
+    // 새 dot 생성은 슬라이드·제거와 동시에 재생 (끝날 때까지 기다리지 않음)
+    delta.remove.forEach(r => _spawnNote(neckEl, sf + r.backOff, r.s, r.backDeg));
     setTimeout(function() {
       neckEl.querySelectorAll('.fb-note:not(.fb-note--ghost)').forEach(el => {
         if (parseFloat(el.style.opacity) === 0) el.remove();
       });
       slidNodes.forEach(({ el, finalDeg }) => { el.dataset.degree = finalDeg; });
-      delta.remove.forEach(r => _spawnNote(neckEl, sf + r.backOff, r.s, r.backDeg));
       _finishTransition(false);
-    }, DURATION + 60);
+    }, DURATION + PAIR_WAIT_BUFFER_MS);
   }
 }
 
@@ -4708,6 +4852,22 @@ function updateFormLabel() {
 }
 
 // ── 블록 인디케이터 업데이트 ──────────────────────────────────
+// 접속 시 기본으로 보여줄 블록 — 사용 프렛 범위의 중앙이 4프렛(= 2~6프렛 폼)에 가장 가까운 블록.
+// 전 레벨 공통 규칙이라 레벨별 인덱스를 따로 두지 않음(대부분 두 번째 폼, 첫 블록이 더 가까우면 첫 블록, 동점이면 더 높은 프렛 블록).
+const DEFAULT_FORM_CENTER_FRET = 4;
+function defaultNavIdx() {
+  const seq = buildNavSequence();
+  let best = 0, bestDist = Infinity;
+  seq.forEach(({ block, startFret }, i) => {
+    const cols = ScaleData.parseGrid(block.grid).notes.map(n => n.col);
+    if (!cols.length) return;
+    const center = startFret + (Math.min(...cols) + Math.max(...cols)) / 2;
+    const dist = Math.abs(center - DEFAULT_FORM_CENTER_FRET);
+    if (dist <= bestDist) { bestDist = dist; best = i; }   // 동점이면 프렛이 더 높은(뒤쪽) 블록
+  });
+  return best;
+}
+
 function updateBlockIndicator() {
   const el = document.getElementById('block-indicator');
   if (!el) return;
@@ -4751,10 +4911,12 @@ function initArrows() {
 }
 
 // ── 키 버튼 레이블 갱신 ──────────────────────────────────────
+function _keyBtnLabel(semitone) {
+  return (_useFlat ? KEY_NAMES_FLAT : KEY_NAMES)[semitone] + (_keyUi && _keyUi.minor ? 'm' : '');
+}
 function updateKeyLabels() {
-  const names = _useFlat ? KEY_NAMES_FLAT : KEY_NAMES;
-  document.querySelectorAll('.key-btn').forEach((btn, i) => {
-    btn.textContent = names[i];
+  document.querySelectorAll('.key-btn').forEach(btn => {
+    btn.textContent = _keyBtnLabel(Number(btn.dataset.semitone));
   });
 }
 
@@ -4866,6 +5028,7 @@ function initAccidentalToggle() {
     flatSpan.classList.toggle('active',   _useFlat);
     updateKeyLabels();
     updateFormLabel();
+    renderPracticeChords();
     analytics.track('scale_accidental_toggled', {
       scale_key: _scaleKey,
       to: _useFlat ? 'flat' : 'sharp',
@@ -4938,19 +5101,24 @@ function initKeySelector() {
   const el = document.getElementById('key-selector');
   if (!el) return;
 
-  KEY_NAMES.forEach((name, semitone) => {
+  const first = _keyUi ? _keyUi.root : 0;
+  for (let k = 0; k < 12; k++) {
+    const semitone = (first + k) % 12;
     const btn = document.createElement('button');
     btn.className = 'key-btn' + (semitone === _rootNote ? ' key-btn--active' : '');
-    btn.textContent = name;
+    btn.dataset.semitone = semitone;
+    btn.textContent = _keyBtnLabel(semitone);
     btn.addEventListener('pointerup', () => {
+      if (_practicePlaying) return; // 반주 재생 중엔 키 변경 잠금(정지 후 변경)
       _playTap();
       _rootNote = semitone;
-      _navIdx   = 0;   // 키 변경 시 첫 블럭으로 이동
+      _navIdx   = defaultNavIdx();   // 키 변경 시에도 접속 때와 같은 기본 폼(2~6프랫)으로 이동
       el.querySelectorAll('.key-btn').forEach(b => b.classList.remove('key-btn--active'));
       btn.classList.add('key-btn--active');
       renderNotes();
       updateFormLabel();
       updateBlockIndicator();
+      renderPracticeChords();
       analytics.track('scale_key_selected', {
         scale_key: _scaleKey,
         root_note: semitone,
@@ -4958,7 +5126,7 @@ function initKeySelector() {
       });
     });
     el.appendChild(btn);
-  });
+  }
 }
 
 // ── DOMContentLoaded ─────────────────────────────────────────
@@ -4973,6 +5141,9 @@ document.addEventListener('DOMContentLoaded', () => {
   const params = new URLSearchParams(location.search);
   _scaleKey = params.get('key') || 'major';
   _scaleLevel = parseInt(params.get('level'), 10) || 0;
+  _keyUi = LEVEL_KEY_UI[_scaleLevel] || null;
+  if (_keyUi) _rootNote = _keyUi.root; // 레벨별 진입 시 기본 키
+  _navIdx = defaultNavIdx();           // 진입 시 기본 폼 = 2~6프랫 폼
 
   // Ch.2: 전환 버튼 표시
   if (_scaleKey === 'secondary-iv' || _scaleKey === 'secondary-v' || _scaleKey === 'secondary-ii' || _scaleKey === 'secondary-vi' || _scaleKey === 'secondary-iii') {
@@ -5014,8 +5185,8 @@ renderFullNeck();
 
   initTestTap();
 
-  // 기타 버튼 — 마이크로 직접 연주 감지(원래 기능, 2026-09-25 튜토리얼로 잠시 대체됐다가 복원)
-  document.getElementById('scale-mic-btn')?.addEventListener('pointerup', toggleScaleMic);
+  // 기타 버튼 — 연습모드(BPM·스타일 옵션 + 백킹 재생)
+  initPracticeMode();
   // 재생 버튼 — 현재 블럭 낮은음→높은음→낮은음(+근음 재상행) 재생
   document.getElementById('scale-play-btn')?.addEventListener('pointerup', toggleScalePlay);
   // "?" 버튼 — 튜토리얼 다시보기 (2026-09-25: 기타 버튼과 분리해서 별도 3번째 버튼으로)
@@ -5026,6 +5197,7 @@ renderFullNeck();
     _playTap();
     _playConfirmSfx();
     if (!(await consumePeak(2, 'scale'))) return;
+    exitPracticeMode(); // 백킹 재생 중이면 테스트 시작 전에 종료
     analytics.track('scale_test_started', {
       scale_key: _scaleKey,
       root_name: (_useFlat ? KEY_NAMES_FLAT : KEY_NAMES)[_rootNote],

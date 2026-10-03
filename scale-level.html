@@ -98,16 +98,42 @@
 
         <!-- 그룹3: 마이크/재생 버튼 (독립 그룹) -->
         <div class="scale-mic-wrap">
-          <div class="scale-mic-desc" id="scale-mic-desc">
-            <div class="scale-mic-desc-row">
-              <span class="scale-mic-desc-label">기타 버튼</span>
-              <span class="scale-mic-desc-sep">|</span>
-              <span class="scale-mic-desc-text">직접 연주해보기</span>
+          <div class="scale-mic-info" id="scale-mic-info">
+            <div class="scale-mic-desc" id="scale-mic-desc">
+              <div class="scale-mic-desc-row">
+                <span class="scale-mic-desc-label">기타 버튼</span>
+                <span class="scale-mic-desc-sep">|</span>
+                <span class="scale-mic-desc-text">직접 연주해보기</span>
+              </div>
+              <div class="scale-mic-desc-row">
+                <span class="scale-mic-desc-label">재생 버튼</span>
+                <span class="scale-mic-desc-sep">|</span>
+                <span class="scale-mic-desc-text">스케일 들어보기</span>
+              </div>
             </div>
-            <div class="scale-mic-desc-row">
-              <span class="scale-mic-desc-label">재생 버튼</span>
-              <span class="scale-mic-desc-sep">|</span>
-              <span class="scale-mic-desc-text">스케일 들어보기</span>
+            <!-- 연습모드(기타 버튼 ON): desc 자리에 BPM - 재생 - 스타일 옵션이 같은 칸에 겹쳐서 교체 표시 -->
+            <div class="scale-practice-panel" id="scale-practice-panel">
+              <!-- 코드 진행 4마디 — 현재 키 기준으로 JS가 채움(renderPracticeChords) -->
+              <div class="scale-practice-chords" id="scale-practice-chords"></div>
+              <div class="scale-practice-opts" id="scale-practice-opts">
+              <div class="metronome-option-card-wrap">
+                <div class="metronome-option-card scale-practice-card" id="practice-bpm-card">
+                  <span class="scale-practice-card-val" id="practice-bpm-value">90</span>
+                  <span class="scale-practice-card-lbl">BPM</span>
+                </div>
+                <div class="metronome-option-menu hidden" id="practice-bpm-menu"></div>
+              </div>
+              <button class="scale-mic-btn" id="practice-play-btn">
+                <i data-lucide="play"></i>
+              </button>
+              <div class="metronome-option-card-wrap">
+                <div class="metronome-option-card scale-practice-card" id="practice-style-card">
+                  <span class="scale-practice-card-val" id="practice-style-value">기본</span>
+                  <span class="scale-practice-card-lbl">스타일</span>
+                </div>
+                <div class="metronome-option-menu hidden" id="practice-style-menu"></div>
+              </div>
+              </div>
             </div>
           </div>
           <div class="scale-mic-btn-row">
@@ -194,6 +220,9 @@
   <script src="guitar-samples.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/tone/14.8.49/Tone.js"></script>
   <script src="guitar-audio.js"></script>
+  <script src="drum-sets.js"></script>
+  <script src="drum-audio.js"></script>
+  <script src="backing-track.js"></script>
   <script src="chord-voicings.js"></script>
   <script src="scale-level.js"></script>
 </body>

@@ -14806,13 +14806,11 @@ canvas {
 .degrees-on .fb-note-deg { display: block; }
 .fb-note--open .fb-note-deg { color: #1a1a1a; }
 
-/* 터치 히트영역 확장 — 시각 크기 그대로, 터치 영역만 키움.
-   360px 기준(dot ≈20.3px)에서 -12px씩 늘리면 최소 44px 확보(20.3+24=44.3) —
-   scale 배율이 1보다 작아지는 극단적으로 낮은 화면에서만 44px 미달 가능(허용 범위) */
+/* 터치 영역 = dot 크기에 딱 맞춤(확장 없음) — 줄 간격(26.7)이 dot 지름(22)보다 커서 이웃 dot과 겹치지 않음. */
 .fb-note::before {
   content: '';
   position: absolute;
-  inset: -12px;
+  inset: 0;
   border-radius: 50%;
 }
 
@@ -14848,6 +14846,14 @@ canvas {
 
 .fb-note--ghost.fb-note--char {
   background: #a0b4cc;
+}
+
+/* 레벨 6(secondary-iv) 전환 때 이동하는 dot — 특성음과 같은 어두운 파랑. 개방현(투명 배경)은 테두리만 */
+.fb-note--pair-move:not(.fb-note--open) {
+  background: #2e4a6e;
+}
+.fb-note--pair-move.fb-note--open {
+  border-color: #2e4a6e;
 }
 
 .fb-note--root::after {
@@ -15045,7 +15051,8 @@ canvas {
 .fretboard-row {
   display: flex;
   align-items: center;
-  justify-content: space-between; /* 화살표버튼을 그리드 양끝(부모 grid-margin 인셋)으로 붙임 */
+  justify-content: center; /* 지판은 줄 전체 폭을 씀 — 화살표 버튼은 지판 좌우 끝 위에 오버레이(절대배치) */
+  position: relative;
   width: 100%;
   margin: 0; /* 그룹 순서 변경(2026-09-22)으로 타이틀이 더 이상 이 위에 없음 — 기존 24px 규칙 제거 */
 
@@ -15069,10 +15076,16 @@ canvas {
 
 .fb-arrow-btn {
   flex-shrink: 0;
+  position: absolute;
+  top: var(--fb-arrow-top, 0px); /* 넥 높이 기준 세로 중앙 — JS(applyFbLayout)가 계산해서 .fretboard-row에 넣음 */
+  z-index: 5;                    /* 지판(viewport) 위로 */
   width: 44px;
   height: 44px;
-  align-self: flex-start;
-  margin-top: 0; /* 실제(스케일 적용된) 넥 높이 기준 중앙 정렬은 JS(applyFbScale)가 담당 */
+  margin: 0;
+  border-radius: 50%;
+  background: transparent; /* 색 없이 뒤 지판 블러만 */
+  -webkit-backdrop-filter: blur(20px);
+  backdrop-filter: blur(20px);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -15083,6 +15096,8 @@ canvas {
   -webkit-tap-highlight-color: transparent;
 }
 
+.fretboard-row #fb-arrow-prev { left: 0; }
+.fretboard-row #fb-arrow-next { right: 0; }
 .fb-arrow-btn svg {
   width: 32px;
   height: 32px;
@@ -15186,17 +15201,128 @@ canvas {
 .scale-mic-desc-row + .scale-mic-desc-row {
   margin-top: 4px;
 }
-.scale-mic-desc-row--active {
-  justify-content: center;
-  text-align: center;
-}
-.scale-mic-desc-row--active .scale-mic-desc-text {
-  min-width: 0;
-  word-break: keep-all;
-  overflow-wrap: break-word;
-}
 .scale-mic-desc-sep {
   color: var(--text-muted);
+}
+
+/* 연습모드(기타 버튼 ON) — desc와 옵션(BPM·재생·스타일)을 같은 grid 칸에 겹쳐 놓고 visibility로 교체.
+   칸 높이 = 둘 중 큰 쪽이라 전환해도 레이아웃이 안 흔들림. 폭은 desc/버튼 row와 같은 188/200px */
+.scale-mic-info {
+  display: grid;
+  justify-items: center;
+  align-items: center;
+}
+.scale-mic-info > * {
+  grid-area: 1 / 1;
+}
+.scale-practice-panel {
+  width: 188px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  visibility: hidden;
+}
+.scale-mic-info.is-practice .scale-practice-panel {
+  visibility: visible;
+}
+/* 코드 진행 4마디 — 현재 키 기준 코드명(JS). 코드 하나하나가 독립 컴포넌트(.scale-chord-item),
+   첫 코드는 영역 좌측끝·마지막 코드는 우측끝에 붙고 나머지는 균등 분배 */
+.scale-practice-chords {
+  display: flex;
+  justify-content: space-between;
+}
+.scale-chord-item {
+  flex: none;
+  /* 토큰 미사용 — 전 뷰포트 고정 20px / 800 */
+  font-family: var(--font-family);
+  font-size: 20px;
+  font-weight: 800;
+  line-height: 1.2;
+  letter-spacing: -0.04em;
+  white-space: nowrap;
+  color: #111;
+}
+.scale-chord-item {
+  position: relative;
+}
+/* 코드 바로 위 라벨(예: '전환!') — 코드 가로 중앙, 패널 위쪽 여백으로 올라감 */
+.scale-chord-label {
+  position: absolute;
+  left: 50%;
+  bottom: 100%;
+  transform: translateX(-50%);
+  font: var(--type-label-sm);
+  letter-spacing: var(--tracking-base);
+  white-space: nowrap;
+  color: var(--brand);
+}
+.scale-chord-sup {
+  /* 위첨자 — 앞 글자보다 작게, 약간 위로 (예: Bm7⁽ᵇ⁵⁾) */
+  font-size: 12px;
+  line-height: 1;
+  vertical-align: baseline;
+  position: relative;
+  top: -7px;
+}
+.scale-chord-item.is-playing {
+  color: var(--blue); /* 지금 들리는 코드 */
+}
+.scale-practice-opts {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.scale-mic-info.is-practice .scale-mic-desc {
+  visibility: hidden;
+}
+/* 메트로놈 옵션 카드(.metronome-option-card) 재사용 — 크기만 아래 버튼과 맞춤(52px, 769px~ 56px) */
+.scale-practice-opts .metronome-option-card.scale-practice-card {
+  width: 52px;
+  height: 52px;
+  border-radius: 12px;
+  background: #fff;
+  flex-direction: column;
+  gap: 4px;
+}
+/* 가운데 재생 버튼 — 원 테두리·배경 없이 채운 검정 재생 아이콘만(터치영역 52px은 유지) */
+#practice-play-btn,
+#practice-play-btn.is-active {
+  border: none;
+  background: transparent;
+  color: var(--brand);
+}
+#practice-play-btn svg {
+  width: 32px;
+  height: 32px;
+  fill: currentColor;
+}
+.scale-practice-card-val {
+  font-size: 16px;
+  font-weight: 800;
+  line-height: 1;
+  color: #111;
+  white-space: nowrap;
+}
+.scale-practice-card-lbl {
+  font-size: 11px;
+  line-height: 1;
+  color: #666;
+}
+.scale-practice-opts .metronome-option-menu {
+  width: 72px;
+}
+.scale-practice-opts .metronome-option-menu-item {
+  font-size: 14px;
+  padding: 10px 8px;
+}
+@media (min-width: 769px) {
+  .scale-practice-panel {
+    width: 200px;
+  }
+  .scale-practice-opts .metronome-option-card.scale-practice-card {
+    width: 56px;
+    height: 56px;
+  }
 }
 
 /* 버튼 3개(기타/재생/튜토리얼)로 늘어나서 크기 축소(2026-09-25, 기존 64/80px→52/64px) */
@@ -15583,6 +15709,11 @@ canvas {
 .scale-test-overlay--tutorial .test-result-row {
   display: none;
 }
+/* 튜토리얼 설명 텍스트 — --type-title 토큰(반응형 18~22px, 두께 600, 행간 1.2). 테스트 화면의 문제 텍스트(.test-question-text 공용)는 그대로 */
+.scale-test-overlay--tutorial .test-question-text {
+  font: var(--type-title);
+  letter-spacing: var(--tracking-base);
+}
 
 /* ?�?� ?�스??질문 ?�스???�?� */
 .test-question-text {
@@ -15868,12 +15999,14 @@ canvas {
 .test-fb-arrow-btn {
   display: none;
   position: absolute;
-  top: 50%;
+  top: var(--test-fb-arrow-top, 50%); /* 넥(줄+프렛) 높이의 중앙 — 프렛번호 줄은 제외. JS(applyTestFbLayout)가 계산해서 슬롯에 넣음 */
   width: 44px;
   height: 44px;
   border-radius: 50%;
-  border: 2px solid var(--border);
-  background: #ffffff;
+  border: none;
+  background: transparent; /* 색 없이 뒤 지판 블러만 — 메인 지판 화살표(.fb-arrow-btn)와 같은 방식 */
+  -webkit-backdrop-filter: blur(20px);
+  backdrop-filter: blur(20px);
   color: var(--brand);
   align-items: center;
   justify-content: center;

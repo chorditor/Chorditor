@@ -2857,9 +2857,9 @@ function _tierXp(tiers, day, overflowXp) {
   return overflowXp || 0;
 }
 // 레벨/업적형: 레벨 구간별 XP.
-function _scaleLvlXp(lvl)     { return lvl <= 5 ? 100 : (lvl <= 10 ? 150 : (lvl <= 17 ? 300 : 450)); }
+function _scaleLvlXp(lvl)     { lvl = _scaleTierLvl(lvl); return lvl <= 5 ? 100 : (lvl <= 10 ? 150 : (lvl <= 17 ? 300 : 450)); }
 function _quizLvlXp(lvl)      { return lvl <= 2 ? 50  : (lvl <= 5 ? 100 : 200); }
-function _scalePerfectXp(lvl) { return lvl <= 5 ? 200 : (lvl <= 17 ? 350 : 600); }
+function _scalePerfectXp(lvl) { lvl = _scaleTierLvl(lvl); return lvl <= 5 ? 200 : (lvl <= 17 ? 350 : 600); }
 function _perfectXp(lvl)      { return lvl <= 2 ? 200 : (lvl <= 8 ? 350 : 600); }
 const _CHALLENGE_XP = { c1: 800, c2: 1200, c3: 1800 };
 
@@ -3225,7 +3225,9 @@ async function claimScaleQuest() {
 // ── 퀘스트: 스케일 훈련 레벨 첫 완료 (레벨 1~20, 순차, 1회성) ──────────
 // 각 레벨 1회 완료 시 clear. 보상 1~5→1, 6~10→2, 11~17→3, 18~20→5. MAX=20.
 const SCALE_LVL_MAX = 20;
-function _scaleLvlReward(lvl) { return lvl <= 5 ? 1 : (lvl <= 10 ? 2 : (lvl <= 17 ? 3 : 5)); }
+// 메이저 펜타토닉(25)·메이저 블루스(26)는 기본 레벨(1~5)과 같은 보상 구간 — 서버 supabase/scale_major_levels.sql 과 동기화
+function _scaleTierLvl(lvl) { return (lvl === 25 || lvl === 26) ? 2 : lvl; }
+function _scaleLvlReward(lvl) { lvl = _scaleTierLvl(lvl); return lvl <= 5 ? 1 : (lvl <= 10 ? 2 : (lvl <= 17 ? 3 : 5)); }
 
 // 스케일 레벨 완료 기록(scale-level.js 제출 완료 시 호출). 폴백은 로컬 stats 사용.
 async function markScaleLevelCleared(level) { await _peakRpc('mark_scale_level_cleared', { p_level: level }); }
@@ -3367,8 +3369,65 @@ const SCALE_LEVEL_NAMES = {
   11: '아이오니안 스케일', 12: '도리안 스케일', 13: '프리지안 스케일',
   14: '리디안 스케일', 15: '믹솔리디안 스케일', 16: '에올리안 스케일', 17: '로크리안 스케일',
   18: '멜로딕 마이너 스케일', 19: '프리지안 도미넌트 스케일', 20: '믹솔리디안 b9 b13 스케일',
+  25: '메이저 펜타토닉 스케일', 26: '메이저 블루스 스케일',
 };
-function _scalePerfectReward(lvl) { return lvl <= 5 ? 3 : (lvl <= 17 ? 5 : 8); }
+function _scalePerfectReward(lvl) { lvl = _scaleTierLvl(lvl); return lvl <= 5 ? 3 : (lvl <= 17 ? 5 : 8); }
+
+// 화면에 보이는 스케일 레벨 번호 — 내부 번호(ID, 서버 기록·분석 기준)와 다름.
+// 챕터1에 메이저 펜타토닉(ID 25)·메이저 블루스(ID 26)를 메이저 바로 뒤(표시 2·3번)에 끼우면서
+// 기존 레벨의 기록이 어긋나지 않게 ID는 그대로 두고 표시 번호만 +2 함. scale-training.html 배지와 동기화.
+function scaleLevelDisplayNo(id) {
+  if (id === 25) return 2;
+  if (id === 26) return 3;
+  return id >= 2 ? id + 2 : id;
+}
+
+// 퀘스트 대상 스케일 레벨 ID를 화면 표시 순서로: 1, 25(메이저 펜타토닉), 26(메이저 블루스), 2~20
+const SCALE_QUEST_LEVELS_DISPLAY_ORDER = [1, 25, 26, ...Array.from({ length: SCALE_LVL_MAX - 1 }, (_, i) => i + 2)];
+
+// ── 퀘스트: 신규 레벨(25·26) 첫 완료 — 순차 체인(1~20)과 독립된 1회성 퀘스트 ─────────────
+// 서버: get_scale_bonus_quest / claim_scale_bonus_quest (supabase/scale_major_levels.sql). 폴백은 로컬 stats.
+const SCALE_BONUS_LEVELS = [25, 26];
+function _localScaleBonusClaimedGet() {
+  return JSON.parse(localStorage.getItem('training_stats') || '{}').scale_bonus_claimed || {};
+}
+function _localScaleBonusClaimedSet(obj) {
+  const s = JSON.parse(localStorage.getItem('training_stats') || '{}');
+  s.scale_bonus_claimed = obj;
+  localStorage.setItem('training_stats', JSON.stringify(s));
+}
+async function loadScaleBonusQuest() {
+  const r = await _peakRpc('get_scale_bonus_quest');
+  if (Array.isArray(r)) return r;
+  const cleared = _localScaleClearedGet().cleared;
+  const claimed = _localScaleBonusClaimedGet();
+  return SCALE_BONUS_LEVELS.map(L => ({ level: L, done: !!cleared[L], claimed: !!claimed[L], reward: _scaleLvlReward(L) }));
+}
+async function claimScaleBonusQuest(level) {
+  const _boxBefore = _peakState.peakbox_count || 0;
+  const _xpGain = _scaleLvlXp(level);
+  const r = await _peakRpc('claim_scale_bonus_quest', { p_level: level });
+  if (r) {
+    if (!r.ok) return;
+    _peakState = { ..._peakState, peakbox_count: (_peakState.peakbox_count || 0) + r.reward, loaded: true };
+  } else {
+    const claimed = _localScaleBonusClaimedGet();
+    if (claimed[level] || !_localScaleClearedGet().cleared[level]) return;
+    claimed[level] = true;
+    _localScaleBonusClaimedSet(claimed);
+    const local = _localPeakGet();
+    const reward = _scaleLvlReward(level);
+    _localPeakSet(local.balance, local.peakbox_count + reward);
+    _peakState = { ..._peakState, peakbox_count: (_peakState.peakbox_count || 0) + reward, loaded: true };
+  }
+  renderPeakboxBadge();
+  renderQuestList();
+  showPeakboxRewardModal((_peakState.peakbox_count || 0) - _boxBefore);
+  addXp(_xpGain);
+}
+// 카드의 onclick은 함수 이름 문자열 + '()' 형식이라 레벨별 래퍼를 둠
+function claimScaleBonus25() { return claimScaleBonusQuest(25); }
+function claimScaleBonus26() { return claimScaleBonusQuest(26); }
 
 // 스케일 퍼펙트 제출 서버 카운트(scale-level.js 에서 호출). 폴백은 로컬 stat 사용.
 async function incrementScalePerfect(level) { await _peakRpc('increment_scale_perfect', { p_level: level }); }
@@ -3392,7 +3451,7 @@ async function loadScalePerfectQuest() {
   if (Array.isArray(r)) return r;
   const claimed = _localScalePerfectClaimedGet();
   const arr = [];
-  for (let L = 1; L <= SCALE_LVL_MAX; L++) {
+  for (const L of SCALE_QUEST_LEVELS_DISPLAY_ORDER) {
     const total = _localScalePerfectTotal(L);
     arr.push({ level: L, perfect: total, earned: Math.floor(total / 3),
       claimed: claimed[L] || 0, reward: _scalePerfectReward(L) });
@@ -4187,12 +4246,12 @@ async function renderQuestList() {
   const top   = [];
 
   // 전 퀘스트 병렬 로드 — 직렬 await 16회(왕복 누적 지연) → 동시 발사
-  const [a, i, nc, ns, t, qz, ql, pf, cg, sc, sl, spf, pg, st, cl, cpf, iv] = await Promise.all([
+  const [a, i, nc, ns, t, qz, ql, pf, cg, sc, sl, spf, pg, st, cl, cpf, iv, sb] = await Promise.all([
     loadAttendanceQuest(), loadImageQuest(), loadNoteQuest('create'), loadNoteQuest('share'),
     loadTimeQuest(), loadQuizQuest(), loadQuizLevelQuest(), loadPerfectQuest(),
     loadChallengeQuest(), loadScaleQuest(), loadScaleLevelQuest(), loadScalePerfectQuest(),
     loadProgressionQuest(), loadStrumQuest(), loadComboLevelQuest(), loadComboPerfectQuest(),
-    loadInviteQuest(),
+    loadInviteQuest(), loadScaleBonusQuest(),
   ]);
 
   const aHtml = _questCardHtml('누적 출석', a.next_day + '일 누적 출석',
@@ -4263,10 +4322,18 @@ async function renderQuestList() {
 
   const slDone = sl.done ? 1 : 0;
   const slNextDay = sl.next_level ? 1 : 0;
-  const slHtml = _questCardHtml('스케일 레벨', '레벨' + sl.next_level + ' 첫 완료',
+  const slHtml = _questCardHtml('스케일 레벨', '레벨' + scaleLevelDisplayNo(sl.next_level) + ' 첫 완료',
     sl.reward, _scaleLvlXp(sl.next_level), slDone, slNextDay, 'claimScaleLevelQuest');
   parts.push(slHtml);
   if (_isClaimable(slDone, slNextDay)) top.push(slHtml);
+
+  // 신규 레벨(메이저 펜타토닉·메이저 블루스) 첫 완료 — 순차 체인과 별개의 1회성 카드(수령 전까지만 표시)
+  (sb || []).filter(q => !q.claimed).forEach(q => {
+    const bHtml = _questCardHtml('스케일 레벨', '레벨' + scaleLevelDisplayNo(q.level) + ' 첫 완료',
+      q.reward, _scaleLvlXp(q.level), q.done ? 1 : 0, 1, 'claimScaleBonus' + q.level);
+    parts.push(bHtml);
+    if (q.done) top.push(bHtml);
+  });
 
   parts.push(_scalePerfectCardsHtml(spf));
   const spfClaimable = spf.filter(q => q.earned > q.claimed);
@@ -4505,6 +4572,8 @@ if (typeof window !== 'undefined') {
   window.incrementChallengePerfect    = incrementChallengePerfect;
   window.claimScaleQuest              = claimScaleQuest;
   window.claimScaleLevelQuest         = claimScaleLevelQuest;
+  window.claimScaleBonus25            = claimScaleBonus25;
+  window.claimScaleBonus26            = claimScaleBonus26;
   window.markScaleLevelCleared        = markScaleLevelCleared;
   window.incrementScalePerfect        = incrementScalePerfect;
   window.claimScalePerfectQuest       = claimScalePerfectQuest;
