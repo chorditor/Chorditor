@@ -2385,6 +2385,9 @@ function startLevel(levelId) {
   });
   _currentLevel = levelId;
   _currentView  = 'mode-select';
+  // 모드 카드 피크 배지(style.css .mode-card--peak): 이 레벨의 소모량 주입, Pro는 숨김
+  document.documentElement.style.setProperty('--cd-btn-peak-cost', _quizPeakCost(levelId));
+  document.documentElement.classList.toggle('peak-free', getPlan() === 'pro');
   const vsEl = document.getElementById('view-level-select');
   const vmEl = document.getElementById('view-mode-select');
   vsEl.classList.add('quiz-view--left');

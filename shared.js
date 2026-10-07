@@ -6,7 +6,7 @@
 // ── 상수 ─────────────────────────────────────────────────────
 const SUPABASE_URL  = 'https://jbvkygeksohlysyvaoab.supabase.co';
 const SUPABASE_ANON = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Impidmt5Z2Vrc29obHlzeXZhb2FiIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzYzOTk5NjgsImV4cCI6MjA5MTk3NTk2OH0.6RSgChy0Yq0H2TJpZPSoMKQ2V-OYfR0XzE1aJBBZkXI';
-const APP_VERSION   = '1.3.6.0_dev';
+const APP_VERSION   = '1.3.6.0_pre1';
 const SUPABASE_STORAGE_KEY = 'sb-jbvkygeksohlysyvaoab-auth-token';
 
 // 이용약관/개인정보처리방침 버전 — 광고식별자 수집 항목 추가(2026-09) 시 1로 올림.
@@ -859,6 +859,52 @@ function _playSfx(src, vol) {
   } catch (e) { return Promise.resolve(); }
 }
 // 버튼 탭 효과음 — 1.3.0 폐기(조작감 개선 미미). 더 나은 사운드 확보 시 재활성화.
+// ── 키 선택기(1줄 가로스크롤) 공용 — scale-level.html / progression-detail.html ──
+// key-selector 가로스크롤 — 마우스 드래그로도 스크롤 가능하게(터치는 브라우저 기본 제공).
+// 드래그 발생 시 key-btn의 pointerup(키 선택)은 억제(capture 단계에서 stopPropagation).
+function initKeySelectorDragScroll(el) {
+  let isDown = false;
+  let dragged = false;
+  let startX = 0;
+  let startScroll = 0;
+
+  el.addEventListener('pointerdown', (e) => {
+    isDown = true;
+    dragged = false;
+    startX = e.clientX;
+    startScroll = el.scrollLeft;
+    el.classList.add('is-dragging');
+  });
+  el.addEventListener('pointermove', (e) => {
+    if (!isDown) return;
+    const dx = e.clientX - startX;
+    if (Math.abs(dx) > 3) dragged = true;
+    el.scrollLeft = startScroll - dx;
+  });
+  const endDrag = () => {
+    isDown = false;
+    el.classList.remove('is-dragging');
+  };
+  el.addEventListener('pointerup', endDrag);
+  el.addEventListener('pointerleave', endDrag);
+  el.addEventListener('pointercancel', endDrag);
+  // 드래그였으면 key-btn 클릭(키 선택) 무효화
+  el.addEventListener('pointerup', (e) => {
+    if (dragged) e.stopPropagation();
+  }, true);
+}
+
+// key-selector 가장자리 흐림 — 더 스크롤할 수 있는 쪽에만 .fade-l/.fade-r (481px~에서만 CSS가 mask로 표시)
+function initKeySelectorFade(el) {
+  const update = () => {
+    el.classList.toggle('fade-l', el.scrollLeft > 1);
+    el.classList.toggle('fade-r', el.scrollLeft < el.scrollWidth - el.clientWidth - 1);
+  };
+  el.addEventListener('scroll', update, { passive: true });
+  window.addEventListener('resize', update);
+  update();
+}
+
 function _playTap() { return Promise.resolve(); }
 
 // 주요 CTA 버튼(브랜드컬러 적용 버튼) 공용 클릭 효과음 — chord-name-quiz.js
@@ -993,11 +1039,11 @@ async function consumePeak(cost, source) {
     _peakState = { balance: r.balance, peakbox_count: r.peakbox_count, loaded: true };
     renderPeakBadge();
     if (!r.ok) {
-      analytics.track('peak_insufficient', { cost, balance: r.balance });
+      analytics.track('peak_insufficient', { cost, balance: r.balance, training_type: source });
       _openPeakInsufficientFunnel(source);
       return false;
     }
-    analytics.track('peak_consumed', { cost, balance_after: r.balance });
+    analytics.track('peak_consumed', { cost, balance_after: r.balance, training_type: source });
     return true;
   }
 
@@ -1005,7 +1051,7 @@ async function consumePeak(cost, source) {
   if (local.balance < cost) {
     _peakState = { balance: local.balance, peakbox_count: local.peakbox_count, loaded: true };
     renderPeakBadge();
-    analytics.track('peak_insufficient', { cost, balance: local.balance });
+    analytics.track('peak_insufficient', { cost, balance: local.balance, training_type: source });
     _openPeakInsufficientFunnel(source);
     return false;
   }
@@ -1013,7 +1059,7 @@ async function consumePeak(cost, source) {
   _localPeakSet(newBal, local.peakbox_count);
   _peakState = { balance: newBal, peakbox_count: local.peakbox_count, loaded: true };
   renderPeakBadge();
-  analytics.track('peak_consumed', { cost, balance_after: newBal });
+  analytics.track('peak_consumed', { cost, balance_after: newBal, training_type: source });
   return true;
 }
 
@@ -1041,24 +1087,30 @@ window.positionFadeTop = positionFadeTop;
 // (예전엔 여기서 .top-bar에 로고+CHORDITOR 브랜드 span을, .app-shell에 좌측 사이드바 nav를 주입했음)
 function injectAppChrome() {}
 
-// ⚠ DEV ONLY — 출시 전 제거할 것. 관리자 계정(ADMIN_USER_ID) 전용 플로팅 디버그 칩.
-// 2026-08-31: 페르소나 전환·승급 미리보기 등 전부 제거하고 DB까지 실제로 되돌리는 초기화
-// 2종만 남김. 안전잠금 — 지금 로그인된 계정이 ADMIN_USER_ID가 아니면 버튼을 눌러도 거부한다
-// (다른 실유저 계정으로 로그인된 채 실수로 눌러 그 사람 데이터를 건드리는 사고 방지).
+// ⚠ DEV ONLY — 디버그 빌드(APP_VERSION에 '_dev')에서만 뜨는 플로팅 디버그 칩. 출시 때 _dev 접미어를 떼면 코드가 남아 있어도 자동으로 안 뜸.
+//   - 피크 추가(+3 / 가득 30): 모든 계정(로그인 서버 grant_peak_ad RPC / 비로그인 로컬) — _peakGrantByAd 재사용
+//   - 초기화 3종: 관리자 계정 전용(안전잠금 — 다른 실유저 계정으로 로그인된 채 실수로 눌러 그 사람 데이터를 건드리는 사고 방지)
+//   - 칩을 길게(0.4초) 누르면 이동 모드 → 끌어서 아무 데나 옮김, 위치는 localStorage에 저장
+const _DBG_CHIP_POS_KEY = 'chorditor_dbg_chip_pos';
 function _sharedInitDebugChip() {
   if (document.getElementById('ms-dbg-chip')) return;
+  const admin = _isAdminUser();
+  const CHIP = 44, EDGE = 8, HOLD_MS = 400, HOLD_SLOP = 8;
 
   const style = document.createElement('style');
   style.textContent = `
     #ms-dbg-chip {
       position: fixed; right: 16px; bottom: calc(16px + env(safe-area-inset-bottom, 0px));
-      width: 44px; height: 44px; border-radius: 50%; background: rgba(20,20,20,0.85);
+      width: ${CHIP}px; height: ${CHIP}px; border-radius: 50%; background: rgba(20,20,20,0.85);
       display: flex; align-items: center; justify-content: center; font-size: 20px;
-      box-shadow: 0 2px 8px rgba(0,0,0,0.3); z-index: 9999; cursor: pointer; user-select: none;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.3); z-index: 100200; cursor: pointer; user-select: none;
+      -webkit-user-select: none; touch-action: none; -webkit-tap-highlight-color: transparent;
+      transition: transform 0.12s, box-shadow 0.12s;
     }
+    #ms-dbg-chip.ms-dbg-chip--moving { transform: scale(1.18); box-shadow: 0 6px 18px rgba(0,0,0,0.45); }
     #ms-dbg-panel {
       position: fixed; right: 16px; bottom: calc(68px + env(safe-area-inset-bottom, 0px));
-      background: rgba(20,20,20,0.92); border-radius: 12px; padding: 10px; z-index: 9999;
+      background: rgba(20,20,20,0.92); border-radius: 12px; padding: 10px; z-index: 100201;
       display: none; flex-direction: column; gap: 6px; min-width: 200px;
     }
     #ms-dbg-panel.ms-dbg-panel--open { display: flex; }
@@ -1078,20 +1130,123 @@ function _sharedInitDebugChip() {
   const panel = document.createElement('div');
   panel.id = 'ms-dbg-panel';
   panel.innerHTML =
-    `<button data-action="reset-mission">↺ 데일리미션 초기화</button>` +
-    `<button data-action="reset-promo">↺ 승급 도전 횟수 초기화</button>` +
-    `<button data-action="reset-attendance">↺ 출석 초기화</button>`;
+    `<button data-action="peak-add" id="ms-dbg-peak-add">피크 +3</button>` +
+    `<button data-action="peak-fill">피크 가득 채우기 (${PEAK_CAP})</button>` +
+    (admin
+      ? `<button data-action="reset-mission">↺ 데일리미션 초기화</button>` +
+        `<button data-action="reset-promo">↺ 승급 도전 횟수 초기화</button>` +
+        `<button data-action="reset-attendance">↺ 출석 초기화</button>`
+      : '');
   document.body.appendChild(panel);
 
-  chip.addEventListener('pointerup', () => panel.classList.toggle('ms-dbg-panel--open'));
+  // ── 위치: 저장값이 있으면 left/top, 없으면 CSS 기본(우하단) ──
+  const clampPos = (x, y) => ({
+    x: Math.max(EDGE, Math.min(window.innerWidth  - CHIP - EDGE, x)),
+    y: Math.max(EDGE, Math.min(window.innerHeight - CHIP - EDGE, y)),
+  });
+  const placeChip = (x, y) => {
+    const p = clampPos(x, y);
+    chip.style.left = p.x + 'px';
+    chip.style.top = p.y + 'px';
+    chip.style.right = 'auto';
+    chip.style.bottom = 'auto';
+    return p;
+  };
+  try {
+    const saved = JSON.parse(localStorage.getItem(_DBG_CHIP_POS_KEY) || 'null');
+    if (saved && typeof saved.x === 'number' && typeof saved.y === 'number') placeChip(saved.x, saved.y);
+  } catch (e) {}
+  window.addEventListener('resize', () => { // 회전·창 크기 변경으로 화면 밖에 나가면 안쪽으로
+    if (chip.style.left) { const r = chip.getBoundingClientRect(); placeChip(r.left, r.top); }
+    panel.classList.remove('ms-dbg-panel--open');
+  });
+
+  // 메뉴는 칩 기준으로 화면 안에 들어오는 쪽(위/아래, 좌/우)으로 연다
+  const openPanel = () => {
+    const btn = document.getElementById('ms-dbg-peak-add');
+    if (btn) btn.textContent = `피크 +3 (현재 ${_peakState.balance}/${PEAK_CAP})`;
+    panel.classList.add('ms-dbg-panel--open');
+    const c = chip.getBoundingClientRect();
+    const pw = panel.offsetWidth, ph = panel.offsetHeight;
+    const top = (c.top - ph - 8 >= EDGE) ? c.top - ph - 8 : c.bottom + 8;
+    const left = Math.max(EDGE, Math.min(window.innerWidth - pw - EDGE, c.right - pw));
+    panel.style.top = top + 'px';
+    panel.style.left = left + 'px';
+    panel.style.right = 'auto';
+    panel.style.bottom = 'auto';
+  };
+  const closePanel = () => panel.classList.remove('ms-dbg-panel--open');
+
+  // ── 길게 눌러 이동 / 짧게 탭하면 메뉴 토글 ──
+  let holdTimer = null, moving = false, tapOk = false, downX = 0, downY = 0, offX = 0, offY = 0;
+  const endPress = () => { clearTimeout(holdTimer); holdTimer = null; };
+  chip.addEventListener('pointerdown', e => {
+    moving = false;
+    tapOk = true; // 길게 누르기 전에 떼면서 많이 움직이지 않았을 때만 탭으로 인정
+    downX = e.clientX; downY = e.clientY;
+    const r = chip.getBoundingClientRect();
+    offX = e.clientX - r.left; offY = e.clientY - r.top;
+    try { chip.setPointerCapture(e.pointerId); } catch (_) {}
+    clearTimeout(holdTimer);
+    holdTimer = setTimeout(() => {
+      moving = true;
+      tapOk = false;
+      closePanel();
+      chip.classList.add('ms-dbg-chip--moving');
+      if (navigator.vibrate) { try { navigator.vibrate(20); } catch (_) {} }
+    }, HOLD_MS);
+  });
+  chip.addEventListener('pointermove', e => {
+    if (!moving) {
+      // 길게 누르기 전에 손가락이 많이 움직이면 탭도 이동 모드도 아님
+      if (tapOk && Math.hypot(e.clientX - downX, e.clientY - downY) > HOLD_SLOP) { tapOk = false; endPress(); }
+      return;
+    }
+    placeChip(e.clientX - offX, e.clientY - offY);
+  });
+  chip.addEventListener('pointerup', () => {
+    endPress();
+    if (moving) {
+      moving = false;
+      chip.classList.remove('ms-dbg-chip--moving');
+      const r = chip.getBoundingClientRect();
+      try { localStorage.setItem(_DBG_CHIP_POS_KEY, JSON.stringify({ x: r.left, y: r.top })); } catch (_) {}
+      return; // 이동을 끝낸 손가락 뗌은 탭이 아님 — 메뉴 열지 않음
+    }
+    if (!tapOk) return;
+    tapOk = false;
+    if (panel.classList.contains('ms-dbg-panel--open')) closePanel(); else openPanel();
+  });
+  chip.addEventListener('pointercancel', () => {
+    endPress();
+    moving = false;
+    tapOk = false;
+    chip.classList.remove('ms-dbg-chip--moving');
+  });
+
   panel.addEventListener('pointerup', async e => {
     const btn = e.target.closest('button');
     if (!btn) return;
-    panel.classList.remove('ms-dbg-panel--open');
+    const action = btn.dataset.action;
+    // 피크 추가는 연속으로 누르기 쉽게 메뉴를 열어둔다
+    if (action === 'peak-add') {
+      if (!(await _peakGrantByAd())) alert('피크 추가 실패 — 로그인 상태에서 서버 응답이 없었어요.');
+      btn.textContent = `피크 +3 (현재 ${_peakState.balance}/${PEAK_CAP})`;
+      return;
+    }
+    if (action === 'peak-fill') {
+      for (let i = 0; i < 12 && _peakState.balance < PEAK_CAP; i++) { // +3씩이라 30까지 최대 10번
+        if (!(await _peakGrantByAd())) { alert('피크 추가 실패 — 로그인 상태에서 서버 응답이 없었어요.'); break; }
+      }
+      const addBtn = document.getElementById('ms-dbg-peak-add');
+      if (addBtn) addBtn.textContent = `피크 +3 (현재 ${_peakState.balance}/${PEAK_CAP})`;
+      return;
+    }
+    closePanel();
     if (!_isAdminUser()) { alert('관리자 계정에서만 사용 가능합니다.'); return; }
-    if (btn.dataset.action === 'reset-mission')    { await _dbgResetDailyMission(); return; }
-    if (btn.dataset.action === 'reset-promo')      { await _dbgResetPromoAttempts(); return; }
-    if (btn.dataset.action === 'reset-attendance') { await _dbgResetAttendance(); return; }
+    if (action === 'reset-mission')    { await _dbgResetDailyMission(); return; }
+    if (action === 'reset-promo')      { await _dbgResetPromoAttempts(); return; }
+    if (action === 'reset-attendance') { await _dbgResetAttendance(); return; }
   });
 }
 
@@ -1177,7 +1332,7 @@ async function _dbgResetAttendance() {
 }
 
 document.addEventListener('DOMContentLoaded', () => {
-  if (_isAdminUser()) _sharedInitDebugChip();
+  if (APP_VERSION.includes('_dev')) _sharedInitDebugChip(); // 디버그 빌드에서만(관리자 여부와 무관, 초기화 버튼만 관리자 전용)
   injectAppChrome(); // 탑바 브랜드 + 데스크탑 사이드바 — 모든 페이지 공통(DOM 이동 로직보다 먼저)
 
   if (document.getElementById('currency-peak-count') || document.getElementById('currency-peakbox-count')) {
@@ -1446,10 +1601,12 @@ function closePeakReveal() {
 
 // 중단 경고 모달 (진행·주법·튜토리얼 공통). onConfirm = 실제 나가기 동작.
 // opts로 문구만 갈아끼운다 — 디자인은 항상 동일.
+//   confirmOnPrimary: true면 오른쪽(primary) 버튼이 onConfirm을 실행하고 왼쪽은 닫기만 함(진입 확인용, 왼쪽은 회색 중립 톤)
+//   sfx: 열릴 때 소리 파일(기본 'cancel.mp3', null이면 무음)
 let _leavePracticeOpen = false;
 function showLeavePracticeModal(onConfirm, opts) {
   opts = opts || {};
-  _playSfx('cancel.mp3');
+  if (opts.sfx !== null) _playSfx(opts.sfx || 'cancel.mp3');
   let ov = document.getElementById('leave-practice-overlay');
   if (!ov) {
     ov = document.createElement('div');
@@ -1474,10 +1631,18 @@ function showLeavePracticeModal(onConfirm, opts) {
   _leavePracticeOpen = true;
   // 통통 튀는 등장 애니메이션 재트리거 (재오픈 시에도 재생)
   const modal = ov.querySelector('.leave-practice-modal');
-  if (modal) { modal.style.animation = 'none'; void modal.offsetWidth; modal.style.animation = ''; }
+  if (modal) {
+    modal.classList.toggle('leave-practice-modal--entry', !!opts.confirmOnPrimary);
+    modal.style.animation = 'none'; void modal.offsetWidth; modal.style.animation = '';
+  }
   const close = () => { ov.style.display = 'none'; _leavePracticeOpen = false; };
-  ov.querySelector('#leave-practice-stop').onclick     = () => { close(); onConfirm(); };
-  ov.querySelector('#leave-practice-continue').onclick  = () => { _playConfirmSfx(); close(); };
+  if (opts.confirmOnPrimary) {
+    ov.querySelector('#leave-practice-stop').onclick     = () => { _playSfx('cancel.mp3'); close(); };
+    ov.querySelector('#leave-practice-continue').onclick  = () => { _playConfirmSfx(); close(); onConfirm(); };
+  } else {
+    ov.querySelector('#leave-practice-stop').onclick     = () => { close(); onConfirm(); };
+    ov.querySelector('#leave-practice-continue').onclick  = () => { _playConfirmSfx(); close(); };
+  }
 }
 function isLeavePracticeOpen() { return _leavePracticeOpen; }
 function hideLeavePracticeModal() {

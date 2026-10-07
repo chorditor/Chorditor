@@ -242,7 +242,7 @@ lucide 아이콘은 viewBox 안쪽에 획이 그려져 시각 중심이 살짝 �
 | `cd-topbar` 좌우 | `padding-inline: var(--cd-inset)` (박스는 뷰포트 전체) |
 | `cd-main` 배경 | 기본 투명(앱 배경), `cd-main--white` 수식어 = `#fff` |
 | `cd-topbar` 배경 | `var(--topbar-bg, var(--bg))`, `--white` 수식어 = `#fff` |
-| `cd-main` | `flex:1` + `overflow-y:auto` + `padding-inline: var(--cd-inset)` + `padding-bottom: env(safe-area-inset-bottom)` + 세로 flex + 스크롤바 숨김 (박스는 뷰포트 전체) |
+| `cd-main` | `flex:1` + `overflow-y:auto` + `padding-inline: var(--cd-inset)` + `padding-bottom: calc(var(--space-6) + env(safe-area-inset-bottom))` + 세로 flex + 스크롤바 숨김 (박스는 뷰포트 전체) |
 | `--cd-inset` | `max(var(--grid-margin), calc((100vw - 1440px) / 2 + var(--grid-margin)))` — 1440 이하 = 그리드 마진, 초과분은 좌우 균등 분배. `%`가 아니라 `vw`인 이유: 패딩과 자식 마진에서 기준이 달라지지 않게 |
 | 피크바 | 마크업 인라인 `margin-left:auto`로 우측 끝. 1600px~ 크기는 §7 |
 
@@ -292,6 +292,7 @@ lucide 아이콘은 viewBox 안쪽에 획이 그려져 시각 중심이 살짝 �
 - 뷰포트 끝까지 닿아야 하는 풀블리드 요소(구분선, 바 배경, 캐러셀)는 `margin-inline: calc(var(--cd-inset) * -1)`로
   `cd-main` 패딩 상쇄 (예: `.cd-head--sticky`, `.st-track`, `.scale-item-list`). 안쪽 패딩도
   `--cd-inset`으로 되돌려 내용은 그리드 안에 유지.
+- **하단 여백: `cd-main`은 항상 `padding-bottom` 24px + 안전영역을 둠(2026-10-06).** 내용이 얼마나 많아도 스크롤 끝에서 하단에 여백이 남아 안정감을 줌. 안쪽 요소에 하단 여백을 따로 넣지 말 것. 본문 높이를 JS로 계산하는 페이지는 `cd-main` 하단 패딩을 빼야 함(예: scale-level `updateScaleGapScrollMode`).
 - 하단 안전영역(`safe-area-inset-bottom`)은 `cd-main`이 `padding-bottom`으로 전담. **이전하는 페이지가 안쪽 요소에서 이미 같은 값을 쓰고 있으면 이중 적용 → 이전 시 안쪽 값을 뺄 것.**
 - **새 페이지는 반드시 `cd-*` 뼈대** → 그리드 마진·캡·중앙정렬 자동. 컬럼 배치(col2~11 등)는 콘텐츠별 판단.
 
@@ -304,7 +305,11 @@ lucide 아이콘은 viewBox 안쪽에 획이 그려져 시각 중심이 살짝 �
 |---|---|
 | `scale-training.html` | ✅ 완료(2026-10-02), `cd-head--sticky`/`cd-body` 이식(2026-10-03), 구조는 §19-1 |
 | `scale-level.html` | ✅ 뼈대 + `cd-head`/`cd-body` 이식(2026-10-03) — `.scale-level-layout` 제거됨. `.scale-level-main .cd-*` 오버라이드가 style.css에 남아 있음(정리 대상) |
-| 그 외 서브페이지 12개 / `home.html` | 미착수 |
+| `progression.html` | ✅ `cd-head--sticky`(타이틀 + 필터 칩·`#/b` + 드롭다운) / `cd-body`(목록) 이식(2026-10-06) — `.prog-scroll`·`.prog-sticky-header`·기기별 폭 스코프 삭제, 카드·섹션 라벨 좌측 패딩 0(그리드 좌측선에 정렬) |
+| `progression-detail.html` | ✅ `cd-head`(타이틀 + 코드 진행 + 12key 1줄 셀렉터) / `cd-body`(인디케이터·캐러셀·BPM·시작 버튼 한 묶음 `.progd-stack`, 등간격·세로 가운데) 이식(2026-10-06) — `.progd-layout` 삭제, 요소 크기는 `.progd-main`의 `--pd-*` 토큰(5단계 고정 px). 키 셀렉터 가로스크롤 함수는 `shared.js` 공용 |
+| `strum-play.html` | ✅ `cd-head`(타이틀) / `cd-body`(캐러셀·비트 그리드·BPM 영역·시작 버튼, 높이 상한 900px, `space-between` + 세로 가운데) 이식(2026-10-06) — `.strum-play-area` 삭제, 비트 그리드는 `.strum-play-main`의 `--sg-*` 토큰(칸 32/52px). 다운·업·컷팅 아이콘은 `image/*_stroke.svg`(루시드 규격) 인라인 |
+| `chord-combo.html` | ✅ `cd-head--sticky` + `cd-body`(챕터 카드 캐러셀) / 퀴즈 뷰 `cd-body` 이식(2026-10-06) — 선택 뷰 ↔ 퀴즈 뷰 슬라이드를 위해 `.combo-stage`(relative·overflow hidden) wrapper가 예외로 있음. `.combo-quiz-wrap`은 mission-session과 공용이라 이 페이지에서만 `#combo-view-quiz`로 덮음 |
+| 그 외 서브페이지(위 4개 제외) / `home.html` | 미착수 |
 
 ### 11-6. 미정
 
@@ -572,7 +577,7 @@ section.cd-body                  (.scale-training-main .cd-body { min-height:aut
 - 여백 스케일(§3) 밖 값: `.st-track` `padding-bottom: 14px`(12 또는 16 권장).
 - 컴포넌트 폰트 비토큰: `--cd-btn-font-size` 15px(§6 홀수 위반), `.cd-modal` 제목 17px/두께 800(두께 토큰에 800 없음, §15).
 - `.scale-chapter-label` CSS는 어디서도 안 씀(삭제 후보). `scale-training.html`의 캐러셀 내부 들여쓰기 미정리(약 1300줄).
-- 하단 안전영역: `.cd-main { padding-bottom: env(safe-area-inset-bottom) }`로 처리함(2026-10-02). 실기기(제스처바 있는 기기, Capacitor WebView가 env 값을 실제로 주는지)에서 카드 아래가 가려지지 않는지 확인 필요.
+- 하단 안전영역: `.cd-main { padding-bottom: calc(24px + env(safe-area-inset-bottom)) }`로 처리함(안전영역 2026-10-02, 24px 여백 2026-10-06). 실기기(제스처바 있는 기기, Capacitor WebView가 env 값을 실제로 주는지)에서 카드 아래가 가려지지 않는지 확인 필요.
 - `.desktop-topbar` 처리 미정(§11-6). `scale-level.js` 481줄 주석이 삭제된 `사운드인식테스트.html`을 언급(동작 무관).
 - **동기화**: scale-training 작업은 커밋(`956b99a`) 후 `www/`·android assets·cap sync 3단계 동기화 완료(2026-10-02). 이후 수정분은 다시 동기화 필요.
 

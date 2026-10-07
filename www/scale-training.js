@@ -7,6 +7,7 @@ const PREMIUM_ENABLED = false;
 
 // ── 페이지 닫기 (훈련소로 복귀) ─────────────────────────────
 function closeScaleTraining() {
+  if (isLeavePracticeOpen()) { hideLeavePracticeModal(); return; } // 진입 확인 모달이 떠 있으면 뒤로가기는 모달만 닫음
   _playTap();
   const shell = document.querySelector('.app-shell');
   if (shell) {
@@ -15,6 +16,12 @@ function closeScaleTraining() {
   } else {
     location.href = 'training.html';
   }
+}
+
+// 카드가 속한 챕터(.scale-item-list#ch-N) — 이벤트 공통 속성 chapter
+function _scaleItemChapter(el) {
+  const chapterEl = el.closest('.scale-item-list[id^="ch-"]');
+  return chapterEl ? parseInt(chapterEl.id.replace('ch-', ''), 10) : 1;
 }
 
 // ── 스케일 아이템 탭 ─────────────────────────────────────────
@@ -30,7 +37,7 @@ function onScaleItemTap(el) {
     return;
   }
 
-  analytics.track('scale_item_tapped', { scale_key: key, level });
+  analytics.track('scale_item_tapped', { scale_key: key, level, chapter: _scaleItemChapter(el) });
   const shell = document.querySelector('.app-shell');
   const url = `scale-level.html?key=${key}&level=${level}`;
   if (shell) {
@@ -136,13 +143,48 @@ function renderScaleCardNotes() {
   });
 }
 
-// ── 연습하기 버튼 → 레벨 진입 (피크 소모 없음, pop 사운드) ──────
+// ── 연습하기 버튼 → 피크 5개 소모 후 레벨 진입 (pop 사운드) ──────
+// 소모 성공 직후 sessionStorage 언락을 저장하고 이동 — 이동이 실패해 다시 눌러도 언락이 있으면 재차감 안 함.
+// scale-level은 이 언락이 없으면 이 페이지로 되돌려보냄(연습하기 우회 진입 차단), 뒤로가기로 나가면 해제됨.
+const SCALE_PRACTICE_PEAK_COST = 5;
+const PEAK_CONFIRM_MIN_COST = 4; // 이 소모량 이상이면 진입 전 확인 모달(오탭 방지)
+let _practiceEntering = false; // 소모 처리 중 연타로 이중 차감되는 것 방지
 function onScalePracticeTap(btn) {
   _playConfirmSfx();
+  const card = btn.closest('.scale-item-card');
+  if (!card) return;
+  let unlocked = false;
+  try { unlocked = sessionStorage.getItem(`scale_unlock_${card.dataset.key}_${parseInt(card.dataset.level, 10)}`) === '1'; } catch (e) {}
+  // 확인 생략: Pro(소모 없음) / 이미 소모해 언락된 상태 / 잔액 부족이 확실할 때(바로 충전 모달로)
+  const skip = unlocked || getPlan() === 'pro'
+    || (_peakState.loaded && _peakState.balance < SCALE_PRACTICE_PEAK_COST);
+  if (skip || SCALE_PRACTICE_PEAK_COST < PEAK_CONFIRM_MIN_COST) { _enterScalePractice(btn); return; }
+  showLeavePracticeModal(() => _enterScalePractice(btn), {
+    title: '연습을 시작할까요?',
+    desc: `<span class="peak-confirm-body"><img src="image/peak.svg" alt="피크"><span class="peak-confirm-count">-${SCALE_PRACTICE_PEAK_COST}</span></span>`,
+    stopText: '취소',
+    continueText: '시작하기',
+    confirmOnPrimary: true,
+    sfx: null, // 버튼 탭 사운드가 이미 났음
+  });
+}
+async function _enterScalePractice(btn) {
+  if (_practiceEntering) return;
   const card  = btn.closest('.scale-item-card');
   if (!card) return;
   const key   = card.dataset.key;
   const level = parseInt(card.dataset.level, 10);
+
+  const unlockKey = `scale_unlock_${key}_${level}`;
+  let unlocked = false;
+  try { unlocked = sessionStorage.getItem(unlockKey) === '1'; } catch (e) {}
+  if (!unlocked) {
+    _practiceEntering = true;
+    let ok = false;
+    try { ok = await consumePeak(SCALE_PRACTICE_PEAK_COST, 'scale'); } finally { _practiceEntering = false; }
+    if (!ok) return; // 피크 부족 — consumePeak이 충전 모달을 띄움
+    try { sessionStorage.setItem(unlockKey, '1'); } catch (e) {}
+  }
 
   // 복귀 시 이 위치(챕터+레벨)로 되돌아오도록 저장
   const chapterEl = card.closest('.scale-item-list[id^="ch-"]');
@@ -151,7 +193,7 @@ function onScalePracticeTap(btn) {
     sessionStorage.setItem('scaleReturnState', JSON.stringify({ chapter, level }));
   } catch (e) {}
 
-  analytics.track('scale_item_tapped', { scale_key: key, level });
+  analytics.track('scale_item_tapped', { scale_key: key, level, chapter });
   const shell = document.querySelector('.app-shell');
   const url = `scale-level.html?key=${key}&level=${level}`;
   if (shell) {
@@ -303,9 +345,22 @@ function initCarousels() {
 }
 
 // ── 복귀 시 마지막 진입 위치(챕터+레벨) 복원 ──────────────────
+// 딥링크(?key=…[&level=…], 푸시 알림·scale-level 직접 진입 되돌림)가 있으면 그 카드가 우선 — 키는 카드마다 유일
+function _deepLinkPosition() {
+  const params = new URLSearchParams(location.search);
+  const key = params.get('key');
+  if (!key) return null;
+  const card = document.querySelector(`.scale-item-card[data-key="${CSS.escape(key)}"]`);
+  const list = card && card.closest('.scale-item-list[id^="ch-"]');
+  if (!list) return null;
+  return { chapter: parseInt(list.id.replace('ch-', ''), 10), level: parseInt(card.dataset.level, 10) };
+}
+
 function restoreLastPosition() {
-  let st = null;
-  try { st = JSON.parse(sessionStorage.getItem('scaleReturnState')); } catch (e) {}
+  let st = _deepLinkPosition();
+  if (!st) {
+    try { st = JSON.parse(sessionStorage.getItem('scaleReturnState')); } catch (e) {}
+  }
   if (!st || !st.chapter) return;
   const list = _showChapter(st.chapter);
   if (list) {
@@ -324,6 +379,10 @@ document.addEventListener('DOMContentLoaded', () => {
   // 슬라이드업 진입 애니메이션
   const shell = document.querySelector('.app-shell');
   if (shell) shell.classList.add('project-enter');
+
+  // 연습하기 버튼 피크 뱃지(style.css .cd-btn--peak, .scale-card-practice-btn): 소모량 주입, Pro는 숨김
+  document.documentElement.style.setProperty('--cd-btn-peak-cost', SCALE_PRACTICE_PEAK_COST);
+  if (getPlan() === 'pro') document.documentElement.classList.add('peak-free');
 
   // 뒤로가기+피크바는 #main-content > .top-bar 안에 고정 — 모바일/데스크탑 공용, JS 이동 없음.
 

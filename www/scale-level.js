@@ -4,6 +4,8 @@
 // ── 상수 ─────────────────────────────────────────────────────
 const SCALE_TITLES = {
   'major':          '메이저 스케일',
+  'major-pentatonic': '메이저 펜타토닉 스케일',
+  'major-blues':      '메이저 블루스 스케일',
   'pentatonic':     '마이너 펜타토닉 스케일',
   'blues':          '마이너 블루스 스케일',
   'natural-minor':  '내추럴 마이너 스케일',
@@ -27,6 +29,8 @@ const SCALE_TITLES = {
 
 const SCALE_SHORT_NAMES = {
   'major':          '메이저',
+  'major-pentatonic': '메이저 펜타토닉',
+  'major-blues':      '메이저 블루스',
   'pentatonic':     '마이너 펜타토닉',
   'blues':          '마이너 블루스',
   'natural-minor':  '내추럴 마이너',
@@ -163,18 +167,36 @@ let _fbAnimId       = null; // 진행 중인 scrollToFret rAF id — 연타 시 
 // 필요 없음(성능 최적화, 2026-09-25). renderFullNeck()에서 1회 채워짐.
 let _fbEls = null;
 
-function computeFbScale() {
+// 지판(fb-viewport) 폭 — 화면 폭에 비례하지 않고 스타일가이드 §4 단계별로 고정한 상대 배율(computeFbRelScale)로 정함. 360px 화면(row 320px)에서 312px = 1.0배.
+const FB_BASE_VIEWPORT_W = 312;
+const FB_MAX_VIEWPORT_W = 480; // 4단계 이상(1080px~)의 지판 폭(px) — 지판 폭이 곧 화면에 보이는 실제 크기. 상대 배율로는 480/312 ≈ 1.54배
+const FB_BASE_ROW_W = 320;   // 위 폭의 기준이 되는 row 폭(360px 화면 − 좌우 그리드 마진 20×2)
+// 지판 상대 배율 R — 360px 화면(지판 폭 312px)을 1.0배로 정의(R = 지판 폭 ÷ 312). 단계별 배율을 조정할 땐 이 값 기준으로 말하면 됨(1.8배 = 지판 폭 562px).
+// 단계(스타일가이드 §4, 창 폭 기준)마다 고정값: 1단계(~480px) 1.0배 / 2~3단계(481~1079px) 1.2배 / 4~5단계(1080px~) 480/312 ≈ 1.54배(지판 폭 480px).
+function _fbTierRelScale() {
+  const w = window.innerWidth;
+  if (w <= 480) return 1.0;
+  if (w <= 1079) return 1.2;
+  return FB_MAX_VIEWPORT_W / FB_BASE_VIEWPORT_W;
+}
+function computeFbRelScale() {
   const rowWidth = _fbEls ? _fbEls.row.clientWidth : FB_REF_WIDTH;
-  const widthBudget = Math.min((rowWidth * 0.8) / FB_RATIO, 480 / FB_RATIO); // fb-viewport 실제 폭 = 화면(row) 폭의 80%, 최대 480px 고정캡(480/ratio로 나눠 span 단위로 환산)
-  return Math.max(widthBudget / FB_REF_SPAN, 0.01);
+  // 360px보다 좁은 화면 보호 — 줄 폭에 들어가는 최대 배율(rowWidth/320)을 넘지 않게 함
+  return Math.min(_fbTierRelScale(), rowWidth / FB_BASE_ROW_W);
+}
+// 내부 transform:scale() 값 — 지판 내부 치수는 360px 기준 디자인 폭(FB_REF_VIEWPORT_W=272)으로 만들어져 있어서, 상대 배율 1.0(지판 폭 312)일 때의 scale은 312/272≈1.147.
+// 상대 배율에 이 값을 곱하면 재정의 전과 똑같은 scale이 나옴(화면 결과 불변).
+const FB_SCALE_1X = FB_BASE_VIEWPORT_W / FB_REF_VIEWPORT_W;
+function computeFbScale() {
+  return Math.max(computeFbRelScale() * FB_SCALE_1X, 0.01);
 }
 
-// 좌우 "고스트 프렛" peek 폭(실 px) — fretboard-row 안에서 화살표버튼 2개 + 실제 7프렛 뷰포트를
-// 뺀 나머지(좌우 각각)가 40px 이상일 때만, 그 남는 공간 전체를 peek로 씀. 그 미만이면 0(기존과 동일).
+// 좌우 "고스트 프렛" peek 폭(실 px) — fretboard-row에서 실제 7프렛 뷰포트를 뺀 나머지(좌우 각각)가
+// 40px 이상일 때만, 그 남는 공간 전체를 peek로 씀. 그 미만이면 0. (화살표 버튼은 지판 아래 줄로 이동해서 폭을 안 뺌)
 function computeFbPeek(scale) {
   const rowWidth = _fbEls ? _fbEls.row.clientWidth : FB_REF_WIDTH;
   const innerW = FB_REF_VIEWPORT_W * scale;
-  const slackEachSide = (rowWidth - 2 * FB_ARROW_W - innerW) / 2;
+  const slackEachSide = (rowWidth - innerW) / 2;
   return slackEachSide >= 40 ? slackEachSide : 0;
 }
 
@@ -207,11 +229,9 @@ function applyFbLayout() {
   if (blockerL) blockerL.style.width = peekPx + 'px';
   if (blockerR) blockerR.style.width = peekPx + 'px';
 
-  // 화살표 버튼 — 실제(스케일 적용된) 넥 높이 기준 세로중앙 정렬
+  // 화살표 버튼 — 실제(스케일 적용된) 넥 높이 기준 세로중앙 (지판 위 오버레이, style.css .fb-arrow-btn의 top)
   const realNeckH = FB_REF_NECK_H * _fbScale;
-  const arrowMarginTop = Math.max((realNeckH - 44) / 2, 0) + 'px';
-  _fbEls.arrowPrev?.style.setProperty('margin-top', arrowMarginTop);
-  _fbEls.arrowNext?.style.setProperty('margin-top', arrowMarginTop);
+  _fbEls.row.style.setProperty('--fb-arrow-top', Math.max((realNeckH - 44) / 2, 0) + 'px');
 
   applyFbPan(); // 배율이 바뀌었으니 transform도 같이 갱신
 }
@@ -268,7 +288,11 @@ function applyTestFbLayout() {
     viewport.style.width  = (TEST_FB_REF_WIDTH * scale) + 'px';
     viewport.style.height = (TEST_FB_REF_TOTAL_H * scale) + 'px';
   }
+  // 지판 실제 폭을 CSS 변수로도 넘김 — 폼 이름 라벨(.test-fb-label-row)이 넓은 화면에서 지판이 아니라 바깥 컨테이너 왼쪽 끝에 붙던 것을 지판 좌상단에 맞추려고 같은 폭·가운데 정렬로 둠
+  document.querySelector('.scale-test-fb-wrap')?.style.setProperty('--test-fb-w', (TEST_FB_REF_WIDTH * scale) + 'px');
   if (wrapper) wrapper.style.transform = `scale(${scale})`;
+  // 좌우 화살표 세로 위치 = 넥 높이의 중앙 (슬롯은 프렛번호 줄까지 포함해서 50%면 아래로 치우침)
+  document.querySelector('.test-fb-neck-slot')?.style.setProperty('--test-fb-arrow-top', (TEST_FB_REF_NECK_H * scale / 2) + 'px');
 }
 
 // scale-mic-btn-row 폭 — scale-mic-desc(fit-content, 더 넓은 줄 기준) 텍스트 폭과
@@ -286,30 +310,76 @@ function alignMicBtnRowToDesc() {
 }
 
 // ── 그룹1~4 간격 30px 미만 → 스크롤모드(40px 고정 gap) 전환 ──────────────────
-// space-between이 실제로 만들 gap을 현재 모드와 무관하게 역산: main-content
-// 가용높이에서 4그룹 자체 높이(스크롤모드 여부와 무관하게 고정) 빼진 값을 3등분.
+// space-between이 실제로 만들 gap을 현재 모드와 무관하게 역산: cd-main 가용높이에서
+// 헤드(+헤드↔본문 간격)와 본문 3그룹 자체 높이(스크롤모드 여부와 무관하게 고정) 뺀 값을 2등분.
 function updateScaleGapScrollMode() {
-  const layout = document.querySelector('.scale-level-layout');
-  const mainContent = document.querySelector('.main-content');
+  const body = document.querySelector('.scale-level-main .cd-body');
+  const head = document.querySelector('.scale-level-main .cd-head');
+  const mainContent = document.querySelector('.cd-main');
   const groups = [
     document.querySelector('.scale-level-top'),
     document.querySelector('.scale-mic-wrap'),
     document.querySelector('.scale-test-btn-group'),
-    document.querySelector('.key-selector-section'),
   ];
-  if (!layout || !mainContent || groups.some(g => !g)) return;
+  if (!body || !head || !mainContent || groups.some(g => !g)) return;
   const sumH = groups.reduce((sum, g) => sum + g.offsetHeight, 0);
-  const naturalGap = (mainContent.clientHeight - sumH) / 3;
-  layout.classList.toggle('scale-gap-scroll', naturalGap < 30);
+  // 헤드↔본문 간격 — body의 margin-top은 3단계 이후 auto(가운데 정렬)라 실제 계산값이 남는 공간 크기로 나오므로, 간격 토큰을 직접 읽음
+  const headGap = parseFloat(getComputedStyle(body).getPropertyValue('--cd-head-gap')) || 0;
+  // 본문 높이 = 남는 공간과 상한 중 작은 쪽 — 상한이 걸리는 큰 화면에서도 실제 틈 크기로 판정.
+  // 상한은 max-height가 아니라 변수(--cd-body-max-h)로 읽음: 스크롤 모드 클래스가 max-height를 none으로 풀기 때문에, 그걸 읽으면 판정이 계속 뒤집힘.
+  const mainPadB = parseFloat(getComputedStyle(mainContent).paddingBottom) || 0; // cd-main 하단 패딩(24px + 안전영역)은 본문이 쓸 수 없는 공간
+  const avail = mainContent.clientHeight - mainPadB - head.offsetHeight - headGap;
+  const cap = parseFloat(getComputedStyle(body).getPropertyValue('--cd-body-max-h'));
+  const bodyH = Number.isFinite(cap) ? Math.min(avail, cap) : avail;
+  const naturalGap = (bodyH - sumH) / 2;
+  body.classList.toggle('scale-gap-scroll', naturalGap < 30);
+}
+
+// 본문 스크롤 영역(.cd-main) 아래로 더 스크롤할 내용이 남았을 때만 .has-scroll-more를 붙임 — CSS가 이 클래스일 때만 맨 아래 투명 그라데이션(스크롤 힌트)을 그림.
+// 스크롤할 게 없거나 맨 아래까지 내려오면 클래스가 빠져서 그라데이션 자체가 없음(display:none).
+function initScrollMoreHint() {
+  const main = document.querySelector('.scale-level-main');
+  if (!main) return;
+  const update = () => {
+    main.classList.toggle('has-scroll-more', main.scrollHeight - main.scrollTop - main.clientHeight > 2);
+  };
+  main.addEventListener('scroll', update, { passive: true });
+  window.addEventListener('resize', update);
+  if (window.ResizeObserver) { // 내용 높이가 바뀌는 경우(기타 버튼 패널, 폰트 로드, 스크롤 모드 전환 등)도 따라감
+    const ro = new ResizeObserver(update);
+    ro.observe(main);
+    Array.from(main.children).forEach(c => ro.observe(c));
+  }
+  if (document.fonts && document.fonts.ready) document.fonts.ready.then(update);
+  update();
 }
 
 // ── 상태 ─────────────────────────────────────────────────────
 let _scaleKey  = 'major';
 let _scaleLevel = 0; // 레벨 첫완료 퀘스트용 (URL level 파라미터)
 let _rootNote  = 0;
+
+// 이벤트 공통 속성(택소노미) — 모든 scale_* 이벤트가 같은 이름·형식으로 펼침. level은 화면 번호가 아니라 코드 번호(data-level).
+// 챕터: 1=1~5·25·26, 2=6~10, 3=11~17, 4=18~24
+function _scaleChapterOf(level) {
+  if (level >= 18 && level <= 24) return 4;
+  if (level >= 11 && level <= 17) return 3;
+  if (level >= 6 && level <= 10) return 2;
+  return 1;
+}
+function _scaleBase() {
+  return { scale_key: _scaleKey, level: _scaleLevel, chapter: _scaleChapterOf(_scaleLevel) };
+}
+// 레벨별 키 선택기 설정 — root: 기본 선택 키이자 목록 맨 앞 키(반음, 0=C), minor: 버튼 표기에 m 붙임(Am).
+// 없는 레벨은 C부터 12키 순서, 표기는 키 이름만. (키 버튼 순서만 바뀌고 _rootNote 값은 그대로 반음 번호)
+const LEVEL_KEY_UI = { 2: { root: 9, minor: true }, 3: { root: 9, minor: true }, 4: { root: 9, minor: true }, 5: { root: 9, minor: true } };
+let _keyUi = null;
 let _navIdx    = 0;
 let _useFlat   = false;
-let _showDegrees = false;
+// 지판 dot 라벨 모드(도수 표기 버튼이 순환): 'note' 음이름(기본) → 'degree' 도수 → 'off' 미표시. 기억하지 않고 매 방문 음이름으로 시작.
+const LABEL_MODES = ['note', 'degree', 'off'];
+let _labelMode = 'note';
+let _letRing = true; // 렛링(페달) ON = 손가락을 떼도 울림 유지(기본, 기존 동작) / OFF = dot을 누르고 있는 동안만 울림
 let _testItem    = null;        // 테스트 현재 아이템 { block, bi, startFret }
 let _testHint      = null;        // 힌트 위치 { s, col } — 미리 찍어두는 dot 표시
 let _placedNotes   = new Set();   // 플레이어가 찍은 dot: "s,col" 문자열의 Set
@@ -328,6 +398,12 @@ const OPEN_MIDI = [64, 59, 55, 50, 45, 40]; // E B G D A E (string 0=1번줄)
 function playScaleNote(stringIdx, absFret) {
   GuitarAudio.stop();
   GuitarAudio.playNote(OPEN_MIDI[stringIdx] + absFret, 2.5);
+}
+
+// 메인 지판 dot 직접 탭 전용 — 누르는 즉시 재생, 줄별 단음(같은 줄은 이전 음을 끊고 다른 줄과는 동시에 울림). 전용 경로(GuitarAudio.tapNote)라
+// 스케일 재생·튜토리얼 시연 등 예약형 재생(playScaleNote)과 상태를 공유하지 않음.
+function playScaleNoteTap(stringIdx, absFret) {
+  return GuitarAudio.tapNote(stringIdx, OPEN_MIDI[stringIdx] + absFret);
 }
 
 // ── 재생 버튼: 현재 블럭 낮은음→높은음→(근음 아니면 가장 가까운 근음까지 재상행) ──
@@ -368,7 +444,11 @@ function stopScalePlay() {
 }
 
 // ── Ch.2 secondary-iv 전용 재생: 상행=원폼, 정점에서 전환, 하행=짝궁폼 (2026-09-30 테스트) ──
-const SECONDARY_IV_TRANSITION_MS = 410; // transitionPair() DURATION(350)+마무리버퍼(60)와 동일, 재생버튼 클릭 시 원폼 복귀 대기시간
+// 짝궁 전환 애니메이션 타이밍 — 슬라이드·제거·생성이 동시에 재생되어 전체 PAIR_SLIDE_MS + PAIR_WAIT_BUFFER_MS(=290ms) 안에 끝남(목표 300ms 이내).
+// 반주 BPM과 무관한 고정값. transitionPair 계열 5개 함수의 DURATION, _spawnNote의 생성 애니메이션이 이 값을 씀.
+const PAIR_SLIDE_MS = 250;        // 슬라이드·페이드아웃·생성 애니메이션 길이
+const PAIR_WAIT_BUFFER_MS = 40;   // 애니메이션 종료 후 정리(제거·도수 재표기·마무리)까지 여유
+const SECONDARY_IV_TRANSITION_MS = PAIR_SLIDE_MS + PAIR_WAIT_BUFFER_MS; // 재생버튼 클릭 시 원폼 복귀 대기시간(전환 전체 시간과 동일)
 
 function _buildSecondaryIVDescendSeq(peakMidi) {
   const neckEl = document.getElementById('fb-full-neck');
@@ -441,7 +521,7 @@ function _startSecondaryIVAscendThenTransition() {
 }
 
 function startScalePlay() {
-  stopScaleMic(); // 마이크 모드 켜져있었으면 즉시 중단
+  exitPracticeMode(); // 연습모드 켜져있었으면 즉시 종료
 
   if (_scaleKey === 'secondary-iv' || _scaleKey === 'secondary-v' || _scaleKey === 'secondary-ii' || _scaleKey === 'secondary-vi' || _scaleKey === 'secondary-iii') {
     if (_pairTransitioned) {
@@ -473,152 +553,220 @@ function startScalePlay() {
 }
 
 function toggleScalePlay() {
-  if (_scalePlayTimer) stopScalePlay();
-  else startScalePlay();
+  if (_scalePlayTimer) { stopScalePlay(); return; }
+  analytics.track('scale_listen_played', _scaleBase()); // 스케일 들어보기 사용 횟수(재생 시작 시)
+  startScalePlay();
 }
 
-// ── 마이크 버튼: 같은 시퀀스를 실제 연주로 검증하며 진행 ──
-// 자기상관(autocorrelation) 단음 피치검출 — 사운드인식테스트.html 스케일연습에서 검증된 방식 재사용
-function _scaleAutoCorrelate(buf, sampleRate) {
-  const SIZE = buf.length;
-  let rms = 0;
-  for (let i = 0; i < SIZE; i++) rms += buf[i] * buf[i];
-  rms = Math.sqrt(rms / SIZE);
-  if (rms < 0.01) return -1;
-
-  let r1 = 0, r2 = SIZE - 1;
-  const thresh = 0.2;
-  for (let i = 0; i < SIZE / 2; i++) if (Math.abs(buf[i]) < thresh) { r1 = i; break; }
-  for (let i = 1; i < SIZE / 2; i++) if (Math.abs(buf[SIZE - i]) < thresh) { r2 = SIZE - i; break; }
-  const trimmed = buf.slice(r1, r2);
-  const n = trimmed.length;
-
-  const c = new Array(n).fill(0);
-  for (let lag = 0; lag < n; lag++)
-    for (let i = 0; i < n - lag; i++) c[lag] += trimmed[i] * trimmed[i + lag];
-
-  let d = 0;
-  while (d + 1 < n && c[d] > c[d + 1]) d++;
-  let maxVal = -1, maxPos = -1;
-  for (let i = d; i < n; i++) if (c[i] > maxVal) { maxVal = c[i]; maxPos = i; }
-  let T0 = maxPos;
-  if (T0 <= 0) return -1;
-
-  const x1 = c[T0 - 1] ?? c[T0], x2 = c[T0], x3 = c[T0 + 1] ?? c[T0];
-  const a = (x1 + x3 - 2 * x2) / 2, b = (x3 - x1) / 2;
-  if (a) T0 = T0 - b / (2 * a);
-
-  return T0 > 0 ? sampleRate / T0 : -1;
+// ── 연습모드 (기타 버튼): desc 자리가 BPM - 재생 - 스타일 옵션으로 교체됨 ──
+// 백킹 트랙 설계는 docs/backing-tracks.md. 지금은 UI(옵션 선택·표시)만, 소리 연동은 아직 없음.
+// 드롭업 메뉴는 메트로놈 옵션 카드(.metronome-option-card/-menu) 스타일 재사용.
+const PRACTICE_BPM_OPTIONS = Array.from({ length: 17 }, (_, i) => 60 + i * 5); // 60~140, 5단위
+// 스타일 메뉴 — id = BackingTrack STYLES 키. 위(첫째)부터 기초 순서이고 첫째가 기본 선택값.
+// 챕터 1~3: 기본1·2·3 → 재즈. 챕터 4(코드 번호 18~24): 재즈 → 팝1·2·3(= 기본1·2·3을 이름만 바꾼 것). 재즈2·3은 만들면 JAZZ_STYLES에 추가.
+const JAZZ_STYLES = [{ id: 'jazz1', label: '재즈1' }];
+function _practiceStyleOptions() {
+  const ch4 = _scaleLevel >= 18 && _scaleLevel <= 24;
+  const pop = ['basic', 'basic2', 'basic3'].map((id, i) => ({ id, label: (ch4 ? '팝' : '기본') + (i + 1) }));
+  return ch4 ? [...JAZZ_STYLES, ...pop] : [...pop, ...JAZZ_STYLES];
 }
-function _scaleFreqToMidi(f) { return Math.round(69 + 12 * Math.log2(f / 440)); }
+let _practiceOn = false;
+let _practicePlaying = false;
+let _practiceBpm = 90;
+let _practiceStyle = 'basic'; // 진입 시 _initPracticeStyle()이 레벨에 맞는 첫째 스타일로 맞춤
 
-let _scaleMicStream = null, _scaleMicCtx = null, _scaleMicAnalyser = null, _scaleMicRaf = null;
-let _scaleMicTimeBuf = null, _scaleMicLastTrigger = 0;
-const SCALE_MIC_ONSET_RMS = 0.01, SCALE_MIC_COOLDOWN = 120;
-let _scaleMicSeq = [];
-let _scaleMicStepIdx = 0;
-
-function _scaleMicHighlightExpected() {
-  document.querySelectorAll('.fb-note--playing').forEach(el => el.classList.remove('fb-note--playing'));
-  const note = _scaleMicSeq[_scaleMicStepIdx];
-  if (note) note.el.classList.add('fb-note--playing');
+function _setPracticeUi(on) {
+  document.getElementById('scale-mic-info')?.classList.toggle('is-practice', on);
+  document.getElementById('scale-mic-btn')?.classList.toggle('is-active', on);
 }
 
-function _scaleMicAdvance() {
-  _scaleMicStepIdx++;
-  if (_scaleMicStepIdx >= _scaleMicSeq.length) {
-    _finishScaleMicSequence();
+function enterPracticeMode() {
+  stopScalePlay(); // 스케일 들어보기 재생 중이면 중단
+  GuitarAudio.warmupPiano(); // 피아노 샘플 미리 로드 → 재생 버튼 누를 때 지연 최소화
+  _practiceOn = true;
+  renderPracticeChords();
+  _setPracticeUi(true);
+}
+
+function exitPracticeMode() {
+  if (!_practiceOn) return;
+  _practiceOn = false;
+  _setPracticePlaying(false);
+  closePracticeMenus();
+  _setPracticeUi(false);
+}
+
+function togglePracticeMode() {
+  if (_practiceOn) exitPracticeMode();
+  else enterPracticeMode();
+}
+
+// 재생 중인 코드 파란색 강조 — rAF가 오디오 시계 기준 현재 코드 인덱스를 읽음(setTimeout 금지: 시간이 갈수록 어긋남)
+// 챕터2 자동 전환 — 반주 진행의 전환 신호('orig' | 'pair')에 맞춰 스케일 블럭을 원래 폼 ↔ 전환 폼으로 자동 전환.
+// 전환 중이면(_transitioning) 끝난 뒤 다음 프레임에 이어서 맞춤.
+let _practiceDesiredForm = null;
+let _practiceAutoSwitched = false; // 자동 전환을 한 적 있음 → 정지 시 원래 폼으로 복귀(사용자 수동 전환은 건드리지 않음)
+function _reconcilePracticeForm() {
+  if (!_practiceDesiredForm || _transitioning || !_scaleKey.startsWith('secondary-')) return;
+  const wantPair = _practiceDesiredForm === 'pair';
+  _practiceDesiredForm = null;
+  if (wantPair === _pairTransitioned) return;
+  _practiceAutoSwitched = true;
+  _pairPersist = wantPair;
+  transitionPair();
+}
+
+let _practiceChordRaf = null;
+let _practiceChordShown = -2;
+function _startPracticeChordHighlight(on) {
+  if (_practiceChordRaf) { cancelAnimationFrame(_practiceChordRaf); _practiceChordRaf = null; }
+  _practiceChordShown = -2;
+  document.querySelectorAll('#scale-practice-chords .scale-chord-item').forEach(el => el.classList.remove('is-playing'));
+  if (!on) return;
+  const loop = () => {
+    const cue = BackingTrack.consumeDueForm();
+    if (cue) _practiceDesiredForm = cue;
+    _reconcilePracticeForm();
+    const idx = BackingTrack.getCurrentChordIndex();
+    if (idx !== _practiceChordShown) {
+      _practiceChordShown = idx;
+      // 매번 새로 조회 — #/b 토글로 renderPracticeChords가 span을 다시 만들 수 있음
+      document.querySelectorAll('#scale-practice-chords .scale-chord-item').forEach((el, i) => el.classList.toggle('is-playing', i === idx));
+    }
+    _practiceChordRaf = requestAnimationFrame(loop);
+  };
+  _practiceChordRaf = requestAnimationFrame(loop);
+}
+
+// 백킹 재생 상태 단일 진입점 — 상태·소리·버튼 아이콘(재생 ▶ / 재생 중 ⏸)을 항상 같이 바꿈
+let _practicePlayStartedAt = 0;
+function _setPracticePlaying(playing) {
+  const wasPlaying = _practicePlaying;
+  _practicePlaying = playing;
+  // 연습 모드 퍼널: 재생 시작/종료 이벤트(종료는 어떤 경로로 멈추든 이 함수를 지나므로 한 곳에서 기록)
+  if (playing && !wasPlaying) {
+    _practicePlayStartedAt = Date.now();
+    analytics.track('scale_practice_started', { ..._scaleBase(), style_id: _practiceStyle, bpm: _practiceBpm });
+  } else if (!playing && wasPlaying) {
+    analytics.track('scale_practice_stopped', {
+      ..._scaleBase(), style_id: _practiceStyle, bpm: _practiceBpm,
+      play_sec: Math.round((Date.now() - _practicePlayStartedAt) / 1000),
+    });
+  }
+  if (!playing) {
+    BackingTrack.stop();
+    _practiceDesiredForm = null;
+    // 자동 전환으로 전환 폼에 가 있으면 정지하면서 원래 폼으로 복귀
+    if (_practiceAutoSwitched) {
+      _practiceAutoSwitched = false;
+      if (_pairTransitioned && !_transitioning) { _pairPersist = false; transitionPair(); }
+    }
+  } else if (_scaleKey.startsWith('secondary-')) {
+    _practiceDesiredForm = 'orig'; // 재생은 항상 원래 폼에서 시작(전환 폼에 있으면 먼저 복귀)
+  }
+  _startPracticeChordHighlight(playing);
+  const btn = document.getElementById('practice-play-btn');
+  if (!btn) return;
+  btn.classList.toggle('is-active', playing);
+  btn.innerHTML = `<i data-lucide="${playing ? 'pause' : 'play'}"></i>`;
+  lucide.createIcons();
+}
+
+async function togglePracticePlay() {
+  if (_practicePlaying) {
+    _setPracticePlaying(false);
     return;
   }
-  _scaleMicHighlightExpected();
+  _setPracticePlaying(true);
+  const ok = await BackingTrack.start(
+    () => ({ bpm: _practiceBpm, root: _rootNote, level: _scaleLevel }), // 재생 중 BPM 바꾸면 다음 스텝부터 반영 (키는 재생 중 잠금)
+    _practiceStyle
+  );
+  if (!ok && _practicePlaying) _setPracticePlaying(false); // 시작 대기 중 이미 정지된 경우 외엔 원복
 }
 
-function _scaleMicClassify() {
-  if (!_scaleMicAnalyser) return;
-  _scaleMicAnalyser.getFloatTimeDomainData(_scaleMicTimeBuf);
-  const freq = _scaleAutoCorrelate(_scaleMicTimeBuf, _scaleMicCtx.sampleRate);
-  if (freq < 0) return;
-  const detectedMidi = _scaleFreqToMidi(freq);
-  const expected = _scaleMicSeq[_scaleMicStepIdx];
-  if (!expected) return;
-  if (detectedMidi === expected.midi) {
-    _scaleMicLastTrigger = performance.now();
-    _scaleMicAdvance();
-  }
-}
-
-function _scaleMicListen() {
-  _scaleMicAnalyser.getFloatTimeDomainData(_scaleMicTimeBuf);
-  let sum = 0;
-  for (let i = 0; i < _scaleMicTimeBuf.length; i++) sum += _scaleMicTimeBuf[i] * _scaleMicTimeBuf[i];
-  const rms = Math.sqrt(sum / _scaleMicTimeBuf.length);
-  const now = performance.now();
-  if (rms > SCALE_MIC_ONSET_RMS && now - _scaleMicLastTrigger > SCALE_MIC_COOLDOWN) {
-    _scaleMicClassify();
-  }
-  _scaleMicRaf = requestAnimationFrame(_scaleMicListen);
-}
-
-let _scaleMicDescIdleHtml = null;
-function _setScaleMicDescActive(active) {
-  const el = document.getElementById('scale-mic-desc');
+// 코드 진행 4마디 표시 — BackingTrack 진행(루트 기준 반음거리) + 현재 키/샵플랫 설정으로 코드명 계산
+function renderPracticeChords() {
+  const el = document.getElementById('scale-practice-chords');
   if (!el) return;
-  if (active) {
-    if (_scaleMicDescIdleHtml === null) _scaleMicDescIdleHtml = el.innerHTML;
-    el.innerHTML = '<div class="scale-mic-desc-row scale-mic-desc-row--active"><span class="scale-mic-desc-text">표시된 음을 직접 기타로 소리내보세요!</span></div>';
-  } else if (_scaleMicDescIdleHtml !== null) {
-    el.innerHTML = _scaleMicDescIdleHtml;
-  }
+  const names = _useFlat ? KEY_NAMES_FLAT : KEY_NAMES;
+  el.innerHTML = BackingTrack.getProgression(_scaleLevel || 1, _practiceStyle)
+    .map(c => `<span class="scale-chord-item">${c.repeat ? '%' : names[(_rootNote + c.offset) % 12] + c.suffix + (c.sup ? `<sup class="scale-chord-sup">${c.sup}</sup>` : '') + (c.bass != null ? '/' + names[(_rootNote + c.bass) % 12] : '')}${c.label ? `<span class="scale-chord-label">${c.label}</span>` : ''}</span>`).join('');
+  _practiceChordShown = -2; // 재생 중이면 다음 프레임에 강조 다시 입힘
 }
 
-async function startScaleMic() {
-  _scaleMicSeq = buildScalePlaySequence();
-  if (_scaleMicSeq.length === 0) return;
-  stopScalePlay();
-  try {
-    _scaleMicStream = await navigator.mediaDevices.getUserMedia({
-      audio: { autoGainControl: false, noiseSuppression: false, echoCancellation: false }
+function closePracticeMenus() {
+  document.querySelectorAll('#scale-practice-opts .metronome-option-menu').forEach(el => el.classList.add('hidden'));
+}
+
+function _renderPracticeMenu(kind) {
+  const menu = document.getElementById(`practice-${kind}-menu`);
+  if (!menu) return;
+  menu.innerHTML = '';
+  const opts = kind === 'bpm'
+    ? PRACTICE_BPM_OPTIONS.map(v => ({ value: v, label: String(v) }))
+    : _practiceStyleOptions().map(o => ({ value: o.id, label: o.label }));
+  const current = kind === 'bpm' ? _practiceBpm : _practiceStyle;
+  opts.forEach(o => {
+    const item = document.createElement('button');
+    item.type = 'button';
+    item.className = 'metronome-option-menu-item';
+    if (o.value === current) item.classList.add('metronome-option-menu-item--active');
+    item.textContent = o.label;
+    item.addEventListener('pointerup', (e) => { e.stopPropagation(); _setPracticeOption(kind, o.value, o.label); });
+    menu.appendChild(item);
+  });
+}
+
+// 진입 시 한 번: 레벨에 맞는 첫째 스타일을 선택하고 라벨 표시를 맞춤
+function _initPracticeStyle() {
+  const first = _practiceStyleOptions()[0];
+  _practiceStyle = first.id;
+  const valueEl = document.getElementById('practice-style-value');
+  if (valueEl) valueEl.textContent = first.label;
+}
+
+function _setPracticeOption(kind, value, label) {
+  if (kind === 'bpm') _practiceBpm = value;
+  else if (value !== _practiceStyle) {
+    const fromStyle = _practiceStyle;
+    if (_practicePlaying) _setPracticePlaying(false); // 재생 중 스타일이 바뀌면 소리·코드 표시가 어긋나므로 정지(종료 이벤트에 이전 스타일이 실리도록 스타일 교체보다 먼저)
+    _practiceStyle = value;
+    const opt = _practiceStyleOptions().find(o => o.id === value) || {};
+    analytics.track('scale_practice_style_selected', {
+      ..._scaleBase(), style_id: value, from_style_id: fromStyle,
+      is_locked: opt.premium === true, // 프리미엄 잠금 스타일을 추가하면 옵션에 premium: true를 달면 됨(지금은 전부 false)
     });
-    _scaleMicCtx = new (window.AudioContext || window.webkitAudioContext)();
-    _scaleMicAnalyser = _scaleMicCtx.createAnalyser();
-    _scaleMicAnalyser.fftSize = 2048;
-    _scaleMicCtx.createMediaStreamSource(_scaleMicStream).connect(_scaleMicAnalyser);
-    _scaleMicTimeBuf = new Float32Array(_scaleMicAnalyser.fftSize);
-    _scaleMicStepIdx = 0;
-    document.getElementById('scale-mic-btn')?.classList.add('is-active');
-    _setScaleMicDescActive(true);
-    _scaleMicHighlightExpected();
-    _scaleMicListen();
-  } catch (e) {
-    console.error('마이크 권한 거부됨 또는 사용 불가:', e);
+    renderPracticeChords(); // 스타일마다 코드 진행이 다를 수 있음
   }
+  const valueEl = document.getElementById(`practice-${kind}-value`);
+  if (valueEl) valueEl.textContent = label;
+  closePracticeMenus();
 }
 
-function _teardownScaleMic() {
-  if (_scaleMicRaf) { cancelAnimationFrame(_scaleMicRaf); _scaleMicRaf = null; }
-  if (_scaleMicStream) _scaleMicStream.getTracks().forEach(t => t.stop());
-  if (_scaleMicCtx) { _scaleMicCtx.close(); _scaleMicCtx = null; }
-  _scaleMicStream = null; _scaleMicAnalyser = null;
-  document.querySelectorAll('.fb-note--playing').forEach(el => el.classList.remove('fb-note--playing'));
-  document.getElementById('scale-mic-btn')?.classList.remove('is-active');
+function togglePracticeMenu(e, kind) {
+  e.stopPropagation();
+  if (typeof _playTap === 'function') _playTap();
+  const menu = document.getElementById(`practice-${kind}-menu`);
+  if (!menu) return;
+  const willOpen = menu.classList.contains('hidden');
+  closePracticeMenus();
+  if (!willOpen) return;
+  _renderPracticeMenu(kind);
+  menu.classList.remove('hidden');
+  const active = menu.querySelector('.metronome-option-menu-item--active');
+  if (active) menu.scrollTop = active.offsetTop - (menu.clientHeight - active.offsetHeight) / 2; // 현재 값이 보이게
 }
 
-function stopScaleMic() {
-  _teardownScaleMic();
-  _setScaleMicDescActive(false);
-}
-
-// 시퀀스를 끝까지 성공적으로 마쳤을 때 — 완료 문구를 잠깐 보여준 뒤 idle로 복귀
-function _finishScaleMicSequence() {
-  _teardownScaleMic();
-  const el = document.getElementById('scale-mic-desc');
-  if (el) el.innerHTML = '<div class="scale-mic-desc-row"><span class="scale-mic-desc-text">완료! 잘하셨어요.</span></div>';
-  setTimeout(() => _setScaleMicDescActive(false), 1500);
-}
-
-function toggleScaleMic() {
-  if (_scaleMicStream) stopScaleMic();
-  else startScaleMic();
+function initPracticeMode() {
+  document.getElementById('scale-mic-btn')?.addEventListener('pointerup', () => { _playConfirmSfx(); togglePracticeMode(); });
+  document.getElementById('practice-play-btn')?.addEventListener('pointerup', () => { _playConfirmSfx(); togglePracticePlay(); });
+  document.getElementById('practice-bpm-card')?.addEventListener('pointerup', (e) => togglePracticeMenu(e, 'bpm'));
+  document.getElementById('practice-style-card')?.addEventListener('pointerup', (e) => togglePracticeMenu(e, 'style'));
+  document.addEventListener('pointerup', closePracticeMenus); // 바깥 탭하면 드롭업 닫기
+  // 앱/탭이 백그라운드로 가거나 페이지를 떠나면 반주 즉시 중단
+  document.addEventListener('visibilitychange', () => { if (document.hidden) exitPracticeMode(); });
+  window.addEventListener('pagehide', exitPracticeMode);
 }
 
 // ── 정답/오답 효과음 (chord-name-quiz.js playSound 이식) ─────
@@ -825,8 +973,45 @@ function _relabelSecondaryIIIAsHM(neckEl) {
 }
 
 // 전환 완료 공통 마무리 — 상태 저장 + 버튼 라벨 + 폼 라벨 + ghost 갱신 + 뷰포트 + 잠금 해제
+// ── 전환에서 달라지는 음(도수) 강조 — dot의 이동/생성이 아니라 "음" 기준 ──
+// 연습자가 보고 싶은 것: 전환 전엔 어떤 음이 바뀔지, 전환 후엔 어떤 음이 새로 생겼고(=원래대로 돌아갈 때 바뀔지).
+// 그래서 원래 스케일(major)과 전환 대상 스케일의 구성음(피치클래스)을 비교해,
+//  - 원래 폼:   원래에만 있는 음(바뀔 음)이 찍힌 dot 전부 (이동하든 사라지든 상관없이)
+//  - 전환 후 폼: 대상에만 있는 음(새로 생긴 음=돌아가면 바뀔 음)이 찍힌 dot 전부
+// 에 .fb-note--pair-move(특성음과 같은 어두운 파랑)를 입힌다. 챕터2 레벨별 전환 대상 스케일:
+const PAIR_TARGET_SCALE = {
+  'secondary-iv':  { scale: 'major',          offset: 5 },   // 4도 메이저 (C→F)
+  'secondary-v':   { scale: 'major',          offset: 7 },   // 5도 메이저 (C→G)
+  'secondary-ii':  { scale: 'harmonic-minor', offset: 9 },   // 6도 하모닉 마이너 (C→Am)
+  'secondary-vi':  { scale: 'harmonic-minor', offset: 2 },   // 2도 하모닉 마이너 (C→Dm)
+  'secondary-iii': { scale: 'harmonic-minor', offset: 4 },   // 3도 하모닉 마이너 (C→Em)
+};
+const PAIR_SCALE_INTERVALS = { 'major': [0, 2, 4, 5, 7, 9, 11], 'harmonic-minor': [0, 2, 3, 5, 7, 8, 11] };
+function _pairChangePcs() {
+  const t = PAIR_TARGET_SCALE[_scaleKey];
+  if (!t) return null;
+  const pcs = (root, scale) => new Set(PAIR_SCALE_INTERVALS[scale].map(i => (root + i) % 12));
+  const orig = pcs(_rootNote, 'major');
+  const targ = pcs((_rootNote + t.offset) % 12, t.scale);
+  return {
+    changing: new Set([...orig].filter(p => !targ.has(p))),   // 원래 폼에서 바뀔 음
+    arriving: new Set([...targ].filter(p => !orig.has(p))),   // 전환 후 폼에서 새로 생긴 음
+  };
+}
+const _notePc = el => (OPEN_MIDI[parseInt(el.dataset.s)] + parseInt(el.dataset.absf)) % 12;
+// 현재 폼(_pairTransitioned) 기준으로 모든 실제 dot 표시. renderNotes()와 _finishTransition() 직후 호출.
+function markPairMovers(neckEl) {
+  const c = _pairChangePcs();
+  if (!c) return;
+  const set = _pairTransitioned ? c.arriving : c.changing;
+  neckEl.querySelectorAll('.fb-note:not(.fb-note--ghost)').forEach(el => {
+    el.classList.toggle('fb-note--pair-move', set.has(_notePc(el)));
+  });
+}
+
 function _finishTransition(forward) {
   _pairTransitioned = forward;
+  if (document.getElementById('fb-full-neck')) document.querySelectorAll('#fb-full-neck [data-pair-spawn]').forEach(el => el.removeAttribute('data-pair-spawn'));
   // 전환 후 도수 라벨 전체 재작성 — 슬라이드로 dataset.degree만 바뀐 노트까지 포함
   const neckEl = document.getElementById('fb-full-neck');
   if (neckEl) {
@@ -840,19 +1025,34 @@ function _finishTransition(forward) {
   }
   updateFormLabel();
   _refreshSecondaryGhost();
+  if (neckEl) {   // ghost가 새 상태로 갱신된 뒤에 표시(ghost와 비교하는 레벨이 있음)
+    const cur = buildNavSequence()[_navIdx];
+    if (cur) markPairMovers(neckEl);
+  }
   _transitioning = false;
   _instantPair = false;
 }
 
-// 노트 el의 도수 라벨 span 재작성 (근음=라벨 없음)
+// dot 라벨 글자 — 모드가 'note'면 음이름(#/b 토글을 따름), 그 외엔 도수. 근음(도수 1)은 라벨 없음(빈 문자열).
+// degVal: 숫자 또는 라벨 문자열('2','b3','4'...), s/absF: 줄·프렛(음이름 계산용 — 전환 슬라이드가 끝난 최종 위치여야 함)
+function _noteLabelText(s, absF, degVal) {
+  if (String(degVal) === '1') return '';
+  if (_labelMode === 'note') {
+    const names = _useFlat ? KEY_NAMES_FLAT : KEY_NAMES;
+    return names[(((OPEN_MIDI[s] + absF) % 12) + 12) % 12];
+  }
+  // raw degree(음수=플랫) → 표시 라벨('b3','#4'...)로 변환해야 잉크박스 오프셋 키가 맞음
+  // 'b3'·'#2' 같은 문자열 토큰은 Number()가 NaN → degreeLabel에 원본 문자열 그대로 전달(패스스루)
+  const _n = Number(degVal);
+  return degreeLabel(Number.isNaN(_n) ? degVal : _n, _scaleKey);
+}
+
+// 노트 el의 라벨 span 재작성 (근음=라벨 없음)
 // degVal: 숫자 1 또는 라벨 문자열('2','b3','4'...)
 function _setNoteDegreeLabel(el, degVal) {
   el.querySelectorAll('.fb-note-deg').forEach(d => d.remove());
   if (String(degVal) === '1') return;   // 근음은 표시 생략
-  // raw degree(음수=플랫) → 표시 라벨('b3','#4'...)로 변환해야 잉크박스 오프셋 키가 맞음
-  // 'b3'·'#2' 같은 문자열 토큰은 Number()가 NaN → degreeLabel에 원본 문자열 그대로 전달(패스스루)
-  const _n  = Number(degVal);
-  const lbl = degreeLabel(Number.isNaN(_n) ? degVal : _n, _scaleKey);
+  const lbl = _noteLabelText(Number(el.dataset.s), Number(el.dataset.absf), degVal);
   const deg = document.createElement('span');
   deg.className = 'fb-note-deg';
   deg.textContent = lbl;
@@ -862,7 +1062,7 @@ function _setNoteDegreeLabel(el, degVal) {
 }
 
 function _applyDegMap(neckEl, degMap) {
-  neckEl.querySelectorAll('.fb-note:not(.fb-note--ghost)').forEach(el => {
+  neckEl.querySelectorAll('.fb-note:not(.fb-note--ghost):not([data-pair-spawn])').forEach(el => {
     const nd = degMap[el.dataset.s + ',' + el.dataset.degree];
     if (nd !== undefined) {
       el.dataset.degree = nd;
@@ -878,10 +1078,14 @@ function _applyDegMap(neckEl, degMap) {
 function _spawnNote(neckEl, absF, s, degree) {
   if (absF < 0 || absF >= TOTAL_FRETS) return;   // 유효 프랫(0~22) 밖엔 생성하지 않음
   const newEl = createNoteEl(absF, s, degree, false);
+  // 생성되는 순간부터 색 판정 — 전환 "도착" 폼 기준(정방향이면 새로 생긴 음, 복귀면 바뀔 음). 이후 _finishTransition에서 전체 재판정
+  const _pc = _pairChangePcs();
+  if (_pc && (_pairTransitioned ? _pc.changing : _pc.arriving).has(_notePc(newEl))) newEl.classList.add('fb-note--pair-move');
+  newEl.dataset.pairSpawn = '1';   // 생성이 슬라이드와 동시라 이후 _applyDegMap(옛 도수 기준 재표기)이 건드리지 않도록 표시 — _finishTransition에서 해제
   if (_instantPair) { neckEl.appendChild(newEl); return; }   // 즉시 전환: 생성 애니메이션 없이 완성 상태
   newEl.style.opacity   = '0';
   newEl.style.transform = 'translate(-50%, -50%) scale(0)';
-  newEl.style.transition = 'opacity 200ms ease, transform 360ms cubic-bezier(0.34, 1.56, 0.64, 1)';
+  newEl.style.transition = 'opacity ' + Math.round(PAIR_SLIDE_MS * 0.6) + 'ms ease, transform ' + PAIR_SLIDE_MS + 'ms cubic-bezier(0.34, 1.56, 0.64, 1)';
   neckEl.appendChild(newEl);
   void newEl.offsetHeight;
   newEl.style.opacity   = '1';
@@ -906,7 +1110,7 @@ function transitionPair(instant = false) {
   const activeEls = [...neckEl.querySelectorAll('.fb-note:not(.fb-note--ghost)')];
   if (!activeEls.length) { _instantPair = false; return; }
 
-  const DURATION = _instantPair ? 0 : 350;
+  const DURATION = _instantPair ? 0 : PAIR_SLIDE_MS;
   _transitioning = true;
 
   activeEls.forEach(el => {
@@ -936,6 +1140,8 @@ function transitionPair(instant = false) {
           el.dataset.degree = 4;
         }
       });
+      // 새 dot 생성은 슬라이드·제거와 동시에 재생 (끝날 때까지 기다리지 않음)
+      _spawnNote(neckEl, cur.startFret + 4, 2, 4);
       setTimeout(function() {
         neckEl.querySelectorAll('.fb-note:not(.fb-note--ghost)').forEach(el => {
           if (parseInt(el.dataset.s) === 1 && parseFloat(el.style.opacity) === 0) el.remove();
@@ -948,9 +1154,8 @@ function transitionPair(instant = false) {
           '4,6':3,'4,4':4,'4,1':5,
           '5,3':7,'5,4':1,'5,5':2,
         });
-        _spawnNote(neckEl, cur.startFret + 4, 2, 4);
         _finishTransition(true);
-      }, DURATION + 60);
+      }, DURATION + PAIR_WAIT_BUFFER_MS);
 
     } else {
       // E폼 → C폼
@@ -969,6 +1174,8 @@ function transitionPair(instant = false) {
           el.dataset.degree = 7;
         }
       });
+      // 새 dot 생성은 슬라이드·제거와 동시에 재생 (끝날 때까지 기다리지 않음)
+      _spawnNote(neckEl, cur.startFret + 1, 1, 7);
       setTimeout(function() {
         neckEl.querySelectorAll('.fb-note:not(.fb-note--ghost)').forEach(el => {
           if (parseInt(el.dataset.s) === 2 && parseFloat(el.style.opacity) === 0) el.remove();
@@ -981,9 +1188,8 @@ function transitionPair(instant = false) {
           '4,3':6,'4,7':7,'4,5':1,
           '5,7':3,'5,1':4,'5,2':5,
         });
-        _spawnNote(neckEl, cur.startFret + 1, 1, 7);
         _finishTransition(false);
-      }, DURATION + 60);
+      }, DURATION + PAIR_WAIT_BUFFER_MS);
     }
 
   // ── A폼 (bi=0) ↔ D폼 ──────────────────────────────────────────
@@ -1007,6 +1213,9 @@ function transitionPair(instant = false) {
           el.dataset.degree = 4;
         }
       });
+      // 새 dot 생성은 슬라이드·제거와 동시에 재생 (끝날 때까지 기다리지 않음)
+      // 6번줄(s=5) degree=6 오른쪽에 degree=4 생성 (startFret+5)
+      _spawnNote(neckEl, cur.startFret + 5, 5, 4);
       setTimeout(function() {
         neckEl.querySelectorAll('.fb-note:not(.fb-note--ghost)').forEach(el => {
           if (parseInt(el.dataset.s) === 4 && parseFloat(el.style.opacity) === 0) el.remove();
@@ -1019,10 +1228,8 @@ function transitionPair(instant = false) {
           '4,1':5, '4,2':6,
           '5,5':2, '5,6':3,
         });
-        // 6번줄(s=5) degree=6 오른쪽에 degree=4 생성 (startFret+5)
-        _spawnNote(neckEl, cur.startFret + 5, 5, 4);
         _finishTransition(true);
-      }, DURATION + 60);
+      }, DURATION + PAIR_WAIT_BUFFER_MS);
 
     } else {
       // D폼 → A폼 (역전환)
@@ -1043,6 +1250,9 @@ function transitionPair(instant = false) {
           el.dataset.degree = 7;
         }
       });
+      // 새 dot 생성은 슬라이드·제거와 동시에 재생 (끝날 때까지 기다리지 않음)
+      // 5번줄(s=4) degree=7 생성 (startFret+1)
+      _spawnNote(neckEl, cur.startFret + 1, 4, 7);
       setTimeout(function() {
         neckEl.querySelectorAll('.fb-note:not(.fb-note--ghost)').forEach(el => {
           if (parseInt(el.dataset.s) === 5 && parseFloat(el.style.opacity) === 0) el.remove();
@@ -1055,10 +1265,8 @@ function transitionPair(instant = false) {
           '4,5':1, '4,6':2,
           '5,2':5, '5,3':6,
         });
-        // 5번줄(s=4) degree=7 생성 (startFret+1)
-        _spawnNote(neckEl, cur.startFret + 1, 4, 7);
         _finishTransition(false);
-      }, DURATION + 60);
+      }, DURATION + PAIR_WAIT_BUFFER_MS);
     }
 
   // ── G폼 (bi=1) ↔ C폼 ──────────────────────────────────────────
@@ -1092,6 +1300,9 @@ function transitionPair(instant = false) {
           el.dataset.degree = 4;
         }
       });
+      // 새 dot 생성은 슬라이드·제거와 동시에 재생 (끝날 때까지 기다리지 않음)
+      // 4번줄(s=3) degree=4 생성 (startFret+5)
+      _spawnNote(neckEl, cur.startFret + 5, 3, 4);
       setTimeout(function() {
         neckEl.querySelectorAll('.fb-note:not(.fb-note--ghost)').forEach(el => {
           if (parseInt(el.dataset.s) === 2 && parseFloat(el.style.opacity) === 0) el.remove();
@@ -1104,10 +1315,8 @@ function transitionPair(instant = false) {
           '4,2':6, '4,3':7, '4,4':1,
           '5,6':3, '5,1':5,
         });
-        // 4번줄(s=3) degree=4 생성 (startFret+5)
-        _spawnNote(neckEl, cur.startFret + 5, 3, 4);
         _finishTransition(true);
-      }, DURATION + 60);
+      }, DURATION + PAIR_WAIT_BUFFER_MS);
 
     } else {
       // C폼 → G폼 (역전환)
@@ -1138,6 +1347,9 @@ function transitionPair(instant = false) {
           el.dataset.degree = 7;
         }
       });
+      // 새 dot 생성은 슬라이드·제거와 동시에 재생 (끝날 때까지 기다리지 않음)
+      // 3번줄(s=2) degree=7 생성 (startFret+1)
+      _spawnNote(neckEl, cur.startFret + 1, 2, 7);
       setTimeout(function() {
         neckEl.querySelectorAll('.fb-note:not(.fb-note--ghost)').forEach(el => {
           if (parseInt(el.dataset.s) === 3 && parseFloat(el.style.opacity) === 0) el.remove();
@@ -1150,10 +1362,8 @@ function transitionPair(instant = false) {
           '4,6':2, '4,7':3, '4,1':4,
           '5,3':6, '5,5':1,
         });
-        // 3번줄(s=2) degree=7 생성 (startFret+1)
-        _spawnNote(neckEl, cur.startFret + 1, 2, 7);
         _finishTransition(false);
-      }, DURATION + 60);
+      }, DURATION + PAIR_WAIT_BUFFER_MS);
     }
 
   // ── E폼 (bi=2) ↔ A폼 ──────────────────────────────────────────
@@ -1178,6 +1388,9 @@ function transitionPair(instant = false) {
           el.dataset.degree = 4;
         }
       });
+      // 새 dot 생성은 슬라이드·제거와 동시에 재생 (끝날 때까지 기다리지 않음)
+      // 2번줄(s=1) degree=4 생성 (startFret+5)
+      _spawnNote(neckEl, cur.startFret + 5, 1, 4);
       setTimeout(function() {
         neckEl.querySelectorAll('.fb-note:not(.fb-note--ghost)').forEach(el => {
           if (parseFloat(el.style.opacity) === 0) el.remove();
@@ -1190,10 +1403,8 @@ function transitionPair(instant = false) {
           '4,3':7, '4,4':1, '4,5':2,
           '5,1':5, '5,2':6,
         });
-        // 2번줄(s=1) degree=4 생성 (startFret+5)
-        _spawnNote(neckEl, cur.startFret + 5, 1, 4);
         _finishTransition(true);
-      }, DURATION + 60);
+      }, DURATION + PAIR_WAIT_BUFFER_MS);
 
     } else {
       // A폼 → E폼 (역전환)
@@ -1214,6 +1425,10 @@ function transitionPair(instant = false) {
           el.dataset.degree = 7;
         }
       });
+      // 새 dot 생성은 슬라이드·제거와 동시에 재생 (끝날 때까지 기다리지 않음)
+      // 1번줄(s=0), 6번줄(s=5) degree=7 생성 (startFret+1)
+      _spawnNote(neckEl, cur.startFret + 1, 0, 7);
+      _spawnNote(neckEl, cur.startFret + 1, 5, 7);
       setTimeout(function() {
         neckEl.querySelectorAll('.fb-note:not(.fb-note--ghost)').forEach(el => {
           if (parseFloat(el.style.opacity) === 0) el.remove();
@@ -1226,11 +1441,8 @@ function transitionPair(instant = false) {
           '4,7':3, '4,1':4, '4,2':5,
           '5,5':1, '5,6':2,
         });
-        // 1번줄(s=0), 6번줄(s=5) degree=7 생성 (startFret+1)
-        _spawnNote(neckEl, cur.startFret + 1, 0, 7);
-        _spawnNote(neckEl, cur.startFret + 1, 5, 7);
         _finishTransition(false);
-      }, DURATION + 60);
+      }, DURATION + PAIR_WAIT_BUFFER_MS);
     }
 
   // ── D폼 (bi=3) ↔ G폼 ──────────────────────────────────────────
@@ -1254,6 +1466,11 @@ function transitionPair(instant = false) {
           el.dataset.degree = 4;
         }
       });
+      // 새 dot 생성은 슬라이드·제거와 동시에 재생 (끝날 때까지 기다리지 않음)
+      // 1번줄(s=0) degree=1 생성 (startFret+5)
+      _spawnNote(neckEl, cur.startFret + 5, 0, 1);
+      // 5번줄(s=4) degree=4 생성 (startFret+5)
+      _spawnNote(neckEl, cur.startFret + 5, 4, 4);
       setTimeout(function() {
         neckEl.querySelectorAll('.fb-note:not(.fb-note--ghost)').forEach(el => {
           if (parseFloat(el.style.opacity) === 0) el.remove();
@@ -1266,12 +1483,8 @@ function transitionPair(instant = false) {
           '4,5':2, '4,6':3,
           '5,2':6, '5,3':7, '5,4':1,
         });
-        // 1번줄(s=0) degree=1 생성 (startFret+5)
-        _spawnNote(neckEl, cur.startFret + 5, 0, 1);
-        // 5번줄(s=4) degree=4 생성 (startFret+5)
-        _spawnNote(neckEl, cur.startFret + 5, 4, 4);
         _finishTransition(true);
-      }, DURATION + 60);
+      }, DURATION + PAIR_WAIT_BUFFER_MS);
 
     } else {
       // G폼 → D폼 (역전환)
@@ -1294,6 +1507,9 @@ function transitionPair(instant = false) {
           el.dataset.degree = 7;
         }
       });
+      // 새 dot 생성은 슬라이드·제거와 동시에 재생 (끝날 때까지 기다리지 않음)
+      // 4번줄(s=3) degree=7 생성 (startFret+1)
+      _spawnNote(neckEl, cur.startFret + 1, 3, 7);
       setTimeout(function() {
         neckEl.querySelectorAll('.fb-note:not(.fb-note--ghost)').forEach(el => {
           if (parseFloat(el.style.opacity) === 0) el.remove();
@@ -1306,10 +1522,8 @@ function transitionPair(instant = false) {
           '4,2':5, '4,3':6,
           '5,6':2, '5,7':3, '5,1':4,
         });
-        // 4번줄(s=3) degree=7 생성 (startFret+1)
-        _spawnNote(neckEl, cur.startFret + 1, 3, 7);
         _finishTransition(false);
-      }, DURATION + 60);
+      }, DURATION + PAIR_WAIT_BUFFER_MS);
     }
 
   } else {
@@ -1331,7 +1545,7 @@ function _transitionPairV() {
   const activeEls = [...neckEl.querySelectorAll('.fb-note:not(.fb-note--ghost)')];
   if (!activeEls.length) return;
 
-  const DURATION = _instantPair ? 0 : 350;
+  const DURATION = _instantPair ? 0 : PAIR_SLIDE_MS;
   _transitioning = true;
 
   activeEls.forEach(el => {
@@ -1363,6 +1577,9 @@ function _transitionPairV() {
           el.dataset.degree = 7;
         }
       });
+      // 새 dot 생성은 슬라이드·제거와 동시에 재생 (끝날 때까지 기다리지 않음)
+      _spawnNote(neckEl, cur.startFret + 1, 0, 7);
+      _spawnNote(neckEl, cur.startFret + 1, 5, 7);
       setTimeout(function() {
         neckEl.querySelectorAll('.fb-note:not(.fb-note--ghost)').forEach(el => {
           if (parseInt(el.dataset.s) === 1 && parseFloat(el.style.opacity) === 0) el.remove();
@@ -1375,10 +1592,8 @@ function _transitionPairV() {
           '4,7':3, '4,1':4, '4,2':5,
           '5,5':1, '5,6':2,
         });
-        _spawnNote(neckEl, cur.startFret + 1, 0, 7);
-        _spawnNote(neckEl, cur.startFret + 1, 5, 7);
         _finishTransition(true);
-      }, DURATION + 60);
+      }, DURATION + PAIR_WAIT_BUFFER_MS);
 
     } else {
       // E폼 → A폼 (역전환)
@@ -1400,6 +1615,8 @@ function _transitionPairV() {
           el.dataset.degree = 4;
         }
       });
+      // 새 dot 생성은 슬라이드·제거와 동시에 재생 (끝날 때까지 기다리지 않음)
+      _spawnNote(neckEl, cur.startFret + 5, 1, 4);
       setTimeout(function() {
         neckEl.querySelectorAll('.fb-note:not(.fb-note--ghost)').forEach(el => {
           if (parseFloat(el.style.opacity) === 0) el.remove();
@@ -1412,9 +1629,8 @@ function _transitionPairV() {
           '4,3':7, '4,4':1, '4,5':2,
           '5,1':5, '5,2':6,
         });
-        _spawnNote(neckEl, cur.startFret + 5, 1, 4);
         _finishTransition(false);
-      }, DURATION + 60);
+      }, DURATION + PAIR_WAIT_BUFFER_MS);
     }
 
   // ── G폼 (bi=1) ↔ D폼 ──────────────────────────────────────────
@@ -1445,6 +1661,8 @@ function _transitionPairV() {
           el.dataset.degree = 7;
         }
       });
+      // 새 dot 생성은 슬라이드·제거와 동시에 재생 (끝날 때까지 기다리지 않음)
+      _spawnNote(neckEl, cur.startFret + 1, 3, 7);
       setTimeout(function() {
         neckEl.querySelectorAll('.fb-note:not(.fb-note--ghost)').forEach(el => {
           if (parseFloat(el.style.opacity) === 0) el.remove();
@@ -1457,9 +1675,8 @@ function _transitionPairV() {
           '4,2':5, '4,3':6,
           '5,6':2, '5,7':3, '5,1':4,
         });
-        _spawnNote(neckEl, cur.startFret + 1, 3, 7);
         _finishTransition(true);
-      }, DURATION + 60);
+      }, DURATION + PAIR_WAIT_BUFFER_MS);
 
     } else {
       // D폼 → G폼 (역전환)
@@ -1480,6 +1697,9 @@ function _transitionPairV() {
           el.dataset.degree = 4;
         }
       });
+      // 새 dot 생성은 슬라이드·제거와 동시에 재생 (끝날 때까지 기다리지 않음)
+      _spawnNote(neckEl, cur.startFret + 5, 0, 1);
+      _spawnNote(neckEl, cur.startFret + 5, 4, 4);
       setTimeout(function() {
         neckEl.querySelectorAll('.fb-note:not(.fb-note--ghost)').forEach(el => {
           if (parseFloat(el.style.opacity) === 0) el.remove();
@@ -1492,10 +1712,8 @@ function _transitionPairV() {
           '4,5':2, '4,6':3,
           '5,2':6, '5,3':7, '5,4':1,
         });
-        _spawnNote(neckEl, cur.startFret + 5, 0, 1);
-        _spawnNote(neckEl, cur.startFret + 5, 4, 4);
         _finishTransition(false);
-      }, DURATION + 60);
+      }, DURATION + PAIR_WAIT_BUFFER_MS);
     }
 
   // ── E폼 (bi=2) ↔ C폼 ──────────────────────────────────────────
@@ -1519,6 +1737,8 @@ function _transitionPairV() {
           el.dataset.degree = 7;
         }
       });
+      // 새 dot 생성은 슬라이드·제거와 동시에 재생 (끝날 때까지 기다리지 않음)
+      _spawnNote(neckEl, cur.startFret + 1, 1, 7);
       setTimeout(function() {
         neckEl.querySelectorAll('.fb-note:not(.fb-note--ghost)').forEach(el => {
           if (parseInt(el.dataset.s) === 2 && parseFloat(el.style.opacity) === 0) el.remove();
@@ -1531,9 +1751,8 @@ function _transitionPairV() {
           '4,3':6, '4,5':1,
           '5,7':3, '5,1':4, '5,2':5,
         });
-        _spawnNote(neckEl, cur.startFret + 1, 1, 7);
         _finishTransition(true);
-      }, DURATION + 60);
+      }, DURATION + PAIR_WAIT_BUFFER_MS);
 
     } else {
       // C폼 → E폼 (역전환)
@@ -1554,6 +1773,8 @@ function _transitionPairV() {
           el.dataset.degree = 4;
         }
       });
+      // 새 dot 생성은 슬라이드·제거와 동시에 재생 (끝날 때까지 기다리지 않음)
+      _spawnNote(neckEl, cur.startFret + 4, 2, 4);
       setTimeout(function() {
         neckEl.querySelectorAll('.fb-note:not(.fb-note--ghost)').forEach(el => {
           if (parseInt(el.dataset.s) === 1 && parseFloat(el.style.opacity) === 0) el.remove();
@@ -1566,9 +1787,8 @@ function _transitionPairV() {
           '4,6':3, '4,1':5,
           '5,3':7, '5,4':1, '5,5':2,
         });
-        _spawnNote(neckEl, cur.startFret + 4, 2, 4);
         _finishTransition(false);
-      }, DURATION + 60);
+      }, DURATION + PAIR_WAIT_BUFFER_MS);
     }
 
   // ── D폼 (bi=3) ↔ A폼 ──────────────────────────────────────────
@@ -1592,6 +1812,8 @@ function _transitionPairV() {
           el.dataset.degree = 7;
         }
       });
+      // 새 dot 생성은 슬라이드·제거와 동시에 재생 (끝날 때까지 기다리지 않음)
+      _spawnNote(neckEl, cur.startFret + 1, 4, 7);
       setTimeout(function() {
         neckEl.querySelectorAll('.fb-note:not(.fb-note--ghost)').forEach(el => {
           if (parseInt(el.dataset.s) === 5 && parseFloat(el.style.opacity) === 0) el.remove();
@@ -1604,9 +1826,8 @@ function _transitionPairV() {
           '4,5':1, '4,6':2,
           '5,2':5, '5,3':6,
         });
-        _spawnNote(neckEl, cur.startFret + 1, 4, 7);
         _finishTransition(true);
-      }, DURATION + 60);
+      }, DURATION + PAIR_WAIT_BUFFER_MS);
 
     } else {
       // A폼 → D폼 (역전환)
@@ -1627,6 +1848,8 @@ function _transitionPairV() {
           el.dataset.degree = 4;
         }
       });
+      // 새 dot 생성은 슬라이드·제거와 동시에 재생 (끝날 때까지 기다리지 않음)
+      _spawnNote(neckEl, cur.startFret + 5, 5, 4);
       setTimeout(function() {
         neckEl.querySelectorAll('.fb-note:not(.fb-note--ghost)').forEach(el => {
           if (parseInt(el.dataset.s) === 4 && parseFloat(el.style.opacity) === 0) el.remove();
@@ -1639,9 +1862,8 @@ function _transitionPairV() {
           '4,1':5, '4,2':6,
           '5,5':2, '5,6':3,
         });
-        _spawnNote(neckEl, cur.startFret + 5, 5, 4);
         _finishTransition(false);
-      }, DURATION + 60);
+      }, DURATION + PAIR_WAIT_BUFFER_MS);
     }
 
   // ── C폼 (bi=4) ↔ G폼 (offset = −1) ───────────────────────────
@@ -1675,6 +1897,8 @@ function _transitionPairV() {
           el.dataset.degree = 7;
         }
       });
+      // 새 dot 생성은 슬라이드·제거와 동시에 재생 (끝날 때까지 기다리지 않음)
+      _spawnNote(neckEl, cur.startFret, 2, 7);
       setTimeout(function() {
         neckEl.querySelectorAll('.fb-note:not(.fb-note--ghost)').forEach(el => {
           if (parseInt(el.dataset.s) === 3 && parseFloat(el.style.opacity) === 0) el.remove();
@@ -1687,9 +1911,8 @@ function _transitionPairV() {
           '4,6':2, '4,7':3, '4,1':4,
           '5,3':6, '5,5':1,
         });
-        _spawnNote(neckEl, cur.startFret, 2, 7);
         _finishTransition(true);
-      }, DURATION + 60);
+      }, DURATION + PAIR_WAIT_BUFFER_MS);
 
     } else {
       // G폼 → C폼 (역전환)
@@ -1720,6 +1943,8 @@ function _transitionPairV() {
           el.dataset.degree = 4;
         }
       });
+      // 새 dot 생성은 슬라이드·제거와 동시에 재생 (끝날 때까지 기다리지 않음)
+      _spawnNote(neckEl, cur.startFret + 4, 3, 4);
       setTimeout(function() {
         neckEl.querySelectorAll('.fb-note:not(.fb-note--ghost)').forEach(el => {
           if (parseInt(el.dataset.s) === 2 && parseFloat(el.style.opacity) === 0) el.remove();
@@ -1732,9 +1957,8 @@ function _transitionPairV() {
           '4,2':6, '4,3':7, '4,4':1,
           '5,6':3, '5,1':5,
         });
-        _spawnNote(neckEl, cur.startFret + 4, 3, 4);
         _finishTransition(false);
-      }, DURATION + 60);
+      }, DURATION + PAIR_WAIT_BUFFER_MS);
     }
 
   } else {
@@ -1742,9 +1966,35 @@ function _transitionPairV() {
   }
 }
 
+// ── 연습 입장 언락 (scale-training '연습하기'에서 피크 5개 소모 후 sessionStorage에 저장) ──
+// 새로고침은 이탈이 아니라 유지, 뒤로가기로 나가면 해제(다시 들어오려면 피크 재소모).
+// 저장소를 못 쓰는 환경(예외)에서는 입장을 막지 않음 — 막으면 연습하기↔리다이렉트 무한 반복.
+function _scaleUnlockKey() { return `scale_unlock_${_scaleKey}_${_scaleLevel}`; }
+function _isScaleUnlocked() {
+  try { return sessionStorage.getItem(_scaleUnlockKey()) === '1'; } catch (e) { return true; }
+}
+function _clearScaleUnlock() {
+  try { sessionStorage.removeItem(_scaleUnlockKey()); } catch (e) {}
+}
+
+// 뒤로가기(탑바·Android·브라우저 제스처 전부 여기로 옴) — 나가면 피크가 다시 필요하므로 한 번 확인
 async function closeScaleLevel() {
   _playTap();
-  _recordScaleSessionTime();
+  if (isLeavePracticeOpen()) return;
+  const peakAtStake = getPlan() !== 'pro'; // Pro는 피크를 안 쓰므로 "피크 다시 필요" 경고 불필요
+  if (_tutorialMode) {
+    // 모달이 연달아 두 번 뜨지 않게 하나로: 피크 경고(기본 문구) 우선, Pro면 튜토리얼 문구
+    showLeavePracticeModal(() => { _tutorialAbort('confirm'); _leaveScaleLevel(); }, peakAtStake ? undefined : _TUTORIAL_LEAVE_OPTS);
+    return;
+  }
+  if (peakAtStake) { showLeavePracticeModal(_leaveScaleLevel); return; }
+  _leaveScaleLevel();
+}
+
+async function _leaveScaleLevel() {
+  exitPracticeMode();
+  _clearScaleUnlock();
+  _recordScaleSessionTime('back');
   await GuitarAudio.stop({ wait: true });
   const shell = document.querySelector('.app-shell');
   if (shell) {
@@ -1935,10 +2185,13 @@ const _DEG_OFFSETS = {};
 function measureDegreeOffsets() {
   const cv  = document.createElement('canvas');
   const ctx = cv.getContext('2d');
-  ctx.font         = '700 11px Pretendard, sans-serif';
+  // 측정 글자 크기는 실제로 그려지는 크기(.fb-note-deg: calc(11 * var(--fbu)) = 11 × FB_REF_FBU)와 같아야 함 —
+  // 11px로 재면 보정값(tx·ty·lh)이 글자 크기에 비례해 약 15% 커져서 라벨이 왼쪽으로 쏠림(2026-10-07).
+  ctx.font         = `700 ${11 * FB_REF_FBU}px Pretendard, sans-serif`;
   ctx.textAlign    = 'left';
   ctx.textBaseline = 'alphabetic';
-  const labels = ['1','2','3','4','5','6','7','b2','b3','b5','b6','b7','#2','#4','b9','#9','#11','b13','11','9','13'];
+  const labels = ['1','2','3','4','5','6','7','b2','b3','b5','b6','b7','#2','#4','b9','#9','#11','b13','11','9','13',
+    ...KEY_NAMES, ...KEY_NAMES_FLAT.filter(n => n.length > 1)]; // 음이름 라벨(샵/플랫) — 모드가 음이름일 때 같은 광학 정렬 적용
   labels.forEach(lbl => {
     const m = ctx.measureText(lbl);
     const abbL = m.actualBoundingBoxLeft;
@@ -1967,7 +2220,8 @@ function createNoteEl(absF, s, degree, ghost = false, spawn = false) {
   const leftPct = (absF + 0.5) / TOTAL_FRETS * 100;
   const topPct  = (s + 0.5) / STRINGS * 100;
   const isRoot  = degree === 1;
-  const isBlue5 = degree === -5 && _scaleKey !== 'altered';   // altered #11은 특징음 강조 없음
+  const isBlue5 = (degree === -5 && _scaleKey !== 'altered')   // altered #11은 특징음 강조 없음
+               || (degree === -3 && _scaleKey === 'major-blues');   // 메이저 블루스의 블루스 노트는 b3
   const isNat7  = degree === 7 && _scaleKey === 'harmonic-minor';
   const isChar  = (degree === 4 && _scaleKey === 'ionian')
                || (degree === 6 && _scaleKey === 'dorian')
@@ -1990,11 +2244,11 @@ function createNoteEl(absF, s, degree, ghost = false, spawn = false) {
   el.dataset.degree = degree;
   el.dataset.absf   = absF;
 
-  // 도수 번호 라벨 (ghost·근음 제외) — .degrees-on 일 때만 표시
+  // dot 라벨(음이름 또는 도수, ghost·근음 제외) — body.degrees-on(= 모드가 미표시가 아님)일 때만 표시
   if (!ghost && String(degree) !== '1') {
     const deg = document.createElement('span');
     deg.className = 'fb-note-deg';
-    const _lbl = degreeLabel(degree, _scaleKey);
+    const _lbl = _noteLabelText(s, absF, degree);
     deg.textContent = _lbl;
     deg.dataset.deg = _lbl;
     applyDegOffset(deg, _lbl);   // 잉크박스 실측 기반 정중앙 정렬
@@ -2005,22 +2259,40 @@ function createNoteEl(absF, s, degree, ghost = false, spawn = false) {
     el.style.pointerEvents = 'auto';
     el.style.cursor = 'pointer';
 
+    // 소리·리플은 닿는 순간(pointerdown)에 — 손가락을 뗄 때(pointerup) 재생하면 누르는 시간만큼 늦고,
+    // 빠른 연타에서 손가락이 미끄러지거나 터치가 취소되면 소리 없이 끝남.
     el.addEventListener('pointerdown', e => {
       e.stopPropagation();
+      if (_scalePlayTimer) return; // 스케일 재생(음표 버튼) 중에는 dot 탭 잠금 — 반주(기타 버튼) 재생 중에는 그대로 칠 수 있음
       el.classList.add('fb-note--pressed');
-    });
-
-    el.addEventListener('pointerup', e => {
-      e.stopPropagation();
-      el.classList.remove('fb-note--pressed');
       // 리플 효과 생성
       const ripple = document.createElement('span');
       ripple.className = 'fb-note-ripple';
       el.appendChild(ripple);
       ripple.addEventListener('animationend', () => ripple.remove());
-      playScaleNote(s, parseInt(el.dataset.absf));
+      const voice = playScaleNoteTap(s, parseInt(el.dataset.absf));
       _trackBlockPlayed();
+      // 렛링 OFF: 누르고 있는 동안만 울림 — 손가락이 dot 영역 밖으로 미끄러져도 뗄 때까지 유지하려고 포인터를 이 dot에 고정
+      if (!_letRing && voice) {
+        _heldVoice = voice;
+        try { el.setPointerCapture(e.pointerId); } catch (_) {}
+      }
     });
+
+    // 렛링 OFF에서 손가락을 뗄 때(또는 터치가 취소·포인터 고정이 풀릴 때) 이 dot이 낸 음만 끊음. 렛링 ON이면 _heldVoice가 없어 아무 일도 안 함.
+    let _heldVoice = null;
+    const releaseHeld = () => {
+      if (!_heldVoice) return;
+      GuitarAudio.tapRelease(_heldVoice);
+      _heldVoice = null;
+    };
+    el.addEventListener('pointerup', e => {
+      e.stopPropagation();
+      el.classList.remove('fb-note--pressed');
+      releaseHeld();
+    });
+    el.addEventListener('pointercancel', releaseHeld);
+    el.addEventListener('lostpointercapture', releaseHeld);
 
     el.addEventListener('pointerleave', () => {
       el.classList.remove('fb-note--pressed');
@@ -2094,6 +2366,8 @@ function renderNotes(animate = true) {
       });
     }));
   }
+
+  markPairMovers(neckEl);
 
   // secondary-iii C폼(bi=4): 실제 음은 그대로, 뷰포트만 오른쪽 1칸(startFret-1)으로 잡아 화면 중앙 배치
   const _scrollFret = (_scaleKey === 'secondary-iii' && current.bi === 4) ? current.startFret - 1 : current.startFret;
@@ -2420,7 +2694,7 @@ function checkAnswer() {
   playQuizSound(nWrong === 0 ? 'correct' : 'wrong');
 
   analytics.track('scale_test_result', {
-    scale_key:  _scaleKey,
+    ..._scaleBase(),
     root_name:  (_useFlat ? KEY_NAMES_FLAT : KEY_NAMES)[_rootNote],
     form:       _testItem.block.label || FORM_NAMES[_testItem.bi] || (_testItem.bi + 1 + '번폼'),
     bi:         _testItem.bi,
@@ -2444,8 +2718,6 @@ function checkAnswer() {
   // 버튼 상태 갱신 + 뒤로가기 표시
   const label = document.getElementById('test-submit-btn-label');
   if (label) label.textContent = '다시 풀기';
-  const retryCost = document.getElementById('test-retry-peak-cost');
-  if (retryCost) retryCost.style.display = '';
   document.getElementById('test-back-btn')?.classList.add('is-visible');
 }
 
@@ -2463,6 +2735,8 @@ const TUTORIAL_DOT_FADE_SLOW_MS = 1500; // fillRemaining 전체동시 팝인용 
 // 새 레벨 추가 시 여기만 채우면 됨.
 const TUTORIAL_SCALE_CONFIG = {
   'major':      { name: '메이저 스케일',          degreeNames: '도레미파솔라시', rootNote: 0, demoForm: 'A폼' },  // Ckey
+  'major-pentatonic': { name: '메이저 펜타토닉 스케일', rootNote: 0, demoForm: 'A폼' },  // Ckey, A폼 = 근음 5번줄 3프렛(2~5프렛)
+  'major-blues':      { name: '메이저 블루스 스케일',   rootNote: 0, demoForm: 'A폼', bluesDegree: -3 },  // Ckey, 블루스 노트 = b3
   'pentatonic': { name: '마이너 펜타토닉 스케일', rootNote: 9, demoForm: 'E폼' },  // Am key, E폼=3프렛 시작(2026-09-28)
   'blues':      { name: '마이너 블루스 스케일',   rootNote: 9, demoForm: 'E폼' },  // Am key, E폼=3프렛 시작(2026-09-28)
   'natural-minor': { name: '내추럴 마이너 스케일', rootNote: 9, demoForm: 'Em폼' },  // Am key, Em폼=3프렛 시작(2026-09-28, 사용자 확정)
@@ -2757,12 +3031,13 @@ function buildTutorialSteps(scaleKey) {
     `이번 시간에는 '${cfg.name}'을 배워볼게요!`,
     // 펜타토닉 전용 강조 문구(2026-09-29)
     ...(scaleKey === 'pentatonic' ? [`거의 모든 멜로디의 뼈대가 되는\n중요한 스케일이에요.`] : []),
+    ...(scaleKey === 'major-pentatonic' ? [`가요, 팝, 록, J-pop 같은\n대중음악 멜로디의 뼈대가 되는 스케일이에요.`] : []),
     `${cfg.name}은\n'${_tutorialGetNoteNames(scaleKey, cfg.rootNote)}'로 이루어져요.`,
     `도수로 표현한다면 ${_tutorialGetDegreeFormula(scaleKey)} 가 돼요!`
   ];
   // 레벨1~11(major/pentatonic/blues/natural-minor/harmonic-minor/ionian)은 기존 방식 유지,
   // 레벨12(dorian)부터는 부가설명 줄인 새 도입부 템플릿 사용(2026-09-29, 사용자 확정).
-  const LEGACY_INTRO_KEYS = ['major', 'pentatonic', 'blues', 'natural-minor', 'harmonic-minor'];
+  const LEGACY_INTRO_KEYS = ['major', 'major-pentatonic', 'major-blues', 'pentatonic', 'blues', 'natural-minor', 'harmonic-minor'];
   // 아이오니안 제외 나머지 6개 모드 — 공통 연습권유+종료 문구에 사용(2026-09-29)
   const CHAPTER3_MODE_KEYS = ['dorian', 'phrygian', 'lydian', 'mixolydian', 'aeolian', 'locrian'];
   // 챕터4(재즈 스케일) — 미뉴엣 멜로디 데모 없음, 파생설명 방식으로 대체(2026-09-29, 사용자 확정)
@@ -2848,6 +3123,18 @@ function buildTutorialSteps(scaleKey) {
       { type: 'action', action: 'noteNameGrid' },
       { type: 'text', text: "앞으로는 음이름과 숫자(도수)를 사용할게요.\n기타에서는 두 방식이 주로 쓰여요." },
     ] : []),
+    ...(scaleKey === 'major-pentatonic' ? [
+      { type: 'text', text: "메이저 스케일에서 4도와 7도를 빼면\n메이저 펜타토닉이 돼요." },
+      { type: 'text', text: "음이 5개뿐이라 어느 음을 눌러도\n어색하지 않아서 연습하기 좋아요." },
+    ] : []),
+    ...(scaleKey === 'major-blues' ? [
+      { type: 'action', action: 'highlightBluesNote', texts: [
+        "메이저 펜타토닉에 한 음을 더하면\n'메이저 블루스 스케일'이 돼요.",
+        "이렇게 추가된 음(b3)을\n'블루스 노트'라고 불러요."
+      ] },
+      { type: 'text', text: "블루스 노트의 엇나간 멜로디가\n느낌있는 멜로디 진행을 만들어요!" },
+      { type: 'text', text: "5가지 블럭에서 블루스 노트는\n색깔로 표시했어요!" },
+    ] : []),
     ...(scaleKey === 'pentatonic' ? [
       { type: 'text', text: "그런데, 왜 C로 시작하지 않은 걸까요?" },
       { type: 'text', text: "그건 단순히 A로 시작하는게 더 쉽기 때문이에요!" },
@@ -2879,7 +3166,7 @@ function buildTutorialSteps(scaleKey) {
     ] : []),
     ...(scaleKey === 'ionian' ? [
       { type: 'text', text: "사실 우리가 아는\n메이저 스케일이랑 똑같아요!" },
-      { type: 'action', action: 'playModeMelody' },
+      { type: 'action', action: 'playModeMelody', text: "앞으로 다른 모드스케일의 느낌을\n'미뉴엣'으로 비교해볼거예요.\n아이오니안 스케일은 우리가 잘 아는 멜로디예요." }, // 미뉴엣 자체가 아이오니안이라 다른 모드와 문구가 다름
     ] : []),
     ...(scaleKey === 'mixolydian-b9b13' ? [
       { type: 'text', text: "이 스케일은 사실\n'하모닉 마이너 스케일'에서 나왔어요." },
@@ -2922,17 +3209,19 @@ function buildTutorialSteps(scaleKey) {
     ] : [
       // '스케일 블럭' 개념·코드모양 대조는 레벨1에서 이미 설명함 — 다른 레벨은 바로 5개 폼 생성(2026-09-29).
       // CHAR_NOTE_TEXTS에 등록된 모드는 formNav 완료 즉시 특징음 강조로 이어짐(2026-09-29).
+      // 아이오니안은 챕터3 첫 레벨이라 제외 — 아래 전용 단계에서 "특징음 개념 설명 → 강조" 순으로 소개(2026-10-06).
       { type: 'action', action: 'formNav', text: `${cfg.name}의\n5가지 블럭은 아래와 같아요.`,
-        ...(CHAR_NOTE_TEXTS[scaleKey] ? { thenAction: 'highlightCharacteristicNote', texts: [CHAR_NOTE_TEXTS[scaleKey]] } : {}) },
+        ...(CHAR_NOTE_TEXTS[scaleKey] && scaleKey !== 'ionian' ? { thenAction: 'highlightCharacteristicNote', texts: [CHAR_NOTE_TEXTS[scaleKey]] } : {}) },
     ]),
     ...(scaleKey === 'ionian' ? [
-      { type: 'action', action: 'highlightCharacteristicNote', texts: [
-        "각 모드는 그 모드만의\n'특징음'을 가지고 있어요."
-      ] },
+      // 개념 설명 먼저(강조 없음) → 특징음을 실제로 가리키는 마지막 단계에서 강조 후 문구(2026-10-06)
+      { type: 'text', text: "각 모드는 그 모드만의\n'특징음'을 가지고 있어요." },
       { type: 'text', text: "특징음은 그 모드의 분위기를\n가장 잘 보여주는 음이에요." },
-      { type: 'text', text: "아이오니안의 특징음은\n4번째 음(4도)이에요." },
+      { type: 'action', action: 'highlightCharacteristicNote', texts: [
+        "아이오니안의 특징음은\n4번째 음(4도)이에요."
+      ] },
     ] : []),
-    ...(scaleKey === 'pentatonic' ? [
+    ...(scaleKey === 'pentatonic' || scaleKey === 'major-pentatonic' ? [
       { type: 'text', text: "노래를 틀어놓고, 이 스케일을 아무렇게\n연주해보면서 감을 키워보는 연습을 해보세요!" },
     ] : []),
     ...(scaleKey === 'mixolydian-b9b13' ? [
@@ -2986,10 +3275,10 @@ function _buildSecondaryIVTutorialSteps() {
     { type: 'text', text: "패밀리코드라는 개념을 알고 있어야\n이해할 수 있을거예요." },
     { type: 'text', text: "코드를 진행하다보면 패밀리코드가 아닌\n'7'코드가 종종 등장해요." },
     { type: 'text', text: "그 '7'코드 뒤에 나오는 패밀리코드에 따라\n사용할 스케일이 달라져요!" },
-    { type: 'action', action: 'fillBlockInstant', text: "레벨6에서는 4도로 이어지는 '7'코드에\n쓸 수 있는 스케일을 배울거예요." },
+    { type: 'action', action: 'fillBlockInstant', text: "레벨8에서는 4도로 이어지는 '7'코드에\n쓸 수 있는 스케일을 배울거예요." },
     { type: 'action', action: 'playPairTransitionDemo', text: "직접 들어볼까요?" },
     { type: 'text', text: "처음엔 개념이 조금 어려울 수 있어요.\n보통은 바뀌는 음에 익숙해지는 방법이 있어요." },
-    { type: 'text', text: "그리고 바뀐 후의 스케일블럭을 보면,\nF메이저 스케일이랑 똑같다는 걸 알 수 있어요!" },
+    { type: 'action', action: 'pairTransitionForward', text: "그리고 바뀐 후의 스케일블럭을 보면,\nF메이저 스케일이랑 똑같다는 걸 알 수 있어요!" },
     { type: 'text', text: "각자 받아들이기 편한 방법을 찾아서\n숙달해보세요!" },
     { type: 'text', text: `수고하셨어요! ${cfg.name}는\n여기서 마칠게요!` },
   ];
@@ -3002,7 +3291,7 @@ function _buildSecondaryVTutorialSteps() {
   return [
     { type: 'action', action: 'fillBlockInstant', text: "이번엔 5도로 이어지는 '7'코드에\n쓸 수 있는 스케일을 배워볼게요." },
     { type: 'action', action: 'playPairTransitionDemo', text: "직접 들어볼까요?" },
-    { type: 'text', text: "바뀐 후의 스케일블럭을 보면,\nG메이저 스케일이랑 똑같다는 걸 알 수 있어요!" },
+    { type: 'action', action: 'pairTransitionForward', text: "바뀐 후의 스케일블럭을 보면,\nG메이저 스케일이랑 똑같다는 걸 알 수 있어요!" },
     { type: 'text', text: "마찬가지로, 바뀌는 음에\n익숙해지는 연습을 해보세요!" },
     { type: 'text', text: `수고하셨어요! ${cfg.name}는\n여기서 마칠게요!` },
   ];
@@ -3015,7 +3304,7 @@ function _buildSecondaryIITutorialSteps() {
   return [
     { type: 'action', action: 'fillBlockInstant', text: "이번엔 6도로 이어지는 '7'코드에\n쓸 수 있는 스케일을 배워볼게요." },
     { type: 'action', action: 'playPairTransitionDemo', text: "직접 들어볼까요?" },
-    { type: 'text', text: "이번엔 메이저가 아니라\n'마이너'로 전환됐어요!" },
+    { type: 'action', action: 'pairTransitionForward', text: "이번엔 메이저가 아니라\n'마이너'로 전환됐어요!" },
     { type: 'text', text: "바뀐 후의 스케일블럭을 보면,\nA 하모닉 마이너 스케일이랑 똑같다는 걸 알 수 있어요!" },
     { type: 'text', text: "마찬가지로, 바뀌는 음에\n익숙해지는 연습을 해보세요!" },
     { type: 'text', text: `수고하셨어요! ${cfg.name}는\n여기서 마칠게요!` },
@@ -3028,7 +3317,7 @@ function _buildSecondaryVITutorialSteps() {
   return [
     { type: 'action', action: 'fillBlockInstant', text: "이번엔 2도로 이어지는 '7'코드에\n쓸 수 있는 스케일을 배워볼게요." },
     { type: 'action', action: 'playPairTransitionDemo', text: "직접 들어볼까요?" },
-    { type: 'text', text: "이번에도 메이저가 아니라\n'마이너'로 전환돼요!" },
+    { type: 'action', action: 'pairTransitionForward', text: "이번에도 메이저가 아니라\n'마이너'로 전환돼요!" },
     { type: 'text', text: "바뀐 후의 스케일블럭을 보면,\nD 하모닉 마이너 스케일이랑 똑같다는 걸 알 수 있어요!" },
     { type: 'text', text: "마찬가지로, 바뀌는 음에\n익숙해지는 연습을 해보세요!" },
     { type: 'text', text: `수고하셨어요! ${cfg.name}는\n여기서 마칠게요!` },
@@ -3041,7 +3330,7 @@ function _buildSecondaryIIITutorialSteps() {
   return [
     { type: 'action', action: 'fillBlockInstant', text: "이번엔 3도로 이어지는 '7'코드에\n쓸 수 있는 스케일을 배워볼게요." },
     { type: 'action', action: 'playPairTransitionDemo', text: "직접 들어볼까요?" },
-    { type: 'text', text: "이번에도 메이저가 아니라\n'마이너'로 전환돼요!" },
+    { type: 'action', action: 'pairTransitionForward', text: "이번에도 메이저가 아니라\n'마이너'로 전환돼요!" },
     { type: 'text', text: "바뀐 후의 스케일블럭을 보면,\nE 하모닉 마이너 스케일이랑 똑같다는 걸 알 수 있어요!" },
     { type: 'text', text: "마찬가지로, 바뀌는 음에\n익숙해지는 연습을 해보세요!" },
     { type: 'text', text: "이걸로 챕터2의 5가지 전환을\n모두 배웠어요!" },
@@ -3080,12 +3369,55 @@ function _tutorialClearTimers() {
   _tutorialTimers = [];
 }
 
+// 튜토리얼을 "처음 여는 상태"로 되돌리는 유일한 초기화 함수 — 튜토리얼이 만든 진행 상태·예약 타이머·화면 잔여물을 전부 지움.
+// 호출처: 열 때(openTutorial) / 완주(closeTutorial, 오버레이가 내려간 뒤) / 이탈(_tutorialAbort, 즉시) / 암기 테스트 시작(startTest, 같은 오버레이 공유).
+// 튜토리얼 단계가 화면에 새로 쓰는 요소가 생기면 지우는 코드는 반드시 여기에 추가할 것(다른 곳에 흩어 두면 초기화 누락 버그 재발).
+// 멱등 — 이미 초기 상태여도 여러 번 불려도 안전.
+let _tutorialDeferredResetId = null;
+function _tutorialReset() {
+  clearTimeout(_tutorialDeferredResetId);
+  _tutorialDeferredResetId = null;
+  _tutorialClearTimers();
+
+  // 진행 상태
+  _tutorialStepIdx          = 0;
+  _tutorialStartFret        = 0;
+  _tutorialRunNotes         = [];
+  _tutorialRemainingNotes   = [];
+  _tutorialAFormIdx         = 0;
+  _tutorialFormIdx          = 0;
+  _tutorialDotClickEnabled  = false;
+  _tutorialFormNavLocked    = false;
+  _tutorialCharNoteRevealed = false;
+
+  // 텍스트·그리드·코드라벨: 내용/클래스/인라인 스타일을 비우고 요소를 복제본으로 교체 —
+  // 취소된 애니메이션 때문에 영영 안 올 animationend 리스너가 다음 튜토리얼 때 늦게 발화하는 것 방지
+  ['test-question-text', 'test-note-grid', 'test-chord-labels'].forEach(id => {
+    const el = document.getElementById(id);
+    if (!el) return;
+    const fresh = el.cloneNode(false);
+    fresh.classList.remove('test-question--in', 'is-visible');
+    fresh.style.display = '';
+    fresh.textContent = '';
+    el.replaceWith(fresh);
+  });
+  // 폼 이름 라벨(5폼 넘겨보기 단계에서만 채워짐)
+  const formLabel = document.getElementById('test-fb-form-label');
+  if (formLabel) formLabel.textContent = '';
+  // 지판에 찍힌 튜토리얼 dot
+  document.querySelectorAll('#test-fb-full-neck .fb-note').forEach(el => el.remove());
+  // 5폼 화살표·잠금 표시
+  document.getElementById('scale-test-overlay')?.classList.remove('scale-test-overlay--form-nav', 'scale-test-overlay--arrows-in', 'scale-test-overlay--nav-locked');
+}
+
 function openTutorial() {
+  exitPracticeMode();
   _tutorialMode = true;
+  analytics.track('scale_tutorial_started', _scaleBase());
   GuitarAudio.stop();
+  _tutorialReset(); // 이전 튜토리얼이 어떻게 끝났든 항상 초기 상태에서 시작
   clearTestDots();
   _testHint = null;
-  _tutorialCharNoteRevealed = false;
 
   // 짝궁 전환 데모(코드 백킹)가 있는 레벨은 CDN 피아노 샘플을 미리 로드해둠 — 안 그러면
   // 데모 시작 시점(첫 코드)에 로딩 지연으로 백킹이 멜로디 첫음보다 늦게 울림(2026-09-30 발견).
@@ -3123,13 +3455,46 @@ function openTutorial() {
   _tutorialTimers.push(id);
 }
 
+// 정상 종료(완주) — 소리는 페이드, 오버레이는 슬라이드로 내려감. 화면 내용은 내려가는 동안 보이므로
+// 초기화(_tutorialReset)는 슬라이드(0.32s)가 끝난 직후에 실행. 그 전에 다시 열거나 테스트를 시작하면 그쪽의 _tutorialReset이 먼저 실행되고 이 예약은 취소됨.
+const TUTORIAL_CLOSE_SLIDE_MS = 340; // .scale-test-overlay transition 0.32s + 여유
 function closeTutorial() {
   _tutorialMode = false;
-  _tutorialDotClickEnabled = false;
+  _tutorialDotClickEnabled = false; // 내려가는 동안 dot 탭으로 소리 나지 않게
   _tutorialClearTimers();
   GuitarAudio.stop();
   GuitarAudio.stopPiano();
   document.getElementById('scale-test-overlay')?.classList.remove('is-open', 'scale-test-overlay--tutorial', 'scale-test-overlay--form-nav', 'scale-test-overlay--arrows-in');
+  clearTimeout(_tutorialDeferredResetId);
+  _tutorialDeferredResetId = setTimeout(_tutorialReset, TUTORIAL_CLOSE_SLIDE_MS);
+}
+
+// 튜토리얼 이탈 확인 모달(X 버튼·뒤로가기) — 확인(그만할래요) 시 _tutorialAbort 후 onLeave 실행.
+// 모달이 떠 있는 동안 튜토리얼은 계속 진행(2026-10-03 사용자 확정). 이미 열려 있으면 무시.
+const _TUTORIAL_LEAVE_OPTS = {
+  title: '튜토리얼을 그만두시겠어요?',
+  desc:  '지금 나가면 튜토리얼을<br>처음부터 다시 봐야 해요.',
+};
+function _requestTutorialExit(onLeave) {
+  if (isLeavePracticeOpen()) return;
+  showLeavePracticeModal(() => { _tutorialAbort('confirm'); onLeave(); }, _TUTORIAL_LEAVE_OPTS);
+}
+
+// 튜토리얼 이탈(pagehide·앱 전환 = 확인 없이 / X 버튼·뒤로가기 = 확인 후) 전용 즉각 중단 — 정상 종료(closeTutorial: 마지막 소리 페이드 유지)와 구분.
+// 사운드 하드컷 + 화면·진행 상태 즉시 초기화(_tutorialReset — 완주와 달리 슬라이드를 기다리지 않음).
+// via: 'confirm'(X 버튼·뒤로가기 후 확인 모달 확인) / 'background'(앱 전환) / 'pagehide'(페이지 이동·닫기, 기본값)
+function _tutorialAbort(via) {
+  if (!_tutorialMode) return;
+  analytics.track('scale_tutorial_exited', {
+    ..._scaleBase(),
+    step_index: _tutorialStepIdx,
+    step_total: TUTORIAL_STEPS.length,
+    via: typeof via === 'string' ? via : 'pagehide',
+  });
+  closeTutorial(); // 모드 플래그·타이머·오버레이 클래스·소프트 stop
+  GuitarAudio.panic();      // 기타: 출력 그래프 즉시 절단(예약된 소리까지 폐기)
+  GuitarAudio.resetPiano(); // 피아노 백킹: 샘플러 폐기(release 꼬리·예약 코드 제거)
+  _tutorialReset();         // closeTutorial이 예약한 지연 초기화를 취소하고 지금 바로 실행
 }
 
 // texts[] 자동 순차재생 — 문구 하나 보여주고 등장애니메이션 끝나면 읽는시간(TUTORIAL_TEXT_SEQUENCE_PAUSE_MS)
@@ -3141,6 +3506,7 @@ function _tutorialShowTextSequence(texts, idx, qEl, onDone) {
   void qEl.offsetWidth;
   qEl.classList.add('test-question--in');
   qEl.addEventListener('animationend', () => {
+    if (!_tutorialMode) return; // 이탈로 튜토리얼이 초기화된 뒤에 늦게 도착한 애니메이션 종료는 무시
     if (idx < texts.length - 1) {
       const id = setTimeout(() => _tutorialShowTextSequence(texts, idx + 1, qEl, onDone), TUTORIAL_TEXT_SEQUENCE_PAUSE_MS);
       _tutorialTimers.push(id);
@@ -3154,6 +3520,7 @@ function _tutorialShowTextSequence(texts, idx, qEl, onDone) {
 function showTutorialStep(idx) {
   _tutorialClearTimers();
   _tutorialStepIdx = idx;
+  analytics.track('scale_tutorial_step', { ..._scaleBase(), step_index: idx, step_total: TUTORIAL_STEPS.length });
   document.getElementById('test-note-grid')?.classList.remove('is-visible', 'test-question--in'); // 이전 스텝 잔상 정리(2026-09-29)
   document.getElementById('test-chord-labels')?.classList.remove('is-visible', 'test-question--in'); // 짝궁 전환 데모 코드라벨 잔상 정리(2026-09-30)
   const qElReset = document.getElementById('test-question-text');
@@ -3223,8 +3590,15 @@ function showTutorialStep(idx) {
 }
 
 function advanceTutorialStep() {
+  // 다음 버튼 → 재생 중이던 소리(기타 울림·피아노 백킹)를 짧은 페이드(60ms)로 끊고 진행
+  GuitarAudio.stop();
+  GuitarAudio.fadeOutPiano();
   const nextIdx = _tutorialStepIdx + 1;
-  if (nextIdx >= TUTORIAL_STEPS.length) { closeTutorial(); return; }
+  if (nextIdx >= TUTORIAL_STEPS.length) {
+    analytics.track('scale_tutorial_completed', { ..._scaleBase(), step_total: TUTORIAL_STEPS.length });
+    closeTutorial();
+    return;
+  }
   showTutorialStep(nextIdx);
 }
 
@@ -3349,7 +3723,7 @@ function _tutorialRenderFormStatic(formIdx) {
     const leftPct = (col + 0.5) / FRETS_VISIBLE * 100;
     const topPct  = (note.s + 0.5) / STRINGS * 100;
     const isHighlight = targetKeys.has(note.s + ',' + note.absF);
-    const isBluesNote = _scaleKey === 'blues' && note.degree === -5; // 블루스 노트(b5) 색깔 표시(2026-09-29)
+    const isBluesNote = (_scaleKey === 'blues' || _scaleKey === 'major-blues') && note.degree === (cfg.bluesDegree ?? -5); // 블루스 노트(b5) 색깔 표시(2026-09-29)
     const isCharNote = _tutorialCharNoteRevealed && cfg.charDegree != null && note.degree === cfg.charDegree; // 특징음 강조, 한번 트리거되면 5폼 전부 반영(2026-09-29)
     const el = document.createElement('div');
     el.className = 'fb-note'
@@ -3384,10 +3758,13 @@ function _tutorialFindNoteEl(neckEl, s, absF) {
 // (윈도우 좌표계)에 재현. 실제 transitionPair()의 해당 bi=0 정방향 분기에서 좌표값만 그대로
 // 뽑아온 것 — 타이밍/이징도 동일(350ms+60ms, cubic-bezier)(2026-10-01, secondary-v 추가하며 공용화).
 // fades: [{s,absF}], slides: [{s,fromAbsF,toAbsF}], spawns: [{s,absF}] — absF는 전부 gsf 기준 상대값.
+// 반환값 = 애니메이션이 완전히 끝날 때까지의 ms(fade/slide + 새 dot 팝인) — 호출부가 끝난 뒤에 다음 동작을 잇는 용도.
+const PAIR_TRANSITION_MS = 350;
+const PAIR_TRANSITION_SPAWN_MS = 360; // 새 dot 팝인 트랜지션 길이(아래 spawns의 transform 360ms와 동일)
 function _tutorialAnimatePairTransition(gsf, { fades, slides, spawns }) {
   const neckEl = document.getElementById('test-fb-full-neck');
-  if (!neckEl) return;
-  const DURATION = 350;
+  if (!neckEl) return 0;
+  const DURATION = PAIR_TRANSITION_MS;
   const activeEls = [...neckEl.querySelectorAll('.fb-note')];
   activeEls.forEach(el => {
     el.style.transition =
@@ -3412,7 +3789,7 @@ function _tutorialAnimatePairTransition(gsf, { fades, slides, spawns }) {
     }
   }));
 
-  setTimeout(() => {
+  const tailId = setTimeout(() => {
     // 위치(fades 레시피)로만 판정 — opacity===0 조건을 같이 걸면, 전환이 "다음 음 미리트리거"로
     // 당겨진 뒤(2026-10-01) 그 fade 대상 dot이 하필 "현재 재생 중인 마지막 음"과 겹칠 때 강조코드가
     // opacity를 1로 되돌려놔서 여기서 영영 제거를 못 하는 경우가 생김 — 위치만으로 판정하면 안전.
@@ -3443,6 +3820,13 @@ function _tutorialAnimatePairTransition(gsf, { fades, slides, spawns }) {
       newEl.addEventListener('transitionend', () => { newEl.style.transition = ''; }, { once: true });
     });
   }, DURATION + 60);
+  _tutorialTimers.push(tailId); // 이탈 시 취소 대상에 포함 — 안 그러면 이탈 후에도 spawn dot이 추가됨
+  return DURATION + 60 + PAIR_TRANSITION_SPAWN_MS;
+}
+
+// 짝궁 전환 데모의 전환 기준 프렛(gsf) — 시연(playPairTransitionDemo)과 "한 번 더 전환"(pairTransitionForward)이 같은 값을 써야 위치가 어긋나지 않음.
+function _tutorialPairGsf() {
+  return _tutorialStartFret + (PAIR_STARTFRET_OFFSET[_tutorialAFormIdx] || 0);
 }
 
 // 레벨별 전환 레시피 — 실제 transitionPair()의 bi=0 정방향 분기(fade/slide/spawn 대상)에서 그대로
@@ -3471,6 +3855,21 @@ function _reversePairRecipe(recipe) {
     slides: recipe.slides.map(sl => ({ s: sl.s, fromAbsF: sl.toAbsF, toAbsF: sl.fromAbsF })),
     spawns: recipe.fades.map(f => ({ s: f.s, absF: f.absF })),
   };
+}
+
+// dot 색 전환(.fb-note background-color 0.6s) 끝에 cb 실행 — transitionend만 믿으면 이미 같은 색이라 전환이 안 일어나는 경우(재진입·중복 강조) 영영 안 와서
+// "다음" 버튼이 안 켜지고 튜토리얼이 멈춤. 폴백 타이머로 반드시 한 번만 호출.
+const TUTORIAL_DOT_COLOR_FADE_MS = 600; // .scale-test-overlay--tutorial #test-fb-full-neck .fb-note transition(0.6s)와 동일값 — CSS와 짝
+function _tutorialAfterDotColorFade(el, cb) {
+  let done = false;
+  const fire = () => {
+    if (done) return;
+    done = true;
+    el.removeEventListener('transitionend', fire);
+    cb();
+  };
+  el.addEventListener('transitionend', fire);
+  _tutorialTimers.push(setTimeout(fire, TUTORIAL_DOT_COLOR_FADE_MS + 200)); // 이탈 시 _tutorialClearTimers로 같이 취소됨
 }
 
 function runTutorialAction(action, onDone, gridRows) {
@@ -3595,23 +3994,36 @@ function runTutorialAction(action, onDone, gridRows) {
     if (matchedChar.length === 0) { onDone(); return; }
     _tutorialFormNavLocked = true;
     document.getElementById('scale-test-overlay')?.classList.add('scale-test-overlay--nav-locked'); // 화살표 실제로 안눌리게(pointer-events:none, 2026-09-29)
-    matchedChar.forEach(el => el.classList.add('fb-note--chord-highlight'));
-    matchedChar[0].addEventListener('transitionend', () => {
+    const finishCharReveal = () => {
       _tutorialFormNavLocked = false;
       _tutorialCharNoteRevealed = true; // 이후 5폼 전부(재렌더 포함) 계속 파란색 유지(2026-09-29)
       document.getElementById('scale-test-overlay')?.classList.remove('scale-test-overlay--nav-locked');
       onDone();
-    }, { once: true });
+    };
+    // 이미 파랗게 칠해진 dot(앞 단계에서 같은 강조를 했거나 5폼 재렌더로 이미 반영된 경우)은 색 전환이 안 일어나 transitionend가 안 옴 — 바로 완료 처리(2026-10-06 멈춤 버그 수정)
+    const alreadyBlue = el => el.classList.contains('fb-note--chord-highlight') || el.classList.contains('fb-note--blues-note');
+    const needAnim = matchedChar.filter(el => !alreadyBlue(el));
+    matchedChar.forEach(el => el.classList.add('fb-note--chord-highlight'));
+    if (needAnim.length === 0) {
+      _tutorialTimers.push(setTimeout(finishCharReveal, TUTORIAL_NEXT_BTN_BUFFER_MS));
+    } else {
+      _tutorialAfterDotColorFade(needAnim[0], finishCharReveal);
+    }
   } else if (action === 'highlightBluesNote') {
     // 옥타브런에 이미 찍힌 dot 중 블루스 노트(b5)만 파란색으로 전환(2026-09-29)
-    const target = _tutorialRunNotes.find(n => n.degree === -5);
+    const target = _tutorialRunNotes.find(n => n.degree === (TUTORIAL_SCALE_CONFIG[_scaleKey]?.bluesDegree ?? -5));
     const dots = Array.from(document.querySelectorAll('#test-fb-full-neck .fb-note'));
     const matchedBlues = target
       ? dots.filter(d => Number(d.dataset.s) === target.s && Number(d.dataset.absF) === target.absF)
       : [];
     if (matchedBlues.length === 0) { onDone(); return; }
+    const needBluesAnim = matchedBlues.filter(el => !el.classList.contains('fb-note--chord-highlight') && !el.classList.contains('fb-note--blues-note'));
     matchedBlues.forEach(el => el.classList.add('fb-note--chord-highlight'));
-    matchedBlues[0].addEventListener('transitionend', onDone, { once: true });
+    if (needBluesAnim.length === 0) {
+      _tutorialTimers.push(setTimeout(onDone, TUTORIAL_NEXT_BTN_BUFFER_MS)); // 이미 파란 dot — 전환이 없어 transitionend가 안 오므로 바로 완료(2026-10-06)
+    } else {
+      _tutorialAfterDotColorFade(needBluesAnim[0], onDone);
+    }
   } else if (action === 'formNav') {
     // 5폼(A-G-E-D-C) 유저 조작 네비게이션 시작 — 화살표 노출 + dot 클릭 재생 허용 + A폼부터 정적표시(2026-09-27)
     const overlayEl = document.getElementById('scale-test-overlay');
@@ -3655,6 +4067,15 @@ function runTutorialAction(action, onDone, gridRows) {
       const id = setTimeout(onDone, TUTORIAL_NEXT_BTN_BUFFER_MS);
       _tutorialTimers.push(id);
     }, { once: true });
+  } else if (action === 'pairTransitionForward') {
+    // 시연(playPairTransitionDemo)은 끝날 때 원래 폼으로 역전환해 끝나므로, 전환 후 스케일블럭을 설명하는 문구에서
+    // 비교할 수 있도록 소리 없이 정방향 전환을 한 번 더 보여줌(2026-10-06). 문구가 먼저 뜬 뒤 실행되고,
+    // 이후 튜토리얼 끝까지 전환된 폼 유지. 애니메이션이 끝난 뒤에 완료 콜백(= 다음 버튼 활성화).
+    const recipe = PAIR_TRANSITION_RECIPE[_scaleKey];
+    if (!recipe) { onDone(); return; }
+    const totalMs = _tutorialAnimatePairTransition(_tutorialPairGsf(), recipe);
+    const id = setTimeout(onDone, totalMs + TUTORIAL_NEXT_BTN_BUFFER_MS);
+    _tutorialTimers.push(id);
   } else if (action === 'playPairTransitionDemo') {
     // 짝궁 전환 코드진행 시연(C7→F 등) — 사용자가 직접 지정한 멜로디(PAIR_TRANSITION_DEMO)를 순차재생,
     // 코드라벨(C/C7/F) 중 현재 음이 속한 코드만 파란 강조, 전환 시점의 음부터 실제 타겟 블록으로
@@ -3668,8 +4089,7 @@ function runTutorialAction(action, onDone, gridRows) {
       qElForDemo.style.display = 'none'; // 리드텍스트와 같은 슬롯 공유 — noteNameGrid와 동일 패턴
     }
     const labelsEl = document.getElementById('test-chord-labels');
-    const offset = (PAIR_STARTFRET_OFFSET[_tutorialAFormIdx] || 0);
-    const gsf = _tutorialStartFret + offset;
+    const gsf = _tutorialPairGsf();
     let transitionStage = 0; // 0=원폼 / 1=도미넌트7 전환됨 / 2=다이어토닉 원폼으로 역전환됨
     let i = 0;
     const step = () => {
@@ -3745,6 +4165,7 @@ function startTest() {
   if (seq.length === 0) return;
 
   // 상태 초기화
+  _tutorialReset(); // 같은 오버레이를 쓰는 튜토리얼의 잔여물(폼 이름·그리드·숨겨진 문제 텍스트 등) 제거
   clearTestDots();
   _testHint      = null;
   _testSubmitted = false;
@@ -3773,8 +4194,6 @@ function startTest() {
   }
   const submitLabel = document.getElementById('test-submit-btn-label');
   if (submitLabel) submitLabel.textContent = '제출하기';
-  const retryCostReset = document.getElementById('test-retry-peak-cost');
-  if (retryCostReset) retryCostReset.style.display = 'none';
   document.getElementById('test-back-btn')?.classList.remove('is-visible');
 
   // 질문 텍스트 초기화 (애니메이션 이후 바뀌도록 숨김)
@@ -3964,7 +4383,7 @@ function _transitionPairII() {
   const activeEls = [...neckEl.querySelectorAll('.fb-note:not(.fb-note--ghost)')];
   if (!activeEls.length) return;
 
-  const DURATION = _instantPair ? 0 : 350;
+  const DURATION = _instantPair ? 0 : PAIR_SLIDE_MS;
   _transitioning = true;
 
   activeEls.forEach(el => {
@@ -4000,7 +4419,7 @@ function _transitionPairII() {
           '5,3':'5',  '5,4':'b6',
         });
         _finishTransition(true);
-      }, DURATION + 60);
+      }, DURATION + PAIR_WAIT_BUFFER_MS);
 
     } else {
       // Am폼 → C폼: s=0,2,5 에서 deg7 slide -1
@@ -4033,7 +4452,7 @@ function _transitionPairII() {
           el.classList.remove('fb-note--root');
         });
         _finishTransition(false);
-      }, DURATION + 60);
+      }, DURATION + PAIR_WAIT_BUFFER_MS);
     }
   }
 
@@ -4062,7 +4481,7 @@ function _transitionPairII() {
           '5,6':1,
         });
         _finishTransition(true);
-      }, DURATION + 60);
+      }, DURATION + PAIR_WAIT_BUFFER_MS);
 
     } else {
       // Gm폼 → A폼: s=0,3,5 에서 deg7 slide -1 (degree는 degMap 이후에 변경)
@@ -4092,7 +4511,7 @@ function _transitionPairII() {
           el.classList.remove('fb-note--root');
         });
         _finishTransition(false);
-      }, DURATION + 60);
+      }, DURATION + PAIR_WAIT_BUFFER_MS);
     }
   }
 
@@ -4121,7 +4540,7 @@ function _transitionPairII() {
           '5,7':'2',  '5,1':'b3', '5,2':'4',
         });
         _finishTransition(true);
-      }, DURATION + 60);
+      }, DURATION + PAIR_WAIT_BUFFER_MS);
 
     } else {
       // Dm폼 → E폼: s=1,4 에서 deg7 slide -1 (degree는 degMap 이후 변경)
@@ -4151,7 +4570,7 @@ function _transitionPairII() {
           el.classList.remove('fb-note--root');
         });
         _finishTransition(false);
-      }, DURATION + 60);
+      }, DURATION + PAIR_WAIT_BUFFER_MS);
     }
   }
 
@@ -4180,7 +4599,7 @@ function _transitionPairII() {
           '5,2':'4',  '5,3':'5',  '5,4':'b6',
         });
         _finishTransition(true);
-      }, DURATION + 60);
+      }, DURATION + PAIR_WAIT_BUFFER_MS);
 
     } else {
       // Cm폼 → D폼: s=2,4 에서 deg7 slide -1 (degree는 degMap 이후 변경)
@@ -4210,7 +4629,7 @@ function _transitionPairII() {
           el.classList.remove('fb-note--root');
         });
         _finishTransition(false);
-      }, DURATION + 60);
+      }, DURATION + PAIR_WAIT_BUFFER_MS);
     }
   }
 
@@ -4237,6 +4656,9 @@ function _transitionPairII() {
           el.dataset.degree = 7;
         }
       });
+      // 새 dot 생성은 슬라이드·제거와 동시에 재생 (끝날 때까지 기다리지 않음)
+      _spawnNote(neckEl, cur.startFret + 1, 0, 7);
+      _spawnNote(neckEl, cur.startFret + 1, 5, 7);
       setTimeout(function() {
         neckEl.querySelectorAll('.fb-note:not(.fb-note--ghost)').forEach(el => {
           if (parseInt(el.dataset.s) === 1 && parseFloat(el.style.opacity) === 0) el.remove();
@@ -4249,10 +4671,8 @@ function _transitionPairII() {
           '4,2':'4',   '4,3':'5',   '4,4':'b6',
           '5,6':1,     '5,7':'2',   '5,1':'b3',
         });
-        _spawnNote(neckEl, cur.startFret + 1, 0, 7);
-        _spawnNote(neckEl, cur.startFret + 1, 5, 7);
         _finishTransition(true);
-      }, DURATION + 60);
+      }, DURATION + PAIR_WAIT_BUFFER_MS);
 
     } else {
       // Em폼 → G폼: s=0,s=5 deg7 fade, s=3 deg7 slide-1 (degree는 degMap 이후 변경)
@@ -4276,6 +4696,8 @@ function _transitionPairII() {
           slidNodes.push(el);
         }
       });
+      // 새 dot 생성은 슬라이드·제거와 동시에 재생 (끝날 때까지 기다리지 않음)
+      _spawnNote(neckEl, cur.startFret + 5, 1, 5);
       setTimeout(function() {
         neckEl.querySelectorAll('.fb-note:not(.fb-note--ghost)').forEach(el => {
           if ((parseInt(el.dataset.s) === 0 || parseInt(el.dataset.s) === 5) &&
@@ -4293,9 +4715,8 @@ function _transitionPairII() {
           el.dataset.degree = 5;
           el.classList.remove('fb-note--root');
         });
-        _spawnNote(neckEl, cur.startFret + 5, 1, 5);
         _finishTransition(false);
-      }, DURATION + 60);
+      }, DURATION + PAIR_WAIT_BUFFER_MS);
     }
   }
 }
@@ -4314,7 +4735,7 @@ function _transitionPairVI() {
   const activeEls = [...neckEl.querySelectorAll('.fb-note:not(.fb-note--ghost)')];
   if (!activeEls.length) return;
 
-  const DURATION = _instantPair ? 0 : 350;
+  const DURATION = _instantPair ? 0 : PAIR_SLIDE_MS;
   _transitioning = true;
 
   activeEls.forEach(el => {
@@ -4339,13 +4760,14 @@ function _transitionPairVI() {
         if (s === 4 && d === '7' && absf === sf+3)   { el.style.left = ((sf+2+0.5)/TOTAL_FRETS*100)+'%'; el.dataset.absf = sf+2; el.classList.toggle('fb-note--open', sf+2===0); el.dataset.degree = 'b6'; el.classList.remove('fb-note--root'); }
         if (s === 4 && d === '1' && absf === sf+4)   { el.style.left = ((sf+5+0.5)/TOTAL_FRETS*100)+'%'; el.dataset.absf = sf+5; el.classList.toggle('fb-note--open', sf+5===0); slidNodes.push(el); }
       });
+      // 새 dot 생성은 슬라이드·제거와 동시에 재생 (끝날 때까지 기다리지 않음)
+      _spawnNote(neckEl, sf+4, 2, 'b6');
       setTimeout(function() {
         neckEl.querySelectorAll('.fb-note:not(.fb-note--ghost)').forEach(el => { if (parseFloat(el.style.opacity) === 0) el.remove(); });
         _applyDegMap(neckEl, { '0,3':'2','0,4':'b3','0,5':'4', '1,2':1, '2,5':'4','2,6':'5', '3,2':1,'3,3':'2','3,4':'b3', '4,6':'5', '5,3':'2','5,4':'b3','5,5':'4' });
         slidNodes.forEach(el => { el.dataset.degree = 7; el.classList.remove('fb-note--root'); });
-        _spawnNote(neckEl, sf+4, 2, 'b6');
         _finishTransition(true);
-      }, DURATION + 60);
+      }, DURATION + PAIR_WAIT_BUFFER_MS);
     } else {
       // Dm폼→C폼: fade s2-b6@sf+4, slidNode s1-7@sf+3→sf+2(→1), slide s4-b6@sf+2→sf+3(7), slidNode s4-7@sf+5→sf+4(→1)
       const slidNodes = [];
@@ -4358,13 +4780,14 @@ function _transitionPairVI() {
         if (s === 4 && d === 'b6' && absf === sf+2)  { el.style.left = ((sf+3+0.5)/TOTAL_FRETS*100)+'%'; el.dataset.absf = sf+3; el.classList.toggle('fb-note--open', sf+3===0); el.dataset.degree = '7'; }
         if (s === 4 && d === '7'  && absf === sf+5)  { el.style.left = ((sf+4+0.5)/TOTAL_FRETS*100)+'%'; el.dataset.absf = sf+4; el.classList.toggle('fb-note--open', sf+4===0); slidNodes.push(el); }
       });
+      // 새 dot 생성은 슬라이드·제거와 동시에 재생 (끝날 때까지 기다리지 않음)
+      _spawnNote(neckEl, sf+1, 1, 7);
       setTimeout(function() {
         neckEl.querySelectorAll('.fb-note:not(.fb-note--ghost)').forEach(el => { if (parseFloat(el.style.opacity) === 0) el.remove(); });
         _applyDegMap(neckEl, { '0,2':'3','0,b3':'4','0,4':'5', '1,1':'2', '2,4':'5','2,5':'6', '3,1':'2','3,2':'3','3,b3':'4', '4,5':'6', '5,2':'3','5,b3':'4','5,4':'5' });
         slidNodes.forEach(el => { el.dataset.degree = 1; el.classList.add('fb-note--root'); });
-        _spawnNote(neckEl, sf+1, 1, 7);
         _finishTransition(false);
-      }, DURATION + 60);
+      }, DURATION + PAIR_WAIT_BUFFER_MS);
     }
   }
 
@@ -4382,13 +4805,14 @@ function _transitionPairVI() {
         if (s === 2 && d === '1' && absf === sf+4) { const nf=sf+5; el.style.left=((nf+0.5)/TOTAL_FRETS*100)+'%'; el.dataset.absf=nf; el.classList.toggle('fb-note--open',nf===0); slidNodes.push(el); }
         if (s === 4 && d === '1' && absf === sf+2) { const nf=sf+3; el.style.left=((nf+0.5)/TOTAL_FRETS*100)+'%'; el.dataset.absf=nf; el.classList.toggle('fb-note--open',nf===0); slidNodes.push(el); }
       });
+      // 새 dot 생성은 슬라이드·제거와 동시에 재생 (끝날 때까지 기다리지 않음)
+      _spawnNote(neckEl, sf+5, 5, 'b6');
       setTimeout(function() {
         neckEl.querySelectorAll('.fb-note:not(.fb-note--ghost)').forEach(el => { if (parseFloat(el.style.opacity) === 0) el.remove(); });
         _applyDegMap(neckEl, { '0,5':'4','0,6':'5', '1,2':1,'1,3':'2','1,4':'b3', '2,6':'5', '3,3':'2','3,4':'b3','3,5':'4', '4,2':1, '5,5':'4','5,6':'5' });
         slidNodes.forEach(el => { el.dataset.degree = '7'; el.classList.remove('fb-note--root'); });
-        _spawnNote(neckEl, sf+5, 5, 'b6');
         _finishTransition(true);
-      }, DURATION + 60);
+      }, DURATION + PAIR_WAIT_BUFFER_MS);
     } else {
       // Cm폼→A폼: fade s5-b6@sf+5, slide s2-b6@sf+2→sf+3(7), slidNode s2-7@sf+5→sf+4(→1), slidNode s4-7@sf+3→sf+2(→1), spawn s4 7@sf+1
       const slidNodes = [];
@@ -4401,13 +4825,14 @@ function _transitionPairVI() {
         if (s === 2 && d === '7'  && absf === sf+5) { const nf=sf+4; el.style.left=((nf+0.5)/TOTAL_FRETS*100)+'%'; el.dataset.absf=nf; el.classList.toggle('fb-note--open',nf===0); slidNodes.push(el); }
         if (s === 4 && d === '7'  && absf === sf+3) { const nf=sf+2; el.style.left=((nf+0.5)/TOTAL_FRETS*100)+'%'; el.dataset.absf=nf; el.classList.toggle('fb-note--open',nf===0); slidNodes.push(el); }
       });
+      // 새 dot 생성은 슬라이드·제거와 동시에 재생 (끝날 때까지 기다리지 않음)
+      _spawnNote(neckEl, sf+1, 4, 7);
       setTimeout(function() {
         neckEl.querySelectorAll('.fb-note:not(.fb-note--ghost)').forEach(el => { if (parseFloat(el.style.opacity) === 0) el.remove(); });
         _applyDegMap(neckEl, { '0,4':'5','0,5':'6', '1,1':'2','1,2':'3','1,b3':'4', '2,5':'6', '3,2':'3','3,b3':'4','3,4':'5', '4,1':'2', '5,4':'5','5,5':'6' });
         slidNodes.forEach(el => { el.dataset.degree = 1; el.classList.add('fb-note--root'); });
-        _spawnNote(neckEl, sf+1, 4, 7);
         _finishTransition(false);
-      }, DURATION + 60);
+      }, DURATION + PAIR_WAIT_BUFFER_MS);
     }
   }
 
@@ -4427,13 +4852,14 @@ function _transitionPairVI() {
         if (s === 5 && d === '7' && absf === sf+4) { const nf=sf+3; el.style.left=((nf+0.5)/TOTAL_FRETS*100)+'%'; el.dataset.absf=nf; el.classList.toggle('fb-note--open',nf===0); el.dataset.degree='b6'; el.classList.remove('fb-note--root'); }
         if (s === 5 && d === '1' && absf === sf+5) { const nf=sf+6; el.style.left=((nf+0.5)/TOTAL_FRETS*100)+'%'; el.dataset.absf=nf; el.classList.toggle('fb-note--open',nf===0); slidNodes.push(el); }
       });
+      // 새 dot 생성은 슬라이드·제거와 동시에 재생 (끝날 때까지 기다리지 않음)
+      _spawnNote(neckEl, sf+5, 3, 'b6');
       setTimeout(function() {
         neckEl.querySelectorAll('.fb-note:not(.fb-note--ghost)').forEach(el => { if (parseFloat(el.style.opacity) === 0) el.remove(); });
         _applyDegMap(neckEl, { '0,6':'5', '1,3':'2','1,4':'b3','1,5':'4', '2,2':1, '3,5':'4','3,6':'5', '4,2':1,'4,3':'2','4,4':'b3', '5,6':'5' });
         slidNodes.forEach(el => { el.dataset.degree = '7'; el.classList.remove('fb-note--root'); });
-        _spawnNote(neckEl, sf+5, 3, 'b6');
         _finishTransition(true);
-      }, DURATION + 60);
+      }, DURATION + PAIR_WAIT_BUFFER_MS);
     } else {
       // Am폼→G폼: fade s3-b6@sf+5, slide s0-b6@sf+3→sf+4(7), slidNode s0-7@sf+6→sf+5(→1), slidNode s2-7@sf+3→sf+2(→1), slide s5-b6@sf+3→sf+4(7), slidNode s5-7@sf+6→sf+5(→1), spawn s2 7@sf+1
       const slidNodes = [];
@@ -4448,13 +4874,14 @@ function _transitionPairVI() {
         if (s === 5 && d === 'b6' && absf === sf+3) { const nf=sf+4; el.style.left=((nf+0.5)/TOTAL_FRETS*100)+'%'; el.dataset.absf=nf; el.classList.toggle('fb-note--open',nf===0); el.dataset.degree='7'; el.classList.remove('fb-note--root'); }
         if (s === 5 && d === '7'  && absf === sf+6) { const nf=sf+5; el.style.left=((nf+0.5)/TOTAL_FRETS*100)+'%'; el.dataset.absf=nf; el.classList.toggle('fb-note--open',nf===0); slidNodes.push(el); }
       });
+      // 새 dot 생성은 슬라이드·제거와 동시에 재생 (끝날 때까지 기다리지 않음)
+      _spawnNote(neckEl, sf+1, 2, 7);
       setTimeout(function() {
         neckEl.querySelectorAll('.fb-note:not(.fb-note--ghost)').forEach(el => { if (parseFloat(el.style.opacity) === 0) el.remove(); });
         _applyDegMap(neckEl, { '0,5':'6', '1,2':'3','1,b3':'4','1,4':'5', '2,1':'2', '3,4':'5','3,5':'6', '4,1':'2','4,2':'3','4,b3':'4', '5,5':'6' });
         slidNodes.forEach(el => { el.dataset.degree = 1; el.classList.add('fb-note--root'); });
-        _spawnNote(neckEl, sf+1, 2, 7);
         _finishTransition(false);
-      }, DURATION + 60);
+      }, DURATION + PAIR_WAIT_BUFFER_MS);
     }
   }
 
@@ -4474,13 +4901,14 @@ function _transitionPairVI() {
         if (s === 5 && d === '7' && absf === sf+1) { el.style.opacity = '0'; el.style.transform = 'translate(-50%,-50%) scale(0)'; }
         if (s === 5 && d === '1' && absf === sf+2) { const nf=sf+3; el.style.left=((nf+0.5)/TOTAL_FRETS*100)+'%'; el.dataset.absf=nf; el.classList.toggle('fb-note--open',nf===0); slidNodes.push(el); }
       });
+      // 새 dot 생성은 슬라이드·제거와 동시에 재생 (끝날 때까지 기다리지 않음)
+      _spawnNote(neckEl, sf+5, 1, 'b6');
       setTimeout(function() {
         neckEl.querySelectorAll('.fb-note:not(.fb-note--ghost)').forEach(el => { if (parseFloat(el.style.opacity) === 0) el.remove(); });
         _applyDegMap(neckEl, { '0,2':1, '1,5':'4','1,6':'5', '2,2':1,'2,3':'2','2,4':'b3', '3,6':'5', '4,3':'2','4,4':'b3','4,5':'4', '5,2':1 });
         slidNodes.forEach(el => { el.dataset.degree = '7'; el.classList.remove('fb-note--root'); });
-        _spawnNote(neckEl, sf+5, 1, 'b6');
         _finishTransition(true);
-      }, DURATION + 60);
+      }, DURATION + PAIR_WAIT_BUFFER_MS);
     } else {
       // Gm폼→E폼: fade s1-b6@sf+5, slidNode s0-7@sf+3→sf+2(→1), slide s3-b6@sf+2→sf+3(7), slidNode s3-7@sf+5→sf+4(→1), slidNode s5-7@sf+3→sf+2(→1), spawn s0 7@sf+1, spawn s5 7@sf+1
       const slidNodes = [];
@@ -4494,14 +4922,15 @@ function _transitionPairVI() {
         if (s === 3 && d === '7'  && absf === sf+5) { const nf=sf+4; el.style.left=((nf+0.5)/TOTAL_FRETS*100)+'%'; el.dataset.absf=nf; el.classList.toggle('fb-note--open',nf===0); slidNodes.push(el); }
         if (s === 5 && d === '7'  && absf === sf+3) { const nf=sf+2; el.style.left=((nf+0.5)/TOTAL_FRETS*100)+'%'; el.dataset.absf=nf; el.classList.toggle('fb-note--open',nf===0); slidNodes.push(el); }
       });
+      // 새 dot 생성은 슬라이드·제거와 동시에 재생 (끝날 때까지 기다리지 않음)
+      _spawnNote(neckEl, sf+1, 0, 7);
+      _spawnNote(neckEl, sf+1, 5, 7);
       setTimeout(function() {
         neckEl.querySelectorAll('.fb-note:not(.fb-note--ghost)').forEach(el => { if (parseFloat(el.style.opacity) === 0) el.remove(); });
         _applyDegMap(neckEl, { '0,1':'2', '1,4':'5','1,5':'6', '2,1':'2','2,2':'3','2,b3':'4', '3,5':'6', '4,2':'3','4,b3':'4','4,4':'5', '5,1':'2' });
         slidNodes.forEach(el => { el.dataset.degree = 1; el.classList.add('fb-note--root'); });
-        _spawnNote(neckEl, sf+1, 0, 7);
-        _spawnNote(neckEl, sf+1, 5, 7);
         _finishTransition(false);
-      }, DURATION + 60);
+      }, DURATION + PAIR_WAIT_BUFFER_MS);
     }
   }
 
@@ -4519,16 +4948,17 @@ function _transitionPairVI() {
         if (s === 3 && d === '7' && absf === sf+1) { el.style.opacity = '0'; el.style.transform = 'translate(-50%,-50%) scale(0)'; }
         if (s === 3 && d === '1' && absf === sf+2) { const nf=sf+3; el.style.left=((nf+0.5)/TOTAL_FRETS*100)+'%'; el.dataset.absf=nf; el.classList.toggle('fb-note--open',nf===0); slidNodes.push(el); }
       });
+      // 새 dot 생성은 슬라이드·제거와 동시에 재생 (끝날 때까지 기다리지 않음)
+      _spawnNote(neckEl, sf+1, 0, 7);
+      _spawnNote(neckEl, sf+5, 0, 'b3');
+      _spawnNote(neckEl, sf+5, 4, 'b6');
+      _spawnNote(neckEl, sf+1, 5, 7);
       setTimeout(function() {
         neckEl.querySelectorAll('.fb-note:not(.fb-note--ghost)').forEach(el => { if (parseFloat(el.style.opacity) === 0) el.remove(); });
         _applyDegMap(neckEl, { '0,2':1,'0,3':'2', '1,6':'5', '2,3':'2','2,4':'b3','2,5':'4', '3,2':1, '4,5':'4','4,6':'5', '5,2':1,'5,3':'2','5,4':'b3' });
         slidNodes.forEach(el => { el.dataset.degree = '7'; el.classList.remove('fb-note--root'); });
-        _spawnNote(neckEl, sf+1, 0, 7);
-        _spawnNote(neckEl, sf+5, 0, 'b3');
-        _spawnNote(neckEl, sf+5, 4, 'b6');
-        _spawnNote(neckEl, sf+1, 5, 7);
         _finishTransition(true);
-      }, DURATION + 60);
+      }, DURATION + PAIR_WAIT_BUFFER_MS);
     } else {
       // Em폼→D폼: fade s0-7@sf+1 s0-b3@sf+5 s4-b6@sf+5 s5-7@sf+1, slide s1-b6@sf+3→sf+4(7), slidNode s3-7@sf+3→sf+2(→1), spawn s1 1@sf+5, spawn s3 7@sf+1
       const slidNodes = [];
@@ -4543,14 +4973,15 @@ function _transitionPairVI() {
         if (s === 1 && d === 'b6' && absf === sf+3) { const nf=sf+4; el.style.left=((nf+0.5)/TOTAL_FRETS*100)+'%'; el.dataset.absf=nf; el.classList.toggle('fb-note--open',nf===0); el.dataset.degree='7'; el.classList.remove('fb-note--root'); }
         if (s === 3 && d === '7'  && absf === sf+3) { const nf=sf+2; el.style.left=((nf+0.5)/TOTAL_FRETS*100)+'%'; el.dataset.absf=nf; el.classList.toggle('fb-note--open',nf===0); slidNodes.push(el); }
       });
+      // 새 dot 생성은 슬라이드·제거와 동시에 재생 (끝날 때까지 기다리지 않음)
+      _spawnNote(neckEl, sf+1, 3, 7);
+      _spawnNote(neckEl, sf+5, 1, 1);
       setTimeout(function() {
         neckEl.querySelectorAll('.fb-note:not(.fb-note--ghost)').forEach(el => { if (parseFloat(el.style.opacity) === 0) el.remove(); });
         _applyDegMap(neckEl, { '0,1':'2','0,2':'3', '1,5':'6', '2,2':'3','2,b3':'4','2,4':'5', '3,1':'2', '4,4':'5','4,5':'6', '5,1':'2','5,2':'3','5,b3':'4' });
         slidNodes.forEach(el => { el.dataset.degree = 1; el.classList.add('fb-note--root'); });
-        _spawnNote(neckEl, sf+1, 3, 7);
-        _spawnNote(neckEl, sf+5, 1, 1);
         _finishTransition(false);
-      }, DURATION + 60);
+      }, DURATION + PAIR_WAIT_BUFFER_MS);
     }
   }
 }
@@ -4568,7 +4999,7 @@ function _transitionPairIII() {
   if (!cur) { _transitioning = false; return; }
   const sf = cur.startFret;
   const bi = cur.bi;
-  const DURATION = _instantPair ? 0 : 350;
+  const DURATION = _instantPair ? 0 : PAIR_SLIDE_MS;
   const forward  = !_pairTransitioned;
   const delta    = SECONDARY_III_DELTA[bi] || { spawn: [], remove: [] };
 
@@ -4605,14 +5036,15 @@ function _transitionPairIII() {
         el.style.transform = 'translate(-50%,-50%) scale(0)';
       }
     });
+    // 새 dot 생성은 슬라이드·제거와 동시에 재생 (끝날 때까지 기다리지 않음)
+    delta.spawn.forEach(sp => _spawnNote(neckEl, sf + sp.off, sp.s, sp.degree));
     setTimeout(function() {
       neckEl.querySelectorAll('.fb-note:not(.fb-note--ghost)').forEach(el => {
         if (parseFloat(el.style.opacity) === 0) el.remove();
       });
       slidNodes.forEach(({ el, finalDeg }) => { el.dataset.degree = finalDeg; });
-      delta.spawn.forEach(sp => _spawnNote(neckEl, sf + sp.off, sp.s, sp.degree));
       _finishTransition(true);
-    }, DURATION + 60);
+    }, DURATION + PAIR_WAIT_BUFFER_MS);
 
   } else {
     // 역방향: 델타 spawn 제거 → #2→2, #4→4 (-1프랫) → 델타 remove 복구
@@ -4633,14 +5065,15 @@ function _transitionPairIII() {
         slidNodes.push({ el, finalDeg: d === '#2' ? '2' : '4' });
       }
     });
+    // 새 dot 생성은 슬라이드·제거와 동시에 재생 (끝날 때까지 기다리지 않음)
+    delta.remove.forEach(r => _spawnNote(neckEl, sf + r.backOff, r.s, r.backDeg));
     setTimeout(function() {
       neckEl.querySelectorAll('.fb-note:not(.fb-note--ghost)').forEach(el => {
         if (parseFloat(el.style.opacity) === 0) el.remove();
       });
       slidNodes.forEach(({ el, finalDeg }) => { el.dataset.degree = finalDeg; });
-      delta.remove.forEach(r => _spawnNote(neckEl, sf + r.backOff, r.s, r.backDeg));
       _finishTransition(false);
-    }, DURATION + 60);
+    }, DURATION + PAIR_WAIT_BUFFER_MS);
   }
 }
 
@@ -4708,6 +5141,22 @@ function updateFormLabel() {
 }
 
 // ── 블록 인디케이터 업데이트 ──────────────────────────────────
+// 접속 시 기본으로 보여줄 블록 — 사용 프렛 범위의 중앙이 4프렛(= 2~6프렛 폼)에 가장 가까운 블록.
+// 전 레벨 공통 규칙이라 레벨별 인덱스를 따로 두지 않음(대부분 두 번째 폼, 첫 블록이 더 가까우면 첫 블록, 동점이면 더 높은 프렛 블록).
+const DEFAULT_FORM_CENTER_FRET = 4;
+function defaultNavIdx() {
+  const seq = buildNavSequence();
+  let best = 0, bestDist = Infinity;
+  seq.forEach(({ block, startFret }, i) => {
+    const cols = ScaleData.parseGrid(block.grid).notes.map(n => n.col);
+    if (!cols.length) return;
+    const center = startFret + (Math.min(...cols) + Math.max(...cols)) / 2;
+    const dist = Math.abs(center - DEFAULT_FORM_CENTER_FRET);
+    if (dist <= bestDist) { bestDist = dist; best = i; }   // 동점이면 프렛이 더 높은(뒤쪽) 블록
+  });
+  return best;
+}
+
 function updateBlockIndicator() {
   const el = document.getElementById('block-indicator');
   if (!el) return;
@@ -4751,11 +5200,42 @@ function initArrows() {
 }
 
 // ── 키 버튼 레이블 갱신 ──────────────────────────────────────
+// #/b 표기는 "(레벨, 키)"당 한 번만 정하고, 재생·전환 중에는 절대 바꾸지 않음(유저가 토글을 누를 때만 바뀜).
+// 그 레벨이 보여줄 스케일 — 원래 스케일(메이저로 근사) + 챕터 2면 전환 후 스케일(PAIR_TARGET_SCALE) — 을 샵으로 쓸 때와 플랫으로 쓸 때
+// 각각 7음의 알파벳이 몇 번 겹치는지 세서 덜 겹치는 쪽을 고름. 동점(둘 다 깨끗하거나 둘 다 겹침, 예: F#/Gb)이면 샵 — 기타는 카포를 써서 # 표기가 유리함.
+// 전환은 5도권에서 바로 옆 키로 가므로 한 표기로 원래·전환 후가 다 맞음(C 키 LEVEL 8: F 메이저라 b / LEVEL 9: G 메이저라 #).
+function _spellDups(root, intervals, flat) {
+  const names = flat ? KEY_NAMES_FLAT : KEY_NAMES;
+  return 7 - new Set(intervals.map(i => names[(root + i) % 12][0])).size;
+}
+// 메이저로 근사하면 안 맞는 스케일은 실제 음정을 직접 지정(도리안·프리지안: C 도리안은 샵이면 D# A#, C 프리지안은 C# D# F# G# A#으로 겹쳐서 b이 맞음). 없는 스케일은 메이저로 근사.
+const ACC_SCALE_INTERVALS = { 'dorian': [0, 2, 3, 5, 7, 9, 10], 'phrygian': [0, 1, 3, 5, 7, 8, 10], 'mixolydian': [0, 2, 4, 5, 7, 9, 10], 'aeolian': [0, 2, 3, 5, 7, 8, 10], 'locrian': [0, 1, 3, 5, 6, 8, 10] };
+function _defaultFlat(semitone) {
+  const t = PAIR_TARGET_SCALE[_scaleKey];
+  const cost = flat => _spellDups(semitone, ACC_SCALE_INTERVALS[_scaleKey] || PAIR_SCALE_INTERVALS.major, flat)
+    + (t ? _spellDups((semitone + t.offset) % 12, PAIR_SCALE_INTERVALS[t.scale], flat) : 0);
+  return cost(true) < cost(false);
+}
+function _syncAccidentalToKey(semitone) {
+  _useFlat = _defaultFlat(semitone);
+  document.getElementById('toggle-sharp')?.classList.toggle('active', !_useFlat);
+  document.getElementById('toggle-flat')?.classList.toggle('active', _useFlat);
+}
+
+// 키 셀렉터 라벨 — #/b 토글과 무관하게 항상 같은 모양(토글해도 셀렉터가 안 움직임).
+// 반음 키는 C#/Db 두 이름을 슬래시 기준 대각선(왼쪽 위 # · 오른쪽 아래 b)으로 함께 표기, 자연음 키는 한 줄.
+function _keyBtnHtml(semitone) {
+  const m = (_keyUi && _keyUi.minor) ? 'm' : '';
+  const a = KEY_NAMES[semitone], b = KEY_NAMES_FLAT[semitone];
+  if (a === b) return a + m;
+  return `<span class="key-acc key-acc--a">${a}${m}</span><span class="key-acc key-acc--b">${b}${m}</span>`;
+}
+function _applyKeyBtnLabel(btn, semitone) {
+  btn.innerHTML = _keyBtnHtml(semitone);
+  btn.classList.toggle('key-btn--split', KEY_NAMES[semitone] !== KEY_NAMES_FLAT[semitone]);
+}
 function updateKeyLabels() {
-  const names = _useFlat ? KEY_NAMES_FLAT : KEY_NAMES;
-  document.querySelectorAll('.key-btn').forEach((btn, i) => {
-    btn.textContent = names[i];
-  });
+  document.querySelectorAll('.key-btn').forEach(btn => _applyKeyBtnLabel(btn, Number(btn.dataset.semitone)));
 }
 
 // ── 임시/기록 관련 함수 ──────────────────────────────────────
@@ -4793,8 +5273,15 @@ function _recordScaleSubmit() {
 }
 
 /** 페이지 이탈 시 훈련 시간 누적 (문제 미완료여도 기록) */
-function _recordScaleSessionTime() {
+// via: 'back'(뒤로가기 버튼·하드웨어 뒤로가기) / 'pagehide'(페이지 이동·닫기·백그라운드, 기본값)
+function _recordScaleSessionTime(via) {
   if (!_scaleSessionStart) return;
+  // 체류시간 이벤트 — 진입~이탈. 이탈 이벤트가 유실돼도(앱 강제 종료 등) 분석에서 "세션의 마지막 스케일 이벤트"를 이탈로 간주
+  analytics.track('scale_level_left', {
+    ..._scaleBase(),
+    duration_sec: Math.round((Date.now() - _scaleSessionStart) / 1000),
+    exit_via: typeof via === 'string' ? via : 'pagehide',
+  });
   const durationMin = (Date.now() - _scaleSessionStart) / 60000;
   if (durationMin < 0.1) return; // 6초 미만 무시
   const stats = JSON.parse(localStorage.getItem(TRAINING_STATS_KEY) || '{}');
@@ -4826,7 +5313,7 @@ function _trackBlockViewed() {
     const { block, bi, startFret } = seq[_navIdx];
     const names = _useFlat ? KEY_NAMES_FLAT : KEY_NAMES;
     analytics.track('scale_block_viewed', {
-      scale_key:  _scaleKey,
+      ..._scaleBase(),
       root_name:  names[_rootNote],
       form:       block.label || FORM_NAMES[bi] || (bi + 1 + '번폼'),
       bi,
@@ -4846,7 +5333,7 @@ function _trackBlockPlayed() {
   const { block, bi } = seq[_navIdx];
   const names = _useFlat ? KEY_NAMES_FLAT : KEY_NAMES;
   analytics.track('scale_block_played', {
-    scale_key: _scaleKey,
+    ..._scaleBase(),
     root_name: names[_rootNote],
     form:      block.label || FORM_NAMES[bi] || (bi + 1 + '번폼'),
     bi,
@@ -4866,88 +5353,121 @@ function initAccidentalToggle() {
     flatSpan.classList.toggle('active',   _useFlat);
     updateKeyLabels();
     updateFormLabel();
+    renderPracticeChords();
+    refreshNoteLabels(); // 음이름 모드면 C#/Db 표기 즉시 반영
     analytics.track('scale_accidental_toggled', {
-      scale_key: _scaleKey,
+      ..._scaleBase(),
       to: _useFlat ? 'flat' : 'sharp',
     });
+  });
+}
+
+// 현재 모드를 버튼(켜짐 색·글자/아이콘)과 body 클래스에 반영 — 음이름 'C' / 도수 '7' / 미표시 음표 아이콘
+const LABEL_MODE_FACE = {
+  note:   { glyph: 'C', title: '음이름 표시 (누르면 도수)' },
+  degree: { glyph: '7', title: '도수 표시 (누르면 미표시)' },
+  off:    { glyph: '',  title: '라벨 미표시 (누르면 음이름)' },
+};
+function _applyLabelModeUi() {
+  const btn = document.getElementById('degree-toggle-btn');
+  if (!btn) return;
+  const on = _labelMode !== 'off';
+  btn.classList.toggle('active', on);
+  document.body.classList.toggle('degrees-on', on); // .degrees-on .fb-note-deg { display:block }
+  btn.dataset.mode = _labelMode;
+  btn.title = LABEL_MODE_FACE[_labelMode].title;
+  const glyph = document.getElementById('label-toggle-glyph');
+  if (glyph) { glyph.textContent = LABEL_MODE_FACE[_labelMode].glyph; layoutLabelToggleGlyph(); }
+  const noteIcon = document.getElementById('label-toggle-note');
+  if (noteIcon) noteIcon.style.display = _labelMode === 'off' ? '' : 'none';
+}
+
+// 버튼 속 글자 광학 중앙정렬 — dot 라벨과 같은 방식(canvas 잉크박스 실측). svg 안 글자는 viewBox 단위(font-size 14)라 캔버스도 14px로 재면 단위가 일치함.
+function layoutLabelToggleGlyph() {
+  const glyph = document.getElementById('label-toggle-glyph');
+  if (!glyph || !glyph.textContent) return;
+  const ctx = document.createElement('canvas').getContext('2d');
+  ctx.font = '700 14px Pretendard, sans-serif';
+  ctx.textAlign = 'left';
+  ctx.textBaseline = 'alphabetic';
+  const m = ctx.measureText(glyph.textContent);
+  glyph.setAttribute('x', (12 - (m.actualBoundingBoxRight - m.actualBoundingBoxLeft) / 2).toFixed(2));
+  glyph.setAttribute('y', (12 + (m.actualBoundingBoxAscent - m.actualBoundingBoxDescent) / 2).toFixed(2));
+}
+
+// 현재 지판의 모든 dot 라벨을 현재 모드/#·b 설정에 맞게 다시 씀(dot을 새로 만들지 않음)
+function refreshNoteLabels() {
+  const neckEl = document.getElementById('fb-full-neck');
+  if (!neckEl) return;
+  // secondary-iii의 E 하모닉 마이너 전환 상태는 dataset.degree를 원래 값으로 둔 채 라벨만 재표기함 — _finishTransition과 같은 규칙
+  const hm = _scaleKey === 'secondary-iii' && _pairTransitioned;
+  neckEl.querySelectorAll('.fb-note:not(.fb-note--ghost)').forEach(el => {
+    const d = el.dataset.degree;
+    _setNoteDegreeLabel(el, hm && HM_III_MAP[d] !== undefined ? HM_III_MAP[d] : d);
   });
 }
 
 function initDegreeToggle() {
   const btn = document.getElementById('degree-toggle-btn');
   if (!btn) return;
+  _applyLabelModeUi();
   btn.addEventListener('pointerup', () => {
     _playTap();
-    _showDegrees = !_showDegrees;
-    btn.classList.toggle('active', _showDegrees);
-    document.body.classList.toggle('degrees-on', _showDegrees);
-    analytics.track('scale_degree_toggled', {
-      scale_key: _scaleKey,
-      to: _showDegrees ? 'on' : 'off',
+    _labelMode = LABEL_MODES[(LABEL_MODES.indexOf(_labelMode) + 1) % LABEL_MODES.length];
+    _applyLabelModeUi();
+    refreshNoteLabels();
+    // 이름 변경: scale_degree_toggled(to: on/off)와 값의 의미가 달라서(note/degree/off 3상태) 새 이벤트로 분리 — 과거 데이터와 섞지 않음
+    analytics.track('scale_label_mode_changed', {
+      ..._scaleBase(),
+      to: _labelMode, // 'note' | 'degree' | 'off'
     });
   });
 }
 
-// ── 키 선택 UI ───────────────────────────────────────────────
-// key-selector 가로스크롤 — 마우스 드래그로도 스크롤 가능하게(터치는 브라우저 기본 제공).
-// 드래그 발생 시 key-btn의 pointerup(키 선택)은 억제(capture 단계에서 stopPropagation).
-function initKeySelectorDragScroll(el) {
-  let isDown = false;
-  let dragged = false;
-  let startX = 0;
-  let startScroll = 0;
-
-  el.addEventListener('pointerdown', (e) => {
-    isDown = true;
-    dragged = false;
-    startX = e.clientX;
-    startScroll = el.scrollLeft;
-    el.classList.add('is-dragging');
+// 렛링(페달) on/off — 기억하지 않고 매 방문 ON으로 시작(도수 표기 버튼과 동일). ON=손가락을 떼도 울림 유지, OFF=dot을 누르고 있는 동안만 울림.
+function initLetRingToggle() {
+  const btn = document.getElementById('letring-toggle-btn');
+  if (!btn) return;
+  btn.classList.toggle('active', _letRing);
+  btn.addEventListener('pointerup', () => {
+    _letRing = !_letRing;
+    btn.classList.toggle('active', _letRing);
   });
-  el.addEventListener('pointermove', (e) => {
-    if (!isDown) return;
-    const dx = e.clientX - startX;
-    if (Math.abs(dx) > 3) dragged = true;
-    el.scrollLeft = startScroll - dx;
-  });
-  const endDrag = () => {
-    isDown = false;
-    el.classList.remove('is-dragging');
-  };
-  el.addEventListener('pointerup', endDrag);
-  el.addEventListener('pointerleave', endDrag);
-  el.addEventListener('pointercancel', endDrag);
-  // 드래그였으면 key-btn 클릭(키 선택) 무효화
-  el.addEventListener('pointerup', (e) => {
-    if (dragged) e.stopPropagation();
-  }, true);
 }
 
+// ── 키 선택 UI ───────────────────────────────────────────────
 function initKeySelector() {
   const el = document.getElementById('key-selector');
   if (!el) return;
 
-  KEY_NAMES.forEach((name, semitone) => {
+  const first = _keyUi ? _keyUi.root : 0;
+  for (let k = 0; k < 12; k++) {
+    const semitone = (first + k) % 12;
     const btn = document.createElement('button');
     btn.className = 'key-btn' + (semitone === _rootNote ? ' key-btn--active' : '');
-    btn.textContent = name;
+    btn.dataset.semitone = semitone;
+    _applyKeyBtnLabel(btn, semitone);
     btn.addEventListener('pointerup', () => {
+      if (_practicePlaying) return; // 반주 재생 중엔 키 변경 잠금(정지 후 변경)
       _playTap();
       _rootNote = semitone;
-      _navIdx   = 0;   // 키 변경 시 첫 블럭으로 이동
+      _syncAccidentalToKey(semitone); // 이 키의 기본 #/b로 토글 맞춤(아래 라벨·지판이 같은 값을 씀)
+      updateKeyLabels();
+      _navIdx   = defaultNavIdx();   // 키 변경 시에도 접속 때와 같은 기본 폼(2~6프랫)으로 이동
       el.querySelectorAll('.key-btn').forEach(b => b.classList.remove('key-btn--active'));
       btn.classList.add('key-btn--active');
       renderNotes();
       updateFormLabel();
       updateBlockIndicator();
+      renderPracticeChords();
       analytics.track('scale_key_selected', {
-        scale_key: _scaleKey,
+        ..._scaleBase(),
         root_note: semitone,
         root_name: (_useFlat ? KEY_NAMES_FLAT : KEY_NAMES)[semitone],
       });
     });
     el.appendChild(btn);
-  });
+  }
 }
 
 // ── DOMContentLoaded ─────────────────────────────────────────
@@ -4962,6 +5482,23 @@ document.addEventListener('DOMContentLoaded', () => {
   const params = new URLSearchParams(location.search);
   _scaleKey = params.get('key') || 'major';
   _scaleLevel = parseInt(params.get('level'), 10) || 0;
+  _initPracticeStyle();
+  // 챕터 3~4(모드·특수 스케일)는 셀렉터 라벨을 KEY가 아닌 ROOT로(C 도리안은 B♭ 조라 KEY=C가 틀림). 챕터 1~2는 HTML 기본값 KEY
+  const ROOT_LABEL_SCALES = new Set(['ionian', 'dorian', 'phrygian', 'lydian', 'mixolydian', 'aeolian', 'locrian',
+    'mixolydian-b9b13', 'melodic-minor', 'altered', 'locrian-sharp6', 'lydian-dominant', 'mixolydian-b13', 'locrian-sharp2']);
+  if (ROOT_LABEL_SCALES.has(_scaleKey)) {
+    const keyLabel = document.querySelector('.key-selector-label');
+    if (keyLabel) keyLabel.textContent = 'ROOT';
+  }
+  // 연습하기(피크 소모)를 거치지 않은 진입(주소 직접 입력·오래된 북마크 등)은 목록으로 돌려보냄 — 해당 카드가 선택된 채로
+  if (!_isScaleUnlocked()) {
+    location.replace(`scale-training.html?key=${encodeURIComponent(_scaleKey)}` + (_scaleLevel ? `&level=${_scaleLevel}` : ''));
+    return;
+  }
+  _keyUi = LEVEL_KEY_UI[_scaleLevel] || null;
+  if (_keyUi) _rootNote = _keyUi.root; // 레벨별 진입 시 기본 키
+  _syncAccidentalToKey(_rootNote);     // 진입 시 기본 키의 #/b 기본값
+  _navIdx = defaultNavIdx();           // 진입 시 기본 폼 = 2~6프랫 폼
 
   // Ch.2: 전환 버튼 표시
   if (_scaleKey === 'secondary-iv' || _scaleKey === 'secondary-v' || _scaleKey === 'secondary-ii' || _scaleKey === 'secondary-vi' || _scaleKey === 'secondary-iii') {
@@ -4970,6 +5507,7 @@ document.addEventListener('DOMContentLoaded', () => {
       btn.style.display = 'inline-flex';
       btn.addEventListener('pointerup', () => {
         if (_transitioning) return;
+        if (_practicePlaying) return; // 반주 재생 중엔 전환 버튼 잠금 — 폼 전환은 반주 진행이 자동으로 함(키 변경 잠금과 동일)
         _playTap();
         _pairPersist = !_pairTransitioned;   // 이번 전환 후 상태를 블럭 이동해도 유지
         transitionPair();
@@ -4987,6 +5525,7 @@ renderFullNeck();
     document.fonts.ready.then(() => {
       measureDegreeOffsets();
       renderNotes(false);
+      layoutLabelToggleGlyph();
       alignMicBtnRowToDesc();
     });
   }
@@ -4995,51 +5534,60 @@ renderFullNeck();
   initArrows();
   initAccidentalToggle();
   initDegreeToggle();
+  initLetRingToggle();
   initKeySelector();
   initKeySelectorDragScroll(document.getElementById('key-selector'));
+  initKeySelectorFade(document.getElementById('key-selector'));
+  // 코드 진행을 처음부터 채워둠(패널은 visibility:hidden이라 안 보임) — 기타 버튼을 눌러 처음 채워질 때
+  // 코드 줄 높이만큼 패널·버튼 3개 줄이 아래로 밀리던 것을 막고, 처음부터 밀린 뒤의 배치가 기본값이 되게 함.
+  // 아래 간격 측정(updateScaleGapScrollMode)이 이 높이를 포함하도록 그보다 먼저 실행해야 함.
+  renderPracticeChords();
   updateScaleGapScrollMode(); // 그룹1~4 간격 30px 미만이면 스크롤모드로 초기 진입 — 모든 그룹 콘텐츠(타이틀/인디케이터/키선택 그리드) 확정 이후에 측정
   alignMicBtnRowToDesc(); // scale-mic-btn-row를 desc 첫 줄 좌우 경계에 맞춤
+  initScrollMoreHint();   // 아래로 스크롤할 내용이 남았을 때만 하단 그라데이션
 
   initTestTap();
 
-  // 기타 버튼 — 마이크로 직접 연주 감지(원래 기능, 2026-09-25 튜토리얼로 잠시 대체됐다가 복원)
-  document.getElementById('scale-mic-btn')?.addEventListener('pointerup', toggleScaleMic);
+  // 기타 버튼 — 연습모드(BPM·스타일 옵션 + 백킹 재생)
+  initPracticeMode();
   // 재생 버튼 — 현재 블럭 낮은음→높은음→낮은음(+근음 재상행) 재생
-  document.getElementById('scale-play-btn')?.addEventListener('pointerup', toggleScalePlay);
+  document.getElementById('scale-play-btn')?.addEventListener('pointerup', () => { _playConfirmSfx(); toggleScalePlay(); });
   // "?" 버튼 — 튜토리얼 다시보기 (2026-09-25: 기타 버튼과 분리해서 별도 3번째 버튼으로)
-  document.getElementById('scale-tutorial-btn')?.addEventListener('pointerup', openTutorial);
+  document.getElementById('scale-tutorial-btn')?.addEventListener('pointerup', () => { _playConfirmSfx(); openTutorial(); });
+  // 튜토리얼 중 페이지 이탈/백그라운드 전환 시 무조건 초기화(자동재생 소리·타이머 정리)
+  document.addEventListener('visibilitychange', () => {
+    if (!document.hidden || !_tutorialMode) return;
+    hideLeavePracticeModal(); // 확인 모달이 떠 있었다면 같이 닫음 — 튜토리얼이 이미 초기화돼 의미 없음
+    _tutorialAbort('background');
+  });
+  window.addEventListener('pagehide', () => _tutorialAbort('pagehide'));
 
-  // 테스트 시작 버튼 (피크 2개 소모)
-  document.getElementById('start-test-btn')?.addEventListener('pointerup', async () => {
+  // 테스트 시작 버튼 (피크 소모 없음 — 연습 입장 시 5개 소모로 포함)
+  document.getElementById('start-test-btn')?.addEventListener('pointerup', () => {
     _playTap();
     _playConfirmSfx();
-    if (!(await consumePeak(2, 'scale'))) return;
+    exitPracticeMode(); // 백킹 재생 중이면 테스트 시작 전에 종료
     analytics.track('scale_test_started', {
-      scale_key: _scaleKey,
-      root_name: (_useFlat ? KEY_NAMES_FLAT : KEY_NAMES)[_rootNote],
-    });
-    analytics.track('scale_test_started', {
-      scale_key: _scaleKey,
+      ..._scaleBase(),
       root_name: (_useFlat ? KEY_NAMES_FLAT : KEY_NAMES)[_rootNote],
     });
     startTest();
   });
 
   // 제출하기 / 다시 풀기 버튼
-  document.getElementById('test-submit-btn')?.addEventListener('pointerup', async (e) => {
+  document.getElementById('test-submit-btn')?.addEventListener('pointerup', (e) => {
     if (e.currentTarget.disabled) return;
     if (_tutorialMode) { _playTap(); advanceTutorialStep(); return; }
     if (_testSubmitted) {
       _playConfirmSfx();
-      if (!(await consumePeak(2, 'scale'))) return;
       analytics.track('scale_test_retry', {
-        scale_key: _scaleKey,
+        ..._scaleBase(),
         root_name: (_useFlat ? KEY_NAMES_FLAT : KEY_NAMES)[_rootNote],
       });
       startTest();
     } else {
       analytics.track('scale_test_submitted', {
-        scale_key: _scaleKey,
+        ..._scaleBase(),
         root_name: (_useFlat ? KEY_NAMES_FLAT : KEY_NAMES)[_rootNote],
         form:      _testItem.block.label || FORM_NAMES[_testItem.bi] || (_testItem.bi + 1 + '번폼'),
         bi:        _testItem?.bi,
@@ -5055,16 +5603,22 @@ renderFullNeck();
     document.getElementById('scale-test-overlay')?.classList.remove('is-open');
   };
 
-  // 제출 전 이탈은 소모한 피크가 그대로 날아감 → 확인 모달. 제출 후엔 바로 닫기.
+  // 제출 전 이탈은 풀던 테스트가 사라짐 → 확인 모달(피크는 안 쓰므로 언제든 재도전 가능 안내). 제출 후엔 바로 닫기.
   const requestCloseTest = (onLeave) => {
     if (isLeavePracticeOpen()) return;
-    if (!_testSubmitted) { showLeavePracticeModal(onLeave); return; }
+    if (!_testSubmitted) {
+      showLeavePracticeModal(onLeave, {
+        title: '암기 테스트를 그만두시겠어요?',
+        desc:  '지금 나가면 푸는 중이던 테스트는 사라져요.<br>언제든지 다시 도전할 수 있어요!',
+      });
+      return;
+    }
     onLeave();
   };
 
   document.getElementById('test-close-btn')?.addEventListener('pointerup', () => {
     // 튜토리얼은 피크 소모가 없어서 "제출 전 이탈 확인" 모달 자체가 불필요 — 바로 닫음
-    if (_tutorialMode) { closeTutorial(); return; }
+    if (_tutorialMode) { _requestTutorialExit(() => {}); return; } // 확인 후 _tutorialAbort가 오버레이까지 닫음
     requestCloseTest(closeTestOverlay);
   });
   // 튜토리얼 5폼 네비게이션 화살표 — formNav 단계에서만 노출(CSS), 유저가 직접 조작(2026-09-27)
@@ -5074,7 +5628,7 @@ renderFullNeck();
     _playSfx('pop.mp3');
     requestCloseTest(() => {
       analytics.track('scale_test_closed', {
-        scale_key: _scaleKey,
+        ..._scaleBase(),
         root_name: (_useFlat ? KEY_NAMES_FLAT : KEY_NAMES)[_rootNote],
       });
       closeTestOverlay();
@@ -5090,11 +5644,11 @@ renderFullNeck();
   }
 
   var _pushEntry = null; try { _pushEntry = localStorage.getItem('_push_entry'); if (_pushEntry) localStorage.removeItem('_push_entry'); } catch(_) {}
-  analytics.track('scale_level_viewed', { key: _scaleKey, entry: _pushEntry || 'direct' });
+  analytics.track('scale_level_viewed', { ..._scaleBase(), entry: _pushEntry || 'direct' });
 
   // 훈련 시간 측정 시작
   _scaleSessionStart = Date.now();
 
   // 브라우저 탭 닫기 / 뒤로가기 등 예외 경로 처리
-  window.addEventListener('pagehide', _recordScaleSessionTime, { once: true });
+  window.addEventListener('pagehide', () => _recordScaleSessionTime('pagehide'), { once: true });
 });

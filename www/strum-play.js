@@ -147,6 +147,13 @@ function strumStrokeString(item) {
   return s;
 }
 
+// 스트로크·컷팅 아이콘 — image/down_stroke.svg · up_stroke.svg · cut_stroke.svg 와 같은 도형. 루시드 규격(24×24, currentColor)의 인라인 svg라
+// 크기는 CSS(width/height), 색은 CSS color를 따름. (원본 디자인을 1.5배 확대해 24×24 가운데에 배치한 변환본)
+const _STRUM_SVG_OPEN = '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"';
+const STRUM_ICON_DOWN = `${_STRUM_SVG_OPEN}><line x1="18.75" y1="5.25" x2="5.25" y2="5.25" stroke-width="6"/><line x1="3.75" y1="5.25" x2="3.75" y2="20.25" stroke-width="3"/><line x1="20.25" y1="5.25" x2="20.25" y2="20.25" stroke-width="3"/></svg>`;
+const STRUM_ICON_UP   = `${_STRUM_SVG_OPEN} stroke-width="3"><polyline points="3 3.75 12 20.25 21 3.75"/></svg>`;
+const STRUM_ICON_CUT  = `${_STRUM_SVG_OPEN} stroke-width="3"><line x1="4.5" y1="3.75" x2="19.5" y2="20.25"/><line x1="19.5" y1="3.75" x2="4.5" y2="20.25"/></svg>`;
+
 function strumCellHtml(ch, pos, alt, isCut, triplet) {
   let dir = ch;
   let ghost = false;
@@ -156,15 +163,15 @@ function strumCellHtml(ch, pos, alt, isCut, triplet) {
     dir = triplet ? ((pos - 1) % 3 === 2 ? 'U' : 'D')
                   : (alt ? 'D' : (pos % 2 ? 'D' : 'U'));
   }
-  const ghostCls = ghost ? ' strum-stroke--ghost' : '';
+  const ghostCls = ghost ? ' strum-ico--ghost' : '';
   let inner = '';
   if (dir === 'U') {
-    inner = `<svg class="strum-stroke strum-stroke--up${ghostCls}" viewBox="0 0 10 10" fill="none"><path d="M1.5 1 L5 9 L8.5 1" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
+    inner = `<span class="strum-ico${ghostCls}">${STRUM_ICON_UP}</span>`;
   } else if (dir === 'D') {
-    inner = `<span class="strum-stroke strum-stroke--down${ghostCls}"></span>`;
+    inner = `<span class="strum-ico${ghostCls}">${STRUM_ICON_DOWN}</span>`;
   }
   // 컷팅: 셀 상단에 X 아이콘 (뮤트 스트로크)
-  const cutHtml = isCut ? '<span class="strum-cut">✕</span>' : '';
+  const cutHtml = isCut ? `<span class="strum-cut">${STRUM_ICON_CUT}</span>` : '';
   return `<div class="strum-beat-cell">${cutHtml}${inner}</div>`;
 }
 
@@ -469,7 +476,7 @@ window._clearLeaveGuard = () => { if (STRUM_ITEM?.id != null) sessionStorage.rem
 async function strumUnlockPractice() {
   _playConfirmSfx();
   if (_strumPracticeUnlocked) return;
-  if (!(await consumePeak(2, 'strum'))) return;
+  if (!(await consumePeak(3, 'strum'))) return;
   _strumPracticeUnlocked = true;
   if (STRUM_ITEM?.id != null) sessionStorage.setItem(`sp_unlock_${STRUM_ITEM.id}`, '1'); // 새로고침해도 유지(새로고침은 이탈이 아님)
   const gate = document.getElementById('strum-practice-gate');
@@ -705,6 +712,7 @@ document.addEventListener('DOMContentLoaded', () => {
   // 슬라이드업 진입 애니메이션
   const shell = document.querySelector('.app-shell');
   if (shell) shell.classList.add('project-enter');
+  document.documentElement.classList.toggle('peak-free', getPlan() === 'pro'); // 연습 시작 버튼 피크 배지: Pro는 숨김
 
   // 뒤로가기+피크바는 #main-content > .top-bar 안에 고정 — 모바일/데스크탑 공용, JS 이동 없음.
 
