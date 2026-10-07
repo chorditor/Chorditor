@@ -9908,17 +9908,46 @@ canvas {
 .update-notice-version {
   font-family: 'Pretendard', sans-serif;
   font-size: 20px;
-  font-weight: 600;
+  font-weight: 700;
   color: var(--text-primary);
   line-height: 1.35;
   margin: 0 0 18px;
   flex-shrink: 0;
 }
+/* 타이틀 바로 아래 요약 설명(선택) — 타이틀의 아래 여백 18px 중 8px를 되돌려 가깝게 붙임. 없을 땐 hidden이라 영역이 사라짐 */
+.update-notice-summary {
+  font-size: 13px;
+  color: var(--brand);
+  line-height: 1.6;
+  font-weight: 600;
+  margin: -8px 0 0;
+  padding-bottom: 18px;
+  border-bottom: 1px solid var(--border); /* 요약과 섹션 목록을 가르는 구분선 */
+  flex-shrink: 0;
+  word-break: keep-all;
+  width: 100%;
+  text-align: left;
+  position: relative;
+  z-index: 1;
+}
+/* 구분선 바로 아래: 섹션이 스크롤돼 선 밑으로 올라올 때 서서히 사라지는 페이드(섹션 목록의 위 여백 18px 안에 겹쳐 그림) */
+.update-notice-summary::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: calc(100% + 1px);
+  height: 18px;
+  background: linear-gradient(to bottom, var(--surface), transparent);
+  pointer-events: none;
+}
+.update-notice-summary[hidden] { display: none; }
+.update-notice-summary:not([hidden]) + .update-notice-sections { padding-top: 18px; }
 .update-notice-sections {
   width: 100%;
   display: flex;
   flex-direction: column;
-  gap: 48px;
+  gap: 56px;
   overflow-y: auto;
   min-height: 0;
   flex: 1;
@@ -9938,7 +9967,7 @@ canvas {
 }
 .update-notice-section-desc {
   font-size: 13px;
-  color: var(--text-secondary);
+  color: var(--brand);
   line-height: 1.6;
   margin: 0;
 }
@@ -9959,9 +9988,24 @@ canvas {
   display: block;
   margin: auto;
 }
+/* 실제 앱 화면 스크린샷(섹션 옵션 shot: true) — 박스는 폭 100%(얇은 테두리·둥근 모서리) 그대로, 이미지는 72%로 줄여 안쪽 여백 확보 */
+.update-notice-section-media--shot {
+  padding: 24px 0;
+  border: 1px solid var(--border);
+}
+.update-notice-section-media--shot img {
+  width: 72%;
+  margin: 0 auto;
+}
+/* 실제 버튼 모양 그대로 보여주는 영역(예: 연습하기 피크 뱃지) — 눌리지 않게 하고, 우상단 뱃지가 위로 걸치므로 위 여백 확보 */
+.update-notice-section-media--btn {
+  padding: 16px 0 8px;
+  pointer-events: none;
+  overflow: visible;
+}
 .update-notice-section-extra {
-  font-size: 12px;
-  color: var(--text-muted);
+  font-size: 13px;
+  color: var(--brand);
   line-height: 1.5;
   margin: 0;
 }
@@ -9973,7 +10017,7 @@ canvas {
   width: 100%;
   border: none;
   border-top: 1px solid var(--border);
-  margin: -24px 0;
+  margin: -28px 0;
   flex-shrink: 0;
 }
 

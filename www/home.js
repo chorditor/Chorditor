@@ -1812,10 +1812,12 @@ function _consumeAfterNotices() {
 // 공지 객체 형식:
 //   id           고유 식별자, 불변
 //   version      모달 상단 큰 타이틀 (예: '1.3.5 업데이트')
+//   summary      (선택) 타이틀 바로 아래 요약 설명 한두 줄(<br> 가능). 없으면 영역 자체를 숨김
 //   sections     세로 스크롤로 훑는 섹션 목록. 섹션 하나 = 타이틀/설명/그래픽/추가정보 한 세트.
 //                [{ title: '데일리미션', desc: '매일 미션 깨고 보상 받아요.', image: 'image/xxx.png',
 //                   extra: '홈 → 출석체크에서 확인할 수 있어요.' }, ...]
 //                image(또는 mediaHtml) 없으면 그래픽 영역 자체를 생략.
+//                shot: true — image가 앱 화면 스크린샷일 때(폭 100% + 테두리). mediaClass — mediaHtml 영역에 붙일 추가 클래스.
 //                extra는 선택 — 경로 안내/부가설명/CTA 등 그래픽 아래 들어가는 작은 보조 텍스트, 없으면 생략.
 //   pastVersion    (선택) pastHighlights 그룹 위에 중앙정렬로 뜨는 소제목 (예: '1.3.4 업데이트')
 //   pastHighlights (선택) sections와 형식 동일 — 있으면 얇은 구분선 아래 "과거 업데이트 다시보기"로 이어붙임
@@ -1823,34 +1825,30 @@ function _consumeAfterNotices() {
 //   primaryBtn   (선택) {label, action} — action 없으면 그냥 닫기, label 없으면 '확인'
 const APP_NOTICES = [
   {
-    id: 'v1_3_5',
-    version: '1.3.5 업데이트',
+    id: 'v1_3_6',
+    version: '1.3.6 업데이트',
+    summary: '1.3.6 스케일 훈련 업데이트!<br>즉흥, 솔로 연주를 위한 편의성 패치!',
     sections: [
       {
-        title: '매일 훈련 루틴&출석 시스템 개편',
-        desc: '매일 짧은 미션을 깨면서 훈련 습관을 만들어요.<br>출석 도장 모으고 보상도 챙기세요.',
-        image: 'image/calender.png',
-        extra: '<strong>홈 → 출석체크</strong>에서 데일리미션을 확인할 수 있어요.',
+        title: '1. 연습 모드',
+        desc: '드럼·베이스·피아노 반주에 맞춰 스케일을 연주해요.<br>스타일과 BPM을 골라 보세요.',
+        image: 'image/notice_136_practice.png.jpg',
+        shot: true,
+        extra: '<strong>스케일 훈련 → 레벨 → 기타 버튼</strong>에서 켤 수 있어요.',
       },
       {
-        title: '승급 시스템',
-        desc: '레벨 없이도 훈련 실력을 인정받는 시스템이에요.<br>시험 통과하면 다음 단계 유저로 승급해요.',
-        image: 'image/trophy.png',
-        extra: '<strong>프로필</strong>의 5개 점을 누르면 단계를 원하는 대로 다시 조정할 수 있어요.',
-      },
-    ],
-    // 업데이트 주기가 빨라 놓쳤을 수 있는 과거 버전 기능 짧은 회고 — 구분선 아래 표시
-    pastVersion: '1.3.4 업데이트',
-    pastHighlights: [
-      {
-        title: '튜너',
-        desc: '마이크로 음정을 실시간으로 잡아줘요.<br>줄 하나하나 정확하게 맞춰보세요.',
-        mediaHtml: '<div class="update-notice-media--pair"><i class="ph-fill ph-waveform"></i></div>',
+        title: '2. 새 레벨 · 튜토리얼',
+        desc: '메이저 펜타토닉·블루스가 추가됐어요.<br>? 버튼을 누르면 스케일 미니 강의를 볼 수 있어요.',
+        image: 'image/notice_136_buttons.png.jpg',
+        shot: true,
       },
       {
-        title: '메트로놈',
-        desc: '원하는 BPM으로 박자를 맞춰줘요.<br>연습 템포를 일정하게 유지해보세요.',
-        mediaHtml: '<div class="update-notice-media--pair"><i class="ph-fill ph-metronome"></i></div>',
+        title: '3. 피크 소모량 표시',
+        desc: '이제 피크가 쓰이는 버튼마다 소모량이 표시돼요.<br>누르기 전에 몇 개가 쓰일지 미리 확인할 수 있어요.',
+        // 실제 앱의 연습하기 버튼(피크 뱃지 포함)을 그대로 그림 — 눌리지 않게 pointer-events:none(.update-notice-section-media--btn)
+        mediaHtml: '<button type="button" class="scale-card-practice-btn" tabindex="-1" aria-hidden="true"><i data-lucide="play"></i>연습하기</button>',
+        mediaClass: 'update-notice-section-media--btn',
+        extra: '<strong>스케일 훈련</strong>은 한 번 들어가면, 나갈 때까지 안의 기능을 횟수 제한 없이 쓸 수 있어요.',
       },
     ],
     primaryBtn: { label: '확인' },
@@ -1875,8 +1873,8 @@ function _renderNoticeSections(list) {
     <div class="update-notice-section">
       <div class="update-notice-section-title">${s.title}</div>
       <p class="update-notice-section-desc">${s.desc}</p>
-      ${s.image ? `<div class="update-notice-section-media"><img src="${s.image}" alt=""></div>`
-        : s.mediaHtml ? `<div class="update-notice-section-media">${s.mediaHtml}</div>` : ''}
+      ${s.image ? `<div class="update-notice-section-media${s.shot ? ' update-notice-section-media--shot' : ''}"><img src="${s.image}" alt=""></div>`
+        : s.mediaHtml ? `<div class="update-notice-section-media${s.mediaClass ? ' ' + s.mediaClass : ''}">${s.mediaHtml}</div>` : ''}
       ${s.extra ? `<p class="update-notice-section-extra">${s.extra}</p>` : ''}
     </div>
   `).join('');
@@ -1885,6 +1883,11 @@ function _renderNoticeSections(list) {
 function _renderAppNotice(notice) {
   _appNoticeShowingId = notice.id;
   document.getElementById('app-notice-version').textContent = notice.version || '';
+  const summaryEl = document.getElementById('app-notice-summary');
+  if (summaryEl) {
+    summaryEl.innerHTML = notice.summary || ''; // 줄바꿈(<br>) 허용 — 공지 데이터는 코드에 고정된 값
+    summaryEl.hidden = !notice.summary;
+  }
 
   // pastHighlights: 업데이트 주기가 빨라 놓쳤을 수 있는 과거 버전 기능을 얇은 구분선 아래
   // 짧게 회고 — sections와 완전히 같은 레이아웃을 재사용
