@@ -255,7 +255,7 @@ window._clearLeaveGuard = () => { if (_prog?.id) sessionStorage.removeItem(`pd_u
 async function unlockPractice() {
   _playConfirmSfx();
   if (_practiceUnlocked) return;
-  if (!(await consumePeak(2, 'progression'))) return;
+  if (!(await consumePeak(3, 'progression'))) return;
   _practiceUnlocked = true;
   if (_prog?.id) sessionStorage.setItem(`pd_unlock_${_prog.id}`, '1'); // 새로고침해도 유지(새로고침은 이탈이 아님)
   const gate = document.getElementById('detail-practice-gate');
@@ -417,6 +417,7 @@ async function goBack() {
 function _renderKeyStrip() {
   const strip = document.getElementById('detail-key-strip');
   if (!strip) return;
+  const prevScroll = strip.scrollLeft; // 재렌더(키·#/b 변경)해도 가로 스크롤 위치 유지
   strip.innerHTML = '';
   for (let k = 0; k < 12; k++) {
     const btn = document.createElement('button');
@@ -432,6 +433,7 @@ function _renderKeyStrip() {
     });
     strip.appendChild(btn);
   }
+  strip.scrollTo({ left: prevScroll, behavior: 'instant' });
 }
 
 let _stageRO    = null; // ResizeObserver 인스턴스
@@ -621,13 +623,14 @@ function _buildStepCache() {
 
 // 코드 진행 바 렌더링
 // 조성/모드 헤더 — root 선택(_key) 따라 전조. 형식: "{tonic} {mode} / {key} key"
+const _MODE_KO = { Major: '메이저', Minor: '마이너', Dorian: '도리안' };
 function _renderKeyHeader() {
   const el = document.getElementById('detail-key-header-text');
   if (!el || !_prog) return;
   const names    = _useFlat ? KEY_NAMES_FLAT : KEY_NAMES_SHARP;
   const tonic    = _getKeyDisplayName(_key);                              // root 선택 = C기준 으뜸음
   const keyName  = names[(( _prog.keySemitone + _key) % 12 + 12) % 12];   // 부모 조 음명 전조
-  el.textContent = `${tonic} ${_prog.mode} / ${keyName} key`;
+  el.textContent = `${tonic} ${_MODE_KO[_prog.mode] ?? _prog.mode} / ${keyName} key`;
 }
 
 function _renderProgBar() {
@@ -792,6 +795,7 @@ document.addEventListener('DOMContentLoaded', () => {
     _prog = null;
   }
   _restorePracticeUnlock();
+  document.documentElement.classList.toggle('peak-free', getPlan() === 'pro'); // 연습 시작 버튼 피크 배지: Pro는 숨김
 
   // 뒤로가기+피크바는 #main-content > .top-bar 안에 고정 — 모바일/데스크탑 공용, JS 이동 없음.
 
@@ -885,6 +889,14 @@ document.addEventListener('DOMContentLoaded', () => {
   // 초기 렌더
   _initBpmWheel();
   _renderKeyStrip();
+  const keyStrip = document.getElementById('detail-key-strip');
+  if (keyStrip) {
+    // 선택된 키가 화면 밖이면 보이는 위치로(URL key 파라미터 진입 등)
+    const act = keyStrip.querySelector('.key-btn--active');
+    if (act) keyStrip.scrollTo({ left: act.offsetLeft - (keyStrip.clientWidth - act.offsetWidth) / 2, behavior: 'instant' });
+    initKeySelectorDragScroll(keyStrip);
+    initKeySelectorFade(keyStrip);
+  }
   _renderStage();
 
   var _pushEntry = null; try { _pushEntry = localStorage.getItem('_push_entry'); if (_pushEntry) localStorage.removeItem('_push_entry'); } catch(_) {}

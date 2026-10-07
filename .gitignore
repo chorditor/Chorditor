@@ -40,6 +40,12 @@ android/lint/
 *.keystore
 
 # ========================
+# 드럼 키트 원본 (MuldjordKit FLAC 162MB — 앱엔 sound/drum/ 의 변환본 mp3만 씀)
+# ========================
+# 앱 패키징은 www/만 담으므로 루트 sound/drumkit/는 www/에 복사하지 않는 한 빌드에 안 들어감
+sound/drumkit/
+
+# ========================
 # Capacitor
 # ========================
 android/app/src/main/assets/public/

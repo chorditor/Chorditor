@@ -16,45 +16,38 @@
 
   <div class="app-shell">
 
-    <!-- ── 앱 로고탑바(데스크탑 전용) — injectAppChrome이 로고 주입하는 진짜 대상.
-         main-content보다 먼저(DOM 앞) 와야 document.querySelector('.top-bar')가 이걸 먼저 잡음 ── -->
-    <div class="top-bar top-bar--white desktop-topbar"></div>
-
-    <!-- ── 메인 콘텐츠 ── -->
-    <div class="main-content" id="main-content">
-
-      <!-- ── 뒤로가기 + 피크바 ── -->
-      <div class="top-bar combo-top-bar">
-        <button id="back-btn" class="icon-btn" onpointerup="handleComboBack()">
-          <i data-lucide="x"></i>
-        </button>
-        <div id="combo-quiz-progress" class="quiz-topbar-center combo-quiz-dots" style="display:none"></div>
-        <div class="topbar-currency" id="topbar-currency" style="margin-left:auto;">
-          <div class="currency-item currency-item--clickable" onclick="openPeakboxModal()">
-            <span class="currency-count" id="currency-peakbox-count">0</span>
-            <div class="currency-icon-box"><img src="image/gift.png" alt=""></div>
-          </div>
-          <div class="currency-item currency-item--clickable" onclick="openPeakTimerPopup(event)">
-            <span class="currency-count" id="currency-peak-count">30/30</span>
-            <div class="currency-icon-box"><img src="image/peak.svg" alt=""></div>
-          </div>
+    <!-- ── 탑바: 닫기 + 퀴즈 진행 점(중앙) + 피크바 (style-guide.md §11 cd-topbar) ── -->
+    <header class="cd-topbar combo-topbar">
+      <button id="back-btn" class="icon-btn" onpointerup="handleComboBack()">
+        <i data-lucide="x"></i>
+      </button>
+      <div id="combo-quiz-progress" class="quiz-topbar-center combo-quiz-dots" style="display:none"></div>
+      <div class="topbar-currency" id="topbar-currency" style="margin-left:auto;">
+        <div class="currency-item currency-item--clickable" onclick="openPeakboxModal()">
+          <span class="currency-count" id="currency-peakbox-count">0</span>
+          <div class="currency-icon-box"><img src="image/gift.png" alt=""></div>
+        </div>
+        <div class="currency-item currency-item--clickable" onclick="openPeakTimerPopup(event)">
+          <span class="currency-count" id="currency-peak-count">30/30</span>
+          <div class="currency-icon-box"><img src="image/peak.svg" alt=""></div>
         </div>
       </div>
+    </header>
 
-      <!-- ── content-body: 실제 콘텐츠(뷰들) ── -->
-      <div class="content-body">
+    <!-- ── 뷰 슬라이드 기준 박스(선택 뷰 ↔ 퀴즈 뷰가 좌우로 전환) — 슬라이드 전환용 예외 wrapper ── -->
+    <div class="combo-stage">
 
       <!-- ── 선택 뷰 (챕터/난이도 선택) ── -->
-      <div id="combo-view-select" class="quiz-view combo-scroll">
+      <main id="combo-view-select" class="cd-main quiz-view combo-select-main">
 
-        <!-- 스티키 헤더 -->
-        <div class="combo-sticky-head">
-          <span class="combo-title">코드 조합 훈련</span>
-          <span class="combo-subtitle">어려운 화성학을 쉽게 배워요!</span>
-        </div>
+        <!-- 헤드: 타이틀 + 부제(스티키) -->
+        <header class="cd-head cd-head--sticky">
+          <div class="cd-title">코드 조합 훈련</div>
+          <div class="cd-selector"><span class="combo-subtitle">어려운 화성학을 쉽게 배워요!</span></div>
+        </header>
 
-        <!-- 콘텐츠 영역 -->
-        <div class="combo-content">
+        <!-- 본문: 챕터 카드 캐러셀(좌우 풀블리드) -->
+        <section class="cd-body">
           <div class="combo-chapter-track" id="combo-chapter-track">
           <div class="combo-card active" data-chapter="1">
             <div class="combo-chapter-title">패밀리코드 배열하기</div>
@@ -134,13 +127,7 @@
             <p class="combo-difficulty-desc" id="combo-difficulty-desc">필수 5가지 key와 쉬운코드 위주로 등장해요.</p>
 
             <!-- 시작하기 -->
-            <button class="practice-gate-btn" id="combo-start-btn" onpointerup="comboStartTraining(event)">
-              <span>시작하기</span>
-              <span class="practice-gate-cost">
-                <img src="image/white_peak.svg" alt="" class="practice-gate-icon">
-                <span>x1</span>
-              </span>
-            </button>
+            <button class="cd-btn cd-btn--brand cd-btn--auto-width cd-btn--peak" id="combo-start-btn" style="--cd-btn-peak-cost:2" onpointerup="comboStartTraining(event)">시작하기</button>
           </div>
 
           <!-- 제 2장 -->
@@ -265,13 +252,7 @@
             <p class="combo-difficulty-desc">필수 5가지 key와 쉬운코드 위주로 등장해요.</p>
 
             <!-- 시작하기 -->
-            <button class="practice-gate-btn" onpointerup="comboStartTraining(event)">
-              <span>시작하기</span>
-              <span class="practice-gate-cost">
-                <img src="image/white_peak.svg" alt="" class="practice-gate-icon">
-                <span>x1</span>
-              </span>
-            </button>
+            <button class="cd-btn cd-btn--brand cd-btn--auto-width cd-btn--peak" style="--cd-btn-peak-cost:2" onpointerup="comboStartTraining(event)">시작하기</button>
           </div>
 
           <!-- 제 3장 -->
@@ -377,13 +358,7 @@
             <p class="combo-difficulty-desc">필수 5가지 key와 쉬운코드 위주로 등장해요.</p>
 
             <!-- 시작하기 -->
-            <button class="practice-gate-btn" onpointerup="comboStartTraining(event)">
-              <span>시작하기</span>
-              <span class="practice-gate-cost">
-                <img src="image/white_peak.svg" alt="" class="practice-gate-icon">
-                <span>x1</span>
-              </span>
-            </button>
+            <button class="cd-btn cd-btn--brand cd-btn--auto-width cd-btn--peak" style="--cd-btn-peak-cost:2" onpointerup="comboStartTraining(event)">시작하기</button>
           </div>
 
           <!-- 제 4장 -->
@@ -512,13 +487,7 @@
             <p class="combo-difficulty-desc">필수 5가지 key와 쉬운코드 위주로 등장해요.</p>
 
             <!-- 시작하기 -->
-            <button class="practice-gate-btn" onpointerup="comboStartTraining(event)">
-              <span>시작하기</span>
-              <span class="practice-gate-cost">
-                <img src="image/white_peak.svg" alt="" class="practice-gate-icon">
-                <span>x1</span>
-              </span>
-            </button>
+            <button class="cd-btn cd-btn--brand cd-btn--auto-width cd-btn--peak" style="--cd-btn-peak-cost:2" onpointerup="comboStartTraining(event)">시작하기</button>
           </div>
 
           <div class="combo-card" data-chapter="5">
@@ -637,13 +606,7 @@
             <p class="combo-difficulty-desc">필수 5가지 key와 쉬운코드 위주로 등장해요.</p>
 
             <!-- 시작하기 -->
-            <button class="practice-gate-btn" onpointerup="comboStartTraining(event)">
-              <span>시작하기</span>
-              <span class="practice-gate-cost">
-                <img src="image/white_peak.svg" alt="" class="practice-gate-icon">
-                <span>x1</span>
-              </span>
-            </button>
+            <button class="cd-btn cd-btn--brand cd-btn--auto-width cd-btn--peak" style="--cd-btn-peak-cost:2" onpointerup="comboStartTraining(event)">시작하기</button>
           </div>
 
           <div class="combo-card" data-chapter="6">
@@ -733,13 +696,7 @@
             <p class="combo-difficulty-desc">C, G 2가지 key만 등장해요.</p>
 
             <!-- 시작하기 -->
-            <button class="practice-gate-btn" onpointerup="comboStartTraining(event)">
-              <span>시작하기</span>
-              <span class="practice-gate-cost">
-                <img src="image/white_peak.svg" alt="" class="practice-gate-icon">
-                <span>x1</span>
-              </span>
-            </button>
+            <button class="cd-btn cd-btn--brand cd-btn--auto-width cd-btn--peak" style="--cd-btn-peak-cost:2" onpointerup="comboStartTraining(event)">시작하기</button>
           </div>
 
           <div class="combo-card" data-chapter="7">
@@ -852,13 +809,7 @@
             <p class="combo-difficulty-desc">필수 5가지 key와 쉬운코드 위주로 등장해요.</p>
 
             <!-- 시작하기 -->
-            <button class="practice-gate-btn" onpointerup="comboStartTraining(event)">
-              <span>시작하기</span>
-              <span class="practice-gate-cost">
-                <img src="image/white_peak.svg" alt="" class="practice-gate-icon">
-                <span>x1</span>
-              </span>
-            </button>
+            <button class="cd-btn cd-btn--brand cd-btn--auto-width cd-btn--peak" style="--cd-btn-peak-cost:2" onpointerup="comboStartTraining(event)">시작하기</button>
           </div>
 
           <div class="combo-card" data-chapter="8">
@@ -957,22 +908,16 @@
             <p class="combo-difficulty-desc">필수 5가지 key와 쉬운코드 위주로 등장해요.</p>
 
             <!-- 시작하기 -->
-            <button class="practice-gate-btn" onpointerup="comboStartTraining(event)">
-              <span>시작하기</span>
-              <span class="practice-gate-cost">
-                <img src="image/white_peak.svg" alt="" class="practice-gate-icon">
-                <span>x1</span>
-              </span>
-            </button>
+            <button class="cd-btn cd-btn--brand cd-btn--auto-width cd-btn--peak" style="--cd-btn-peak-cost:2" onpointerup="comboStartTraining(event)">시작하기</button>
           </div>
           </div><!-- /combo-chapter-track -->
-        </div><!-- /combo-content -->
+        </section>
 
-      </div><!-- /combo-view-select -->
+      </main><!-- /combo-view-select -->
 
       <!-- ── 퀴즈 뷰 ── -->
-      <div id="combo-view-quiz" class="quiz-view quiz-view--right">
-        <div class="combo-quiz-wrap" id="combo-quiz-wrap">
+      <main id="combo-view-quiz" class="cd-main quiz-view quiz-view--right">
+        <section class="cd-body combo-quiz-wrap" id="combo-quiz-wrap">
 
           <!-- ① 문제 영역 -->
           <div class="combo-quiz-question">
@@ -1021,12 +966,10 @@
           <!-- ④ 제출 버튼 -->
           <button class="combo-quiz-submit" id="combo-quiz-submit" onpointerup="comboSubmitAnswer()">제출하기</button>
 
-        </div><!-- /combo-quiz-wrap -->
-      </div><!-- /combo-view-quiz -->
+        </section><!-- /combo-quiz-wrap -->
+      </main><!-- /combo-view-quiz -->
 
-      </div><!-- /content-body -->
-
-    </div><!-- /main-content -->
+    </div><!-- /combo-stage -->
 
   </div><!-- /app-shell -->
 

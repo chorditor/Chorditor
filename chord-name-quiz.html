@@ -98,14 +98,14 @@
 
         <div class="mode-cards">
 
-            <div class="mode-card mode-card--active" data-mode="name-from-diagram" onpointerup="startQuiz('name-from-diagram')">
+            <div class="mode-card mode-card--active mode-card--peak" data-mode="name-from-diagram" onpointerup="startQuiz('name-from-diagram')">
               <div class="mode-card-icon"><i class="ph ph-grid-nine"></i></div>
               <div class="mode-card-info">
                 <span class="mode-card-title">코드 보고 이름 맞추기</span>
               </div>
             </div>
 
-            <div class="mode-card mode-card--active" data-mode="diagram-from-name" onpointerup="startQuiz('diagram-from-name')">
+            <div class="mode-card mode-card--active mode-card--peak" data-mode="diagram-from-name" onpointerup="startQuiz('diagram-from-name')">
               <div class="mode-card-icon mode-card-icon--text">Am</div>
               <div class="mode-card-info">
                 <span class="mode-card-title">이름 보고 운지 맞추기</span>
@@ -173,7 +173,7 @@
         </div>
         <div class="ms-bottom-actions ms-result-btn-row">
           <button class="cd-btn cd-btn--gray" onpointerup="closeResultModal()">그만하기</button>
-          <button class="cd-btn cd-btn--brand" onpointerup="retryFromResult()">
+          <button class="cd-btn cd-btn--brand cd-btn--peak" onpointerup="retryFromResult()">
             다시하기
             <span class="ldp-peak-cost" id="retry-peak-cost">
               <img src="image/white_peak.svg" alt="" class="ldp-peak-cost-icon">

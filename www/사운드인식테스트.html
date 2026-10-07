@@ -1,0 +1,672 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="color-scheme" content="light dark" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <title>사운드인식테스트</title>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css" />
+  <link rel="stylesheet" href="style.css" />
+
+  <style>
+    /* style.css의 body{height:100dvh; overflow:hidden}(360행)은 앱의 단일스크린 셸 페이지용 —
+       이 페이지는 섹션이 계속 쌓이는 일반 스크롤 문서라 정반대 요구. 이 페이지 안에서만 되돌림. */
+    body {
+      height: auto;
+      overflow-y: auto;
+      overflow-x: hidden;   /* 좁은 화면에서 버튼+카드 줄이 옆으로 새는 것 방지 */
+    }
+
+    /* ── 이 테스트 페이지 전용 스타일 (style.css 그리드/버튼 토큰만 재사용) ── */
+    .sit-main {
+      padding-inline: var(--grid-margin);
+      max-width: var(--grid-container-max);
+      margin-inline: auto;
+      padding-top: var(--space-6);
+      padding-bottom: var(--space-12);
+    }
+    .sit-page-title {
+      font-size: var(--font-headline-sm);
+      font-weight: var(--weight-headline);
+      margin: 0 0 var(--space-8) 0;
+    }
+    .sit-section {
+      margin-bottom: var(--space-12);
+    }
+    .sit-section-title {
+      font-size: var(--font-title-lg);
+      font-weight: var(--weight-semibold);
+      margin: 0 0 var(--space-5) 0;
+    }
+
+    /* 섹션1 — 코드 보이싱 캐러셀 */
+    .sit-carousel {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: var(--space-4);
+    }
+    /* 캔버스 박스 — style.css .card(2052행)와 동일한 디자인 토큰 재사용 */
+    .sit-voicing-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-lg);
+      padding: var(--space-6);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 1;
+      min-width: 0;
+      transition: border-color .15s, box-shadow .15s;
+    }
+    /* 판정 결과 테두리 */
+    .sit-voicing-card--ok {
+      border-color: var(--icon-green);
+      box-shadow: 0 0 0 3px rgba(46, 158, 114, 0.25);
+    }
+    .sit-voicing-card--ng {
+      border-color: var(--accent);
+      box-shadow: 0 0 0 3px rgba(224, 60, 49, 0.25);
+    }
+    .sit-carousel canvas {
+      max-width: 400px;
+      width: 100%;
+      height: auto;
+    }
+    /* 섹션2 스케일 넥 — 캔버스와 동일하게 최대 400px
+       ⚠ width:100%는 안 됨: 이 div는 canvas처럼 고유크기가 없고 부모(.sit-voicing-card)는
+       flex라 "자식 크기에 맞춰 정함" 모드 — 서로 미루면 0px로 계산됨(scale-block-preview.js가
+       offsetWidth 0일 때 140px로 폴백해서 섹션1보다 훨씬 작게 뜸). 부모 크기와 무관한
+       뷰포트 기준으로 고정폭을 줘서 순환참조를 끊음. */
+    .sit-scale-neck {
+      width: min(400px, calc(100vw - var(--grid-margin) * 2));
+    }
+    .sit-carousel-meta {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: var(--space-2);
+      margin-top: var(--space-4);
+    }
+    .sit-carousel-counter {
+      font-size: var(--font-label-lg);
+      font-weight: var(--weight-semibold);
+      color: var(--text-secondary);
+      font-variant-numeric: tabular-nums;
+    }
+    .sit-carousel-label {
+      font-size: var(--font-body-sm);
+      color: var(--text-muted);
+    }
+    .project-icon-btn:disabled {
+      opacity: 0.35;
+      cursor: default;
+    }
+
+    /* 마이크 토글 */
+    .sit-mic-row {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: var(--space-2);
+      margin-top: var(--space-6);
+    }
+    .sit-mic-status {
+      font-size: var(--font-body-sm);
+      color: var(--text-muted);
+    }
+    /* .cd-btn 기본은 텍스트 전용 레이아웃 — 이 버튼만 아이콘+텍스트 정렬 위해 flex 추가 */
+    #sit-mic-btn {
+      display: inline-flex;
+      align-items: center;
+      gap: var(--space-2);
+    }
+    #sit-mic-icon { display: inline-flex; }
+
+    /* 섹션2 — 연습 중인 음 강조/오답 표시 (fb-note는 style.css 공용 요소라 클래스로만 덮어씀) */
+    .fb-note--sit-active {
+      background: var(--blue) !important;
+      box-shadow: 0 0 0 4px var(--blue-light);
+    }
+    .sit-scale-done {
+      color: var(--icon-green);
+      font-weight: var(--weight-semibold);
+    }
+  </style>
+</head>
+<body>
+
+  <main class="sit-main">
+    <h1 class="sit-page-title">사운드 인식 테스트</h1>
+
+    <!-- ── 섹션1: 코드 보이싱 ── -->
+    <section class="sit-section">
+      <h2 class="sit-section-title">섹션1 — 코드 보이싱</h2>
+
+      <div class="sit-carousel">
+        <button class="project-icon-btn" id="sit-prev-btn" aria-label="이전 보이싱">
+          <i data-lucide="chevron-left"></i>
+        </button>
+        <div class="sit-voicing-card" id="sit-voicing-card">
+          <canvas id="sit-voicing-canvas" width="440" height="352"></canvas>
+        </div>
+        <button class="project-icon-btn" id="sit-next-btn" aria-label="다음 보이싱">
+          <i data-lucide="chevron-right"></i>
+        </button>
+      </div>
+
+      <div class="sit-carousel-meta">
+        <div class="sit-carousel-counter" id="sit-carousel-counter">1 / 5</div>
+        <div class="sit-carousel-label" id="sit-carousel-label"></div>
+      </div>
+
+      <div class="sit-mic-row">
+        <button class="cd-btn cd-btn--auto-width cd-btn--gray" id="sit-mic-btn">
+          <span id="sit-mic-icon"><i data-lucide="mic-off"></i></span>
+          <span id="sit-mic-text">마이크 켜기</span>
+        </button>
+        <div class="sit-mic-status" id="sit-mic-status">마이크 꺼짐</div>
+      </div>
+    </section>
+
+    <!-- ── 섹션2: 스케일 연습하기 ── -->
+    <section class="sit-section">
+      <h2 class="sit-section-title">섹션2 — 스케일 연습하기</h2>
+
+      <div class="sit-carousel">
+        <div class="sit-voicing-card">
+          <div id="sit-scale-neck" class="sit-scale-neck"></div>
+        </div>
+      </div>
+
+      <div class="sit-carousel-meta">
+        <div class="sit-carousel-counter" id="sit-scale-counter">-</div>
+        <div class="sit-carousel-label" id="sit-scale-label"></div>
+      </div>
+
+      <div class="sit-mic-row">
+        <button class="cd-btn cd-btn--auto-width cd-btn--gray" id="sit-scale-mic-btn">
+          <span id="sit-scale-mic-icon"><i data-lucide="mic-off"></i></span>
+          <span id="sit-scale-mic-text">마이크 켜기</span>
+        </button>
+        <div class="sit-mic-status" id="sit-scale-mic-status">마이크 꺼짐</div>
+      </div>
+    </section>
+  </main>
+
+  <script src="chord-voicings.js"></script>
+  <script src="chords-library.js"></script>
+  <script src="voicing-canvas.js"></script>
+  <script src="scale-data.js"></script>
+  <script src="scale-block-preview.js"></script>
+  <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.js"></script>
+  <script>
+    // ── 섹션1: C메이저 보이싱 5종 (chordsLibrary에서 quality==='M'만 추출) ──
+    const cVoicings = (window.chordsLibrary['C'] || []).filter(v => v.quality === 'M');
+
+    // 테스트 페이지 전용 설명 라벨 — fretNumber로 CAGED 폼 구분(이 5개 세트에 한정된 매핑)
+    function labelFor(v) {
+      if (v.source === 'static') return v.fretNumber === 2 ? '오픈코드 기본형' : '오픈코드 변형';
+      if (v.fretNumber === 8)  return 'E형 바레 · 8프렛';
+      if (v.fretNumber === 3)  return 'A형 바레 · 3프렛';
+      if (v.fretNumber === 10) return 'D형 바레 · 10프렛(하이프렛)';
+      return `바레 · ${v.fretNumber}프렛`;
+    }
+
+    let sitIdx = 0;
+    const canvas    = document.getElementById('sit-voicing-canvas');
+    const counterEl = document.getElementById('sit-carousel-counter');
+    const labelEl   = document.getElementById('sit-carousel-label');
+    const prevBtn   = document.getElementById('sit-prev-btn');
+    const nextBtn   = document.getElementById('sit-next-btn');
+
+    function renderVoicing() {
+      const v = cVoicings[sitIdx];
+      VoicingCanvas.draw(canvas, v, { chordName: 'C' });
+      counterEl.textContent = `${sitIdx + 1} / ${cVoicings.length}`;
+      labelEl.textContent   = labelFor(v);
+      prevBtn.disabled = sitIdx <= 0;
+      nextBtn.disabled = sitIdx >= cVoicings.length - 1;
+      // 보이싱 넘기면 이전 판정 테두리 초기화
+      clearTimeout(verdictTimer);
+      cardEl.classList.remove('sit-voicing-card--ok', 'sit-voicing-card--ng');
+    }
+
+    prevBtn.addEventListener('click', () => { if (sitIdx > 0) { sitIdx--; renderVoicing(); } });
+    nextBtn.addEventListener('click', () => { if (sitIdx < cVoicings.length - 1) { sitIdx++; renderVoicing(); } });
+
+    // ══════════════════════════════════════════════════════════
+    // 하모닉 템플릿 매칭 — 보이싱 판정 엔진
+    // ══════════════════════════════════════════════════════════
+    // chordsLibrary의 frets 배열 순서: [0]=1번줄(고음 e) … [5]=6번줄(저음 E)
+    const OPEN_MIDI  = [64, 59, 55, 50, 45, 40];
+    const HARMONICS  = 4;      // 배음 몇 개까지 모델링할지 (6→4: 상위배음일수록 딴 음과 우연히 겹칠 확률만 높임)
+    const FFT_SIZE   = 16384;  // 44.1kHz에서 해상도 ≈2.7Hz (저역 반음 7.8Hz의 1/3 — 근음 반음 구분에 필요)
+    const LO_HZ      = 70;     // 분석 하한 (기타 최저음 E2=82Hz 아래 노이즈 컷)
+    const HI_HZ      = 2000;   // 분석 상한 (그 위는 배음 잔여·노이즈뿐)
+    const ONSET_RMS  = 0.015;  // 이 크기 넘으면 "쳤다"로 간주
+    const COOLDOWN   = 1200;   // 연속 오탐 방지 (ms) — ANALYZE_MS보다 충분히 커야 함
+    const ONSET_WIN  = 2048;   // 온셋 감지용 RMS는 버퍼 끝 이만큼만 봄(전체를 보면 반응이 굼뜸)
+    // AnalyserNode는 항상 "최근 FFT_SIZE 샘플"을 반환함. 16384샘플 = 372ms.
+    // 온셋 직후에 읽으면 창의 대부분이 연주 전 무음이라 실효 해상도가 급락함 →
+    // 창이 연주음으로 가득 찰 때까지(창 길이 + 여유) 기다렸다 분석.
+    const ANALYZE_MS = 420;
+    const VERDICT_MS = 1500;   // 테두리 표시 유지 시간
+    const MIN_SCORE  = 0.5;    // 이 밑이면 "5개 중 아무것도 아님"으로 거부 (실측 후 조정 필요)
+
+    // ── 베이스 게이트 설정 ──
+    // 대리코드(Am7≈C6, Em) 문제 대응: 상위구조는 겹쳐도 근음은 안 겹친다는 성질을 1차 관문으로 씀.
+    // 옥타브는 무시하고 음이름(pitch class)만 비교 — 저음 기본음이 2배음보다 약하게 잡히는 일이 흔해서
+    // 옥타브 판정은 불안정하지만, 보이싱 간 옥타브 구분은 어차피 2단계 템플릿이 담당함.
+    const BASS_LO_HZ = 70;
+    const BASS_HI_HZ = 200;                  // E2(82) ~ G3(196) 커버
+    // 배음 가중치 — 기본음 지배적으로. 평평하게 주면 "자기 기본음엔 에너지가 없는데
+    // 배음 위치만 우연히 다른 음과 겹쳐서" 이기는 후보가 생김(A2가 E4에 얹혀 이기는 식).
+    const BASS_W     = [1, 0.4, 0.25, 0.15];
+    const BASS_REL   = 0.45;                 // 최고점 대비 이 비율 이상이면 "충분히 센 음"으로 인정
+    const PC_NAME    = ['C','C#','D','D#','E','F','F#','G','G#','A','A#','B'];
+
+    // 보이싱 → 실제 울리는 주파수 목록
+    function voicingFreqs(v) {
+      const out = [];
+      v.frets.forEach((f, i) => {
+        if (f === null) return;
+        out.push(440 * Math.pow(2, (OPEN_MIDI[i] + f - 69) / 12));
+      });
+      return out;
+    }
+
+    // 보이싱의 최저음 → 음이름 인덱스(0=C)
+    function voicingBassPC(v) {
+      let lowest = Infinity;
+      v.frets.forEach((f, i) => {
+        if (f === null) return;
+        const m = OPEN_MIDI[i] + f;
+        if (m < lowest) lowest = m;
+      });
+      return ((lowest % 12) + 12) % 12;
+    }
+
+    // 특정 주파수 부근의 최대 진폭 (튜닝 오차 허용)
+    // 허용폭이 반음(저역 7.8Hz)에 가까우면 이웃 반음 후보가 같은 피크를 공유해 구분이 뭉개짐 → 좁게.
+    function magAt(spec, f, binHz, lo, hi) {
+      const tol = Math.max(binHz, f * 0.006);
+      const b0  = Math.max(lo, Math.floor((f - tol) / binHz));
+      const b1  = Math.min(hi, Math.ceil((f + tol) / binHz));
+      let m = 0;
+      for (let b = b0; b <= b1; b++) if (spec[b] > m) m = spec[b];
+      return m;
+    }
+
+    // 저역에서 근음 음이름 검출
+    // ⚠ "제일 센 음"을 뽑으면 안 됨 — 오픈 C는 C3·E3·G3가 전부 이 대역에 있고,
+    //    폰 마이크 저역 감쇠 탓에 E3·G3가 C3보다 세게 잡히기 쉬움.
+    //    근음은 "충분히 센 것 중 제일 낮은 음".
+    function detectBassPC(spec, binHz, lo, hi) {
+      const midiLo = Math.ceil(69 + 12 * Math.log2(BASS_LO_HZ / 440));
+      const midiHi = Math.floor(69 + 12 * Math.log2(BASS_HI_HZ / 440));
+      const cand = [];
+      let maxS = 0;
+      for (let m = midiLo; m <= midiHi; m++) {
+        const f0 = 440 * Math.pow(2, (m - 69) / 12);
+        let s = 0;
+        for (let n = 1; n <= BASS_W.length; n++) s += BASS_W[n - 1] * magAt(spec, f0 * n, binHz, lo, hi);
+        cand.push({ midi: m, f0, s });
+        if (s > maxS) maxS = s;
+      }
+      const thr  = maxS * BASS_REL;
+      const pick = cand.find(c => c.s >= thr) || cand[0];   // cand는 낮은 음부터 정렬돼 있음
+      return { pc: ((pick.midi % 12) + 12) % 12, pick, cand, maxS };
+    }
+
+    // 주파수 목록 → 기대 스펙트럼 템플릿(각 음의 배음열을 1/n 진폭으로 합산)
+    function buildTemplate(freqs, binHz, binCount, loBin, hiBin) {
+      const t = new Float32Array(binCount);
+      freqs.forEach(f0 => {
+        for (let n = 1; n <= HARMONICS; n++) {
+          const f     = f0 * n;
+          if (f > HI_HZ) break;
+          const amp   = 1 / Math.pow(n, 1.3);   // 기존 1/n보다 가파른 감쇠 — 기본음 비중 강화(딴 음의 배음과 덜 헷갈림)
+          // 튜닝 오차·현 특성(인하모니시티) 흡수용 폭 — 주파수 비례
+          // 0.015(±1.5%) → 0.008(±0.8%): 폭 너무 넓어서 겹치는 음(Am7/Em) 배음끼리 서로 스며들어 과대점수 나던 문제
+          const sigma = Math.max(2 * binHz, f * 0.008);
+          const span  = Math.ceil((3 * sigma) / binHz);
+          const cb    = Math.round(f / binHz);
+          for (let b = cb - span; b <= cb + span; b++) {
+            if (b < loBin || b > hiBin) continue;
+            const d = (b * binHz - f) / sigma;
+            t[b] += amp * Math.exp(-0.5 * d * d);
+          }
+        }
+      });
+      return t;
+    }
+
+    // 코사인 유사도 — 볼륨(연주 세기) 무관, 스펙트럼 "모양"만 비교
+    function cosine(a, b, lo, hi) {
+      let dot = 0, na = 0, nb = 0;
+      for (let i = lo; i <= hi; i++) {
+        dot += a[i] * b[i];
+        na  += a[i] * a[i];
+        nb  += b[i] * b[i];
+      }
+      return (na && nb) ? dot / Math.sqrt(na * nb) : 0;
+    }
+
+    // ── 마이크 on/off 토글 ──
+    let sitMicStream = null;
+    let audioCtx = null, analyser = null, rafId = null;
+    let templates = null, bassPCs = null, binHz = 0, loBin = 0, hiBin = 0;
+    let freqBuf = null, timeBuf = null;
+    let lastTrigger = 0, verdictTimer = null;
+
+    const micBtn    = document.getElementById('sit-mic-btn');
+    const micIcon   = document.getElementById('sit-mic-icon');
+    const micText   = document.getElementById('sit-mic-text');
+    const micStatus = document.getElementById('sit-mic-status');
+    const cardEl    = document.getElementById('sit-voicing-card');
+
+    function showVerdict(ok, msg) {
+      clearTimeout(verdictTimer);
+      cardEl.classList.remove('sit-voicing-card--ok', 'sit-voicing-card--ng');
+      cardEl.classList.add(ok ? 'sit-voicing-card--ok' : 'sit-voicing-card--ng');
+      micStatus.textContent = msg;
+      verdictTimer = setTimeout(() => {
+        cardEl.classList.remove('sit-voicing-card--ok', 'sit-voicing-card--ng');
+      }, VERDICT_MS);
+    }
+
+    function classify() {
+      if (!analyser) return;
+      analyser.getFloatFrequencyData(freqBuf);
+      // dB → 선형 진폭
+      const spec = new Float32Array(freqBuf.length);
+      for (let i = loBin; i <= hiBin; i++) spec[i] = Math.pow(10, freqBuf[i] / 20);
+
+      // ── 1단계: 베이스 게이트 ──
+      const bass    = detectBassPC(spec, binHz, loBin, hiBin);
+      const passing = [];
+      bassPCs.forEach((pc, i) => { if (pc === bass.pc) passing.push(i); });
+
+      // 근음 검출 튜닝용 — 저역 후보 점수 상위 5개(정규화)
+      const top = [...bass.cand].sort((a, b) => b.s - a.s).slice(0, 5)
+        .map(c => `${PC_NAME[((c.midi % 12) + 12) % 12]}${Math.floor(c.midi / 12) - 1}:${(c.s / bass.maxS).toFixed(2)}`);
+      console.log('[sit] 근음 채택:', PC_NAME[bass.pc], `(${bass.pick.f0.toFixed(1)}Hz)`, '| 저역 상위:', top.join(' '));
+
+      if (!passing.length) {
+        console.log('[sit] 베이스 불일치 — 감지:', PC_NAME[bass.pc], '/ 기대:', PC_NAME[bassPCs[sitIdx]]);
+        showVerdict(false, `불일치 — 근음이 ${PC_NAME[bass.pc]}로 감지됨 (기대: ${PC_NAME[bassPCs[sitIdx]]})`);
+        return;
+      }
+
+      // ── 2단계: 베이스 통과한 후보끼리만 하모닉 템플릿 비교 ──
+      let bestIdx = passing[0], bestScore = -1;
+      const logScores = [];
+      passing.forEach(i => {
+        const s = cosine(spec, templates[i], loBin, hiBin);
+        logScores.push(`${i + 1}:${s.toFixed(3)}`);
+        if (s > bestScore) { bestScore = s; bestIdx = i; }
+      });
+      console.log('[sit] 근음', PC_NAME[bass.pc], '| 통과후보 점수:', logScores.join(', '), '→ 1등:', bestIdx + 1);
+
+      if (bestScore < MIN_SCORE) {
+        showVerdict(false, `불일치 — 근음은 맞으나 점수 미달 (${bestScore.toFixed(2)} < ${MIN_SCORE})`);
+        return;
+      }
+      const ok = bestIdx === sitIdx;
+      showVerdict(ok, ok
+        ? `일치 — ${labelFor(cVoicings[bestIdx])} (${bestScore.toFixed(2)})`
+        : `불일치 — ${labelFor(cVoicings[bestIdx])}로 감지됨 (${bestScore.toFixed(2)})`);
+    }
+
+    function listen() {
+      analyser.getFloatTimeDomainData(timeBuf);
+      // 버퍼 끝(=가장 최근) ONSET_WIN 샘플만으로 RMS — 전체(372ms) 평균은 온셋에 굼뜨게 반응함
+      const from = Math.max(0, timeBuf.length - ONSET_WIN);
+      let sum = 0;
+      for (let i = from; i < timeBuf.length; i++) sum += timeBuf[i] * timeBuf[i];
+      const rms = Math.sqrt(sum / (timeBuf.length - from));
+
+      const now = performance.now();
+      if (rms > ONSET_RMS && now - lastTrigger > COOLDOWN) {
+        lastTrigger = now;
+        setTimeout(classify, ANALYZE_MS);
+      }
+      rafId = requestAnimationFrame(listen);
+    }
+
+    function setMicUI(on) {
+      micBtn.classList.toggle('cd-btn--gray', !on);
+      micBtn.classList.toggle('cd-btn--red', on);
+      micText.textContent = on ? '마이크 끄기' : '마이크 켜기';
+      // lucide.createIcons()가 <i>를 <svg>로 치환하므로, 매번 <i>를 새로 넣고 다시 생성
+      micIcon.innerHTML = `<i data-lucide="${on ? 'mic' : 'mic-off'}"></i>`;
+      micStatus.textContent = on ? '마이크 켜짐' : '마이크 꺼짐';
+      lucide.createIcons();
+    }
+
+    async function turnMicOn() {
+      try {
+        // 기타 소리 원형 보존 — 자동이득/노이즈억제/에코제거 전부 끔
+        sitMicStream = await navigator.mediaDevices.getUserMedia({
+          audio: { autoGainControl: false, noiseSuppression: false, echoCancellation: false }
+        });
+
+        audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        analyser = audioCtx.createAnalyser();
+        analyser.fftSize = FFT_SIZE;
+        analyser.smoothingTimeConstant = 0;   // 프레임간 평활 없음(온셋 직후 순간 스펙트럼이 필요)
+        audioCtx.createMediaStreamSource(sitMicStream).connect(analyser);
+
+        // 템플릿 사전 계산 (sampleRate 확정된 뒤에만 가능)
+        binHz = audioCtx.sampleRate / FFT_SIZE;
+        const binCount = analyser.frequencyBinCount;
+        loBin  = Math.max(1, Math.floor(LO_HZ / binHz));
+        hiBin  = Math.min(binCount - 1, Math.ceil(HI_HZ / binHz));
+        templates = cVoicings.map(v => buildTemplate(voicingFreqs(v), binHz, binCount, loBin, hiBin));
+        bassPCs   = cVoicings.map(voicingBassPC);
+
+        freqBuf = new Float32Array(binCount);
+        timeBuf = new Float32Array(analyser.fftSize);
+
+        setMicUI(true);
+        micStatus.textContent = '마이크 켜짐 — 코드를 쳐보세요';
+        lastTrigger = 0;
+        listen();
+      } catch (err) {
+        micStatus.textContent = '마이크 권한 거부됨 또는 사용 불가: ' + err.message;
+      }
+    }
+
+    function turnMicOff() {
+      if (rafId) { cancelAnimationFrame(rafId); rafId = null; }
+      if (sitMicStream) sitMicStream.getTracks().forEach(t => t.stop());
+      if (audioCtx) { audioCtx.close(); audioCtx = null; }
+      sitMicStream = null;
+      analyser = null;
+      clearTimeout(verdictTimer);
+      cardEl.classList.remove('sit-voicing-card--ok', 'sit-voicing-card--ng');
+      setMicUI(false);
+    }
+
+    micBtn.addEventListener('click', () => {
+      if (sitMicStream) turnMicOff();
+      else turnMicOn();
+    });
+
+    renderVoicing();
+
+    // ── 섹션2: 메이저 스케일 블럭 1개 (모양 미리보기, 실제 키/프렛과 무관) ──
+    const scaleBlock = ScaleData.getBlock('major', 0);
+    scaleBlock.label = '메이저 스케일 pos1';   // 원본 id 그대로 노출하지 않도록(섹션1 라벨 톤과 통일)
+    ScaleBlockPreview.render(document.getElementById('sit-scale-neck'), scaleBlock);
+    document.getElementById('sit-scale-label').textContent = scaleBlock.label;
+
+    // ══════════════════════════════════════════════════════════
+    // 섹션2 — 스케일 오르내리기 연습 (단음 자기상관 피치검출)
+    // ══════════════════════════════════════════════════════════
+    (function () {
+      const parsed     = ScaleData.parseGrid(scaleBlock.grid);
+      const startFrets = ScaleData.getStartFrets(scaleBlock, 0);   // 0=C
+      const startFret  = startFrets[0];
+
+      // 노트별 실제 피치 계산 → 오름차순, 같은 음(중복 위치)은 첫 등장만 유지
+      const seenMidi  = new Set();
+      const noteInfos = [];
+      parsed.notes
+        .map(n => ({ s: n.s, col: n.col, midi: OPEN_MIDI[n.s] + startFret + n.col }))
+        .sort((a, b) => a.midi - b.midi)
+        .forEach(n => { if (!seenMidi.has(n.midi)) { seenMidi.add(n.midi); noteInfos.push(n); } });
+
+      // 오름 전체 + 내림(최고음 중복 없이, 근음에서 마무리)
+      const sequence = noteInfos.concat(noteInfos.slice(0, -1).reverse());
+      let stepIdx = 0;
+
+      const neckEl     = document.getElementById('sit-scale-neck');
+      const counterEl2 = document.getElementById('sit-scale-counter');
+      const labelEl2   = document.getElementById('sit-scale-label');
+
+      const NOTE_NAMES = ['C','C#','D','D#','E','F','F#','G','G#','A','A#','B'];
+      function noteName(midi) { return NOTE_NAMES[((midi % 12) + 12) % 12] + (Math.floor(midi / 12) - 1); }
+
+      function clearHighlight() {
+        neckEl.querySelectorAll('.fb-note--sit-active')
+          .forEach(el => el.classList.remove('fb-note--sit-active'));
+      }
+      function findDot(n) {
+        return neckEl.querySelector(`.fb-note[data-s="${n.s}"][data-col="${n.col}"]`);
+      }
+      function highlightExpected() {
+        clearHighlight();
+        const n = sequence[stepIdx];
+        const dot = findDot(n);
+        if (dot) dot.classList.add('fb-note--sit-active');
+        counterEl2.textContent = `${stepIdx + 1} / ${sequence.length}`;
+        labelEl2.textContent   = `기대: ${noteName(n.midi)}`;
+      }
+      function advance() {
+        stepIdx++;
+        if (stepIdx >= sequence.length) {
+          clearHighlight();
+          counterEl2.textContent = `${sequence.length} / ${sequence.length}`;
+          labelEl2.innerHTML = '<span class="sit-scale-done">완료!</span>';
+          turnScaleMicOff();
+          return;
+        }
+        highlightExpected();
+      }
+
+      // ── 자기상관 기반 단음 피치 검출 (기타 튜너와 동일 원리, 화음용 템플릿매칭과는 별개 방식) ──
+      function autoCorrelate(buf, sampleRate) {
+        const SIZE = buf.length;
+        let rms = 0;
+        for (let i = 0; i < SIZE; i++) rms += buf[i] * buf[i];
+        rms = Math.sqrt(rms / SIZE);
+        if (rms < 0.01) return -1;
+
+        let r1 = 0, r2 = SIZE - 1;
+        const thresh = 0.2;
+        for (let i = 0; i < SIZE / 2; i++) if (Math.abs(buf[i]) < thresh) { r1 = i; break; }
+        for (let i = 1; i < SIZE / 2; i++) if (Math.abs(buf[SIZE - i]) < thresh) { r2 = SIZE - i; break; }
+        const trimmed = buf.slice(r1, r2);
+        const n = trimmed.length;
+
+        const c = new Array(n).fill(0);
+        for (let lag = 0; lag < n; lag++)
+          for (let i = 0; i < n - lag; i++) c[lag] += trimmed[i] * trimmed[i + lag];
+
+        let d = 0;
+        while (d + 1 < n && c[d] > c[d + 1]) d++;   // 0lag 근처 하강구간 지나서부터 탐색
+        let maxVal = -1, maxPos = -1;
+        for (let i = d; i < n; i++) if (c[i] > maxVal) { maxVal = c[i]; maxPos = i; }
+        let T0 = maxPos;
+        if (T0 <= 0) return -1;
+
+        const x1 = c[T0 - 1] ?? c[T0], x2 = c[T0], x3 = c[T0 + 1] ?? c[T0];
+        const a = (x1 + x3 - 2 * x2) / 2, b = (x3 - x1) / 2;
+        if (a) T0 = T0 - b / (2 * a);
+
+        return T0 > 0 ? sampleRate / T0 : -1;
+      }
+      function freqToMidi(f) { return Math.round(69 + 12 * Math.log2(f / 440)); }
+
+      // ── 마이크 (섹션1과 독립) ──
+      let scaleMicStream = null, scaleCtx = null, scaleAnalyser = null, scaleRaf = null;
+      let scaleTimeBuf = null, scaleLastTrigger = 0;
+      const SCALE_ONSET_RMS = 0.02, SCALE_COOLDOWN = 500, SCALE_ANALYZE_MS = 100;
+
+      const scaleMicBtn    = document.getElementById('sit-scale-mic-btn');
+      const scaleMicIcon   = document.getElementById('sit-scale-mic-icon');
+      const scaleMicText   = document.getElementById('sit-scale-mic-text');
+      const scaleMicStatus = document.getElementById('sit-scale-mic-status');
+
+      function setScaleMicUI(on) {
+        scaleMicBtn.classList.toggle('cd-btn--gray', !on);
+        scaleMicBtn.classList.toggle('cd-btn--red', on);
+        scaleMicText.textContent = on ? '마이크 끄기' : '마이크 켜기';
+        scaleMicIcon.innerHTML = `<i data-lucide="${on ? 'mic' : 'mic-off'}"></i>`;
+        lucide.createIcons();
+      }
+
+      function scaleClassify() {
+        if (!scaleAnalyser) return;
+        scaleAnalyser.getFloatTimeDomainData(scaleTimeBuf);
+        const freq = autoCorrelate(scaleTimeBuf, scaleCtx.sampleRate);
+        if (freq < 0) return;
+        const detectedMidi = freqToMidi(freq);
+        const expected = sequence[stepIdx];
+        console.log('[sit-scale] 감지:', noteName(detectedMidi), freq.toFixed(1) + 'Hz', '| 기대:', noteName(expected.midi));
+        // 불일치는 표시 안 함 — 이전 음이 아직 울리는 잔향일 가능성 높아서, 그냥 계속 대기
+        if (detectedMidi === expected.midi) advance();
+      }
+
+      function scaleListen() {
+        scaleAnalyser.getFloatTimeDomainData(scaleTimeBuf);
+        let sum = 0;
+        for (let i = 0; i < scaleTimeBuf.length; i++) sum += scaleTimeBuf[i] * scaleTimeBuf[i];
+        const rms = Math.sqrt(sum / scaleTimeBuf.length);
+        const now = performance.now();
+        if (rms > SCALE_ONSET_RMS && now - scaleLastTrigger > SCALE_COOLDOWN) {
+          scaleLastTrigger = now;
+          setTimeout(scaleClassify, SCALE_ANALYZE_MS);
+        }
+        scaleRaf = requestAnimationFrame(scaleListen);
+      }
+
+      async function turnScaleMicOn() {
+        try {
+          scaleMicStream = await navigator.mediaDevices.getUserMedia({
+            audio: { autoGainControl: false, noiseSuppression: false, echoCancellation: false }
+          });
+          scaleCtx = new (window.AudioContext || window.webkitAudioContext)();
+          scaleAnalyser = scaleCtx.createAnalyser();
+          scaleAnalyser.fftSize = 2048;
+          scaleCtx.createMediaStreamSource(scaleMicStream).connect(scaleAnalyser);
+          scaleTimeBuf = new Float32Array(scaleAnalyser.fftSize);
+          setScaleMicUI(true);
+          scaleMicStatus.textContent = '마이크 켜짐 — 낮은음부터 순서대로 쳐보세요';
+          stepIdx = 0;
+          highlightExpected();
+          scaleLastTrigger = 0;
+          scaleListen();
+        } catch (err) {
+          scaleMicStatus.textContent = '마이크 권한 거부됨 또는 사용 불가: ' + err.message;
+        }
+      }
+      function turnScaleMicOff() {
+        if (scaleRaf) { cancelAnimationFrame(scaleRaf); scaleRaf = null; }
+        if (scaleMicStream) scaleMicStream.getTracks().forEach(t => t.stop());
+        if (scaleCtx) { scaleCtx.close(); scaleCtx = null; }
+        scaleMicStream = null; scaleAnalyser = null;
+        scaleMicStatus.textContent = '마이크 꺼짐';
+        setScaleMicUI(false);
+      }
+      scaleMicBtn.addEventListener('click', () => { if (scaleMicStream) turnScaleMicOff(); else turnScaleMicOn(); });
+
+      highlightExpected();   // 마이크 켜기 전에도 첫 음(최저음) 미리 강조 표시
+    })();
+
+    lucide.createIcons();
+  </script>
+</body>
+</html>

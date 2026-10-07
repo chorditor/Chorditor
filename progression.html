@@ -17,37 +17,31 @@
 
   <div class="app-shell">
 
-    <!-- ── 앱 로고탑바(데스크탑 전용) — injectAppChrome이 로고 주입하는 진짜 대상.
-         main-content보다 먼저(DOM 앞) 와야 document.querySelector('.top-bar')가 이걸 먼저 잡음 ── -->
-    <div class="top-bar top-bar--white desktop-topbar"></div>
-
-    <!-- ── 메인 콘텐츠 ── -->
-    <div class="main-content" id="main-content">
-
-      <!-- ── 뒤로가기 + 피크바 ── -->
-      <div class="top-bar prog-top-bar top-bar--white">
-        <button id="back-btn" class="icon-btn" onpointerup="closeProgressionPage()">
-          <i data-lucide="x"></i>
-        </button>
-        <div class="topbar-currency" id="topbar-currency" style="margin-left:auto;">
-          <div class="currency-item currency-item--clickable" onclick="openPeakboxModal()">
-            <span class="currency-count" id="currency-peakbox-count">0</span>
-            <div class="currency-icon-box"><img src="image/gift.png" alt=""></div>
-          </div>
-          <div class="currency-item currency-item--clickable" onclick="openPeakTimerPopup(event)">
-            <span class="currency-count" id="currency-peak-count">30/30</span>
-            <div class="currency-icon-box"><img src="image/peak.svg" alt=""></div>
-          </div>
+    <!-- ── 탑바: 닫기 + 피크바 (style-guide.md §11 cd-topbar) ── -->
+    <header class="cd-topbar cd-topbar--white">
+      <button id="back-btn" class="icon-btn" onpointerup="closeProgressionPage()">
+        <i data-lucide="x"></i>
+      </button>
+      <div class="topbar-currency" id="topbar-currency" style="margin-left:auto;">
+        <div class="currency-item currency-item--clickable" onclick="openPeakboxModal()">
+          <span class="currency-count" id="currency-peakbox-count">0</span>
+          <div class="currency-icon-box"><img src="image/gift.png" alt=""></div>
+        </div>
+        <div class="currency-item currency-item--clickable" onclick="openPeakTimerPopup(event)">
+          <span class="currency-count" id="currency-peak-count">30/30</span>
+          <div class="currency-icon-box"><img src="image/peak.svg" alt=""></div>
         </div>
       </div>
+    </header>
 
-      <div class="content-body">
-      <div class="prog-scroll">
+    <!-- ── 메인 (style-guide.md §11 cd-main) ── -->
+    <main class="cd-main cd-main--white prog-main">
 
-        <!-- 스티키 헤더 -->
-        <div class="prog-sticky-header">
-          <span class="training-page-title">코드 진행 리스트</span>
+      <!-- 헤드: 타이틀 + 셀렉터(필터 칩·#/b 토글). 드롭다운은 이 스티키 헤드 기준 absolute -->
+      <header class="cd-head cd-head--sticky">
+        <div class="cd-title">코드 진행 리스트</div>
 
+        <div class="cd-selector">
           <!-- 액션바 -->
           <div class="prog-action-bar" id="prog-action-bar">
             <div class="prog-action-bar-left">
@@ -60,24 +54,25 @@
               <button class="acc-btn active" id="acc-flat">b</button>
             </div>
           </div>
-
-          <!-- No(목록 별) 드롭다운 -->
-          <div class="prog-no-dropdown" id="prog-no-dropdown" hidden>
-            <div class="prog-no-list" id="prog-no-list"></div>
-          </div>
-
-          <!-- Key 드롭다운 -->
-          <div class="prog-key-dropdown" id="prog-key-dropdown" hidden>
-            <div class="prog-key-grid" id="prog-key-grid"></div>
-          </div>
         </div>
 
-        <!-- 진행 목록 -->
-        <div class="prog-list" id="prog-list"></div>
+        <!-- No(목록 별) 드롭다운 -->
+        <div class="prog-no-dropdown" id="prog-no-dropdown" hidden>
+          <div class="prog-no-list" id="prog-no-list"></div>
+        </div>
 
-      </div><!-- /prog-scroll -->
-      </div><!-- /content-body -->
-    </div><!-- /main-content -->
+        <!-- Key 드롭다운 -->
+        <div class="prog-key-dropdown" id="prog-key-dropdown" hidden>
+          <div class="prog-key-grid" id="prog-key-grid"></div>
+        </div>
+      </header>
+
+      <!-- 본문: 진행 목록 -->
+      <section class="cd-body">
+        <div class="prog-list" id="prog-list"></div>
+      </section>
+
+    </main><!-- /cd-main -->
 
   </div><!-- /app-shell -->
 

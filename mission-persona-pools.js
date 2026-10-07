@@ -98,6 +98,7 @@ const MS_PERSONA_POOLS = {
     scaleBlocks: [
       'pentatonic-cm', 'pentatonic-am', 'pentatonic-gm', 'pentatonic-em', 'pentatonic-dm',
       'major-pos1', 'major-pos2', 'major-pos3', 'major-pos4', 'major-pos5',
+      'major-pentatonic-a', 'major-pentatonic-g', 'major-pentatonic-e', 'major-pentatonic-d', 'major-pentatonic-c',
     ],
     comboKeys:       ['C', 'D', 'E', 'G', 'A'],
     comboChapters:   ['1', '2'],
@@ -211,6 +212,8 @@ const MS_PERSONA_POOLS = {
     scaleBlocks: [
       'pentatonic-cm', 'pentatonic-am', 'pentatonic-gm', 'pentatonic-em', 'pentatonic-dm',
       'major-pos1', 'major-pos2', 'major-pos3', 'major-pos4', 'major-pos5',
+      'major-pentatonic-a', 'major-pentatonic-g', 'major-pentatonic-e', 'major-pentatonic-d', 'major-pentatonic-c',
+      'major-blues-a', 'major-blues-g', 'major-blues-e', 'major-blues-d', 'major-blues-c',
       'blues-cm', 'blues-am', 'blues-gm', 'blues-em', 'blues-dm',
     ],
     comboKeys:       ['C', 'D', 'E', 'G', 'A'],
@@ -370,6 +373,8 @@ const MS_PERSONA_POOLS = {
     scaleBlocks: [
       'pentatonic-cm', 'pentatonic-am', 'pentatonic-gm', 'pentatonic-em', 'pentatonic-dm',
       'major-pos1', 'major-pos2', 'major-pos3', 'major-pos4', 'major-pos5',
+      'major-pentatonic-a', 'major-pentatonic-g', 'major-pentatonic-e', 'major-pentatonic-d', 'major-pentatonic-c',
+      'major-blues-a', 'major-blues-g', 'major-blues-e', 'major-blues-d', 'major-blues-c',
       'blues-cm', 'blues-am', 'blues-gm', 'blues-em', 'blues-dm',
       'natural-minor-cm', 'natural-minor-am', 'natural-minor-gm', 'natural-minor-em', 'natural-minor-dm',
       'harmonic-minor-cm', 'harmonic-minor-am', 'harmonic-minor-gm', 'harmonic-minor-em', 'harmonic-minor-dm',

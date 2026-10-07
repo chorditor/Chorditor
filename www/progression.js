@@ -381,7 +381,7 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   // 마우스 드래그 스크롤 (브라우저 환경)
-  const scroller = document.querySelector('.prog-scroll');
+  const scroller = document.querySelector('.cd-main');
   if (scroller) {
     let _dragging = false, _startY = 0, _scrollY = 0;
     scroller.addEventListener('mousedown', e => {
