@@ -1,30 +1,21 @@
 # Chorditor 스타일 가이드 (기반 문서)
 
-> 이 문서는 **신규 작업 기준**을 정하기 위한 것. 기존 페이지 CSS는 지금 당장 고치지 않음.
-> 새 컴포넌트/페이지 만들 때, 그리고 앞으로 기존 코드를 리팩터링할 때 이 문서 값을 기준으로 삼는다.
+> 신규 작업·리팩터링 기준. 기존 페이지 CSS는 해당 페이지 작업 시 점진 전환.
 
-## 왜 필요한가
+## 1. 컬러 토큰
 
-현재 style.css 실측:
-- `font-size` 서로 다른 값 30종 이상 (12px/13px/14px/15px/16px/17px/18px/20px... 배수 체계 없음)
-- spacing(`padding`/`gap`/`margin`) 서로 다른 값 20종 이상, 다만 대부분 4px 배수(4/8/12/16/20/24/28/32/40/48)에 가깝게 흩어져 있음 — 즉 "의도한 배수 체계"는 있었으나 토큰화가 안 돼서 매번 새로 숫자를 정함
-- `@media` 조건 60개 이상, 그중 다수가 1회만 쓰인 1회성 스코프 (예: `min-width:790px, max-width:840px, min-height:590px, max-height:640px`)
-- 결과: 페이지마다 뷰포트 대응을 처음부터 재설계하는 상태
-
-## 1. 컬러 토큰 (기존, 이미 적용됨)
-
-`style.css` `:root` (1~28줄)에 이미 정의됨. 새 작업도 이거 그대로 사용, 새 색상 임의 추가 금지.
+`style.css` `:root`에 정의. 새 색상 임의 추가 금지.
 
 ```css
 --bg: #FAFAF9;
 --surface: #ffffff;
 --border: #d9d4cc;
---gray-light: #ECECEA; /* 2026-08-24 신규 — --border보다 연한 회색 */
+--gray-light: #ECECEA; /* --border보다 연한 회색 */
 --text-primary: #242729;
 --text-secondary: #6b6560;
 --text-muted: #a09b95;
 --accent: #e03c31;
---brand: #1a1a1a; /* 로고 차콜블랙 — CTA 버튼 블루→브랜드 전환 이후 CTA 배경 표준(§12 charcoal 계열과는 별도 토큰) */
+--brand: #1a1a1a; /* 로고 차콜블랙, CTA 배경 표준 */
 --blue: #4f7cff;
 --blue-light: rgba(59, 130, 246, 0.08);
 --charcoal-blue: #334155;
@@ -35,8 +26,7 @@
 --icon-yellow: #E8C000;
 --icon-pink:   #C94B7A;
 
-/* 파스텔 팔레트 (2026-08-24 신규) — 카드리스트 등 배경색 전용.
-   따뜻한 계열(red/orange/yellow)과 차가운 계열(green/blue/purple) 균형 배치 */
+/* 파스텔 — 카드리스트 등 배경색 전용 */
 --pastel-red:    #FCE9E7;
 --pastel-orange: #FDEEE1;
 --pastel-yellow: #FDF8E3;
@@ -45,63 +35,60 @@
 --pastel-purple: #EFEAFA;
 ```
 
-## 2. 폰트 파운데이션 토큰 (2026-08-22 5단계 확정)
+## 2. 폰트 토큰
 
-Material 3 / iOS HIG 타입스케일을 앵커로 삼아 **Caption → Label → Body → Title → Headline → Display**
-6카테고리 12토큰으로 구성. §4 브레이크포인트와 동일한 5단계(모바일/태블릿/큰태블릿/랩탑/데스크탑)를 그대로 사용.
-
-**참고**: Material/iOS 실제 표준은 브레이크포인트에 따라 폰트 크기가 안 바뀐다(레이아웃으로만 반응형 처리) —
-우리는 모바일~데스크탑까지 넓은 뷰포트를 한 앱이 커버해야 해서 자체적으로 단계별 확대를 채택한 것이지,
-이 반응형 스케일링 자체는 업계 표준이 아니다.
-
-**홀수 허용 조건(§6 규칙 예외)**: Material/iOS 표준값과 정확히 일치시킬 목적이 있을 때만 홀수 사용
-(예: `--font-caption:11px`은 iOS Caption2, `--font-body-sm:13px`은 iOS Footnote 값을 그대로 가져온 것).
-목적 없이 임의로 홀수를 쓰지는 않는다.
+Material 3 / iOS HIG 타입스케일 기반 6카테고리 12토큰, §4 5단계별 확대(업계 표준은 고정 크기 — 넓은
+뷰포트 커버 위해 자체 채택). 홀수는 Material/iOS 표준값 일치 목적일 때만(11px=iOS Caption2,
+13px=iOS Footnote). **모바일→데스크탑 증가폭은 4px 이내**(Display만 8px까지) — 업계 UI 앱 기준.
 
 | 카테고리 | 토큰 | 용도 (우리 앱 예시) | 모바일 | 태블릿 | 큰태블릿 | 랩탑 | 데스크탑 |
 |---|---|---|---|---|---|---|---|
-| Caption | `--font-caption` | 버전텍스트, 타임스탬프, 보조라벨(독바 라벨, `hdb-label`) | 11 | 11 | 12 | 12 | 12 |
+| Caption | `--font-caption` | 버전텍스트, 타임스탬프, 보조라벨(독바 라벨) | 11 | 11 | 12 | 12 | 12 |
 | Label | `--font-label-sm` | 작은 뱃지/칩("신규" 배지, 필박스 통화숫자) | 12 | 12 | 13 | 13 | 13 |
-| Label | `--font-label-lg` | 버튼 텍스트, 폼 라벨, 독바 라벨(데스크탑 사이드바) | 14 | 14 | 14 | 16 | 16 |
+| Label | `--font-label-lg` | 버튼 텍스트, 폼 라벨 | 14 | 14 | 14 | 16 | 16 |
 | Body | `--font-body-sm` | 카드 설명문(홈블럭 desc, 배너 desc) | 13 | 13 | 14 | 14 | 14 |
 | Body | `--font-body` | 기본 본문, 페이지 안내문 | 14 | 16 | 16 | 17 | 18 |
-| Title | `--font-title-sm` | 작은 카드제목(`hdb-label`, 프로필 카드 제목) | 16 | 18 | 18 | 18 | 18 |
+| Title | `--font-title-sm` | 작은 카드제목(프로필 카드 제목) | 16 | 18 | 18 | 18 | 18 |
 | Title | `--font-title` | 섹션 제목(홈블럭 타이틀, 배너 타이틀) | 18 | 20 | 20 | 22 | 22 |
-| Title | `--font-title-lg` | 큰 섹션제목(카드 헤더, 모달 타이틀) | 20 | 22 | 24 | 24 | 26 |
-| Headline | `--font-headline-sm` | 서브페이지 타이틀(뒤로가기 옆 텍스트) | 24 | 26 | 28 | 32 | 36 |
-| Headline | `--font-headline` | 메인 페이지타이틀, 온보딩 헤드라인 | 28 | 30 | 32 | 36 | 40 |
-| Display | `--font-display-sm` | 중간 강조숫자(레벨 숫자, 통계카드 큰값) | 32 | 34 | 36 | 36 | 36 |
-| Display | `--font-display` | 초대형 숫자/타이머(스톱워치, 대형강조) | 40 | 44 | 48 | 48 | 56 |
+| Title | `--font-title-lg` | 큰 섹션제목(카드 헤더, 모달 타이틀) | 20 | 22 | 22 | 24 | 24 |
+| Headline | `--font-headline-sm` | 페이지 타이틀(`.page-title`, 뒤로가기 옆 텍스트) | 24 | 24 | 26 | 28 | 28 |
+| Headline | `--font-headline` | 온보딩 헤드라인 등 큰 제목 | 28 | 28 | 30 | 32 | 32 |
+| Display | `--font-display-sm` | 중간 강조숫자(레벨 숫자, 통계카드 큰값) | 32 | 32 | 34 | 36 | 36 |
+| Display | `--font-display` | 초대형 숫자/타이머(스톱워치, 대형강조) | 40 | 42 | 44 | 46 | 48 |
 
-계층 감(작음→큼): **Caption(메타정보) → Label(버튼·뱃지) → Body(설명문) → Title(제목류 3단계) →
-Headline(페이지타이틀) → Display(초대형 숫자)**. 추가 세분화 여지 있음 — 실제 적용하면서 빈 계층 발견 시 추가.
+구현: `:root` 기본값 + `@media(min-width:481/769/1080/1600px)` 오버라이드(값 안 바뀌는 구간은 재선언 안 함).
 
-`style.css` 구현: `:root` 기본값 + `@media(min-width:481/769/1080/1600px)` 4단 오버라이드
-(값이 안 바뀌는 토큰은 해당 구간에서 재선언하지 않음).
+### 2-1. 폰트 두께 (뷰포트 무관 고정)
 
-### 2-1. 폰트 두께 토큰 (2026-08-22 확정, 2026-08-24 `--weight-headline` 분리)
-
-규칙: 본문류는 일반, Title/Display는 세미볼드, Headline은 더 진하게(전용 토큰), 볼드는
-특수 강조에만(토큰화 안 함, 개별 선언).
-
-| 토큰 | 값 | 적용 카테고리 |
+| 토큰 | 값 | 적용 |
 |---|---|---|
-| `--weight-regular` | 400 | Caption, Label-sm, Label-lg, Body-sm, Body |
-| `--weight-semibold` | 600 | Title-sm, Title, Title-lg, Display-sm, Display |
-| `--weight-headline` | 800 | Headline-sm, Headline |
-| `--weight-bold` | 700 | (토큰 아님) 특수 강조 지점에만 개별 지정 |
-| `--font-body-bold` | 600 | Body 크기 그대로, 두께만 세미볼드로 강조하고 싶을 때(2026-08-24 신규) |
+| `--weight-regular` | 400 | Caption, Label, Body |
+| `--weight-semibold` | 600 | Title, Display |
+| `--weight-bold` | 700 | Headline |
+| `--font-body-bold` | 600 | Body 크기 그대로 두께만 강조 |
 
-뷰포트 단계와 무관하게 고정값 — 두께는 크기와 달리 반응형으로 바꾸지 않는다.
+### 2-2. 타입 토큰 `--type-*` (두께+크기+행간+글꼴 한 줄)
 
-`--weight-headline`은 원래 Headline도 `--weight-semibold`(600)를 같이 썼으나, daily-mission
-게이트 타이틀이 "헤드라인인데 얇다"는 피드백으로 분리 — Headline만 800으로 더 진하게.
-기존에 Headline 카테고리를 쓰던 다른 곳(있다면)도 이 토큰으로 자동 승격됨(전역 토큰 변경이라
-표 갱신만으로 전부 반영).
+사용: `font: var(--type-headline)` — `font-size`/`font-weight`/`line-height`를 따로 쓰지 않음. 크기는
+`--font-*`를 참조하므로 뷰포트별 반응형 그대로. 크기만 `calc()`에 쓸 때는 `--font-*` 직접 사용.
 
-## 3. 여백(spacing) 스케일 — 4px 배수 체계
+| 토큰 | 두께 | 크기 | 행간 |
+|---|---|---|---|
+| `--type-caption` / `-label-sm` / `-label-lg` | 400 | `--font-caption` / `-label-sm` / `-label-lg` | 1.2 |
+| `--type-body-sm` / `-body` | 400 | `--font-body-sm` / `-body` | 1.5 |
+| `--type-body-bold` | 600 | `--font-body` | 1.5 |
+| `--type-title-sm` / `-title` / `-title-lg` | 600 | `--font-title-sm` / `-title` / `-title-lg` | 1.2 |
+| `--type-headline-sm` / `-headline` | 700 | `--font-headline-sm` / `-headline` | 1.2 |
+| `--type-display-sm` / `-display` | 600 | `--font-display-sm` / `-display` | 1.2 |
 
-기존 값 분포가 이미 4px 배수에 가까웠으므로, 그대로 토큰화만 한다.
+- 행간: 긴 설명(Body 계열)은 `--leading-normal`(1.5), 제목·라벨·숫자 등 나머지는 `--leading-tight`(1.2). 글꼴: `--font-family`(Pretendard).
+- **자간은 전 텍스트 `--tracking-base`(-0.04em) 단일값.** `font` 단축에 자간이 안 들어가므로, 4가지(크기·두께·행간·자간)를
+  한 번에 쓰려면 **`.type-*` 클래스**(예: `class="type-headline"`) 또는 CSS 두 줄
+  `font: var(--type-body); letter-spacing: var(--tracking-base);`. 클래스 13개는 `--type-*`와 1:1.
+- 예외 크기·두께가 필요하면 단축 뒤에 해당 longhand만 덮어씀(예: `font: var(--type-title); font-weight: 700;`).
+- 적용 현황: `.page-title`·`.scale-chapter-title`·`.scale-chapter-subtitle`·scale 카드 뱃지/이름만 적용(§19-2). 나머지는 기존 `font-size: var(--font-*)` 방식 → 점진 전환.
+
+## 3. 여백(spacing) — 4px 배수
 
 | 토큰 | 값 |
 |---|---|
@@ -116,11 +103,11 @@ Headline(페이지타이틀) → Display(초대형 숫자)**. 추가 세분화 �
 | `--space-10` | 40px |
 | `--space-12` | 48px |
 
-3px, 6px, 7px, 9px, 13px, 19px, 22px, 26px, 30px, 44px, 50px 같은 배수 밖 값은 신규 작업에서 쓰지 않는다. (아이콘 내부 좌표 계산 등 수학적으로 불가피한 경우만 예외.)
+배수 밖 값(3/6/7/9/13/22/26/30px 등) 금지. 아이콘 내부 좌표 등 수학적으로 불가피한 경우만 예외.
 
-## 4. 브레이크포인트 표준 목록 (2026-08-22 갱신)
+## 4. 브레이크포인트 (전 페이지 공통 SSOT)
 
-**전 페이지 공통 SSOT.** 새 스코프를 만들 때 이 5단계 밖의 임의 min-width 조합을 새로 만들지 말고, 여기서 고른다. (업계 관행상 Bootstrap/Tailwind/Material 모두 992~1024px 부근에서 "태블릿 가로"와 "랩탑" 성격의 단계를 한 번 더 나누는데, 기존 코드에서도 1080px가 실제 최다 사용 경계값이었으므로 이를 반영해 5단계로 확정.)
+새 스코프는 이 5단계에서 고름 — 임의 min-width 조합 신설 금지.
 
 | 단계 | 폭 범위 |
 |---|---|
@@ -130,261 +117,211 @@ Headline(페이지타이틀) → Display(초대형 숫자)**. 추가 세분화 �
 | 태블릿 가로/랩탑 | 1080~1599px |
 | 데스크탑 | 1600px~ |
 
-**하한 360px 확정.** 320px대 기기는 실질적으로 유통 안 됨. Play Console은 스크린 폭 기준 기기 차단 기능이 없고 개별 기종 수동 제외는 유지보수 부담이 커서, 스토어 단에서 막지 않고 360px 미만은 CSS가 자연 열화(graceful degrade)하도록만 둔다.
-
-**플랫폼 차이는 폭이 아니라 높이에서만 발생.** 안드로이드는 네이티브 앱(주소창 없음), 아이폰은 사파리/크롬 브라우저(주소창 유무로 세로공간 변동) — 이 차이는 폭 브레이크포인트를 나누지 않고 `100dvh`(사파리 15.4+ 타겟 확정, 구형 미지원은 무시)로 흡수한다. 기존에 있던 "모바일 브라우저 저높이" 전용 max-height 스코프는 dvh 도입 후 불필요 (§10 디바이스 회전 대응 전략 참고).
-
-Fold/Fold8/Flip 계열은 별도 (`fold_hinge_orientation_naming` 메모리 참고) — 예외 기기라 표준 스케일에서 제외.
-
-기존 페이지들의 1회성 세부 스코프(태블릿 하한/상한 미세분기, 데스크탑FHD주소창 등)는 지금 당장 통합하지 않음 — 페이지 단위 리팩터링 시 이 표 기준으로 정리 대상.
-
-**모바일 퍼스트(`min-width` 캐스케이드) 전환.** 기본 CSS는 모바일(360~480px) 기준으로 작성하고 화면이 커질수록 `min-width`로 덮어씌운다. `max-width` 위주로 짜인 기존 페이지는 페이지 작업 단위로 점진 전환 — 전부 끝날 때까지 `min-width`/`max-width` 방식 혼재를 허용한다.
+- 하한 360px — 미만은 자연 열화만(스토어 차단 안 함).
+- 플랫폼 차이(안드로이드 앱 / iOS 브라우저 주소창)는 폭이 아니라 높이 문제 → 폭 분기 없이 `100dvh`로 흡수(§10).
+- Fold/Fold8/Flip은 표준 밖 예외(`fold_hinge_orientation_naming` 메모리).
+- 모바일 퍼스트: 기본 CSS = 모바일, 커질수록 `min-width`로 덮어씀. 기존 `max-width` 위주 페이지는 페이지 단위 점진 전환.
 
 ## 5. 그리드 시스템
 
-4요소: **컨테이너 / 컬럼 / 거터 / 마진**.
+| 단계 | 폭 | 컬럼 | 마진 | 거터 | 컨테이너 캡 |
+|---|---|---|---|---|---|
+| 모바일 | 360~480px | 6 | 20px | 16px | 없음 |
+| 태블릿 | 481~768px | 6 | 24px | 24px | 없음 |
+| 큰 태블릿 | 769~1079px | 8 | 28px | 24px | 없음 |
+| 태블릿 가로/랩탑 | 1080~1599px | 12 | 32px | 24px | 1440px |
+| 데스크탑 | 1600px~ | 12 | 32px | 24px | 1440px |
 
-브레이크포인트는 §4 5단계와 동일하게 통일 (2026-08-22, 기존엔 그리드만 4단계 별도 유지했으나
-컬럼수를 큰 태블릿에서 한 번 더 나누기로 하면서 §4와 합침 — 이제 표를 섞어 써도 됨).
+- 토큰: `--grid-cols` / `--grid-margin` / `--grid-gutter` / `--grid-track`(컬럼 1칸 폭).
+- 큰 태블릿(8컬럼)은 12컬럼 배치값을 그대로 못 씀 — 8칸 기준으로 따로 잡음.
+- **캡 1440px**: 넘는 폭은 `margin-inline:auto`로 좌우 대칭 흡수(데스크탑 사이드바 2026-09-23 폐기 →
+  화면 전체 기준 대칭 그리드). 근거: 대형 태블릿 가로(Galaxy Tab S10 FE+ 1440px, iPad Pro 13" 1376px)에서
+  안정적으로 꽉 차도록. 트랙 92.67px(소수점)은 브라우저가 처리해서 정수화 안 함.
+- `.app-shell`·`cd-topbar`·`cd-main` 박스는 항상 뷰포트 전체 폭. 캡은 박스가 아니라 **안쪽 패딩
+  `--cd-inset`**(§11)으로 걸어 내용만 1440px 그리드 안에 가운데 정렬.
+- 캡 사용처: `--cd-inset`, `--grid-track`(`min(100vw, 1440px)` 기준), `--grid-container-max`,
+  `--grid-content-w`, `.top-bar` `max-width`. 변수화 안 됨 — 바꿀 땐
+  style.css `1440px` 전수 grep 후 일괄 교체.
 
-태블릿 상한 768px 확정 (아이패드 미니 실측값 — 이전에 "실측 태블릿 하한 774px" 근거로 786까지 올렸던 건 아이패드 미니 자체가 768px인 실제 태블릿이라 오히려 그 근거가 틀렸던 것, 2026-08-22 정정).
+### 5-1. "그리드에 맞춰줘" 작업 순서
 
-### 컬럼: 확정
-
-| 디바이스 | 폭 범위 | 컬럼 수 |
-|---|---|---|
-| 모바일 | 360~480px | 6 |
-| 태블릿 | 481~768px | 6 |
-| 큰 태블릿 | 769~1079px | 8 |
-| 태블릿 가로/랩탑 | 1080~1599px | 12 |
-| 데스크탑 | 1600px~ | 12 |
-
-컴포넌트는 해당 티어 컬럼 수 중 N칸을 차지하는 식으로 배치. 큰 태블릿(8컬럼)은 태블릿가로/랩탑·데스크탑(12컬럼)
-기준 배치를 그대로 못 쓰므로, 이 구간 컴포넌트는 8칸 기준으로 새로 배치값을 잡아야 함.
-
-### 마진 · 거터: 확정
-
-마진은 20→24→28→32→32로 단계적 증가. 거터는 실무 관행(Material/Bootstrap 모두 거터를 세분화하지
-않고 좁은 화면만 구분)에 맞춰 "모바일만 16, 그 외 전부 24"로 2단만 나눔.
-
-| 디바이스 | 마진 | 거터 |
-|---|---|---|
-| 모바일 | 20px | 16px |
-| 태블릿 | 24px | 24px |
-| 큰 태블릿 | 28px | 24px |
-| 태블릿 가로/랩탑 | 32px | 24px |
-| 데스크탑 | 32px | 24px |
-
-### 컨테이너: 확정 (2026-08-22 캡값 재확정)
-
-| 디바이스 | 컨테이너 최대폭 |
-|---|---|
-| 모바일 / 태블릿 / 큰 태블릿 / 태블릿 가로/랩탑 | 캡 없음 (마진만으로 제어) |
-| 데스크탑 | `min(100%, 1264px)` |
-
-**1264px 산출 근거**: 12컬럼 + 거터24px + 마진32px(양쪽, 캡 안에 포함) 조합에서 트랙 폭이 정수로
-떨어지는 값 — `(1264 - 32×2 - 24×11) / 12 = 936/12 = 78px`. 이전엔 1600px이었는데, 그 값은
-같은 조합에서 소수점이 생겨서(111.33px) 폐기하고 재계산함. 사이드바(240px)는 그리드 계산에
-안 들어가므로, 1920px 화면 기준 실질 콘텐츠 영역(1920-240=1680px) 대비 1264px 비율(약 75%)로
-과하게 좁지 않음을 확인.
-
-1264px 초과 폭에서만 캡 걸리고 남는 여백은 좌우 마진으로 자동 흡수(`--grid-content-w`/
-`--grid-container-max` 토큰, `style.css` `.tab-view`/`.main-top-bar`/`.content-body`/`.grid-12`
-전부 동일 캡 적용).
-
-**그리드 시스템 4요소(컨테이너/컬럼/거터/마진) 전부 확정.**
-
-### 5-1. "그리드에 맞춰줘" 지시 시 작업 순서 (2026-08-24 확정, daily-mission 게이트 작업 사례)
-
-새 컴포넌트를 "그리드 컬럼 꽉 채우는 너비로" 맞추라는 지시를 받으면 아래 순서로 처리한다.
-
-1. **폭 제어는 그 컴포넌트 전용 스코프 한 곳에만 둔다.** 고정 px 패딩/마진을
-   `padding-left/right: var(--grid-margin)`으로 교체하되, 공용 클래스(`.ob-main` 등 여러
-   페이지가 같이 쓰는 클래스)를 직접 고치지 말고 `#컴포넌트id .공용클래스` 식으로 스코프를
-   좁혀서 덮어쓴다 (§6 "기존 페이지 안 건드림" 원칙과 동일 이유).
-2. **데스크탑 캡은 `--grid-container-max` + `margin-inline:auto`로.** 1264px 캡을 넘는 폭에서
-   중앙정렬되도록 이 토큰을 그대로 재사용 — 새 캡값 만들지 않는다.
-3. **그 컴포넌트가 물려받는 다른 클래스에 폭 관련 규칙이 이미 있는지 반드시 먼저 확인한다.**
-   (예: 온보딩 마크업을 재사용하면 `.onboarding-overlay`/`.ob-overlay--step`처럼 폭을 좁히는
-   기존 규칙이 같이 딸려온다.) 1번에서 잡은 폭 제어와 겹치면 **이중 인셋**이 발생해서 의도한
-   컬럼보다 더 안쪽에서 시작하는 버그가 남 — grep으로 그 클래스명이 style.css에 폭(`max-width`/
-   `margin`/`padding`) 관련해 몇 군데서 더 정의되는지 전수 확인 후, 이 컴포넌트에 불필요한
-   규칙은 `#컴포넌트id.클래스명 { ... !important }` 식으로 무효화(ID 특이도로 확실히 이김).
-4. **`--grid-margin`/`--grid-cols` 등 토큰이 실제 각 구간 경계와 일치하는지 확인한다.** 그리드
-   5단계 표(§4)가 갱신된 뒤에도 예전 경계값(예: 786px)이 남아있는 컴포넌트별 미디어쿼리가
-   있을 수 있음 — 폭 그대로 베끼지 말고 실측(§4 경계값 기준)으로 재검증.
-5. **컬럼 수가 바뀌는 구간(예: 8→12컬럼)에서 "N칸 중 M칸 좁힘" 같은 비율 공식을 그대로
-   복사하지 않는다.** 그 구간의 실제 `--grid-cols` 값에 맞게 비율을 다시 계산(정수로 떨어지는
-   가장 가까운 값 채택) — 안 그러면 컬럼 수가 다른 구간에서 폭 계산이 전체폭을 넘어버림
-   (768~1079 8컬럼 구간에 12컬럼용 "8/12칸" 공식을 그대로 썼다가 발생했던 실제 버그 사례).
+1. 폭 제어는 그 컴포넌트 전용 스코프 한 곳에만(`#컴포넌트id .공용클래스`) — 공용 클래스 직접 수정 금지.
+2. 데스크탑 캡: `cd-*` 뼈대 페이지는 `--cd-inset`(§11)이 자동 처리. 아직 이전 안 된 기존 페이지만
+   `--grid-container-max` + `margin-inline:auto` 재사용 — 새 캡값 금지.
+3. 물려받는 클래스에 폭 규칙(`max-width`/`margin`/`padding`)이 이미 있는지 grep 선확인 — 겹치면
+   **이중 인셋** 버그. 불필요한 건 `#id.클래스 { … !important }`로 무효화.
+4. 컴포넌트별 미디어쿼리 경계값이 §4와 일치하는지 실측 재검증(예전 786px 등 잔존 가능).
+5. 컬럼 수 바뀌는 구간(8↔12)에서 "N칸 중 M칸" 비율 공식 복붙 금지 — 그 구간 `--grid-cols`로 재계산.
 
 ## 6. 적용 원칙
 
-- **기존 페이지는 지금 건드리지 않는다.** 이 문서는 신규 작업 + 향후 리팩터링 기준.
-- 새 컴포넌트 만들 때: 폰트는 §2 스케일에서, 여백은 §3 스케일에서, 반응형 분기는 §4 표에서 고른다.
-- 표에 없는 값이 꼭 필요하면 이유를 먼저 확인 후 추가 — 임의로 늘리지 않는다.
-- **`font-size`는 어떤 화면에서도 11px 미만 금지.** 가독성 최저선(§2 `--font-caption` 11px가 현재 최소 실사용값).
-- **`font-size` 홀수 px는 §2 표에 있는 값만.** Material/iOS 표준값과 정확히 일치시킬 목적이 있을 때만 허용된 홀수라 — 표에 없는 임의 홀수(13.5px 등 애매값) 생성은 금지.
-- 한 화면에 딱 맞춰야 하는 컨테이너는 `100vh` 대신 `100dvh` 사용 (§10 참고).
-- 회전 시 세로공간이 줄어드는 문제는 §10의 4단계 계층방어 순서를 따른다 — 임의로 요소를 숨기거나 축을 바꾸기 전에 단계 순서(dvh 고정 → 헤더/푸터 고정 → 여백/폰트 축소·min-height 스크롤 전환 → 장식요소 숨김)를 확인.
+- 폰트는 §2, 여백은 §3, 반응형 분기는 §4에서 고름. 표에 없는 값은 이유 확인 후 추가.
+- `font-size` 11px 미만 금지. 홀수 px는 §2 표 값만.
+- 한 화면에 맞춰야 하는 컨테이너는 `100dvh`.
+- 회전 시 세로공간 부족은 §10 순서대로(dvh → 헤더/푸터 고정 → 축소·스크롤 → 장식 숨김).
 
-## 7. 피크바(통화 배지, `.topbar-currency`) 컴포넌트
+## 7. 피크바(`.topbar-currency`)
 
-아이콘 크기 기준으로 박스 크기를 역산하는 바텀업 방식. 모바일/태블릿(작음·와이드)/데스크탑
-3티어로 나눌 예정 — 데스크탑만 확정, 나머지는 추후 논의.
+아이콘 크기 기준 역산. 데스크탑(1600px~)만 확정, 나머지 구간 미정.
 
-### 데스크탑(1600px~) — 확정
-
-| 요소 | 값 |
+| 요소 | 데스크탑 값 |
 |---|---|
-| 아이콘 이미지 | 24px (자체 마진 없음) |
-| 숫자 폰트 크기 | 18px |
-| 아이콘-숫자 사이 갭 | 4px |
-| 배지(아이콘+숫자 한 세트) 상하 패딩 | 8px |
-| **배지 높이(역산)** | 24(아이콘, 텍스트18보다 큼) + 8 + 8 = **40px** |
-| 배지 폭 | 아이콘24 + 갭4 + 텍스트폭(가변) — 고정값 없음 |
-| 필박스(`.topbar-currency`) 좌우 패딩 | 20px |
-| 필박스 배지간 갭 | 10px (기존값 유지) |
-| **필박스 높이** | 자체 상하패딩 없음 → 배지 높이 그대로 **40px** |
+| 아이콘 | 24px (마진 없음) |
+| 숫자 폰트 | 18px |
+| 아이콘-숫자 갭 | 4px |
+| 배지 상하 패딩 | 8px → 배지·필박스 높이 40px |
+| 필박스 좌우 패딩 / 배지간 갭 | 20px / 10px |
 
-## 8. 원형 아이콘 버튼 (`--icon-circle-*`) 컴포넌트
+## 8. 원형 아이콘 버튼 (`--icon-circle-*`)
 
-토글/원형 아이콘버튼 등 여러 페이지에서 재사용하는 공용 컴포넌트. 카포·BPM 같은 노트 전용
-특수 버튼은 이 토큰을 쓰지 않고 별도로 정의한다. `style.css`의 `--icon-circle-size`/
-`--icon-circle-svg`(CSS 커스텀 프로퍼티, §5 그리드 토큰과 같은 패턴)를 실제 소스로 삼고
-이 표는 그 스펙 문서. 적용 대상: `.project-icon-btn`(삭제·저장·공유·편집/완료), `.metronome-btn`,
-`.play-all-btn`, `.slot-toggle-btn`(코드슬롯 눈동자 아이콘), `.add-line-btn`(줄 추가 + 버튼) —
-전부 `var(--icon-circle-size)`/`var(--icon-circle-svg)`만 참조하므로 이 표 값을 바꾸면
-다섯 다 자동 반영됨. 카포/BPM(`.capo-btn`, `.capo-control`, `.bpm-control`)은 별도 특수
-컴포넌트로 취급하지만 **크기 값만** 이 토큰을 그대로 재사용함(디자인은 독립적으로 계속 조정).
+적용: `.project-icon-btn`, `.metronome-btn`, `.play-all-btn`, `.slot-toggle-btn`, `.add-line-btn`
+(전부 `var(--icon-circle-size)`/`var(--icon-circle-svg)` 참조). 카포/BPM은 별도 컴포넌트지만 크기만 재사용.
 
-| 구간 | 원 크기 | 내부 아이콘(svg) | 비고 |
-|---|---|---|---|
-| ~768px (모바일+태블릿) | `clamp(26px, round(nearest, calc(100vw * 28 / 412), 1px), 28px)` | `clamp(15px, round(nearest, calc(100vw * 16 / 412), 1px), 16px)` | 412px 뷰포트에서 정확히 28px/16px로 수렴(vw% 반올림 오차 방지 위해 calc 나눗셈 사용), `round()`로 정수 px 스냅해 서브픽셀 흐림 방지(단 `@supports`로 감싸 구형 크로미움 폴백 처리 — round() 미지원 시 커스텀 프로퍼티 전체가 무효화되는 걸 막음), 그 아래는 최소 26px까지 축소 |
-| 769~1599px (큰 태블릿+태블릿가로/랩탑) | `32px` (고정) | `18px` (고정) | Material medium(40dp 터치타겟) 참고, 기존 비율(16/28≈57%) 유지해 18px |
-| 1600px~ (데스크탑) | 미정 | 미정 | 다음 논의 |
+| 구간 | 원 크기 | 아이콘 |
+|---|---|---|
+| ~768px | `clamp(26px, round(nearest, calc(100vw * 28 / 412), 1px), 28px)` | `clamp(15px, round(nearest, calc(100vw * 16 / 412), 1px), 16px)` |
+| 769~1599px | 32px | 18px |
+| 1600px~ | 미정 | 미정 |
 
-`--icon-circle-gap`(6px, ~768px 기준, 그 이상은 아직 미정)은 **원형 버튼 2개 이상을 가로로
-묶은 그룹**의 내부 간격 토큰 — `.project-title-btns`, `.project-header-row1-right`,
-`.project-header-row2-right`(메트로놈·재생, 가로모드에선 되돌리기까지 합류)에 적용됨. 값은 같아도 카포/BPM처럼 원형버튼이
-아닌 컨트롤을 담은 그룹(`.project-header-row2-left`)은 대상 아님.
+- ~768px: 412px에서 28/16px로 수렴, `round()`로 정수 스냅(`@supports`로 구형 폴백).
+- `--icon-circle-gap` 6px(~768px): 원형 버튼 2개+ 가로 그룹 내부 간격(`.project-title-btns`,
+  `.project-header-row1-right`, `.project-header-row2-right`).
+- 스타일: 아웃라인 — 배경 `#fff` + `box-shadow: 0 0 0 1px rgba(0,0,0,0.08)`
+  (`.add-line-btn`만 `border: 1.5px solid var(--border)`).
 
-### 시각 스타일 variant
+## 9. 뒤로가기 아이콘 옆 타이틀 정렬
 
-| variant | 배경 | 테두리 | 사용처 |
-|---|---|---|---|
-| A. 아웃라인 (현재 적용) | `#ffffff` | `box-shadow: 0 0 0 1px rgba(0,0,0,0.08)` (`.add-line-btn`만 실제 `border: 1.5px solid var(--border)`) | 노트 편집페이지 전체(위 5개 버튼) |
-| B. 배경채움 | `#ECECEA` (무채색 밝은 회색) | 없음 | (시도했다가 A로 되돌림 — 기록만 남김) |
+lucide 아이콘은 viewBox 안쪽에 획이 그려져 시각 중심이 살짝 안쪽 → 타이틀에 `margin-left: 2px`
+(`.metronome-scroll .page-title` 사례).
 
-variant A가 노트 편집페이지 기본값으로 확정 적용됨.
+## 10. 디바이스 회전 대응 (4단계 계층방어)
 
-## 9. 페이지 타이틀(`.training-page-title`) 좌측 여백
+세로 기준 레이아웃이 가로모드에서 세로공간 부족할 때 순서대로 적용:
 
-메트로놈 페이지(`metronome.html`)에서 `.training-page-title`에 `margin-left: 2px` 적용
-(`style.css` `.metronome-scroll .training-page-title`) — 상단 뒤로가기 `#back-btn`의
-lucide svg 아이콘과 좌측 시각 정렬을 맞추기 위함. lucide 아이콘은 24×24 viewBox 안에서
-획(stroke)이 가장자리에 딱 붙지 않고 살짝 안쪽에 그려지는 세트 공통 특성이 있어, 버튼
-padding을 0으로 없애도 아이콘 자체 시각 중심이 약간 안쪽으로 치우침 — 이를 상쇄하려고
-타이틀 쪽에 작은 좌측 여백을 준 것. 다른 페이지에 동일 패턴 적용할 때 참고.
+0. **`100dvh`** — 최상위 컨테이너 높이. 주소창·회전 자동 반영.
+1. **헤더/푸터 고정, 본문만 유동** — 헤더·푸터 `flex-shrink:0`, 본문 `flex:1; overflow-y:auto`.
+2. **자식에 `min-height`** — `flex:1` 비율분배 자식에 최소 높이를 줘야 찌그러지는 대신 스크롤로 전환됨
+   (공간 충분 → 비율분배, 부족 → 자동 스크롤. `orientation` 분기 불필요). 예: `.metronome-scroll` 각 영역.
+3. **장식요소 순차 숨김** — 없어도 기능 지장 없는 것부터 `display:none`(페이지별 판단). 타이틀·데이터·액션은 유지.
 
-## 10. 디바이스 회전 대응 전략 (4단계 계층방어, 2026-08-22 확정)
+- 축 전환(column→row)은 공수 커서 핵심 화면만 선별 적용.
+- `orientation:landscape`는 폰/태블릿 가로 구분 못 함 → 배치 변경이 필요하면 `min-width`+`min-height` 조합 사용.
 
-세로에 딱 맞춰 짠 레이아웃이 회전(가로모드)으로 세로공간이 줄면 찌그러지는 문제의 표준 대응.
-아래 순서대로 적용한다.
+## 11. 페이지 뼈대 — `cd-topbar` / `cd-main` / `cd-dockbar`
 
-### 0단계 — 뷰포트 높이 기준: `100dvh`
+**최우선 규칙. 결정 순서: 뼈대 → 그리드(§5) → 컴포넌트(§7~).** 뼈대가 제각각이면 그리드를 맞춰도
+탑바·메인 시작점이 페이지마다 어긋남.
 
-`100vh` 대신 `100dvh` 사용 (사파리 15.4+ 타겟 확정). 주소창 유무·회전에 따라 실제 가시영역
-높이가 자동 갱신되므로, 안드로이드(주소창 없는 네이티브 앱)/아이폰(주소창 변동 브라우저)
-플랫폼 차이를 폭 분기 없이 이 한 줄로 흡수한다.
+### 11-1. 뼈대 2종
 
-```css
-.full-screen-container {
-  height: 100dvh;
-  display: flex;
-  flex-direction: column;
-}
+| 종류 | 구조 | 해당 |
+|---|---|---|
+| A | 탑바 - 메인 - 독바(탭 내비) | `home.html` |
+| B | 탑바(뒤로가기+피크바) - 메인 | 그 외 서브페이지 |
+
+- 하단 CTA 버튼(예: scale-level "암기하기")은 독바가 아니라 메인 안의 요소.
+- 미적용: `daily-mission`/`onboarding`(탑바 없는 풀스크린), `index`/`Privacy`/`Terms`/`delete-account`/`sound-test`.
+
+### 11-2. 마크업
+
+```html
+<div class="app-shell">                        <!-- 100dvh flex column -->
+  <header class="cd-topbar cd-topbar--white">…</header>
+  <main class="cd-main">…내용물 바로…</main>
+  <nav class="cd-dockbar">…</nav>               <!-- A종만 -->
+</div>
 ```
 
-### 1단계 — 헤더/푸터 고정, 콘텐츠만 유동
+`cd-` = Chorditor 접두어. 위치 기반 이름 채택(Material·iOS가 "navigation bar"를 위/아래 반대로 써서).
 
-```css
-.app-header { flex-shrink: 0; }
-.app-footer { flex-shrink: 0; }
-.app-body   { flex: 1; overflow-y: auto; }
+### 11-3. 규격 (style.css 맨 끝 "페이지 셸" 섹션)
+
+| 요소 | 규격 |
+|---|---|
+| `cd-topbar` 높이 | 모바일 `56px + safe-area-inset-top` / 481px~ `56px` |
+| `cd-topbar` 좌우 | `padding-inline: var(--cd-inset)` (박스는 뷰포트 전체) |
+| `cd-main` 배경 | 기본 투명(앱 배경), `cd-main--white` 수식어 = `#fff` |
+| `cd-topbar` 배경 | `var(--topbar-bg, var(--bg))`, `--white` 수식어 = `#fff` |
+| `cd-main` | `flex:1` + `overflow-y:auto` + `padding-inline: var(--cd-inset)` + `padding-bottom: calc(var(--space-6) + env(safe-area-inset-bottom))` + 세로 flex + 스크롤바 숨김 (박스는 뷰포트 전체) |
+| `--cd-inset` | `max(var(--grid-margin), calc((100vw - 1440px) / 2 + var(--grid-margin)))` — 1440 이하 = 그리드 마진, 초과분은 좌우 균등 분배. `%`가 아니라 `vw`인 이유: 패딩과 자식 마진에서 기준이 달라지지 않게 |
+| 피크바 | 마크업 인라인 `margin-left:auto`로 우측 끝. 1600px~ 크기는 §7 |
+
+### 11-3a. `cd-main` 안쪽 — `cd-head` / `cd-body` (2026-10-03)
+
+`cd-main` 직속 자식 공통 구조. 타이틀+셀렉터 묶음(헤드)과 페이지 고유 콘텐츠(본문)를 나눔.
+
+```html
+<main class="cd-main">
+  <header class="cd-head">                 <!-- 스크롤 중 상단 고정이면 cd-head--sticky 추가 -->
+    <div class="cd-title">제목</div>
+    <div class="cd-selector">…</div>       <!-- 선택 요소(키 선택기, 챕터 점 등). 없으면 생략 -->
+  </header>
+  <section class="cd-body">…페이지 고유 콘텐츠…</section>
+</main>
 ```
 
-### 2단계 — 여백/폰트 비례 축소 + min-height 도달 시 자동 스크롤 전환
+| 요소 | 규격 |
+|---|---|
+| `cd-head` | `flex-shrink:0` + 세로 flex + `padding-top: var(--cd-head-pad)`(탑바↔타이틀) |
+| `cd-title` | `font: var(--type-headline-sm)` + `letter-spacing: var(--tracking-base)`, `align-self:flex-start` |
+| `cd-selector` | `margin-top: var(--cd-title-gap)`(타이틀↔셀렉터). 안쪽 배치는 페이지 고유 |
+| `cd-body` | `flex:1; min-height:0` + 세로 flex + `margin-top: var(--cd-head-gap)`(헤드↔본문) |
+| `cd-head--sticky` | `position:sticky; top:0; z-index:5` + `margin-inline: calc(var(--cd-inset) * -1)` + `padding-inline: var(--cd-inset)` + 배경 `var(--bg-primary, #fff)` (배경·구분선 풀블리드, 내용은 그리드 안) |
 
-`flex-direction:column` 컨테이너(`overflow-y:auto`)가 자식들을 `flex:1`로 세로 비율분배할 때,
-자식에 `min-height`가 없으면 뷰포트가 좁아져도(가로모드 등) **스크롤 대신 내용이 찌그러진다**
-(`flex:1`엔 기본적으로 `flex-shrink`가 걸려 있어 컨테이너에 맞춰 억지로 줄어듦 → "넘치는 콘텐츠"가
-없으니 `overflow-y:auto`가 트리거될 일도 없음).
+간격 토큰 (`:root`, 5단계 중 3구간만 분기):
 
-**해법**: 각 자식에 `min-height`(더 이상 못 줄어드는 최소 보장 크기)를 지정한다.
-- 컨테이너가 min-height 합보다 크면: 기존처럼 `flex:1`이 남는 공간을 비율대로 분배(그대로 동작)
-- 컨테이너가 min-height 합보다 작아지면: 자식들이 그 밑으로 못 줄어들어 콘텐츠 총합이 컨테이너를
-  넘어섬 → 그 순간 `overflow-y:auto`가 자동으로 스크롤을 켬
+| 토큰 | 의미 | 모바일 | 481px~ | 769px~ |
+|---|---|---|---|---|
+| `--cd-head-pad` | 탑바 ↔ 타이틀 | 16px | 20px | 24px |
+| `--cd-title-gap` | 타이틀 ↔ 셀렉터 | 16px | 16px | 20px |
+| `--cd-head-gap` | 헤드 ↔ 본문 | 24px | 24px | 32px |
 
-즉 "비율분배"와 "스크롤"은 **min-height 도달 여부로 자동 전환**되며, 별도의 `orientation:landscape`
-분기가 필요 없다 — 이 메커니즘은 방향이 아니라 실제 남는 px 높이로 반응하므로 폰 가로모드(높이
-부족→스크롤)와 태블릿 가로모드(높이 충분→기존 분배) 둘 다 코드 하나로 자동 구분된다.
+- 간격 규칙(아래 요소 `margin-top` 한 곳)은 §19-1과 동일. 탑바↔타이틀만 `cd-head` 상단 패딩.
+- 간격은 토큰만 사용. 페이지별 간격 오버라이드 금지(공통 토큰을 바꿔서 전 페이지 일괄 적용).
+- 본문이 `min-height`로 커지면 `cd-main`이 스크롤(예: scale-training `.cd-body{min-height:auto}`).
 
-적용 예: `metronome.html`의 `.metronome-scroll` 4단 구조(`#metronome-*-area`)에 각 영역별
-`min-height`를 부여해 가로모드 스크롤을 확보.
+### 11-4. 규칙
 
-### 3단계 — 그래도 부족하면 장식요소 순차 숨김
+- 뼈대 CSS는 "페이지 셸" 섹션 한 곳에만. 페이지별 구역에 뼈대 규칙 금지.
+- 페이지 간 차이는 수식어(`--modifier`)·CSS 변수로만. **페이지 이름으로 덮어쓰기 금지.**
+  새 변종은 수식어 추가 후 여기 등록.
+- 피크바 유무는 마크업으로 결정(필요한 페이지만 넣음, CSS로 숨기지 않음).
+- **불필요한 wrapper 금지.** 뼈대 바로 안에 내용물. 레이아웃 목적만의 중간 div(`.main-content`/
+  `.xxx-scroll` 류) 금지. wrapper는 내용상 묶음일 때만(예: 같이 sticky되는 `cd-head--sticky`).
+- 내용물은 페이지 고유 클래스 유지, 자기 좌우 마진 없음(이중 인셋 방지).
+- 뷰포트 끝까지 닿아야 하는 풀블리드 요소(구분선, 바 배경, 캐러셀)는 `margin-inline: calc(var(--cd-inset) * -1)`로
+  `cd-main` 패딩 상쇄 (예: `.cd-head--sticky`, `.st-track`, `.scale-item-list`). 안쪽 패딩도
+  `--cd-inset`으로 되돌려 내용은 그리드 안에 유지.
+- **하단 여백: `cd-main`은 항상 `padding-bottom` 24px + 안전영역을 둠(2026-10-06).** 내용이 얼마나 많아도 스크롤 끝에서 하단에 여백이 남아 안정감을 줌. 안쪽 요소에 하단 여백을 따로 넣지 말 것. 본문 높이를 JS로 계산하는 페이지는 `cd-main` 하단 패딩을 빼야 함(예: scale-level `updateScaleGapScrollMode`).
+- 하단 안전영역(`safe-area-inset-bottom`)은 `cd-main`이 `padding-bottom`으로 전담. **이전하는 페이지가 안쪽 요소에서 이미 같은 값을 쓰고 있으면 이중 적용 → 이전 시 안쪽 값을 뺄 것.**
+- **새 페이지는 반드시 `cd-*` 뼈대** → 그리드 마진·캡·중앙정렬 자동. 컬럼 배치(col2~11 등)는 콘텐츠별 판단.
 
-일러스트·보조설명 등 "없어도 기능엔 지장없는" 요소부터 `display:none`. **일괄규칙 아님** — 페이지마다
-핵심/장식 기준이 다르므로 페이지 작업 시 개별 판단한다. 핵심(타이틀+데이터+액션버튼)은 끝까지 남긴다.
+### 11-5. 기존 페이지 이전
 
-### 참고 — 축 전환(column→row)은 예방책, 선별 적용
+페이지 하나씩: `cd-*` 적용 → 그 페이지 전용 덮어쓰기 규칙(`:has(.xxx-scroll)`, 페이지명 셀렉터) 삭제 →
+확인. 전부 끝나면 `.top-bar`/`.main-content` 삭제.
 
-세로 배치를 가로모드에서 좌우분할로 바꾸면 애초에 세로공간 압박 자체가 줄어 2~3단계 개입 필요성이
-낮아진다. 다만 페이지 구조를 2벌 짜야 해서 공수가 크므로, 핵심 화면에 한해 선별 적용한다.
+| 페이지 | 상태 |
+|---|---|
+| `scale-training.html` | ✅ 완료(2026-10-02), `cd-head--sticky`/`cd-body` 이식(2026-10-03), 구조는 §19-1 |
+| `scale-level.html` | ✅ 뼈대 + `cd-head`/`cd-body` 이식(2026-10-03) — `.scale-level-layout` 제거됨. `.scale-level-main .cd-*` 오버라이드가 style.css에 남아 있음(정리 대상) |
+| `progression.html` | ✅ `cd-head--sticky`(타이틀 + 필터 칩·`#/b` + 드롭다운) / `cd-body`(목록) 이식(2026-10-06) — `.prog-scroll`·`.prog-sticky-header`·기기별 폭 스코프 삭제, 카드·섹션 라벨 좌측 패딩 0(그리드 좌측선에 정렬) |
+| `progression-detail.html` | ✅ `cd-head`(타이틀 + 코드 진행 + 12key 1줄 셀렉터) / `cd-body`(인디케이터·캐러셀·BPM·시작 버튼 한 묶음 `.progd-stack`, 등간격·세로 가운데) 이식(2026-10-06) — `.progd-layout` 삭제, 요소 크기는 `.progd-main`의 `--pd-*` 토큰(5단계 고정 px). 키 셀렉터 가로스크롤 함수는 `shared.js` 공용 |
+| `strum-play.html` | ✅ `cd-head`(타이틀) / `cd-body`(캐러셀·비트 그리드·BPM 영역·시작 버튼, 높이 상한 900px, `space-between` + 세로 가운데) 이식(2026-10-06) — `.strum-play-area` 삭제, 비트 그리드는 `.strum-play-main`의 `--sg-*` 토큰(칸 32/52px). 다운·업·컷팅 아이콘은 `image/*_stroke.svg`(루시드 규격) 인라인 |
+| `chord-combo.html` | ✅ `cd-head--sticky` + `cd-body`(챕터 카드 캐러셀) / 퀴즈 뷰 `cd-body` 이식(2026-10-06) — 선택 뷰 ↔ 퀴즈 뷰 슬라이드를 위해 `.combo-stage`(relative·overflow hidden) wrapper가 예외로 있음. `.combo-quiz-wrap`은 mission-session과 공용이라 이 페이지에서만 `#combo-view-quiz`로 덮음 |
+| 그 외 서브페이지(위 4개 제외) / `home.html` | 미착수 |
 
-`orientation:landscape` 미디어쿼리는 가로/세로 **비율**만 볼 뿐 실측 크기를 모르므로 폰 가로와
-태블릿 가로를 구별하지 못한다 — 태블릿 가로에서만 레이아웃 자체를 바꾸고 싶은 경우(스크롤 여부가
-아니라 배치 변경)에는 §5/§9와 같은 기존 관례대로 `min-width`+`min-height` 조합 미디어쿼리를 쓴다
-(`orientation` 대신 실측 px 조합 사용).
+### 11-6. 미정
 
-## 11. 화면 구조 — 앱셸 / 페이지셸 (2026-08-22 확정)
+- 풀블리드 요소 표준 수식어(현재는 `--cd-inset` 음수 마진을 개별 선언)
+- 데스크탑 로고 탑바(`.desktop-topbar`) 처리
 
-전 페이지 공통 레이아웃을 두 계층으로 나눈다. 접두어로 계층을 구분: `app-*`(항상 존재하는 바깥셸,
-데스크탑 전용) / `page-*`(전 플랫폼 공통, 페이지마다 반복되는 안쪽셸).
+## 12. `.cd-btn` (CTA 버튼)
 
-**바깥셸 (`app-*`, 데스크탑 1600px~ 전용, 항상 존재)**
-- `.app-topbar` — 로고+브랜드+버전 탑바
-- `.app-sidebar` — 좌측 사이드바
+신규 작업부터 사용. 기존 `.btn`(다른 스타일, 30곳+ 사용)과 이름 충돌 피하려 `cd-` 접두어.
+`.sel-btn`(칩/토글)은 별개 컴포넌트.
 
-**안쪽셸 (`page-*`, 전 플랫폼 공통)**
-- `.page-topbar` — 뒤로가기 등 페이지 개별 탑바 (3단 구조)
-- `.page-main` — 메인 콘텐츠
-- `.page-dockbar` — 독바 (없는 페이지는 생략, 2단 구조)
-
-즉 모바일/태블릿은 `page-*` 3단(`탑바/메인/독바`) 또는 2단(`탑바/메인`)이 곧 전체화면이고,
-데스크탑은 `app-topbar`+`app-sidebar`가 감싼 나머지 영역 안에 같은 `page-*` 구조가 그대로 중첩된다.
-
-**현재 상태와의 관계**: 지금 `.top-bar`/`.bottom-nav`는 모바일용 역할과 데스크탑 셸 역할을 한 요소가
-겸하고 있음(`shared.js`의 `injectAppChrome()`이 같은 `.top-bar`에 데스크탑 브랜드를 끼워넣는 방식,
-`.bottom-nav`를 데스크탑에서 사이드바로 grid-area만 바꿔 재활용) — 이게 탑바 위치가 페이지마다
-공통 안 됐던 원인 중 하나. `app-*`/`page-*` 분리는 신규 기준이며, 기존 코드 전환은 지금 당장 하지 않고
-**페이지 단위로 점진 적용**한다 (§4의 모바일퍼스트 전환과 같은 방식 — 전부 끝날 때까지 기존 구조와 혼재 허용).
-
-## 12. `.cd-btn` 컴포넌트 (CTA 버튼, 2026-08-24 확정)
-
-daily-mission 게이트 작업 중 CTA형 사각버튼 스타일이 페이지마다 제각각(6종 이상, 높이 28~52px)으로
-흩어져 있는 게 확인돼서 신설. 기존 `.btn`은 home.html 등 30곳 이상에서 이미 다른 스타일(높이 34px대,
-`.btn-ghost`/`.btn-primary`/`.btn-danger`)로 활발히 쓰이고 있어 이름 재사용 시 전역 리스타일링
-사고가 나므로 새 이름 `cd-btn`(Chorditor 프리픽스) 채택 — 실무 디자인시스템도 기존 이름과 충돌하면
-새 네임스페이스를 붙이는 게 일반적인 패턴(Material의 `mdc-*`, Ant Design의 `ant-*`와 동일 이유).
-
-`.sel-btn`(칩/토글형 선택버튼, M/m/aug/dim 등 코드 속성 고르기)은 카테고리 자체가 달라서
-`.cd-btn`과 충돌 없음 — CTA 버튼(호출행동)과 칩/토글은 디자인시스템에서 별개 컴포넌트로 취급.
-
-**기존 페이지는 지금 당장 전환하지 않는다** — §6 적용 원칙과 동일, 신규 작업부터 사용.
-
-### 크기 토큰 — 5단계(§4 브레이크포인트 기준)
+### 크기 (§4 5단계)
 
 | 토큰 | 모바일 | 태블릿 | 큰태블릿 | 랩탑 | 데스크탑 |
 |---|---|---|---|---|---|
@@ -393,14 +330,13 @@ daily-mission 게이트 작업 중 CTA형 사각버튼 스타일이 페이지마
 | `--cd-btn-padding-inline` | 20px | 20px | 24px | 24px | 28px |
 | `--cd-btn-font-size` | 15px | 15px | 16px | 16px | 16px |
 | `--cd-btn-radius` | 8px | 10px | 12px | 14px | 16px |
+| `--cd-btn-icon-size` | 16px | 16px | 18px | 18px | 20px |
+| `--cd-btn-icon-gap` | 4px | 4px | 8px | 8px | 8px |
 
-너비는 고정값 기본, 특별한 상황(라벨 길이가 가변적인 경우 등)에만 `auto`로 개별 예외 처리.
+너비 고정 기본, 라벨 길이 가변일 때만 `cd-btn--auto-width`.
+아이콘 있는 버튼(예: 재생 아이콘+라벨)은 `--cd-btn-icon-size`·`--cd-btn-icon-gap` 사용 — 폭이 아이콘 때문에 96px 이상 필요하므로 보통 auto-width.
 
-`--cd-btn-radius`는 처음엔 `var(--radius)`(16~24px, 카드용 토큰) 재사용이었으나 버튼엔 너무
-둥글다는 피드백으로 2026-08-24 전용 토큰으로 분리, 4~12px로 낮췄다가 이번엔 너무 각져서
-8~16px로 재조정.
-
-### 색상 variant — 4종 (§1 기존 색상 토큰만 재사용, 신규 색상 없음)
+### 색상 variant (§1 토큰만 사용)
 
 | variant | background | text |
 |---|---|---|
@@ -409,29 +345,9 @@ daily-mission 게이트 작업 중 CTA형 사각버튼 스타일이 페이지마
 | `--cd-btn-blue` | `var(--blue)` (#4f7cff) | `#fff` |
 | `--cd-btn-red` | `var(--accent)` (#e03c31) | `#fff` |
 
-연한그레이는 처음엔 `--border`(#d9d4cc)로 대체했으나 더 연한 톤 요청으로 2026-08-24
-`--gray-light`(#ECECEA, §1 참고) 신규 토큰화 — §8에 "시도했다 되돌림"으로 기록만 남아있던
-값을 정식 승격한 것.
+## 13. `.cd-cardlist` (Card List)
 
-`--cd-btn-brand`는 원래 `--cd-btn-blue`였으나, CTA 블루→브랜드 전환(§1 `--brand` 참고) 이후
-실제 배경색이 `var(--brand)`(#1a1a1a)로 바뀌었는데도 이름이 "blue"로 남아있던 걸
-2026-09-08에 실체에 맞게 리네임(`.cd-btn--blue`→`.cd-btn--brand`, 4개 사용처 전부 반영).
-같은 날, 원래 있던 `--cd-btn-charcoal`(`var(--text-primary)`)은 검은색 계열을 `--brand`
-하나로 통일하기 위해 제거·`--cd-btn-brand`로 병합(실사용처 없어 마이그레이션 불필요).
-빈 자리엔 진짜 파랑(`var(--blue)`)을 쓰는 `--cd-btn-blue`를 신규 variant로 채워 화이트-블랙(brand)-
-레드/블루(보조색) 3색 조합 원칙(§1)에 맞춤 — 최종 4종: brand/gray/blue/red.
-
-## 13. `.cd-cardlist` 컴포넌트 (Card List, 2026-08-24 확정)
-
-daily-mission 게이트에서 "오늘 할 훈련 3가지"를 보여줄 목적으로 신설. 실무 디자인시스템 용어로
-항목 하나(아이콘+텍스트 한 줄)는 **List Item**, 배경이 있는 카드 형태로 낱개 분리된 배치는
-**Card List**라고 부름 — 그대로 이름 채택. `.cd-btn`과 동일하게 Chorditor 프리픽스(`cd-`) 사용.
-
-**기본값은 아이콘 없이 텍스트만.** 아이콘이 필요하면 `.cd-cardlist-item--icon` variant를 추가로
-붙인다 — 기본 컴포넌트에 아이콘을 필수 요소로 넣지 않은 이유는 아이콘 없는 사용처(예: 단순 목록)에서
-불필요한 여백/정렬 규칙까지 끌려오는 걸 막기 위함.
-
-**기존 페이지는 지금 당장 전환하지 않는다** — §6 적용 원칙과 동일, 신규 작업부터 사용.
+배경 있는 카드형 낱개 항목 리스트. 기본은 텍스트만, 아이콘 필요하면 `.cd-cardlist-item--icon`.
 
 ### 마크업
 
@@ -444,10 +360,9 @@ daily-mission 게이트에서 "오늘 할 훈련 3가지"를 보여줄 목적으
 </ul>
 ```
 
-아이콘은 Phosphor Icons(`ph-fill ph-*`, `training.html`이 이미 쓰는 것과 동일 라이브러리·색상
-재사용) — training-card 아이콘 색 `#334155`(`--charcoal-blue`) 그대로 사용.
+아이콘: Phosphor(`ph-fill ph-*`), 색 `--charcoal-blue`.
 
-### 크기 토큰 — 5단계(§4 브레이크포인트 기준)
+### 크기 (§4 5단계)
 
 | 토큰 | 모바일 | 태블릿 | 큰태블릿 | 랩탑 | 데스크탑 |
 |---|---|---|---|---|---|
@@ -457,84 +372,35 @@ daily-mission 게이트에서 "오늘 할 훈련 3가지"를 보여줄 목적으
 | `--cd-cardlist-icon-size` | 24px | 26px | 28px | 30px | 32px (`--icon` variant 전용) |
 | `--cd-cardlist-radius` | 8px | 10px | 12px | 14px | 16px |
 
-높이·폰트 증가폭은 초안(2px/2px 단위)이 너무 작다는 피드백으로 8px/2px 단위로 재조정된 값.
-`--cd-cardlist-radius`도 `--cd-btn-radius`와 동일하게 처음엔 `var(--radius)`(16~24px) 재사용이었으나
-2026-08-24 전용 토큰(8~16px)으로 분리.
+그림자(고정): `box-shadow: 0 2px 8px rgba(0,0,0,0.20)`.
 
-**그림자(2026-09-08 확정, 5단계 무관 고정값)**: `box-shadow: 0 2px 8px rgba(0,0,0,0.20)` —
-y오프셋2px/블러8px/불투명도0.20, 여러 차례 조정 끝에 확정.
+## 14. `docs/style-guide-preview.html` (실물 미리보기)
 
-## 14. `docs/style-guide-preview.html` — 실물 미리보기 페이지 (2026-08-24 신설)
+§1~13 토큰을 실제 컴포넌트로 렌더링하는 내부 전용 정적 페이지. 앱과 무관, `../style.css`만 로드.
 
-이 문서(마크다운)는 값만 텍스트로 나열돼서 실제로 어떻게 생겼는지 눈으로 확인이 안 됨 —
-`docs/style-guide-preview.html`이 §1~13 토큰을 실제 컴포넌트로 렌더링해서 보여주는 별도
-정적 페이지. **앱 라우팅과 완전히 무관**(어디서도 링크 안 됨, 본인만 직접 파일 열어서 확인하는
-내부 전용 도구) — `../style.css`만 그대로 불러와 쓰고 `shared.js`/`analytics-sdk.js` 등
-앱 로직은 일절 로드하지 않는다.
+- 섹션: `<section class="sg-section">` + `<h2 class="sg-section-title">`. 순서: 색상 → 뷰포트 → 텍스트 → 버튼 → 카드리스트 → 모달.
+- 5단계 비교: `.sg-row-table-row` / `.sg-row-table-head` 테이블 재사용.
+- 5단계 동시 표시라 토큰 대신 **리터럴 px를 JS 배열로 하드코딩**(`FONT_ROWS`/`BTN_SIZE`/`CL_SIZE`) —
+  style.css 값 바뀌면 여기도 수정. 색상만 `var(--token)` 직접 사용.
+- 툴팁 `#sg-tooltip`: 고정값은 `data-tip-vars`(CSS 변수 실시간 읽기), 5단계 표는 `data-tip-text`.
 
-### 구조 원칙
+**새 컴포넌트 추가**: ① 이 문서에 토큰 확정 → ② preview에 섹션 추가 → ③ `<script>`에 리터럴 배열 +
+행 생성 루프(`BTN_`/`CL_` 패턴) → ④ 툴팁 바인딩 코드(스크립트 맨 끝)보다 앞에 배치.
 
-- **섹션 = `<section class="sg-section">`**, 제목은 `<h2 class="sg-section-title">` (24px/800,
-  구분선 없음, 섹션간 여백 120px로 크게). 현재 순서: 색상 팔레트 → 뷰포트 → 텍스트 → 버튼 → 카드 리스트 → 모달.
-  새 컴포넌트/토큰 추가 시 이 순서 뒤에 같은 패턴으로 섹션만 추가하면 됨.
-- **5단계 비교가 필요한 컴포넌트는 "row(variant) × column(5단계)" 테이블로 통일.**
-  공용 CSS 클래스 `.sg-row-table-row`(그리드, 첫 칸은 라벨 120px + 나머지 5칸 max-content,
-  갭 32px 왼쪽정렬) / `.sg-row-table-head`(헤더행, "모바일/태블릿/큰태블릿/랩탑/데스크탑" 라벨)
-  그대로 재사용 — 새 컴포넌트 추가할 때 이 두 클래스만 그대로 갖다 쓰면 레이아웃 고민 불필요.
-  (텍스트/버튼/카드리스트 3개 섹션 전부 이 패턴)
-- **실제 뷰포트 폭과 무관하게 5단계를 동시에 병렬로 보여줘야 하므로, `var(--cd-*)` 토큰이 아니라
-  각 구간의 리터럴 px 값을 JS로 하드코딩**해서 렌더링한다(각 섹션 하단 `<script>`의
-  `FONT_ROWS`/`BTN_SIZE`/`CL_SIZE` 같은 데이터 배열 — style.css 실측값을 그대로 옮겨적은 것,
-  값이 바뀌면 여기도 같이 고쳐야 함. 색상 팔레트만 예외로 `var(--token)`을 직접 씀 — 색상은
-  브레이크포인트에 따라 안 바뀌므로 리터럴화 불필요).
-- **호버 툴팁**: `#sg-tooltip` 하나를 공용으로 씀. 각 요소에 `data-tip-text="여러줄\n텍스트"`를
-  달아두면(위 데이터 배열에서 자동 생성) 마우스 오버 시 그 내용을 그대로 보여줌 — 리터럴 값이라
-  `data-tip-vars`(getComputedStyle로 실시간 CSS 변수 읽기, 색상 스와치 섹션에서 사용) 방식과는
-  다른 경로. 새 섹션 추가 시 둘 중 하나 골라서 씀: 색상처럼 뷰포트 무관 고정값이면
-  `data-tip-vars`, 5단계 비교 테이블이면 `data-tip-text`.
+## 15. `.cd-modal` (정보성 팝업)
 
-### 새 컴포넌트 추가 절차
-
-1. `docs/style-guide.md`에 §번호로 크기/색상 토큰 먼저 확정 문서화 (§12/§13처럼)
-2. `style-guide-preview.html`에 `<section class="sg-section">` 하나 추가, 5단계 비교가 필요하면
-   `.sg-row-table-row`/`.sg-row-table-head` 그대로 사용
-3. `<script>` 안에 그 컴포넌트의 5단계 리터럴 px 데이터 배열 추가하고, 위 두 렌더러(`BTN_...`,
-   `CL_...`)와 같은 패턴으로 행 생성 루프 작성, `data-tip-text`에 토큰명+구간+값 나열
-4. 기존 `document.querySelectorAll('[data-tip-vars], [data-tip-text]')` 툴팁 바인딩 코드는
-   그대로 재사용됨(수정 불필요) — 스크립트 마지막에 있으므로 항상 그 앞에 렌더러 코드를 둘 것
-
-## 15. `.cd-modal` 컴포넌트 (정보성 팝업, 2026-09-08 확정)
-
-훈련콘텐츠별 튜토리얼 진입 팝업을 위해 신설. 실측(§ 논의 근거: `.attendance-modal`/`.result-modal`/
-`.newrecord-modal` 같은 "보상·축하 연출"용 모달과, `.event-modal`/`.tutorial-start-modal` 같은
-"정보 안내"용 모달 두 갈래가 이미 있었음 — `.cd-modal`은 후자(정보성) 계열을 표준화한 것.
-보상 연출용은 이 컴포넌트 대상이 아니고 그대로 유지.
-
-**오버레이는 새로 안 만듦** — 기존 `.modal-overlay`(z-index:500, `rgba(0,0,0,0.45)`, `hidden` 토글
-방식)를 그대로 재사용. `.cd-modal`은 그 안의 박스만 담당.
-
-### 크기·색상 (5단계 아님 — 뷰포트 무관 clamp 한 줄로 처리)
+정보 안내용 모달 표준. 보상·축하 연출 모달(`.attendance-modal` 등)은 대상 아님.
+오버레이는 기존 `.modal-overlay` 재사용, `.cd-modal`은 박스만.
 
 | 토큰 | 값 |
 |---|---|
-| `--cd-modal-width` | `clamp(300px, 80vw, 480px)` |
+| `--cd-modal-width` | `clamp(300px, 80vw, 480px)` (미디어쿼리 없이 모바일만 비율, 그 이상 480px) |
 | `--cd-modal-padding` | `32px 24px 24px` |
-| radius | `var(--radius-lg)`(16px, 신규 토큰 없이 기존 재사용) |
-| border | `1px solid var(--border)` |
-| background | `var(--surface)` |
-| box-shadow | 없음(오버레이가 이미 어두워서 border만으로 경계 처리 — event-modal/tutorial-start-modal과 동일 관례) |
-| `--cd-modal-scale-from` | `0.8` (등장 애니메이션 시작 크기) |
-| `--cd-modal-duration` | `0.38s` |
-| `--cd-modal-ease` | `cubic-bezier(0.34, 1.5, 0.64, 1)` (attendance-modal과 동일한 통통 튀는 커브) |
+| radius / border / background | `var(--radius-lg)` / `1px solid var(--border)` / `var(--surface)` |
+| box-shadow | 없음 |
+| `--cd-modal-scale-from` / `--cd-modal-duration` / `--cd-modal-ease` | `0.8` / `0.38s` / `cubic-bezier(0.34, 1.5, 0.64, 1)` |
 
-**폭 산출 근거**: 기존 정보성 모달 대다수(attendance/tutorial-start/event/newrecord)가 고정
-300px였고 유일한 예외인 `update-notice-modal`만 5단계 미디어쿼리로 300→420px까지 반응형이었음.
-`clamp(300px,80vw,480px)`로 실측하면 375px 미만에서만 하한(300px) 걸리고, 481px(태블릿 시작)부터
-데스크탑까지는 80vw가 상한(480px, 기존 범용 `.modal`과 동일 캡)에 걸려 쭉 고정 480px — 미디어쿼리
-없이 한 줄로 "모바일만 화면비율 대응, 그 이상은 480px 고정"이 자동 처리됨.
-
-**텍스트**: `.peak-buffer-modal`과 동일한 텍스트 계층 채택(§2 스케일 대신 리터럴 고정값) —
-제목 17px/800/`var(--text-primary)`, 설명 13px/500/`var(--text-secondary)`/line-height 1.5.
+텍스트: 제목 17px/800/`--text-primary`, 설명 13px/500/`--text-secondary`/line-height 1.5.
 
 ### 마크업 구조
 
@@ -554,35 +420,26 @@ y오프셋2px/블러8px/불투명도0.20, 여러 차례 조정 끝에 확정.
 </div>
 ```
 
-### 확정 스타일 3종 (2026-09-08, 이 3개만 사용 — 필요시 추후 추가)
+### 스타일 3종 (버튼은 항상 2개)
 
 | 스타일 | X버튼 | 버튼 배치 |
 |---|---|---|
-| 스타일1 | 없음 | 가로(기본, `.cd-modal-actions`) |
-| 스타일2 | 없음 | 세로(`.cd-modal-actions--col`) |
-| 스타일3 | 있음(`.cd-modal-close`) | 가로(`.cd-modal-actions`) |
+| 1 | 없음 | 가로 `.cd-modal-actions` |
+| 2 | 없음 | 세로 `.cd-modal-actions--col` |
+| 3 | 있음 `.cd-modal-close` | 가로 |
 
-버튼은 항상 2개 고정(1개·3개 케이스 없음). X 유무와 배치는 서로 독립된 요소라 조합상 세로판
-(X있음+세로배치)도 구조적으로 가능하지만, 지금은 위 3개만 실사용 — 필요해지면 그때 추가.
+### 등장 애니메이션
 
-### 등장 애니메이션 (`.cd-modal--in`)
+기본 `scale(var(--cd-modal-scale-from))`+`opacity:0` → `.cd-modal--in`에서 `scale(1)`/`opacity:1`.
+오버레이 `hidden` 제거 후 **더블 `requestAnimationFrame` 뒤에 `--in` 부착**(안 그러면 트랜지션 씹힘,
+`chord-name-quiz.js` `startLevel()` 참고). 닫을 때 `--in`도 제거.
 
-`.cd-modal` 기본 상태는 `transform:scale(var(--cd-modal-scale-from))` + `opacity:0`, `.cd-modal--in`
-모디파이어가 붙으면 `scale(1)`/`opacity:1`로 트랜지션. 오버레이의 `hidden` 클래스를 뗀 직후 바로
-`--in`을 붙이면 초기 스타일이 아직 페인트되기 전이라 트랜지션이 씹힐 수 있어서, 반드시 더블
-`requestAnimationFrame`으로 한 프레임 그려진 뒤에 붙여야 함(`chord-name-quiz.js` `startLevel()`
-참고). 닫을 때는 `--in`도 같이 떼야 다음에 다시 열 때 애니메이션이 재생됨.
+## 16. 상단 그라데이션 (`--fade-top-*` + `shared.js positionFadeTop()`)
 
-## 16. 콘텐츠앵커 상단 그라데이션 (`--fade-top-*` + `shared.js positionFadeTop()`, 2026-09-08 확정)
+위쪽 옅은 틴트가 다음 섹션 시작점에서 정확히 사라지는 패턴의 공용 헬퍼. 현재 실사용처 없음
+(daily-mission/attendance/mission-session은 각자 구현 — 손댈 때 이 헬퍼로 교체).
 
-daily-mission(`#dm-gate`)/attendance(`.attendance-page`)/mission-session에 각각 따로 구현돼있던
-"위쪽에 옅은 틴트가 깔리고, 다음 섹션이 시작되는 지점에서 정확히 사라지는" 상단 그라데이션 패턴을
-공용 헬퍼로 추출. `chord-combo.html`의 `.combo-card`에 처음 적용해봤으나, 화이트 단일색이
-낫다는 판단으로 2026-09-08 되돌림(기록만 남김, §8 패턴과 동일) — 헬퍼 자체는 살아있으니
-다음에 실제로 그라데이션이 필요한 컴포넌트 생기면 그때 이걸 씀.
-
-**CSS**: 그라데이션이 필요한 컨테이너 자신의 배경에 아래 형태로 선언(다른 background 규칙과
-공존 못 함 — 그 요소가 배경을 그라데이션 하나로 전담해야 함):
+그라데이션 걸 컨테이너 자신의 배경에 선언(다른 background 규칙과 공존 불가):
 
 ```css
 .내-컨테이너 {
@@ -592,22 +449,145 @@ daily-mission(`#dm-gate`)/attendance(`.attendance-page`)/mission-session에 각�
 }
 ```
 
-- `--fade-top-tint`: 시작 색(기본값 = 기존 3곳 전부가 쓰던 갈색계열 틴트, 대부분 그대로 씀)
-- `--fade-top-base`: 끝나는 색(페이지 배경과 맞춰야 함 — 회색 배경 위 컨테이너면 `var(--bg))`,
-  흰 배경 카드 위라면 `#fff`처럼 그 컨테이너 자신의 평소 배경색으로 오버라이드)
-- `--fade-top-end`: 그라데이션이 끝나는 지점(px) — JS가 실측해서 채움, 기본값은 JS 실행 전
-  잠깐 보일 폴백일 뿐이라 대략치로 둬도 됨
+- `--fade-top-tint`: 시작 색(기본 갈색계열 틴트)
+- `--fade-top-base`: 끝 색 — 그 컨테이너의 평소 배경색(`var(--bg)` 또는 `#fff`)
+- `--fade-top-end`: 끝 지점 px — JS가 채움(기본값은 폴백)
 
-**JS**: `shared.js`의 `positionFadeTop(containerEl, targetEl)` 호출 — `targetEl`이 `containerEl`
-기준으로 몇 px 지점에 있는지 실측해서 `--fade-top-end`에 그대로 채워 넣는다. 페이지 로드 시
-1회만 호출(리사이즈 재계산 없음 — 기존 3곳 패턴과 동일한 한계, 지금까지 문제 안 됨).
+JS: `positionFadeTop(containerEl, targetEl)` — target 위치를 실측해 `--fade-top-end`에 넣음. 로드 시 1회.
 
-**주의(chord-combo 사례로 확인된 함정)**: 그라데이션을 걸 컨테이너가 실제로 "보이는" 요소인지
-먼저 확인할 것. 두 번 헛짚었음 — ① `.combo-scroll`에 걸었더니 `.combo-sticky-head`(불투명
-sticky)가 위를 덮어서 안 보임, ② 그 다음 `.combo-content`에 걸었더니 이번엔 `.combo-card`
-자신의 불투명 배경(`#fff`)이 그 안쪽을 다 덮어서 안 보임 — 결국 그라데이션은 **실제로 눈에
-보이는 가장 안쪽 불투명 박스 자신**에 걸어야 함. 새로 적용할 때 그 컨테이너 위에 불투명
-배경을 가진 자식이나 sticky 형제가 있는지 먼저 grep으로 확인.
+**주의**: 실제로 보이는 **가장 안쪽 불투명 박스**에 걸 것 — 위에 불투명 sticky 형제나 불투명 배경
+자식이 있으면 가려짐(chord-combo에서 두 번 헛짚음).
 
-**기존 3곳(daily-mission/attendance/mission-session)은 아직 이 공용 헬퍼로 안 옮김** — §6
-원칙과 동일, 지금 당장 안 건드리고 그 페이지들 손댈 일 있을 때 이 헬퍼로 교체.
+## 17. 프렛보드 "사진 확대" 스케일 (`scale-level.html` 원본)
+
+360px 기준 디자인을 한 벌만 만들고 `transform: scale()`로 통째로 확대/축소 → 모든 뷰포트에서
+동일 비율, 서브픽셀 오차 없음. "내부 비율 고정 + 반응형 크기" 컴포넌트에 재사용.
+
+### 원칙
+
+1. 치수는 360px 기준 1벌만 — `calc(Nvw)` 같은 뷰포트 의존 값 금지.
+2. 화면 반영은 `transform: scale()` 하나로만: `scale = 실제확보폭 / 기준폭`.
+3. 순서는 `scale(S) translateX(X)` — 이동이 기준 좌표계에서 먼저 적용됨. 반대 순서면 프렛 위치 어긋남.
+4. 터치 히트박스 최소 44px — 시각 크기가 작으면 `::before { inset: -Npx }`로 보충.
+
+### JS 상수 (`scale-level.js`)
+
+```js
+const FB_REF_WIDTH      = 360;   // 기준 디자인 폭
+const FB_ARROW_W        = 44;    // 좌우 화살표버튼 크기(터치타겟 44px)
+const FB_RATIO          = 2.3;   // fb-viewport 자체의 가로:세로 비율(폭 기준 고정)
+const FB_REF_SPAN       = (FB_REF_WIDTH - 2 * FB_ARROW_W) / FB_RATIO;
+const FB_REF_NECK_H     = (FB_REF_SPAN - 2.25) * 6 / 5;
+const FB_REF_FBU        = FB_REF_NECK_H / 160;           // 지판 내부 단위(fret-board-unit)
+const FB_REF_NUMS_GAP   = 6 * FB_REF_FBU;
+const FB_REF_NUMS_H     = 22 * FB_REF_FBU;
+const FB_REF_TOTAL_H    = FB_REF_NECK_H + FB_REF_NUMS_GAP + FB_REF_NUMS_H;
+const FB_REF_VIEWPORT_W = FB_REF_SPAN * FB_RATIO;
+const FB_REF_FULL_W     = FB_REF_VIEWPORT_W * (TOTAL_FRETS / FRETS_VISIBLE);
+```
+
+내부 치수(줄 두께·dot·프렛번호 폰트)는 전부 `calc(N * var(--fbu))` / `N * FB_REF_FBU`로.
+
+### 스케일 적용
+
+- `computeFbScale()`: 폭 예산(현재 부모 폭 80%, 최대 480px) ÷ `FB_REF_SPAN`. 예산 공식만 바꾸면
+  나머지 파이프라인 재사용.
+- `applyFbScale()`: `#fb-viewport` width/height 인라인 세팅, `#fb-full-wrapper`에
+  `scale() translateX()`, 화살표 세로중앙 재계산. **`resize`마다 재호출 필수**(JS 실측 방식).
+
+### CSS 구조
+
+```
+.fretboard-row           flex, space-between (화살표 양끝)
+  --fb-arrow-w: 44px     /* JS FB_ARROW_W와 동기화 */
+  --fb-ratio / --fb-ref-* / --fbu   /* JS 상수와 같은 공식 */
+  ├─ .fb-arrow-btn       44×44 터치영역, svg 32×32
+  ├─ .fb-viewport        overflow:hidden; width/height는 JS 인라인
+  │    box-sizing: content-box   /* 전역 border-box 되돌림 — 안 하면 padding이 높이 먹어 잘림 */
+  │    padding-top:14px / margin-top:-14px   /* 위쪽 ripple bleed 허용 */
+  │    └─ .fb-full-wrapper   transform-origin:0 0; width·transform은 JS
+  │         ├─ .fb-full-neck  height: calc(160 * var(--fbu))
+  │         └─ .fb-full-nums  height: calc(22 * var(--fbu)); margin-top: calc(6 * var(--fbu))
+  └─ .fb-arrow-btn
+```
+
+### 재사용 체크리스트
+
+1. 기준 폭과 그 폭의 세부 치수 먼저 확정.
+2. CSS `--접두어-ref-*`와 JS `PREFIX_REF_*`를 항상 같이 수정.
+3. `overflow:hidden` 안에 bleed 애니메이션 있으면 `box-sizing: content-box` 확인.
+4. `resize` 리스너에서 재계산 호출.
+5. 터치 대상은 44px 히트박스 보장.
+
+## 18. 튜토리얼 미니강의 (`scale-level.js` 원본)
+
+연습 화면 안에서 "?" 버튼으로 부르는 온디맨드 미니 강의(강제 온보딩 아님). 별도 화면 없이 실제
+연습 무대(`#scale-test-overlay`, `.scale-test-overlay--tutorial`)를 재사용해 지판 시연이 본체, 텍스트는 보조.
+`TUTORIAL_STEPS`(텍스트/액션 단계 순차). 향후 커리큘럼 시스템의 원형.
+
+### 타이밍
+
+- 텍스트 등장: 공통 `.test-question--in`(`1.5s cubic-bezier(0.22, 1, 0.36, 1)`).
+- 액션 등장: 상황별 스태거(`octaveRun` 420ms/노트, `fillRemaining` 250ms/노트), dot 팝인은 공통
+  `.fb-note--spawn`(0.2s).
+- **"다음" 버튼은 애니메이션 실제 종료 + 0.1s(`TUTORIAL_NEXT_BTN_BUFFER_MS`)에만 활성화. 예외 없음.**
+  duration을 JS에 따로 하드코딩하지 않음:
+  - 텍스트: `animationend` 이벤트 청취.
+  - 액션: `(개수-1) × stepMs + TUTORIAL_DOT_FADE_MS(0.2s)` + 버퍼.
+
+## 19. 작업 인수인계 (2026-10-02 scale-training 파일럿, 2026-10-03 cd-head/cd-body 이식 반영)
+
+### 19-1. scale-training.html 구조 — `cd-main` 안쪽(위→아래, 공통 구조는 §11-3a)
+
+```
+header.cd-head.cd-head--sticky   스티키, 풀블리드
+  ├─ .cd-title                   "스케일 훈련"
+  └─ .cd-selector.st-track       챕터 점 4개
+section.cd-body                  (.scale-training-main .cd-body { min-height:auto })
+  ├─ .scale-chapter-header       "Ch. N" + 부제. 1개, 스크롤됨. 글자는 JS가 교체
+  └─ .scale-item-list #ch-1~4    캐러셀 4개. 처음에 전부 DOM에 있고 선택 챕터만 표시(나머지 --hidden)
+```
+
+- 챕터 이름은 각 캐러셀의 `data-title`/`data-subtitle`. `_showChapter(n)`(scale-training.js) = 점 활성 + 캐러셀 표시/숨김 + 헤더 글자 교체.
+  점 클릭(`onChapterTabTap`)과 복귀 복원(`restoreLastPosition`)이 공용으로 호출.
+- **간격 규칙: 형제 사이 간격은 한쪽(아래 요소의 `margin-top`)에만.** 탑바↔타이틀 = `--cd-head-pad`,
+  타이틀↔점 = `--cd-title-gap`, 헤드↔본문(챕터 헤더) = `--cd-head-gap`(전부 §11-3a 토큰, 페이지별 오버라이드 없음).
+  챕터 헤더↔캐러셀 = 간격 없음(카드는 남은 공간 정중앙).
+- 캐러셀(`.scale-item-list`) 핵심 — **카드 크기는 캐러셀 "높이"가 결정**:
+  - `flex: 1 1 0` + `container-type: size` — `cd-body` 안에서 챕터 헤더 아래 남은 세로 공간을 전부 차지(높이 확정)하고, 자식(카드·스페이서)이
+    `cqh`/`cqw`로 캐러셀 크기를 직접 참조. 카드는 `align-items:center`로 그 안에서 세로 정중앙. 상하 마진·패딩 0
+    (상하 패딩이 비대칭이면 카드가 중앙에서 벗어남). 캐러셀 자기 자신의 속성(padding 등)에는 `cqh`를 못 씀.
+  - 카드 높이 `--sc-card-h` = `max(400px, min(80cqh, 100cqh − 48px, (100cqw − 2×(gap+peek))×1.6))` — 캐러셀 높이의 80%,
+    위아래 여백 최소 24px, 좁은 화면에서 옆 카드가 `--sc-peek`(40px)만큼 보이도록 폭 상한(화면폭 − 112px),
+    **카드 최소 높이 400px(폭 250px)가 모두에 우선**. 폭 `--sc-card-w` = 높이 ÷ 1.6(`aspect-ratio: 1/1.6`). 카드 최대 상한은 없음.
+  - `min-height: 448px`(= 카드 최소 400 + 여백 24×2) — 이보다 남은 공간이 작으면 카드를 줄이지 않고 `cd-main`이 스크롤
+    (min-height 없이 카드만 400px면 캐러셀 `overflow-y:hidden`에 카드가 잘림).
+  - 좌우 `margin:-cd-inset`으로 뷰포트 전체 폭. 첫/마지막 카드는 `::before`/`::after` 스페이서(폭
+    `(100cqw − 카드폭)/2 − gap`)로 캐러셀 중앙에 놓고, 스냅은 `scroll-snap-align:center`. JS(`_snapAnchor`·`_centerScrollLeft`)도
+    같은 기준(캐러셀 중앙)이라 둘을 같이 바꿀 것.
+  - **`.scale-item-list--hidden{display:none}`은 `.scale-item-list{display:flex}`보다 파일에서 뒤에 둘 것**(같은 우선순위라 나중 규칙이 이김).
+- 카드 내부 크기 단위 `--cs` = 카드폭 ÷ 287 → 카드가 커지면 내부도 같은 비율(§19-3).
+  낮은 화면 특수 스코프(스티키바·챕터 헤더 간격 조정)는 cd-head/cd-body 이식 때 삭제됨 — 간격은 공통 토큰만 사용.
+
+### 19-2. 남은 TODO (미정리)
+
+- **`--type-*` 적용 현황**: `.cd-title`·`.page-title`, `.scale-chapter-title`(headline-sm), `.scale-chapter-subtitle`(title), scale 카드 뱃지(label-sm)·이름(title)만. 나머지 약 70곳은 `font-size: var(--font-*)` 그대로.
+- **자간**: `--tracking-base`(-0.04em) 신규. 옛 `--tracking-tight/-tighter/-tightest`와 사용 4곳(style.css 943·1280·1530·1539줄) 미정리 — 정리하면 -2~-3% → -4%로 바뀜.
+- `--font-headline-sm` 사용 7곳이 `font-weight: 800` 리터럴(토큰 아님) — Headline=700과 불일치.
+- 여백 스케일(§3) 밖 값: `.st-track` `padding-bottom: 14px`(12 또는 16 권장).
+- 컴포넌트 폰트 비토큰: `--cd-btn-font-size` 15px(§6 홀수 위반), `.cd-modal` 제목 17px/두께 800(두께 토큰에 800 없음, §15).
+- `.scale-chapter-label` CSS는 어디서도 안 씀(삭제 후보). `scale-training.html`의 캐러셀 내부 들여쓰기 미정리(약 1300줄).
+- 하단 안전영역: `.cd-main { padding-bottom: calc(24px + env(safe-area-inset-bottom)) }`로 처리함(안전영역 2026-10-02, 24px 여백 2026-10-06). 실기기(제스처바 있는 기기, Capacitor WebView가 env 값을 실제로 주는지)에서 카드 아래가 가려지지 않는지 확인 필요.
+- `.desktop-topbar` 처리 미정(§11-6). `scale-level.js` 481줄 주석이 삭제된 `사운드인식테스트.html`을 언급(동작 무관).
+- **동기화**: scale-training 작업은 커밋(`956b99a`) 후 `www/`·android assets·cap sync 3단계 동기화 완료(2026-10-02). 이후 수정분은 다시 동기화 필요.
+
+### 19-3. 카드 내부 디자인 — 완료 (2026-10-02)
+
+카드 외형·배치(위 19-1)와 내부 디자인 모두 확정. 내부 구조만 요약:
+- 위→아래: **헤더**(`.scale-card-header`: 레벨 뱃지 + 스케일 이름 + 구분선, 카드 패딩을 음수 마진으로 상쇄해 위·좌·우 끝에 붙음) → **지판+음이름 묶음**(`.scale-card-shot` + `.scale-card-notes`, 지판 `margin-top:auto`와 버튼 `margin-top:auto`가 남는 공간을 반씩 나눠 헤더 구분선~버튼 사이 정중앙) → **연습하기 버튼**(맨 아래).
+- 카드 패딩·간격은 `--cs` 배수(`--cs` = 카드폭 ÷ 287 → 카드가 커지면 내부도 같은 비율). 토큰은 `:root`에서 `--cs`를 못 쓰므로 규칙 안에서 `calc(N * var(--cs))`로 직접 씀.
+- 글자: 뱃지·이름은 `--type-*` 토큰(뱃지 `label-sm`, 이름 `title`), 음이름은 `--cs` 기반 직접 지정. 연습하기 버튼은 `.cd-btn` 토큰(§12, 아이콘은 `--cd-btn-icon-*`)을 참조.
+- 낮은 화면 특수 스코프의 카드 글자 오버라이드는 삭제함(토큰을 덮어쓰므로). 스코프 자체도 cd-head/cd-body 이식으로 모두 제거됨.
+
+**미정**: 넓은 화면에서 첫 카드를 그리드 좌측 컬럼에 맞추는 규칙(규칙 4)과 3↔4 전환 기준, 카드 최대 크기 상한(1920×1080 등 큰 화면에서 카드가 매우 커짐),
+모바일 카드 노출 폭 40px가 0.88배 축소 때문에 실제로 약 14px 덜 보이는 문제(축소 완화 여부).

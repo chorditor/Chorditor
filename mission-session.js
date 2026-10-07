@@ -876,6 +876,8 @@ const MS_SCALE_BLOCK_ORDER = MS_POOL.scaleBlocks;
 const MS_SCALE_TITLES = {
   'pentatonic':        '마이너 펜타토닉',
   'major':             '메이저',
+  'major-pentatonic':  '메이저 펜타토닉',
+  'major-blues':       '메이저 블루스',
   'blues':             '마이너 블루스',
   'natural-minor':     '내추럴 마이너',
   'harmonic-minor':    '하모닉 마이너',

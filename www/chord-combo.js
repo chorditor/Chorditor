@@ -108,7 +108,7 @@ async function comboStartTraining(e) {
   const chapter = card?.dataset.chapter || '1';
   if (!['1', '2', '3', '4', '5', '6', '7', '8'].includes(chapter)) return;
   _playConfirmSfx();
-  if (!(await consumePeak(1, 'chord_combo'))) return;
+  if (!(await consumePeak(2, 'chord_combo'))) return;
   const activeCard = card.querySelector('.combo-difficulty-card.active');
   const difficulty = activeCard?.dataset.difficulty === 'high' ? 'high'
     : activeCard?.dataset.difficulty === 'mid' ? 'mid' : 'low';
@@ -644,7 +644,7 @@ function _comboShowResultModal() {
             <span>다시할래요</span>
             <span class="practice-gate-cost">
               <img src="image/white_peak.svg" alt="" class="practice-gate-icon">
-              <span>x1</span>
+              <span>x2</span>
             </span>
           </button>
         </div>
@@ -653,7 +653,7 @@ function _comboShowResultModal() {
     ov.querySelector('#combo-result-exit').onclick  = () => { ov.style.display = 'none'; exitComboQuiz(); };
     ov.querySelector('#combo-result-retry').onclick = async () => {
       _playSfx('pop.mp3');
-      if (!(await consumePeak(1, 'chord_combo'))) return;
+      if (!(await consumePeak(2, 'chord_combo'))) return;
       ov.style.display = 'none';
       enterComboQuiz(_comboDifficulty, _comboChapter);
     };
@@ -1065,10 +1065,8 @@ const COMBO_CAROUSEL_MIN_SCALE = 0.88;
 const COMBO_CAROUSEL_FALLOFF   = 0.6;
 
 function _updateComboCarouselScale(track) {
-  // window.innerWidth/2는 데스크탑 사이드바(240px)를 안 뺀 전체폭 중심이라, 실제 콘텐츠
-  // 영역(.content-body) 중심과 어긋나서 정중앙 카드도 scale<1로 살짝 줄어들었음 —
-  // content-body(없으면 main-content) 실제 렌더 영역 기준으로 중심 계산
-  const stage = track.closest('.content-body') || document.getElementById('main-content') || document.body;
+  // window.innerWidth/2가 아니라 실제 렌더 영역(.cd-main) 중심 기준으로 계산
+  const stage = track.closest('.cd-main') || document.body;
   const stageRect = stage.getBoundingClientRect();
   const viewportCenter = stageRect.left + stageRect.width / 2;
   track.querySelectorAll('.combo-card').forEach(card => {
@@ -1176,6 +1174,7 @@ document.addEventListener('DOMContentLoaded', () => {
   // 슬라이드업 진입 애니메이션
   const shell = document.querySelector('.app-shell');
   if (shell) shell.classList.add('project-enter');
+  document.documentElement.classList.toggle('peak-free', getPlan() === 'pro'); // 시작하기 버튼 피크 배지: Pro는 숨김
 
   // 뒤로가기+피크바는 #main-content > .top-bar 안에 고정 — 모바일/데스크탑 공용, JS 이동 없음.
 

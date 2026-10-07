@@ -7,6 +7,7 @@ const PREMIUM_ENABLED = false;
 
 // ── 페이지 닫기 (훈련소로 복귀) ─────────────────────────────
 function closeScaleTraining() {
+  if (isLeavePracticeOpen()) { hideLeavePracticeModal(); return; } // 진입 확인 모달이 떠 있으면 뒤로가기는 모달만 닫음
   _playTap();
   const shell = document.querySelector('.app-shell');
   if (shell) {
@@ -15,6 +16,12 @@ function closeScaleTraining() {
   } else {
     location.href = 'training.html';
   }
+}
+
+// 카드가 속한 챕터(.scale-item-list#ch-N) — 이벤트 공통 속성 chapter
+function _scaleItemChapter(el) {
+  const chapterEl = el.closest('.scale-item-list[id^="ch-"]');
+  return chapterEl ? parseInt(chapterEl.id.replace('ch-', ''), 10) : 1;
 }
 
 // ── 스케일 아이템 탭 ─────────────────────────────────────────
@@ -30,7 +37,7 @@ function onScaleItemTap(el) {
     return;
   }
 
-  analytics.track('scale_item_tapped', { scale_key: key, level });
+  analytics.track('scale_item_tapped', { scale_key: key, level, chapter: _scaleItemChapter(el) });
   const shell = document.querySelector('.app-shell');
   const url = `scale-level.html?key=${key}&level=${level}`;
   if (shell) {
@@ -136,22 +143,57 @@ function renderScaleCardNotes() {
   });
 }
 
-// ── 연습하기 버튼 → 레벨 진입 (피크 소모 없음, pop 사운드) ──────
+// ── 연습하기 버튼 → 피크 5개 소모 후 레벨 진입 (pop 사운드) ──────
+// 소모 성공 직후 sessionStorage 언락을 저장하고 이동 — 이동이 실패해 다시 눌러도 언락이 있으면 재차감 안 함.
+// scale-level은 이 언락이 없으면 이 페이지로 되돌려보냄(연습하기 우회 진입 차단), 뒤로가기로 나가면 해제됨.
+const SCALE_PRACTICE_PEAK_COST = 5;
+const PEAK_CONFIRM_MIN_COST = 4; // 이 소모량 이상이면 진입 전 확인 모달(오탭 방지)
+let _practiceEntering = false; // 소모 처리 중 연타로 이중 차감되는 것 방지
 function onScalePracticeTap(btn) {
   _playConfirmSfx();
+  const card = btn.closest('.scale-item-card');
+  if (!card) return;
+  let unlocked = false;
+  try { unlocked = sessionStorage.getItem(`scale_unlock_${card.dataset.key}_${parseInt(card.dataset.level, 10)}`) === '1'; } catch (e) {}
+  // 확인 생략: Pro(소모 없음) / 이미 소모해 언락된 상태 / 잔액 부족이 확실할 때(바로 충전 모달로)
+  const skip = unlocked || getPlan() === 'pro'
+    || (_peakState.loaded && _peakState.balance < SCALE_PRACTICE_PEAK_COST);
+  if (skip || SCALE_PRACTICE_PEAK_COST < PEAK_CONFIRM_MIN_COST) { _enterScalePractice(btn); return; }
+  showLeavePracticeModal(() => _enterScalePractice(btn), {
+    title: '연습을 시작할까요?',
+    desc: `<span class="peak-confirm-body"><img src="image/peak.svg" alt="피크"><span class="peak-confirm-count">-${SCALE_PRACTICE_PEAK_COST}</span></span>`,
+    stopText: '취소',
+    continueText: '시작하기',
+    confirmOnPrimary: true,
+    sfx: null, // 버튼 탭 사운드가 이미 났음
+  });
+}
+async function _enterScalePractice(btn) {
+  if (_practiceEntering) return;
   const card  = btn.closest('.scale-item-card');
   if (!card) return;
   const key   = card.dataset.key;
   const level = parseInt(card.dataset.level, 10);
 
+  const unlockKey = `scale_unlock_${key}_${level}`;
+  let unlocked = false;
+  try { unlocked = sessionStorage.getItem(unlockKey) === '1'; } catch (e) {}
+  if (!unlocked) {
+    _practiceEntering = true;
+    let ok = false;
+    try { ok = await consumePeak(SCALE_PRACTICE_PEAK_COST, 'scale'); } finally { _practiceEntering = false; }
+    if (!ok) return; // 피크 부족 — consumePeak이 충전 모달을 띄움
+    try { sessionStorage.setItem(unlockKey, '1'); } catch (e) {}
+  }
+
   // 복귀 시 이 위치(챕터+레벨)로 되돌아오도록 저장
-  const chapterEl = card.closest('.scale-chapter[id^="ch-"]');
+  const chapterEl = card.closest('.scale-item-list[id^="ch-"]');
   const chapter = chapterEl ? parseInt(chapterEl.id.replace('ch-', ''), 10) : 1;
   try {
     sessionStorage.setItem('scaleReturnState', JSON.stringify({ chapter, level }));
   } catch (e) {}
 
-  analytics.track('scale_item_tapped', { scale_key: key, level });
+  analytics.track('scale_item_tapped', { scale_key: key, level, chapter });
   const shell = document.querySelector('.app-shell');
   const url = `scale-level.html?key=${key}&level=${level}`;
   if (shell) {
@@ -162,25 +204,30 @@ function onScalePracticeTap(btn) {
   }
 }
 
+// ── 챕터 전환: 선택 챕터의 캐러셀만 표시 + 점 활성 + 헤더 글자 교체. 선택된 캐러셀 반환 ──
+function _showChapter(n) {
+  document.querySelectorAll('.st-dot').forEach(dot => {
+    dot.classList.toggle('active', parseInt(dot.dataset.chapter, 10) === n);
+  });
+  document.querySelectorAll('.scale-item-list[id^="ch-"]').forEach(list => {
+    list.classList.toggle('scale-item-list--hidden', list.id !== `ch-${n}`);
+  });
+  const list = document.getElementById(`ch-${n}`);
+  if (list) {
+    document.querySelector('.scale-chapter-title').textContent = list.dataset.title;
+    document.querySelector('.scale-chapter-subtitle').textContent = list.dataset.subtitle;
+  }
+  return list;
+}
+
 // ── 챕터 탭: 클릭한 챕터만 표시, 나머지는 완전히 숨김 ───────────
 function onChapterTabTap(el) {
   _playTap();
-  const n = parseInt(el.dataset.chapter, 10);
+  const list = _showChapter(parseInt(el.dataset.chapter, 10));
 
-  document.querySelectorAll('.st-node').forEach(node => {
-    const nn = parseInt(node.dataset.chapter, 10);
-    node.classList.toggle('active', nn === n);
-    node.classList.toggle('done', nn < n);
-  });
-
-  document.querySelectorAll('.scale-chapter[id^="ch-"]').forEach(ch => {
-    ch.classList.toggle('scale-chapter--hidden', ch.id !== `ch-${n}`);
-  });
-
-  document.querySelector('.scale-scroll').scrollTo({ top: 0, behavior: 'auto' });
+  document.querySelector('.cd-main').scrollTo({ top: 0, behavior: 'auto' });
 
   // 선택 챕터의 캐러셀: 중앙 카드 pop-in (통통 튀는 이징)
-  const list = document.getElementById(`ch-${n}`)?.querySelector('.scale-item-list--carousel');
   if (list) {
     list.scrollLeft = 0;
     _updateCarouselScale(list);
@@ -198,38 +245,38 @@ function onChapterTabTap(el) {
   }
 }
 
-// ── 캐러셀 원근감: 스냅 기준점(scroll-padding-left)에서 멀어질수록 카드 축소·흐려짐 ─────
+// ── 캐러셀 원근감: 스냅 기준점(캐러셀 중앙)에서 멀어질수록 카드 축소 ─────
 const CAROUSEL_MIN_SCALE   = 0.88;
-const CAROUSEL_MIN_OPACITY = 0.15;
-const CAROUSEL_FALLOFF     = 0.6;  // 화면폭 대비 거리로 축소량 정규화
 
-// CSS scroll-snap-align:start + scroll-padding-left(=--sc-offset, 그리드로 계산한 카드
-// 시작 x좌표)가 실제 정렬 기준점 — 뷰포트/캐러셀 진짜 중앙(center)으로 하면
-// 그리드 위치와 어긋나서(37px 등) 여기 원근감·스크롤 계산도 전부 이 기준으로 통일
+// CSS scroll-snap-align:center — 카드 중앙이 캐러셀 중앙에 오는 것이 정렬 기준점
+// (첫/마지막 카드는 ::before/::after 스페이서가 이 위치에 놓음)
 function _snapAnchor(list) {
-  return list.getBoundingClientRect().left + parseFloat(getComputedStyle(list).scrollPaddingLeft || 0);
+  const r = list.getBoundingClientRect();
+  return r.left + r.width / 2;
 }
 
 function _updateCarouselScale(list) {
-  const listRect = list.getBoundingClientRect();
   const anchor = _snapAnchor(list);
+  const first = list.querySelector('.scale-item-card');
+  if (!first) return;
+  const pitch = first.offsetWidth + (parseFloat(getComputedStyle(list).columnGap) || 0);  // 카드 1장 간격
   let closestCard = null, closestDist = Infinity;
   list.querySelectorAll('.scale-item-card').forEach(card => {
     const rect = card.getBoundingClientRect();
-    const dist = Math.abs(rect.left - anchor) / listRect.width;
-    const scale = Math.max(CAROUSEL_MIN_SCALE, 1 - dist / CAROUSEL_FALLOFF * (1 - CAROUSEL_MIN_SCALE));
-    const opacity = Math.max(CAROUSEL_MIN_OPACITY, 1 - dist / CAROUSEL_FALLOFF * (1 - CAROUSEL_MIN_OPACITY));
+    const dist = Math.abs(rect.left + rect.width / 2 - anchor) / pitch;  // 중앙 0, 바로 옆 카드 1
+    const scale = Math.max(CAROUSEL_MIN_SCALE, 1 - dist * (1 - CAROUSEL_MIN_SCALE));
     card.style.transform = `scale(${scale})`;
-    card.style.opacity = opacity;
     card.classList.remove('scale-item-card--selected');
     if (dist < closestDist) { closestDist = dist; closestCard = card; }
   });
   if (closestCard) closestCard.classList.add('scale-item-card--selected');
 }
 
-// 해당 카드를 스냅 기준점(scroll-padding-left)에 맞추는 스크롤 위치 계산
+// 해당 카드를 캐러셀 중앙(스냅 기준점)에 맞추는 스크롤 위치 계산
+// (카드 transform:scale은 중심 기준이라 getBoundingClientRect 중심값이 안 바뀜)
 function _centerScrollLeft(list, card) {
-  return card.offsetLeft - parseFloat(getComputedStyle(list).scrollPaddingLeft || 0);
+  const lr = list.getBoundingClientRect(), cr = card.getBoundingClientRect();
+  return list.scrollLeft + (cr.left + cr.width / 2) - (lr.left + lr.width / 2);
 }
 
 // 현재 스크롤 위치에서 가장 가까운 카드로 스냅
@@ -289,7 +336,7 @@ function _initCarouselDrag(list) {
 }
 
 function initCarousels() {
-  document.querySelectorAll('.scale-item-list--carousel').forEach(list => {
+  document.querySelectorAll('.scale-item-list').forEach(list => {
     list.scrollLeft = 0;
     _updateCarouselScale(list);
     list.addEventListener('scroll', () => _updateCarouselScale(list), { passive: true });
@@ -298,26 +345,28 @@ function initCarousels() {
 }
 
 // ── 복귀 시 마지막 진입 위치(챕터+레벨) 복원 ──────────────────
+// 딥링크(?key=…[&level=…], 푸시 알림·scale-level 직접 진입 되돌림)가 있으면 그 카드가 우선 — 키는 카드마다 유일
+function _deepLinkPosition() {
+  const params = new URLSearchParams(location.search);
+  const key = params.get('key');
+  if (!key) return null;
+  const card = document.querySelector(`.scale-item-card[data-key="${CSS.escape(key)}"]`);
+  const list = card && card.closest('.scale-item-list[id^="ch-"]');
+  if (!list) return null;
+  return { chapter: parseInt(list.id.replace('ch-', ''), 10), level: parseInt(card.dataset.level, 10) };
+}
+
 function restoreLastPosition() {
-  let st = null;
-  try { st = JSON.parse(sessionStorage.getItem('scaleReturnState')); } catch (e) {}
+  let st = _deepLinkPosition();
+  if (!st) {
+    try { st = JSON.parse(sessionStorage.getItem('scaleReturnState')); } catch (e) {}
+  }
   if (!st || !st.chapter) return;
-  const n = st.chapter;
-
-  document.querySelectorAll('.st-node').forEach(node => {
-    const nn = parseInt(node.dataset.chapter, 10);
-    node.classList.toggle('active', nn === n);
-    node.classList.toggle('done', nn < n);
-  });
-  document.querySelectorAll('.scale-chapter[id^="ch-"]').forEach(ch => {
-    ch.classList.toggle('scale-chapter--hidden', ch.id !== `ch-${n}`);
-  });
-
-  const list = document.getElementById(`ch-${n}`)?.querySelector('.scale-item-list--carousel');
+  const list = _showChapter(st.chapter);
   if (list) {
     const card = list.querySelector(`.scale-item-card[data-level="${st.level}"]`);
     if (card) {
-      // 해당 레벨 카드를 스냅 기준점(scroll-padding-left)에 맞춤
+      // 해당 레벨 카드를 스냅 기준점(캐러셀 중앙)에 맞춤
       list.scrollLeft = _centerScrollLeft(list, card);
     }
     _updateCarouselScale(list);
@@ -330,6 +379,10 @@ document.addEventListener('DOMContentLoaded', () => {
   // 슬라이드업 진입 애니메이션
   const shell = document.querySelector('.app-shell');
   if (shell) shell.classList.add('project-enter');
+
+  // 연습하기 버튼 피크 뱃지(style.css .cd-btn--peak, .scale-card-practice-btn): 소모량 주입, Pro는 숨김
+  document.documentElement.style.setProperty('--cd-btn-peak-cost', SCALE_PRACTICE_PEAK_COST);
+  if (getPlan() === 'pro') document.documentElement.classList.add('peak-free');
 
   // 뒤로가기+피크바는 #main-content > .top-bar 안에 고정 — 모바일/데스크탑 공용, JS 이동 없음.
 

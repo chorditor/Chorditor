@@ -171,5 +171,25 @@ $$;
 -- 대시보드는 admin uid 로그인 상태로 호출. 그 외 유저는 null 반환(함수 내부에서 uid 체크).
 grant execute on function public.trial_experiment_progress() to authenticated;
 
+-- ── 대시보드 "새로고침" 버튼용 — admin만 즉시 스냅샷 갱신 ──────────
+-- core 함수(refresh_trial_experiment_funnel)엔 auth.uid() 가드를 넣으면 안 됨:
+-- pg_cron이 그걸 호출할 때 auth.uid()가 null이라 no-op 돼버림. 그래서 얇은 래퍼로 분리.
+create or replace function public.refresh_trial_experiment_funnel_now()
+returns text
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  if auth.uid() is distinct from '670dccca-b0bc-4ffa-9eb2-07380dcea27e' then
+    return 'forbidden';
+  end if;
+  perform public.refresh_trial_experiment_funnel();
+  return 'ok';
+end;
+$$;
+
+grant execute on function public.refresh_trial_experiment_funnel_now() to authenticated;
+
 -- 최초 1회 즉시 채우기
 select public.refresh_trial_experiment_funnel();

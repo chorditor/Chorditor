@@ -56,7 +56,6 @@ computed style이 내가 원하는 값으로 나와도 실제 화면이 다르�
 ## 2. 홈 탭 CSS 구현 (`style.css` 12133줄~)
 
 ### 태블릿 공통 (560px~, 세로/가로 공통 베이스)
-- `.app-shell` `max-width:1600px` 중앙정렬
 - `#view-home`: `--view-home-gap:16px`, `justify-content:space-between`
 - `.home-ad-banner`: `aspect-ratio:unset; height:14vh` (폭 기준 aspect-ratio를 두면 태블릿처럼 폭이 넓어질수록 세로도 커져 넘치는 문제가 있어 `vh` 고정으로 전환)
 - `.home-blocks`: 2×2 그리드, `height:44vh`
@@ -90,14 +89,6 @@ computed style이 내가 원하는 값으로 나와도 실제 화면이 다르�
 - `#view-home`: `max-width:82%`, `--view-home-gap:24px`
 - `.home-ad-banner:12vh`, `.home-blocks:46vh`, `.hdb-row:12vh`(px에서 vh로 통일, Fold7 832px 기준 환산), `.home-blocks{column-gap:64px}`(힌지 세로선 기준 좌우 카드 벌림, row-gap은 기본 12px 유지)
 - 실기기 7종 종횡비: 폴드2 .801 / 폴드3 .801 / 폴드5·4 .832 / 폴드6 .859 / 폴드7 .901 / 폴드8U .901 / **폴드8(신형) .755**(iPad에 근접) — 폴드8만 비율이 달라서 `min-aspect-ratio` 기준을 3/4(.75)까지 낮추고 `max-width:760px`으로 iPad 표준/에어를 폭에서 차단, iPad mini(.656)는 비율 미달로 자동 제외
-
-### 데스크탑/랩탑 사이드바 (1600px~)
-- `.app-shell`을 grid로 전환: `grid-template-areas: "nav topbar" / "nav main"` — 좌측 `nav`가 두 행 다 차지, `topbar`는 우측 컬럼 위쪽에만
-- `.bottom-nav`가 하단탭 대신 좌측 240px 세로 사이드바로 재사용(HTML 그대로, CSS로 flex row→column)
-- 사이드바 구성(위→아래): 타이틀(`.sidebar-brand`) → 유저요약(`.sidebar-user`) → 홈/노트/프로필 → 튜토리얼 → *(빈공간)* → 설정 → 로그아웃(`position:absolute; bottom` — `margin-top:auto`는 컨테이너 높이 계산 이슈로 안 먹어서 폐기)
-- 튜토리얼/설정 버튼은 **실제 DOM을 JS로 이동**(복제 아님) — `home.js`의 `matchMedia('(min-width:1600px)')` change 리스너가 데스크탑이면 `.bottom-nav`로, 아니면 `.top-bar`로 옮김. 탭별 hidden 토글은 ID 기반이라 위치 이동과 무관하게 작동, 사이드바 안에서만 hidden 무시하고 항상 노출되도록 오버라이드
-- 로그아웃은 사이드바 전용 새 버튼(`#sidebar-logout-btn`), 유저요약은 `#tbl-num`/`#profile-name`/`#profile-plan-name`을 `MutationObserver`로 미러링 + `loadProfileFromDB()` 앱 시작 시 1회 선행 호출
-- **주의**: 태블릿 범위(560~1600 전체)에 nav rail 그대로 적용하면 깨짐 — 반드시 데스크탑(1600px~)에만 좁혀서 적용할 것
 
 ---
 
@@ -246,7 +237,7 @@ computed style이 내가 원하는 값으로 나와도 실제 화면이 다르�
 - 실기기/실브라우저 최종 검증은 사용자 쪽에서 진행 필요
 - 코드 사전(라이브러리) 반응형 — §11 참고, 완료. 데스크탑 rAF 캔버스 튐 수정은 사용자 확인 보류 상태
 - `.lib-voicing-overlay`/`.lib-voicing-modal`의 `left` 오프셋이 태블릿 세로 스코프에서 레일 폭(6vw) 변경을 안 따라감 — 미확인, 모달 열어서 왼쪽 경계 어긋나면 처리 필요
-- 훈련소 목록(training.html) 반응형 — §12 참고, 완료. 데스크탑 사이드바 패턴은 training.html에만 적용, 다른 서브페이지(progression.html 등)는 마크업만 복사하면 되지만 아직 미적용
+- 훈련소 목록(training.html) 반응형 — §12 참고, 완료.
 
 ---
 
@@ -305,12 +296,6 @@ Fold8 회전(704×933)이 태블릿 세로 조건(`min-width:560, min-height:600
 - **해결**: Fold 스코프에서 `--picker-item-h`·폰트·패딩을 모바일 기준으로 **명시적 리셋**.
 - **교훈**: 넓은 조건의 스코프를 만들면 의도치 않은 기기가 딸려 들어온다. 좁은 스코프에서 되돌릴 값 목록을 같이 만들 것.
 
-#### 10-4. 클래스 공유로 인한 누수 — 사이드바 경험치바
-`@media(min-width:1440px)`의 `.profile-xp{width:calc(50% - 16px)}`(프로필 탭 폴드 힌지 정렬용)이 **같은 클래스를 쓰는 사이드바 XP바**에도 새어들어가 폭이 91.5px로 줄어 사라진 것처럼 보였다.
-- **찾은 방법**: 실측(`getBoundingClientRect` + `getComputedStyle`)으로 `width: 91.5px` 확인 → 부모 콘텐츠폭 215px의 `50% - 16px`와 정확히 일치하는 걸 계산으로 대조.
-- **해결**: `.sidebar-user-xp.profile-xp`(클래스 2개, 명세 높음)에 `width:100%`.
-- **교훈**: `.profile-*` 계열을 건드릴 때 사이드바 미러 요소(`.sidebar-user-*`)도 같이 확인.
-
 #### 10-5. `justify-content:center`로 세로 중앙정렬 금지
 콘텐츠가 컨테이너보다 클 때 `justify-content:center`는 **위쪽 넘친 부분이 스크롤로 접근 불가능**해진다(아래로만 스크롤됨).
 - **찾은 방법**: 사용자가 "하단은 되는데 상단 끝까지 스크롤이 아예 안 된다"고 보고 → 알려진 flexbox 동작으로 즉시 특정.
@@ -343,9 +328,6 @@ Fold8 회전(704×933)이 태블릿 세로 조건(`min-width:560, min-height:600
 `--picker-item-h: 30px`와 `home.js`의 `PICKER_ITEM_H = 30`이 따로 있어서, 스코프별로 CSS만 바꾸면 스크롤 스냅 계산이 어긋났다.
 - **해결**: JS가 `getComputedStyle`로 CSS 변수를 실시간으로 읽게 전환. `resize` 시 재동기화하고, 값이 바뀌면 이미 열린 휠들의 `scrollTop`도 idx를 유지한 채 새 pitch로 재정렬.
 - **교훈**: 같은 값을 두 곳에 적으면 반드시 어긋난다. **단일 소스(CSS 변수) + 읽기 전용 참조**로 통일.
-
-### 데스크탑 전용 — 뒤로가기 버튼 DOM 이동
-데스크탑 grid는 `"topbar topbar" / "nav main"`이라 `.top-bar`가 사이드바+메인 전체를 가로지른다. `#back-btn`이 그 안에 있으면 좌측 끝이 사이드바 위에 떠서 메인 콘텐츠 좌상단과 안 맞는다. CSS 포지션으로는 못 고치고 **DOM 위치 자체를 옮겨야 한다** — `matchMedia`로 `.top-bar` ↔ `#main-content` 간 이동(튜토리얼/설정 버튼과 동일 패턴, §2 참고).
 
 ---
 
@@ -426,8 +408,3 @@ Fold 세로힌지·Fold8 회전형처럼 grid가 아니라 일반 flex-column으
 
 모바일 가로모드(`min-width:560,max-height:480`)에 `.training-scroll{width:50vw}`를 추가했는데 전혀 안 먹혔다. 원인은 이 스코프를 파일 아주 앞쪽(§2 홈 탭 영역 근처, `.training-scroll` 클래스가 정의되기도 전인 줄)에 넣었기 때문 — `.training-scroll{width:100%}`라는 **미디어쿼리 없는 무조건 규칙**이 그보다 훨씬 뒤(§training 섹션)에 있어서, 같은 특이도의 경우 나중에 나온 무조건 규칙이 항상 이겼다. `.training-scroll` base 규칙 바로 뒤로 옮겨서 해결. §8-1/§11에서 이미 여러 번 겪은 유형인데도 또 걸렸다 — **새 스코프 규칙을 추가할 때는 그 셀렉터의 base 규칙이 파일 어디 있는지부터 확인하고 그 바로 뒤에 놓을 것**을 습관화해야 한다.
 
-### 데스크탑 사이드바 — 서브페이지에 없던 것 추가
-
-`training.html`은 `.app-shell`에 `.top-bar`+`.main-content`만 있고 데스크탑 전용 좌측 사이드바(`<nav class="bottom-nav">`, `grid-area:nav`)가 아예 없어서 데스크탑에서 사이드바 자리가 빈 채로 나왔다. `home.html`의 사이드바는 유저 레벨/닉네임/플랜/XP바를 **홈 탭 프로필 DOM을 미러링**하는 방식이라 이 페이지 것을 그대로 못 가져다 썼다.
-- **해결**: 데이터 로딩 로직을 `shared.js`(모든 페이지 공용)로 옮겨서 페이지 독립적으로 만들었다 — `renderProfileXp()`(이미 shared.js에 있던 XP/레벨 계산 함수)에 사이드바 레벨 표시 한 줄 추가, 닉네임/플랜은 새 `loadSidebarUserInfo()`로 최소 fetch만 분리해서 `loadProfileFromDB`(home.js 전용, 홈 탭에 더 많은 걸 채움)가 없는 페이지에서만 실행되도록 가드. 로그아웃은 `confirmLogout()`이 홈 전용 UI(`closeSettings` 등)에 묶여있어서, 서브페이지 로그아웃 버튼은 `home.html?action=logout`으로 이동시키고 홈쪽 URL 파싱에 한 줄만 추가해서 처리.
-- **교훈**: 여러 페이지가 공유해야 하는 UI(사이드바)의 데이터 로직은 처음부터 `shared.js`에 두고 "그 페이지에 없으면 그냥 스킵"하도록 짜는 게, 나중에 서브페이지 하나씩 늘려갈 때 각 페이지 전용 스크립트를 뒤지지 않아도 되게 한다.

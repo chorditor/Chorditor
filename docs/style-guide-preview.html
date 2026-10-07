@@ -169,6 +169,13 @@
     border-bottom: 1px solid var(--border);
     padding: 14px 0;
   }
+  /* 버튼 3표: 행마다 grid가 따로라 max-content 열 폭이 행별로 달라 라벨과 어긋남 → 열 폭을 고정해 헤더와 정렬 */
+  .sg-btn-table .sg-row-table-row,
+  .sg-btn-icon-table .sg-row-table-row,
+  .sg-btn-peak-table .sg-row-table-row {
+    grid-template-columns: 80px repeat(5, 136px);
+    gap: 16px;
+  }
   .sg-row-table-head {
     font-size: 11px;
     font-weight: 700;
@@ -345,14 +352,14 @@
     <h3 class="sg-group-title">5단계 표준 (§4/§5)</h3>
     <table class="sg-vp-table">
       <thead>
-        <tr><th>명칭</th><th>범위</th><th>그리드 컬럼</th><th>마진</th><th>거터</th></tr>
+        <tr><th>명칭</th><th>범위</th><th>그리드 컬럼</th><th>마진</th><th>거터</th><th>컨테이너 캡</th></tr>
       </thead>
       <tbody>
-        <tr><td>모바일</td><td>360~480px</td><td>6</td><td>20px</td><td>16px</td></tr>
-        <tr><td>태블릿</td><td>481~768px</td><td>6</td><td>24px</td><td>24px</td></tr>
-        <tr><td>큰 태블릿</td><td>769~1079px</td><td>8</td><td>28px</td><td>24px</td></tr>
-        <tr><td>태블릿 가로/랩탑</td><td>1080~1599px</td><td>12</td><td>32px</td><td>24px</td></tr>
-        <tr><td>데스크탑</td><td>1600px~</td><td>12</td><td>32px</td><td>24px</td></tr>
+        <tr><td>모바일</td><td>360~480px</td><td>6</td><td>20px</td><td>16px</td><td>없음</td></tr>
+        <tr><td>태블릿</td><td>481~768px</td><td>6</td><td>24px</td><td>24px</td><td>없음</td></tr>
+        <tr><td>큰 태블릿</td><td>769~1079px</td><td>8</td><td>28px</td><td>24px</td><td>없음</td></tr>
+        <tr><td>태블릿 가로/랩탑</td><td>1080~1599px</td><td>12</td><td>32px</td><td>24px</td><td>1440px</td></tr>
+        <tr><td>데스크탑</td><td>1600px~</td><td>12</td><td>32px</td><td>24px</td><td>1440px</td></tr>
       </tbody>
     </table>
 
@@ -376,7 +383,7 @@
   <!-- ══════════════ 2. 텍스트 크기 및 두께 ══════════════ -->
   <section class="sg-section">
     <h2 class="sg-section-title">텍스트</h2>
-    <p class="sg-sub" style="margin-bottom:20px;">5단계(§4 브레이크포인트) 값을 실제 뷰포트 폭과 무관하게 병렬로 나열 — 셀에 마우스를 올리면 그 구간의 px 값이 뜸.</p>
+    <p class="sg-sub" style="margin-bottom:20px;">5단계(§4 브레이크포인트) 값을 실제 뷰포트 폭과 무관하게 병렬로 나열 — 셀에 마우스를 올리면 크기·두께·행간이 뜸. 사용은 <code>font: var(--type-*)</code> 한 줄(§2-2).</p>
 
     <div class="sg-font-table-scroll">
       <div class="sg-font-table">
@@ -392,10 +399,34 @@
   <!-- ══════════════ 3. cd-btn ══════════════ -->
   <section class="sg-section">
     <h2 class="sg-section-title">버튼</h2>
-    <p class="sg-sub" style="margin-bottom:20px;">variant(brand/gray/blue/red)별 행, 5단계는 열로 배치 — 리터럴 px 값(§12 실측) 사용.</p>
+    <p class="sg-sub" style="margin-bottom:20px;">기본 / 아이콘 / 배지 3분류. variant(brand/gray/blue/red)별 행, 5단계는 열로 배치 — 리터럴 px 값(§12 실측) 사용.</p>
 
+    <h3 class="sg-group-title">기본</h3>
+    <p class="sg-sub" style="margin-bottom:12px;">텍스트만 있는 버튼.</p>
     <div class="sg-row-table-scroll">
       <div class="sg-btn-table">
+        <div class="sg-row-table-row sg-row-table-head">
+          <div class="sg-row-table-labelcol"></div>
+          <div>모바일</div><div>태블릿</div><div>큰태블릿</div><div>랩탑</div><div>데스크탑</div>
+        </div>
+      </div>
+    </div>
+
+    <h3 class="sg-group-title" style="margin-top:48px;">아이콘</h3>
+    <p class="sg-sub" style="margin-bottom:12px;">재생 아이콘 + 라벨(brand만 표시). 폭은 아이콘 때문에 auto-width(<code>cd-btn--auto-width</code>), 아이콘 크기·간격은 <code>--cd-btn-icon-size</code>/<code>--cd-btn-icon-gap</code>.</p>
+    <div class="sg-row-table-scroll">
+      <div class="sg-btn-icon-table">
+        <div class="sg-row-table-row sg-row-table-head">
+          <div class="sg-row-table-labelcol"></div>
+          <div>모바일</div><div>태블릿</div><div>큰태블릿</div><div>랩탑</div><div>데스크탑</div>
+        </div>
+      </div>
+    </div>
+
+    <h3 class="sg-group-title" style="margin-top:48px;">배지</h3>
+    <p class="sg-sub" style="margin-bottom:12px;">피크 소모량 표기. <code>cd-btn--peak</code> 수식어 + 소모량 변수 <code>--cd-btn-peak-cost</code>(기본 5). 우상단 모서리에 피크 아이콘(17×20px) + 황금색 숫자(<code>-5</code>, 18px, 흰 윤곽선), Pro는 <code>html.peak-free</code>로 숨김. 배지 크기는 5단계 공통 고정값.</p>
+    <div class="sg-row-table-scroll">
+      <div class="sg-btn-peak-table">
         <div class="sg-row-table-row sg-row-table-head">
           <div class="sg-row-table-labelcol"></div>
           <div>모바일</div><div>태블릿</div><div>큰태블릿</div><div>랩탑</div><div>데스크탑</div>
@@ -459,19 +490,19 @@
     // 실제 뷰포트 폭과 무관하게 5단계를 동시에 병렬로 보여줘야 해서 var()가 아닌 리터럴 px 사용.
     const FONT_TIERS = ['모바일', '태블릿', '큰태블릿', '랩탑', '데스크탑'];
     const FONT_ROWS = [
-      { token: '--font-caption',      weight: 400, sample: '캡션 텍스트',       sizes: [11, 11, 12, 12, 12] },
-      { token: '--font-label-sm',     weight: 400, sample: '라벨',             sizes: [12, 12, 13, 13, 13] },
-      { token: '--font-label-lg',     weight: 400, sample: '라벨',             sizes: [14, 14, 14, 16, 16] },
-      { token: '--font-body-sm',      weight: 400, sample: '본문 내용 텍스트', sizes: [13, 13, 14, 14, 14] },
-      { token: '--font-body',         weight: 400, sample: '본문 내용 텍스트', sizes: [14, 16, 16, 17, 18] },
-      { token: '--font-body-bold',    weight: 600, sample: '본문 내용 텍스트', sizes: [14, 16, 16, 17, 18] },
-      { token: '--font-title-sm',     weight: 600, sample: '제목/타이틀',      sizes: [16, 18, 18, 18, 18] },
-      { token: '--font-title',        weight: 600, sample: '제목/타이틀',      sizes: [18, 20, 20, 22, 22] },
-      { token: '--font-title-lg',     weight: 600, sample: '제목/타이틀',      sizes: [20, 22, 24, 24, 26] },
-      { token: '--font-headline-sm',  weight: 800, sample: '헤드라인',         sizes: [24, 26, 28, 32, 36] },
-      { token: '--font-headline',     weight: 800, sample: '헤드라인',         sizes: [28, 30, 32, 36, 40] },
-      { token: '--font-display-sm',   weight: 600, sample: '88',              sizes: [32, 34, 36, 36, 36] },
-      { token: '--font-display',      weight: 600, sample: '88',              sizes: [40, 44, 48, 48, 56] },
+      { token: '--type-caption',      weight: 400, lh: 1.2, sample: '캡션 텍스트',       sizes: [11, 11, 12, 12, 12] },
+      { token: '--type-label-sm',     weight: 400, lh: 1.2, sample: '라벨',             sizes: [12, 12, 13, 13, 13] },
+      { token: '--type-label-lg',     weight: 400, lh: 1.2, sample: '라벨',             sizes: [14, 14, 14, 16, 16] },
+      { token: '--type-body-sm',      weight: 400, lh: 1.5, sample: '본문 내용 텍스트', sizes: [13, 13, 14, 14, 14] },
+      { token: '--type-body',         weight: 400, lh: 1.5, sample: '본문 내용 텍스트', sizes: [14, 16, 16, 17, 18] },
+      { token: '--type-body-bold',    weight: 600, lh: 1.5, sample: '본문 내용 텍스트', sizes: [14, 16, 16, 17, 18] },
+      { token: '--type-title-sm',     weight: 600, lh: 1.2, sample: '제목/타이틀',      sizes: [16, 18, 18, 18, 18] },
+      { token: '--type-title',        weight: 600, lh: 1.2, sample: '제목/타이틀',      sizes: [18, 20, 20, 22, 22] },
+      { token: '--type-title-lg',     weight: 600, lh: 1.2, sample: '제목/타이틀',      sizes: [20, 22, 22, 24, 24] },
+      { token: '--type-headline-sm',  weight: 700, lh: 1.2, sample: '헤드라인',         sizes: [24, 24, 26, 28, 28] },
+      { token: '--type-headline',     weight: 700, lh: 1.2, sample: '헤드라인',         sizes: [28, 28, 30, 32, 32] },
+      { token: '--type-display-sm',   weight: 600, lh: 1.2, sample: '88',              sizes: [32, 32, 34, 36, 36] },
+      { token: '--type-display',      weight: 600, lh: 1.2, sample: '88',              sizes: [40, 42, 44, 46, 48] },
     ];
     const table = document.querySelector('.sg-font-table');
     FONT_ROWS.forEach(row => {
@@ -486,8 +517,9 @@
         cell.className = 'sg-font-table-cell';
         cell.style.fontSize = px + 'px';
         cell.style.fontWeight = row.weight;
+        cell.style.lineHeight = row.lh;
         cell.textContent = row.sample;
-        cell.dataset.tipText = `${row.token} (${FONT_TIERS[i]})\nfont-size: ${px}px\nfont-weight: ${row.weight}`;
+        cell.dataset.tipText = `${row.token} (${FONT_TIERS[i]})\nfont-size: ${px}px\nfont-weight: ${row.weight}\nline-height: ${row.lh}`;
         rowEl.appendChild(cell);
       });
       table.appendChild(rowEl);
@@ -508,28 +540,54 @@
       { cls: 'cd-btn--blue',  label: 'blue' },
       { cls: 'cd-btn--red',   label: 'red' },
     ];
-    const btnTable = document.querySelector('.sg-btn-table');
-    BTN_VARIANTS.forEach(v => {
-      const rowEl = document.createElement('div');
-      rowEl.className = 'sg-row-table-row';
-      const labelCol = document.createElement('div');
-      labelCol.className = 'sg-row-table-labelcol';
-      labelCol.textContent = v.label;
-      rowEl.appendChild(labelCol);
-      BTN_TIERS.forEach((tierName, i) => {
-        const btn = document.createElement('button');
-        btn.className = 'cd-btn ' + v.cls;
-        btn.textContent = '버튼';
-        btn.style.height = BTN_SIZE.height[i] + 'px';
-        btn.style.width = BTN_SIZE.width[i] + 'px';
-        btn.style.paddingInline = BTN_SIZE.padding[i] + 'px';
-        btn.style.fontSize = BTN_SIZE.font[i] + 'px';
-        btn.style.borderRadius = BTN_SIZE.radius[i] + 'px';
-        btn.dataset.tipText = `${v.cls} (${tierName})\nheight: ${BTN_SIZE.height[i]}px\nwidth: ${BTN_SIZE.width[i]}px\npadding-inline: ${BTN_SIZE.padding[i]}px\nfont-size: ${BTN_SIZE.font[i]}px\nradius: ${BTN_SIZE.radius[i]}px`;
-        rowEl.appendChild(btn);
+    const BTN_ICON = {
+      size: [16, 16, 18, 18, 20],
+      gap:  [4, 4, 8, 8, 8],
+    };
+    // kind: 'basic'(텍스트만) | 'icon'(재생 아이콘+라벨, auto-width) | 'peak'(라벨 + 피크 소모 배지, auto-width)
+    function buildBtnTable(tableEl, kind, variants) {
+      variants.forEach(v => {
+        const rowEl = document.createElement('div');
+        rowEl.className = 'sg-row-table-row';
+        const labelCol = document.createElement('div');
+        labelCol.className = 'sg-row-table-labelcol';
+        labelCol.textContent = v.label;
+        rowEl.appendChild(labelCol);
+        BTN_TIERS.forEach((tierName, i) => {
+          const btn = document.createElement('button');
+          const cls = ['cd-btn', v.cls];
+          if (kind !== 'basic') cls.push('cd-btn--auto-width');
+          if (kind === 'peak') cls.push('cd-btn--peak');
+          btn.className = cls.join(' ');
+          btn.style.height = BTN_SIZE.height[i] + 'px';
+          btn.style.paddingInline = BTN_SIZE.padding[i] + 'px';
+          btn.style.fontSize = BTN_SIZE.font[i] + 'px';
+          btn.style.borderRadius = BTN_SIZE.radius[i] + 'px';
+          let tip = `${kind === 'basic' ? '' : kind + ' · '}${v.cls} (${tierName})\nheight: ${BTN_SIZE.height[i]}px\npadding-inline: ${BTN_SIZE.padding[i]}px\nfont-size: ${BTN_SIZE.font[i]}px\nradius: ${BTN_SIZE.radius[i]}px`;
+          if (kind === 'basic') {
+            btn.textContent = '버튼';
+            btn.style.width = BTN_SIZE.width[i] + 'px';
+            tip += `\nwidth: ${BTN_SIZE.width[i]}px`;
+          } else if (kind === 'icon') {
+            btn.style.display = 'inline-flex';
+            btn.style.alignItems = 'center';
+            btn.style.justifyContent = 'center';
+            btn.style.gap = BTN_ICON.gap[i] + 'px';
+            btn.innerHTML = `<i class="ph-fill ph-play" style="font-size:${BTN_ICON.size[i]}px"></i>재생`;
+            tip += `\nicon-size: ${BTN_ICON.size[i]}px\nicon-gap: ${BTN_ICON.gap[i]}px`;
+          } else {
+            btn.textContent = '연습하기';
+            tip += '\n배지: 아이콘 17×20px, 숫자 18px(-5), 소모량 --cd-btn-peak-cost';
+          }
+          btn.dataset.tipText = tip;
+          rowEl.appendChild(btn);
+        });
+        tableEl.appendChild(rowEl);
       });
-      btnTable.appendChild(rowEl);
-    });
+    }
+    buildBtnTable(document.querySelector('.sg-btn-table'), 'basic', BTN_VARIANTS);
+    buildBtnTable(document.querySelector('.sg-btn-icon-table'), 'icon', [BTN_VARIANTS[0]]);
+    buildBtnTable(document.querySelector('.sg-btn-peak-table'), 'peak', [BTN_VARIANTS[0]]);
 
     // cd-cardlist 5단계×variant 테이블 — §13 실측값 리터럴 하드코딩
     const CL_TIERS = ['모바일', '태블릿', '큰태블릿', '랩탑', '데스크탑'];
