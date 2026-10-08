@@ -244,6 +244,8 @@
       [/^\+(\d+) 상자$/, m => '+' + pl(m[1], 'Box', 'Boxes')],
 
       // 플랜
+      [/^약 (.+)\/월$/, '~{1}/mo'],
+      [/^(\d+)% 할인$/, '{1}% off'],
       [/^Pro 이용 기간이 (\d+)일 남았어요$/, m => 'Your Pro access ends in ' + pl(m[1], 'day')],
       [/^Pro 혜택이 (\d+)일 뒤 종료돼요\. 계속 이용하시려면 업그레이드해주세요\.$/,
         m => 'Your Pro benefits end in ' + pl(m[1], 'day') + '. Upgrade to keep them.'],
