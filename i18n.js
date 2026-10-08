@@ -8,10 +8,12 @@
 // DOM을 거치지 않는 문자열(alert·confirm·캔버스·네이티브 공유 등)과, DOM 글자를
 // 로직에서 비교하는 곳은 I18N.t('한국어 원문')으로 직접 감싼다.
 
-// 설정 > 언어에 노출되는 목록. 번역이 준비된 언어만 넣을 것(ja·es는 준비 후 추가).
+// 설정 > 언어에 노출되는 목록. 번역이 준비된 언어만 넣을 것.
 const I18N_LANGS = [
   { code: 'ko', name: '한국어' },
   { code: 'en', name: 'English' },
+  { code: 'ja', name: '日本語' },
+  { code: 'es', name: 'Español' },
 ];
 const I18N_STORAGE_KEY = 'app_lang';
 const I18N_FALLBACK    = 'en'; // 지원하지 않는 기기 언어

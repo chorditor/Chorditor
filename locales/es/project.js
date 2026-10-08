@@ -1,0 +1,68 @@
+// 스페인어 사전 — 노트 편집(user_project.html / user_project.js), 계정 삭제 안내(delete-account.html)
+I18N.add('es', {
+  exact: {
+    // ── 노트 편집 ──
+    '저장하기': 'Guardar',
+    '팔레트 저장': 'Guardar paleta',
+    '텍스트 복사': 'Copiar texto',
+    '마디 정보 수정': 'Editar datos del compás',
+    '기본값': 'Predeterminado',
+    '박자': 'Compás',
+    '카포': 'Capo',
+    '마디 수': 'Compases',
+    '1마디': '1 compás',
+    '2마디': '2 compases',
+    '이 설정을 모든 줄에 적용': 'Aplicar a todas las líneas',
+    '코드 추가': 'Añadir acorde',
+    '노트가 없습니다.': 'Aún no hay canciones.',
+    '노트 이름을 입력하세요:': 'Escribe el nombre de la canción:',
+    '중요 항목은 최대 3개까지 등록할 수 있습니다.': 'Puedes marcar hasta 3 como importantes.',
+    '코드슬롯 표시': 'Mostrar casillas de acordes',
+    '코드슬롯 숨기기': 'Ocultar casillas de acordes',
+    '행 메뉴': 'Menú de línea',
+    '줄 추가': 'Añadir línea',
+    '위에 줄 추가': 'Añadir línea arriba',
+    '아래에 줄 추가': 'Añadir línea abajo',
+    '현재 줄 복사': 'Copiar esta línea',
+    '코드 슬롯 초기화': 'Vaciar casillas de acordes',
+    '이 줄 삭제': 'Eliminar esta línea',
+    '지원하지 않는 마디 수입니다.': 'Ese número de compases no es compatible.',
+    '코드 팔레트 접기/펼치기': 'Contraer/expandir la paleta de acordes',
+    '저장할 코드가 없습니다.': 'No hay acordes para guardar.',
+    '이 코드를 삭제하시겠습니까?': '¿Eliminar este acorde?',
+
+    // ── 튜토리얼 시드·선물 노트 ──
+    // 가사는 영어 원문(1806년, 저작권 소멸)을 그대로 씀 — 스페인어 역사는 출처·권리가 불분명함.
+    '작은 별': 'Estrellita',
+    '연습 중인 곡': 'En práctica',
+    '반짝반짝 작은 별': 'Twinkle twinkle little star',
+    '아름답게 비치네': 'How I wonder what you are',
+    '동쪽 하늘에서도': 'Up above the world so high',
+    '서쪽 하늘에서도': 'Like a diamond in the sky',
+
+    // ── 계정 삭제 안내 ──
+    '계정 및 데이터 삭제 안내 — Chorditor': 'Eliminación de cuenta y datos — Chorditor',
+    '계정 및 데이터 삭제 안내': 'Eliminación de cuenta y datos',
+    '코디터 Chorditor (com.chorditor.app)': 'Chorditor (com.chorditor.app)',
+    '삭제 요청 방법': 'Cómo solicitar la eliminación',
+    '아래 이메일로': 'Para solicitar la eliminación de tu cuenta, envía',
+    '앱에 로그인할 때 사용한 구글 계정 주소': 'la dirección de la cuenta de Google con la que inicias sesión',
+    '를 보내 계정 삭제를 요청할 수 있습니다.': ' al correo de abajo.',
+    '제목: [Chorditor] 계정 삭제 요청': 'Asunto: [Chorditor] Solicitud de eliminación de cuenta',
+    '본인 확인 후': 'Después de verificar tu identidad, la procesamos',
+    '영업일 기준 7일 이내': 'en un máximo de 7 días hábiles',
+    '에 처리되며, 완료 시 회신을 드립니다.': ' y te respondemos cuando esté lista.',
+    '삭제되는 데이터': 'Datos que se eliminan',
+    '계정 정보 (구글 로그인 이메일, 프로필 이름)': 'Datos de la cuenta (correo de inicio de sesión de Google, nombre de perfil)',
+    '작성한 노트(코드 악보) 및 공유 링크': 'Tus canciones (cifrados de acordes) y enlaces compartidos',
+    '훈련소 학습 기록·통계': 'Historial y estadísticas de la Sala de Ensayo',
+    '앱 사용 분석 데이터': 'Datos de análisis de uso de la app',
+    '푸시 알림 토큰': 'Tokens de notificaciones push',
+    '삭제된 데이터는 복구할 수 없습니다.': 'Los datos eliminados no se pueden recuperar.',
+    '보관되는 데이터': 'Datos que se conservan',
+    '구독 결제 기록: 전자상거래법 등 관련 법령에 따라 법정 보관 기간 동안 보관 후 파기됩니다. (결제 자체는 Google Play에서 처리되며, 구독 해지는 Google Play > 정기 결제에서 별도로 진행해 주세요.)':
+      'Registros de pago de suscripciones: se conservan durante el plazo que exige la ley aplicable (por ejemplo, normas de comercio electrónico) y luego se destruyen. (Los pagos los procesa Google Play. Para cancelar una suscripción, ve a Google Play > Suscripciones.)',
+    '이 페이지는 Google Play 데이터 보안 정책에 따른 계정 삭제 안내 페이지입니다.':
+      'Esta página explica la eliminación de cuentas según la política de seguridad de datos de Google Play.',
+  },
+});

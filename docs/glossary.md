@@ -20,17 +20,17 @@
 | 코드 맞추기 | Chord Quiz | コードクイズ | Quiz de Acordes | |
 | 스케일 훈련 | Scale Blocks | スケールブロック | Bloques de Escalas | |
 | 코드 조합 훈련 | Reharm Quiz | リハモクイズ | Quiz de Reharm | 「리하모」는 일본 뮤지션 약칭, 스페인어도 reharm을 그대로 씀(정식어 rearmonización은 라벨로 김). 초보용 부제로 보완(예: "Swap chords, keep the feel") |
-| 코드 진행 리스트 | Chord Loops | コード進行リスト | Progresiones | 영어는 Progressions가 카드·제목에 길어서 Chord Loops로 통일. 설명 문장 속 음악 용어로서의 "chord progression"은 그대로 씀 |
+| 코드 진행 리스트 | Chord Loops | コード進行 | Progresiones | 영어는 Progressions가 카드·제목에 길어서 Chord Loops로 통일. 설명 문장 속 음악 용어로서의 "chord progression"은 그대로 씀 |
 | 오늘의 코드진행 | Chord Loop of the Day | 今日のコード進行 | Progresión del Día | |
 | 주법 리듬 훈련 | Strumming Patterns | ストロークパターン | Patrones de Rasgueo | |
 | 코드 청음 챌린지 | Chord Ear Challenge | コード聴音チャレンジ | Desafío de Oído: Acordes | |
 | 리하모니 청음챌린지 | Reharm Ear Challenge | リハモ聴音チャレンジ | Desafío de Oído: Reharm | |
-| 훈련소 | Practice Room | 練習ルーム | Sala de Ensayo | 일본어 대안: 特訓場 (미확정). 스페인어 「sala de ensayo」=밴드 합주실 표준어 |
+| 훈련소 | Practice Room | 練習ルーム | Sala de Ensayo | 스페인어 「sala de ensayo」=밴드 합주실 표준어 |
 | 코드 사전 | Chord Library | コード辞典 | Diccionario de Acordes | 영어는 단수형(Chords Library 아님) |
 | 코드 에디터 | Chord Editor | コードエディター | Editor de Acordes | |
 | 노트 | Songs | 曲 | Canciones | "노트"는 음표와 혼동되므로 Songs. 새 노트→New Song, 노트에 저장→Save to Songs |
 | 튜너 / 메트로놈 | Tuner / Metronome | チューナー / メトロノーム | Afinador / Metrónomo | |
-| 나의 기타 여정 | Guitar Roadmap | マイ・ギタージャーニー | Mi Camino con la Guitarra | 영어는 커리큘럼 성격에 맞춰 Roadmap(짧고 뜻이 분명). 일본어·스페인어는 그 언어 작업 때 다시 볼 것. 일본어 대안: ギターの道のり |
+| 나의 기타 여정 | Guitar Roadmap | ギターロードマップ | Mi Camino con la Guitarra | 영어·일본어는 커리큘럼 성격에 맞춰 Roadmap(짧고 뜻이 분명). 스페인어는 그 언어 작업 때 다시 볼 것 |
 | 오늘의 미션 | Daily Mission | デイリーミッション | Reto Diario | 스페인어는 misión/reto/desafío가 비슷해서 Daily=Reto, Quests=Misiones, Ear=Desafío로 분리 |
 | 훈련 루틴 | Daily Routine | 毎日の練習ルーティン | Rutina Diaria | |
 | 출석체크 | Daily Check-in | 出席チェック | Check-in Diario | 일본어 캐주얼 톤 대안: ログボ. 스페인어 대안: Asistencia Diaria(학교 출석 느낌) |
@@ -97,7 +97,7 @@
 ## 6. 미결정·메모
 
 - 일본어·스페인어 초안은 출시 전 원어민 검수 필요.
-- 음이름 표기(한국어 도레미 ↔ 일본어 ドレミ / 스페인어 Do Re Mi / 영문 C·D·E)는 지판 문구 번역 때 결정.
-- 일본어 練習ルーム vs 特訓場, 페르소나 일본어명 최종 확인 대기.
+- 음이름 표기: 영어·일본어는 C·D·E(코드 이름과 통일). 스페인어(Do Re Mi vs C·D·E)는 그 언어 작업 때 결정.
+- 일본어 용어 확정(2026-10-08): 練習ルーム / ギターロードマップ / コード進行 / 음이름 C·D·E / 페르소나는 표의 초안 그대로.
 - 부제 문구(Reharm Quiz 등)는 번역 작업 때 다듬기.
 - 약관/개인정보처리방침은 법률 검수급 별도 작업.
