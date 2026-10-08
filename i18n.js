@@ -233,3 +233,12 @@ const I18N = (() => {
 })();
 
 document.documentElement.lang = I18N.lang;
+
+// 일본어: Pretendard 에 한자·가나가 없어 기기 기본 글꼴로 넘어가는데, 그 글꼴은 굵기가 한 종류라
+// 600·700 이 영문과 어긋나 보임 → Noto Sans JP(가변 굵기)를 불러와 글꼴 목록의 Pretendard 다음 자리를 채움.
+if (I18N.lang === 'ja') {
+  const link = document.createElement('link');
+  link.rel = 'stylesheet';
+  link.href = 'https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400..800&display=swap';
+  document.head.appendChild(link);
+}

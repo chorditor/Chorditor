@@ -1116,7 +1116,7 @@ function _sharedInitDebugChip() {
     #ms-dbg-panel.ms-dbg-panel--open { display: flex; }
     #ms-dbg-panel button {
       all: unset; box-sizing: border-box; width: 100%; padding: 8px 10px; border-radius: 8px;
-      color: #fff; font-size: 13px; font-family: 'Pretendard', sans-serif; cursor: pointer;
+      color: #fff; font-size: 13px; font-family: 'Pretendard', 'Noto Sans JP', sans-serif; cursor: pointer;
     }
     #ms-dbg-panel button:active { background: rgba(255,255,255,0.15); }
   `;
