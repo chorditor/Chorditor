@@ -19,7 +19,7 @@
 //          유휴 0~2일(3일↑은 push-winback 담당). 마지막 훈련 재유도(repeat) /
 //          페르소나별 추천(persona, push_nudge_persona 테이블) 50:50.
 //
-//   영어 기기(push_tokens.lang='en')는 같은 category 의 push_templates_en 문구로 바꿔 발송.
+//   한국어가 아닌 기기(push_tokens.lang = en·ja·es)는 같은 category 의 push_templates_<lang> 문구로 바꿔 발송.
 //   스케일 쪽 RPC/테이블이 없는 환경(스케일 푸시 SQL 미배포)에서는 스케일 없이 동작.
 //
 //   같은 호출 안에서 하루 1인 1건: 위 순서대로 우선순위 적용, 이미 발송된 user_id는
@@ -271,31 +271,35 @@ async function fetchScalePatternTargets(): Promise<ScalePatternTarget[]> {
 
 // level_id → 표시이름 맵 + 플레이 가능한 레벨 집합 (quiz_level_names 테이블, 소프트코딩)
 //   playable=false 는 아직 미구현 레벨(9·10·11·c3) — 딥링크 대상에서 제외해야 함.
-async function fetchLevelNames(): Promise<{ names: Record<string, string>; namesEn: Record<string, string>; playable: Set<string> }> {
-  const resp = await fetch(`${SUPABASE_URL}/rest/v1/quiz_level_names?select=level_id,display_name,display_name_en,playable`, {
+async function fetchLevelNames(): Promise<{ names: Record<string, string>; namesBy: Record<string, Record<string, string>>; playable: Set<string> }> {
+  const resp = await fetch(`${SUPABASE_URL}/rest/v1/quiz_level_names?select=*`, {
     headers: { 'apikey': SERVICE_ROLE, 'Authorization': `Bearer ${SERVICE_ROLE}` },
   });
   if (!resp.ok) throw new Error(`quiz level names error ${resp.status}: ${await resp.text()}`);
-  const rows: { level_id: string; display_name: string; display_name_en: string | null; playable: boolean }[] = await resp.json();
+  // deno-lint-ignore no-explicit-any
+  const rows: any[] = await resp.json(); // display_name_<lang> 컬럼은 push_i18n.sql 로 추가
   return {
     names: Object.fromEntries(rows.map(r => [r.level_id, r.display_name])),
-    namesEn: Object.fromEntries(rows.map(r => [r.level_id, r.display_name_en ?? r.display_name])),
+    namesBy: Object.fromEntries(['en', 'ja', 'es'].map(l =>
+      [l, Object.fromEntries(rows.map(r => [r.level_id, r[`display_name_${l}`] ?? r.display_name]))])),
     playable: new Set(rows.filter(r => r.playable).map(r => r.level_id)),
   };
 }
 
 // scale_key → 표시이름 맵 (scale_level_names 테이블, 소프트코딩)
-//   display_name_en 은 push_level_names_en.sql 로 추가됨 — 스케일 푸시를 배포할 때 같이 적용할 것.
-async function fetchScaleLevelNames(): Promise<{ names: Record<string, string>; namesEn: Record<string, string> }> {
-  const resp = await fetch(`${SUPABASE_URL}/rest/v1/scale_level_names?select=scale_key,display_name,display_name_en`, {
+//   display_name_<lang> 은 push_i18n.sql 로 추가됨 — 스케일 푸시를 배포할 때 같이 적용할 것.
+async function fetchScaleLevelNames(): Promise<{ names: Record<string, string>; namesBy: Record<string, Record<string, string>> }> {
+  const resp = await fetch(`${SUPABASE_URL}/rest/v1/scale_level_names?select=*`, {
     headers: { 'apikey': SERVICE_ROLE, 'Authorization': `Bearer ${SERVICE_ROLE}` },
   });
-  if (resp.status === 404) return { names: {}, namesEn: {} }; // 스케일 푸시 SQL 미배포 환경
+  if (resp.status === 404) return { names: {}, namesBy: { en: {}, ja: {}, es: {} } }; // 스케일 푸시 SQL 미배포 환경
   if (!resp.ok) throw new Error(`scale level names error ${resp.status}: ${await resp.text()}`);
-  const rows: { scale_key: string; display_name: string; display_name_en: string | null }[] = await resp.json();
+  // deno-lint-ignore no-explicit-any
+  const rows: any[] = await resp.json();
   return {
     names: Object.fromEntries(rows.map(r => [r.scale_key, r.display_name])),
-    namesEn: Object.fromEntries(rows.map(r => [r.scale_key, r.display_name_en ?? r.display_name])),
+    namesBy: Object.fromEntries(['en', 'ja', 'es'].map(l =>
+      [l, Object.fromEntries(rows.map(r => [r.scale_key, r[`display_name_${l}`] ?? r.display_name]))])),
   };
 }
 
@@ -545,24 +549,35 @@ async function deleteToken(token: string): Promise<void> {
   });
 }
 
-// ── 영어 푸시 (push_templates_en) ───────────────────────────
+// ── 다국어 푸시 (push_templates_<lang>) ─────────────────────
 //   대상 선정·딥링크는 한국어 문구(title=목적지) 기준으로 그대로 결정하고,
-//   기기 언어가 'en'(push_tokens.lang)이면 보내기 직전에 같은 category 의 영어 문구로 바꿔 끼움.
-//   category ↔ 목적지 훈련은 1:1 이라 영어 title 이 딥링크와 어긋나지 않음.
-//   영어 문구를 못 찾으면 한국어 그대로 발송.
-const TRAINING_NAME_EN: Record<string, string> = {
-  quiz: 'Chord Quiz',
-  scale: 'Scale Blocks',
-  progression: 'Chord Loops',
-  strum: 'Strumming Patterns',
-  combo: 'Reharm Quiz',
+//   기기 언어(push_tokens.lang)가 아래 목록에 있으면 보내기 직전에 같은 category 의
+//   그 언어 문구로 바꿔 끼움. category ↔ 목적지 훈련은 1:1 이라 title 이 딥링크와 어긋나지 않음.
+//   문구를 못 찾으면 한국어 그대로 발송. 언어 추가 = 목록에 코드 추가 + push_templates_<lang> 테이블.
+const PUSH_LANGS = ['en', 'ja', 'es'] as const;
+type PushLang = typeof PUSH_LANGS[number];
+
+const TRAINING_NAME_I18N: Record<PushLang, Record<string, string>> = {
+  en: { quiz: 'Chord Quiz', scale: 'Scale Blocks', progression: 'Chord Loops', strum: 'Strumming Patterns', combo: 'Reharm Quiz' },
+  ja: { quiz: 'コードクイズ', scale: 'スケールブロック', progression: 'コード進行', strum: 'ストロークパターン', combo: 'リハモクイズ' },
+  es: { quiz: 'Quiz de Acordes', scale: 'Bloques de Escalas', progression: 'Progresiones', strum: 'Patrones de Rasgueo', combo: 'Quiz de Reharm' },
 };
 
-// lang='en' 인 기기 토큰 집합 (구버전 앱은 lang 을 안 보내 기본 'ko')
-//   get_push_en_tokens() 는 배열 한 값으로 돌려줌 — 행 단위 응답은 최대 행수(기본 1000)에서 잘리기 때문.
-async function fetchEnTokens(): Promise<Set<string>> {
+// 레벨·장 표기
+const L10N: Record<PushLang, {
+  level: (n: string) => string; chapter: (n: string) => string;
+  levelLabel: (n: string, name: string) => string; challenge: string;
+}> = {
+  en: { level: n => `Level ${n}`, chapter: n => `Chapter ${n}`, levelLabel: (n, name) => `Level ${n}: ${name}`, challenge: 'Challenge' },
+  ja: { level: n => `レベル${n}`, chapter: n => `第${n}章`, levelLabel: (n, name) => `レベル${n}「${name}」`, challenge: 'チャレンジ' },
+  es: { level: n => `Nivel ${n}`, chapter: n => `Capítulo ${n}`, levelLabel: (n, name) => `Nivel ${n}: ${name}`, challenge: 'Desafío' },
+};
+
+// 기기 토큰 → 언어 (한국어가 아닌 기기만). get_push_token_langs() 는 { token: lang } 객체 한 값 —
+// 행 단위 응답은 최대 행수(기본 1000)에서 잘리기 때문. 구버전 앱은 lang 을 안 보내 'ko' 로 남는다.
+async function fetchTokenLangs(): Promise<Map<string, PushLang>> {
   try {
-    const resp = await fetch(`${SUPABASE_URL}/rest/v1/rpc/get_push_en_tokens`, {
+    const resp = await fetch(`${SUPABASE_URL}/rest/v1/rpc/get_push_token_langs`, {
       method: 'POST',
       headers: {
         'apikey': SERVICE_ROLE,
@@ -571,74 +586,69 @@ async function fetchEnTokens(): Promise<Set<string>> {
       },
       body: '{}',
     });
-    if (!resp.ok) return new Set();
-    return new Set((await resp.json()) as string[]);
+    if (!resp.ok) return new Map();
+    const obj = (await resp.json()) as Record<string, string>;
+    const out = new Map<string, PushLang>();
+    for (const [token, lang] of Object.entries(obj)) {
+      if ((PUSH_LANGS as readonly string[]).includes(lang)) out.set(token, lang as PushLang);
+    }
+    return out;
   } catch (_) {
-    return new Set();
+    return new Map();
   }
 }
 
-// category 별 영어 문구(호출 1회 동안 캐시) → 랜덤 1개
-const enTemplateCache = new Map<string, { title: string; body: string }[]>();
-async function fetchRandomMessageEn(category: string): Promise<{ title: string; body: string } | null> {
-  let rows = enTemplateCache.get(category);
+// 언어·category 별 문구(호출 1회 동안 캐시) → 랜덤 1개
+const i18nTemplateCache = new Map<string, { title: string; body: string }[]>();
+async function fetchRandomMessageI18n(lang: PushLang, category: string): Promise<{ title: string; body: string } | null> {
+  const key = `${lang}:${category}`;
+  let rows = i18nTemplateCache.get(key);
   if (!rows) {
     try {
       const resp = await fetch(
-        `${SUPABASE_URL}/rest/v1/push_templates_en?select=title,body&active=is.true&category=eq.${encodeURIComponent(category)}`,
+        `${SUPABASE_URL}/rest/v1/push_templates_${lang}?select=title,body&active=is.true&category=eq.${encodeURIComponent(category)}`,
         { headers: { 'apikey': SERVICE_ROLE, 'Authorization': `Bearer ${SERVICE_ROLE}` } },
       );
       rows = resp.ok ? await resp.json() : [];
     } catch (_) {
       rows = [];
     }
-    enTemplateCache.set(category, rows!);
+    i18nTemplateCache.set(key, rows!);
   }
-  return rows!.length ? pickRandom(rows!) : null;
+  return rows!.length ? rows![Math.floor(Math.random() * rows!.length)] : null;
 }
 
-interface EnCtx {
-  name?: string | null;
-  training?: string; pick?: string;
-  level?: string; next_level?: string; challenge?: string;
-  scale?: string; next_scale?: string;
-  level_short?: string; n?: string;
-}
+type TplCtx = Record<string, string | null | undefined>;
 
-// 영어 placeholder 치환. 닉네임이 없으면 호칭을 문장에서 빼냄
-//   "Hey {name}" → "Hey there" / "Psst, {name}" → "Psst" / "{name}, your…" → "Your…"
-function fillEn(text: string, ctx: EnCtx): string {
-  let out = text;
-  if (ctx.name) {
-    out = out.replaceAll('{name}', ctx.name);
-  } else {
-    out = out
-      .replace(/^Hey \{name\}/, 'Hey there')
-      .replace(/, \{name\}/g, '')
-      .replace(/^\{name\}, (.)/, (_m, c: string) => c.toUpperCase());
+// placeholder 치환. 닉네임 호칭은 문구에서 대괄호로 감싸 둔다: "[{name}, ]your week…", "[{name}さん、]…"
+//   닉네임이 있으면 대괄호만 벗기고, 없으면 대괄호 구간을 통째로 뺀다(언어와 무관).
+//   뺀 뒤 문장이 라틴 소문자로 시작하면 대문자로 올린다("your week…" → "Your week…").
+function fillTpl(text: string, ctx: TplCtx): string {
+  const name = ctx.name || '';
+  let out = text.replace(/\[([^\[\]]*\{name\}[^\[\]]*)\]/g, (_m, seg: string) => (name ? seg : ''));
+  out = out.replaceAll('{name}', () => name);
+  for (const [k, v] of Object.entries(ctx)) {
+    if (k !== 'name' && v != null) out = out.replaceAll(`{${k}}`, () => v);
   }
-  for (const k of ['training', 'pick', 'level', 'next_level', 'challenge', 'scale', 'next_scale', 'level_short', 'n'] as const) {
-    const v = ctx[k];
-    if (v != null) out = out.replaceAll(`{${k}}`, v);
-  }
+  if (!name) out = out.replace(/^[a-zà-öø-ÿ]/, c => c.toUpperCase());
   return out;
 }
 
-async function localizeEn(category: string, ctx: EnCtx): Promise<{ title: string; body: string } | null> {
-  const msg = await fetchRandomMessageEn(category);
+async function localize(lang: PushLang, category: string, ctx: TplCtx = {}): Promise<{ title: string; body: string } | null> {
+  const msg = await fetchRandomMessageI18n(lang, category);
   if (!msg) return null;
-  return { title: fillEn(msg.title, ctx), body: fillEn(msg.body, ctx) };
+  return { title: fillTpl(msg.title, ctx), body: fillTpl(msg.body, ctx) };
 }
 
-// 영어 레벨 표시: "Level 3: Essential Chords" (챌린지 c1~c3 은 이름만)
-function levelLabelEn(levelId: string, namesEn: Record<string, string>): string {
-  const name = namesEn[levelId] ?? levelId;
-  return levelId.startsWith('c') ? name : `Level ${levelId}: ${name}`;
+// 레벨 표시: "Level 3: Essential Chords" / "レベル3「必須コード」" (챌린지 c1~c3 은 이름만)
+function levelLabelI18n(lang: PushLang, levelId: string, names: Record<string, string>): string {
+  const name = names[levelId] ?? levelId;
+  return levelId.startsWith('c') ? name : L10N[lang].levelLabel(levelId, name);
 }
 // 스케일 연동형 {level_short}: "Level 3" / "Chapter 3" / 챌린지는 이름
-function levelShortEn(type: string, value: string, namesEn: Record<string, string>): string {
-  if (type === 'quiz')  return value.startsWith('c') ? (namesEn[value] ?? 'Challenge') : `Level ${value}`;
-  if (type === 'combo') return `Chapter ${value}`;
+function levelShortI18n(lang: PushLang, type: string, value: string, names: Record<string, string>): string {
+  if (type === 'quiz')  return value.startsWith('c') ? (names[value] ?? L10N[lang].challenge) : L10N[lang].level(value);
+  if (type === 'combo') return L10N[lang].chapter(value);
   return value;
 }
 
@@ -727,9 +737,9 @@ Deno.serve(async (_req) => {
     let pruned = 0;
 
     // 레벨 표시이름(성적형·중단인지형 공용) + 플레이 가능 레벨(일반넛지 딥링크용) — 한 번만 조회
-    const { names: levelNames, namesEn: levelNamesEn, playable: playableQuiz } = await fetchLevelNames();
-    const { names: scaleNames, namesEn: scaleNamesEn } = await fetchScaleLevelNames();
-    const enTokens = await fetchEnTokens();
+    const { names: levelNames, namesBy: levelNamesBy, playable: playableQuiz } = await fetchLevelNames();
+    const { names: scaleNames, namesBy: scaleNamesBy } = await fetchScaleLevelNames();
+    const tokenLangs = await fetchTokenLangs();
 
     // ── 1순위: 중단인지형 — 퀴즈·스케일 동등 경쟁, 유저당 랜덤 1개 ──
     type AbandonedCandidate =
@@ -756,6 +766,7 @@ Deno.serve(async (_req) => {
     for (const [userId, candidates] of byUser1) {
       const pick = candidates[Math.floor(Math.random() * candidates.length)];
       const token = pick.t.token;
+      const lang: PushLang = tokenLangs.get(token) ?? 'en';
 
       if (pick.source === 'quiz') {
         const t = pick.t;
@@ -769,8 +780,8 @@ Deno.serve(async (_req) => {
         const dest = deeplinkByTitle(msg.title, parseInt(t.level_id, 10), t.level_id);
         if (!dest) { aSkipped++; continue; }
         const logId = crypto.randomUUID();
-        if (enTokens.has(token)) {
-          const en = await localizeEn('quiz_abandoned', { level: levelLabelEn(t.level_id, levelNamesEn) });
+        if (tokenLangs.has(token)) {
+          const en = await localize(lang, 'quiz_abandoned', { level: levelLabelI18n(lang, t.level_id, levelNamesBy[lang]) });
           if (en) { title = en.title; body = en.body; templateId = null; }
         }
         const data = { ...dest.data, entry: 'quiz_abandoned', logId };
@@ -795,9 +806,9 @@ Deno.serve(async (_req) => {
         let templateId: number | null = msg.id;
         const dest = scaleOwnDest(t.scale_key);
         const logId = crypto.randomUUID();
-        if (enTokens.has(token)) {
-          const en = await localizeEn('scale_abandoned', {
-            name: t.nickname, scale: scaleNamesEn[t.scale_key] ?? t.scale_key,
+        if (tokenLangs.has(token)) {
+          const en = await localize(lang, 'scale_abandoned', {
+            name: t.nickname, scale: scaleNamesBy[lang][t.scale_key] ?? t.scale_key,
           });
           if (en) { title = en.title; body = en.body; templateId = null; }
         }
@@ -858,6 +869,7 @@ Deno.serve(async (_req) => {
       const scaleStat = candidates.find(c => c.source === 'scaleStat')?.t as ScalePatternTarget | undefined;
       const scaleLink = candidates.find(c => c.source === 'scaleLink')?.t as ScaleLinkTarget    | undefined;
       const token = (quizStat ?? quizLink ?? scaleStat ?? scaleLink)!.token;
+      const lang: PushLang = tokenLangs.get(token) ?? 'en';
 
       // 콘텐츠 난이도 매핑 기준: 퀴즈 쪽(연동형 우선, 없으면 성적형 레벨) / 스케일 쪽(scale_key→레벨숫자)
       const quizLevel = quizLink ? parseInt(quizLink.level_id, 10)
@@ -898,16 +910,16 @@ Deno.serve(async (_req) => {
       let dest: { data: Record<string, string>; deeplink: string } | null = null;
       let body = '';
       let pushType = '';
-      let enCtx: EnCtx = {};
+      let enCtx: TplCtx = {};
 
       if (msg.category === 'quiz_level_up' || msg.category === 'quiz_challenge' || msg.category === 'quiz_reinforce') {
         pushType = 'quiz_pattern';
         dest = deeplinkByTitle(msg.title, quizLevel!, quizTarget);
         body = fillQuizPlaceholders(msg.body, quizStat!, levelNames);
         enCtx = {
-          level: levelLabelEn(quizStat!.level_id, levelNamesEn),
-          next_level: quizStat!.next_level_id ? levelLabelEn(quizStat!.next_level_id, levelNamesEn) : undefined,
-          challenge: quizStat!.challenge_id ? (levelNamesEn[quizStat!.challenge_id] ?? 'Challenge') : undefined,
+          level: levelLabelI18n(lang, quizStat!.level_id, levelNamesBy[lang]),
+          next_level: quizStat!.next_level_id ? levelLabelI18n(lang, quizStat!.next_level_id, levelNamesBy[lang]) : undefined,
+          challenge: quizStat!.challenge_id ? (levelNamesBy[lang][quizStat!.challenge_id] ?? L10N[lang].challenge) : undefined,
         };
       } else if (msg.category === 'scale_level_up' || msg.category === 'scale_reinforce') {
         pushType = 'scale_pattern';
@@ -918,9 +930,9 @@ Deno.serve(async (_req) => {
         body = fillScalePlaceholders(msg.body, scaleStat!.scale_key, scaleStat!.next_scale_key, scaleStat!.nickname, scaleNames);
         enCtx = {
           name: scaleStat!.nickname,
-          scale: scaleNamesEn[scaleStat!.scale_key] ?? scaleStat!.scale_key,
+          scale: scaleNamesBy[lang][scaleStat!.scale_key] ?? scaleStat!.scale_key,
           next_scale: scaleStat!.next_scale_key
-            ? (scaleNamesEn[scaleStat!.next_scale_key] ?? scaleStat!.next_scale_key) : undefined,
+            ? (scaleNamesBy[lang][scaleStat!.next_scale_key] ?? scaleStat!.next_scale_key) : undefined,
         };
       } else if (msg.category.startsWith('scale_link_')) {
         pushType = 'scale_link';
@@ -930,14 +942,14 @@ Deno.serve(async (_req) => {
           body = msg.body.replaceAll('{닉네임}', scaleLink!.nickname || '회원').replaceAll('{레벨}', linkDest.levelText);
           enCtx = {
             name: scaleLink!.nickname,
-            level_short: levelShortEn(linkDest.levelType, linkDest.levelValue, levelNamesEn),
+            level_short: levelShortI18n(lang, linkDest.levelType, linkDest.levelValue, levelNamesBy[lang]),
           };
         }
       } else { // quiz_link_*
         pushType = 'quiz_link';
         dest = deeplinkByTitle(msg.title, quizLevel!, null);
         body = msg.body.replaceAll('{레벨명}', levelLabel(quizLink!.level_id, levelNames));
-        enCtx = { level: levelLabelEn(quizLink!.level_id, levelNamesEn) };
+        enCtx = { level: levelLabelI18n(lang, quizLink!.level_id, levelNamesBy[lang]) };
       }
 
       if (!dest) {
@@ -951,8 +963,8 @@ Deno.serve(async (_req) => {
       const logId = crypto.randomUUID();
       let title = msg.title;
       let templateId: number | null = msg.id;
-      if (enTokens.has(token)) {
-        const en = await localizeEn(msg.category, enCtx);
+      if (tokenLangs.has(token)) {
+        const en = await localize(lang, msg.category, enCtx);
         if (en) { title = en.title; body = en.body; templateId = null; }
       }
       const data = { ...dest.data, entry: pushType, category: msg.category, logId };
@@ -985,6 +997,7 @@ Deno.serve(async (_req) => {
       !sentUsers.has(t.user_id) && (!testUserId || t.user_id === testUserId) && matchesTimeSlot(t.user_id));
     let nSent = 0, nFailed = 0, nSkipped = 0;
     for (const t of nudgeTargets) {
+      const lang: PushLang = tokenLangs.get(t.token) ?? 'en';
       const kind: 'repeat' | 'persona' =
         (t.last_training && Math.random() < 0.5) ? 'repeat' : 'persona';
 
@@ -1011,9 +1024,9 @@ Deno.serve(async (_req) => {
       const data = { ...dest.data, logId };
       // 일반넛지 title 은 훈련명이 아니라 DB의 중립 문구를 그대로 사용.
       // 훈련을 지칭하지 않으므로 어떤 딥링크가 붙어도 불일치가 생기지 않음.
-      if (enTokens.has(t.token)) {
-        const trainingNameEn = TRAINING_NAME_EN[training] ?? training;
-        const en = await localizeEn(nudgeCategory, { name: t.nickname, training: trainingNameEn, pick: trainingNameEn });
+      if (tokenLangs.has(t.token)) {
+        const trainingNameEn = TRAINING_NAME_I18N[lang][training] ?? training;
+        const en = await localize(lang, nudgeCategory, { name: t.nickname, training: trainingNameEn, pick: trainingNameEn });
         if (en) { title = en.title; body = en.body; templateId = null; }
       }
       const r = await fcmSend(sa, accessToken, t.token, title, body, data);

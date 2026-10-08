@@ -236,13 +236,35 @@ function isNightRestricted(tz?: string): boolean {
   return h >= 21 || h < 8;
 }
 
-// ── 영어 푸시 (push_templates_en) ───────────────────────────
-//   기기 언어가 'en'(push_tokens.lang)이면 보내기 직전에 같은 category 의 영어 문구로 바꿔 끼움.
-//   영어 문구를 못 찾으면 한국어 그대로 발송. (push-dispatch 의 같은 블록과 동일 규칙)
-//   get_push_en_tokens() 는 배열 한 값으로 돌려줌 — 행 단위 응답은 최대 행수(기본 1000)에서 잘리기 때문.
-async function fetchEnTokens(): Promise<Set<string>> {
+// ── 다국어 푸시 (push_templates_<lang>) ─────────────────────
+//   대상 선정·딥링크는 한국어 문구(title=목적지) 기준으로 그대로 결정하고,
+//   기기 언어(push_tokens.lang)가 아래 목록에 있으면 보내기 직전에 같은 category 의
+//   그 언어 문구로 바꿔 끼움. category ↔ 목적지 훈련은 1:1 이라 title 이 딥링크와 어긋나지 않음.
+//   문구를 못 찾으면 한국어 그대로 발송. 언어 추가 = 목록에 코드 추가 + push_templates_<lang> 테이블.
+const PUSH_LANGS = ['en', 'ja', 'es'] as const;
+type PushLang = typeof PUSH_LANGS[number];
+
+const TRAINING_NAME_I18N: Record<PushLang, Record<string, string>> = {
+  en: { quiz: 'Chord Quiz', scale: 'Scale Blocks', progression: 'Chord Loops', strum: 'Strumming Patterns', combo: 'Reharm Quiz' },
+  ja: { quiz: 'コードクイズ', scale: 'スケールブロック', progression: 'コード進行', strum: 'ストロークパターン', combo: 'リハモクイズ' },
+  es: { quiz: 'Quiz de Acordes', scale: 'Bloques de Escalas', progression: 'Progresiones', strum: 'Patrones de Rasgueo', combo: 'Quiz de Reharm' },
+};
+
+// 레벨·장 표기
+const L10N: Record<PushLang, {
+  level: (n: string) => string; chapter: (n: string) => string;
+  levelLabel: (n: string, name: string) => string; challenge: string;
+}> = {
+  en: { level: n => `Level ${n}`, chapter: n => `Chapter ${n}`, levelLabel: (n, name) => `Level ${n}: ${name}`, challenge: 'Challenge' },
+  ja: { level: n => `レベル${n}`, chapter: n => `第${n}章`, levelLabel: (n, name) => `レベル${n}「${name}」`, challenge: 'チャレンジ' },
+  es: { level: n => `Nivel ${n}`, chapter: n => `Capítulo ${n}`, levelLabel: (n, name) => `Nivel ${n}: ${name}`, challenge: 'Desafío' },
+};
+
+// 기기 토큰 → 언어 (한국어가 아닌 기기만). get_push_token_langs() 는 { token: lang } 객체 한 값 —
+// 행 단위 응답은 최대 행수(기본 1000)에서 잘리기 때문. 구버전 앱은 lang 을 안 보내 'ko' 로 남는다.
+async function fetchTokenLangs(): Promise<Map<string, PushLang>> {
   try {
-    const resp = await fetch(`${SUPABASE_URL}/rest/v1/rpc/get_push_en_tokens`, {
+    const resp = await fetch(`${SUPABASE_URL}/rest/v1/rpc/get_push_token_langs`, {
       method: 'POST',
       headers: {
         'apikey': SERVICE_ROLE,
@@ -251,56 +273,70 @@ async function fetchEnTokens(): Promise<Set<string>> {
       },
       body: '{}',
     });
-    if (!resp.ok) return new Set();
-    return new Set((await resp.json()) as string[]);
+    if (!resp.ok) return new Map();
+    const obj = (await resp.json()) as Record<string, string>;
+    const out = new Map<string, PushLang>();
+    for (const [token, lang] of Object.entries(obj)) {
+      if ((PUSH_LANGS as readonly string[]).includes(lang)) out.set(token, lang as PushLang);
+    }
+    return out;
   } catch (_) {
-    return new Set();
+    return new Map();
   }
 }
 
-// category 별 영어 문구(호출 1회 동안 캐시) → 랜덤 1개
-const enTemplateCache = new Map<string, { title: string; body: string }[]>();
-async function fetchRandomMessageEn(category: string): Promise<{ title: string; body: string } | null> {
-  let rows = enTemplateCache.get(category);
+// 언어·category 별 문구(호출 1회 동안 캐시) → 랜덤 1개
+const i18nTemplateCache = new Map<string, { title: string; body: string }[]>();
+async function fetchRandomMessageI18n(lang: PushLang, category: string): Promise<{ title: string; body: string } | null> {
+  const key = `${lang}:${category}`;
+  let rows = i18nTemplateCache.get(key);
   if (!rows) {
     try {
       const resp = await fetch(
-        `${SUPABASE_URL}/rest/v1/push_templates_en?select=title,body&active=is.true&category=eq.${encodeURIComponent(category)}`,
+        `${SUPABASE_URL}/rest/v1/push_templates_${lang}?select=title,body&active=is.true&category=eq.${encodeURIComponent(category)}`,
         { headers: { 'apikey': SERVICE_ROLE, 'Authorization': `Bearer ${SERVICE_ROLE}` } },
       );
       rows = resp.ok ? await resp.json() : [];
     } catch (_) {
       rows = [];
     }
-    enTemplateCache.set(category, rows!);
+    i18nTemplateCache.set(key, rows!);
   }
   return rows!.length ? rows![Math.floor(Math.random() * rows!.length)] : null;
 }
 
-// 영어 placeholder 치환. 닉네임이 없으면 호칭을 문장에서 빼냄
-//   "Hey {name}" → "Hey there" / "{name}, your…" → "Your…"
-function fillEn(text: string, ctx: Record<string, string | null | undefined>): string {
-  let out = text;
-  if (ctx.name) {
-    out = out.replaceAll('{name}', ctx.name);
-  } else {
-    out = out
-      .replace(/^Hey \{name\}/, 'Hey there')
-      .replace(/, \{name\}/g, '')
-      .replace(/^\{name\}, (.)/, (_m, c: string) => c.toUpperCase());
-  }
+type TplCtx = Record<string, string | null | undefined>;
+
+// placeholder 치환. 닉네임 호칭은 문구에서 대괄호로 감싸 둔다: "[{name}, ]your week…", "[{name}さん、]…"
+//   닉네임이 있으면 대괄호만 벗기고, 없으면 대괄호 구간을 통째로 뺀다(언어와 무관).
+//   뺀 뒤 문장이 라틴 소문자로 시작하면 대문자로 올린다("your week…" → "Your week…").
+function fillTpl(text: string, ctx: TplCtx): string {
+  const name = ctx.name || '';
+  let out = text.replace(/\[([^\[\]]*\{name\}[^\[\]]*)\]/g, (_m, seg: string) => (name ? seg : ''));
+  out = out.replaceAll('{name}', () => name);
   for (const [k, v] of Object.entries(ctx)) {
-    if (k !== 'name' && v != null) out = out.replaceAll(`{${k}}`, v);
+    if (k !== 'name' && v != null) out = out.replaceAll(`{${k}}`, () => v);
   }
+  if (!name) out = out.replace(/^[a-zà-öø-ÿ]/, c => c.toUpperCase());
   return out;
 }
 
-async function localizeEn(
-  category: string, ctx: Record<string, string | null | undefined> = {},
-): Promise<{ title: string; body: string } | null> {
-  const msg = await fetchRandomMessageEn(category);
+async function localize(lang: PushLang, category: string, ctx: TplCtx = {}): Promise<{ title: string; body: string } | null> {
+  const msg = await fetchRandomMessageI18n(lang, category);
   if (!msg) return null;
-  return { title: fillEn(msg.title, ctx), body: fillEn(msg.body, ctx) };
+  return { title: fillTpl(msg.title, ctx), body: fillTpl(msg.body, ctx) };
+}
+
+// 레벨 표시: "Level 3: Essential Chords" / "レベル3「必須コード」" (챌린지 c1~c3 은 이름만)
+function levelLabelI18n(lang: PushLang, levelId: string, names: Record<string, string>): string {
+  const name = names[levelId] ?? levelId;
+  return levelId.startsWith('c') ? name : L10N[lang].levelLabel(levelId, name);
+}
+// 스케일 연동형 {level_short}: "Level 3" / "Chapter 3" / 챌린지는 이름
+function levelShortI18n(lang: PushLang, type: string, value: string, names: Record<string, string>): string {
+  if (type === 'quiz')  return value.startsWith('c') ? (names[value] ?? L10N[lang].challenge) : L10N[lang].level(value);
+  if (type === 'combo') return L10N[lang].chapter(value);
+  return value;
 }
 
 Deno.serve(async (_req) => {
@@ -320,13 +356,14 @@ Deno.serve(async (_req) => {
     const tokenTz = await fetchTokenTz();
     const targets = (await fetchTargets()).filter(t => !isNightRestricted(tokenTz.get(t.token)));
     let sent = 0, failed = 0, pruned = 0;
-    const enTokens = await fetchEnTokens();
+    const tokenLangs = await fetchTokenLangs();
 
     for (const t of targets) {
       try {
         const msg = await fetchRandomMessage();
-        if (enTokens.has(t.token)) {
-          const en = await localizeEn('peak_full');
+        const lang = tokenLangs.get(t.token);
+        if (lang) {
+          const en = await localize(lang, 'peak_full');
           if (en) { msg.title = en.title; msg.body = en.body; msg.id = null; }
         }
         const logId = crypto.randomUUID();

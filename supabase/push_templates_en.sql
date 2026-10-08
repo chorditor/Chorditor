@@ -12,8 +12,8 @@
 --     - nudge_* 는 훈련을 지칭하지 않는 중립 title 만 사용.
 --
 --   placeholder (한국어 토큰 대응)
---     {name}        {닉네임}      닉네임 없으면: 문두 "{name}, " 는 통째로 제거,
---                                 "Hey {name}" → "Hey there", "Psst, {name}" → "Psst"
+--     {name}        {닉네임}      호칭은 대괄호로 감쌈: "[{name}, ]your week…", "Psst[, {name}]"
+--                                 닉네임이 있으면 대괄호만 벗기고, 없으면 그 구간을 통째로 뺌
 --     {training}    {훈련명}      용어집 영어 이름
 --     {pick}        {추천컨텐츠}  용어집 영어 이름
 --     {level}       {레벨명}      "Level 3: <이름>" (따옴표 없음)
@@ -48,11 +48,11 @@ insert into public.push_templates_en (category, title, body) values
 -- ── 일반 넛지 ──────────────────────────────────────────────
 ('nudge_repeat', 'Your guitar misses you',
  'It''s been staring at you all day. Give it 5 minutes of {training}?'),
-('nudge_repeat', 'Hey {name} 👋',
+('nudge_repeat', 'Hey[ {name}] 👋',
  '{training} called. It wants a rematch.'),
 ('nudge_repeat', '5 minutes. That''s it.',
  'One quick round of {training}. Your fingers will thank you.'),
-('nudge_repeat', 'Psst, {name}',
+('nudge_repeat', 'Psst[, {name}]',
  'You were on a roll with {training}. Don''t let it cool off.'),
 
 ('nudge_persona', 'Your guitar is getting dusty',
@@ -60,7 +60,7 @@ insert into public.push_templates_en (category, title, body) values
 ('nudge_persona', 'Today''s pick 🎸',
  '{pick}. No reason. We just have a good feeling about it.'),
 ('nudge_persona', 'We picked this for you',
- '{pick}, {name}. It fits where you''re at right now.'),
+ '{pick}[, {name}]. It fits where you''re at right now.'),
 ('nudge_persona', 'Calluses don''t build themselves',
  'A little {pick} today keeps them honest.'),
 
@@ -73,7 +73,7 @@ insert into public.push_templates_en (category, title, body) values
 ('scale_abandoned', 'Scale Blocks', 'You hit pause on {scale}. It''s still paused. Awkward.'),
 ('scale_abandoned', 'Scale Blocks', '{scale}, half done. Finish the run?'),
 ('scale_abandoned', 'Scale Blocks', 'Your fingers still remember {scale}. Prove it.'),
-('scale_abandoned', 'Scale Blocks', '{name}, you''re one push away from finishing {scale}.'),
+('scale_abandoned', 'Scale Blocks', '[{name}, ]you''re one push away from finishing {scale}.'),
 
 -- ── 성적형 · 코드 맞추기 ───────────────────────────────────
 ('quiz_level_up', 'Chord Quiz', 'You''ve basically memorized {level}. Time to move on.'),
@@ -96,16 +96,16 @@ insert into public.push_templates_en (category, title, body) values
 
 -- ── 성적형 · 스케일 ────────────────────────────────────────
 ('scale_level_up', 'Scale Blocks', 'Your {scale} accuracy is looking sharp. {next_scale} is up next.'),
-('scale_level_up', 'Scale Blocks', '{name}, your {scale} keeps getting cleaner. Ready for {next_scale}?'),
+('scale_level_up', 'Scale Blocks', '[{name}, ]your {scale} keeps getting cleaner. Ready for {next_scale}?'),
 ('scale_level_up', 'Scale Blocks', '{scale} feels like home now, doesn''t it? Go meet {next_scale}.'),
 ('scale_level_up', 'Scale Blocks', 'Your recent runs say you''re ready. Next stop: {next_scale}.'),
-('scale_level_up', 'Scale Blocks', '{name}, you''ve been steady on {scale}. Time to unlock {next_scale}.'),
+('scale_level_up', 'Scale Blocks', '[{name}, ]you''ve been steady on {scale}. Time to unlock {next_scale}.'),
 
 ('scale_reinforce', 'Scale Blocks', '{scale} got a little slippery lately. One more pass?'),
-('scale_reinforce', 'Scale Blocks', '{name}, {scale} is almost there. Let''s tighten it up.'),
+('scale_reinforce', 'Scale Blocks', '[{name}, ]{scale} is almost there. Let''s tighten it up.'),
 ('scale_reinforce', 'Scale Blocks', 'The fretboard takes a while to feel familiar. Revisit {scale}?'),
 ('scale_reinforce', 'Scale Blocks', 'No rush. Take {scale} one more time, nice and slow.'),
-('scale_reinforce', 'Scale Blocks', '{name}, this one''s all about reps. Run it again?'),
+('scale_reinforce', 'Scale Blocks', '[{name}, ]this one''s all about reps. Run it again?'),
 
 -- ── 연동형 · 코드 맞추기 → 다른 훈련 ───────────────────────
 ('quiz_link_scale', 'Scale Blocks', '{level} chords: nailed. Ready to touch some melody? Try Scale Blocks.'),
@@ -141,57 +141,57 @@ insert into public.push_templates_en (category, title, body) values
 
 -- ── 연동형 · 스케일 → 다른 훈련 ────────────────────────────
 ('scale_link_quiz', 'Chord Quiz', 'Scales all day gets tiring. Take a breather with Chord Quiz.'),
-('scale_link_quiz', 'Chord Quiz', '{name}, you went deep on scales today. Cool down with Chord Quiz {level_short}?'),
+('scale_link_quiz', 'Chord Quiz', '[{name}, ]you went deep on scales today. Cool down with Chord Quiz {level_short}?'),
 ('scale_link_quiz', 'Chord Quiz', 'Eyes tired from staring at the fretboard? Chord Quiz is a nice change of scenery.'),
 ('scale_link_quiz', 'Chord Quiz', 'You put in the scale work. Chord Quiz is your palate cleanser.'),
-('scale_link_quiz', 'Chord Quiz', '{name}, rest those fingers. How about Chord Quiz {level_short}?'),
+('scale_link_quiz', 'Chord Quiz', '[{name}, ]rest those fingers. How about Chord Quiz {level_short}?'),
 
 ('scale_link_progression', 'Chord Loops', 'Lay that scale over a chord loop and it suddenly makes sense.'),
-('scale_link_progression', 'Chord Loops', '{name}, scales alone only go so far. Put them over chords and they become real.'),
+('scale_link_progression', 'Chord Loops', '[{name}, ]scales alone only go so far. Put them over chords and they become real.'),
 ('scale_link_progression', 'Chord Loops', 'Know the chords and you''ll see exactly where your scale fits. Take a look?'),
-('scale_link_progression', 'Chord Loops', '{name}, wonder how today''s scale works in an actual loop?'),
+('scale_link_progression', 'Chord Loops', '[{name}, ]wonder how today''s scale works in an actual loop?'),
 ('scale_link_progression', 'Chord Loops', 'Scales + chord loops = actually using them. Keep it going?'),
 
 ('scale_link_strum', 'Strumming Patterns', 'Scaled out? Take a rhythm break.'),
 ('scale_link_strum', 'Strumming Patterns', 'Stop staring at the fretboard. Let your strumming hand have a turn.'),
-('scale_link_strum', 'Strumming Patterns', '{name}, forget finger positions for a minute. Just groove.'),
-('scale_link_strum', 'Strumming Patterns', '{name}, solid scale work today. Wrap up with some easy strumming?'),
+('scale_link_strum', 'Strumming Patterns', '[{name}, ]forget finger positions for a minute. Just groove.'),
+('scale_link_strum', 'Strumming Patterns', '[{name}, ]solid scale work today. Wrap up with some easy strumming?'),
 ('scale_link_strum', 'Strumming Patterns', 'Set the scales down. Fill up on rhythm.'),
 
-('scale_link_combo', 'Reharm Quiz', '{name}, scales plus diatonic chords? Now that''s a real weapon.'),
+('scale_link_combo', 'Reharm Quiz', '[{name}, ]scales plus diatonic chords? Now that''s a real weapon.'),
 ('scale_link_combo', 'Reharm Quiz', 'Scales are half the story. Reharm Quiz {level_short} gives you the other half.'),
-('scale_link_combo', 'Reharm Quiz', '{name}, learn diatonic chords and you''ll see why that scale fits.'),
+('scale_link_combo', 'Reharm Quiz', '[{name}, ]learn diatonic chords and you''ll see why that scale fits.'),
 ('scale_link_combo', 'Reharm Quiz', 'Meet your scale''s harmonic partner in Reharm Quiz {level_short}.'),
 ('scale_link_combo', 'Reharm Quiz', 'After scales comes harmony. Continue with Reharm Quiz?'),
 
 -- ── 적극형 (주간 결산) ─────────────────────────────────────
 ('quiz_active_continue', 'Your week in review',
- '{name}, your weekly recap is in. You put in {n}x the average on {training} 💪 Keep it rolling?'),
+ '[{name}, ]your weekly recap is in. You put in {n}x the average on {training} 💪 Keep it rolling?'),
 ('quiz_active_continue', 'Your week in review',
- '{name}, weekly recap! You finished {n}x the average on {training}. Same energy next week?'),
+ '[{name}, ]weekly recap! You finished {n}x the average on {training}. Same energy next week?'),
 ('quiz_active_continue', 'Your week in review',
- '{name}, the numbers are in: {n}x the average on {training}. Consistency is the whole game.'),
+ '[{name}, ]the numbers are in: {n}x the average on {training}. Consistency is the whole game.'),
 ('quiz_active_continue', 'Your week in review',
- '{name}, you were {n}x more committed to {training} than most 🔥 Keep this up and you''ll feel it fast.'),
+ '[{name}, ]you were {n}x more committed to {training} than most 🔥 Keep this up and you''ll feel it fast.'),
 
 ('quiz_active_recommend', 'Your week in review',
- '{name}, your weekly recap is in. {n}x the average on {training} 💪 Want to give {pick} a try too?'),
+ '[{name}, ]your weekly recap is in. {n}x the average on {training} 💪 Want to give {pick} a try too?'),
 ('quiz_active_recommend', 'Your week in review',
- '{name}, weekly recap! {n}x the average on {training}. Add some {pick} and you''re set.'),
+ '[{name}, ]weekly recap! {n}x the average on {training}. Add some {pick} and you''re set.'),
 ('quiz_active_recommend', 'Your week in review',
- '{name}, the numbers are in: {n}x the average on {training}. Curious about {pick}?'),
+ '[{name}, ]the numbers are in: {n}x the average on {training}. Curious about {pick}?'),
 ('quiz_active_recommend', 'Your week in review',
- '{name}, {n}x more committed to {training} than most 🔥 Imagine that energy on {pick}.'),
+ '[{name}, ]{n}x more committed to {training} than most 🔥 Imagine that energy on {pick}.'),
 
 ('quiz_active_high_continue', 'Your week in review',
- '{name}, whoa. {n}x the average on {training} this week. That''s seriously impressive 👏 Keep the streak alive?'),
+ '[{name}, ]whoa. {n}x the average on {training} this week. That''s seriously impressive 👏 Keep the streak alive?'),
 ('quiz_active_high_continue', 'Your week in review',
- '{name}, {n}x on {training}?! You meant business this week 🔥 Can''t wait to see next week.'),
+ '[{name}, ]{n}x on {training}?! You meant business this week 🔥 Can''t wait to see next week.'),
 
 ('quiz_active_high_recommend', 'Your week in review',
- '{name}, whoa. {n}x the average on {training} this week 👏 Bring that fire to {pick}?'),
+ '[{name}, ]whoa. {n}x the average on {training} this week 👏 Bring that fire to {pick}?'),
 ('quiz_active_high_recommend', 'Your week in review',
- '{name}, {n}x on {training}?! You meant business 🔥 Add {pick} and this month is yours.'),
+ '[{name}, ]{n}x on {training}?! You meant business 🔥 Add {pick} and this month is yours.'),
 
 -- ── 윈백 (push_winback stage 1~4 대응, 목적지=홈) ──────────
 ('winback_1', 'Quick guitar break? 🎸', 'Hey, it''s been a few days. Grab a chord with us?'),
