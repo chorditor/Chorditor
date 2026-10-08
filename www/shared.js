@@ -6,7 +6,7 @@
 // ── 상수 ─────────────────────────────────────────────────────
 const SUPABASE_URL  = 'https://jbvkygeksohlysyvaoab.supabase.co';
 const SUPABASE_ANON = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Impidmt5Z2Vrc29obHlzeXZhb2FiIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzYzOTk5NjgsImV4cCI6MjA5MTk3NTk2OH0.6RSgChy0Yq0H2TJpZPSoMKQ2V-OYfR0XzE1aJBBZkXI';
-const APP_VERSION   = '1.3.6.0';
+const APP_VERSION   = '1.3.6.1_pre1';
 const SUPABASE_STORAGE_KEY = 'sb-jbvkygeksohlysyvaoab-auth-token';
 
 // 이용약관/개인정보처리방침 버전 — 광고식별자 수집 항목 추가(2026-09) 시 1로 올림.
@@ -2136,7 +2136,7 @@ async function checkForceUpdate() {
 // ── 앱 자체 공유(초대) ──────────────────────────────────────────
 async function shareApp() {
   const url = 'https://play.google.com/store/apps/details?id=com.chorditor.app';
-  const text = 'Chorditor로 코드 진행을 만들고 연습해보세요!';
+  const text = I18N.t('Chorditor로 코드 진행을 만들고 연습해보세요!');
   const Share = window.Capacitor?.Plugins?.Share;
   try {
     if (Share) {
@@ -2187,7 +2187,7 @@ async function shareProjectViaOS() {
   const url = el?.dataset.shareUrl || '';
   if (!url) return;
   const title = el.dataset.projectName || 'Chorditor';
-  const text = `${title} 코드 진행을 확인해보세요!`;
+  const text = I18N.t(`${title} 코드 진행을 확인해보세요!`);
   const Share = window.Capacitor?.Plugins?.Share;
   try {
     if (Share) {
@@ -2433,6 +2433,64 @@ function _planSelectCycle(cycle) {
   document.getElementById('plan-card-monthly')?.classList.toggle('plan-card--highlight', _planSelectedCycle === 'monthly');
 }
 
+// 플랜 카드 가격을 스토어(Google Play)가 돌려준 값으로 교체 — 유저의 스토어 계정 국가 통화·금액 그대로.
+// 마크업의 원화 표기는 기본값(웹, 스토어 응답 전·실패 시)으로만 남는다.
+// 연간 카드의 "약 OO/월"·"OO% 할인"은 받아온 연간·월간 금액으로 계산.
+let _storePricesPromise = null;
+function _fetchStorePrices() {
+  if (_storePricesPromise) return _storePricesPromise;
+  _storePricesPromise = (async () => {
+    await _billingReady;
+    if (!window._RC) return null;
+    const offeringsResult = await window._RC.getOfferings();
+    const offerings = offeringsResult?.offerings ?? offeringsResult;
+    const packages = offerings?.current?.availablePackages || [];
+    const find = id => packages.find(p => p.identifier === id || p.product?.identifier?.includes(id))?.product || null;
+    return { monthly: find(PRODUCT_PRO), yearly: find(PRODUCT_PRO_YEARLY) };
+  })().catch(e => {
+    console.warn('[Billing] 가격 조회 실패:', e);
+    _storePricesPromise = null; // 다음에 시트를 열 때 다시 시도
+    return null;
+  });
+  return _storePricesPromise;
+}
+
+async function _applyStorePrices() {
+  const prices = await _fetchStorePrices();
+  if (!prices) return;
+  const { monthly, yearly } = prices;
+  // 한쪽만 받아오면 통화가 섞여 보이므로(예: 연간 $, 월간 ₩) 둘 다 있을 때만 교체
+  if (!monthly?.priceString || !yearly?.priceString) return;
+  // 금액 글자만 교체(뒤의 <small>/년</small>은 그대로 둠)
+  const setAmount = (id, product) => {
+    const node = document.getElementById(id)?.firstChild;
+    if (node && node.nodeType === 3 && product?.priceString) node.nodeValue = product.priceString;
+  };
+  setAmount('plan-price-yearly', yearly);
+  setAmount('plan-price-monthly', monthly);
+
+  const yPrice = Number(yearly?.price);
+  const mPrice = Number(monthly?.price);
+  const hint  = document.getElementById('plan-hint-yearly');
+  const badge = document.getElementById('plan-badge-yearly');
+  if (hint && yPrice > 0 && yearly.currencyCode) {
+    const perMonth = yPrice / 12;
+    let text;
+    if (yearly.currencyCode === 'KRW') {
+      text = (Math.round(perMonth / 100) * 100).toLocaleString('ko-KR') + '원'; // 기존 표기(약 5,000원)와 같은 형식
+    } else {
+      try { text = new Intl.NumberFormat(undefined, { style: 'currency', currency: yearly.currencyCode, currencyDisplay: 'narrowSymbol' }).format(perMonth); }
+      catch (_) { text = null; }
+    }
+    if (text) hint.textContent = '약 ' + text + '/월';
+  }
+  if (badge && yPrice > 0 && mPrice > 0 && yearly.currencyCode === monthly.currencyCode) {
+    const pct = Math.round((1 - yPrice / (mPrice * 12)) * 100);
+    if (pct > 0 && pct < 100) badge.textContent = pct + '% 할인';
+    else badge.style.display = 'none'; // 연간이 더 싸지 않으면 할인 배지를 숨김
+  }
+}
+
 function openPlanSheet(triggerSource, extraProps) {
   const overlay = document.getElementById('plan-sheet-overlay');
   const sheet   = document.getElementById('plan-sheet');
@@ -2445,6 +2503,7 @@ function openPlanSheet(triggerSource, extraProps) {
   const isNative = window.Capacitor?.isNativePlatform();
 
   _planSelectCycle('yearly'); // 시트 열 때마다 추천(연간)부터 기본 선택
+  if (isNative) _applyStorePrices();
 
   const btn = document.getElementById('plan-sheet-btn-pro');
   if (btn) {
@@ -2526,16 +2585,16 @@ function _initPlanSheet() {
         <div class="plan-card-name">Pro 연간</div>
         <div class="plan-card-price">
           <div class="price-top">
-            <span class="hint">약 5,000원/월</span>
-            <span class="price-badge">28% 할인</span>
+            <span class="hint" id="plan-hint-yearly">약 5,000원/월</span>
+            <span class="price-badge" id="plan-badge-yearly">28% 할인</span>
           </div>
-          <span class="price-amount">₩59,900<small>/년</small></span>
+          <span class="price-amount" id="plan-price-yearly">₩59,900<small>/년</small></span>
         </div>
       </div>
       <div class="plan-card" id="plan-card-monthly" onclick="_planSelectCycle('monthly')">
         <div class="plan-card-name">Pro 월간</div>
         <div class="plan-card-price">
-          <span class="price-amount">₩6,900<small>/월</small></span>
+          <span class="price-amount" id="plan-price-monthly">₩6,900<small>/월</small></span>
         </div>
       </div>
     </div>
@@ -2548,8 +2607,8 @@ function _initPlanSheet() {
     <div class="plan-legal-group">
       <div class="plan-cancel-info" id="plan-cancel-info">구독은 결제일 기준 결제 주기(월간 또는 연간)에 따라 자동으로 갱신되며, 갱신 24시간 전까지 언제든 해지할 수 있습니다. 해지는 Google Play 스토어 &gt; 구독 메뉴에서 가능합니다.</div>
       <div class="plan-legal-links">
-        <span class="plan-legal-link" onclick="window.open('Privacy.html', '_blank')">개인정보 처리방침</span>
-        <span class="plan-legal-link" onclick="window.open('Terms.html', '_blank')">이용약관</span>
+        <span class="plan-legal-link" onclick="window.open(legalPage('Privacy'), '_blank')">개인정보 처리방침</span>
+        <span class="plan-legal-link" onclick="window.open(legalPage('Terms'), '_blank')">이용약관</span>
       </div>
     </div>
   </div>
@@ -4768,6 +4827,10 @@ async function _savePushToken(token) {
   if (!accessToken || !userId) return; // 로그인 후 재시도
 
   const platform = window.Capacitor?.getPlatform?.() || 'web';
+  // 앱 언어·기기 시간대 — 서버가 푸시 문구 언어와 발송 시각을 정하는 데 씀 (push_tokens_locale.sql)
+  const lang = (typeof getLang === 'function') ? getLang() : 'ko';
+  let tz = null;
+  try { tz = Intl.DateTimeFormat().resolvedOptions().timeZone || null; } catch (_) {}
   try {
     // token UNIQUE → on_conflict merge (같은 기기 재등록 시 user/platform 갱신)
     await fetch(`${SUPABASE_URL}/rest/v1/push_tokens?on_conflict=token`, {
@@ -4779,7 +4842,7 @@ async function _savePushToken(token) {
         'Prefer':        'resolution=merge-duplicates,return=minimal',
       },
       body: JSON.stringify({
-        user_id: userId, token, platform,
+        user_id: userId, token, platform, lang, tz,
         updated_at: new Date().toISOString(),
       }),
     });
@@ -4946,7 +5009,7 @@ function initPushNotifications() {
   try {
     PN.createChannel({
       id: 'chorditor_push',
-      name: 'Chorditor 알림',
+      name: I18N.t('Chorditor 알림'),
       importance: 4,
       visibility: 1,
       vibration: true,
