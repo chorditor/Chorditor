@@ -1,12 +1,13 @@
 // ───────────────────────────────────────────────────────────
 // push-dispatch : 중단인지형 + 성적형/연동형 + 넛지 자동 발송 디스패처 (cron 호출)
 //   윈백은 push-winback 함수로 분리됨(2026-07-31) — 윈백은 하루 1회.
-//   이 함수는 유저별 접속 시간대 패턴(16시조/2045조, get_user_time_slot())으로 개인화되어
-//   하루 1인 1건만 발송됨 — cron이 16:00엔 ?time_slot=1600, 20:45엔 ?time_slot=2045로 호출,
-//   유저는 자기 슬롯일 때만 대상에 포함되므로 겹치지 않음.
-//   get_user_time_slot()은 매 호출 시 analytics_events를 다시 집계하므로, 유저의 접속
-//   패턴이 바뀌면(예: 2045조였다가 16시대 위주로 전환) 자동으로 다음 호출부터 그룹이 갱신됨
-//   (별도 캐시/저장 없음 — 항상 최신 패턴 기준).
+//   이 함수는 유저별 접속 시간대 패턴(16시조/2045조)으로 개인화되어 하루 1인 1건만 발송됨.
+//   발송 시각은 유저 기기의 현지 시각 기준(push_tokens.tz, 없으면 Asia/Seoul):
+//   cron 이 15분마다 호출 → get_push_due_users() 가 "지금 현지 시각이 16:00 또는 20:45 이고
+//   그게 자기 조인 유저"만 돌려줌 → 그 유저만 대상. 해당자가 없으면 바로 종료.
+//   조 분류는 매 호출 시 analytics_events 를 현지 시간으로 다시 집계하므로, 접속 패턴이
+//   바뀌면 자동으로 갱신됨(별도 캐시/저장 없음).
+//   ?time_slot= 파라미터는 더 이상 쓰지 않음(옛 cron 이 붙여 보내도 무시).
 //
 //   1순위) get_quiz_abandoned_targets() + get_scale_abandoned_targets()
 //          — 중단인지형, 퀴즈·스케일 동등 경쟁(2026-07-31 스케일 추가) 유저당 랜덤 1개
@@ -17,6 +18,9 @@
 //   3순위) get_nudge_targets()          — 위 조건에 아무것도 해당 안 되는 유저 캐치올.
 //          유휴 0~2일(3일↑은 push-winback 담당). 마지막 훈련 재유도(repeat) /
 //          페르소나별 추천(persona, push_nudge_persona 테이블) 50:50.
+//
+//   한국어가 아닌 기기(push_tokens.lang = en·ja·es)는 같은 category 의 push_templates_<lang> 문구로 바꿔 발송.
+//   스케일 쪽 RPC/테이블이 없는 환경(스케일 푸시 SQL 미배포)에서는 스케일 없이 동작.
 //
 //   같은 호출 안에서 하루 1인 1건: 위 순서대로 우선순위 적용, 이미 발송된 user_id는
 //   다음 단계에서 스킵(sentUsers Set).
@@ -230,6 +234,7 @@ async function fetchScaleAbandonedTargets(): Promise<ScaleAbandonedTarget[]> {
     },
     body: '{}',
   });
+  if (resp.status === 404) return []; // 스케일 푸시 SQL 미배포 환경 — 스케일 없이 진행
   if (!resp.ok) throw new Error(`scale abandoned targets error ${resp.status}: ${await resp.text()}`);
   return await resp.json();
 }
@@ -244,6 +249,7 @@ async function fetchScaleLinkTargets(): Promise<ScaleLinkTarget[]> {
     },
     body: '{}',
   });
+  if (resp.status === 404) return []; // 스케일 푸시 SQL 미배포 환경 — 스케일 없이 진행
   if (!resp.ok) throw new Error(`scale link targets error ${resp.status}: ${await resp.text()}`);
   return await resp.json();
 }
@@ -258,32 +264,43 @@ async function fetchScalePatternTargets(): Promise<ScalePatternTarget[]> {
     },
     body: '{}',
   });
+  if (resp.status === 404) return []; // 스케일 푸시 SQL 미배포 환경 — 스케일 없이 진행
   if (!resp.ok) throw new Error(`scale pattern targets error ${resp.status}: ${await resp.text()}`);
   return await resp.json();
 }
 
 // level_id → 표시이름 맵 + 플레이 가능한 레벨 집합 (quiz_level_names 테이블, 소프트코딩)
 //   playable=false 는 아직 미구현 레벨(9·10·11·c3) — 딥링크 대상에서 제외해야 함.
-async function fetchLevelNames(): Promise<{ names: Record<string, string>; playable: Set<string> }> {
-  const resp = await fetch(`${SUPABASE_URL}/rest/v1/quiz_level_names?select=level_id,display_name,playable`, {
+async function fetchLevelNames(): Promise<{ names: Record<string, string>; namesBy: Record<string, Record<string, string>>; playable: Set<string> }> {
+  const resp = await fetch(`${SUPABASE_URL}/rest/v1/quiz_level_names?select=*`, {
     headers: { 'apikey': SERVICE_ROLE, 'Authorization': `Bearer ${SERVICE_ROLE}` },
   });
   if (!resp.ok) throw new Error(`quiz level names error ${resp.status}: ${await resp.text()}`);
-  const rows: { level_id: string; display_name: string; playable: boolean }[] = await resp.json();
+  // deno-lint-ignore no-explicit-any
+  const rows: any[] = await resp.json(); // display_name_<lang> 컬럼은 push_i18n.sql 로 추가
   return {
     names: Object.fromEntries(rows.map(r => [r.level_id, r.display_name])),
+    namesBy: Object.fromEntries(['en', 'ja', 'es'].map(l =>
+      [l, Object.fromEntries(rows.map(r => [r.level_id, r[`display_name_${l}`] ?? r.display_name]))])),
     playable: new Set(rows.filter(r => r.playable).map(r => r.level_id)),
   };
 }
 
 // scale_key → 표시이름 맵 (scale_level_names 테이블, 소프트코딩)
-async function fetchScaleLevelNames(): Promise<Record<string, string>> {
-  const resp = await fetch(`${SUPABASE_URL}/rest/v1/scale_level_names?select=scale_key,display_name`, {
+//   display_name_<lang> 은 push_i18n.sql 로 추가됨 — 스케일 푸시를 배포할 때 같이 적용할 것.
+async function fetchScaleLevelNames(): Promise<{ names: Record<string, string>; namesBy: Record<string, Record<string, string>> }> {
+  const resp = await fetch(`${SUPABASE_URL}/rest/v1/scale_level_names?select=*`, {
     headers: { 'apikey': SERVICE_ROLE, 'Authorization': `Bearer ${SERVICE_ROLE}` },
   });
+  if (resp.status === 404) return { names: {}, namesBy: { en: {}, ja: {}, es: {} } }; // 스케일 푸시 SQL 미배포 환경
   if (!resp.ok) throw new Error(`scale level names error ${resp.status}: ${await resp.text()}`);
-  const rows: { scale_key: string; display_name: string }[] = await resp.json();
-  return Object.fromEntries(rows.map(r => [r.scale_key, r.display_name]));
+  // deno-lint-ignore no-explicit-any
+  const rows: any[] = await resp.json();
+  return {
+    names: Object.fromEntries(rows.map(r => [r.scale_key, r.display_name])),
+    namesBy: Object.fromEntries(['en', 'ja', 'es'].map(l =>
+      [l, Object.fromEntries(rows.map(r => [r.scale_key, r[`display_name_${l}`] ?? r.display_name]))])),
+  };
 }
 
 // ── 연동형(3번) 레벨 → 추천 콘텐츠 딥링크 매핑 ──────────────────
@@ -386,22 +403,23 @@ function scaleLinkLevelText(chosenType: string, value: string): string {
 // 진행/주법은 레벨 무관 전체 추천(콤마 다중값, 클라이언트가 랜덤 선택).
 function scaleLinkDeeplink(
   title: string, scaleLevel: number,
-): { data: Record<string, string>; deeplink: string; levelText: string } | null {
+): { data: Record<string, string>; deeplink: string; levelText: string; levelType: string; levelValue: string } | null {
   if (title === '코드 맞추기') {
     const lv = resolveQuizFromScaleLevel(scaleLevel);
-    return { data: { quizLevel: lv }, deeplink: `quiz:${lv}`, levelText: scaleLinkLevelText('quiz', lv) };
+    return { data: { quizLevel: lv }, deeplink: `quiz:${lv}`, levelText: scaleLinkLevelText('quiz', lv), levelType: 'quiz', levelValue: lv };
   }
   if (title === '코드 진행 리스트') {
-    return { data: { progNo: '1,2,4' }, deeplink: 'progression:1,2,4', levelText: '' };
+    return { data: { progNo: '1,2,4' }, deeplink: 'progression:1,2,4', levelText: '', levelType: '', levelValue: '' };
   }
   if (title === '주법 리듬 훈련') {
-    return { data: { strumLv: '1,2,3' }, deeplink: 'strum:1,2,3', levelText: '' };
+    return { data: { strumLv: '1,2,3' }, deeplink: 'strum:1,2,3', levelText: '', levelType: '', levelValue: '' };
   }
   if (title === '코드 조합 훈련') {
     const chapter = resolveComboFromScaleLevel(scaleLevel);
     return {
       data: { comboChapter: chapter, comboDifficulty: 'low' },
       deeplink: `combo:${chapter}`, levelText: scaleLinkLevelText('combo', chapter),
+      levelType: 'combo', levelValue: chapter,
     };
   }
   return null;
@@ -430,9 +448,9 @@ function fillScalePlaceholders(
   return out;
 }
 
-// user_id → 접속 시간대 그룹('1600'/'2045', get_user_time_slot()). time_slot 필터용.
-async function fetchTimeSlots(): Promise<Record<string, '1600' | '2045'>> {
-  const resp = await fetch(`${SUPABASE_URL}/rest/v1/rpc/get_user_time_slot`, {
+// 지금 넛지를 받을 차례인 user_id 집합 (get_push_due_user_ids(), 현지 시각 기준 — push_due_users.sql).
+async function fetchDueUsers(): Promise<Set<string>> {
+  const resp = await fetch(`${SUPABASE_URL}/rest/v1/rpc/get_push_due_user_ids`, {
     method: 'POST',
     headers: {
       'apikey': SERVICE_ROLE,
@@ -441,9 +459,8 @@ async function fetchTimeSlots(): Promise<Record<string, '1600' | '2045'>> {
     },
     body: '{}',
   });
-  if (!resp.ok) throw new Error(`time slot error ${resp.status}: ${await resp.text()}`);
-  const rows: { user_id: string; time_slot: '1600' | '2045' }[] = await resp.json();
-  return Object.fromEntries(rows.map(r => [r.user_id, r.time_slot]));
+  if (!resp.ok) throw new Error(`due users error ${resp.status}: ${await resp.text()}`);
+  return new Set((await resp.json()) as string[]); // 배열 한 값 — 행수 제한에 안 잘림
 }
 
 // 발송 1건 기록(CTR 분모). id를 FCM data.logId로 실어보내 클릭과 1:1 매칭.
@@ -532,6 +549,109 @@ async function deleteToken(token: string): Promise<void> {
   });
 }
 
+// ── 다국어 푸시 (push_templates_<lang>) ─────────────────────
+//   대상 선정·딥링크는 한국어 문구(title=목적지) 기준으로 그대로 결정하고,
+//   기기 언어(push_tokens.lang)가 아래 목록에 있으면 보내기 직전에 같은 category 의
+//   그 언어 문구로 바꿔 끼움. category ↔ 목적지 훈련은 1:1 이라 title 이 딥링크와 어긋나지 않음.
+//   문구를 못 찾으면 한국어 그대로 발송. 언어 추가 = 목록에 코드 추가 + push_templates_<lang> 테이블.
+const PUSH_LANGS = ['en', 'ja', 'es'] as const;
+type PushLang = typeof PUSH_LANGS[number];
+
+const TRAINING_NAME_I18N: Record<PushLang, Record<string, string>> = {
+  en: { quiz: 'Chord Quiz', scale: 'Scale Blocks', progression: 'Chord Loops', strum: 'Strumming Patterns', combo: 'Reharm Quiz' },
+  ja: { quiz: 'コードクイズ', scale: 'スケールブロック', progression: 'コード進行', strum: 'ストロークパターン', combo: 'リハモクイズ' },
+  es: { quiz: 'Quiz de Acordes', scale: 'Bloques de Escalas', progression: 'Progresiones', strum: 'Patrones de Rasgueo', combo: 'Quiz de Reharm' },
+};
+
+// 레벨·장 표기
+const L10N: Record<PushLang, {
+  level: (n: string) => string; chapter: (n: string) => string;
+  levelLabel: (n: string, name: string) => string; challenge: string;
+}> = {
+  en: { level: n => `Level ${n}`, chapter: n => `Chapter ${n}`, levelLabel: (n, name) => `Level ${n}: ${name}`, challenge: 'Challenge' },
+  ja: { level: n => `レベル${n}`, chapter: n => `第${n}章`, levelLabel: (n, name) => `レベル${n}「${name}」`, challenge: 'チャレンジ' },
+  es: { level: n => `Nivel ${n}`, chapter: n => `Capítulo ${n}`, levelLabel: (n, name) => `Nivel ${n}: ${name}`, challenge: 'Desafío' },
+};
+
+// 기기 토큰 → 언어 (한국어가 아닌 기기만). get_push_token_langs() 는 { token: lang } 객체 한 값 —
+// 행 단위 응답은 최대 행수(기본 1000)에서 잘리기 때문. 구버전 앱은 lang 을 안 보내 'ko' 로 남는다.
+async function fetchTokenLangs(): Promise<Map<string, PushLang>> {
+  try {
+    const resp = await fetch(`${SUPABASE_URL}/rest/v1/rpc/get_push_token_langs`, {
+      method: 'POST',
+      headers: {
+        'apikey': SERVICE_ROLE,
+        'Authorization': `Bearer ${SERVICE_ROLE}`,
+        'Content-Type': 'application/json',
+      },
+      body: '{}',
+    });
+    if (!resp.ok) return new Map();
+    const obj = (await resp.json()) as Record<string, string>;
+    const out = new Map<string, PushLang>();
+    for (const [token, lang] of Object.entries(obj)) {
+      if ((PUSH_LANGS as readonly string[]).includes(lang)) out.set(token, lang as PushLang);
+    }
+    return out;
+  } catch (_) {
+    return new Map();
+  }
+}
+
+// 언어·category 별 문구(호출 1회 동안 캐시) → 랜덤 1개
+const i18nTemplateCache = new Map<string, { title: string; body: string }[]>();
+async function fetchRandomMessageI18n(lang: PushLang, category: string): Promise<{ title: string; body: string } | null> {
+  const key = `${lang}:${category}`;
+  let rows = i18nTemplateCache.get(key);
+  if (!rows) {
+    try {
+      const resp = await fetch(
+        `${SUPABASE_URL}/rest/v1/push_templates_${lang}?select=title,body&active=is.true&category=eq.${encodeURIComponent(category)}`,
+        { headers: { 'apikey': SERVICE_ROLE, 'Authorization': `Bearer ${SERVICE_ROLE}` } },
+      );
+      rows = resp.ok ? await resp.json() : [];
+    } catch (_) {
+      rows = [];
+    }
+    i18nTemplateCache.set(key, rows!);
+  }
+  return rows!.length ? rows![Math.floor(Math.random() * rows!.length)] : null;
+}
+
+type TplCtx = Record<string, string | null | undefined>;
+
+// placeholder 치환. 닉네임 호칭은 문구에서 대괄호로 감싸 둔다: "[{name}, ]your week…", "[{name}さん、]…"
+//   닉네임이 있으면 대괄호만 벗기고, 없으면 대괄호 구간을 통째로 뺀다(언어와 무관).
+//   뺀 뒤 문장이 라틴 소문자로 시작하면 대문자로 올린다("your week…" → "Your week…").
+function fillTpl(text: string, ctx: TplCtx): string {
+  const name = ctx.name || '';
+  let out = text.replace(/\[([^\[\]]*\{name\}[^\[\]]*)\]/g, (_m, seg: string) => (name ? seg : ''));
+  out = out.replaceAll('{name}', () => name);
+  for (const [k, v] of Object.entries(ctx)) {
+    if (k !== 'name' && v != null) out = out.replaceAll(`{${k}}`, () => v);
+  }
+  if (!name) out = out.replace(/^[a-zà-öø-ÿ]/, c => c.toUpperCase());
+  return out;
+}
+
+async function localize(lang: PushLang, category: string, ctx: TplCtx = {}): Promise<{ title: string; body: string } | null> {
+  const msg = await fetchRandomMessageI18n(lang, category);
+  if (!msg) return null;
+  return { title: fillTpl(msg.title, ctx), body: fillTpl(msg.body, ctx) };
+}
+
+// 레벨 표시: "Level 3: Essential Chords" / "レベル3「必須コード」" (챌린지 c1~c3 은 이름만)
+function levelLabelI18n(lang: PushLang, levelId: string, names: Record<string, string>): string {
+  const name = names[levelId] ?? levelId;
+  return levelId.startsWith('c') ? name : L10N[lang].levelLabel(levelId, name);
+}
+// 스케일 연동형 {level_short}: "Level 3" / "Chapter 3" / 챌린지는 이름
+function levelShortI18n(lang: PushLang, type: string, value: string, names: Record<string, string>): string {
+  if (type === 'quiz')  return value.startsWith('c') ? (names[value] ?? L10N[lang].challenge) : L10N[lang].level(value);
+  if (type === 'combo') return L10N[lang].chapter(value);
+  return value;
+}
+
 // 훈련 id → 표시명. 일반넛지의 title(=목적지) 과 {훈련명}/{추천컨텐츠} 치환에 공용.
 const TRAINING_NAME: Record<string, string> = {
   quiz: '코드 맞추기',
@@ -597,22 +717,29 @@ Deno.serve(async (_req) => {
   try {
     // 테스트용: ?user_id=xxx 붙이면 그 유저 하나로만 좁혀서 발송(운영 cron은 파라미터 없이 호출하므로 영향 없음)
     const testUserId = new URL(_req.url).searchParams.get('user_id');
-    // ?time_slot=1600|2045 붙이면 해당 접속시간대 그룹만 대상. 없으면 전체(테스트용).
-    const timeSlotParam = new URL(_req.url).searchParams.get('time_slot') as '1600' | '2045' | null;
+    // 테스트용: ?all=1 붙이면 발송 시각과 무관하게 전체 대상. (?user_id= 도 시각 무관)
+    const ignoreTime = !!testUserId || new URL(_req.url).searchParams.get('all') === '1';
+
+    // 지금 현지 시각이 발송 시간인 유저만 대상. 없으면 FCM 인증·대상 조회 전에 바로 종료.
+    const dueUsers = ignoreTime ? null : await fetchDueUsers();
+    if (dueUsers && dueUsers.size === 0) {
+      return new Response(JSON.stringify({ skipped: 'no_due_users' }), {
+        headers: { 'Content-Type': 'application/json' },
+      });
+    }
+    const matchesTimeSlot = (userId: string) => !dueUsers || dueUsers.has(userId);
 
     const sa = loadServiceAccount();
     const accessToken = await getAccessToken(sa);
-
-    const timeSlots = timeSlotParam ? await fetchTimeSlots() : null;
-    const matchesTimeSlot = (userId: string) => !timeSlotParam || timeSlots?.[userId] === timeSlotParam;
 
     // 하루 1인 1건(이 호출 안에서) 보장 — 발송 완료된 user_id 여기 누적, 이후 단계에서 스킵
     const sentUsers = new Set<string>();
     let pruned = 0;
 
     // 레벨 표시이름(성적형·중단인지형 공용) + 플레이 가능 레벨(일반넛지 딥링크용) — 한 번만 조회
-    const { names: levelNames, playable: playableQuiz } = await fetchLevelNames();
-    const scaleNames = await fetchScaleLevelNames();
+    const { names: levelNames, namesBy: levelNamesBy, playable: playableQuiz } = await fetchLevelNames();
+    const { names: scaleNames, namesBy: scaleNamesBy } = await fetchScaleLevelNames();
+    const tokenLangs = await fetchTokenLangs();
 
     // ── 1순위: 중단인지형 — 퀴즈·스케일 동등 경쟁, 유저당 랜덤 1개 ──
     type AbandonedCandidate =
@@ -639,24 +766,31 @@ Deno.serve(async (_req) => {
     for (const [userId, candidates] of byUser1) {
       const pick = candidates[Math.floor(Math.random() * candidates.length)];
       const token = pick.t.token;
+      const lang: PushLang = tokenLangs.get(token) ?? 'en';
 
       if (pick.source === 'quiz') {
         const t = pick.t;
         const msg = await fetchRandomMessage('quiz_abandoned');
         if (!msg) { aSkipped++; continue; }
-        const body = msg.body.replaceAll('{레벨명}', levelLabel(t.level_id, levelNames));
+        let title = msg.title;
+        let body = msg.body.replaceAll('{레벨명}', levelLabel(t.level_id, levelNames));
+        let templateId: number | null = msg.id;
         // 중단인지형은 "풀던 레벨로 돌아가기"라 title 은 항상 '코드 맞추기' 고정.
         // 목적지는 다른 경로와 동일하게 title 에서 파생시켜 불일치 가능성을 없앰.
         const dest = deeplinkByTitle(msg.title, parseInt(t.level_id, 10), t.level_id);
         if (!dest) { aSkipped++; continue; }
         const logId = crypto.randomUUID();
+        if (tokenLangs.has(token)) {
+          const en = await localize(lang, 'quiz_abandoned', { level: levelLabelI18n(lang, t.level_id, levelNamesBy[lang]) });
+          if (en) { title = en.title; body = en.body; templateId = null; }
+        }
         const data = { ...dest.data, entry: 'quiz_abandoned', logId };
-        const r = await fcmSend(sa, accessToken, token, msg.title, body, data);
+        const r = await fcmSend(sa, accessToken, token, title, body, data);
         if (r.ok) {
           await logPush({
             id: logId, user_id: userId, push_type: 'quiz_abandoned',
-            category: 'quiz_abandoned', template_id: msg.id,
-            title: msg.title, body, deeplink: dest.deeplink,
+            category: 'quiz_abandoned', template_id: templateId,
+            title, body, deeplink: dest.deeplink,
           });
           sentUsers.add(userId); aSent++;
         } else {
@@ -667,16 +801,24 @@ Deno.serve(async (_req) => {
         const t = pick.t;
         const msg = await fetchRandomMessage('scale_abandoned');
         if (!msg) { aSkipped++; continue; }
-        const body = fillScalePlaceholders(msg.body, t.scale_key, null, t.nickname, scaleNames);
+        let title = msg.title;
+        let body = fillScalePlaceholders(msg.body, t.scale_key, null, t.nickname, scaleNames);
+        let templateId: number | null = msg.id;
         const dest = scaleOwnDest(t.scale_key);
         const logId = crypto.randomUUID();
+        if (tokenLangs.has(token)) {
+          const en = await localize(lang, 'scale_abandoned', {
+            name: t.nickname, scale: scaleNamesBy[lang][t.scale_key] ?? t.scale_key,
+          });
+          if (en) { title = en.title; body = en.body; templateId = null; }
+        }
         const data = { ...dest.data, entry: 'scale_abandoned', logId };
-        const r = await fcmSend(sa, accessToken, token, msg.title, body, data);
+        const r = await fcmSend(sa, accessToken, token, title, body, data);
         if (r.ok) {
           await logPush({
             id: logId, user_id: userId, push_type: 'scale_abandoned',
-            category: 'scale_abandoned', template_id: msg.id,
-            title: msg.title, body, deeplink: dest.deeplink,
+            category: 'scale_abandoned', template_id: templateId,
+            title, body, deeplink: dest.deeplink,
           });
           sentUsers.add(userId); aSent++;
         } else {
@@ -727,6 +869,7 @@ Deno.serve(async (_req) => {
       const scaleStat = candidates.find(c => c.source === 'scaleStat')?.t as ScalePatternTarget | undefined;
       const scaleLink = candidates.find(c => c.source === 'scaleLink')?.t as ScaleLinkTarget    | undefined;
       const token = (quizStat ?? quizLink ?? scaleStat ?? scaleLink)!.token;
+      const lang: PushLang = tokenLangs.get(token) ?? 'en';
 
       // 콘텐츠 난이도 매핑 기준: 퀴즈 쪽(연동형 우선, 없으면 성적형 레벨) / 스케일 쪽(scale_key→레벨숫자)
       const quizLevel = quizLink ? parseInt(quizLink.level_id, 10)
@@ -767,11 +910,17 @@ Deno.serve(async (_req) => {
       let dest: { data: Record<string, string>; deeplink: string } | null = null;
       let body = '';
       let pushType = '';
+      let enCtx: TplCtx = {};
 
       if (msg.category === 'quiz_level_up' || msg.category === 'quiz_challenge' || msg.category === 'quiz_reinforce') {
         pushType = 'quiz_pattern';
         dest = deeplinkByTitle(msg.title, quizLevel!, quizTarget);
         body = fillQuizPlaceholders(msg.body, quizStat!, levelNames);
+        enCtx = {
+          level: levelLabelI18n(lang, quizStat!.level_id, levelNamesBy[lang]),
+          next_level: quizStat!.next_level_id ? levelLabelI18n(lang, quizStat!.next_level_id, levelNamesBy[lang]) : undefined,
+          challenge: quizStat!.challenge_id ? (levelNamesBy[lang][quizStat!.challenge_id] ?? L10N[lang].challenge) : undefined,
+        };
       } else if (msg.category === 'scale_level_up' || msg.category === 'scale_reinforce') {
         pushType = 'scale_pattern';
         const destKey = msg.category === 'scale_level_up'
@@ -779,17 +928,28 @@ Deno.serve(async (_req) => {
           : scaleStat!.scale_key;
         dest = scaleOwnDest(destKey);
         body = fillScalePlaceholders(msg.body, scaleStat!.scale_key, scaleStat!.next_scale_key, scaleStat!.nickname, scaleNames);
+        enCtx = {
+          name: scaleStat!.nickname,
+          scale: scaleNamesBy[lang][scaleStat!.scale_key] ?? scaleStat!.scale_key,
+          next_scale: scaleStat!.next_scale_key
+            ? (scaleNamesBy[lang][scaleStat!.next_scale_key] ?? scaleStat!.next_scale_key) : undefined,
+        };
       } else if (msg.category.startsWith('scale_link_')) {
         pushType = 'scale_link';
         const linkDest = scaleLinkDeeplink(msg.title, scaleLevel!);
         if (linkDest) {
           dest = { data: linkDest.data, deeplink: linkDest.deeplink };
           body = msg.body.replaceAll('{닉네임}', scaleLink!.nickname || '회원').replaceAll('{레벨}', linkDest.levelText);
+          enCtx = {
+            name: scaleLink!.nickname,
+            level_short: levelShortI18n(lang, linkDest.levelType, linkDest.levelValue, levelNamesBy[lang]),
+          };
         }
       } else { // quiz_link_*
         pushType = 'quiz_link';
         dest = deeplinkByTitle(msg.title, quizLevel!, null);
         body = msg.body.replaceAll('{레벨명}', levelLabel(quizLink!.level_id, levelNames));
+        enCtx = { level: levelLabelI18n(lang, quizLink!.level_id, levelNamesBy[lang]) };
       }
 
       if (!dest) {
@@ -801,13 +961,19 @@ Deno.serve(async (_req) => {
       }
 
       const logId = crypto.randomUUID();
+      let title = msg.title;
+      let templateId: number | null = msg.id;
+      if (tokenLangs.has(token)) {
+        const en = await localize(lang, msg.category, enCtx);
+        if (en) { title = en.title; body = en.body; templateId = null; }
+      }
       const data = { ...dest.data, entry: pushType, category: msg.category, logId };
-      const r = await fcmSend(sa, accessToken, token, msg.title, body, data);
+      const r = await fcmSend(sa, accessToken, token, title, body, data);
       if (r.ok) {
         await logPush({
           id: logId, user_id: userId, push_type: pushType,
-          category: msg.category, template_id: msg.id,
-          title: msg.title, body, deeplink: dest.deeplink,
+          category: msg.category, template_id: templateId,
+          title, body, deeplink: dest.deeplink,
         });
         sentUsers.add(userId);
         if (pushType === 'quiz_pattern') qSent++;
@@ -831,6 +997,7 @@ Deno.serve(async (_req) => {
       !sentUsers.has(t.user_id) && (!testUserId || t.user_id === testUserId) && matchesTimeSlot(t.user_id));
     let nSent = 0, nFailed = 0, nSkipped = 0;
     for (const t of nudgeTargets) {
+      const lang: PushLang = tokenLangs.get(t.token) ?? 'en';
       const kind: 'repeat' | 'persona' =
         (t.last_training && Math.random() < 0.5) ? 'repeat' : 'persona';
 
@@ -841,11 +1008,14 @@ Deno.serve(async (_req) => {
         : nudgeDeeplink(t.rec_training, t.rec_levels, t.rec_difficulty, playableQuiz);
       if (!dest) { nSkipped++; continue; }
 
-      const msg = await fetchRandomMessage(kind === 'repeat' ? 'nudge_repeat' : 'nudge_persona');
+      const nudgeCategory = kind === 'repeat' ? 'nudge_repeat' : 'nudge_persona';
+      const msg = await fetchRandomMessage(nudgeCategory);
       if (!msg) { nSkipped++; continue; }
 
       const trainingName = TRAINING_NAME[training] ?? training;
-      const body = msg.body
+      let title = msg.title;
+      let templateId: number | null = msg.id;
+      let body = msg.body
         .replaceAll('{닉네임}', t.nickname || '회원')
         .replaceAll('{훈련명}', trainingName)
         .replaceAll('{추천컨텐츠}', trainingName);
@@ -854,12 +1024,17 @@ Deno.serve(async (_req) => {
       const data = { ...dest.data, logId };
       // 일반넛지 title 은 훈련명이 아니라 DB의 중립 문구를 그대로 사용.
       // 훈련을 지칭하지 않으므로 어떤 딥링크가 붙어도 불일치가 생기지 않음.
-      const r = await fcmSend(sa, accessToken, t.token, msg.title, body, data);
+      if (tokenLangs.has(t.token)) {
+        const trainingNameEn = TRAINING_NAME_I18N[lang][training] ?? training;
+        const en = await localize(lang, nudgeCategory, { name: t.nickname, training: trainingNameEn, pick: trainingNameEn });
+        if (en) { title = en.title; body = en.body; templateId = null; }
+      }
+      const r = await fcmSend(sa, accessToken, t.token, title, body, data);
       if (r.ok) {
         await logPush({
           id: logId, user_id: t.user_id, push_type: 'nudge',
-          category: kind === 'repeat' ? 'nudge_repeat' : 'nudge_persona',
-          template_id: msg.id, title: msg.title, body, deeplink: dest.deeplink,
+          category: nudgeCategory,
+          template_id: templateId, title, body, deeplink: dest.deeplink,
         });
         sentUsers.add(t.user_id);
         nSent++;
@@ -873,7 +1048,7 @@ Deno.serve(async (_req) => {
     }
 
     return new Response(JSON.stringify({
-      time_slot: timeSlotParam ?? 'all',
+      due_users: dueUsers ? dueUsers.size : 'all',
       abandoned: { quiz: quizAbandonedCount, scale: scaleAbandonedCount, sent: aSent, failed: aFailed, skipped: aSkipped },
       quiz_pattern: { targets: quizStatCount, sent: qSent, failed: qFailed, skipped: qSkipped },
       quiz_link: { targets: quizLinkCount, sent: lSent, failed: lFailed, skipped: lSkipped },
