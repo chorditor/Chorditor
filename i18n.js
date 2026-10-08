@@ -33,6 +33,14 @@ function getLang() {
   return I18N_FALLBACK;
 }
 
+// 약관·개인정보처리방침 주소 — 번역본이 있는 언어는 Terms.en.html 처럼 언어별 파일, 그 외는 한국어 원본.
+// (법률 문서라 화면 치환 사전이 아니라 통째로 번역한 별도 파일로 둔다. 번역본 머리에 "원문 우선" 고지 있음)
+const I18N_LEGAL_LANGS = ['en', 'ja', 'es'];
+function legalPage(name) {
+  const lang = getLang();
+  return I18N_LEGAL_LANGS.includes(lang) ? name + '.' + lang + '.html' : name + '.html';
+}
+
 // 저장 후 새로고침(동적으로 만든 DOM까지 한 번에 바뀌도록)
 function setLang(code) {
   if (!_i18nSupported(code)) return;

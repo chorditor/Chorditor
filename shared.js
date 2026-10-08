@@ -2607,8 +2607,8 @@ function _initPlanSheet() {
     <div class="plan-legal-group">
       <div class="plan-cancel-info" id="plan-cancel-info">구독은 결제일 기준 결제 주기(월간 또는 연간)에 따라 자동으로 갱신되며, 갱신 24시간 전까지 언제든 해지할 수 있습니다. 해지는 Google Play 스토어 &gt; 구독 메뉴에서 가능합니다.</div>
       <div class="plan-legal-links">
-        <span class="plan-legal-link" onclick="window.open('Privacy.html', '_blank')">개인정보 처리방침</span>
-        <span class="plan-legal-link" onclick="window.open('Terms.html', '_blank')">이용약관</span>
+        <span class="plan-legal-link" onclick="window.open(legalPage('Privacy'), '_blank')">개인정보 처리방침</span>
+        <span class="plan-legal-link" onclick="window.open(legalPage('Terms'), '_blank')">이용약관</span>
       </div>
     </div>
   </div>
