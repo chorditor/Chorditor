@@ -3460,6 +3460,8 @@ canvas {
 .sound-sheet-row i { color: var(--text-secondary); width: 20px; height: 20px; flex-shrink: 0; }
 .sound-sheet-row input[type="range"] { flex: 1; }
 
+.lang-sheet-check { width: 18px; height: 18px; color: var(--text-primary); flex-shrink: 0; }
+
 @keyframes modal-overlay-in {
   from { background: rgba(0,0,0,0); }
   to   { background: rgba(0,0,0,0.45); }
@@ -10819,7 +10821,7 @@ canvas {
   align-self: start;
   font-size: 12px;
   color: var(--text-muted);
-  white-space: nowrap;
+  white-space: pre; /* 자동 줄바꿈은 막고, 번역문에 넣은 줄바꿈(\n)만 살림 */
   text-align: center;
 }
 

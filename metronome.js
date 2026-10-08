@@ -168,7 +168,8 @@ function _metroRenderOptionMenuActive(kind) {
   else if (kind === 'rampcycle') current = String(_metroRampCycle);
   else if (kind === 'rampinc') current = `+${_metroRampInc}`;
   menu.querySelectorAll('.metronome-option-menu-item').forEach(el => {
-    el.classList.toggle('metronome-option-menu-item--active', el.textContent === current);
+    // 화면 글자는 번역돼 있으므로 비교값도 번역해서 맞춘다(한국어일 땐 그대로)
+    el.classList.toggle('metronome-option-menu-item--active', el.textContent === I18N.t(current));
   });
 }
 

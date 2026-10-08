@@ -6,7 +6,7 @@
 // ── 상수 ─────────────────────────────────────────────────────
 const SUPABASE_URL  = 'https://jbvkygeksohlysyvaoab.supabase.co';
 const SUPABASE_ANON = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Impidmt5Z2Vrc29obHlzeXZhb2FiIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzYzOTk5NjgsImV4cCI6MjA5MTk3NTk2OH0.6RSgChy0Yq0H2TJpZPSoMKQ2V-OYfR0XzE1aJBBZkXI';
-const APP_VERSION   = '1.3.6.0';
+const APP_VERSION   = '1.3.6.1_dev1';
 const SUPABASE_STORAGE_KEY = 'sb-jbvkygeksohlysyvaoab-auth-token';
 
 // 이용약관/개인정보처리방침 버전 — 광고식별자 수집 항목 추가(2026-09) 시 1로 올림.
@@ -2136,7 +2136,7 @@ async function checkForceUpdate() {
 // ── 앱 자체 공유(초대) ──────────────────────────────────────────
 async function shareApp() {
   const url = 'https://play.google.com/store/apps/details?id=com.chorditor.app';
-  const text = 'Chorditor로 코드 진행을 만들고 연습해보세요!';
+  const text = I18N.t('Chorditor로 코드 진행을 만들고 연습해보세요!');
   const Share = window.Capacitor?.Plugins?.Share;
   try {
     if (Share) {
@@ -2187,7 +2187,7 @@ async function shareProjectViaOS() {
   const url = el?.dataset.shareUrl || '';
   if (!url) return;
   const title = el.dataset.projectName || 'Chorditor';
-  const text = `${title} 코드 진행을 확인해보세요!`;
+  const text = I18N.t(`${title} 코드 진행을 확인해보세요!`);
   const Share = window.Capacitor?.Plugins?.Share;
   try {
     if (Share) {
@@ -4768,6 +4768,10 @@ async function _savePushToken(token) {
   if (!accessToken || !userId) return; // 로그인 후 재시도
 
   const platform = window.Capacitor?.getPlatform?.() || 'web';
+  // 앱 언어·기기 시간대 — 서버가 푸시 문구 언어와 발송 시각을 정하는 데 씀 (push_tokens_locale.sql)
+  const lang = (typeof getLang === 'function') ? getLang() : 'ko';
+  let tz = null;
+  try { tz = Intl.DateTimeFormat().resolvedOptions().timeZone || null; } catch (_) {}
   try {
     // token UNIQUE → on_conflict merge (같은 기기 재등록 시 user/platform 갱신)
     await fetch(`${SUPABASE_URL}/rest/v1/push_tokens?on_conflict=token`, {
@@ -4779,7 +4783,7 @@ async function _savePushToken(token) {
         'Prefer':        'resolution=merge-duplicates,return=minimal',
       },
       body: JSON.stringify({
-        user_id: userId, token, platform,
+        user_id: userId, token, platform, lang, tz,
         updated_at: new Date().toISOString(),
       }),
     });
@@ -4946,7 +4950,7 @@ function initPushNotifications() {
   try {
     PN.createChannel({
       id: 'chorditor_push',
-      name: 'Chorditor 알림',
+      name: I18N.t('Chorditor 알림'),
       importance: 4,
       visibility: 1,
       vibration: true,

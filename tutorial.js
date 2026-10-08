@@ -75,7 +75,8 @@ const Tutorial = (() => {
   // 문구 속 스텝 번호 토큰을 실제 자리 번호로 채운다 (title·text 공통).
   // 못 찾은 key는 원문 그대로 남긴다 — 오타를 'STEP0'으로 감추지 않고 눈에 띄게 하려는 것.
   function _fillSteps(s) {
-    return (s || '').replace(/\{S(?::([\w-]+))?\}/g, (m, key) => {
+    // 토큰을 채우기 전에 번역한다(채운 뒤엔 사전의 원문과 달라져서 못 찾음). 번역문에도 {S} 토큰이 그대로 있다.
+    return I18N.t(s || '').replace(/\{S(?::([\w-]+))?\}/g, (m, key) => {
       if (!key) return 'STEP' + _chap().no;
       const no = _noOf(key);
       return no ? 'STEP' + no : m;

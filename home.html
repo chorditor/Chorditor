@@ -2,6 +2,8 @@
 <html lang="ko">
 <head>
   <meta charset="UTF-8" />
+  <!-- 언어 결정·화면 번역: 다른 스크립트·본문보다 먼저 -->
+  <script src="i18n.js"></script>
   <meta name="color-scheme" content="light dark" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
   <title>Chorditor</title>
@@ -823,6 +825,12 @@
           <i data-lucide="chevron-right" class="settings-page-row-chevron"></i>
         </div>
         <div class="settings-page-divider"></div>
+        <div class="settings-page-row" onclick="openLanguageSheet()">
+          <span class="settings-page-row-icon"><i data-lucide="languages"></i></span>
+          <span class="settings-page-row-label">언어</span>
+          <i data-lucide="chevron-right" class="settings-page-row-chevron"></i>
+        </div>
+        <div class="settings-page-divider"></div>
         <div class="settings-page-row" onclick="_playTap(); openPlayStore();">
           <span class="settings-page-row-icon"><i data-lucide="star"></i></span>
           <span class="settings-page-row-label">앱 리뷰 남기기</span>
@@ -890,6 +898,14 @@
         <i data-lucide="volume-2"></i>
       </div>
     </div>
+  </div>
+
+  <!-- ── 바텀시트: 언어 ── -->
+  <div class="gsheet-overlay" id="language-sheet-overlay" onclick="closeLanguageSheet()"></div>
+  <div class="gsheet" id="language-sheet">
+    <div class="gsheet-handle"></div>
+    <div class="gsheet-header"><span class="gsheet-title">언어</span></div>
+    <div class="gsheet-inner" id="language-sheet-list"></div>
   </div>
 
   <!-- ── 바텀시트: 확인(로그아웃/계정삭제 공용) ── -->
