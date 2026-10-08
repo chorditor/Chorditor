@@ -1817,6 +1817,7 @@ function _consumeAfterNotices() {
 //                [{ title: '데일리미션', desc: '매일 미션 깨고 보상 받아요.', image: 'image/xxx.png',
 //                   extra: '홈 → 출석체크에서 확인할 수 있어요.' }, ...]
 //                image(또는 mediaHtml) 없으면 그래픽 영역 자체를 생략.
+//                imageByLang: { en, ja, es } — 화면 캡처처럼 글자가 들어간 사진의 언어별 파일. 앱 언어에 해당 파일이 없으면 image(한국어)를 씀.
 //                shot: true — image가 앱 화면 스크린샷일 때(폭 100% + 테두리). mediaClass — mediaHtml 영역에 붙일 추가 클래스.
 //                extra는 선택 — 경로 안내/부가설명/CTA 등 그래픽 아래 들어가는 작은 보조 텍스트, 없으면 생략.
 //   pastVersion    (선택) pastHighlights 그룹 위에 중앙정렬로 뜨는 소제목 (예: '1.3.4 업데이트')
@@ -1833,6 +1834,7 @@ const APP_NOTICES = [
         title: '1. 연습 모드',
         desc: '드럼·베이스·피아노 반주에 맞춰 스케일을 연주해요.<br>스타일과 BPM을 골라 보세요.',
         image: 'image/notice_136_practice.png.jpg',
+        imageByLang: { en: 'image/notice_136_practice_en.jpg', ja: 'image/notice_136_practice_ja.jpg', es: 'image/notice_136_practice_es.jpg' },
         shot: true,
         extra: '<strong>스케일 훈련 → 레벨 → 기타 버튼</strong>에서 켤 수 있어요.',
       },
@@ -1840,6 +1842,7 @@ const APP_NOTICES = [
         title: '2. 새 레벨 · 튜토리얼',
         desc: '메이저 펜타토닉·블루스가 추가됐어요.<br>? 버튼을 누르면 스케일 미니 강의를 볼 수 있어요.',
         image: 'image/notice_136_buttons.png.jpg',
+        imageByLang: { en: 'image/notice_136_buttons_en.jpg', ja: 'image/notice_136_buttons_ja.jpg', es: 'image/notice_136_buttons_es.jpg' },
         shot: true,
       },
       {
@@ -1869,7 +1872,7 @@ function maybeShowAppNotice() {
 // 섹션 목록 하나(공통 레이아웃: 타이틀/설명/그래픽/추가정보)를 HTML로 렌더 — 이번 버전
 // 섹션과 과거 업데이트 회고 섹션이 이 함수를 그대로 같이 씀
 function _renderNoticeSections(list) {
-  return (list || []).map(s => `
+  return (list || []).map(s => ({ ...s, image: s.imageByLang?.[getLang()] || s.image })).map(s => `
     <div class="update-notice-section">
       <div class="update-notice-section-title">${s.title}</div>
       <p class="update-notice-section-desc">${s.desc}</p>
