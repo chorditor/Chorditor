@@ -153,24 +153,150 @@ async function releaseLock(): Promise<void> {
   } catch (_e) { /* TTL(90초)로 자동 만료 */ }
 }
 
-// 법정 광고성 정보 발송 제한시간대: 21:00~08:00 KST
-function isNightRestricted(): boolean {
-  const kstHour = Number(
-    new Intl.DateTimeFormat('en-US', { timeZone: 'Asia/Seoul', hour: 'numeric', hour12: false }).format(new Date())
+// 법정 광고성 정보 발송 제한시간대: 21:00~08:00 — 받는 기기의 현지 시각 기준.
+//   시간대 = push_tokens.tz, 없거나 알 수 없는 값이면 Asia/Seoul.
+//   get_push_token_tz() = 서울이 아닌 기기만 담은 { token: tz } 객체 한 값(행수 제한에 안 잘림).
+async function fetchTokenTz(): Promise<Map<string, string>> {
+  try {
+    const resp = await fetch(`${SUPABASE_URL}/rest/v1/rpc/get_push_token_tz`, {
+      method: 'POST',
+      headers: {
+        'apikey': SERVICE_ROLE,
+        'Authorization': `Bearer ${SERVICE_ROLE}`,
+        'Content-Type': 'application/json',
+      },
+      body: '{}',
+    });
+    if (!resp.ok) return new Map();
+    return new Map(Object.entries((await resp.json()) as Record<string, string>));
+  } catch (_) {
+    return new Map();
+  }
+}
+
+function localHour(tz: string | undefined): number {
+  const hourIn = (zone: string) => Number(
+    new Intl.DateTimeFormat('en-US', { timeZone: zone, hour: 'numeric', hour12: false }).format(new Date())
   ) % 24;
-  return kstHour >= 21 || kstHour < 8;
+  try {
+    return hourIn(tz || 'Asia/Seoul');
+  } catch (_) {
+    return hourIn('Asia/Seoul');
+  }
+}
+
+function isNightRestricted(tz?: string): boolean {
+  const h = localHour(tz);
+  return h >= 21 || h < 8;
+}
+
+// ── 다국어 푸시 (push_templates_<lang>) ─────────────────────
+//   대상 선정·딥링크는 한국어 문구(title=목적지) 기준으로 그대로 결정하고,
+//   기기 언어(push_tokens.lang)가 아래 목록에 있으면 보내기 직전에 같은 category 의
+//   그 언어 문구로 바꿔 끼움. category ↔ 목적지 훈련은 1:1 이라 title 이 딥링크와 어긋나지 않음.
+//   문구를 못 찾으면 한국어 그대로 발송. 언어 추가 = 목록에 코드 추가 + push_templates_<lang> 테이블.
+const PUSH_LANGS = ['en', 'ja', 'es'] as const;
+type PushLang = typeof PUSH_LANGS[number];
+
+const TRAINING_NAME_I18N: Record<PushLang, Record<string, string>> = {
+  en: { quiz: 'Chord Quiz', scale: 'Scale Blocks', progression: 'Chord Loops', strum: 'Strumming Patterns', combo: 'Reharm Quiz' },
+  ja: { quiz: 'コードクイズ', scale: 'スケールブロック', progression: 'コード進行', strum: 'ストロークパターン', combo: 'リハモクイズ' },
+  es: { quiz: 'Quiz de Acordes', scale: 'Bloques de Escalas', progression: 'Progresiones', strum: 'Patrones de Rasgueo', combo: 'Quiz de Reharm' },
+};
+
+// 레벨·장 표기
+const L10N: Record<PushLang, {
+  level: (n: string) => string; chapter: (n: string) => string;
+  levelLabel: (n: string, name: string) => string; challenge: string;
+}> = {
+  en: { level: n => `Level ${n}`, chapter: n => `Chapter ${n}`, levelLabel: (n, name) => `Level ${n}: ${name}`, challenge: 'Challenge' },
+  ja: { level: n => `レベル${n}`, chapter: n => `第${n}章`, levelLabel: (n, name) => `レベル${n}「${name}」`, challenge: 'チャレンジ' },
+  es: { level: n => `Nivel ${n}`, chapter: n => `Capítulo ${n}`, levelLabel: (n, name) => `Nivel ${n}: ${name}`, challenge: 'Desafío' },
+};
+
+// 기기 토큰 → 언어 (한국어가 아닌 기기만). get_push_token_langs() 는 { token: lang } 객체 한 값 —
+// 행 단위 응답은 최대 행수(기본 1000)에서 잘리기 때문. 구버전 앱은 lang 을 안 보내 'ko' 로 남는다.
+async function fetchTokenLangs(): Promise<Map<string, PushLang>> {
+  try {
+    const resp = await fetch(`${SUPABASE_URL}/rest/v1/rpc/get_push_token_langs`, {
+      method: 'POST',
+      headers: {
+        'apikey': SERVICE_ROLE,
+        'Authorization': `Bearer ${SERVICE_ROLE}`,
+        'Content-Type': 'application/json',
+      },
+      body: '{}',
+    });
+    if (!resp.ok) return new Map();
+    const obj = (await resp.json()) as Record<string, string>;
+    const out = new Map<string, PushLang>();
+    for (const [token, lang] of Object.entries(obj)) {
+      if ((PUSH_LANGS as readonly string[]).includes(lang)) out.set(token, lang as PushLang);
+    }
+    return out;
+  } catch (_) {
+    return new Map();
+  }
+}
+
+// 언어·category 별 문구(호출 1회 동안 캐시) → 랜덤 1개
+const i18nTemplateCache = new Map<string, { title: string; body: string }[]>();
+async function fetchRandomMessageI18n(lang: PushLang, category: string): Promise<{ title: string; body: string } | null> {
+  const key = `${lang}:${category}`;
+  let rows = i18nTemplateCache.get(key);
+  if (!rows) {
+    try {
+      const resp = await fetch(
+        `${SUPABASE_URL}/rest/v1/push_templates_${lang}?select=title,body&active=is.true&category=eq.${encodeURIComponent(category)}`,
+        { headers: { 'apikey': SERVICE_ROLE, 'Authorization': `Bearer ${SERVICE_ROLE}` } },
+      );
+      rows = resp.ok ? await resp.json() : [];
+    } catch (_) {
+      rows = [];
+    }
+    i18nTemplateCache.set(key, rows!);
+  }
+  return rows!.length ? rows![Math.floor(Math.random() * rows!.length)] : null;
+}
+
+type TplCtx = Record<string, string | null | undefined>;
+
+// placeholder 치환. 닉네임 호칭은 문구에서 대괄호로 감싸 둔다: "[{name}, ]your week…", "[{name}さん、]…"
+//   닉네임이 있으면 대괄호만 벗기고, 없으면 대괄호 구간을 통째로 뺀다(언어와 무관).
+//   뺀 뒤 문장이 라틴 소문자로 시작하면 대문자로 올린다("your week…" → "Your week…").
+function fillTpl(text: string, ctx: TplCtx): string {
+  const name = ctx.name || '';
+  let out = text.replace(/\[([^\[\]]*\{name\}[^\[\]]*)\]/g, (_m, seg: string) => (name ? seg : ''));
+  out = out.replaceAll('{name}', () => name);
+  for (const [k, v] of Object.entries(ctx)) {
+    if (k !== 'name' && v != null) out = out.replaceAll(`{${k}}`, () => v);
+  }
+  if (!name) out = out.replace(/^[a-zà-öø-ÿ]/, c => c.toUpperCase());
+  return out;
+}
+
+async function localize(lang: PushLang, category: string, ctx: TplCtx = {}): Promise<{ title: string; body: string } | null> {
+  const msg = await fetchRandomMessageI18n(lang, category);
+  if (!msg) return null;
+  return { title: fillTpl(msg.title, ctx), body: fillTpl(msg.body, ctx) };
+}
+
+// 레벨 표시: "Level 3: Essential Chords" / "レベル3「必須コード」" (챌린지 c1~c3 은 이름만)
+function levelLabelI18n(lang: PushLang, levelId: string, names: Record<string, string>): string {
+  const name = names[levelId] ?? levelId;
+  return levelId.startsWith('c') ? name : L10N[lang].levelLabel(levelId, name);
+}
+// 스케일 연동형 {level_short}: "Level 3" / "Chapter 3" / 챌린지는 이름
+function levelShortI18n(lang: PushLang, type: string, value: string, names: Record<string, string>): string {
+  if (type === 'quiz')  return value.startsWith('c') ? (names[value] ?? L10N[lang].challenge) : L10N[lang].level(value);
+  if (type === 'combo') return L10N[lang].chapter(value);
+  return value;
 }
 
 Deno.serve(async (_req) => {
   let locked = false;
   try {
     const testUserId = new URL(_req.url).searchParams.get('user_id');
-
-    if (isNightRestricted() && !testUserId) {
-      return new Response(JSON.stringify({ skipped: 'night_restricted' }), {
-        headers: { 'Content-Type': 'application/json' },
-      });
-    }
 
     locked = await acquireLock();
     if (!locked) {
@@ -182,22 +308,32 @@ Deno.serve(async (_req) => {
     const sa = loadServiceAccount();
     const accessToken = await getAccessToken(sa);
 
+    // 현지 야간(21~08시)인 기기는 이번엔 건너뜀 — sent 표시를 안 하므로 다음 호출에 다시 대상이 됨.
+    // ?user_id= 테스트는 시각 무관.
+    const tokenTz = await fetchTokenTz();
     const targets = (await fetchTargets())
-      .filter(t => !testUserId || t.user_id === testUserId);
+      .filter(t => testUserId ? t.user_id === testUserId : !isNightRestricted(tokenTz.get(t.token)));
     let sent = 0, failed = 0, pruned = 0;
+    const tokenLangs = await fetchTokenLangs();
 
     for (const t of targets) {
       try {
         const logId = crypto.randomUUID();
+        let title = PUSH_TITLE, body = PUSH_BODY;
+        const lang = tokenLangs.get(t.token);
+        if (lang) {
+          const en = await localize(lang, 'trial_expiry');
+          if (en) { title = en.title; body = en.body; }
+        }
         const r = await fcmSend(
-          sa, accessToken, t.token, PUSH_TITLE, PUSH_BODY,
+          sa, accessToken, t.token, title, body,
           { entry: 'trial_expiry', logId },
         );
         if (r.ok) {
           await markNotified(t.user_id, new Date().toISOString());
           await logPush({
             id: logId, user_id: t.user_id, push_type: 'trial_expiry',
-            title: PUSH_TITLE, body: PUSH_BODY, deeplink: 'trial_expiry',
+            title, body, deeplink: 'trial_expiry',
           });
           sent++;
         } else {

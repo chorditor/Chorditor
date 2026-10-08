@@ -1356,7 +1356,7 @@ function updateBarreBtns() {
       border-radius:50%;border:none;
       background:${barreActive[f] ? '#242729' : '#ffffff'};
       color:${barreActive[f] ? '#fff' : '#888'};
-      font-size:${Math.round(22 * sc)}px;font-family:'Pretendard',sans-serif;
+      font-size:${Math.round(22 * sc)}px;font-family:'Pretendard','Noto Sans JP',sans-serif;
       cursor:pointer;display:flex;align-items:center;justify-content:center;padding:0;`;
     btn.onclick = () => {
       _playTap();
@@ -1817,6 +1817,7 @@ function _consumeAfterNotices() {
 //                [{ title: '데일리미션', desc: '매일 미션 깨고 보상 받아요.', image: 'image/xxx.png',
 //                   extra: '홈 → 출석체크에서 확인할 수 있어요.' }, ...]
 //                image(또는 mediaHtml) 없으면 그래픽 영역 자체를 생략.
+//                imageByLang: { en, ja, es } — 화면 캡처처럼 글자가 들어간 사진의 언어별 파일. 앱 언어에 해당 파일이 없으면 image(한국어)를 씀.
 //                shot: true — image가 앱 화면 스크린샷일 때(폭 100% + 테두리). mediaClass — mediaHtml 영역에 붙일 추가 클래스.
 //                extra는 선택 — 경로 안내/부가설명/CTA 등 그래픽 아래 들어가는 작은 보조 텍스트, 없으면 생략.
 //   pastVersion    (선택) pastHighlights 그룹 위에 중앙정렬로 뜨는 소제목 (예: '1.3.4 업데이트')
@@ -1833,6 +1834,7 @@ const APP_NOTICES = [
         title: '1. 연습 모드',
         desc: '드럼·베이스·피아노 반주에 맞춰 스케일을 연주해요.<br>스타일과 BPM을 골라 보세요.',
         image: 'image/notice_136_practice.png.jpg',
+        imageByLang: { en: 'image/notice_136_practice_en.jpg', ja: 'image/notice_136_practice_ja.jpg', es: 'image/notice_136_practice_es.jpg' },
         shot: true,
         extra: '<strong>스케일 훈련 → 레벨 → 기타 버튼</strong>에서 켤 수 있어요.',
       },
@@ -1840,6 +1842,7 @@ const APP_NOTICES = [
         title: '2. 새 레벨 · 튜토리얼',
         desc: '메이저 펜타토닉·블루스가 추가됐어요.<br>? 버튼을 누르면 스케일 미니 강의를 볼 수 있어요.',
         image: 'image/notice_136_buttons.png.jpg',
+        imageByLang: { en: 'image/notice_136_buttons_en.jpg', ja: 'image/notice_136_buttons_ja.jpg', es: 'image/notice_136_buttons_es.jpg' },
         shot: true,
       },
       {
@@ -1869,7 +1872,7 @@ function maybeShowAppNotice() {
 // 섹션 목록 하나(공통 레이아웃: 타이틀/설명/그래픽/추가정보)를 HTML로 렌더 — 이번 버전
 // 섹션과 과거 업데이트 회고 섹션이 이 함수를 그대로 같이 씀
 function _renderNoticeSections(list) {
-  return (list || []).map(s => `
+  return (list || []).map(s => ({ ...s, image: s.imageByLang?.[getLang()] || s.image })).map(s => `
     <div class="update-notice-section">
       <div class="update-notice-section-title">${s.title}</div>
       <p class="update-notice-section-desc">${s.desc}</p>
@@ -3791,6 +3794,32 @@ function onPushCategoryToggle(kind, el) {
   _setPushCategoryPref(COL[kind], el.checked);
 }
 
+// ── 언어 바텀시트 (목록·결정 로직은 i18n.js) ─────────────────────
+function openLanguageSheet() {
+  _playTap();
+  const cur = getLang();
+  document.getElementById('language-sheet-list').innerHTML = I18N_LANGS.map(l => `
+    <div class="settings-page-row" onclick="selectLanguage('${l.code}')">
+      <span class="settings-page-row-label">${l.name}</span>
+      ${l.code === cur ? '<i data-lucide="check" class="lang-sheet-check"></i>' : ''}
+    </div>`).join('');
+  document.getElementById('language-sheet-overlay').classList.add('gsheet-overlay--open');
+  document.getElementById('language-sheet').classList.add('gsheet--open');
+  if (window.lucide) lucide.createIcons();
+}
+
+function closeLanguageSheet() {
+  document.getElementById('language-sheet-overlay').classList.remove('gsheet-overlay--open');
+  document.getElementById('language-sheet').classList.remove('gsheet--open');
+}
+
+function selectLanguage(code) {
+  _playTap();
+  if (code === getLang()) { closeLanguageSheet(); return; } // 같은 언어면 새로고침 생략
+  sessionStorage.setItem('reopen_settings', '1'); // 새로고침 후 설정 화면 복원
+  setLang(code);
+}
+
 // ── 사운드 볼륨 바텀시트 → shared.js 로 이동(코드진행·주법훈련 페이지와 공용) ──
 
 // ── 확인 바텀시트(로그아웃/계정삭제 공용) ───────────────────────
@@ -4442,7 +4471,7 @@ function meUpdateBarreBtns() {
       border-radius:50%;border:none;
       background:${me_barre[f] ? '#242729' : '#ffffff'};
       color:${me_barre[f] ? '#fff' : '#888'};
-      font-size:22px;font-family:'Pretendard',sans-serif;
+      font-size:22px;font-family:'Pretendard','Noto Sans JP',sans-serif;
       cursor:pointer;display:flex;align-items:center;justify-content:center;padding:0;`;
     btn.onclick = () => {
       if (!me_barre[f]) {
@@ -4811,7 +4840,7 @@ async function _consumePendingShareCode() {
   const payload = await parseShareCode(raw);
   if (!payload) { alert('공유 코드가 올바르지 않습니다.'); return; }
   const p = {
-    id: genId(), name: '공유받은 노트', pinned: false, pinnedOrder: 0, important: false, importantOrder: 0,
+    id: genId(), name: I18N.t('공유받은 노트'), pinned: false, pinnedOrder: 0, important: false, importantOrder: 0,
     capo: 0, bpm: 120, colCount: 4, createdAt: Date.now(), updatedAt: Date.now(), chords: [], arrangement: [],
   };
   const list = loadProjects(); list.push(p); saveProjects(list);
@@ -5250,7 +5279,10 @@ document.addEventListener('DOMContentLoaded', async () => {
   updateExportScaleOptions();
   renderPlanBadge();
   const _urlParams     = new URLSearchParams(location.search);
-  const _initTab       = _urlParams.get('tab') || 'home';
+  // 언어 변경 새로고침 복귀: 프로필 탭 + 설정 화면을 열린 상태로 복원(selectLanguage가 표시를 남김)
+  const _reopenSettings = sessionStorage.getItem('reopen_settings') === '1';
+  sessionStorage.removeItem('reopen_settings');
+  const _initTab       = _reopenSettings ? 'profile' : (_urlParams.get('tab') || 'home');
   const _fromProject   = _urlParams.get('from_project');
   const _fromChordId   = _urlParams.get('chord_id');
 
@@ -5294,6 +5326,14 @@ document.addEventListener('DOMContentLoaded', async () => {
     const _initSubview = _urlParams.get('subview');
     if (_initSubview && _initSubview !== 'home') {
       enterFromHome(_initSubview, true);
+    }
+    if (_reopenSettings) {
+      // 슬라이드 없이 바로 열린 상태로(커버가 걷힐 때 밀려 올라오는 모습이 보이지 않게)
+      const _settingsOv = document.getElementById('settings-page-overlay');
+      _settingsOv.style.transition = 'none';
+      openSettings();
+      _settingsOv.offsetHeight; // 리플로우로 transition:none 상태 확정
+      _settingsOv.style.transition = '';
     }
   }
 

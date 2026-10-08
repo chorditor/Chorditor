@@ -2,6 +2,8 @@
 <html lang="ko">
 <head>
   <meta charset="UTF-8" />
+  <!-- 언어 결정·화면 번역: 다른 스크립트·본문보다 먼저 -->
+  <script src="i18n.js"></script>
   <meta name="color-scheme" content="light dark" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
   <title>Chorditor</title>
@@ -25,12 +27,12 @@
       </button>
       <span class="top-bar-title"><img src="image/Chorditor_logo.svg" alt="" class="top-bar-logo">CHORDITOR<span id="home-banner-version" class="top-bar-version"></span></span>
       <!-- 튜토리얼 재진입 — 건너뛰거나 중간에 멈춘 유저용. 홈 탭에서만 노출 -->
-      <button id="tutorial-entry-btn" class="icon-btn hidden" onclick="_playTap(); openTutorialModal()" style="margin-left:auto;margin-right:0px;" aria-label="튜토리얼">
+      <button id="tutorial-entry-btn" class="icon-btn hidden" onclick="_playTap(); openTutorialModal()" style="margin-left:auto;" aria-label="튜토리얼">
         <i data-lucide="circle-help"></i>
         <span class="tut-entry-dot" id="tutorial-entry-dot" hidden></span>
         <span class="nav-label">튜토리얼</span>
       </button>
-      <button id="settings-btn" class="icon-btn hidden" onclick="_playTap(); openSettings()" style="margin-left:auto;margin-right:15px;" aria-label="설정">
+      <button id="settings-btn" class="icon-btn hidden" onclick="_playTap(); openSettings()" style="margin-left:auto;" aria-label="설정">
         <i data-lucide="settings"></i>
         <span class="nav-label">설정</span>
       </button>
@@ -776,7 +778,7 @@
   <div class="modal-overlay hidden" id="modal-rename-project">
     <div class="modal" style="max-width:360px;">
       <div class="modal-header">
-        <span class="modal-title" style="font-family:'Pretendard',sans-serif;">이름 변경</span>
+        <span class="modal-title" style="font-family:'Pretendard','Noto Sans JP',sans-serif;">이름 변경</span>
         <button class="icon-btn" onclick="closeModal('modal-rename-project')"><i data-lucide="x"></i></button>
       </div>
       <div class="modal-body" style="gap:12px;">
@@ -820,6 +822,12 @@
         <div class="settings-page-row" onclick="openSoundSheet()">
           <span class="settings-page-row-icon"><i data-lucide="volume-2"></i></span>
           <span class="settings-page-row-label">사운드</span>
+          <i data-lucide="chevron-right" class="settings-page-row-chevron"></i>
+        </div>
+        <div class="settings-page-divider"></div>
+        <div class="settings-page-row" onclick="openLanguageSheet()">
+          <span class="settings-page-row-icon"><i data-lucide="languages"></i></span>
+          <span class="settings-page-row-label">언어</span>
           <i data-lucide="chevron-right" class="settings-page-row-chevron"></i>
         </div>
         <div class="settings-page-divider"></div>
@@ -892,6 +900,14 @@
     </div>
   </div>
 
+  <!-- ── 바텀시트: 언어 ── -->
+  <div class="gsheet-overlay" id="language-sheet-overlay" onclick="closeLanguageSheet()"></div>
+  <div class="gsheet" id="language-sheet">
+    <div class="gsheet-handle"></div>
+    <div class="gsheet-header"><span class="gsheet-title">언어</span></div>
+    <div class="gsheet-inner" id="language-sheet-list"></div>
+  </div>
+
   <!-- ── 바텀시트: 확인(로그아웃/계정삭제 공용) ── -->
   <div class="gsheet-overlay" id="confirm-sheet-overlay" onclick="closeConfirmSheet()"></div>
   <div class="gsheet" id="confirm-sheet">
@@ -908,7 +924,7 @@
   <div class="modal-overlay hidden" id="modal-create-project">
     <div class="modal" style="max-width:360px;">
       <div class="modal-header">
-        <span class="modal-title" style="font-family:'Pretendard',sans-serif;">새 노트</span>
+        <span class="modal-title" style="font-family:'Pretendard','Noto Sans JP',sans-serif;">새 노트</span>
         <button class="icon-btn" onclick="closeModal('modal-create-project')"><i data-lucide="x"></i></button>
       </div>
       <div class="modal-body" style="gap:12px;">

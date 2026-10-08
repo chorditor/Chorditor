@@ -320,17 +320,25 @@ const MissionResultMessages = (() => {
       specific = (!opts.canDowngrade && entry.unboxing?.length) ? entry.unboxing : entry.common;
     }
     const pool = (specific && specific.length) ? specific : (POOLS[info.caseId] || POOLS.MIXED);
-    let text = pool[Math.floor(Math.random() * pool.length)]
-      .replace(/\{strong\}/g, AREA_LABEL[info.strong])
-      .replace(/\{weak\}/g,   AREA_LABEL[info.weak])
-      .replace(/\{next\}/g,   opts.nextPersonaName || '다음 단계');
+    // 문구는 화면에 조각나서 들어가므로({strong} 등 치환 뒤라 사전과 안 맞음) 치환 전에 번역한다
+    const _t = (typeof I18N !== 'undefined') ? I18N.t : (s => s);
+    let text = _t(pool[Math.floor(Math.random() * pool.length)])
+      .replace(/\{strong\}/g, _t(AREA_LABEL[info.strong]))
+      .replace(/\{weak\}/g,   _t(AREA_LABEL[info.weak]))
+      .replace(/\{next\}/g,   _t(opts.nextPersonaName || '다음 단계'));
 
     // low가 2개 이상이면서 high가 하나도 없을 때만 하향 제안 — high가 하나라도 있으면
     // 잠재력이 있다는 신호라 강등 대상 아님. 언박싱1일차처럼 강등할 아래 단계가 없으면
     // opts.canDowngrade가 false라 안 붙음
-    if (info.lowCount >= 2 && info.highCount === 0 && opts.canDowngrade) text += DOWNGRADE_SUFFIX;
+    if (info.lowCount >= 2 && info.highCount === 0 && opts.canDowngrade) text += _t(DOWNGRADE_SUFFIX);
 
     return { ...info, text };
+  }
+
+  // 번역 등록 — locales/<lang>/mission.js 가 CASE_TEXTS·POOLS와 같은 모양(키·순서)의 번역본을 둔다.
+  // 문구를 추가·삭제하면 번역본도 같은 자리에 맞출 것(자리가 어긋나면 그 문구만 한국어로 나옴).
+  if (typeof I18N !== 'undefined' && I18N.data.missionResult) {
+    I18N.addPairs({ CASE_TEXTS, POOLS, DOWNGRADE_SUFFIX }, I18N.data.missionResult);
   }
 
   return { build, classify, grade, AREA_LABEL, CASE_TEXTS, GRADE_HIGH, GRADE_MID };

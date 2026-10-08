@@ -4231,8 +4231,8 @@ function _pdAddEntryToProject(entry) {
 // STEP4는 완성된 노트에서 시작한다(작은 별 1절). 샌드박스에만 쓰이므로 실제 노트에 영향 없음.
 // 세로모드는 8칸 배열 중 짝수 인덱스(0·2·4·6)만 표시되므로 그 자리에 배치한다.
 const TUT_SEED_LINES = [
-  { text: '반짝반짝 작은 별', chords: ['C', null, 'F', 'C'] },
-  { text: '아름답게 비치네', chords: ['F', 'C',  'G', 'C'] },
+  { text: I18N.t('반짝반짝 작은 별'), chords: ['C', null, 'F', 'C'] },
+  { text: I18N.t('아름답게 비치네'), chords: ['F', 'C',  'G', 'C'] },
 ];
 // 어떤 보이싱을 쓸지 — 코드명 → chordsLibrary 그룹 안 순번
 const TUT_SEED_VOICING = {
@@ -4244,15 +4244,15 @@ const TUT_SEED_VOICING = {
 // ── STEP4 완료 선물: 완성된 '작은 별' 노트 ────────────────────
 // 튜토리얼 시드(2줄 실습용)와는 별개다. 1절 전체가 완성된 악보를 그대로 준다.
 // null = 앞 코드가 이어짐(악보의 % 표기) → 슬롯을 비운다.
-const GIFT_SONG_NAME  = '작은 별';
+const GIFT_SONG_NAME  = I18N.t('작은 별');
 const GIFT_SONG_KEY   = 'chorditor_tut_gift';
 const GIFT_SONG_LINES = [
-  { text: '반짝반짝 작은 별', chords: ['C', null, 'F', 'C'] },
-  { text: '아름답게 비치네', chords: ['F', 'C',  'G', 'C'] },
-  { text: '동쪽 하늘에서도', chords: ['G', null, 'G', null] },
-  { text: '서쪽 하늘에서도', chords: ['G', null, 'G', null] },
-  { text: '반짝반짝 작은 별', chords: ['C', null, 'F', 'C'] },
-  { text: '아름답게 비치네', chords: ['F', 'C',  'G', 'C'] },
+  { text: I18N.t('반짝반짝 작은 별'), chords: ['C', null, 'F', 'C'] },
+  { text: I18N.t('아름답게 비치네'), chords: ['F', 'C',  'G', 'C'] },
+  { text: I18N.t('동쪽 하늘에서도'), chords: ['G', null, 'G', null] },
+  { text: I18N.t('서쪽 하늘에서도'), chords: ['G', null, 'G', null] },
+  { text: I18N.t('반짝반짝 작은 별'), chords: ['C', null, 'F', 'C'] },
+  { text: I18N.t('아름답게 비치네'), chords: ['F', 'C',  'G', 'C'] },
 ];
 
 // 선물 노트를 만들어 sessionStorage에 보관한다.
@@ -4293,8 +4293,8 @@ function _tutFindEntry(name, pos) {
 }
 
 // 튜토리얼 시드 노트 이름 — 목록에서 지목할 때도 쓰이므로 한 곳에서만 정의
-const TUT_SEED_MAIN_NAME   = '작은 별';
-const TUT_SEED_PINNED_NAME = '연습 중인 곡';
+const TUT_SEED_MAIN_NAME   = I18N.t('작은 별');
+const TUT_SEED_PINNED_NAME = I18N.t('연습 중인 곡');
 
 // STEP4 시작 시 깔아둘 노트 목록.
 //   [0] 작은 별   — 최근(기본). 편집 실습 대상
@@ -4757,7 +4757,7 @@ async function _consumePendingShareCode() {
   const payload = await parseShareCode(raw);
   if (!payload) { alert('공유 코드가 올바르지 않습니다.'); return; }
   const p = {
-    id: genId(), name: '공유받은 노트', pinned: false, pinnedOrder: 0, important: false, importantOrder: 0,
+    id: genId(), name: I18N.t('공유받은 노트'), pinned: false, pinnedOrder: 0, important: false, importantOrder: 0,
     capo: 0, bpm: 120, colCount: 4, createdAt: Date.now(), updatedAt: Date.now(), chords: [], arrangement: [],
   };
   const list = loadProjects(); list.push(p); saveProjects(list);

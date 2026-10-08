@@ -1356,7 +1356,7 @@ function updateBarreBtns() {
       border-radius:50%;border:none;
       background:${barreActive[f] ? '#242729' : '#ffffff'};
       color:${barreActive[f] ? '#fff' : '#888'};
-      font-size:${Math.round(22 * sc)}px;font-family:'Pretendard',sans-serif;
+      font-size:${Math.round(22 * sc)}px;font-family:'Pretendard','Noto Sans JP',sans-serif;
       cursor:pointer;display:flex;align-items:center;justify-content:center;padding:0;`;
     btn.onclick = () => {
       _playTap();
@@ -3791,6 +3791,32 @@ function onPushCategoryToggle(kind, el) {
   _setPushCategoryPref(COL[kind], el.checked);
 }
 
+// ── 언어 바텀시트 (목록·결정 로직은 i18n.js) ─────────────────────
+function openLanguageSheet() {
+  _playTap();
+  const cur = getLang();
+  document.getElementById('language-sheet-list').innerHTML = I18N_LANGS.map(l => `
+    <div class="settings-page-row" onclick="selectLanguage('${l.code}')">
+      <span class="settings-page-row-label">${l.name}</span>
+      ${l.code === cur ? '<i data-lucide="check" class="lang-sheet-check"></i>' : ''}
+    </div>`).join('');
+  document.getElementById('language-sheet-overlay').classList.add('gsheet-overlay--open');
+  document.getElementById('language-sheet').classList.add('gsheet--open');
+  if (window.lucide) lucide.createIcons();
+}
+
+function closeLanguageSheet() {
+  document.getElementById('language-sheet-overlay').classList.remove('gsheet-overlay--open');
+  document.getElementById('language-sheet').classList.remove('gsheet--open');
+}
+
+function selectLanguage(code) {
+  _playTap();
+  if (code === getLang()) { closeLanguageSheet(); return; } // 같은 언어면 새로고침 생략
+  sessionStorage.setItem('reopen_settings', '1'); // 새로고침 후 설정 화면 복원
+  setLang(code);
+}
+
 // ── 사운드 볼륨 바텀시트 → shared.js 로 이동(코드진행·주법훈련 페이지와 공용) ──
 
 // ── 확인 바텀시트(로그아웃/계정삭제 공용) ───────────────────────
@@ -4442,7 +4468,7 @@ function meUpdateBarreBtns() {
       border-radius:50%;border:none;
       background:${me_barre[f] ? '#242729' : '#ffffff'};
       color:${me_barre[f] ? '#fff' : '#888'};
-      font-size:22px;font-family:'Pretendard',sans-serif;
+      font-size:22px;font-family:'Pretendard','Noto Sans JP',sans-serif;
       cursor:pointer;display:flex;align-items:center;justify-content:center;padding:0;`;
     btn.onclick = () => {
       if (!me_barre[f]) {
@@ -4811,7 +4837,7 @@ async function _consumePendingShareCode() {
   const payload = await parseShareCode(raw);
   if (!payload) { alert('공유 코드가 올바르지 않습니다.'); return; }
   const p = {
-    id: genId(), name: '공유받은 노트', pinned: false, pinnedOrder: 0, important: false, importantOrder: 0,
+    id: genId(), name: I18N.t('공유받은 노트'), pinned: false, pinnedOrder: 0, important: false, importantOrder: 0,
     capo: 0, bpm: 120, colCount: 4, createdAt: Date.now(), updatedAt: Date.now(), chords: [], arrangement: [],
   };
   const list = loadProjects(); list.push(p); saveProjects(list);
@@ -5250,7 +5276,10 @@ document.addEventListener('DOMContentLoaded', async () => {
   updateExportScaleOptions();
   renderPlanBadge();
   const _urlParams     = new URLSearchParams(location.search);
-  const _initTab       = _urlParams.get('tab') || 'home';
+  // 언어 변경 새로고침 복귀: 프로필 탭 + 설정 화면을 열린 상태로 복원(selectLanguage가 표시를 남김)
+  const _reopenSettings = sessionStorage.getItem('reopen_settings') === '1';
+  sessionStorage.removeItem('reopen_settings');
+  const _initTab       = _reopenSettings ? 'profile' : (_urlParams.get('tab') || 'home');
   const _fromProject   = _urlParams.get('from_project');
   const _fromChordId   = _urlParams.get('chord_id');
 
@@ -5294,6 +5323,14 @@ document.addEventListener('DOMContentLoaded', async () => {
     const _initSubview = _urlParams.get('subview');
     if (_initSubview && _initSubview !== 'home') {
       enterFromHome(_initSubview, true);
+    }
+    if (_reopenSettings) {
+      // 슬라이드 없이 바로 열린 상태로(커버가 걷힐 때 밀려 올라오는 모습이 보이지 않게)
+      const _settingsOv = document.getElementById('settings-page-overlay');
+      _settingsOv.style.transition = 'none';
+      openSettings();
+      _settingsOv.offsetHeight; // 리플로우로 transition:none 상태 확정
+      _settingsOv.style.transition = '';
     }
   }
 

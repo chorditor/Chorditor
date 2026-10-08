@@ -29,15 +29,22 @@ const TUTORIAL_CHAPTERS = (() => {
   const TUT_LINE_NTH  = (n) => `${TUT_LINES} > .project-line:nth-of-type(${n + 1})`;
   const TUT_FIRST_LINE_TEXT = `${TUT_LINE_NTH(0)} .line-text`;
   // 노트 목록에서 시드 노트를 이름으로 지목 (목록 순서가 중요→즐겨찾기→최근이라 위치로는 못 잡음)
-  const TUT_NOTE_MAIN = '.projects-item[data-name="작은 별"]';
+  const TUT_NOTE_MAIN = '.projects-item[data-name="' + I18N.t('작은 별') + '"]';
 
   // 여러 줄 붙여넣기를 보여주기 위해 튜토리얼이 대신 복사해 주는 가사
-  const TUT_LYRICS_2 = '반짝반짝 작은 별\n아름답게 비치네';
+  const TUT_LYRICS_2 = I18N.t('반짝반짝 작은 별') + '\n' + I18N.t('아름답게 비치네');
 
   // n번째 줄에 실제로 입력된 가사 (공백 정리 후)
   function _lineTextAt(n) {
     const el = document.querySelector(`${TUT_LINE_NTH(n)} .line-text`);
     return (el?.innerText || '').replace(/\s+/g, ' ').trim();
+  }
+
+  // 입력한 가사가 제시한 가사와 같은가 — 대소문자·문장부호 차이는 봐준다
+  // (영어 가사는 자판이 첫 글자를 대문자로 바꾸거나 쉼표를 빼먹기 쉬워서 글자 그대로 비교하면 막힌다)
+  function _lyricEq(a, b) {
+    const n = (s) => (s || '').toLowerCase().replace(/[^\p{L}\p{N} ]/gu, '').replace(/\s+/g, ' ').trim();
+    return n(a) === n(b);
   }
 
   // 마디 정보 수정 모달이 원하는 값으로 맞춰졌는가 (저장 전 폼 상태 기준)
@@ -659,7 +666,7 @@ const TUTORIAL_CHAPTERS = (() => {
       setup: () => {
         requestAnimationFrame(() => requestAnimationFrame(() => {
           const el = document.getElementById('create-project-name-input');
-          if (el) { el.value = '새 노트'; el.blur(); }
+          if (el) { el.value = I18N.t('새 노트'); el.blur(); }
         }));
       },
       advanceOn: 'notecreate:done',
@@ -775,7 +782,7 @@ const TUTORIAL_CHAPTERS = (() => {
       text: '먼저 가사부터 적어 볼까요?\n첫 줄에 "반짝반짝 작은 별"을 적어 주세요!',
       panel: 'bottom',
       target: TUT_FIRST_LINE_TEXT,
-      advanceOn: () => _lineTextAt(0) === '반짝반짝 작은 별',
+      advanceOn: () => _lyricEq(_lineTextAt(0), I18N.t('반짝반짝 작은 별')),
     },
     {
       title: '줄 추가',
@@ -804,8 +811,8 @@ const TUTORIAL_CHAPTERS = (() => {
       panel: 'bottom',
       target: `${TUT_LINE_NTH(1)} .line-text`,
       setup: () => _copyToClipboard(TUT_LYRICS_2),
-      advanceOn: () => _lineTextAt(1) === '반짝반짝 작은 별'
-                    && _lineTextAt(2) === '아름답게 비치네',
+      advanceOn: () => _lyricEq(_lineTextAt(1), I18N.t('반짝반짝 작은 별'))
+                    && _lyricEq(_lineTextAt(2), I18N.t('아름답게 비치네')),
       // 붙여넣기가 어긋나면(엉뚱한 내용이 들어가거나 줄이 밀리면) 열린 곳이 둘째 줄뿐이라
       // 스스로 되돌릴 수 없다 → 빠져나갈 문을 남긴다. 건너뛰어도 뒤 구간(줄 지우기·코드 놓기)은
       // 첫 줄만 쓰므로 그대로 성립한다.
