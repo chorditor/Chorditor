@@ -1356,7 +1356,7 @@ function updateBarreBtns() {
       border-radius:50%;border:none;
       background:${barreActive[f] ? '#242729' : '#ffffff'};
       color:${barreActive[f] ? '#fff' : '#888'};
-      font-size:${Math.round(22 * sc)}px;font-family:'Pretendard',sans-serif;
+      font-size:${Math.round(22 * sc)}px;font-family:'Pretendard','Noto Sans JP',sans-serif;
       cursor:pointer;display:flex;align-items:center;justify-content:center;padding:0;`;
     btn.onclick = () => {
       _playTap();
@@ -4468,7 +4468,7 @@ function meUpdateBarreBtns() {
       border-radius:50%;border:none;
       background:${me_barre[f] ? '#242729' : '#ffffff'};
       color:${me_barre[f] ? '#fff' : '#888'};
-      font-size:22px;font-family:'Pretendard',sans-serif;
+      font-size:22px;font-family:'Pretendard','Noto Sans JP',sans-serif;
       cursor:pointer;display:flex;align-items:center;justify-content:center;padding:0;`;
     btn.onclick = () => {
       if (!me_barre[f]) {

@@ -77,7 +77,7 @@
       '6도 마이너 전환': 'Switching to vi (minor)',
       '2도 마이너 전환': 'Switching to ii (minor)',
       '3도 마이너 전환': 'Switching to iii (minor)',
-      '도레미파솔라시': 'Do Re Mi Fa Sol La Ti',
+      '도레미파솔라시': 'Do Re Mi Fa So La Ti',
 
       // ── "?" 미니 강의: 도입 ──
       '거의 모든 멜로디의 뼈대가 되는 중요한 스케일이에요.': "It's an important scale,\nthe backbone of almost every melody.",
@@ -241,7 +241,7 @@
     },
 
     scoped: [
-      ['#test-note-grid', { '도': 'Do', '레': 'Re', '미': 'Mi', '파': 'Fa', '솔': 'Sol', '라': 'La', '시': 'Ti' }],
+      ['#test-note-grid', { '도': 'Do', '레': 'Re', '미': 'Mi', '파': 'Fa', '솔': 'So', '라': 'La', '시': 'Ti' }],
     ],
 
     patterns: [

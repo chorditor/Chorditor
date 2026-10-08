@@ -114,7 +114,7 @@
   padding-inline: var(--cd-btn-padding-inline);
   font-size: var(--cd-btn-font-size);
   border-radius: var(--cd-btn-radius);
-  font-family: 'Pretendard', sans-serif;
+  font-family: 'Pretendard', 'Noto Sans JP', sans-serif;
   font-weight: 700;
   letter-spacing: 0.04em;
   border: none;
@@ -342,7 +342,7 @@
 /* 타입 토큰 — 두께·크기·행간·글꼴을 한 줄로 묶음. 사용: `font: var(--type-headline)` (docs/style-guide.md §2-2)
    크기는 --font-*가 뷰포트별로 바뀌므로 그대로 반응형. 한 줄 요소는 행간 1.2, 여러 줄 본문(Body)은 1.4 */
 :root {
-  --font-family: 'Pretendard', -apple-system, BlinkMacSystemFont, sans-serif;
+  --font-family: 'Pretendard', 'Noto Sans JP', -apple-system, BlinkMacSystemFont, sans-serif;
   --type-caption:     var(--weight-regular)  var(--font-caption)/var(--leading-tight)  var(--font-family);
   --type-label-sm:    var(--weight-regular)  var(--font-label-sm)/var(--leading-tight) var(--font-family);
   --type-label-lg:    var(--weight-regular)  var(--font-label-lg)/var(--leading-tight) var(--font-family);
@@ -442,7 +442,7 @@ html { background: var(--bg); }
 
 body {
   background: var(--bg);
-  font-family: 'Pretendard', -apple-system, BlinkMacSystemFont, sans-serif;
+  font-family: 'Pretendard', 'Noto Sans JP', -apple-system, BlinkMacSystemFont, sans-serif;
   height: 100vh; /* dvh 미지원 폴백 */
   height: 100dvh; /* 주소창 표시/숨김에 실시간으로 맞춰 여유공간 없이 항상 꽉 채움 */
   overflow: hidden;
@@ -629,7 +629,7 @@ button, input, select, textarea {
 }
 .sidebar-logo:hover { color: var(--accent); }
 .sidebar-version {
-  font-family: 'Pretendard', sans-serif;
+  font-family: 'Pretendard', 'Noto Sans JP', sans-serif;
   font-size: 7px;
   font-weight: 400;
   color: var(--text-muted);
@@ -783,7 +783,7 @@ button, input, select, textarea {
   cursor: pointer;
   color: var(--text-muted);
   font-size: 12px;
-  font-family: 'Pretendard', sans-serif;
+  font-family: 'Pretendard', 'Noto Sans JP', sans-serif;
   font-weight: 500;
   transition: color .15s, transform 0.2s cubic-bezier(0.34, 1.56, 0.64, 1);
 }
@@ -1033,7 +1033,7 @@ button, input, select, textarea {
   font-weight: 600;
   color: var(--text-primary);
   cursor: pointer;
-  font-family: 'Pretendard', sans-serif;
+  font-family: 'Pretendard', 'Noto Sans JP', sans-serif;
   text-align: center;
   -webkit-tap-highlight-color: transparent;
 }
@@ -2471,7 +2471,7 @@ button, input, select, textarea {
   transform: translateX(100%);
 }
 .acc-btn {
-  font-family: 'Pretendard', sans-serif;
+  font-family: 'Pretendard', 'Noto Sans JP', sans-serif;
   font-size: 13px;
   font-weight: 700;
   padding: 0 12px;
@@ -2497,7 +2497,7 @@ button, input, select, textarea {
 
 /* ?�택 버튼 공통 */
 .sel-btn {
-  font-family: 'Pretendard', sans-serif;
+  font-family: 'Pretendard', 'Noto Sans JP', sans-serif;
   font-size: 12px;
   padding: 5px 12px;
   border-radius: var(--radius);
@@ -2535,7 +2535,7 @@ button, input, select, textarea {
   letter-spacing: 0.06em;
 }
 .chord-display {
-  font-family: 'Pretendard', sans-serif;
+  font-family: 'Pretendard', 'Noto Sans JP', sans-serif;
   font-size: 28px;
   font-weight: 600;
   line-height: 1;
@@ -2553,7 +2553,7 @@ button, input, select, textarea {
   flex-wrap: wrap;
 }
 .chord-suggest-item {
-  font-family: 'Pretendard', sans-serif;
+  font-family: 'Pretendard', 'Noto Sans JP', sans-serif;
   font-size: 12px;
   color: #aaa;
   cursor: pointer;
@@ -2732,7 +2732,7 @@ button, input, select, textarea {
 .tool-group { display: flex; gap: 4px; }
 
 .mode-btn {
-  font-family: 'Pretendard', sans-serif;
+  font-family: 'Pretendard', 'Noto Sans JP', sans-serif;
   font-size: 12px;
   padding: 6px 14px;
   height: 28px;
@@ -2796,7 +2796,7 @@ button, input, select, textarea {
   background: transparent;
   color: var(--text-secondary);
   cursor: pointer;
-  font-family: 'Pretendard', sans-serif;
+  font-family: 'Pretendard', 'Noto Sans JP', sans-serif;
   font-size: 16px;
   font-weight: 500;
   transition: all .15s;
@@ -3019,7 +3019,7 @@ canvas {
 .btn-group { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
 
 .btn {
-  font-family: 'Pretendard', sans-serif;
+  font-family: 'Pretendard', 'Noto Sans JP', sans-serif;
   font-size: 13px;
   padding: 9px 22px;
   border-radius: var(--radius);
@@ -3052,7 +3052,7 @@ canvas {
 
 /* ?�?� ?�보?�기 ?�?�트 ?�?� */
 .export-select {
-  font-family: 'Pretendard', sans-serif;
+  font-family: 'Pretendard', 'Noto Sans JP', sans-serif;
   font-size: 12px;
   padding: 8px 10px;
   border-radius: var(--radius);
@@ -3076,7 +3076,7 @@ canvas {
 .ab-spacer { flex: 1; }
 .ab-btn,
 .ab-select {
-  font-family: 'Pretendard', sans-serif;
+  font-family: 'Pretendard', 'Noto Sans JP', sans-serif;
   font-size: 13px;
   padding: 8px 16px;
   background: transparent;
@@ -3481,7 +3481,7 @@ canvas {
   to   { opacity: 1; transform: scale(1) translateY(0); }
 }
 #modal-create-project * {
-  font-family: 'Pretendard', sans-serif;
+  font-family: 'Pretendard', 'Noto Sans JP', sans-serif;
 }
 #modal-create-project #create-project-name-input {
   border: none;
@@ -3593,7 +3593,7 @@ canvas {
 }
 
 .modal-title {
-  font-family: 'Pretendard', -apple-system, BlinkMacSystemFont, sans-serif;
+  font-family: 'Pretendard', 'Noto Sans JP', -apple-system, BlinkMacSystemFont, sans-serif;
   font-size: 20px;
   font-weight: 700;
   color: var(--text-primary);
@@ -3799,7 +3799,7 @@ canvas {
 }
 
 .project-name-input {
-  font-family: 'Pretendard', sans-serif;
+  font-family: 'Pretendard', 'Noto Sans JP', sans-serif;
   font-size: 16px;
   font-weight: 600;
   border: none;
@@ -3852,7 +3852,7 @@ canvas {
 .capo-label {
   font-size: 12px; /* --font-xs */
   color: var(--text-secondary);
-  font-family: 'Pretendard', sans-serif;
+  font-family: 'Pretendard', 'Noto Sans JP', sans-serif;
   padding-right: 8px; /* 컨테이너 gap(4px) + 8px = 라벨 우측만 12px */
 }
 .capo-btn {
@@ -3875,14 +3875,14 @@ canvas {
 .capo-btn:hover { background: var(--bg); }
 .capo-value {
   font-size: 12px; /* --font-xs */
-  font-family: 'Pretendard', sans-serif;
+  font-family: 'Pretendard', 'Noto Sans JP', sans-serif;
   color: var(--text-primary);
   min-width: 14px;
   text-align: center;
 }
 .capo-badge {
   font-size: 12px;
-  font-family: 'Pretendard', sans-serif;
+  font-family: 'Pretendard', 'Noto Sans JP', sans-serif;
   color: var(--text-secondary);
   background: var(--bg);
   border: 1px solid var(--border);
@@ -3917,7 +3917,7 @@ canvas {
 .bpm-label {
   font-size: 12px; /* --font-xs */
   color: var(--text-secondary);
-  font-family: 'Pretendard', sans-serif;
+  font-family: 'Pretendard', 'Noto Sans JP', sans-serif;
 }
 .bpm-input {
   width: clamp(30px, 7.9167vw, 38px);
@@ -3926,7 +3926,7 @@ canvas {
   line-height: clamp(13px, 3.3333vw, 16px);
   box-sizing: border-box;
   font-size: 12px; /* --font-xs */
-  font-family: 'Pretendard', sans-serif;
+  font-family: 'Pretendard', 'Noto Sans JP', sans-serif;
   color: var(--text-primary);
   background: transparent;
   border: none;
@@ -4335,7 +4335,7 @@ canvas {
   resize: none;
   border: none;
   background: transparent;
-  font-family: 'Pretendard', sans-serif;
+  font-family: 'Pretendard', 'Noto Sans JP', sans-serif;
   font-size: 14px;
   color: var(--text-primary);
   outline: none;
@@ -4364,7 +4364,7 @@ canvas {
   overflow-y: auto;
   scrollbar-width: none;
   outline: none;
-  font-family: 'Pretendard', sans-serif;
+  font-family: 'Pretendard', 'Noto Sans JP', sans-serif;
   font-size: 14px;
   line-height: 1.6;
   color: var(--text-primary);
@@ -4553,7 +4553,7 @@ canvas {
   background: transparent;
   color: var(--text-muted);
   font-size: 13px;
-  font-family: 'Pretendard', sans-serif;
+  font-family: 'Pretendard', 'Noto Sans JP', sans-serif;
   cursor: pointer;
   transition: all .15s;
   margin-top: 8px;
@@ -4571,7 +4571,7 @@ canvas {
   padding: 10px 20px;
   border-radius: var(--radius);
   font-size: 13px;
-  font-family: 'Pretendard', sans-serif;
+  font-family: 'Pretendard', 'Noto Sans JP', sans-serif;
   z-index: 600;
   box-shadow: 0 4px 16px rgba(0,0,0,0.18);
   white-space: nowrap;
@@ -5563,7 +5563,7 @@ canvas {
 }
 
 /* ?�?� 결제 계정 ?�인 모달 ?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?� */
-.purchase-confirm-modal { max-width: 360px; font-family: 'Pretendard', -apple-system, BlinkMacSystemFont, sans-serif; }
+.purchase-confirm-modal { max-width: 360px; font-family: 'Pretendard', 'Noto Sans JP', -apple-system, BlinkMacSystemFont, sans-serif; }
 .purchase-confirm-body {
   padding: 16px 20px;
   display: flex;
@@ -6065,7 +6065,7 @@ canvas {
   color: var(--bg);
   border: none;
   border-radius: var(--radius);
-  font-family: 'Pretendard', sans-serif;
+  font-family: 'Pretendard', 'Noto Sans JP', sans-serif;
   font-size: 16px;
   font-weight: 700;
   cursor: pointer;
@@ -6202,7 +6202,7 @@ canvas {
   border-radius: 14px;
   cursor: pointer;
   text-align: left;
-  font-family: 'Pretendard', sans-serif;
+  font-family: 'Pretendard', 'Noto Sans JP', sans-serif;
   transition: border-color 0.15s, background 0.15s, transform 0.12s ease-out;
 }
 .ob-persona-card:active { transform: scale(0.98); }
@@ -7699,7 +7699,7 @@ canvas {
 }
 .ms-quiz-choice-card--text {
   border: 1px solid rgba(0,0,0,0.06);
-  font-family: 'Pretendard', sans-serif;
+  font-family: 'Pretendard', 'Noto Sans JP', sans-serif;
   font-size: var(--font-headline-sm);
   font-weight: 800;
   color: var(--text-primary);
@@ -7848,7 +7848,7 @@ canvas {
   padding: 8px 16px;
   background: #e6e8ec;
   color: var(--text-secondary);
-  font-family: 'Pretendard', sans-serif;
+  font-family: 'Pretendard', 'Noto Sans JP', sans-serif;
   font-size: var(--font-body-sm);
   font-weight: 700;
   cursor: pointer;
@@ -8016,7 +8016,7 @@ canvas {
   border-radius: 999px;
   background: var(--blue);
   color: #fff;
-  font-family: 'Pretendard', sans-serif;
+  font-family: 'Pretendard', 'Noto Sans JP', sans-serif;
   font-size: 15px;
   font-weight: 700;
   padding: 10px 16px;
@@ -8058,7 +8058,7 @@ canvas {
   border: none;
   background: none;
   padding: 4px 2px;
-  font-family: 'Pretendard', sans-serif;
+  font-family: 'Pretendard', 'Noto Sans JP', sans-serif;
   font-size: var(--font-body);
   font-weight: 700;
   color: var(--text-primary);
@@ -8108,7 +8108,7 @@ canvas {
   background: #F5F5F5;
   border: 2px solid transparent;
   border-radius: 14px;
-  font-family: 'Pretendard', sans-serif;
+  font-family: 'Pretendard', 'Noto Sans JP', sans-serif;
   font-size: 20px;
   font-weight: 700;
   color: var(--text-primary);
@@ -8139,7 +8139,7 @@ canvas {
   background: #F5F5F5;
   border: 2px solid transparent;
   border-radius: 16px;
-  font-family: 'Pretendard', sans-serif;
+  font-family: 'Pretendard', 'Noto Sans JP', sans-serif;
   font-size: 22px;
   font-weight: 700;
   color: var(--text-primary);
@@ -8175,7 +8175,7 @@ canvas {
   align-items: center;
   justify-content: center;
   scroll-snap-align: center;
-  font-family: 'Pretendard', sans-serif;
+  font-family: 'Pretendard', 'Noto Sans JP', sans-serif;
   font-size: 22px;
   font-weight: 500;
   color: var(--text-primary);
@@ -8224,7 +8224,7 @@ canvas {
   padding: 8px 40px 8px 8px;
   background: transparent;
   outline: none;
-  font-family: 'Pretendard', sans-serif;
+  font-family: 'Pretendard', 'Noto Sans JP', sans-serif;
 }
 /* 초대코드 입력창: 닉네임과 달리 우측 카운터가 없어 패딩 대칭으로 재정렬 */
 .ob-invite-input {
@@ -8335,7 +8335,7 @@ canvas {
   background: #F5F5F5;
   border: 2px solid transparent;
   border-radius: 999px;
-  font-family: 'Pretendard', sans-serif;
+  font-family: 'Pretendard', 'Noto Sans JP', sans-serif;
   font-size: 14px;
   font-weight: 500;
   color: var(--text-primary);
@@ -8413,7 +8413,7 @@ canvas {
   background: none;
   border: none;
   border-top: 1px solid #EEEEEE;
-  font-family: 'Pretendard', sans-serif;
+  font-family: 'Pretendard', 'Noto Sans JP', sans-serif;
   font-size: 12px;
   font-weight: 600;
   color: var(--text-muted);
@@ -8667,7 +8667,7 @@ canvas {
   flex: 1;
   padding: 20px 16px;
   font-size: 18px;
-  font-family: 'Pretendard', sans-serif;
+  font-family: 'Pretendard', 'Noto Sans JP', sans-serif;
   font-weight: 500;
   color: var(--text-secondary);
   background: none;
@@ -8784,7 +8784,7 @@ canvas {
   background: transparent;
   font-size: clamp(13px, 3.9vw, 14px);
   color: var(--text-primary);
-  font-family: 'Pretendard', sans-serif;
+  font-family: 'Pretendard', 'Noto Sans JP', sans-serif;
 }
 .lib-search-bar input::placeholder { color: var(--text-muted); }
 
@@ -8976,7 +8976,7 @@ canvas {
   width: 100%;
   color: var(--text-secondary);
   border-radius: 0;
-  font-family: 'Pretendard', sans-serif;
+  font-family: 'Pretendard', 'Noto Sans JP', sans-serif;
   transition: background .12s;
   white-space: nowrap;
   overflow: hidden;
@@ -9054,7 +9054,7 @@ canvas {
   aspect-ratio: 5 / 4;
 }
 .lib-card-name {
-  font-family: 'Pretendard', -apple-system, BlinkMacSystemFont, sans-serif;
+  font-family: 'Pretendard', 'Noto Sans JP', -apple-system, BlinkMacSystemFont, sans-serif;
   font-size: 11px;
   font-weight: 500;
   margin-top: 3px;
@@ -9889,7 +9889,7 @@ canvas {
   color: #fff;
   border: none;
   border-radius: var(--radius);
-  font-family: 'Pretendard', sans-serif;
+  font-family: 'Pretendard', 'Noto Sans JP', sans-serif;
   font-size: 14px;
   font-weight: 500;
   cursor: pointer;
@@ -9918,7 +9918,7 @@ canvas {
 }
 .update-notice-logo { width: 40px; height: 40px; object-fit: contain; margin-bottom: 16px; flex-shrink: 0; }
 .update-notice-version {
-  font-family: 'Pretendard', sans-serif;
+  font-family: 'Pretendard', 'Noto Sans JP', sans-serif;
   font-size: 20px;
   font-weight: 700;
   color: var(--text-primary);
@@ -10037,7 +10037,7 @@ canvas {
 .update-notice-media--pair i { font-size: 64px; color: var(--brand); }
 
 .update-notice-past-version {
-  font-family: 'Pretendard', sans-serif;
+  font-family: 'Pretendard', 'Noto Sans JP', sans-serif;
   font-size: 15px;
   font-weight: 700;
   color: var(--text-primary);
@@ -10050,7 +10050,7 @@ canvas {
   padding: 13px;
   border: none;
   border-radius: 12px;
-  font-family: 'Pretendard', sans-serif;
+  font-family: 'Pretendard', 'Noto Sans JP', sans-serif;
   font-size: 14px;
   font-weight: 500;
   cursor: pointer;
@@ -10201,7 +10201,7 @@ canvas {
 .event-modal-icon img { width: 28px; height: 28px; object-fit: contain; }
 
 .event-modal-title {
-  font-family: 'Pretendard', sans-serif;
+  font-family: 'Pretendard', 'Noto Sans JP', sans-serif;
   font-size: 20px;
   font-weight: 600;
   color: var(--text-primary);
@@ -10238,7 +10238,7 @@ canvas {
   color: #fff;
   border: none;
   border-radius: 12px;
-  font-family: 'Pretendard', sans-serif;
+  font-family: 'Pretendard', 'Noto Sans JP', sans-serif;
   font-size: 14px;
   font-weight: 500;
   cursor: pointer;
@@ -10262,7 +10262,7 @@ canvas {
   text-align: center;
 }
 .review-modal-title {
-  font-family: 'Pretendard', sans-serif;
+  font-family: 'Pretendard', 'Noto Sans JP', sans-serif;
   font-size: 17px;
   font-weight: 600;
   color: var(--text-primary);
@@ -10280,7 +10280,7 @@ canvas {
   padding: 11px;
   background: transparent;
   border: none;
-  font-family: 'Pretendard', sans-serif;
+  font-family: 'Pretendard', 'Noto Sans JP', sans-serif;
   font-size: 14.5px;
   font-weight: 400;
   color: var(--text-secondary);
@@ -10449,7 +10449,7 @@ canvas {
   color: #fff;
   font-size: 15px;
   font-weight: 700;
-  font-family: 'Pretendard', sans-serif;
+  font-family: 'Pretendard', 'Noto Sans JP', sans-serif;
   cursor: pointer;
   display: flex;
   align-items: center;
@@ -10467,7 +10467,7 @@ canvas {
   color: var(--text-primary);
   font-size: 14px;
   font-weight: 700;
-  font-family: 'Pretendard', sans-serif;
+  font-family: 'Pretendard', 'Noto Sans JP', sans-serif;
   cursor: pointer;
 }
 .peak-buffer-plan:active { opacity: 0.85; }
@@ -11019,7 +11019,7 @@ canvas {
   border: none;
   outline: none;
   background: transparent;
-  font-family: 'Pretendard', sans-serif;
+  font-family: 'Pretendard', 'Noto Sans JP', sans-serif;
   font-size: 16px;
   font-weight: 600;
   letter-spacing: 0.04em;
@@ -11035,7 +11035,7 @@ canvas {
 
 .profile-code-submit {
   flex-shrink: 0;
-  font-family: 'Pretendard', sans-serif;
+  font-family: 'Pretendard', 'Noto Sans JP', sans-serif;
   font-size: 16px;
   font-weight: 600;
   color: #fff;
@@ -11068,7 +11068,7 @@ canvas {
 .profile-invite-code {
   flex: 1;
   min-width: 0;
-  font-family: 'Pretendard', sans-serif;
+  font-family: 'Pretendard', 'Noto Sans JP', sans-serif;
   font-size: 20px;
   font-weight: 800;
   letter-spacing: 0.08em;
@@ -13140,7 +13140,7 @@ canvas {
   border-radius: 12px;
   font-size: 14px;
   font-weight: 700;
-  font-family: 'Pretendard', sans-serif;
+  font-family: 'Pretendard', 'Noto Sans JP', sans-serif;
   cursor: pointer;
   transition: opacity 0.15s, transform 0.1s;
   -webkit-tap-highlight-color: transparent;
@@ -13532,7 +13532,7 @@ canvas {
   border-radius: 14px;
   font-size: 16px;
   font-weight: 700;
-  font-family: 'Pretendard', sans-serif;
+  font-family: 'Pretendard', 'Noto Sans JP', sans-serif;
   cursor: pointer;
   -webkit-tap-highlight-color: transparent;
   transition: transform 0.1s;
@@ -13636,7 +13636,7 @@ canvas {
   color: #fff;
   font-size: 15px;
   font-weight: 700;
-  font-family: 'Pretendard', sans-serif;
+  font-family: 'Pretendard', 'Noto Sans JP', sans-serif;
   cursor: pointer;
   -webkit-tap-highlight-color: transparent;
 }
@@ -14048,7 +14048,7 @@ canvas {
   border: none;
   border-radius: 10px;
   padding: 5px 10px;
-  font-family: 'Pretendard', sans-serif;
+  font-family: 'Pretendard', 'Noto Sans JP', sans-serif;
   font-size: 11px;
   font-weight: 600;
   color: #fff;
@@ -14179,7 +14179,7 @@ canvas {
   color: #fff;
   font-size: 16px;
   font-weight: 700;
-  font-family: 'Pretendard', sans-serif;
+  font-family: 'Pretendard', 'Noto Sans JP', sans-serif;
   cursor: pointer;
   -webkit-tap-highlight-color: transparent;
   transition: transform 0.1s;
@@ -14289,7 +14289,7 @@ canvas {
   border: none;
   padding: 8px 12px;
   margin: 0;
-  font-family: 'Pretendard', sans-serif;
+  font-family: 'Pretendard', 'Noto Sans JP', sans-serif;
   font-size: 18px;
   font-weight: 800;
   color: #fff;
@@ -14636,7 +14636,7 @@ canvas {
 }
 
 .scale-card-practice-btn {
-  font-family: 'Pretendard', sans-serif;
+  font-family: 'Pretendard', 'Noto Sans JP', sans-serif;
   align-self: center;
   margin-top: auto;
   border: none;
@@ -14905,7 +14905,7 @@ canvas {
   left: 50%;
   top: 50%;
   white-space: nowrap;
-  font-family: 'Pretendard', sans-serif;
+  font-family: 'Pretendard', 'Noto Sans JP', sans-serif;
   font-size: calc(11 * var(--fbu, 1px));
   font-weight: 700;
   color: #ffffff;
@@ -15498,7 +15498,7 @@ canvas {
   font-size: 26px;
   font-weight: 400;
   line-height: 1;
-  font-family: 'Pretendard', sans-serif;
+  font-family: 'Pretendard', 'Noto Sans JP', sans-serif;
 }
 @media (min-width: 769px) {
   .scale-mic-help-glyph {
@@ -15593,7 +15593,7 @@ canvas {
   font-size: 13px;
   font-weight: 700;
   color: #999;
-  font-family: 'Pretendard', sans-serif;
+  font-family: 'Pretendard', 'Noto Sans JP', sans-serif;
   transition: background 0.15s, color 0.15s;
   user-select: none;
 }
@@ -15733,7 +15733,7 @@ canvas {
   font-weight: 600;
   color: #444;
   cursor: pointer;
-  font-family: 'Pretendard', sans-serif;
+  font-family: 'Pretendard', 'Noto Sans JP', sans-serif;
   -webkit-tap-highlight-color: transparent;
   transition: background 0.1s, border-color 0.1s, color 0.1s;
 }
@@ -15890,6 +15890,15 @@ canvas {
   display: grid;
   align-content: center;
 }
+/* 번역 화면: 계이름 글자 폭이 제각각(Mi / Sol)이라 칸 폭을 가장 넓은 칸에 맞춰 균등하게.
+   width:max-content 라서 1fr 칸이 모두 "가장 넓은 칸" 폭이 됨. 칸이 넓어진 만큼 좌우 패딩·간격을 줄여 360px 에 맞춤 */
+html:not([lang="ko"]) .test-note-grid {
+  grid-template-columns: repeat(7, 1fr);
+  column-gap: 4px;
+  width: max-content;
+  max-width: 100%;
+  padding: 0;
+}
 .test-note-grid-cell {
   text-align: center;
   font-size: 24px;
@@ -16044,7 +16053,7 @@ canvas {
   color: #444;
   font-size: 15px;
   font-weight: 700;
-  font-family: 'Pretendard', sans-serif;
+  font-family: 'Pretendard', 'Noto Sans JP', sans-serif;
   cursor: pointer;
   -webkit-tap-highlight-color: transparent;
   transition: opacity 0.15s;
@@ -16462,7 +16471,7 @@ canvas {
 .prog-card-name {
   font-size: clamp(12px, 3.6vw, 14px);
   font-weight: 400;
-  font-family: 'Pretendard', sans-serif;
+  font-family: 'Pretendard', 'Noto Sans JP', sans-serif;
   color: var(--text-secondary);
   flex: 1;
   min-width: 0;
@@ -17101,7 +17110,7 @@ canvas {
   color: #fff;
   font-size: var(--gate-font);
   font-weight: 700;
-  font-family: 'Pretendard', sans-serif;
+  font-family: 'Pretendard', 'Noto Sans JP', sans-serif;
   cursor: pointer;
   -webkit-tap-highlight-color: transparent;
   transition: opacity 0.15s, transform 0.1s;
@@ -17222,7 +17231,7 @@ canvas {
   border-radius: 12px;
   font-size: 14px;
   font-weight: 700;
-  font-family: 'Pretendard', sans-serif;
+  font-family: 'Pretendard', 'Noto Sans JP', sans-serif;
   cursor: pointer;
   -webkit-tap-highlight-color: transparent;
   transition: opacity 0.15s, transform 0.1s;
@@ -17457,7 +17466,7 @@ canvas {
   border-radius: 12px;
   font-size: 14px;
   font-weight: 700;
-  font-family: 'Pretendard', sans-serif;
+  font-family: 'Pretendard', 'Noto Sans JP', sans-serif;
   cursor: pointer;
   -webkit-tap-highlight-color: transparent;
   transition: opacity 0.15s, transform 0.1s;
@@ -19267,7 +19276,7 @@ canvas {
   color: #F5B301;
 }
 .combo-difficulty-label {
-  font-family: 'Pretendard', sans-serif;
+  font-family: 'Pretendard', 'Noto Sans JP', sans-serif;
   font-size: 14px;
   font-weight: 600;
   color: #1a1a1a;
@@ -19682,7 +19691,7 @@ canvas {
   color: #fff;
   font-size: var(--cd-btn-font-size);
   font-weight: 700;
-  font-family: 'Pretendard', sans-serif;
+  font-family: 'Pretendard', 'Noto Sans JP', sans-serif;
   cursor: pointer;
   -webkit-tap-highlight-color: transparent;
   transition: transform 0.1s;
@@ -20276,7 +20285,7 @@ canvas {
 }
 
 .tutorial-start-title {
-  font-family: 'Pretendard', sans-serif;
+  font-family: 'Pretendard', 'Noto Sans JP', sans-serif;
   font-size: 20px;
   font-weight: 700;
   color: var(--text-primary);
@@ -20514,7 +20523,7 @@ body.tut-lock .modal-overlay {
   position: absolute;
   transform: translate(-100%, -50%); /* 아이콘 왼쪽 끝에 오른쪽 정렬 */
   white-space: nowrap;
-  font-family: 'Pretendard', sans-serif;
+  font-family: 'Pretendard', 'Noto Sans JP', sans-serif;
   font-size: 11px;
   font-weight: 400;
   color: #000;
@@ -20532,7 +20541,7 @@ body.tut-lock .modal-overlay {
   position: absolute;
   transform: translateY(-50%);
   white-space: nowrap;
-  font-family: 'Pretendard', sans-serif;
+  font-family: 'Pretendard', 'Noto Sans JP', sans-serif;
   font-size: 11px;
   font-weight: 400;
   color: #000;
@@ -20590,14 +20599,14 @@ body.tut-lock .modal-overlay {
   background: none;
   border: none;
   padding: 6px;
-  font-family: 'Pretendard', sans-serif;
+  font-family: 'Pretendard', 'Noto Sans JP', sans-serif;
   font-size: 12px;
   color: var(--text-muted);
   cursor: pointer;
 }
 
 #tut-title {
-  font-family: 'Pretendard', sans-serif;
+  font-family: 'Pretendard', 'Noto Sans JP', sans-serif;
   font-size: 18px;
   font-weight: 700;
   color: var(--text-primary);
@@ -20622,7 +20631,7 @@ body.tut-lock .modal-overlay {
   background: var(--brand);
   border: 1px solid var(--brand);
   border-radius: 999px;
-  font-family: 'Pretendard', sans-serif;
+  font-family: 'Pretendard', 'Noto Sans JP', sans-serif;
   font-size: 13px;
   font-weight: 600;
   color: #fff;
