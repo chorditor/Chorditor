@@ -148,26 +148,123 @@ async function deleteToken(token: string): Promise<void> {
   });
 }
 
+// 지금 현지 시각이 hhmi(예: '2030')인 user_id 집합 (get_push_users_at_local(), push_due_users.sql).
+//   시간대 = 기기의 push_tokens.tz, 없으면 Asia/Seoul. isodow: 1=월 … 7=일, null 이면 요일 무관.
+async function fetchUsersAtLocal(hhmi: string, isodow: number | null = null): Promise<Set<string>> {
+  const resp = await fetch(`${SUPABASE_URL}/rest/v1/rpc/get_push_user_ids_at_local`, {
+    method: 'POST',
+    headers: {
+      'apikey': SERVICE_ROLE,
+      'Authorization': `Bearer ${SERVICE_ROLE}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ p_hhmi: hhmi, p_isodow: isodow }),
+  });
+  if (!resp.ok) throw new Error(`users at local error ${resp.status}: ${await resp.text()}`);
+  return new Set((await resp.json()) as string[]); // 배열 한 값 — 행수 제한에 안 잘림
+}
+
+// ── 영어 푸시 (push_templates_en) ───────────────────────────
+//   기기 언어가 'en'(push_tokens.lang)이면 보내기 직전에 같은 category 의 영어 문구로 바꿔 끼움.
+//   영어 문구를 못 찾으면 한국어 그대로 발송. (push-dispatch 의 같은 블록과 동일 규칙)
+//   get_push_en_tokens() 는 배열 한 값으로 돌려줌 — 행 단위 응답은 최대 행수(기본 1000)에서 잘리기 때문.
+async function fetchEnTokens(): Promise<Set<string>> {
+  try {
+    const resp = await fetch(`${SUPABASE_URL}/rest/v1/rpc/get_push_en_tokens`, {
+      method: 'POST',
+      headers: {
+        'apikey': SERVICE_ROLE,
+        'Authorization': `Bearer ${SERVICE_ROLE}`,
+        'Content-Type': 'application/json',
+      },
+      body: '{}',
+    });
+    if (!resp.ok) return new Set();
+    return new Set((await resp.json()) as string[]);
+  } catch (_) {
+    return new Set();
+  }
+}
+
+// category 별 영어 문구(호출 1회 동안 캐시) → 랜덤 1개
+const enTemplateCache = new Map<string, { title: string; body: string }[]>();
+async function fetchRandomMessageEn(category: string): Promise<{ title: string; body: string } | null> {
+  let rows = enTemplateCache.get(category);
+  if (!rows) {
+    try {
+      const resp = await fetch(
+        `${SUPABASE_URL}/rest/v1/push_templates_en?select=title,body&active=is.true&category=eq.${encodeURIComponent(category)}`,
+        { headers: { 'apikey': SERVICE_ROLE, 'Authorization': `Bearer ${SERVICE_ROLE}` } },
+      );
+      rows = resp.ok ? await resp.json() : [];
+    } catch (_) {
+      rows = [];
+    }
+    enTemplateCache.set(category, rows!);
+  }
+  return rows!.length ? rows![Math.floor(Math.random() * rows!.length)] : null;
+}
+
+// 영어 placeholder 치환. 닉네임이 없으면 호칭을 문장에서 빼냄
+//   "Hey {name}" → "Hey there" / "{name}, your…" → "Your…"
+function fillEn(text: string, ctx: Record<string, string | null | undefined>): string {
+  let out = text;
+  if (ctx.name) {
+    out = out.replaceAll('{name}', ctx.name);
+  } else {
+    out = out
+      .replace(/^Hey \{name\}/, 'Hey there')
+      .replace(/, \{name\}/g, '')
+      .replace(/^\{name\}, (.)/, (_m, c: string) => c.toUpperCase());
+  }
+  for (const [k, v] of Object.entries(ctx)) {
+    if (k !== 'name' && v != null) out = out.replaceAll(`{${k}}`, v);
+  }
+  return out;
+}
+
+async function localizeEn(
+  category: string, ctx: Record<string, string | null | undefined> = {},
+): Promise<{ title: string; body: string } | null> {
+  const msg = await fetchRandomMessageEn(category);
+  if (!msg) return null;
+  return { title: fillEn(msg.title, ctx), body: fillEn(msg.body, ctx) };
+}
+
 Deno.serve(async (_req) => {
   try {
     const testUserId = new URL(_req.url).searchParams.get('user_id');
+
+    // 현지 20:30 인 유저만 대상(cron 15분 간격). 없으면 바로 종료. ?user_id= 테스트는 시각 무관.
+    const dueUsers = testUserId ? null : await fetchUsersAtLocal('2030');
+    if (dueUsers && dueUsers.size === 0) {
+      return new Response(JSON.stringify({ skipped: 'no_due_users' }), {
+        headers: { 'Content-Type': 'application/json' },
+      });
+    }
 
     const sa = loadServiceAccount();
     const accessToken = await getAccessToken(sa);
 
     const winbackTargets = (await fetchWinbackTargets())
-      .filter(t => !testUserId || t.user_id === testUserId);
+      .filter(t => (!testUserId || t.user_id === testUserId) && (!dueUsers || dueUsers.has(t.user_id)));
     let sent = 0, failed = 0, pruned = 0;
+    const enTokens = await fetchEnTokens();
 
     for (const t of winbackTargets) {
       const logId = crypto.randomUUID();
       const data = { winback: String(t.stage), entry: 'winback', logId };
-      const r = await fcmSend(sa, accessToken, t.token, t.title, t.body, data);
+      let title = t.title, body = t.body;
+      if (enTokens.has(t.token)) {
+        const en = await localizeEn(`winback_${t.stage}`);
+        if (en) { title = en.title; body = en.body; }
+      }
+      const r = await fcmSend(sa, accessToken, t.token, title, body, data);
       if (r.ok) {
         await logSent(t.user_id, t.stage);
         await logPush({
           id: logId, user_id: t.user_id, push_type: 'winback',
-          title: t.title, body: t.body, deeplink: `winback:${t.stage}`,
+          title, body, deeplink: `winback:${t.stage}`,
         });
         sent++;
       } else {

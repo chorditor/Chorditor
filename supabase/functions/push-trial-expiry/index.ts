@@ -153,24 +153,114 @@ async function releaseLock(): Promise<void> {
   } catch (_e) { /* TTL(90초)로 자동 만료 */ }
 }
 
-// 법정 광고성 정보 발송 제한시간대: 21:00~08:00 KST
-function isNightRestricted(): boolean {
-  const kstHour = Number(
-    new Intl.DateTimeFormat('en-US', { timeZone: 'Asia/Seoul', hour: 'numeric', hour12: false }).format(new Date())
+// 법정 광고성 정보 발송 제한시간대: 21:00~08:00 — 받는 기기의 현지 시각 기준.
+//   시간대 = push_tokens.tz, 없거나 알 수 없는 값이면 Asia/Seoul.
+//   get_push_token_tz() = 서울이 아닌 기기만 담은 { token: tz } 객체 한 값(행수 제한에 안 잘림).
+async function fetchTokenTz(): Promise<Map<string, string>> {
+  try {
+    const resp = await fetch(`${SUPABASE_URL}/rest/v1/rpc/get_push_token_tz`, {
+      method: 'POST',
+      headers: {
+        'apikey': SERVICE_ROLE,
+        'Authorization': `Bearer ${SERVICE_ROLE}`,
+        'Content-Type': 'application/json',
+      },
+      body: '{}',
+    });
+    if (!resp.ok) return new Map();
+    return new Map(Object.entries((await resp.json()) as Record<string, string>));
+  } catch (_) {
+    return new Map();
+  }
+}
+
+function localHour(tz: string | undefined): number {
+  const hourIn = (zone: string) => Number(
+    new Intl.DateTimeFormat('en-US', { timeZone: zone, hour: 'numeric', hour12: false }).format(new Date())
   ) % 24;
-  return kstHour >= 21 || kstHour < 8;
+  try {
+    return hourIn(tz || 'Asia/Seoul');
+  } catch (_) {
+    return hourIn('Asia/Seoul');
+  }
+}
+
+function isNightRestricted(tz?: string): boolean {
+  const h = localHour(tz);
+  return h >= 21 || h < 8;
+}
+
+// ── 영어 푸시 (push_templates_en) ───────────────────────────
+//   기기 언어가 'en'(push_tokens.lang)이면 보내기 직전에 같은 category 의 영어 문구로 바꿔 끼움.
+//   영어 문구를 못 찾으면 한국어 그대로 발송. (push-dispatch 의 같은 블록과 동일 규칙)
+//   get_push_en_tokens() 는 배열 한 값으로 돌려줌 — 행 단위 응답은 최대 행수(기본 1000)에서 잘리기 때문.
+async function fetchEnTokens(): Promise<Set<string>> {
+  try {
+    const resp = await fetch(`${SUPABASE_URL}/rest/v1/rpc/get_push_en_tokens`, {
+      method: 'POST',
+      headers: {
+        'apikey': SERVICE_ROLE,
+        'Authorization': `Bearer ${SERVICE_ROLE}`,
+        'Content-Type': 'application/json',
+      },
+      body: '{}',
+    });
+    if (!resp.ok) return new Set();
+    return new Set((await resp.json()) as string[]);
+  } catch (_) {
+    return new Set();
+  }
+}
+
+// category 별 영어 문구(호출 1회 동안 캐시) → 랜덤 1개
+const enTemplateCache = new Map<string, { title: string; body: string }[]>();
+async function fetchRandomMessageEn(category: string): Promise<{ title: string; body: string } | null> {
+  let rows = enTemplateCache.get(category);
+  if (!rows) {
+    try {
+      const resp = await fetch(
+        `${SUPABASE_URL}/rest/v1/push_templates_en?select=title,body&active=is.true&category=eq.${encodeURIComponent(category)}`,
+        { headers: { 'apikey': SERVICE_ROLE, 'Authorization': `Bearer ${SERVICE_ROLE}` } },
+      );
+      rows = resp.ok ? await resp.json() : [];
+    } catch (_) {
+      rows = [];
+    }
+    enTemplateCache.set(category, rows!);
+  }
+  return rows!.length ? rows![Math.floor(Math.random() * rows!.length)] : null;
+}
+
+// 영어 placeholder 치환. 닉네임이 없으면 호칭을 문장에서 빼냄
+//   "Hey {name}" → "Hey there" / "{name}, your…" → "Your…"
+function fillEn(text: string, ctx: Record<string, string | null | undefined>): string {
+  let out = text;
+  if (ctx.name) {
+    out = out.replaceAll('{name}', ctx.name);
+  } else {
+    out = out
+      .replace(/^Hey \{name\}/, 'Hey there')
+      .replace(/, \{name\}/g, '')
+      .replace(/^\{name\}, (.)/, (_m, c: string) => c.toUpperCase());
+  }
+  for (const [k, v] of Object.entries(ctx)) {
+    if (k !== 'name' && v != null) out = out.replaceAll(`{${k}}`, v);
+  }
+  return out;
+}
+
+async function localizeEn(
+  category: string, ctx: Record<string, string | null | undefined> = {},
+): Promise<{ title: string; body: string } | null> {
+  const msg = await fetchRandomMessageEn(category);
+  if (!msg) return null;
+  return { title: fillEn(msg.title, ctx), body: fillEn(msg.body, ctx) };
 }
 
 Deno.serve(async (_req) => {
   let locked = false;
   try {
     const testUserId = new URL(_req.url).searchParams.get('user_id');
-
-    if (isNightRestricted() && !testUserId) {
-      return new Response(JSON.stringify({ skipped: 'night_restricted' }), {
-        headers: { 'Content-Type': 'application/json' },
-      });
-    }
 
     locked = await acquireLock();
     if (!locked) {
@@ -182,22 +272,31 @@ Deno.serve(async (_req) => {
     const sa = loadServiceAccount();
     const accessToken = await getAccessToken(sa);
 
+    // 현지 야간(21~08시)인 기기는 이번엔 건너뜀 — sent 표시를 안 하므로 다음 호출에 다시 대상이 됨.
+    // ?user_id= 테스트는 시각 무관.
+    const tokenTz = await fetchTokenTz();
     const targets = (await fetchTargets())
-      .filter(t => !testUserId || t.user_id === testUserId);
+      .filter(t => testUserId ? t.user_id === testUserId : !isNightRestricted(tokenTz.get(t.token)));
     let sent = 0, failed = 0, pruned = 0;
+    const enTokens = await fetchEnTokens();
 
     for (const t of targets) {
       try {
         const logId = crypto.randomUUID();
+        let title = PUSH_TITLE, body = PUSH_BODY;
+        if (enTokens.has(t.token)) {
+          const en = await localizeEn('trial_expiry');
+          if (en) { title = en.title; body = en.body; }
+        }
         const r = await fcmSend(
-          sa, accessToken, t.token, PUSH_TITLE, PUSH_BODY,
+          sa, accessToken, t.token, title, body,
           { entry: 'trial_expiry', logId },
         );
         if (r.ok) {
           await markNotified(t.user_id, new Date().toISOString());
           await logPush({
             id: logId, user_id: t.user_id, push_type: 'trial_expiry',
-            title: PUSH_TITLE, body: PUSH_BODY, deeplink: 'trial_expiry',
+            title, body, deeplink: 'trial_expiry',
           });
           sent++;
         } else {
