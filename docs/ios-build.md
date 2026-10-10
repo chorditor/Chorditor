@@ -117,12 +117,13 @@
 
 | # | 단계 | 변경 범위 | 상태 |
 |---|---|---|---|
-| 1 | 로컬 브랜치 `ios_dev` 생성 후 `npm i @capacitor/ios` → `npx cap add ios` (로컬 전용, 커밋·푸시 없음) | `package.json`, `package-lock.json` 수정 + `ios/` 신규 | **보류** (사용자 승인 대기) |
-| 1b | `.gitignore`에 iOS 비밀 파일 패턴 추가 (§5-4 조건 1) — 푸시 전에 선행 | `.gitignore` 수정 | 미착수 |
-| 2 | `ios_dev` 브랜치를 공개 레포에 푸시 | 외부 전송 발생 → 별도 승인 | 미착수 |
-| 3 | 수동 실행 전용 워크플로 작성(Secrets 미사용), 서명 없는 `.ipa` 빌드 | 공개 레포 `.github/workflows` | 미착수 |
-| 4 | Sideloadly로 iPad 설치 | 내 PC | 미착수 |
-| 5 | 주요 화면 크래시 확인 및 결과 정리 | - | 미착수 |
+| 1 | 로컬 브랜치 `ios_dev` 생성 후 `npm i @capacitor/ios` → `npx cap add ios` | `package.json`, `package-lock.json` 수정 + `ios/` 신규 | ✅ 완료 (`5dd4274`) |
+| 1b | `.gitignore`에 iOS 비밀 파일 패턴 추가 (§5-4 조건 1) — 푸시 전에 선행 | `.gitignore` 수정 | ✅ 완료 (`5dd4274`) |
+| 2 | `ios_dev` 브랜치를 공개 레포에 푸시 | 외부 전송 | ✅ 완료 |
+| 3 | 수동 실행 전용 워크플로 작성(Secrets 미사용), 서명 없는 `.ipa` 빌드 | `.github/workflows/ios-build.yml` (`ios_dev` + `main`) | ✅ 완료 (빌드 성공, 약 4~5분) |
+| 3b | iOS 구글 로그인 + 실행 크래시 방지 설정 | `shared.js`, `onboarding.js`, `Info.plist`, `capacitor.config.json` | ✅ 완료 (`7a66c9d`) |
+| 4 | Sideloadly로 iPad 설치 | 내 PC | ✅ 완료 (앱 실행·구글 로그인 정상) |
+| 5 | 주요 화면 크래시 확인 및 결과 정리 | - | 🔶 진행 중 — 전수조사 결과는 §11 |
 | 6 | 문제 없으면 Apple Developer Program 구매 → 서명·TestFlight 설계 | - | 미착수 |
 
 ## 8. 미결정 사항
@@ -130,7 +131,9 @@
 - [x] 1단계 작업 위치: 로컬 브랜치 `ios_dev` (§3-1, 폐기 용이). 단 실제 브랜치 생성은 1단계 승인 시
 - [x] 레포 공개 여부: **공개 레포 사용 결정**(한도 없음, §5-4 조건 준수, 2026-10-11)
 - [ ] iPad의 정확한 iPadOS 버전 (설정 → 일반 → 정보)
-- [ ] Sideloadly용 Apple ID를 본 계정으로 쓸지, 별도 계정을 만들지
+- [x] Sideloadly용 Apple ID: 스모크 테스트는 개인 계정으로 진행. 개발 전용 계정은 추후 생성 예정(유료 가입 시 그 계정 사용 검토)
+- [ ] §11 전수조사 항목의 수정 순서·범위 (오늘은 기록만, 수정 안 함)
+- [ ] `ios_dev`를 `main`에 합치기 전 안드로이드 영향 점검 (§10 발견 6)
 
 ## 10. 진행 로그 / 발견 사항
 
@@ -155,8 +158,112 @@
 - 아직 실제 빌드 전이라 **확정 아님**. 클라우드 빌드(3단계) 결과로 판단.
 - 대응 후보(빌드 실패 시 논의): ① CocoaPods 프로젝트로 생성, ② 플러그인 교체/제거 후 iOS 분기, ③ iOS에서만 Google 로그인 비활성. 이 단계 범위(리팩토링 없음)를 벗어나므로 결과 보고 결정.
 
+### 2026-10-11 — 2~4단계 완료 (빌드·로그인·설치)
+
+**결과: 현재 코드 + iOS 껍데기 + 로그인 분기만으로 iOS 빌드·설치·실행·구글 로그인까지 성공.**
+
+### 발견 3 — CI 워크플로 관련
+- Capacitor CLI 8.x는 **Node 22 이상** 필요(워크플로를 20 → 22로 수정, `f6eee54`).
+- `workflow_dispatch`는 워크플로 파일이 기본 브랜치(`main`)에 있어야 실행 버튼이 나타남 → 같은 파일을 `main`에도 추가(`0f07cec`). 앱 코드 변경 없음.
+- 실행 시 **"Use workflow from"을 `ios_dev`로 바꿔야 함**(기본값 `main`). `main`의 파일은 Node 20인 채로 "존재"만 하는 용도.
+- 이 레포는 GitHub Pages가 켜져 있어 `main` 푸시마다 Pages 빌드가 돈다.
+- 아티팩트는 실행 **요약(Summary) 페이지 맨 아래**에 있고, 다운로드는 GitHub 로그인이 필요.
+
+### 발견 4 — 구글 로그인 (플러그인 교체로 해결)
+- `capacitor-google-auth`는 SPM 미지원이라 iOS 빌드에서 제외됨 → iOS에서 로그인 버튼이 무반응(`onboarding.js`의 `if (!GoogleAuth) return;`).
+- **해결**: `@capgo/capacitor-social-login@8.5.15`(버전 고정) 추가, iOS일 때만 사용. 안드로이드 경로는 그대로.
+- 이 플러그인은 **Google·Apple 로그인을 한 플러그인에서 지원** → Apple 로그인도 같은 플러그인으로 붙일 예정(유료 계정 후, 별도 커밋).
+- `capacitor.config.json`의 `SocialLogin.providers`에서 `facebook: false`로 Facebook SDK를 제외(플러그인 훅이 실제로 의존성을 주석 처리함).
+- **nonce**: iOS 구글 SDK가 ID 토큰에 nonce를 넣으므로, 해시는 구글에·원본은 Supabase에 보내야 검증 통과. Supabase의 "Skip nonce checks"는 운영 보안을 낮추므로 쓰지 않음.
+- `iOSServerClientId`를 기존 웹 클라이언트 ID로 두어 Supabase 설정 변경 없이 동작.
+
+**Google Cloud 설정 (실제 경로)**
+- 구글 로그인용 OAuth 클라이언트는 **Firebase 프로젝트(`chorditor-50f9f`, 번호 `165777454179`)가 아닌 별도 Google Cloud 프로젝트(번호 `495859421223`)** 에 있고, 소유 계정도 다르다(예전 다른 서비스 때 쓰던 계정). 통합은 비용 문제로 보류.
+- 프로젝트 선택창은 번호가 아닌 이름으로 보여 찾기 어렵다 → 주소로 직접 진입: `https://console.cloud.google.com/apis/credentials?project=495859421223`
+- iOS 클라이언트 생성 폼의 체크박스 2개(**Firebase 앱 체크로 보호**, **Use this client for an AI-powered agent**)는 둘 다 해제. 앱 체크는 SDK 연동 없이 켜면 로그인이 막힐 수 있음.
+- iOS 클라이언트는 보안 비밀이 없고 ID는 콘솔에서 언제든 다시 볼 수 있음. 번들 ID는 `com.chorditor.app.dev`.
+
+### 발견 5 — 실행 직후 크래시 요인 3개 (사전 차단)
+| 요인 | 조치 (`Info.plist`) |
+|---|---|
+| AdMob이 모든 페이지에서 초기화되는데(`shared.js`) `GADApplicationIdentifier`가 없으면 앱 강제 종료 | Google 공개 테스트 앱 ID 추가. **출시 전 iOS용 실제 AdMob 앱 ID로 교체 필요** |
+| 튜너의 마이크 접근에 사용 문구 없음 | `NSMicrophoneUsageDescription` 추가 |
+| 구글 로그인 콜백용 URL scheme 없음 | `CFBundleURLTypes`에 역방향 클라이언트 ID 추가 |
+
+- iOS에서는 `initBilling`을 건너뜀(안드로이드 RevenueCat 키로 configure 방지). **결제는 유료 계정 후 별도 작업.**
+
+### 발견 6 — 새 플러그인의 안드로이드 영향 (⚠ `main` 병합 전 점검 필수)
+- `@capgo/capacitor-social-login`은 npm 패키지라 `cap sync android` 시 안드로이드 빌드에도 포함된다.
+- 플러그인 훅(`capacitor:sync:before`)이 `cap sync`마다 실행되어 `node_modules` 안 파일과 안드로이드 `gradle.properties`를 수정하는 코드가 있다.
+- 지금은 `ios_dev`에만 있어 출시 앱(`main`)과 무관. **병합 전 안드로이드 빌드의 매니페스트(특히 AD_ID 권한)와 앱 크기를 확인할 것.**
+
+### 발견 7 — 설치 도구
+- iTunes는 음악 앱이지만 Windows용 설치 파일에 iPad USB 드라이버(`Apple Mobile Device Support`)가 들어 있어 필요하다.
+- **Microsoft Store 버전 iTunes는 안 됨**(드라이버 서비스가 등록되지 않음). Apple 공식 사이트의 설치형으로 교체해야 `AppleMobileDeviceService`가 실행된다.
+- Sideloadly의 Advanced Options에서 **Bundle ID를 `com.chorditor.app.dev`로 지정**(구글 iOS 클라이언트와 일치, 출시용 `com.chorditor.app`과 충돌 방지).
+- 무료 서명은 **7일 후 만료** → 같은 `.ipa`로 재설치.
+- 이 빌드는 **운영 DB에 그대로 연결**된다. 테스트 행동이 실제 계정 데이터에 반영됨.
+
 ## 9. 알려진 iOS 이식 주의 지점 (스모크 테스트에서 확인할 것)
 
 - 플러그인: AdMob, Google 로그인, 푸시, 로컬 알림 — iOS용 네이티브 설정(`Info.plist`, plist 파일 등)이 별도로 필요
 - 한글 IME, 터치 이벤트, 오디오 자동재생 정책 등 Safari(WebKit) 고유 동작
 - Android 전용 처리(하드웨어 뒤로가기 `backButton`, `OnBackPressedCallback` 등)가 iOS에서 무시되는지
+
+## 11. iOS 호환성 전수조사 (2026-10-11, 기록만 — 수정 안 함)
+
+**범위**: 루트 JS 45개(약 4.7만 줄), HTML 28개, `style.css`(약 2.1만 줄), 안드로이드 네이티브 코드(`MainActivity` 등), Capacitor iOS 소스.
+**방법**: 정적 분석(코드 읽기·패턴 검색). 렌더링 문제는 실기기 확인 전까지 "의심" 단계.
+**줄 번호는 `ios_dev` `7a66c9d` 기준**이라 이후 수정으로 달라질 수 있다.
+
+### 11-1. 실기기에서 관찰된 증상 (iPad Pro 11" M4)
+| 증상 | 재현 조건 |
+|---|---|
+| 코드 에디터의 이미지 저장·재생 버튼이 안 보임 | 앱을 새로 켠 직후에도 발생 |
+| 이미지 저장이 안 됨(체크 애니메이션 없음) | 코드 사전 |
+| 페이지 전환 시 깜빡임 | 항상 |
+| 스케일 훈련 레벨 카드를 넘길 때 심한 떨림 | 항상 |
+| 백그라운드에서 돌아오면 UI가 무너지고 이후 소리가 안 남 | 백그라운드 → 복귀. 앱 재시작 시 복구 |
+
+### 11-2. 🔴 확정 — iOS에 기능 자체가 없음
+| # | 내용 | 위치 |
+|---|---|---|
+| 1 | **글자 크기 90% 축소가 iOS에 없음.** 안드로이드는 `setTextZoom(90)`으로 전체 글자를 줄인다. iOS는 100%라 모든 화면 글자가 약 11% 큼 → 넘침·줄바꿈·레이아웃 차이의 가장 큰 원인 후보 | `MainActivity.java:24` |
+| 2 | 이미지 저장 플러그인(`SaveImage`)이 안드로이드 전용. `undefined` 호출 → 오류가 `catch`에서 삼켜져 무반응 | `home.js:1593, 6039`, `user_project.js` |
+| 3 | 하드웨어 뒤로가기 없음. `handleNativeBack`·`backButton` 리스너가 호출되지 않음. 화면 안에 뒤로가기 버튼이 없는 화면은 빠져나올 수 없음. `exitApp`도 무동작 | `mission-session.js:4093`, `progression-detail.js:808`, `strum-play.js:721`, `home.js:2750` |
+| 4 | 공유 링크 딥링크(`chorditor://import`)가 네이티브 인텐트 처리. iOS는 URL scheme 미등록(`appUrlOpen` 리스너는 `shared.js:1731`에 있음) | `MainActivity.java:71` |
+| 5 | 푸시(FCM), RevenueCat 키, 광고 단위 ID 3개, Play 스토어 링크 3곳이 안드로이드용 | `shared.js:595-597, 2121, 2172, 5204, 2218` |
+| 6 | 분석 이벤트가 플랫폼을 `android`로 고정 기록(5곳) → iOS 데이터가 안드로이드로 섞임 | `home.js:5491`, `onboarding.js:570, 719, 739`, `user_project.js:4934` |
+| 7 | 마이크 사용 후 오디오 모드 복구(`AudioMode`)가 안드로이드 전용. 진동(`navigator.vibrate`) 2곳 미지원 | `tuner.js:357`, `onboarding.js:369`, `shared.js:1196` |
+| 8 | `Info.plist`에 사진 저장 문구(`NSPhotoLibraryAddUsageDescription`) 없음. iPad는 추가 설정 없이는 방향 고정이 무시됨 | `metronome.js:612, 626` |
+
+### 11-3. 🟠 높은 확신 — 동작 차이로 생기는 버그
+| # | 증상 | 원인 |
+|---|---|---|
+| 9 | 스케일 카드 떨림 | 스크롤 이벤트마다 JS가 모든 카드에 `scale()`을 다시 넣는데(`scale-training.js:258, 342`), 카드에 `transition: transform 0.1s`가 걸려 있고(`style.css:14516`) 스냅이 강제(`scroll-snap-type: x mandatory`)다. iOS는 관성 스크롤 중 이벤트가 늦게 와서 세 가지가 충돌 |
+| 10 | 페이지 전환 깜빡임 | 화면마다 실제 페이지 이동(`location.href`, 260ms 지연). 그 사이 웹뷰 배경이 시스템 기본색(다크 모드면 검정)으로 비침. `capacitor.config.json`에 `backgroundColor` 설정 없음. 매 페이지가 CDN 스크립트(lucide `@latest`, Tone.js)를 다시 로드 |
+| 11 | 백그라운드 후 무음 | 복귀 시 오디오를 깨우는 코드가 없음. 오디오 컨텍스트 직접 생성 5곳(`chord-combo.js:20`, `chord-name-quiz.js:1469`, `metronome.js:395`, `mission-session.js:730`, `scale-level.js:776`)과 `GuitarAudio.strumNotes` 모두 해당. `pagehide`에서 건 음소거(`home.js:1750`, `user_project.js:1469`)를 푸는 곳이 `strum-play.js:516`뿐 |
+| 12 | 화면이 확대됨 | 뷰포트 메타에 확대 금지가 없어 핀치·더블탭 확대 가능. 입력칸 글자가 16px 미만이면 포커스 시 자동 확대(`.line-text` 14px, 검색창 12~14px: `style.css:4386, 4854, 8779`) |
+| 13 | 길게 누르면 텍스트 선택·돋보기 | `user-select`에 `-webkit-` 접두어가 없는 규칙 23개, `-webkit-touch-callout` 0건 |
+| 14 | 탭 후 눌린 색이 남음 | `:hover` 규칙 57개(터치 기기에서 hover 고착) |
+
+### 11-4. 🟡 의심 — 실기기 확인 필요
+| # | 내용 |
+|---|---|
+| 15 | **에디터 저장·재생 버튼 안 보임.** `.canvas-inner`가 `aspect-ratio`로 높이를 정하고 그 높이의 %로 격자 행을 나눔(`style.css:2931-2941`). 버튼은 `display: contents` 래퍼(`2866`) 아래에서 폭 %·`aspect-ratio: 1`(`2871-2877`)로 크기를 정함. WebKit이 이 %를 다르게 풀면 버튼 칸이 무너질 수 있음. 미디어쿼리·JS로 숨기는 코드는 없음을 확인. 같은 계열(`aspect-ratio` 97곳, `display: contents` 17곳)이 많아 다른 화면에도 숨은 문제 가능 |
+| 16 | **백그라운드 복귀 시 UI 붕괴.** 원인 미확정. iOS가 웹 프로세스를 종료하면 Capacitor가 페이지를 자동으로 다시 불러오는데, 복원 처리(`pageshow`)가 한 곳도 없음. `visibilitychange`에서 연습 모드를 종료하는 코드(`scale-level.js:768`) 등도 영향 가능 |
+| 17 | 컨테이너 단위(`cqh/cqw` 15곳, `container-type` 6곳), `round()` 5곳, `dvh` 17곳 — 지원은 되지만 스크롤 컨테이너와의 조합에서 차이 가능 |
+| 18 | 가사 편집(`contenteditable`, 한글 조합 6곳, `execCommand` 5곳, `getSelection` 8곳) — WebKit은 동작이 달라 엔터·백스페이스·붙여넣기 버그가 다르게 재발할 수 있음 |
+| 19 | 키보드가 뜰 때 하단 고정 요소(`position: fixed` 56곳, 키보드 플러그인 없음), 새 창 열기(`window.open` 7곳), 클립보드 17곳, 터치 기본 동작 차단(`preventDefault` 48곳, `passive: false` 9곳) |
+| 20 | 효과음(HTML 오디오, `shared.js:822`)과 웹 오디오 혼용 — iOS 오디오 세션에서 지연·무음 가능 |
+
+### 11-5. ✅ 확인했고 문제없음
+- 자동 재생은 Capacitor iOS가 허용(`mediaTypesRequiringUserActionForPlayback = []`). 화면 전체 튕김(바운스)도 꺼져 있음.
+- `MediaRecorder`, `ogg/webm/wav` 음원, `requestIdleCallback`, `scrollend`, `OffscreenCanvas` 등 iOS 미지원·차이 API는 0건.
+- 뷰포트 `viewport-fit=cover`는 27개 중 25개 페이지에 적용, 안전영역 `env()` 33곳 사용.
+
+### 11-6. 수정 시 우선순위 제안 (미결정)
+1. **#1 글자 90%**, **#12 확대** — 한두 줄 설정으로 전 화면에 영향을 주므로 먼저 처리하면 나머지 증상을 다시 평가하기 쉬움.
+2. **#10 배경색**, **#9 카드 떨림**, **#11 복귀 시 오디오** — 원인이 비교적 분명함.
+3. **#15, #16** — 실제 화면(스크린샷 또는 WebKit 엔진 재현)으로 원인을 먼저 확정.
+4. **#2~#8** — 기능 단위 iOS 구현(이미지 저장, 뒤로가기, 딥링크, 결제, 광고, 푸시). 유료 계정 단계와 묶어서 계획.
