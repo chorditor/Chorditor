@@ -602,6 +602,9 @@ async function onboardingSwitchAccount() {
   try {
     if (!window.Capacitor?.isNativePlatform()) {
       if (_supabase) await _supabase.auth.signOut();
+    } else if (_isIOSNative()) {
+      const SocialLogin = window.Capacitor?.Plugins?.SocialLogin;
+      if (SocialLogin) await SocialLogin.logout({ provider: 'google' }).catch(() => {});
     } else {
       const GoogleAuth = window.Capacitor?.Plugins?.GoogleAuth;
       if (GoogleAuth) await GoogleAuth.signOut().catch(() => {});
@@ -632,20 +635,28 @@ async function onboardingSignIn() {
   const signinLoader = document.getElementById('onboarding-signin-loading');
   const googleBtn    = document.getElementById('onboarding-google-btn');
   try {
+    const _ios = _isIOSNative(); // iOS는 SocialLogin 플러그인(shared.js iosGoogleSignIn) 사용
     const GoogleAuth = window.Capacitor?.Plugins?.GoogleAuth;
-    if (!GoogleAuth) return;
+    if (!_ios && !GoogleAuth) return;
 
     if (googleBtn)    googleBtn.classList.add('hidden');
     if (signinLoader) signinLoader.classList.remove('hidden');
 
-    const googleUser = await GoogleAuth.signIn();
-    const idToken = googleUser?.authentication?.idToken ?? googleUser?.idToken;
+    let idToken, _nonce = null;
+    if (_ios) {
+      ({ idToken, nonce: _nonce } = await iosGoogleSignIn());
+    } else {
+      const googleUser = await GoogleAuth.signIn();
+      idToken = googleUser?.authentication?.idToken ?? googleUser?.idToken;
+    }
     if (!idToken) throw new Error('ID 토큰을 받지 못했습니다.');
 
     const rawResp = await fetch(`${SUPABASE_URL}/auth/v1/token?grant_type=id_token`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'apikey': SUPABASE_ANON },
-      body: JSON.stringify({ provider: 'google', id_token: idToken }),
+      body: JSON.stringify(_nonce
+        ? { provider: 'google', id_token: idToken, nonce: _nonce }
+        : { provider: 'google', id_token: idToken }),
     });
     const rawJson = await rawResp.json();
     if (!rawResp.ok) throw new Error(rawJson?.error_description || 'Supabase 인증 실패');

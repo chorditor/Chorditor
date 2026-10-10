@@ -1991,26 +1991,60 @@ let _authReady    = false;
 let _authResolve  = null;
 const _authPromise = new Promise(resolve => { _authResolve = resolve; });
 
+// ── iOS Google 로그인 (SocialLogin) ────────────────────────────
+// iOS는 GoogleAuth(Capacitor 6용, SPM 비호환) 대신 SocialLogin 사용. 안드로이드 경로는 그대로.
+// iOS 구글 SDK는 nonce를 ID 토큰에 넣으므로: 해시는 구글에, 원본은 Supabase에 보내야 검증을 통과한다.
+let _iosGoogleInited = false;
+function _isIOSNative() { return window.Capacitor?.getPlatform?.() === 'ios'; }
+async function iosGoogleSignIn() {
+  const SocialLogin = window.Capacitor?.Plugins?.SocialLogin;
+  if (!SocialLogin) throw new Error('GoogleAuth 플러그인을 찾을 수 없습니다.');
+  if (!_iosGoogleInited) {
+    await SocialLogin.initialize({ google: {
+      iOSClientId: '495859421223-8r885stvann74g1p7knuso7g6r1rmpm0.apps.googleusercontent.com',
+      iOSServerClientId: '495859421223-rkjalna3ckhslfrk12gvbehn69o9j4qe.apps.googleusercontent.com',
+      mode: 'online',
+    } });
+    _iosGoogleInited = true;
+  }
+  const _hex = (buf) => Array.from(new Uint8Array(buf), b => b.toString(16).padStart(2, '0')).join('');
+  const nonce = _hex(crypto.getRandomValues(new Uint8Array(32)));
+  const hashedNonce = _hex(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(nonce)));
+  const res = await SocialLogin.login({
+    provider: 'google',
+    options: { scopes: ['email', 'profile'], nonce: hashedNonce },
+  });
+  return { idToken: res?.result?.idToken ?? null, nonce };
+}
+
 // ── Google 로그인 (공통 코어) ──────────────────────────────────
 async function signInWithGoogle() {
   if (!_supabase) { console.error('[Auth] Supabase 미초기화'); return; }
   analytics.track('login_started', { method: 'google' });
   if (window.Capacitor?.isNativePlatform()) {
     try {
+      const _ios = _isIOSNative();
       const GoogleAuth = window.Capacitor?.Plugins?.GoogleAuth;
-      if (!GoogleAuth) throw new Error('GoogleAuth 플러그인을 찾을 수 없습니다.');
-      await GoogleAuth.initialize({
+      if (!_ios && !GoogleAuth) throw new Error('GoogleAuth 플러그인을 찾을 수 없습니다.');
+      if (!_ios) await GoogleAuth.initialize({
         clientId: '495859421223-rkjalna3ckhslfrk12gvbehn69o9j4qe.apps.googleusercontent.com',
         scopes: ['profile', 'email'],
         grantOfflineAccess: true,
       });
-      const googleUser = await GoogleAuth.signIn();
-      const idToken = googleUser?.authentication?.idToken ?? googleUser?.idToken;
+      let idToken, _nonce = null;
+      if (_ios) {
+        ({ idToken, nonce: _nonce } = await iosGoogleSignIn());
+      } else {
+        const googleUser = await GoogleAuth.signIn();
+        idToken = googleUser?.authentication?.idToken ?? googleUser?.idToken;
+      }
       if (!idToken) throw new Error('ID 토큰을 받지 못했습니다.');
       const rawResp = await fetch(`${SUPABASE_URL}/auth/v1/token?grant_type=id_token`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'apikey': SUPABASE_ANON },
-        body: JSON.stringify({ provider: 'google', id_token: idToken }),
+        body: JSON.stringify(_nonce
+          ? { provider: 'google', id_token: idToken, nonce: _nonce }
+          : { provider: 'google', id_token: idToken }),
       });
       const rawJson = await rawResp.json();
       if (!rawResp.ok) throw new Error(rawJson?.error_description || 'Supabase 인증 실패');
@@ -2224,6 +2258,7 @@ let _billingReady = Promise.resolve();
 
 async function initBilling() {
   if (!window.Capacitor?.isNativePlatform()) return;
+  if (_isIOSNative()) return; // iOS용 RevenueCat 키 미설정 — 안드로이드 키(goog_)로 configure 금지(스모크 테스트)
   _billingReady = (async () => {
     const Purchases = window.Capacitor?.Plugins?.Purchases;
     if (!Purchases) { console.warn('[Billing] Purchases 플러그인 없음'); return; }
