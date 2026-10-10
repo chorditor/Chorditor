@@ -1,0 +1,64 @@
+# iOS 스모크 테스트 빌드 (서명 없음) — docs/ios-build.md §5-4 조건 준수
+#  - 수동 실행(workflow_dispatch)만. 외부 PR·push 트리거 없음
+#  - Secrets 미사용. 서명 인증서/Apple ID 관련 값 일절 없음
+#  - 산출물(.ipa)은 서명 안 된 상태이며 Sideloadly로 로컬에서 서명
+#  - 아티팩트 보존 1일, 환경변수/시크릿을 로그에 출력하지 않음
+name: iOS Build (unsigned, smoke test)
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ios-build
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: macos-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      # package-lock.json 이 core 8 ↔ google-auth(core 6) peer 불일치를 이미 포함 → legacy-peer-deps
+      - name: Install dependencies
+        run: npm ci --legacy-peer-deps
+
+      - name: Sync Capacitor iOS
+        run: npx cap sync ios
+
+      - name: Build (unsigned)
+        run: |
+          xcodebuild \
+            -project ios/App/App.xcodeproj \
+            -scheme App \
+            -configuration Release \
+            -sdk iphoneos \
+            -destination 'generic/platform=iOS' \
+            -derivedDataPath build \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGN_IDENTITY="" \
+            clean build
+
+      - name: Package .ipa
+        run: |
+          mkdir -p Payload
+          cp -R build/Build/Products/Release-iphoneos/App.app Payload/
+          zip -qry Chorditor-unsigned.ipa Payload
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: Chorditor-unsigned-ipa
+          path: Chorditor-unsigned.ipa
+          retention-days: 1
+          if-no-files-found: error
