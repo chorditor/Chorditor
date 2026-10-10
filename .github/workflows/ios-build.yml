@@ -26,7 +26,7 @@ jobs:
       - name: Setup Node
         uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 22
 
       # package-lock.json 이 core 8 ↔ google-auth(core 6) peer 불일치를 이미 포함 → legacy-peer-deps
       - name: Install dependencies
