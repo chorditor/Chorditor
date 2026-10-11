@@ -2,6 +2,9 @@
   "appId": "com.chorditor.app",
   "appName": "Chorditor",
   "webDir": "www",
+  "ios": {
+    "backgroundColor": "#FAFAF9"
+  },
   "plugins": {
     "StatusBar": {
       "overlaysWebView": true,

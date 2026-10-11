@@ -19,7 +19,7 @@ function _comboGetAudioCtx() {
   if (!_comboAudioCtx) {
     _comboAudioCtx = new (window.AudioContext || window.webkitAudioContext)();
   }
-  if (_comboAudioCtx.state === 'suspended') _comboAudioCtx.resume();
+  if (_comboAudioCtx.state !== 'running') _comboAudioCtx.resume();
   return _comboAudioCtx;
 }
 

@@ -3,8 +3,18 @@
 // DOM 조작 없음. 페이지별 함수는 typeof 가드로 호출.
 // ═══════════════════════════════════════════════════════════════
 
+// ── iOS 네이티브 공통 초기화 (docs/ios-build.md §11 #1, #12) ───────
+// 안드로이드는 MainActivity에서 setTextZoom(90)을 주는데 iOS엔 없으므로 CSS(.ios-native)로 맞춤.
+// 확대 금지는 메타를 iOS 앱에서만 덧붙여 웹·안드로이드는 그대로 둠.
+(function _iosNativeInit() {
+  if (window.Capacitor?.getPlatform?.() !== 'ios') return;
+  document.documentElement.classList.add('ios-native');
+  const vp = document.querySelector('meta[name="viewport"]');
+  if (vp && !/user-scalable/.test(vp.content)) vp.content += ', maximum-scale=1.0, user-scalable=no';
+})();
+
 // ── 상수 ─────────────────────────────────────────────────────
-const SUPABASE_URL  = 'https://jbvkygeksohlysyvaoab.supabase.co';
+const SUPABASE_URL  ='https://jbvkygeksohlysyvaoab.supabase.co';
 const SUPABASE_ANON = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Impidmt5Z2Vrc29obHlzeXZhb2FiIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzYzOTk5NjgsImV4cCI6MjA5MTk3NTk2OH0.6RSgChy0Yq0H2TJpZPSoMKQ2V-OYfR0XzE1aJBBZkXI';
 const APP_VERSION   = '1.3.6.1';
 const SUPABASE_STORAGE_KEY = 'sb-jbvkygeksohlysyvaoab-auth-token';
@@ -1996,6 +2006,30 @@ const _authPromise = new Promise(resolve => { _authResolve = resolve; });
 // iOS 구글 SDK는 nonce를 ID 토큰에 넣으므로: 해시는 구글에, 원본은 Supabase에 보내야 검증을 통과한다.
 let _iosGoogleInited = false;
 function _isIOSNative() { return window.Capacitor?.getPlatform?.() === 'ios'; }
+
+// 네이티브 이미지 저장 공용 진입점. items: [{ base64, fileName }] → 저장(공유)된 개수, 취소면 0.
+// 안드로이드: SaveImage 플러그인(갤러리 직접 저장). iOS: SaveImage 플러그인이 없어 공유 시트(→ "이미지 저장")로 대체.
+// ⚠ iOS는 사용자 제스처 직후에만 share가 열려 await가 길면 NotAllowedError 가능(docs/ios-build.md §11 #2).
+async function saveImagesToDevice(items) {
+  if (!_isIOSNative()) {
+    for (const it of items) await window.Capacitor.Plugins.SaveImage.saveToGallery(it);
+    return items.length;
+  }
+  const files = items.map(it => {
+    const bin = atob(it.base64);
+    const bytes = new Uint8Array(bin.length);
+    for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+    return new File([bytes], it.fileName, { type: 'image/png' });
+  });
+  if (!navigator.canShare?.({ files })) throw new Error('이 기기에서는 이미지 공유를 지원하지 않습니다.');
+  try {
+    await navigator.share({ files });
+    return files.length;
+  } catch (e) {
+    if (e?.name === 'AbortError') return 0; // 사용자가 공유 시트를 닫음
+    throw e;
+  }
+}
 async function iosGoogleSignIn() {
   const SocialLogin = window.Capacitor?.Plugins?.SocialLogin;
   if (!SocialLogin) throw new Error('GoogleAuth 플러그인을 찾을 수 없습니다.');

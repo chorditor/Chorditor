@@ -21464,3 +21464,36 @@ body.tut-lock .tut-allow * {
   .cd-topbar #topbar-currency .currency-item:last-child { padding-right: 20px; margin-right: -20px; }
 }
 
+
+/* ═══ iOS 네이티브 전용 보정 ═══════════════════════════════════════
+   html.ios-native는 shared.js _iosNativeInit()가 iOS 앱에서만 붙임 → 웹·안드로이드는 영향 없음.
+   근거·미확정 항목: docs/ios-build.md §11 */
+
+/* #1 글자 크기: 안드로이드 MainActivity setTextZoom(90)에 대응 */
+html.ios-native { -webkit-text-size-adjust: 90%; }
+
+/* #13 길게 눌러 생기는 돋보기·복사 메뉴 억제(입력 영역은 유지) */
+html.ios-native body { -webkit-touch-callout: none; }
+html.ios-native button,
+html.ios-native [role="button"] { -webkit-user-select: none; }
+html.ios-native input,
+html.ios-native textarea,
+html.ios-native [contenteditable]:not([contenteditable="false"]) {
+  -webkit-user-select: text;
+  -webkit-touch-callout: default;
+}
+
+/* #9 스케일 카드 떨림: JS가 스크롤마다 transform을 넣으므로 transform 트랜지션은 제거 */
+html.ios-native .scale-item-list .scale-item-card {
+  transition: background 0.15s, box-shadow 0.1s;
+}
+
+/* #15 에디터 저장·재생 버튼: aspect-ratio + % 폭 조합을 WebKit이 0으로 풀 가능성 → 캔버스 폭 기준 고정식으로 대체.
+   우거터(21.591%) × 버튼 비율(55.6%) = 캔버스 폭의 12% */
+html.ios-native .canvas-inner { container-type: inline-size; }
+html.ios-native #canvas-main-btns .canvas-side-btn {
+  width: 12cqw;
+  height: 12cqw;
+  min-width: 26px;
+  min-height: 26px;
+}

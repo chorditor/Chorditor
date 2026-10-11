@@ -191,6 +191,7 @@ const GuitarAudio = (() => {
   // 코드 에디터/사전용 — MIDI 배열 직접 스트럼
   function strumNotes(midis, interval) {
     _run(() => {
+      _wakeAudio(); // 복귀 후 컨텍스트가 interrupted/suspended로 남은 경우 대비 (§11 #11)
       _restoreOutput();
       const notes = midis.map(midiToName);
       if (_releaseTimer) clearTimeout(_releaseTimer);
@@ -376,6 +377,17 @@ const GuitarAudio = (() => {
   // 화면을 떠나면(앱 전환·홈 버튼·페이지 이동) 탭으로 울리던 음을 즉시 끊음
   document.addEventListener('visibilitychange', () => { if (document.hidden) _tapStopAll(0.01); });
   window.addEventListener('pagehide', () => _tapStopAll(0.01));
+
+  // 복귀 시 오디오 깨우기 (docs/ios-build.md §11 #11)
+  // iOS는 앱을 백그라운드로 보내면 pagehide가 오고(안드로이드는 페이지 이동 때만 옴), 복귀 후에도 같은 문서가
+  // 살아 있어 pagehide에서 건 destination.mute가 남아 무음이 됨. 오디오 컨텍스트도 interrupted로 남을 수 있음.
+  function _wakeAudio() {
+    if (typeof Tone === 'undefined') return;
+    try { Tone.getDestination().mute = false; } catch (e) {}
+    try { if (Tone.getContext().state !== 'running') Tone.start(); } catch (e) {}
+  }
+  document.addEventListener('visibilitychange', () => { if (!document.hidden) _wakeAudio(); });
+  window.addEventListener('pageshow', _wakeAudio);
 
   // 즉시 전체 묵음 (잔향 없이 하드컷) — master gain 즉시 0 + 모든 보이스 release
   function panic() {

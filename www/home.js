@@ -1590,8 +1590,8 @@ async function _doSavePNG(scale, transparent = false) {
 
   if (window.Capacitor && window.Capacitor.isNativePlatform()) {
     try {
-      const SaveImage = window.Capacitor.Plugins.SaveImage;
-      await SaveImage.saveToGallery({ base64, fileName: fileName.replace(/[\\/:*?"<>|\x00-\x1f]/g, '_') });
+      const n = await saveImagesToDevice([{ base64, fileName: fileName.replace(/[\\/:*?"<>|\x00-\x1f]/g, '_') }]);
+      if (!n) return;
       showSaveToast();
       incrementStat('images');
       analytics.track('image_saved', { scale, source: 'editor', success: true });
@@ -5488,7 +5488,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       _authReady = true;
       _setOnboardedCache(session.user.id); // 다른 페이지의 관문이 재조회를 건너뛰도록
       analytics.setUserId(session.user.id);
-      analytics.track('app_open', { platform: 'android', project_count: loadProjects().length });
+      analytics.track('app_open', { platform: window.Capacitor?.getPlatform?.() || 'web', project_count: loadProjects().length });
       // 출석플로우는 공지팝업이 전부 닫힌 뒤로 미룸(동시 노출 금지) — 튜토리얼 자동 노출
       // 대상이면 어차피 그 내부에서 건너뛰기 이후로 보류됨
       _afterNoticesCallback = () => {
@@ -6036,8 +6036,8 @@ async function _doExportLibChordImage(scale, transparent = false) {
 
   if (window.Capacitor && window.Capacitor.isNativePlatform()) {
     try {
-      const SaveImage = window.Capacitor.Plugins.SaveImage;
-      await SaveImage.saveToGallery({ base64, fileName: fileName.replace(/[\\/:*?"<>|\x00-\x1f]/g, '_') });
+      const n = await saveImagesToDevice([{ base64, fileName: fileName.replace(/[\\/:*?"<>|\x00-\x1f]/g, '_') }]);
+      if (!n) return;
       showSaveToast();
       incrementStat('images');
       analytics.track('lib_image_saved', { chord_name: dispName, scale, success: true });

@@ -349,8 +349,8 @@ async function _doSavePNG(scale) {
 
   if (window.Capacitor && window.Capacitor.isNativePlatform()) {
     try {
-      const SaveImage = window.Capacitor.Plugins.SaveImage;
-      await SaveImage.saveToGallery({ base64, fileName: fileName.replace(/[\\/:*?"<>|\x00-\x1f]/g, '_') });
+      const n = await saveImagesToDevice([{ base64, fileName: fileName.replace(/[\\/:*?"<>|\x00-\x1f]/g, '_') }]);
+      if (!n) return;
       showSaveToast();
       incrementStat('images');
       analytics.track('image_saved', { scale, source: 'editor', success: true });
@@ -514,6 +514,7 @@ async function _saveAllPaletteImages(scale, transparent) {
   const isNative = window.Capacitor && window.Capacitor.isNativePlatform();
   const usedNames = new Set();
   const webFiles = []; // 웹 zip용 [{name, base64}]
+  const iosItems = []; // iOS 공유 시트용 [{base64, fileName}]
   let saved = 0;
   for (const chord of chords) {
     const exp = document.createElement('canvas');
@@ -528,15 +529,20 @@ async function _saveAllPaletteImages(scale, transparent) {
     while (usedNames.has(fileName)) fileName = base + '_' + (n++) + '.png';
     usedNames.add(fileName);
     const base64 = exp.toDataURL('image/png').split(',')[1];
-    if (isNative) {
+    if (isNative && _isIOSNative()) {
+      iosItems.push({ base64, fileName }); // iOS는 공유 시트 1회로 묶어서 저장
+    } else if (isNative) {
       try {
-        await window.Capacitor.Plugins.SaveImage.saveToGallery({ base64, fileName });
+        await saveImagesToDevice([{ base64, fileName }]);
         saved++;
       } catch (e) { console.error('저장 실패:', e); }
     } else {
       webFiles.push({ name: fileName, base64 });
       saved++;
     }
+  }
+  if (iosItems.length) {
+    try { saved += await saveImagesToDevice(iosItems); } catch (e) { console.error('저장 실패:', e); }
   }
   // 웹: 브라우저가 다중 자동 다운로드를 차단하므로 개별 PNG를 zip 1개로 묶어 저장(파일은 개별 유지)
   if (!isNative && webFiles.length) {
@@ -4931,7 +4937,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       }
       _authReady = true;
       analytics.setUserId(session.user.id);
-      analytics.track('app_open', { platform: 'android', project_count: loadProjects().length });
+      analytics.track('app_open', { platform: window.Capacitor?.getPlatform?.() || 'web', project_count: loadProjects().length });
       _consumePendingShareCode();
       _billingReady.then(async () => {
         if (window._RC) await window._RC.logIn({ appUserID: session.user.id }).catch(() => {});

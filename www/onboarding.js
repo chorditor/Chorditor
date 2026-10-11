@@ -716,7 +716,7 @@ async function tryAutoSignIn() {
         _authReady = true;
         analytics.setUserId(session.user.id);
         analytics.track('app_open', {
-          platform: 'android',
+          platform: window.Capacitor?.getPlatform?.() || 'web',
           project_count: loadProjects().length,
         });
         _authResolve();
@@ -736,7 +736,7 @@ async function tryAutoSignIn() {
   } catch(e) {}
 
   analytics.track('app_open', {
-    platform: 'android',
+    platform: window.Capacitor?.getPlatform?.() || 'web',
     project_count: loadProjects().length,
   });
   _authResolve();

@@ -132,7 +132,7 @@
 - [x] 레포 공개 여부: **공개 레포 사용 결정**(한도 없음, §5-4 조건 준수, 2026-10-11)
 - [ ] iPad의 정확한 iPadOS 버전 (설정 → 일반 → 정보)
 - [x] Sideloadly용 Apple ID: 스모크 테스트는 개인 계정으로 진행. 개발 전용 계정은 추후 생성 예정(유료 가입 시 그 계정 사용 검토)
-- [ ] §11 전수조사 항목의 수정 순서·범위 (오늘은 기록만, 수정 안 함)
+- [x] §11 전수조사 항목 수정: 웹·설정으로 가능한 항목은 1차 수정 완료(§11-7). 나머지는 사유와 함께 §11-7에 기록
 - [ ] `ios_dev`를 `main`에 합치기 전 안드로이드 영향 점검 (§10 발견 6)
 
 ## 10. 진행 로그 / 발견 사항
@@ -210,7 +210,7 @@
 - 한글 IME, 터치 이벤트, 오디오 자동재생 정책 등 Safari(WebKit) 고유 동작
 - Android 전용 처리(하드웨어 뒤로가기 `backButton`, `OnBackPressedCallback` 등)가 iOS에서 무시되는지
 
-## 11. iOS 호환성 전수조사 (2026-10-11, 기록만 — 수정 안 함)
+## 11. iOS 호환성 전수조사 (2026-10-11 조사 / 수정 이력은 §11-7)
 
 **범위**: 루트 JS 45개(약 4.7만 줄), HTML 28개, `style.css`(약 2.1만 줄), 안드로이드 네이티브 코드(`MainActivity` 등), Capacitor iOS 소스.
 **방법**: 정적 분석(코드 읽기·패턴 검색). 렌더링 문제는 실기기 확인 전까지 "의심" 단계.
@@ -267,3 +267,31 @@
 2. **#10 배경색**, **#9 카드 떨림**, **#11 복귀 시 오디오** — 원인이 비교적 분명함.
 3. **#15, #16** — 실제 화면(스크린샷 또는 WebKit 엔진 재현)으로 원인을 먼저 확정.
 4. **#2~#8** — 기능 단위 iOS 구현(이미지 저장, 뒤로가기, 딥링크, 결제, 광고, 푸시). 유료 계정 단계와 묶어서 계획.
+
+### 11-7. 수정 이력 (2026-10-11, 미커밋·미동기화 — 실기기 검증 전)
+
+모든 수정은 **iOS 앱에서만 켜지도록** 분기했다(웹·안드로이드 동작 변화 없음). 분기 기준은 `shared.js` 맨 위 `_iosNativeInit()`이 붙이는 `html.ios-native` 클래스.
+
+| # | 상태 | 수정 내용 | 검증 |
+|---|---|---|---|
+| 1 | ✅ 수정 | `html.ios-native { -webkit-text-size-adjust: 90% }` (`style.css` 맨 끝) | 실기기에서 글자 크기가 안드로이드와 비슷한지 |
+| 2 | 🔶 대체 | `SaveImage`가 없는 iOS는 **공유 시트**(`navigator.share`, "이미지 저장" 선택)로 대체. `saveImagesToDevice()`(`shared.js`) 신설, `home.js`·`user_project.js` 4곳 교체. 노트 팔레트 다중 저장은 iOS에서 공유 시트 1회로 묶음 | ⚠ 저장 버튼 → 플랜 조회(`await`) → 공유 순서라 사용자 제스처가 만료돼 `NotAllowedError`가 날 수 있음. 실패 시 네이티브 플러그인(Swift, `UIImageWriteToSavedPhotosAlbum`)으로 교체 |
+| 3 | ⏸ 보류 | iOS엔 하드웨어 뒤로가기가 없음. 화면 안 뒤로가기 버튼이 없는 화면을 하나씩 정해야 하는 **디자인 결정** | 어떤 화면이 갇히는지 실기기 확인 후 |
+| 4 | ⏸ 보류 | 딥링크는 URL scheme(`chorditor://`)·Universal Link 등록 필요. 공유 링크 정책 결정 + 유료 계정 단계 | - |
+| 5 | ⏸ 보류 | 푸시·RevenueCat·AdMob 광고 단위·스토어 링크. 모두 Apple 계정·키가 필요 → 유료 계정 단계 | - |
+| 6 | ✅ 수정 | `platform: 'android'` 하드코딩 4곳(`home.js`, `user_project.js`, `onboarding.js` 2곳) → `Capacitor.getPlatform()`. 서버 분석은 이미 `analytics-sdk.js`가 실제 플랫폼 사용 | iOS 이벤트가 `ios`로 들어오는지 |
+| 7 | ✅ 확인 | `AudioMode`는 `.catch`로 감싸져 무해, `navigator.vibrate`는 존재 검사 있음 → 수정 불필요 | - |
+| 8 | 🔶 일부 | `Info.plist`에 `NSPhotoLibraryAddUsageDescription` 추가. iPad 방향 고정(`UIRequiresFullScreen`)은 멀티태스킹이 꺼지는 제품 결정이라 보류 | - |
+| 9 | ✅ 수정 | iOS에서 `.scale-item-card`의 `transform` 트랜지션 제거 | 카드 넘길 때 떨림 사라졌는지 |
+| 10 | ✅ 수정 | `capacitor.config.json`에 `ios.backgroundColor: "#FAFAF9"`(앱 배경 `--bg`). 페이지 전환 자체는 그대로(실제 페이지 이동) | 전환 시 검은 깜빡임이 사라졌는지. 남으면 전환 구조 문제 |
+| 11 | ✅ 수정 | ① `guitar-audio.js`: 복귀(`visibilitychange` visible·`pageshow`) 시 `Tone` 음소거 해제 + 컨텍스트 깨움, `strumNotes`도 깨움. ② 별도 AudioContext 5곳: `suspended`만 검사 → `!== 'running'`(iOS는 `interrupted`가 됨) | 백그라운드 → 복귀 후 소리가 나는지. **원인 가설**: iOS는 앱 백그라운드 시 `pagehide`가 와서 건 음소거가 영구 유지됨(안드로이드는 페이지 이동 때만 옴) |
+| 12 | ✅ 수정 | iOS에서만 viewport에 `maximum-scale=1.0, user-scalable=no` 덧붙임(`_iosNativeInit`) | 입력창 포커스 시 확대되지 않는지 |
+| 13 | 🔶 일부 | iOS에서 `-webkit-touch-callout: none`, 버튼 `-webkit-user-select: none`, 입력 영역은 선택 유지. 기존 `user-select` 23곳은 개별 수정하지 않음 | 길게 눌렀을 때 돋보기·메뉴 |
+| 14 | ⏸ 보류 | `:hover` 57곳을 `@media (hover: hover)`로 감싸는 작업(대형 CSS 전반). 심각도 낮음 → 불편이 확인되면 처리 | - |
+| 15 | 🔶 추정 수정 | 원인 가설: 버튼이 `width: 55.6%` + `aspect-ratio: 1`이라 WebKit이 높이를 0으로 풂(같은 영역의 초기화 버튼은 px 고정이라 보였음). iOS에서 `.canvas-inner`를 컨테이너(`container-type: inline-size`)로 두고 버튼을 `12cqw` 정사각형으로 고정 | **확정 아님.** 여전히 안 보이면 Safari 원격 검사로 실제 크기 측정 필요 |
+| 16 | ⏸ 보류 | UI 붕괴 원인 미확정. 이번 오디오 수정이 소리 쪽만 해결. 붕괴는 웹 프로세스 종료→자동 재로드 후 상태 복원 문제 가능 → 재현 후 판단 | 복귀 시 화면 상태 |
+| 17~20 | ⏸ 보류 | 의심 단계 항목(컨테이너 단위·편집기·키보드·효과음). 증상이 확인되면 처리 | - |
+
+**남은 작업**
+- 실기기 확인을 위해 `www/`·`ios/App/App/public` 동기화(`cap sync`)와 재빌드가 필요(이번 수정은 루트 파일만 변경).
+- `ios_dev` → `main` 병합 시 위 수정이 안드로이드에 영향이 없는지는 `html.ios-native` 분기·`_isIOSNative()` 분기 구조로 확인 가능하나, 안드로이드 이미지 저장 경로(`saveImagesToDevice`)는 한 번 실기기 확인 권장.

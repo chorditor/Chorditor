@@ -393,7 +393,7 @@ async function toggleMetronomePlay() {
   }
 
   if (!_metroAudioCtx) _metroAudioCtx = new (window.AudioContext || window.webkitAudioContext)();
-  if (_metroAudioCtx.state === 'suspended') await _metroAudioCtx.resume();
+  if (_metroAudioCtx.state !== 'running') await _metroAudioCtx.resume();
 
   // 드럼(Tone.js)이 기본 Tone 컨텍스트(별도 시계)를 쓰던 걸 클릭사운드와 같은 _metroAudioCtx로
   // 맞춤 — 안 맞으면 드럼 히트가 절대시각 예약이 아니라 rAF가 알아챈 "지금"에 재생돼서

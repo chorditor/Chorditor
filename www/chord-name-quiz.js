@@ -1468,7 +1468,7 @@ function _getAudioCtx() {
   if (!_audioCtx) {
     _audioCtx = new (window.AudioContext || window.webkitAudioContext)();
   }
-  if (_audioCtx.state === 'suspended') _audioCtx.resume();
+  if (_audioCtx.state !== 'running') _audioCtx.resume();
   return _audioCtx;
 }
 

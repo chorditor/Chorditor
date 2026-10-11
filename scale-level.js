@@ -774,7 +774,7 @@ let _quizAudioCtx = null;
 let _quizSfxMaster = null; // 설정>사운드 마스터 볼륨용 최종 게인(엔벨로프 뒤 → 낮은 볼륨서도 클릭 없음)
 function _getQuizAudioCtx() {
   if (!_quizAudioCtx) _quizAudioCtx = new (window.AudioContext || window.webkitAudioContext)();
-  if (_quizAudioCtx.state === 'suspended') _quizAudioCtx.resume();
+  if (_quizAudioCtx.state !== 'running') _quizAudioCtx.resume();
   return _quizAudioCtx;
 }
 function _getQuizSfxBus(ctx) {

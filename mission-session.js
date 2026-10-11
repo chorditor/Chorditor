@@ -728,7 +728,7 @@ let _msSfxAudioCtx  = null;
 let _msSfxMaster    = null;
 function _msGetAudioCtx() {
   if (!_msSfxAudioCtx) _msSfxAudioCtx = new (window.AudioContext || window.webkitAudioContext)();
-  if (_msSfxAudioCtx.state === 'suspended') _msSfxAudioCtx.resume();
+  if (_msSfxAudioCtx.state !== 'running') _msSfxAudioCtx.resume();
   return _msSfxAudioCtx;
 }
 function _msGetSfxBus(ctx) {
