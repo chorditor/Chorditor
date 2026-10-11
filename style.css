@@ -259,45 +259,29 @@
 @media (min-width: 1080px) { :root { --ms-buffer-icon-size: 144px; } }
 @media (min-width: 1600px) { :root { --ms-buffer-icon-size: 160px; } }
 
-/* 홈배너 복합 토큰 세트 (2026-08-22 구조 통합) — .home-daily-board 높이(--daily-board-h)에
-   종속되는 값들(띠배너 높이/타이틀바 높이/아이콘·라벨 크기)을 전부 한 곳에 모음.
-   새 예외 스코프(Fold8 등)를 만들 때 이 5개를 세트로 같이 재정의해야 함 — 따로따로
-   흩어놨다가 하나 빠뜨려서 배너 높이만 바뀌고 내부 아이콘/폰트는 안 따라온 버그가 있었음.
-   --hdb-row-gap-max(3요소 간격 상한)만 뷰포트 무관 고정이라 세트 밖에 둠 */
+/* 홈 상단 배너(.home-top-banner)·중앙 배너(.home-ad-banner) 토큰 — 2단계(2026-10-11 재정의)
+   1~2단계(~768px): 아이콘 박스 44px(이미지 30px · 레벨 글자 24px) · 안쪽 여백 20px
+   3~5단계(769px~): 아이콘 박스 48px(이미지 32px · 레벨 글자 26px) · 안쪽 여백 24px
+   카드 높이는 고정하지 않고 내용(여백 + 슬로건 + 구분선 + 아이콘·라벨)으로 결정.
+   중앙 배너 높이(--ad-banner-h)는 고정 px: 1~2단계 80px / 3~5단계 96px. */
 :root {
   --ad-banner-h: 80px;
-  --daily-board-h: 180px;
-  --hdb-title-h: 60px;
-  --hdb-icon-size: 44px;
-  --hdb-label-size: 11px;
-}
-@media (min-width: 481px) {
-  :root {
-    --daily-board-h: 196px;
-    --hdb-title-h: 64px;
-    --hdb-icon-size: 48px;
-    --hdb-label-size: 12px;
-  }
+  --htb-icon-size: 44px;
+  --htb-img-size: 30px;   /* 출석·퀘스트 이미지 */
+  --htb-level-size: 24px; /* 레벨 글자 */
+  --home-card-pad: 20px;
+  --home-block-pad: 16px;  /* 하단 리스트 카드 안쪽 여백 */
 }
 @media (min-width: 769px) {
   :root {
-    --ad-banner-h: 160px;
-    --daily-board-h: 360px;
-    --hdb-title-h: 96px;
-    --hdb-icon-size: 80px;
-    --hdb-label-size: 16px;
+    --ad-banner-h: 96px;
+    --htb-icon-size: 48px;
+    --htb-img-size: 32px;
+    --htb-level-size: 26px;
+    --home-card-pad: 24px;
+    --home-block-pad: 20px;
   }
 }
-@media (min-width: 1080px) {
-  :root {
-    --ad-banner-h: 120px;
-    --daily-board-h: 200px;
-    --hdb-title-h: 64px;
-    --hdb-icon-size: 56px;
-    --hdb-label-size: 14px;
-  }
-}
-
 /* 훈련소 통계카드(.training-stats-wrap) 높이 — 홈배너(--daily-board-h)와 동일한
    "3번째 단계가 피크" 패턴 (2026-08-22, 실측 확정) */
 :root { --tsc-wrap-h: 160px; }
@@ -849,100 +833,44 @@ button, input, select, textarea {
   justify-content: flex-start;
   gap: var(--view-home-gap);
   box-sizing: border-box;
-  overflow-y: auto;
+}
+/* 홈 탭 스크롤: 평소엔 화면 안에 맞춰 들어가 스크롤이 생기지 않고, 하단 리스트 카드가 하한(80px)보다
+   작아져야 하는 뷰포트에서만 내용이 넘쳐 스크롤됨(overflow:auto는 넘칠 때만 스크롤바가 뜸).
+   '#tab-view-home .view {overflow-y:auto}'(특이도 1·1·0)와 같은 값이지만 홈 탭 규칙 한 곳에서 명시. */
+#tab-view-home #view-home {
   overflow-x: hidden;
+  overflow-y: auto;
 }
 
-.hdb-banner {
+.htb-intro {
   width: 100%;
-  flex: none;
-  height: var(--hdb-title-h);
-  box-sizing: border-box;
-  display: flex;
-  align-items: stretch;
-  padding: 20px 24px;
-  overflow: hidden;
-  container-type: inline-size;
-  container-name: home-banner-cq;
-}
-
-.home-banner-cols {
+  flex: none; /* 슬로건 줄은 글자 높이만큼만 — 안쪽 영역 맨 위에 붙음 */
+  padding-bottom: var(--home-card-pad); /* 슬로건 아래 ~ 구분선까지 여백 = 카드 위 여백과 같은 값 */
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  width: 100%;
+  justify-content: space-between; /* 슬로건은 좌측, > 버튼은 우측 끝 */
 }
 
-.home-banner-left {
-  display: flex;
-  flex-direction: column;
-  justify-content: center;
-}
-
-.home-banner-title {
+.htb-intro-title {
   font-size: var(--font-title-sm);
   font-weight: var(--weight-semibold);
-  color: var(--text-primary);
-  letter-spacing: var(--tracking-tighter);
+  line-height: var(--leading-tight); /* 글자 박스 위아래 여분이 여백으로 보이지 않게 */
+  color: var(--brand);
+  letter-spacing: var(--tracking-base);
 }
 
-.home-banner-subtitle {
-  font-size: clamp(12px, 3.3vw, 14px);
-  font-weight: 300;
-  color: var(--text-muted);
-  letter-spacing: -0.02em;
-}
-
-.home-banner-right {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-end;
-  gap: 10px;
-}
-
-.home-banner-note {
-  font-size: 14px;
-  font-weight: 600;
-  color: var(--text-primary);
-}
-
-/* ?�?� ??배너 컨테?�너 쿼리 (?�트 ?�계 ?�냅) ?�?�
-@container home-banner-cq (min-width: 280px) {
-  .home-banner-block    { padding: 0 20px; }
-  .home-banner-title    { font-size: 12px; }
-  .home-banner-subtitle { font-size: 18px; }
-  .home-banner-note     { font-size: 14px; }
-}
-@container home-banner-cq (min-width: 320px) {
-  .home-banner-block    { padding: 0 24px; }
-  .home-banner-title    { font-size: 14px; }
-  .home-banner-subtitle { font-size: 20px; }
-  .home-banner-note     { font-size: 16px; }
-} */
-
-.home-banner-btn {
-  background: none;
-  border: none;
-  border-radius: 10px;
-  padding: 7px 14px;
-  font-size: 13px;
-  font-weight: 600;
-  color: var(--text-primary);
-  cursor: pointer;
-  font-family: 'Pretendard', 'Noto Sans JP', sans-serif;
-  text-align: center;
-  -webkit-tap-highlight-color: transparent;
-}
-
-.home-banner-btn--arrow {
-  margin-top: auto;
-  padding: 0;
-  color: var(--text-muted);
+.htb-intro-btn {
   display: flex;
   align-items: center;
   justify-content: center;
+  padding: 0;
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
 }
-.home-banner-btn--arrow i {
+.htb-intro-btn i {
   width: 18px;
   height: 18px;
 }
@@ -969,62 +897,40 @@ button, input, select, textarea {
 }
 
 /* 레벨 위젯 + 출석/퀘스트 보드 (단일 카드) */
-.home-daily-board {
+.home-top-banner {
   width: 100%;
   flex: none;
-  height: var(--daily-board-h);
   display: flex;
   flex-direction: column;
   background: #fff;
   border-radius: var(--radius);
   box-shadow: 0 2px 8px rgba(0,0,0,0.08);
   box-sizing: border-box;
+  padding: var(--home-card-pad); /* 안쪽 영역 상하좌우 여백 — 1~2단계 20px, 3~5단계 24px */
   overflow: hidden;
 }
 
-/* hdb-banner/hdb-hdivider/hdb-row 묶음 wrapper — 카드와 내부요소 사이 여백을 한 곳에서
-   관리하기 위함(현재는 각자 16px 개별 지정 중, 다음 단계에서 여기로 이관 예정).
-   지금은 flex:1 1 auto + min-height:0으로 투명 통과만 — home-daily-board 바로 아래 있던
-   hdb-row의 flex:1 1 auto(남는 공간 흡수) 동작이 한 단계 더 들어가도 그대로 유지되게 함 */
-.hdb-content {
-  display: flex;
-  flex-direction: column;
-  flex: 1 1 auto;
-  min-height: 0;
-  box-sizing: border-box;
-  padding: 12px;
-}
-
-.hdb-hdivider {
+.htb-divider {
+  flex: none;
   height: 1px;
-  margin: 0 16px;
+  margin: 0 0 var(--home-card-pad); /* 위(슬로건 padding-bottom)와 같은 값 — 구분선 기준 위아래 대칭 */
   background: rgba(0,0,0,0.08);
   box-shadow: 0 2px 4px rgba(0,0,0,0.08);
 }
 
 
-.hdb-row {
+.htb-status {
   width: 100%;
-  max-width: 600px; /* 넓은 화면에서 space-between 간격이 무한정 벌어지지 않게 상한(2026-09-01) */
-  margin-inline: auto; /* 상한 걸렸을 때 .hdb-content 안에서 그룹 자체를 가운데로 */
-  flex: none;
-  height: calc(100% - var(--hdb-title-h) - 1px); /* hdb-content 높이에서 상단 슬로건(hdb-title-h)+구분선(1px)
-    뺀 나머지 전부 — flex-grow(min-height:0) 방식은 콘텐츠가 넘칠 때 위로 밀려서 구분선을
-    덮어그리는 문제가 있어 명시적 calc로 전환(2026-08-22) */
-  overflow: hidden; /* 콘텐츠가 이 높이를 넘어도 배너/구분선을 침범하지 않고 내부에서만 잘림 */
-  box-sizing: border-box;
-  padding-inline: 24px;
-  padding-block: 4px;
-  display: grid;
-  grid-template-columns: repeat(3, 1fr); /* 3등분(2026-09-01) — px로 폭 찍어맞추면 화면폭마다
-    넉넉하거나 모자라서 결국 다시 밀리는 문제가 반복됨. grid 1fr 3개는 화면폭이 몇이든
-    항상 정확히 1/3씩이라 계산 자체가 필요없음. flex+space-between/고정폭 시도들 전부 폐기 */
+  max-width: 640px; /* 넓은 화면에서 3칸 사이가 끝없이 벌어지지 않게 상한. 넘으면 카드 안에서 가운데 */
+  margin-inline: auto;
+  flex: 0 1 auto; /* 아이콘+라벨 높이만큼 — 위아래 여분 없음(카드가 flex 늘어나는 스코프에서만 남는 공간을 가운데로 분배) */
+  display: flex;
   align-items: center;
 }
 
-.hdb-col {
-  min-width: 0; /* grid item 기본 min-width:auto가 콘텐츠 못 줄이게 막는 것 방지 —
-    이게 있어야 긴 텍스트가 셀(1fr) 밖으로 안 넘치고 안에서 말줄임됨 */
+.htb-status-item {
+  flex: 1 1 0; /* 3칸 폭을 똑같이 — 라벨 길이(페르소나 텍스트 등)와 무관하게 균등 */
+  min-width: 0; /* 라벨이 칸 폭보다 길어도 안에서 말줄임되게(flex 항목 기본 min-width:auto 해제) */
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -1035,14 +941,14 @@ button, input, select, textarea {
   transition: background 0.15s;
 }
 
-.hdb-col:active {
+.htb-status-item:active {
   background: var(--bg, #f5f5f5);
 }
 
-.hdb-icon {
+.htb-status-icon {
   position: relative;
-  width: var(--hdb-icon-size);
-  height: var(--hdb-icon-size);
+  width: var(--htb-icon-size);
+  height: var(--htb-icon-size);
   flex-shrink: 0;
   color: var(--charcoal-blue);
   display: flex;
@@ -1050,7 +956,7 @@ button, input, select, textarea {
   justify-content: center;
 }
 
-.hdb-quest-dot {
+.htb-quest-dot {
   position: absolute;
   top: 2px;
   right: 8px;
@@ -1060,57 +966,28 @@ button, input, select, textarea {
   background: var(--blue);
   border: 1.5px solid #fff;
 }
-.hdb-quest-dot[hidden] { display: none; }
+.htb-quest-dot[hidden] { display: none; }
 
-.hdb-icon img {
-  width: calc(var(--hdb-icon-size) * 0.7);
-  height: calc(var(--hdb-icon-size) * 0.7);
+.htb-status-icon img {
+  width: var(--htb-img-size); /* 레벨 글자와 눈에 보이는 크기를 맞추려고 박스보다 작게 */
+  height: var(--htb-img-size);
   object-fit: contain;
 }
 
-.hdb-icon--level {
+.htb-status-icon--level {
   display: flex;
   align-items: center;
-  font-size: calc(var(--hdb-icon-size) * 0.55);
+  font-size: var(--htb-level-size);
   font-weight: 700;
   color: #1C1F26;
 }
 
-.hdb-text {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  width: 100%; /* align-items:center는 교차축(너비)을 콘텐츠 크기로 fit시켜서, 이게 없으면
-    .hdb-label의 overflow:hidden/ellipsis가 실제로는 안 먹힘(폭 제한 자체가 안 걸린 상태로
-    렌더링됨) — 컨테이너(.hdb-row/.hdb-col) 쪽만 계속 손봐서 반영 안 되던 진짜 원인(2026-09-01) */
-  gap: 2px;
-  min-width: 0;
+.htb-status-label {
+  max-width: 100%; /* 칸 폭을 넘으면 말줄임 */
+  font: var(--type-label-sm);
+  letter-spacing: var(--tracking-base);
+  color: var(--text-primary);
   text-align: center;
-  color: var(--text-primary);
-}
-
-.hdb-value {
-  font-size: 15px;
-  font-weight: 800;
-  color: var(--text-primary);
-  letter-spacing: -0.02em;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.hdb-unit {
-  font-size: 12px;
-  font-weight: 600;
-  color: var(--text-primary);
-  margin-left: 2px;
-}
-
-.hdb-label {
-  width: 100%; /* .hdb-text의 width:100%를 다시 한번 명시 — ellipsis가 실제로 걸리려면
-    이 요소 자체가 폭 제한을 가져야 함(위 .hdb-text 주석 참고) */
-  font-size: var(--hdb-label-size);
-  color: var(--text-primary);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -1130,6 +1007,7 @@ button, input, select, textarea {
   cursor: grab;
   container-type: inline-size; /* 배너 실제 폭 기준으로 코드진행 1줄/2줄 전환 (뷰포트 폭 아님) */
 }
+.home-ad-banner { display: none; } /* 임시: 중앙 배너 숨김 — 다시 보이려면 이 줄 삭제 */
 .home-ad-banner.carousel--dragging { cursor: grabbing; user-select: none; }
 
 .home-ad-banner-track {
@@ -1412,36 +1290,47 @@ button, input, select, textarea {
   transform: scale(1.2);
 }
 
+/* 하단 리스트(.home-blocks) — 가로로 긴 카드 (2026-10-11 재설계)
+   상단 배너·중앙 배너는 고정 높이로 위에 쌓이고, 리스트가 남은 세로 공간 전부를 나눠 가짐(스크롤 없음).
+   1~2단계(~768px): 1열 × 4개 / 3~5단계(769px~): 2×2. 카드 높이 = 남은 공간 ÷ 행 수.
+   카드 안쪽: 좌측 아이콘(세로 가운데) | 우측 이름(위)+설명(아래)을 안쪽 영역 하단에 붙임.
+   안쪽 여백은 --home-block-pad(1~2단계 16px / 3~5단계 20px — 상단 배너의 --home-card-pad 20/24px보다 한 단계 작음). */
 .home-blocks {
   display: grid;
-  grid-template-columns: 1fr 1fr;
-  grid-template-rows: repeat(2, minmax(120px, 1fr)); /* 카드 1개 최소높이 120px — 이 밑으로는
-    #view-home(overflow-y:auto)가 자동으로 스크롤 전환(§10 회전 대응 전략, 2026-08-22 확정) */
-  gap: 12px;
+  grid-template-columns: 1fr;
+  grid-template-rows: repeat(4, minmax(80px, 1fr)); /* 카드 높이 하한 80px — 남는 공간이 있으면 그만큼 늘어남 */
+  gap: var(--grid-gutter);
   box-sizing: border-box;
   width: 100%;
-  flex: 1;
+  flex: 1 1 0;
+  min-height: calc(4 * 80px + 3 * var(--grid-gutter)); /* 하한 × 행 수 + 간격 — 이보다 공간이 작으면 #view-home이 스크롤 */
   margin-bottom: var(--view-home-inset, 20px);
+}
+@media (min-width: 769px) {
+  .home-blocks {
+    grid-template-columns: repeat(2, 1fr);
+    grid-template-rows: repeat(2, minmax(80px, 1fr));
+    min-height: calc(2 * 80px + var(--grid-gutter));
+  }
 }
 
 .home-block {
   position: relative;
+  box-sizing: border-box;
+  width: 100%;
+  min-height: 0;
+  overflow: hidden;
+  padding: var(--home-block-pad);
+  display: grid;
+  grid-template-columns: auto 1fr;
+  grid-template-rows: 1fr auto auto; /* 1행이 남는 높이를 흡수해 이름·설명을 하단으로 밀어냄 */
+  column-gap: 16px;
   background: #fff;
   border-radius: var(--radius);
-  padding: clamp(10px, 3.5vw, 18px);
-  display: flex;
-  flex-direction: column;
-  align-items: flex-end;
-  gap: clamp(4px, 1.5vw, 8px);
+  box-shadow: 0 2px 8px rgba(0,0,0,0.08);
   cursor: pointer;
-  width: 100%;
-  height: 100%;
-  min-height: 120px;
-  container-type: inline-size;
-  container-name: home-block-card;
   transition: transform 0.2s cubic-bezier(0.34, 1.56, 0.64, 1), box-shadow 0.2s;
   -webkit-tap-highlight-color: transparent;
-  box-shadow: 0 2px 8px rgba(0,0,0,0.08);
 }
 .home-block:active,
 .home-block.pressing {
@@ -1449,109 +1338,141 @@ button, input, select, textarea {
   box-shadow: 0 1px 4px rgba(0,0,0,0.06);
   pointer-events: none;
 }
-
 .home-block--soon {
   cursor: default;
-  opacity: 0.45;
+  opacity: 0.15; /* Coming Soon — 확실히 흐리게 */
 }
 .home-block--soon:active { transform: none; }
 
-.home-block-icon {
-  color: var(--charcoal-blue);
-  margin-bottom: auto; /* 텍스트를 하단으로 밀어냄 */
-  align-self: flex-start; /* 아이콘 좌상단 고정 */
+/* 활성 카드 입체감 — 어두운 이미지 카드는 바깥 그림자만으로는 안 드러나서 카드 자체에 입체 단서를 줌:
+   ① 위에서 비추는 빛(위 밝고 아래 어두운 광택 레이어, 이미지 위) ② 윗변 하이라이트 ③ 아랫변 두께(안쪽 3px 어두운 띠)
+   ④ 바깥 접촉·확산 그림자. Coming Soon 카드는 제외(평평하게). 눌렀을 때는 두께·광택을 줄이고 아래로 내려앉음. */
+.home-block:not(.home-block--soon) {
+  background-image:
+    /* 반사광: 우상단 모서리에서 크게 퍼지는 점광원 — 중심(우상단)이 가장 밝고 반경 240px까지 부드럽게 사라짐 */
+    radial-gradient(circle 240px at 94% 0%, rgba(255, 255, 255, 0.50) 0%, rgba(255, 255, 255, 0.32) 25%, rgba(255, 255, 255, 0.14) 55%, rgba(255, 255, 255, 0.04) 80%, rgba(255, 255, 255, 0) 100%),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.20) 0%, rgba(255, 255, 255, 0) 45%, rgba(0, 0, 0, 0.30) 100%),
+    var(--home-img);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.40),
+    0 6px 12px rgba(0, 0, 0, 0.22);
+}
+.home-block:not(.home-block--soon):active,
+.home-block:not(.home-block--soon).pressing {
+  transform: translateY(2px) scale(0.99);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.20),
+    0 2px 4px rgba(0, 0, 0, 0.18);
 }
 
-.home-block-icon i {
-  font-size: clamp(28px, 10vw, 40px);
+/* 이미지 카드 — 배경 사진 + 단색 흰 오버레이 + 글자 (카드별 이미지는 아래 id 규칙)
+   · 1~2단계(가로로 긴 1열, 와이드 이미지): 글자는 좌하단 / 우측에 좁은 흰 띠 + > 화살표
+   · 3~5단계(2×2, 세로형 이미지): 와이드와 동일(검정 커버가 구워진 이미지 + 흰 글자·그림자 + 흰 화살표)
+   이미지는 화이트(악기)·블랙(포인트) 톤의 컬러 사진 — 글자는 어두운색 한 가지 */
+.home-block--img {
+  background-color: #f2f2f2;
+  background-size: cover;
+  background-position: center;
+  --img-strip-w: 52px;  /* 우측 화살표 영역 폭 = 화살표 12px + 좌우 여백 20px씩 (글자가 화살표 밑으로 안 들어가게) */
+  grid-template-columns: 1fr;                 /* 아이콘 열 없음 */
+  padding-right: calc(var(--home-block-pad) + var(--img-strip-w)); /* 우측 흰 띠 자리 */
+  /* 와이드 이미지(home_*_wide_dark.jpg)는 검정 70% 반투명 커버가 파일에 구워져 있음 — CSS 오버레이 없음 */
+  background-image: var(--home-img);
+}
+.home-block--img .home-block-icon { display: none; } /* 이미지 카드는 아이콘 숨김 */
+.home-block--img .home-block-title,
+.home-block--img .home-block-desc {
+  grid-column: 1;
+  text-align: left;
+  color: #fff; /* 와이드: 이미지 위 직접. 정방형은 아래에서 흰 띠 위 어두운 글자로 */
+}
+/* 이미지 카드 글자 그림자 — 와이드(이미지 위 직접 올라가는 흰 글자)의 가독성 보강. 정방형은 흰 띠 위라 아래에서 해제 */
+.home-block--img .home-block-title,
+.home-block--img .home-block-desc {
+  text-shadow: 0 1px 4px rgba(0, 0, 0, 0.55), 0 0 16px rgba(0, 0, 0, 0.45);
+}
+/* 이미지 카드 글자 두께 — 이름 600 / 설명 300 */
+.home-block--img .home-block-title { font-weight: 600; }
+.home-block--img .home-block-desc { font-weight: 300; }
+
+/* 와이드: 우측 흰 그라데이션 띠(왼쪽 투명 → 오른쪽 흰색) + > 화살표.
+   ::before = 우측 화살표(흰색, 와이드는 흰 띠 없음).
+   (노이즈 레이어는 제거함 — 효과가 없어서 2026-10-12 삭제) */
+.home-block--img::before {
+  content: '';
+  /* 와이드(1~2단계): 화살표는 텍스트와 무관하게 카드의 세로 가운데, 우측 가장자리에서 20px */
+  position: absolute;
+  top: 50%;
+  right: 20px;
+  width: 12px;
+  height: 12px;
+  transform: translateY(-50%);
+  background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath d='M3 1l5 5-5 5' fill='none' stroke='%23ffffff' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E") no-repeat center / 12px 12px;
+}
+/* 정방형(3~5단계, 2×2): 화살표는 이름·서브타이틀 묶음(행 2~3)과 같은 높이에서 세로 가운데, 우측 끝.
+   카드 패딩 안쪽 끝에서 우측 가장자리 20px 지점까지 음수 마진으로 당김 */
+@media (min-width: 769px) {
+  .home-block--img::before {
+    position: static;
+    transform: none;
+    grid-column: 1;
+    grid-row: 2 / 4;
+    justify-self: end;
+    align-self: center;
+    margin-right: calc(-1 * (var(--home-block-pad) + var(--img-strip-w) - 20px));
+  }
+}
+
+#home-block-training { --home-img: url("image/home_training_wide_dark.jpg"); }
+#home-block-library  { --home-img: url("image/home_library_wide_dark.jpg"); }
+#home-block-editor   { --home-img: url("image/home_editor_wide_dark.jpg"); }
+#home-block-journey  { --home-img: url("image/home_journey_wide_dark.jpg"); }
+@media (min-width: 769px) {
+  #home-block-training { --home-img: url("image/home_training_square_dark.jpg"); }
+  #home-block-library  { --home-img: url("image/home_library_square_dark.jpg"); }
+  #home-block-editor   { --home-img: url("image/home_editor_square_dark.jpg"); }
+  #home-block-journey  { --home-img: url("image/home_journey_square_dark.jpg"); }
+}
+
+.home-block-icon {
+  grid-column: 1;
+  grid-row: 1 / 4;
+  align-self: center; /* 좌측에 붙고 세로 가운데 */
+  display: flex;
+  color: var(--charcoal-blue);
+}
+.home-block-icon i { font-size: 32px; }
+@media (min-width: 769px) {
+  .home-block-icon i { font-size: 40px; }
 }
 
 .home-block-title {
-  font-size: var(--font-title);
-  font-weight: var(--weight-semibold);
+  grid-column: 2;
+  grid-row: 2;
+  text-align: right;
+  font: var(--type-title);
+  letter-spacing: var(--tracking-base);
   color: var(--text-primary);
-  letter-spacing: var(--tracking-tighter);
-  line-height: var(--leading-tight);
 }
-
 .home-block-desc {
-  font-size: var(--font-caption);
-  font-weight: var(--weight-regular);
+  grid-column: 2;
+  grid-row: 3; /* 서브타이틀은 이름 아래 */
+  text-align: right;
+  font: var(--type-caption);
+  letter-spacing: 0; /* 서브타이틀 자간 0% (가이드 기본 -4%보다 넓게) */
   color: var(--text-primary);
-  line-height: var(--leading-normal);
-  letter-spacing: var(--tracking-tight);
 }
 
-/* Z Flip 힌지 분할용 래퍼(home.html에서 hdb-banner+ad-banner를 묶음). 기본값은 display:contents로
+/* Z Flip 힌지 분할용 래퍼(home.html에서 htb-intro+ad-banner를 묶음). 기본값은 display:contents로
    레이아웃에서 투명 처리해서 #view-home의 원래 flex 자식 구조(gap 분배 포함)를 그대로 유지 —
    Flip 스코프에서만 아래에서 실제 flex column으로 활성화됨 */
 .home-top-stack {
   display: contents;
-}
-
-
-/* 모바일(~559px) — 홈블럭 높이를 고정 aspect-ratio 대신 남은 공간에 맞춰 유동 배분.
-   기존 aspect-ratio:5/7 고정값은 저높이 프리셋에서 하단이 화면 밖으로 잘림 →
-   #view-home(flex column)의 남는 세로공간을 home-blocks가 그대로 흡수하도록 전환 */
-@media (max-width: 559px) {
-  .home-blocks {
-    flex: 1 1 0;
-    grid-template-rows: repeat(2, minmax(120px, 1fr));
-  }
-  .home-block {
-    aspect-ratio: unset;
-    width: 100%;
-    height: 100%;
-  }
-  .home-block-title {
-    font-weight: var(--weight-semibold);
-    letter-spacing: -0.04em;
-  }
-  .ad-banner-split-arrow {
-    width: 18px;
-    height: 18px;
-  }
-}
-
-/* 모바일 브라우저(주소창 등으로 세로공간 줄어든 저높이, ~750px 이하) — 앱 풀스크린과 분리.
-   홈배너(hdb-banner)·광고배너(home-ad-banner) 크기 축소해서 공간 확보 */
-@media (max-width: 559px) and (max-height: 750px) {
-  .hdb-banner {
-    padding: 10px 16px;
-  }
-  .ad-banner-prog-bg {
-    gap: 4px 20px;
-  }
-}
-
-/* 375x635가 스크롤 없이 홈블럭이 다 보이는 마지노선(사용자 확정) — 이보다 낮으면 카드를
-   계속 눌러 찌그러뜨리는 대신 최소 크기를 지키고 스크롤을 허용 */
-@media (max-width: 559px) and (max-height: 634px) {
-  .home-blocks {
-    flex-shrink: 0;
-    min-height: 280px;
-  }
-}
-
-/* 모바일 가로모드(폭은 태블릿 스레숄드 넘지만 높이는 낮은 폰) — 구조 컨테이너(app-shell/
+}/* 모바일 가로모드(폭은 태블릿 스레숄드 넘지만 높이는 낮은 폰) — 구조 컨테이너(app-shell/
    main-content/bottom-nav)는 위에서 400px 캡을 뺐으니 이미 풀폭. 여기선 콘텐츠 영역
    (#view-home, 노트탭 #view-projects-list)만 가독성 위해 50%로 별도 제한 — 하단탭 흰 배경은
    양끝까지 풀폭 유지, 폭 넓어져도 홈 카드 레이아웃이 옆으로 과하게 퍼지지 않음 */
-@media (min-width: 560px) and (max-height: 480px) {
-  /* 모바일 가로모드 홈탭 — 권장 비율 아니라 안 깨지게만 하는 용도라 flex 비율 대신
-     스크롤 허용 + 자연스러운 위→아래 쌓기(Z Flip 접힘 스코프와 동일 패턴). 갭 16px */
-  #view-home {
-    max-width: 50%;
-    margin-inline: auto;
-    --view-home-gap: 16px;
-    overflow-y: auto;
-    overflow-x: hidden;
-  }
-  .home-top-stack { display: contents; }
-  .home-daily-board { flex: none; }
-  .home-ad-banner { flex: none; }
-  .home-blocks { flex: none; }
-  #view-projects-list {
+@media (min-width: 560px) and (max-height: 480px) {  #view-projects-list {
     max-width: 75%;
     margin-inline: auto;
   }
@@ -1573,44 +1494,6 @@ button, input, select, textarea {
     margin-inline: auto;
   }
 }
-
-/* Z Flip 세로(펼침) — vh/grid로 "물리 뷰포트 50%"를 직접 계산하는 방식은 #view-home 실제
-   박스 크기(바텀탭 제외해서 이미 더 작음)와 어긋나 계속 스크롤/넘침이 남았음(px·vh 가정이
-   실제 렌더와 안 맞았던 게 반복 원인). 완전히 다른 방식으로 전환: #view-home을 flex column
-   그대로 두고, 상단 스택/홈블럭 둘 다 flex-grow로만 남는 공간을 나눔 — #view-home의 진짜
-   렌더 높이가 얼마든 그 합은 항상 정확히 100%라서 구조적으로 넘칠 수가 없음(자기-적합).
-   비율(54:46)은 힌지가 물리 뷰포트 정중앙이라는 사실에서 근사값을 낸 것 — #view-home
-   자체는 바텀탭만큼 짧아서 정확히 50:50은 아니고, 살짝 위쪽이 더 넓어야 힌지에 맞음 */
-@media (min-width: 355px) and (max-width: 365px) and (min-height: 820px) and (max-height: 900px) {
-  #view-home {
-    padding-top: 0;
-  }
-  .home-top-stack {
-    display: flex;
-    flex-direction: column;
-    justify-content: center;
-    width: 100%; /* #view-home이 align-items:center라 명시 안 하면 콘텐츠 내재폭으로 퍼져서 화면 밖으로 넘침 */
-    flex: 54 1 0;
-    min-height: 0;
-    gap: 20px;
-    overflow: hidden;
-    padding: 0 0 12px;
-  }
-  .hdb-banner {
-    padding: 26px 16px;
-  }
-  .home-ad-banner {
-    aspect-ratio: 3.2 / 1;
-    margin-block: 0;
-  }
-  .home-blocks {
-    flex: 46 1 0;
-    min-height: 0;
-    margin: 0; /* 기본 규칙의 margin-bottom:20px 취소 — flex-grow로 이미 딱 맞게 나뉘므로 불필요 */
-    padding: 10px 0 24px;
-  }
-}
-
 /* ?�?� ?�로?�트 목록 ?�?� */
 #view-projects-list {
   position: absolute;
@@ -1633,17 +1516,6 @@ button, input, select, textarea {
   }
 }
 
-/* ?�?� ??블록 컨테?�너 쿼리 (?�트 ?�계 ?�냅) ?�?� 
-@container home-block-card (min-width: 150px) {
-  .home-block       { padding: 16px; }
-  .home-block-icon i { font-size: 32px; }
-  .home-block-title  { font-size: 20px; }
-}
-@container home-block-card (min-width: 170px) {
-  .home-block       { padding: 20px; }
-  .home-block-icon i { font-size: 38px; }
-  .home-block-title  { font-size: 24px; }
-} */
 
 .projects-list-container {
   display: flex;
@@ -2992,7 +2864,8 @@ canvas {
 }
 
 /* ?��?지 ?�??배율 ?�롭?�운 */
-#export-scale { display: none; }  /* �?select ?��? */
+#export-scale { display: none; }
+  /* �?select ?��? */
 /* ?�?� ?��?지 ?�??모달 (?�디???�이브러�?공용) ?�?� */
 .img-save-backdrop {
   position: fixed;
@@ -17478,114 +17351,11 @@ html:not([lang="ko"]) .test-note-grid {
     트레이드오프는 감수) */
 @media (min-width: 560px) and (min-height: 600px) {
   /* 카드 폰트 고정값 상향(태블릿) — 모바일 기준 12/16/12/18/14px보다 한 단계씩 키움 */
-  .scale-card-shot .fb-fret-num { font-size: 20px; }
-
-  /* 띠배너·홈배너 둘 다 고정높이 토큰(--ad-banner-h/--daily-board-h)이라 flex 미참여.
-     남는 공간은 홈블럭이 전부 흡수(2026-08-22 확정) */
-  #view-home {
-    --view-home-gap: 2vh;
-    justify-content: flex-start;
-    overflow: hidden;
-  }
-
-  .home-ad-banner {
-    flex: none;
-  }
-
-  .home-blocks {
-    /* grid-template-columns는 그리드 시스템(§5, ≤1599px 규칙)이 담당 — 여기서 죽은 2컬럼 선언 제거 */
-    grid-template-rows: repeat(2, 1fr);
-    flex: 1;
-    margin-bottom: 2vh;
-  }
-
-  .home-block {
-    aspect-ratio: unset;
-    width: 100%;
-    height: 100%;
-  }
-
-  .hdb-banner {
-    padding: 2vh 16px;
-  }
-
-  .home-block-icon i {
-    font-size: 48px;
-  }
-  .home-block-title {
-    font-weight: var(--weight-semibold);
-    letter-spacing: -0.04em;
-  }
-  .ad-banner-desc br {
-    display: none;
-  }
-  .ad-banner-prog-bg {
-    font-size: 26px;
-  }
-}
-
-/* 태블릿 상한(min-width:900px) — 갤럭시탭 실기기 폭은 753~900px에 몰려있고, 900px 위는
-   아이패드(744~1032px)만 남는 구간(§4 근거) → 이 구간만 텍스트/아이콘 한 단계 더 상향 */
-@media (min-width: 900px) and (min-height: 600px) {
-  .home-block-icon i {
-    font-size: 56px;
-  }
-  /* 오늘의 코드진행 배경 — 태블릿 상한(가로·세로 공통) 1줄 4열 강제 적용 */
-  .ad-banner-prog-bg {
-    grid-template-columns: repeat(4, max-content);
-    gap: 0 24px;
-    font-size: 32px;
-    font-weight: 800;
-  }
-}
-
+  .scale-card-shot .fb-fret-num { font-size: 20px; }}
 /* 가로모드 태블릿·랩탑 — 카드가 가로로 넓고 낮아서 세로 적층은 아이콘~텍스트 사이가
    과하게 벌어지고 하단 여백이 커 보임. 아이콘 좌(상단 고정) / 타이틀·설명 우(하단 정렬)
    2열 그리드로 전환 (Fold8 와이드형에서 검증된 배치와 동일) */
-@media (min-width: 560px) and (min-height: 600px) and (min-aspect-ratio: 1/1) {
-  .home-block {
-    display: grid;
-    grid-template-columns: auto 1fr;
-    grid-template-rows: 1fr auto auto; /* 1행(1fr)이 남는 높이를 흡수해 텍스트를 하단으로 밀어냄 */
-    column-gap: 16px;
-  }
-  .home-block-icon {
-    grid-column: 1;
-    grid-row: 1 / 4;
-    margin-bottom: 0;
-    align-self: start;
-  }
-  .home-block-title {
-    grid-column: 2;
-    grid-row: 2;
-    align-self: end;
-    text-align: right;
-  }
-  .home-block-desc {
-    grid-column: 2;
-    grid-row: 3;
-    align-self: start;
-    text-align: right;
-  }
-  /* 코드맞추기·스케일훈련 설명 — 세로모드는 2줄 유지, 가로모드만 1줄 강제 */
-  .ad-banner-split-desc br {
-    display: none;
-  }
-  /* 오늘의 코드진행 배경 — 가로모드(태블릿 하한~랩탑) 1줄 4열 강제, 세로모드는 base 2줄 유지 */
-  .ad-banner-prog-bg {
-    grid-template-columns: repeat(4, max-content);
-    gap: 0 24px;
-    font-size: 32px;
-    font-weight: 800;
-  }
-  /* 코드 조합 훈련 배너 오선지 장식 — 좌우로 넓은 배너는 세로 높이 기준만으로는 작아 보여서
-     이 구간만 별도로 키움 */
-  .ad-banner-deco {
-    height: 150%;
-    max-width: none; /* base의 max-width:62%가 걸려있으면 SVG preserveAspectRatio(meet)
-                         때문에 height를 키워도 폭 제한에 맞춰 도로 눌려서 무효화됨 */
-  }
-  .profile-xp {
+@media (min-width: 560px) and (min-height: 600px) and (min-aspect-ratio: 1/1) {  .profile-xp {
     width: calc(50% - 16px);
     margin-right: auto;
   }
@@ -17744,12 +17514,6 @@ html:not([lang="ko"]) .test-note-grid {
    flex-grow(3:2:6) 자기-적합 방식이라 뷰포트 높이와 무관하게 항상 꽉 맞음. 폐기. */
 
 @media (min-width: 560px) and (max-aspect-ratio: 1/1) {
-  /* #view-home max-width:70% 제거됨(그리드가 폭 담당) — gap/justify-content은 유지 */
-  #view-home {
-    --view-home-gap: 18px;
-    justify-content: center;
-  }
-
   /* 프로필 탭 — Z Fold 펼침·태블릿 세로 공통(가로모드는 별도 스코프에서 다룰 예정) */
   #view-profile {
     width: 75%;
@@ -17774,12 +17538,6 @@ html:not([lang="ko"]) .test-note-grid {
     width: calc(50% - 16px);
     margin-right: auto;
   }
-
-  /* margin-block: calc(20px - var(--view-home-gap))가 gap 증가분을 상쇄시켜서 오버라이드 */
-  .home-ad-banner {
-    margin-block: 0;
-  }
-
   /* 훈련소 관련 오버라이드는 2026-08-22 제거 — 표준 5단계(태블릿/큰태블릿)가 토큰으로
      담당하고, Fold 세로(580-768w/700h+/aspect 3/4~1) 전용값은 별도 스코프에서 유지됨.
      #view-level-select는 2026-08-31 --grid-margin 기반 base 규칙으로 이전, 여기선 제외 */
@@ -17868,21 +17626,6 @@ html:not([lang="ko"]) .test-note-grid {
 @media (min-width: 761px) and (max-width: 789px) and (min-height: 600px) and (max-aspect-ratio: 1/1) {
   .training-card-name { font-size: 20px; letter-spacing: -0.02em; }
 }
-
-/* Z Fold 펼침 실기기 전종 대응 (실측 스펙표 기준, 2026-08-11 재확정)
-   폴드2 589x736(.801) / 폴드3 674x841(.801) / 폴드5·4 690x829(.832) / 폴드6 707x823(.859) /
-   폴드7 750x832(.901, 기본 채택) / 폴드8U 752x835(.901) / 폴드8(신형, 타겟기종) 704x933(.755)
-   → 폴드8만 비율이 iPad(.75)에 가까워서 기존 min-aspect-ratio:4/5(=.8) 기준으론 이 대역을
-   빠져나가 일반 세로 태블릿 룰(70%/50vh/14vh/170px)을 탔는데, 그 값대로 계산하면 폴드8
-   가용높이(약 813px)를 넘어서(약 839px 필요) 넘침 확인됨. min-aspect-ratio를 3/4(=.75)로
-   낮춰서 폴드8도 이 대역에 포함시킴.
-   iPad mini 포틀레이트(744x1133, .656)는 폭이 이 대역과 겹치지만 비율이 .656이라 .75 미달로
-   자동 제외됨. iPad 표준(768x1024)·에어(820x1180)는 max-width:760으로 폭 자체를 차단.
-   (폴드 접힘폭은 360~412라 580/760 범위와 안 겹침 — 접힘은 아래쪽 일반 모바일 레이아웃 그대로) */
-
-@media (max-width: 559px) and (max-height: 750px) {
-}
-
 /* Z Flip 분할(440×360, 멀티윈도우) — 360×440(모바일 브라우저 하한 스코프, --vhu:8px)에서
    이미 만들어둔 렌더 결과를 축만 바꿔서 그대로 옮긴다(회전 아니라 window 축소라 vw/vh
    스왑이 아니라 그 스코프의 고정값 자체를 그대로 재사용). 폭 360px 고정 + 중앙정렬,
@@ -18137,13 +17880,6 @@ html:not([lang="ko"]) .test-note-grid {
   /* 카드가 캡에 걸려 더 못 커지는 상태라, 다른 여백을 아주 조금 줄여서 공간 확보 */
   .scale-card-shot .fb-fret-num { font-size: 14px; }
 }
-
-/* Z Fold8 접힘(커버 스크린, 412×658) — 폭은 일반 폰과 비슷하지만 세로가 짧아서(658) 기본
-   흐름(flex:1로 남는공간 채움)으로는 스크롤이 생김. 카드 비율 1.5 고정 + 다른 여백도
-   줄여서 한 화면(중앙 카드 1개)에 스크롤 없이 들어가게 함(폴드8 와이드 스코프와 동일 패턴) */
-@media (min-width: 400px) and (max-width: 420px) and (min-height: 600px) and (max-height: 700px) {
-}
-
 /* ⚠️ DEV ONLY — 폴드 힌지(세로) 위치 시각화용 반투명 오버레이. 배포 전 이 블록 반드시 제거.
    실기기 힌지 폭 감지 API 없음(추정치 12px), 콘텐츠가 힌지에 걸리는지 눈으로만 확인하는 용도 */
 @media (min-width: 580px) and (max-width: 768px) and (min-height: 700px) and (min-aspect-ratio: 3/4) and (max-aspect-ratio: 1/1) {
@@ -18265,19 +18001,13 @@ html:not([lang="ko"]) .test-note-grid {
    폴드8이 아닌 일반 Fold(750×832 등)는 예외 대상에서 빠지고 일반 5단계에 맡김.
    가로(933×704)/세로힌지 회전형(704×933) 둘 다 커버 */
 @media (min-width: 835px) and (max-width: 933px) and (min-height: 704px) and (max-height: 752px),
-       (min-width: 704px) and (max-width: 752px) and (min-height: 835px) and (max-height: 933px) {
-  /* #view-home max-width:none 필요 — "태블릿 가로"(min-width:560,min-height:600) 규칙이
-     먼저 걸릴 경우를 대비해 여기서 해제. 그 외 홈탭 세부 스타일은 실기기 확인 후 필요한 것만 추가 */
-  #view-home { max-width: none; }
-  /* 폭 기준으론 "큰태블릿"(360/160)이 적용되지만, 폴드8 가로힌지 폭에선 과해서
+       (min-width: 704px) and (max-width: 752px) and (min-height: 835px) and (max-height: 933px) {  /* 폭 기준으론 "큰태블릿"(360/160)이 적용되지만, 폴드8 가로힌지 폭에선 과해서
      "태블릿" 값으로 재정의 — daily-board-h에 종속된 복합토큰(아이콘/라벨/타이틀높이)도
      같이 "태블릿" 단계로 맞춰야 함(2026-08-22, 처음에 빠뜨렸던 것 보완) */
   :root {
-    --daily-board-h: 196px;
-    --ad-banner-h: 80px;
-    --hdb-title-h: 64px;
-    --hdb-icon-size: 48px;
-    --hdb-label-size: 12px;
+    --htb-icon-size: 48px;
+    --htb-img-size: 32px;
+    --htb-level-size: 26px;
   }
 }
 
@@ -18450,18 +18180,10 @@ html:not([lang="ko"]) .test-note-grid {
   .home-ad-banner {
     margin-block: 0;
   }
-  .home-daily-board {
-    margin-top: 44px; /* .hdb-banner는 .home-daily-board 안쪽 자식이라 거기 margin은 카드 내부만 밀 뿐
+  .home-top-banner {
+    margin-top: 44px; /* .htb-intro는 .home-top-banner 안쪽 자식이라 거기 margin은 카드 내부만 밀 뿐
                           카드-광고배너 사이 간격엔 영향 없었음 — 실제 간격 담당은 이 바깥 요소 */
   }
-  .home-blocks {
-    margin-bottom: 44px;
-  }
-  /* 홈배너 하단 3요소 — 아이콘 박스·이미지·레벨숫자·라벨 전부 --hdb-icon-size/--hdb-label-size
-     복합토큰이 비례 관리(이 폭은 랩탑/데스크탑과 같은 48px/12px 구간) — 개별 선언 불필요 */
-  .hdb-value { font-size: 22px; }
-  .hdb-unit { font-size: 16px; }
-
   /* 5% 하드코딩 대신 top-bar와 동일한 그리드 인셋 공식 — col1/col-last 경계에 정확히 맞춤 */
   #view-level-select,
   #view-mode-select,
@@ -20862,7 +20584,7 @@ body.tut-lock .tut-allow * {
      안 씀) --grid-margin만 더하면 col1 시작점에 맞음(track+gutter는 안 더함 — col1~last).
      1440px 캡 넘는 폭(예: 1920px)에서는 cqw와 content-w 차이만큼(남는 여백) 좌우로 추가
      분배해서 그리드 자체가 항상 화면 중앙에 오도록 함 */
-  .home-daily-board,
+  .home-top-banner,
   .home-ad-banner,
   .home-blocks {
     width: calc(var(--grid-content-w) - 2 * var(--grid-margin));
@@ -20955,15 +20677,7 @@ body.tut-lock .tut-allow * {
     margin-top: 10px;
     margin-bottom: 10px;
   }
-  #view-home { padding: 10px; } /* 베이스 패딩(16px var(--view-home-inset) 0) 대체 */
-  .home-blocks { margin-bottom: 0; } /* 마진 대신 #tab-view-home 패딩이 하단 여백 담당 */
-
-  /* home-block: col1-3 / col4-6 — 6컬럼 그리드에서 반씩 */
-  .home-blocks {
-    grid-template-columns: repeat(var(--grid-cols), 1fr);
-    gap: var(--grid-gutter);
-  }
-  .home-block { grid-column: span 3; }
+  #view-home { padding: 10px; }
 }
 
 /* 홈 탭 — 그리드 시스템 적용 (태블릿 이상, 769~1599px) */
@@ -21009,22 +20723,7 @@ body.tut-lock .tut-allow * {
      띠배너·홈배너 둘 다 고정높이 토큰(--ad-banner-h/--daily-board-h)이라 flex 미참여,
      남는 세로공간은 홈블럭이 전부 흡수(2026-08-22 확정) */
   .home-top-stack { display: contents; }
-  .home-blocks {
-    flex: 1;
-    margin-bottom: 0;
-    display: grid;
-    grid-template-columns: repeat(2, 1fr);
-    gap: var(--grid-gutter);
-  }
 }
-
-/* ~1079px 폭이면서 세로공간이 낮은 경우(max-height:900px) — 실제 태블릿/작은 화면이
-   아니라 폰이 가로로 회전한 케이스. #tab-view-home margin-bottom(10~14px)이 박스 자체를
-   줄여서 독바 쪽에 여백이 남고 화면이 끊겨 보이던 문제 — 하단만 0으로 해제(2026-08-22) */
-@media (max-width: 1079px) and (max-height: 900px) {
-  #tab-view-home { margin-bottom: 0; }
-}
-
 /* 태블릿 가로(1080~1599px) — 홈배너:홈블럭 1:1, 띠배너는 고정높이 */
 @media (min-width: 1080px) and (max-width: 1599px) {
   :root {
@@ -21059,13 +20758,6 @@ body.tut-lock .tut-allow * {
   }
 
   .home-top-stack { display: contents; }
-  .home-blocks {
-    flex: 1;
-    margin-bottom: 0;
-    display: grid;
-    grid-template-columns: repeat(2, 1fr);
-    gap: var(--grid-gutter);
-  }
 }
 
 
@@ -21079,7 +20771,6 @@ body.tut-lock .tut-allow * {
      옛값(clamp 최대 52px) 기준으로 음수마진을 만들어 갭을 잡아먹음 */
   #view-home { --view-home-gap: 20px; }
   .home-top-stack { display: contents; }
-  .home-blocks { flex: 1; }
 }
 
 /* Z Flip 대응 스코프 (신규 확정값 — 기존 mobile_viewport_reference의 360x440은 부정확했음) */
@@ -21088,40 +20779,8 @@ body.tut-lock .tut-allow * {
    CSS aspect-ratio 미디어피처엔 9/22로 씀, 22/9는 가로긴 화면이라 축 반대. 실수했다가 잡음)
    힌지가 화면 정중앙 가로선 — 배너+광고배너 합쳐서 위 50%, 홈블럭 아래 50%,
    그 경계(20px 갭)가 정확히 힌지 위치에 오도록 --hinge-y 기준 calc */
-@media (min-width: 360px) and (max-width: 412px) and (min-aspect-ratio: 9/22) and (max-aspect-ratio: 9/22) {
-  #view-home { padding-top: 0; gap: 20px; } /* 탑바=바텀탭=54 대칭이라 flex:1/1이면 갭 있어도 정확히 반반 유지 */
-  /* ≤480px 규칙이 .home-top-stack을 display:contents로 꺼두는데, 여기선 배너+광고배너를
-     "위 50%" 한 덩어리로 묶어야 해서 실제 flex 박스로 되살림.
-     갭 0이라 물리 힌지 근사치(--hinge-y) 대신 flex:1로 #view-home 실제 높이 정확히 반반 */
-  .home-top-stack {
-    display: flex;
-    flex-direction: column;
-    width: 100%;
-    flex: 1;
-    min-height: 0;
-    padding: 0;
-    gap: 20px; /* top-stack 내부 갭 — 자기 몫(위 50%) 안에서만 나눠 먹어서 바깥 힌지 갭엔 영향 없음 */
-    overflow: hidden;
-  }
-  .home-daily-board { flex: 1; min-height: 0; } /* 띠배너는 고정높이라 flex 미참여, 남는 공간 전부 흡수 */
-  .home-ad-banner { flex: none; min-height: 0; }
-  .home-blocks { flex: 1; min-height: 0; margin-bottom: 0; padding: 0; } /* 남는 공간(아래 50%) 전부 흡수 */
+@media (min-width: 360px) and (max-width: 412px) and (min-aspect-ratio: 9/22) and (max-aspect-ratio: 9/22) { /* 남는 공간(아래 50%) 전부 흡수 */
 }
-
-/* Z Flip 접힌 상태(커버 스크린): 폭 360~412px, 높이 412~500px
-   화면이 좁아서 한 화면에 다 안 들어감 — flex 비율분배 대신 콘텐츠 기준 자연스러운 높이 +
-   스크롤 허용. 배너+광고배너가 첫 화면에 보이고, 홈블럭은 스크롤해야 보임 */
-@media (min-width: 360px) and (max-width: 412px) and (min-height: 412px) and (max-height: 500px) {
-  #view-home {
-    overflow-y: auto;
-    overflow-x: hidden;
-  }
-  .home-top-stack { display: contents; }
-  .home-daily-board { flex: none; }
-  .home-ad-banner { flex: none; }
-  .home-blocks { flex: none; }
-}
-
 /* Z Flip 분할(멀티윈도우, 440×360) — 접힌 상태(360~412×412~500)와 동일 패턴(flex:none+스크롤),
    그리드값은 모바일 티어(20/16) 그대로 사용 */
 @media (min-width: 440px) and (max-width: 500px) and (min-height: 360px) and (max-height: 412px) {
@@ -21130,61 +20789,7 @@ body.tut-lock .tut-allow * {
        높이 조건까지 같이 건 이 스코프 안에서만 모바일값(20/16) 고정 */
     --grid-margin: 20px;
     --grid-gutter: 16px;
-  }
-  #view-home {
-    overflow-y: auto;
-    overflow-x: hidden;
-  }
-  .home-top-stack { display: contents; }
-  .home-daily-board { flex: none; }
-  .home-ad-banner { flex: none; }
-  .home-blocks { flex: none; }
-}
-
-/* 홈 탭 — 작은태블릿(481~786px), 띠배너·홈배너 고정높이 토큰, 홈블럭이 남는 공간 흡수, 갭 20px */
-@media (min-width: 481px) and (max-width: 786px) {
-  #view-home { --view-home-gap: 20px; }
-  .home-top-stack { display: contents; }
-  .home-blocks { flex: 1; }
-}
-
-/* 모바일 가로모드(min-width:560px, max-height:480px, line ~1146) 재선언 — 폭이 태블릿세로
-   (787~1079px) 범위에도 걸리는 기기(예: 812×375)가 있어서 그쪽 flex:2/1/5가 나중에 정의돼
-   캐스케이드로 flex:none을 덮어씀. 여기 파일 순서상 제일 뒤에 다시 둬서 이기게 함 */
-@media (min-width: 560px) and (max-height: 480px) {
-  /* 홈배너·띠배너는 --daily-board-h/--ad-banner-h 고정토큰이 이미 관리(2026-08-22, 옛 dvh
-     강제값 제거) — 안 맞으면 #view-home(overflow-y:auto)이 스크롤로 흡수 */
-  .home-top-stack { display: contents; }
-  .home-blocks {
-    flex: 1;
-    margin-bottom: 0; /* 기본값(--view-home-inset,20px)이 독바 쪽에 여백을 남겨 화면이 끊겨보이던 것 제거 */
-    grid-template-rows: repeat(2, minmax(120px, 1fr)); /* 카드 최소높이 120px — 못 채우면
-      #view-home(overflow-y:auto)가 스크롤로 전환(§10 회전 대응 전략) */
-  }
-  .home-block {
-    aspect-ratio: unset; /* 기본 5/7 비율 대신 부모(.home-blocks) 높이를 그대로 따라가도록 */
-    width: 100%;
-    height: 100%;
-  }
-}
-
-/* Z Fold8 접힘(658×412) — 위 모바일가로모드(560/480)·작은태블릿(481~786) 두 스코프 모두에
-   걸려서 #view-home{max-width:50%}로 반폭 축소되거나 flex:2/1/3.5로 재정의됨 — col1~col6
-   풀블리드로 리셋. 파일 순서상 제일 뒤라 둘 다 이김. 레이아웃은 Flip접힘/분할과 동일 패턴 */
-@media (min-width: 640px) and (max-width: 680px) and (min-height: 390px) and (max-height: 430px) {
-  #view-home {
-    max-width: none;
-    margin-inline: 0;
-    overflow-y: auto;
-    overflow-x: hidden;
-  }
-  .home-top-stack { display: contents; }
-  .home-daily-board { flex: none; }
-  .home-ad-banner { flex: none; }
-  .home-blocks { flex: none; }
-}
-
-/* 온보딩(사이드바 없음) — col1~마지막 컬럼 풀블리드로 5단계 전 티어 통일.
+  }}/* 온보딩(사이드바 없음) — col1~마지막 컬럼 풀블리드로 5단계 전 티어 통일.
    --grid-margin이 :root 미디어쿼리(§5 그리드 토큰)에서 티어별로 이미 갱신되므로
    여기서는 그 값만 그대로 써서 margin-inline 한 줄로 전 티어 처리 — 컬럼수(--grid-cols)가
    티어마다 달라도(6/8/12) 풀블리드는 margin 값만 맞으면 되므로 --grid-track 계산 불필요.

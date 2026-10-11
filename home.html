@@ -49,38 +49,24 @@
           <!-- Z Flip 힌지 기준 상단 스택(튜토리얼 배너+출석보드+광고배너) 묶음 — 힌지 위 50vh에 맞춰 정렬할 때만 사용 -->
           <div class="home-top-stack">
           <!-- 튜토리얼 배너 + 출석/퀘스트 보드 (단일 카드로 병합) -->
-          <div class="home-daily-board" id="home-daily-board">
-            <div class="hdb-content">
-              <div class="hdb-banner" id="home-banner">
-                <div class="home-banner-cols">
-                  <div class="home-banner-left">
-                    <div class="home-banner-title">누구나 기타를 즐기는 세상, 코디터</div>
-                  </div>
-                  <div class="home-banner-right">
-                    <button class="home-banner-note home-banner-btn home-banner-btn--arrow" onclick="showTutorial()"><i data-lucide="chevron-right"></i></button>
-                  </div>
-                </div>
+          <div class="home-top-banner">
+            <div class="htb-intro">
+              <div class="htb-intro-title">누구나 기타를 즐기는 세상, 코디터</div>
+              <button class="htb-intro-btn" onclick="showTutorial()"><i data-lucide="chevron-right"></i></button>
+            </div>
+            <div class="htb-divider"></div>
+            <div class="htb-status">
+              <div class="htb-status-item" id="topbar-level" onclick="_playTap();switchTab('profile')">
+                <div class="htb-status-icon htb-status-icon--level"><span>Lv</span><span id="tbl-num">1</span></div>
+                <div class="htb-status-label" id="hdb-persona">언박싱 1일차</div>
               </div>
-              <div class="hdb-hdivider"></div>
-              <div class="hdb-row">
-                <div class="hdb-col" id="topbar-level" onclick="_playTap();switchTab('profile')">
-                  <div class="hdb-icon hdb-icon--level"><span class="hdb-icon-lv-prefix">Lv</span><span id="tbl-num">1</span></div>
-                  <div class="hdb-text">
-                    <div class="hdb-label" id="hdb-persona">언박싱 1일차</div>
-                  </div>
-                </div>
-                <div class="hdb-col" id="hdb-attendance" onclick="_playTap();location.href='attendance.html'">
-                  <div class="hdb-icon"><img src="image/calender.png" alt=""></div>
-                  <div class="hdb-text">
-                    <div class="hdb-label">출석체크</div>
-                  </div>
-                </div>
-                <div class="hdb-col" id="hdb-quest" onclick="openQuestModal()">
-                  <div class="hdb-icon"><img src="image/badge.png" alt=""><span class="hdb-quest-dot" id="hdb-quest-dot" hidden></span></div>
-                  <div class="hdb-text">
-                    <div class="hdb-label">퀘스트 보상</div>
-                  </div>
-                </div>
+              <div class="htb-status-item" onclick="_playTap();location.href='attendance.html'">
+                <div class="htb-status-icon"><img src="image/calender.png" alt=""></div>
+                <div class="htb-status-label">출석체크</div>
+              </div>
+              <div class="htb-status-item" onclick="openQuestModal()">
+                <div class="htb-status-icon"><img src="image/badge.png" alt=""><span class="htb-quest-dot" id="hdb-quest-dot" hidden></span></div>
+                <div class="htb-status-label">퀘스트 보상</div>
               </div>
             </div>
           </div>
@@ -158,22 +144,22 @@
           </div>
 
           <div class="home-blocks">
-            <div class="home-block" id="home-block-training" onpointerdown="enterFromBlock(event,this,'training')">
+            <div class="home-block home-block--img" id="home-block-training" onpointerdown="enterFromBlock(event,this,'training')">
               <div class="home-block-icon"><i class="ph-bold ph-barbell"></i></div>
               <div class="home-block-title">훈련소</div>
               <div class="home-block-desc">기타 실력 향상 훈련</div>
             </div>
-            <div class="home-block" id="home-block-library" onpointerdown="enterFromBlock(event,this,'library')">
+            <div class="home-block home-block--img" id="home-block-library" onpointerdown="enterFromBlock(event,this,'library')">
               <div class="home-block-icon"><i class="ph-bold ph-book-open"></i></div>
               <div class="home-block-title">코드 사전</div>
               <div class="home-block-desc">코드 운지 검색 · 가져오기</div>
             </div>
-            <div class="home-block" id="home-block-editor" onpointerdown="enterFromBlock(event,this,'editor')">
+            <div class="home-block home-block--img" id="home-block-editor" onpointerdown="enterFromBlock(event,this,'editor')">
               <div class="home-block-icon"><i class="ph-bold ph-grid-nine"></i></div>
               <div class="home-block-title">코드 에디터</div>
               <div class="home-block-desc">코드표 제작 · 이미지 저장</div>
             </div>
-            <div class="home-block home-block--soon">
+            <div class="home-block home-block--soon home-block--img" id="home-block-journey">
               <div class="home-block-icon"><i class="ph-bold ph-map-trifold"></i></div>
               <div class="home-block-title">나의 기타 여정</div>
               <div class="home-block-desc">Coming Soon</div>
