@@ -238,13 +238,17 @@ lucide 아이콘은 viewBox 안쪽에 획이 그려져 시각 중심이 살짝 �
 
 | 요소 | 규격 |
 |---|---|
-| `cd-topbar` 높이 | 모바일 `56px + safe-area-inset-top` / 481px~ `56px` |
+| `cd-topbar` 높이 | 전 구간 `56px + safe-area-inset-top`(2026-10-11: 481px~ `56px` 예외 삭제 — iPad 상단 안전영역 24px에 내용 영역이 눌렸음) |
 | `cd-topbar` 좌우 | `padding-inline: var(--cd-inset)` (박스는 뷰포트 전체) |
 | `cd-main` 배경 | 기본 투명(앱 배경), `cd-main--white` 수식어 = `#fff` |
+| `cd-main--stage` | 자식이 `position:absolute`로 겹쳐 슬라이드 전환하는 페이지용(홈 탭). `relative`+`overflow:hidden`+패딩 없음. 스크롤·여백은 자식이 담당 |
+| `cd-dockbar` | A종 하단 탭 내비. 높이 `56px + safe-area-inset-bottom` **전 구간 고정**, 흰 배경 + 위 1px `--border`. 항목 `cd-dockbar-item`: 아이콘 24px + 라벨 `--font-caption`/500, 활성 시 `--text-primary`, 비활성 `--text-muted` |
 | `cd-topbar` 배경 | `var(--topbar-bg, var(--bg))`, `--white` 수식어 = `#fff` |
 | `cd-main` | `flex:1` + `overflow-y:auto` + `padding-inline: var(--cd-inset)` + `padding-bottom: calc(var(--space-6) + env(safe-area-inset-bottom))` + 세로 flex + 스크롤바 숨김 (박스는 뷰포트 전체) |
 | `--cd-inset` | `max(var(--grid-margin), calc((100vw - 1440px) / 2 + var(--grid-margin)))` — 1440 이하 = 그리드 마진, 초과분은 좌우 균등 분배. `%`가 아니라 `vw`인 이유: 패딩과 자식 마진에서 기준이 달라지지 않게 |
 | 피크바 | 마크업 인라인 `margin-left:auto`로 우측 끝. 1600px~ 크기는 §7 |
+| 브랜드 슬롯 `cd-topbar-brand` | 로고(`cd-topbar-logo` 24px) + 앱이름 24px/800 + 버전(`cd-topbar-version` 11px). 폭과 무관하게 고정. 홈만 사용, 서브뷰에선 JS가 `.hidden` |
+| 우측 슬롯 `cd-topbar-end` | `margin-left:auto`. 여러 개면 보이는 첫 번째만 우측으로 밀고 나머지는 이어 붙음. 마지막 `.icon-btn`은 `margin-right:-4px`로 아이콘 끝선을 그리드 끝선에 맞춤 |
 
 ### 11-3a. `cd-main` 안쪽 — `cd-head` / `cd-body` (2026-10-03)
 
@@ -309,7 +313,10 @@ lucide 아이콘은 viewBox 안쪽에 획이 그려져 시각 중심이 살짝 �
 | `progression-detail.html` | ✅ `cd-head`(타이틀 + 코드 진행 + 12key 1줄 셀렉터) / `cd-body`(인디케이터·캐러셀·BPM·시작 버튼 한 묶음 `.progd-stack`, 등간격·세로 가운데) 이식(2026-10-06) — `.progd-layout` 삭제, 요소 크기는 `.progd-main`의 `--pd-*` 토큰(5단계 고정 px). 키 셀렉터 가로스크롤 함수는 `shared.js` 공용 |
 | `strum-play.html` | ✅ `cd-head`(타이틀) / `cd-body`(캐러셀·비트 그리드·BPM 영역·시작 버튼, 높이 상한 900px, `space-between` + 세로 가운데) 이식(2026-10-06) — `.strum-play-area` 삭제, 비트 그리드는 `.strum-play-main`의 `--sg-*` 토큰(칸 32/52px). 다운·업·컷팅 아이콘은 `image/*_stroke.svg`(루시드 규격) 인라인 |
 | `chord-combo.html` | ✅ `cd-head--sticky` + `cd-body`(챕터 카드 캐러셀) / 퀴즈 뷰 `cd-body` 이식(2026-10-06) — 선택 뷰 ↔ 퀴즈 뷰 슬라이드를 위해 `.combo-stage`(relative·overflow hidden) wrapper가 예외로 있음. `.combo-quiz-wrap`은 mission-session과 공용이라 이 페이지에서만 `#combo-view-quiz`로 덮음 |
-| 그 외 서브페이지(위 4개 제외) / `home.html` | 미착수 |
+| `home.html` 뼈대 | ✅ 탑바 `.top-bar.desktop-topbar` → `cd-topbar`(브랜드·튜토리얼·설정 슬롯), `.main-content` → `cd-main cd-main--stage`, `.bottom-nav` → `cd-dockbar`(2026-10-11). `.desktop-topbar`·`.bottom-nav`·데스크탑 사이드바 잔재(마크업·CSS) 삭제. 탭 안쪽(`cd-head`/`cd-body`)은 미착수 |
+| `training` / `metronome` / `tuner` / `strumming` / `attendance` / `mission-session` / `chord-name-quiz` / `user_project` | ✅ 뼈대 이식(2026-10-11) — `.top-bar.desktop-topbar`(빈 껍데기) 삭제, 안쪽 `.top-bar` → `header.cd-topbar`(main 밖으로), `.main-content` → `main.cd-main.cd-main--stage`. **안쪽 스크롤 wrapper(`.training-scroll`·`.metronome-scroll`·`.tuner-wire-scroll`·`.strum-scroll`·`.attendance-scroll`·`.ms-scroll`·`.content-body` 등)와 `cd-head`/`cd-body` 구조화는 미착수** — `--stage`는 "자식이 스크롤·여백을 갖는" 중간 단계 |
+| `home.html` 탭 본문 | 미착수(`cd-head`/`cd-body`) |
+| **정리 완료** | `.top-bar`·`.main-content`·`.desktop-topbar`·`.bottom-nav` 규칙 전부 삭제. `.top-bar-title/-version/-logo`만 `scale-level.html`이 써서 남음. 튜토리얼 모달 헤더는 `.tutorial-topbar` 자체 규칙 |
 
 ### 11-6. 미정
 

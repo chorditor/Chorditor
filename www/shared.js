@@ -33,7 +33,7 @@ if (window.Capacitor?.getPlatform?.() === 'ios') {
 // ── 상수 ─────────────────────────────────────────────────────
 const SUPABASE_URL  ='https://jbvkygeksohlysyvaoab.supabase.co';
 const SUPABASE_ANON = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Impidmt5Z2Vrc29obHlzeXZhb2FiIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzYzOTk5NjgsImV4cCI6MjA5MTk3NTk2OH0.6RSgChy0Yq0H2TJpZPSoMKQ2V-OYfR0XzE1aJBBZkXI';
-const APP_VERSION   = '1.3.6.1';
+const APP_VERSION   = '1.3.6.1_dev2';
 const SUPABASE_STORAGE_KEY = 'sb-jbvkygeksohlysyvaoab-auth-token';
 
 // 이용약관/개인정보처리방침 버전 — 광고식별자 수집 항목 추가(2026-09) 시 1로 올림.
@@ -303,7 +303,7 @@ document.addEventListener('DOMContentLoaded', () => {
 // 새 네비 버튼이 추가돼도 이 리스너 하나가 전부 커버하므로 버튼마다 조건을 심을 필요가 없다.
 document.addEventListener('click', (e) => {
   if (typeof window._leaveGuardActive !== 'function' || !window._leaveGuardActive()) return;
-  const navBtn = e.target.closest('.bottom-nav-item');
+  const navBtn = e.target.closest('.cd-dockbar-item');
   if (!navBtn) return;
   const m = (navBtn.getAttribute('onclick') || '').match(/location\.href\s*=\s*'([^']+)'/);
   if (!m) return;

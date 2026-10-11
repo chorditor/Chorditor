@@ -2669,12 +2669,12 @@ async function enterFromHome(view, skipAnim = false, reverse = false) {
   _updateTutorialEntryBtn(); // 서브뷰(에디터·코드사전)로 들어가면 튜토리얼 아이콘도 같이 내린다
 
   // 탑바 타이틀: 홈 화면에서만 표시
-  const topBarTitle = document.querySelector('.top-bar-title');
+  const topBarTitle = document.querySelector('.cd-topbar-brand');
   if (topBarTitle) topBarTitle.classList.toggle('hidden', view !== 'home');
 
   // 탑바 배경: 라이브러리에서는 흰색
-  const topBar = document.querySelector('.top-bar');
-  if (topBar) topBar.classList.toggle('top-bar--white', view === 'library');
+  const topBar = document.querySelector('.cd-topbar');
+  if (topBar) topBar.classList.toggle('cd-topbar--white', view === 'library');
 
   if (view === 'editor') {
     analytics.setScreen('editor');
@@ -5129,26 +5129,6 @@ document.addEventListener('DOMContentLoaded', async () => {
   const _sidebarVer = document.getElementById('sidebar-brand-version');
   if (_sidebarVer) _sidebarVer.textContent = _prodVer;
 
-  // 2026-09-23: 1600px+ 사이드바 폐기 — 튜토리얼/설정 아이콘은 항상 모바일/태블릿과
-  // 동일하게 상단 탑바에 고정(예전엔 데스크탑에서 좌측 사이드바로 옮겼음)
-  (() => {
-    const _tutBtn = document.getElementById('tutorial-entry-btn');
-    const _setBtn = document.getElementById('settings-btn');
-    const _topBar = document.querySelector('.desktop-topbar');
-    if (!_tutBtn || !_setBtn || !_topBar) return;
-    _topBar.appendChild(_tutBtn);
-    _topBar.appendChild(_setBtn);
-  })();
-
-  // 2026-09-23: 1600px+ 사이드바/back-btn 절대배치 바 폐기 — #back-btn은 항상
-  // .desktop-topbar 안 정상 위치에 고정(예전엔 데스크탑에서 main-content로 옮겼음)
-  (() => {
-    const _backBtn = document.getElementById('back-btn');
-    const _topBar = document.querySelector('.desktop-topbar');
-    if (!_backBtn || !_topBar) return;
-    _topBar.prepend(_backBtn);
-  })();
-
   // 코드 사전 와이드 레이아웃 — 12key 근음 레일(#lib-root-tabs)을 .lib-bottom 안에서
   // #view-library 직계로 꺼내 좌측 전체높이 컬럼으로 씀. CSS grid는 직계 자식에만 영역을
   // 배정할 수 있어서 DOM 이동이 필요함(위 back-btn과 동일 패턴).
@@ -5367,7 +5347,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   // 홈 모멘텀 스크롤 + 탑페이드
   const _homeView    = document.getElementById('view-home');
-  const _mainContent = document.querySelector('.main-content');
+  const _mainContent = document.querySelector('.cd-main');
 
   function initMomentumScroll(el) {
     let startY     = 0;
@@ -6140,6 +6120,15 @@ function importLibChordToProject() {
     const save = q('#btn-save-image'), inner = q('.canvas-inner');
     const lines = [
       `win ${innerWidth}x${innerHeight} dpr${devicePixelRatio} html.class="${document.documentElement.className}"`,
+      (() => { // CSS 뷰포트 단위·미디어쿼리가 실제 창 크기와 같은지 (§11 #16)
+        const p = document.createElement('div');
+        p.style.cssText = 'position:fixed;left:0;top:0;width:100vw;height:100vh;visibility:hidden;pointer-events:none;';
+        document.body.appendChild(p);
+        const b = p.getBoundingClientRect(); p.remove();
+        const mqW = [400, 500, 600, 769, 834, 1080, 1133].filter(w => matchMedia(`(min-width: ${w}px)`).matches).pop();
+        return `CSS 100vw=${R(b.width)} 100vh=${R(b.height)} client=${document.documentElement.clientWidth}x${document.documentElement.clientHeight}`
+          + ` vv=${R(visualViewport?.width)}x${R(visualViewport?.height)} mq(min-width)<=${mqW} landscape=${matchMedia('(orientation: landscape)').matches}`;
+      })(),
       one('.canvas-unit', q('.canvas-unit')),
       one('.canvas-inner', inner),
       inner ? `   inline style="${inner.getAttribute('style') || ''}" rows=${getComputedStyle(inner).gridTemplateRows} cols=${getComputedStyle(inner).gridTemplateColumns}` : '',

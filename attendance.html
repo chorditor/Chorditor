@@ -18,18 +18,15 @@
 
   <div class="app-shell" id="attendance-page">
 
-    <!-- ── 앱 로고탑바(데스크탑 전용) ── -->
-    <div class="top-bar desktop-topbar"></div>
+    <!-- ── 뒤로가기 전용 ── -->
+    <header class="cd-topbar">
+      <button id="back-btn" class="icon-btn" onpointerup="closeAttendancePage()">
+        <i data-lucide="chevron-left"></i>
+      </button>
+    </header>
 
-    <!-- ── 메인 콘텐츠 ── -->
-    <div class="main-content" id="main-content">
-
-      <!-- ── 뒤로가기 전용 ── -->
-      <div class="top-bar">
-        <button id="back-btn" class="icon-btn" onpointerup="closeAttendancePage()">
-          <i data-lucide="chevron-left"></i>
-        </button>
-      </div>
+    <!-- ── 메인 (style-guide.md §11 cd-main) ── -->
+    <main class="cd-main cd-main--stage" id="main-content">
 
       <div class="attendance-scroll">
         <div class="attendance-scroll-inner">
@@ -57,7 +54,7 @@
         </div>
       </div>
 
-    </div>
+    </main>
   </div>
 
   <!-- ── 모달: 이번 달 출석 25회 다 채웠을 때(보충출석 눌러도 더 안 오름) ── -->

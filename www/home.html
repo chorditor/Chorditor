@@ -19,27 +19,27 @@
 
   <div class="app-shell">
 
-    <!-- ── home.html 전용 탑바 — 로고/브랜드/버전 + 뒤로가기 + 튜토리얼 + 설정 전부 이 하나에 —
-         home.html은 desktop-topbar 하나만 쓰기로 함(2026-08-22). 항상 노출(모바일/데스크탑 공용) ── -->
-    <div class="top-bar desktop-topbar">
+    <!-- ── 탑바 (style-guide.md §11 cd-topbar) — 홈 탭: 브랜드(로고·앱이름·버전) + 튜토리얼 + 설정.
+         서브뷰(에디터·코드사전·노트)에선 JS가 브랜드를 숨기고 뒤로가기(#back-btn)를 보여줌 ── -->
+    <header class="cd-topbar">
       <button id="back-btn" class="hidden" onpointerdown="enterFromBlock(event,this,'home')">
         <i data-lucide="chevron-left"></i>
       </button>
-      <span class="top-bar-title"><img src="image/Chorditor_logo.svg" alt="" class="top-bar-logo">CHORDITOR<span id="home-banner-version" class="top-bar-version"></span></span>
+      <span class="cd-topbar-brand"><img src="image/Chorditor_logo.svg" alt="" class="cd-topbar-logo">CHORDITOR<span id="home-banner-version" class="cd-topbar-version"></span></span>
       <!-- 튜토리얼 재진입 — 건너뛰거나 중간에 멈춘 유저용. 홈 탭에서만 노출 -->
-      <button id="tutorial-entry-btn" class="icon-btn hidden" onclick="_playTap(); openTutorialModal()" style="margin-left:auto;" aria-label="튜토리얼">
+      <button id="tutorial-entry-btn" class="icon-btn cd-topbar-end hidden" onclick="_playTap(); openTutorialModal()" aria-label="튜토리얼">
         <i data-lucide="circle-help"></i>
         <span class="tut-entry-dot" id="tutorial-entry-dot" hidden></span>
         <span class="nav-label">튜토리얼</span>
       </button>
-      <button id="settings-btn" class="icon-btn hidden" onclick="_playTap(); openSettings()" style="margin-left:auto;" aria-label="설정">
+      <button id="settings-btn" class="icon-btn cd-topbar-end hidden" onclick="_playTap(); openSettings()" aria-label="설정">
         <i data-lucide="settings"></i>
         <span class="nav-label">설정</span>
       </button>
-    </div>
+    </header>
 
     <!-- ── 메인 콘텐츠 ── -->
-    <div class="main-content" id="main-content">
+    <main class="cd-main cd-main--stage" id="main-content">
 
       <!-- ── 홈 탭 ── -->
       <div class="tab-view" id="tab-view-home">
@@ -593,45 +593,25 @@
         </div>
       </div><!-- /tab-view-profile -->
 
-    </div><!-- /main-content -->
+    </main><!-- /main-content -->
 
-    <!-- ── 하단 탭바 ── -->
-    <nav class="bottom-nav">
-      <!-- 데스크탑 사이드바 전용 타이틀 (모바일/태블릿은 CSS로 숨김) -->
-      <div class="sidebar-brand"><span class="top-bar-title">CHORDITOR<span id="sidebar-brand-version" class="top-bar-version"></span></span></div>
-      <!-- 데스크탑 사이드바 전용 유저 요약 (레벨/닉네임/플랜) -->
-      <div class="sidebar-user">
-        <span class="sidebar-user-level">Lv.<span id="sidebar-user-lv">1</span></span>
-        <span class="sidebar-user-name" id="sidebar-user-name">—</span>
-        <span class="sidebar-user-plan" id="sidebar-user-plan">Free</span>
-      </div>
-      <!-- 데스크탑 사이드바 전용 경험치바 (프로필 탭 XP바 미러) -->
-      <div class="sidebar-user-xp profile-xp">
-        <div class="profile-xp-bar">
-          <div class="profile-xp-bar-fill" id="sidebar-user-xp-bar-fill"></div>
-        </div>
-        <span class="profile-xp-num" id="sidebar-user-xp-num">0 / 0 XP</span>
-      </div>
-      <button class="bottom-nav-item active" id="nav-home" onpointerdown="navTabPointerDown(event,this,'home')">
+    <!-- ── 독바: 하단 탭 내비 (style-guide.md §11 cd-dockbar) ── -->
+    <nav class="cd-dockbar">
+      <button class="cd-dockbar-item active" id="nav-home" onpointerdown="navTabPointerDown(event,this,'home')">
         <i data-lucide="home"></i>
         <span>홈</span>
       </button>
-      <button class="bottom-nav-item" id="nav-tools" onpointerdown="navTabPointerDown(event,this,'tools')">
+      <button class="cd-dockbar-item" id="nav-tools" onpointerdown="navTabPointerDown(event,this,'tools')">
         <i data-lucide="wrench"></i>
         <span>도구</span>
       </button>
-      <button class="bottom-nav-item" id="nav-projects" onpointerdown="navTabPointerDown(event,this,'projects')">
+      <button class="cd-dockbar-item" id="nav-projects" onpointerdown="navTabPointerDown(event,this,'projects')">
         <i data-lucide="book-open"></i>
         <span>노트</span>
       </button>
-      <button class="bottom-nav-item" id="nav-profile" onpointerdown="navTabPointerDown(event,this,'profile')">
+      <button class="cd-dockbar-item" id="nav-profile" onpointerdown="navTabPointerDown(event,this,'profile')">
         <i data-lucide="user"></i>
         <span>프로필</span>
-      </button>
-      <!-- 데스크탑 사이드바 전용 로그아웃 (JS가 설정 아래로 배치) -->
-      <button class="icon-btn" id="sidebar-logout-btn" onclick="_playTap(); confirmLogout();" aria-label="로그아웃">
-        <i data-lucide="log-out"></i>
-        <span class="nav-label">로그아웃</span>
       </button>
     </nav>
 
@@ -1196,7 +1176,7 @@
   <!-- ── 튜토리얼 모달 ── -->
   <div class="modal-overlay hidden" id="modal-tutorial">
     <div class="modal">
-      <div class="top-bar tutorial-topbar">
+      <div class="tutorial-topbar">
         <button class="icon-btn" onclick="closeTutorial()">
           <i data-lucide="x"></i>
         </button>

@@ -18,23 +18,20 @@
 
   <div class="app-shell" id="mission-session-page">
 
-    <!-- ── 앱 로고탑바(데스크탑 전용) ── -->
-    <div class="top-bar desktop-topbar"></div>
-
-    <!-- ── 메인 콘텐츠 ── -->
-    <div class="main-content" id="main-content">
-
-      <!-- ── 탑바: 뒤로가기 X + 프로그레스 바 ── -->
-      <div class="top-bar">
-        <button id="back-btn" class="icon-btn" onpointerup="closeMissionSession()">
-          <i data-lucide="x"></i>
-        </button>
-        <div class="ms-progress-track">
-          <div class="ms-progress-fill" id="ms-progress-fill"></div>
-        </div>
-        <!-- 승급시험 전용 — 평소엔 숨김(msPersonaPromoTimerStart가 켬), 진행도바 대신 남은시간 숫자 -->
-        <span class="ms-progress-time" id="ms-progress-time" style="display:none"></span>
+    <!-- ── 탑바: 뒤로가기 X + 프로그레스 바 ── -->
+    <header class="cd-topbar">
+      <button id="back-btn" class="icon-btn" onpointerup="closeMissionSession()">
+        <i data-lucide="x"></i>
+      </button>
+      <div class="ms-progress-track">
+        <div class="ms-progress-fill" id="ms-progress-fill"></div>
       </div>
+      <!-- 승급시험 전용 — 평소엔 숨김(msPersonaPromoTimerStart가 켬), 진행도바 대신 남은시간 숫자 -->
+      <span class="ms-progress-time" id="ms-progress-time" style="display:none"></span>
+    </header>
+
+    <!-- ── 메인 (style-guide.md §11 cd-main) ── -->
+    <main class="cd-main cd-main--stage" id="main-content">
 
       <div class="ms-scroll">
         <div class="ms-scroll-inner">
@@ -60,7 +57,7 @@
         </div>
       </div>
 
-    </div>
+    </main>
   </div>
 
   <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.js"></script>

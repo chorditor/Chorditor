@@ -1,5 +1,6 @@
 import UIKit
 import Capacitor
+import WebKit
 
 @UIApplicationMain
 class AppDelegate: UIResponder, UIApplicationDelegate {
@@ -26,7 +27,17 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
     }
 
     func applicationDidBecomeActive(_ application: UIApplication) {
-        // Restart any tasks that were paused (or not yet started) while the application was inactive. If the application was previously in the background, optionally refresh the user interface.
+        // iPad는 백그라운드 진입 시 스냅샷용으로 앱 크기를 여러 폭으로 바꾼다. 복귀 후 창 크기는 돌아오지만
+        // 웹뷰의 CSS 뷰포트 단위(vw/vh) 기준이 스냅샷 때의 좁은 폭에 남아 레이아웃이 좁게 굳는다(회전하면 복구).
+        // 웹뷰 크기를 1pt 바꿨다 되돌려 뷰포트를 다시 계산시킨다. (docs/ios-build.md §11 #16)
+        guard let webView = (window?.rootViewController as? CAPBridgeViewController)?.webView else { return }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) {
+            let original = webView.frame
+            webView.frame = CGRect(x: original.origin.x, y: original.origin.y, width: original.width, height: original.height - 1)
+            DispatchQueue.main.async {
+                webView.frame = original
+            }
+        }
     }
 
     func applicationWillTerminate(_ application: UIApplication) {
