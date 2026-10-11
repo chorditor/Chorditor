@@ -5188,6 +5188,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     };
     _place();
     _mq.addEventListener('change', _place);
+    onViewportResync(_place); // iPad 복귀 시 change 누락 대비
   })();
 
   // 코드 사전 와이드 레이아웃 — 액션바와 캔버스 아래 버튼 자리 맞바꾸기.
@@ -5231,6 +5232,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     };
     _place();
     _mq.addEventListener('change', _place);
+    onViewportResync(_place); // iPad 복귀 시 change 누락 대비
   })();
 
   // 코드 사전 뷰어 캔버스 — CSS 표시폭이 미디어쿼리로 바뀔 때마다 비트맵 해상도 재계산.
@@ -6110,3 +6112,61 @@ function importLibChordToProject() {
   selectTension(comp.tension || '');
   selectBass(comp.bass || '');
 }
+
+// ═══════════════════════════════════════════════════════════════
+// ⚠ 임시 측정 코드 (docs/ios-build.md §11 #15) — 에디터 저장·재생 버튼이 iOS에서 안 보이는 원인 확정용.
+// iOS 앱에서만 좌하단에 "측정" 칩이 뜬다. 에디터 화면에서 누르면 버튼과 조상 요소의 실제 크기를 표시.
+// 원인 확정 후 이 블록 전체 삭제.
+// ═══════════════════════════════════════════════════════════════
+(function _iosMeasureTemp() {
+  if (window.Capacitor?.getPlatform?.() !== 'ios') return;
+  const chip = document.createElement('button');
+  chip.textContent = '측정';
+  chip.style.cssText = 'position:fixed;left:8px;bottom:90px;z-index:99999;padding:6px 10px;border:none;border-radius:8px;background:#e03c31;color:#fff;font-size:12px;';
+  const panel = document.createElement('pre');
+  panel.style.cssText = 'position:fixed;left:8px;right:8px;top:60px;bottom:130px;z-index:99998;margin:0;padding:8px;overflow:auto;background:rgba(0,0,0,.88);color:#7CFC9A;font:11px/1.35 Menlo,monospace;white-space:pre-wrap;display:none;';
+  panel.addEventListener('click', () => { panel.style.display = 'none'; });
+
+  const R = n => Math.round(n * 10) / 10;
+  const one = (label, el) => {
+    if (!el) return label + ': (없음)';
+    const b = el.getBoundingClientRect(), cs = getComputedStyle(el);
+    return `${label}: x${R(b.left)} y${R(b.top)} w${R(b.width)} h${R(b.height)}\n   display=${cs.display} vis=${cs.visibility} op=${cs.opacity} pos=${cs.position}`
+      + ` css(w=${cs.width} h=${cs.height} minW=${cs.minWidth} ar=${cs.aspectRatio})`
+      + ` grid(c=${cs.gridColumnStart}/${cs.gridColumnEnd} r=${cs.gridRowStart}/${cs.gridRowEnd}) ov=${cs.overflow} bg=${cs.backgroundColor}`;
+  };
+  const measure = () => {
+    const q = s => document.querySelector(s);
+    const save = q('#btn-save-image'), inner = q('.canvas-inner');
+    const lines = [
+      `win ${innerWidth}x${innerHeight} dpr${devicePixelRatio} html.class="${document.documentElement.className}"`,
+      one('.canvas-unit', q('.canvas-unit')),
+      one('.canvas-inner', inner),
+      inner ? `   inline style="${inner.getAttribute('style') || ''}" rows=${getComputedStyle(inner).gridTemplateRows} cols=${getComputedStyle(inner).gridTemplateColumns}` : '',
+      one('#c', q('#c')),
+      one('#fret-ctrl', q('#fret-ctrl')),
+      one('#canvas-side-btns', q('#canvas-side-btns')),
+      one('#canvas-main-btns', q('#canvas-main-btns')),
+      one('#btn-save-image', save),
+      one('  svg', save && save.querySelector('svg')),
+      one('#btn-play-chord', q('#btn-play-chord')),
+      one('#btn-reset-chord(보이는 버튼)', q('#btn-reset-chord')),
+    ];
+    // 버튼 중앙 지점에 실제로 무엇이 그려져 있는지 + 잘라내는 조상
+    if (save) {
+      const b = save.getBoundingClientRect();
+      const top = document.elementFromPoint(b.left + b.width / 2, b.top + b.height / 2);
+      lines.push(`중앙 지점 최상위 요소: ${top ? top.tagName + '#' + top.id + '.' + String(top.className).slice(0, 40) : '(없음)'}`);
+      lines.push('— 조상 —');
+      for (let p = save.parentElement; p && p !== document.body; p = p.parentElement) {
+        const pb = p.getBoundingClientRect(), pc = getComputedStyle(p);
+        lines.push(`${p.tagName}#${p.id}.${String(p.className).slice(0, 30)} w${R(pb.width)} h${R(pb.height)} display=${pc.display} ov=${pc.overflow} op=${pc.opacity}`);
+      }
+    }
+    panel.textContent = lines.join('\n') + '\n\n(패널을 누르면 닫힘)';
+    panel.style.display = 'block';
+  };
+  chip.addEventListener('click', measure);
+  const mount = () => { document.body.appendChild(panel); document.body.appendChild(chip); };
+  if (document.body) mount(); else document.addEventListener('DOMContentLoaded', mount);
+})();

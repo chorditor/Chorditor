@@ -13,6 +13,23 @@
   if (vp && !/user-scalable/.test(vp.content)) vp.content += ', maximum-scale=1.0, user-scalable=no';
 })();
 
+// ── 복귀 시 화면 배치 재동기화 (docs/ios-build.md §11 #16) ──────────
+// iPad는 백그라운드로 갈 때 스냅샷용으로 앱 크기를 세로·가로로 바꾼다. 그 사이 matchMedia 'change'로
+// DOM을 옮기는 코드가 한쪽만 실행되고 되돌리는 신호를 놓쳐, 복귀 후 CSS와 DOM 배치가 어긋난다(회전하면 복구).
+// 화면 조건에 따라 DOM을 옮기거나 다시 그리는 코드는 onViewportResync(fn)으로 등록 — fn은 여러 번 불려도 안전해야 함.
+const _viewportResyncFns = [];
+function onViewportResync(fn) { _viewportResyncFns.push(fn); }
+if (window.Capacitor?.getPlatform?.() === 'ios') {
+  const _run = () => {
+    _viewportResyncFns.forEach(fn => { try { fn(); } catch (e) { console.error('resync 실패:', e); } });
+    window.dispatchEvent(new Event('resize'));
+  };
+  // 복귀 직후엔 크기가 아직 확정 전일 수 있어 한 번 더 실행
+  const _resync = () => { requestAnimationFrame(_run); setTimeout(_run, 350); };
+  document.addEventListener('visibilitychange', () => { if (!document.hidden) _resync(); });
+  window.addEventListener('pageshow', (e) => { if (e.persisted) _resync(); });
+}
+
 // ── 상수 ─────────────────────────────────────────────────────
 const SUPABASE_URL  ='https://jbvkygeksohlysyvaoab.supabase.co';
 const SUPABASE_ANON = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Impidmt5Z2Vrc29obHlzeXZhb2FiIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzYzOTk5NjgsImV4cCI6MjA5MTk3NTk2OH0.6RSgChy0Yq0H2TJpZPSoMKQ2V-OYfR0XzE1aJBBZkXI';

@@ -4534,6 +4534,11 @@ function setupOrientationListener() {
   // 이 경계를 넘으면 재렌더되도록 별도 감시
   const mqSlot = window.matchMedia('(min-width: 787px)');
   try { mqSlot.addEventListener('change', handler); } catch(e) { mqSlot.addListener(handler); }
+  // iPad 복귀 시 change 누락 대비 — 마지막 렌더 기준(currentOrient·currentSlotLand)과 달라졌을 때만 재렌더
+  onViewportResync(() => {
+    const orient = window.innerWidth > window.innerHeight ? 'landscape' : 'portrait';
+    if (orient !== currentOrient || (window.innerWidth >= 787) !== currentSlotLand) handler();
+  });
 }
 
 // ═══════════════════════════════════════════════════════════════

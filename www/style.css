@@ -21487,13 +21487,3 @@ html.ios-native [contenteditable]:not([contenteditable="false"]) {
 html.ios-native .scale-item-list .scale-item-card {
   transition: background 0.15s, box-shadow 0.1s;
 }
-
-/* #15 에디터 저장·재생 버튼: aspect-ratio + % 폭 조합을 WebKit이 0으로 풀 가능성 → 캔버스 폭 기준 고정식으로 대체.
-   우거터(21.591%) × 버튼 비율(55.6%) = 캔버스 폭의 12% */
-html.ios-native .canvas-inner { container-type: inline-size; }
-html.ios-native #canvas-main-btns .canvas-side-btn {
-  width: 12cqw;
-  height: 12cqw;
-  min-width: 26px;
-  min-height: 26px;
-}
