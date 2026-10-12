@@ -263,7 +263,7 @@ const TUTORIAL_CHAPTERS = (() => {
       title: '# / b 바꾸기',
       text: '같은 코드도 A#과 Bb, 두 가지로 부를 수 있어요.\nb를 눌러 표기를 바꿔 보세요.',
       panel: 'card-top',
-      target: '.canvas-wrap-acc-overlay',
+      target: '.ed-acc-toggle',
       advanceOn: 'acc:flat',
     },
     {
@@ -299,11 +299,13 @@ const TUTORIAL_CHAPTERS = (() => {
       nextLabel: '다음',
     },
     {
+      // 번호 표시는 아래 손가락 번호 줄에서 번호를 고르면 자동으로 켜진다(별도 켜기 버튼 없음)
       title: '손가락 번호',
-      text: '손가락 번호를 표시할 수도 있어요!\n버튼을 눌러 켜 보세요.',
+      text: '점마다 어느 손가락으로 누르는지\n번호를 붙일 수 있어요!',
       panel: 'card-top',
-      target: '#btn-finger-num',
-      advanceOn: 'fingermode:on',
+      pulse: false,
+      optional: true,
+      nextLabel: '다음',
     },
     // 1프렛 바레는 1번(검지) 그대로 두고, 3프렛 dot 세 개만 2·3·4번으로 바꾸게 한다.
     // 번호 버튼과 캔버스를 동시에 열어주되 펄스는 번호 버튼에만 — 캔버스는 고스트가 자리를 가리킨다.
@@ -1560,7 +1562,8 @@ const TUTORIAL_CHAPTERS = (() => {
       steps: STEP1_STEPS,
       // enterFirst: 0번 구간이 있는 화면 / enter: 중간 구간부터 시작할 때 진입할 화면
       enterFirst: () => window.enterFromHome?.('home', true),
-      enter:      () => window.enterFromHome?.('editor', true),
+      // 코드 에디터는 별도 페이지(editor.html) — 이어받기는 그 페이지의 Tutorial.resume()이 한다
+      enter:      () => { location.href = 'editor.html'; },
       doneDesc:  '코드 에디터를 다 둘러봤어요.',
     },
     'library': {

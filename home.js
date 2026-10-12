@@ -2548,8 +2548,15 @@ function enterFromBlock(e, el, view) {
         setTimeout(_go, 450); // 폴백: 재생 차단/지연돼도 반드시 이동
         return;
       }
-      // 홈블럭 직접 에디터 진입은 사전 복귀 대상 아님 → 플래그 해제
-      if (view === 'editor') _fromLibraryToEditor = false;
+      // 코드 에디터는 별도 페이지(editor.html) — library와 같은 방식으로 실제 페이지 이동.
+      if (view === 'editor') {
+        window.Tutorial?.notify('view:editor'); // 페이지가 넘어가기 전에 알린다 — 진행 위치가 저장된다
+        let _navd = false;
+        const _go = () => { if (!_navd) { _navd = true; location.href = 'editor.html'; } };
+        _tapP.then(() => setTimeout(_go, 240));
+        setTimeout(_go, 450); // 폴백: 재생 차단/지연돼도 반드시 이동
+        return;
+      }
       // 에디터에서 뒤로가기(back-btn = 'home') 시, 사전 경유로 왔으면 홈 대신 사전 페이지로 복귀
       if (view === 'home' && _homeSubView === 'editor' && _fromLibraryToEditor) {
         _fromLibraryToEditor = false;
@@ -5131,6 +5138,16 @@ function initHomeAdBannerCarousel() {
 }
 
 document.addEventListener('DOMContentLoaded', async () => {
+  // 코드 에디터는 editor.html로 분리됨 — 옛 링크(home.html?view=editor&…)로 들어오면 같은 쿼리로 넘긴다.
+  {
+    const _q = new URLSearchParams(location.search);
+    if (_q.get('view') === 'editor' || _q.get('subview') === 'editor') {
+      _q.delete('view'); _q.delete('subview');
+      const _qs = _q.toString();
+      location.replace('editor.html' + (_qs ? '?' + _qs : ''));
+      return;
+    }
+  }
   // 마이크는 튜너 페이지 진입 시에만 연다 — 홈에서 사전권한요청 폐지
   // (getUserMedia 호출 자체가 Android 오디오모드를 통화모드로 바꿔버리는 부작용 있음).
 

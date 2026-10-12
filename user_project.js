@@ -3714,9 +3714,9 @@ function createPaletteItem(chord, idx, projectId, editMode = true) {
       const _shell = document.querySelector('.app-shell');
       if (_shell) {
         _shell.classList.add('project-exit');
-        setTimeout(() => { location.href = 'home.html?view=editor&from_project=' + projectId + '&chord_id=' + chord.id; }, 260);
+        setTimeout(() => { location.href = 'editor.html?from_project=' + projectId + '&chord_id=' + chord.id; }, 260);
       } else {
-        location.href = 'home.html?view=editor&from_project=' + projectId + '&chord_id=' + chord.id;
+        location.href = 'editor.html?from_project=' + projectId + '&chord_id=' + chord.id;
       }
     } else {
       openViewModal(chord, projectId);
@@ -3990,9 +3990,9 @@ async function paletteDictToEditor() {
   const _shell = document.querySelector('.app-shell');
   if (_shell) {
     _shell.classList.add('project-exit');
-    setTimeout(() => { location.href = 'home.html?view=editor&from_project=' + projectId; }, 260);
+    setTimeout(() => { location.href = 'editor.html?from_project=' + projectId; }, 260);
   } else {
-    location.href = 'home.html?view=editor&from_project=' + projectId;
+    location.href = 'editor.html?from_project=' + projectId;
   }
 }
 

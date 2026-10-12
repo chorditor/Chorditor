@@ -21666,3 +21666,494 @@ html.ios-native #canvas-main-btns { position: relative; z-index: 1; }
   letter-spacing: var(--tracking-base);
   color: var(--text-primary);
 }
+
+/* ═══════════════════════════════════════════════════════════════
+   코드 에디터 페이지(editor.html, body.page-editor) — 반응형 분기 규칙은 코드 사전(body.page-library)과 동일.
+     가로 = min-width 769px (방향·높이 무관, 좌측 항목 패널 + 우측 다이어그램 스플릿 뷰 예정)
+     세로·모바일 = max-width 768px (위→아래 항목 나열)
+   새 컴포넌트 규칙만 이 섹션에 쌓는다. 옛 홈 에디터 규칙(.editor-card·.editor-page-title 등)은 그대로 두고 건드리지 않는다.
+   ═══════════════════════════════════════════════════════════════ */
+
+/* 공통 부품(전 폭) — 가로·세로가 같이 쓰는 컴포넌트 스타일 */
+@media all {
+  /* 섹션 라벨 — 하단 디테일 편집 리스트의 구역 제목("추천 코드명" 등). 타이틀 토큰(--type-title).
+     오른쪽에 회색 작은 글씨 힌트(.ed-section-hint)를 같은 기준선으로 붙인다 */
+  .page-editor .ed-section-label {
+    display: flex;
+    flex-wrap: wrap;   /* 긴 부연 설명(.ed-section-hint--block)은 타이틀 아래 줄로 */
+    align-items: baseline;
+    gap: var(--space-1) var(--space-2);
+    margin: 0;
+    font: var(--type-title);
+    letter-spacing: var(--tracking-base);
+    color: var(--text-primary);
+  }
+  /* 코드 이름 추천 막대 — 상단 다이어그램 카드와 같은 처리(흰 배경 + 흰 1px 테두리 + 그림자 두 겹)의 낮고 긴 카드.
+     안에 추천 이름이 한 줄로 놓이고, 넘치면 가로 스크롤(스크롤바는 숨김) */
+  .page-editor .ed-suggest-card {
+    box-sizing: border-box;
+    display: flex;
+    align-items: center;
+    gap: 0;
+    min-height: calc(var(--ed-suggest-chip) + 2 * (var(--space-2) + 1px));
+    padding: var(--space-2);
+    border: 1px solid #fff;
+    border-radius: var(--radius-lg);
+    background: var(--surface);
+    box-shadow:
+      0 1px 2px rgba(0, 0, 0, 0.04),
+      0 8px 24px rgba(0, 0, 0, 0.08);
+    overflow-x: auto;   /* 추천이 많으면 좌우 스크롤 */
+    overflow-y: hidden;
+    overscroll-behavior-x: contain;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+  }
+  .page-editor .ed-suggest-card::-webkit-scrollbar {
+    display: none;
+  }
+  /* 추천 이름 하나 — 배경 없이 텍스트만. 눌리는 동안 글자색이 옅어진다. 이름 글꼴은 label-lg 700.
+     카드가 가로 스크롤이라 항목은 줄어들지 않는다(flex-shrink: 0) */
+  .page-editor .ed-suggest-item {
+    flex-shrink: 0;
+    height: var(--ed-suggest-chip);
+    padding: 0 var(--space-3);
+    border: 0;
+    background: transparent;
+    color: var(--text-primary);
+    font: var(--type-label-lg);
+    font-weight: 700;
+    letter-spacing: var(--tracking-base);
+    white-space: nowrap;
+    cursor: pointer;
+    transition: color .15s;
+  }
+  .page-editor .ed-suggest-item:active {
+    color: var(--text-muted);
+  }
+  /* 텐션 위첨자(<sup>) — 기본 vertical-align: super는 줄 상자 높이를 위로 키워서, 칸 가운데 정렬된 본문 글자(루트·슬래시)가
+     아래로 처져 보인다. 줄 높이에 영향을 주지 않도록 line-height 0 + 상대 위치로 띄운다 */
+  .page-editor .ed-suggest-item sup {
+    font-size: 0.7em;
+    line-height: 0;
+    vertical-align: baseline;
+    position: relative;
+    top: -0.55em;
+  }
+  .page-editor .ed-section-hint {
+    font: var(--type-label-sm);
+    letter-spacing: var(--tracking-base);
+    color: var(--text-muted);
+  }
+  /* 긴 부연 설명 — 타이틀 옆이 아니라 아래 줄에 한 줄(넘치면 줄바꿈)로 */
+  .page-editor .ed-section-hint--block {
+    flex-basis: 100%;
+  }
+  /* 이름 휠 한 칸(.builder-col) — 흰색이 유리 같은 질감을 갖도록: 반투명 흰색 그라데이션(왼쪽 위가 더 밝음) +
+     블러 + 흰 테두리와 안쪽 위 하이라이트(유리 모서리의 빛) + 안쪽 아래 옅은 음영 + 부드러운 그림자 두 겹.
+     뒤가 단색이라 비치는 색은 없고, 질감만 낸다. 옛 전역 .builder-col(회색 테두리·radius 작음)은 이 규칙이 덮는다 */
+  .page-editor .chord-builder .builder-col {
+    max-width: 64px;   /* 휠 한 칸의 최대 폭 — 좁은 화면에선 flex:1로 줄고, 넓어도 64px를 넘지 않는다 */
+    border: 1px solid rgba(255, 255, 255, 0.85);
+    border-radius: var(--radius-lg);
+    background: linear-gradient(145deg, rgba(255, 255, 255, 0.98) 0%, rgba(255, 255, 255, 0.7) 100%);
+    -webkit-backdrop-filter: blur(14px) saturate(1.3);
+    backdrop-filter: blur(14px) saturate(1.3);
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.95),
+      inset 0 -1px 0 rgba(0, 0, 0, 0.04),
+      0 1px 2px rgba(0, 0, 0, 0.04),
+      0 8px 24px rgba(0, 0, 0, 0.08);
+  }
+  /* 휠 라벨(기본·3화음·7음·기능·텐션·베이스) — 브랜드 컬러, --type-label-sm + 두께 600.
+     옛 전역 .col-label(clamp 9~10px, 스코프별 14/10/8px)을 이 규칙이 덮는다 */
+  .page-editor .chord-builder .col-label {
+    font: var(--type-label-sm);
+    font-weight: 600;
+    letter-spacing: var(--tracking-base);
+    color: var(--brand);
+    /* 상하 여백 8px 고정(--space-2), 좌우 2px */
+    padding: var(--space-2) 2px;
+  }
+  /* 그림자 잘림 방지 — .wheel-picker가 가로 스크롤(overflow-x:auto)이라 세로 방향 overflow도 같이 잘린다.
+     그림자가 퍼질 만큼(아래 32px = 오프셋 8 + 블러 24, 위 16px, 좌우는 그리드 마진) 안쪽 패딩을 주고
+     같은 값의 음수 마진으로 상쇄해 레이아웃(폭·위치)은 그대로 둔다 */
+  .page-editor .chord-builder .wheel-picker {
+    padding: 16px var(--cd-inset) 32px;
+    margin: -16px calc(var(--cd-inset) * -1) -32px;
+    /* 간격 = 남는 폭을 5칸 사이로 나눈 값(칸 6개 × 최대 64px = 384px 기준)을 6~12px로 제한.
+       남는 폭이 작으면 좌우 끝까지 균등 분배(칸이 폭에 꽉 참), 간격이 12px를 넘으려 하면 12px로 고정하고 가운데 정렬.
+       % 는 컨테이너 안쪽 폭 기준(패딩 제외). 좁은 화면(384px 미만)에선 음수 → 최소 6px, 칸이 flex:1로 줄어든다 */
+    justify-content: center;
+    gap: clamp(6px, calc((100% - 384px) / 5), 12px);
+  }
+  /* 휠 위아래 페이드 — 단색(--surface) 덮개 대신 반투명 흰색에서 투명으로. 유리 질감이 덮개에 가려지지 않게 */
+  .page-editor .chord-builder .col-wheel-wrap::before {
+    background: linear-gradient(to bottom, rgba(255, 255, 255, 0.85) 30%, rgba(255, 255, 255, 0));
+  }
+  .page-editor .chord-builder .col-wheel-wrap::after {
+    background: linear-gradient(to top, rgba(255, 255, 255, 0.85) 30%, rgba(255, 255, 255, 0));
+  }
+  /* 손가락 번호 한 칸 — 원 버튼 + 아래 라벨(엄지·검지·중지·약지·소지), 가운데 정렬 */
+  .page-editor .ed-finger-item {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: var(--space-1);
+  }
+  .page-editor .ed-finger-label {
+    font: var(--type-label-sm);
+    letter-spacing: var(--tracking-base);
+    color: var(--text-secondary);
+    white-space: nowrap;
+  }
+  /* 손가락 번호 버튼(T 1 2 3 4) — 흰 원(액션 버튼과 같은 흰 1px 테두리 + 그림자), 선택되면 브랜드 컬러 채움 + 흰 글자.
+     보이는 원은 36px, 터치 영역은 ::before로 44px(상하좌우 4px씩 확장) */
+  .page-editor .ed-finger-btn {
+    position: relative;
+    flex-shrink: 0;
+    width: 36px;
+    height: 36px;
+    padding: 0;
+    border: 1px solid #fff;
+    border-radius: 50%;
+    background: var(--surface);
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.12);
+    color: var(--text-primary);
+    font: var(--type-label-lg);
+    font-weight: 700;
+    letter-spacing: var(--tracking-base);
+    cursor: pointer;
+    transition: background-color .15s, color .15s;
+  }
+  .page-editor .ed-finger-btn::before {
+    content: '';
+    position: absolute;
+    inset: -4px;
+  }
+  .page-editor .ed-finger-btn.selected {
+    background: var(--brand);
+    border-color: var(--brand);
+    color: #fff;
+  }
+  /* 액션 버튼 크기 — 원 버튼(저장·재생)과 알약(사전에서 불러오기)이 같은 값을 쓴다. 세로 48px(사전 세로와 같음), 가로는 56px 예정 */
+  .page-editor {
+    --ed-tool-btn: 48px;
+    --ed-suggest-chip: 40px;   /* 추천 이름 알약 높이 */
+  }
+  /* 액션바 버튼 — 코드 사전의 다이어그램 아래 조작 버튼(#lib-btn-save-image·#lib-btn-play)과 같은 디자인:
+     흰 원 + 흰 1px 테두리 + 그림자, 아이콘은 lucide 선 아이콘 24px(--cd-icon-btn-icon) 브랜드 컬러, 눌리면 회색 */
+  .page-editor .ed-tool-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    width: var(--ed-tool-btn);
+    height: var(--ed-tool-btn);
+    padding: 0;
+    border: 1px solid #fff;
+    border-radius: 50%;
+    background: var(--surface);
+    color: var(--brand);
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.12);
+    cursor: pointer;
+    transition: background-color .15s;
+  }
+  .page-editor .ed-tool-btn:active {
+    background: var(--gray-light);
+  }
+  .page-editor .ed-tool-btn svg {
+    width: var(--cd-icon-btn-icon);
+    height: var(--cd-icon-btn-icon);
+  }
+  /* 액션바 알약 버튼 — 코드 사전의 "에디터로 편집"·"노트에 저장" 알약(.lib-codeview-actions .ab-btn)과 같은 처리:
+     흰 배경 + 흰 1px 테두리 + 그림자, 글자는 --type-label-lg. 높이는 원 버튼과 같은 --ed-tool-btn.
+     터치 영역은 ::before로 확장 */
+  .page-editor .ed-pill-btn {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    flex-shrink: 0;
+    height: var(--ed-tool-btn);
+    padding: 0 var(--space-4);
+    border: 1px solid #fff;
+    border-radius: 999px;
+    background: var(--surface);
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.12);
+    color: var(--text-primary);
+    font: var(--type-label-lg);
+    font-weight: 700;
+    letter-spacing: var(--tracking-base);
+    white-space: nowrap;
+    cursor: pointer;
+    transition: background-color .15s;
+  }
+  .page-editor .ed-pill-btn::before {
+    content: '';
+    position: absolute;
+    inset: -2px;
+  }
+  .page-editor .ed-pill-btn:active {
+    background: var(--gray-light);
+  }
+  /* 페이지 제목 "코드 에디터" — 코드 사전 세로의 "코드사전" 제목과 같은 글꼴(title-lg, 700) */
+  .page-editor .ed-title {
+    margin: 0;
+    font: var(--type-title-lg);
+    font-weight: 700;
+    letter-spacing: var(--tracking-base);
+    color: var(--text-primary);
+  }
+  /* 다이어그램 카드 — 코드 사전 다이어그램 카드(.lib-canvas-row)와 같은 처리:
+     흰 배경 + 흰 1px 테두리 + 그림자 두 겹(가까운 접촉 그림자 + 넓고 부드러운 그림자)으로 살짝 떠 있는 느낌 */
+  .page-editor .ed-viewer-card {
+    box-sizing: border-box;
+    display: flex;
+    flex-direction: column;   /* 위: 상단 줄(토글·초기화), 아래: 캔버스 */
+    align-items: center;
+    gap: var(--space-2);
+    padding: var(--space-2);
+    border: 1px solid #fff;
+    border-radius: var(--radius-lg);
+    background: var(--surface);
+    box-shadow:
+      0 1px 2px rgba(0, 0, 0, 0.04),
+      0 8px 24px rgba(0, 0, 0, 0.08);
+  }
+  /* 상단 줄 — 좌측 샵/플랫 토글, 우측 끝 초기화. 카드 폭 전체를 쓰고 양끝 정렬 */
+  .page-editor .ed-card-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    align-self: stretch;
+  }
+  /* 샵/플랫 토글 — 전역 공용 .accidental-toggle 그대로(높이 32px) */
+  .page-editor .ed-acc-toggle {
+    flex-shrink: 0;
+  }
+  /* 초기화 아이콘 — 상단 줄 우측 끝. 아이콘 색은 사전 페이지와 같은 브랜드 컬러.
+     터치 영역은 ::before로 44px까지 확장 */
+  .page-editor .ed-reset-btn {
+    position: relative;
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 32px;
+    height: 32px;
+    padding: 0;
+    border: 0;
+    background: transparent;
+    color: var(--brand);
+    cursor: pointer;
+  }
+  .page-editor .ed-reset-btn::before {
+    content: '';
+    position: absolute;
+    inset: -6px;
+  }
+  .page-editor .ed-reset-btn svg {
+    width: var(--cd-icon-btn-icon);
+    height: var(--cd-icon-btn-icon);
+  }
+  /* 상단 줄 아래 중앙의 캔버스 — 배경은 투명(drawCanvas의 transparent). 크기는 카드와 무관하게 폭 고정(--ed-canvas-w),
+     높이는 캔버스 비율(460:352)로 직접 계산 — aspect-ratio에 맡기면 iOS Safari에서 어긋날 수 있어 두 값 다 명시 */
+  /* 메인 영역 — 캔버스 + 우측 이미지 저장·재생 + 프렛 ◀ ▶ + 바레 막대를 묶은 상단 카드의 본체.
+     옛 .canvas-unit과 같은 좌표계: 비트맵은 BASE_W×BASE_H = 440×352(5:4)이고
+     컬럼 = 개방현 105 / 프렛보드 240 / 우거터 95 → 23.864% / 54.545% / 21.591%, 행 = 80 / 192 / 80.
+
+     좌우 가운데 정렬(360px 뷰포트 기준으로 계산해 고정): 캔버스 상자(320px)는 왼쪽에 빈 여백(35 단위)이 있어
+     상자 중앙에 두면 눈에 보이는 내용이 오른쪽으로 쏠린다. 눈에 보이는 영역(왼쪽 끝 = 개방현 표시 약 51 단위 = 37.1px,
+     오른쪽 끝 = 우측 버튼 오른쪽 끝 318.9px → 폭 281.8px)의 중심(178.0px)을 상자 중심(160px)에서 18px 왼쪽으로 당겨
+     카드 안쪽 폭(360px 뷰포트에서 302px) 기준 좌우 여백이 같게(각 약 10.1px) 맞춘다. */
+  .page-editor .ed-main-area {
+    --ed-canvas-w: 320px;
+    --ed-canvas-h: calc(var(--ed-canvas-w) * 352 / 440);
+    --ed-sc: calc(var(--ed-canvas-w) / 440);   /* 캔버스 표시 배율(1 BASE 단위 = --ed-sc px) */
+    position: relative;   /* 프렛 ◀ ▶ 버튼을 캔버스 비율 좌표로 절대배치 + 아래 left 보정 */
+    left: -18px;          /* 눈에 보이는 내용을 카드 중앙으로(위 설명) */
+    flex-shrink: 0;
+    width: var(--ed-canvas-w);
+  }
+  /* ⚠️ 캔버스 id가 #c(튜토리얼이 찾는 옛 id)라 전역 `#c { width:100%; height:100% }`가 걸린다 — id를 같이 써서 이긴다 */
+  .page-editor .ed-main-area #c {
+    display: block;
+    width: var(--ed-canvas-w);
+    height: var(--ed-canvas-h);
+  }
+  /* 이미지 저장·재생 — 옛 #canvas-main-btns와 같은 자리: 우거터(105+240 이후 95 단위)의 가로 중앙(392.5/440),
+     프렛보드 행의 세로 중앙(80~272 → 캔버스 높이의 176/352). 기준은 묶음(.ed-main-area) 높이가 아니라 캔버스 높이 —
+     묶음에는 아래 바레 막대까지 들어 있어 %로 잡으면 프렛보드 중심보다 내려간다. 버튼은 위→아래 이미지 저장·재생, 사이 12px */
+  .page-editor .ed-side-btns {
+    position: absolute;
+    top: calc(var(--ed-canvas-h) * 176 / 352);
+    /* 프렛보드 오른쪽 끝(345/440)에서 20px 떨어진 곳에 버튼 왼쪽 끝을 둔다(거터 중앙이 아니라 왼쪽 기준 —
+       거터 폭이 캔버스 크기에 따라 변해도 프렛보드와의 간격이 일정하다) */
+    left: calc(345 / 440 * 100% + 20px);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: var(--space-3);
+    transform: translateY(-50%);
+  }
+  .page-editor .ed-side-btns #btn-play-chord {
+    margin-top: 0;   /* 옛 전역 #btn-play-chord { margin-top: 16.67% } 무효화 */
+  }
+  /* 프렛 번호 ◀ ▶ — 옛 #fret-ctrl과 같음: 버튼 24px 영역, 글자 10px, 사이 간격 14px.
+     묶음의 중심 = 프렛보드 컬럼의 37.5% 지점(가로 195/440), 하단 행(272~352)의 세로 중앙(312/352).
+     ⚠️ id가 #fret-ctrl(튜토리얼이 펄스·라벨 위치를 잡는 옛 id)이라 전역 `#fret-ctrl` 규칙이 걸린다 — id를 같이 써서 이긴다 */
+  .page-editor .ed-main-area #fret-ctrl {
+    position: absolute;
+    top: calc(var(--ed-canvas-h) * 312 / 352);
+    left: calc(195 / 440 * 100%);
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    gap: 14px;
+    margin: 0;
+    transform: translate(-50%, -50%);
+    pointer-events: auto;
+  }
+  .page-editor .ed-fret-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    width: 24px;
+    height: 24px;
+    padding: 0;
+    border: none;
+    background: transparent;
+    color: var(--text-secondary);
+    font-size: 10px;
+    cursor: pointer;
+  }
+  .page-editor .ed-fret-btn:active {
+    color: var(--text-primary);
+  }
+  /* 바레 막대 — 옛 #barre-wrap과 같음: 프렛보드 컬럼(캔버스 폭의 23.864%부터 54.545%)에 정렬된 회색 막대.
+     높이 = B 버튼 지름(48 단위) + 8 단위, 모서리는 알약 */
+  .page-editor .ed-barre-bar {
+    position: relative;
+    margin-left: calc(105 / 440 * 100%);
+    width: calc(240 / 440 * 100%);
+    height: calc(56 * var(--ed-sc));
+    background: #e8e8e8;
+    border-radius: 999px;   /* 알약 형태 */
+    box-shadow: 0 0 3px rgba(0, 0, 0, 0.12);
+    overflow: hidden;
+  }
+  /* B 버튼 — 옛 updateBarreBtns와 같음: 지름 48 단위, 글자 22 단위, 꺼짐 흰 원+#888, 켜짐 #242729+흰 글자 */
+  .page-editor .ed-barre-btn {
+    position: absolute;
+    top: calc(4 * var(--ed-sc));
+    width: calc(48 * var(--ed-sc));
+    height: calc(48 * var(--ed-sc));
+    padding: 0;
+    border: none;
+    border-radius: 50%;
+    background: #ffffff;
+    color: #888;
+    font-family: 'Pretendard', 'Noto Sans JP', sans-serif;
+    font-size: calc(22 * var(--ed-sc));
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transform: translateX(-50%);
+  }
+  .page-editor .ed-barre-btn.active {
+    background: #242729;
+    color: #fff;
+  }
+}
+
+/* 가로 스플릿 뷰(769px~) — 배치만 */
+@media (min-width: 769px) {
+  /* 가로 배치는 아직 설계 전 — 임시로 세로 배치(아래 블록, 전 폭 적용)를 가운데 560px 폭 안에 둔다.
+     각 컴포넌트의 폭이 "컨테이너 − 좌우 그리드 마진"이라 컨테이너 좌우 패딩만 주면 같이 가운데로 모인다 */
+  .page-editor #view-editor {
+    padding-inline: max(0px, calc((100% - 560px) / 2));
+  }
+}
+
+/* 세로·모바일 배치 — 가로 배치를 설계하기 전까지 임시로 전 폭에 적용한다(위 가로 블록이 폭만 560px로 가둠).
+   가로를 설계하면 이 블록의 조건을 (max-width: 768px)로 되돌릴 것 */
+@media all {
+  /* 제목 — 탑바 아래 8px. 좌측은 그리드 마진 + 7px(뒤로가기 < 아이콘 획이 viewBox 안쪽에 그려져 생기는 여백 보정, 사전과 같음) */
+  .page-editor .ed-title {
+    flex-shrink: 0;
+    padding: var(--space-2) var(--cd-inset) 0 calc(var(--cd-inset) + 7px);
+  }
+  /* 상단(빠른 제작) / 하단(디테일 편집) 구분선 — 액션바와 첫 섹션 라벨 사이를 64px로 벌리고 그 가운데에 1px 선.
+     위 32px + 선 1px + 아래 31px = 64px(아래 간격은 .ed-divider + .ed-section-label 규칙).
+     선은 카드들과 같은 그리드 컬럼 영역 폭 */
+  .page-editor .ed-divider {
+    flex-shrink: 0;
+    align-self: center;
+    box-sizing: border-box;
+    width: calc(100% - 2 * var(--cd-inset));
+    height: 1px;
+    margin: 32px 0 0;
+    padding: 0;
+    border: 0;
+    background: var(--gray-light);
+    /* 선 아래로 떨어지는 그림자 — 가까운 짙은 그림자 + 넓고 옅은 그림자 두 겹. 위쪽으로는 번지지 않게 y 오프셋만 양수 */
+    box-shadow:
+      0 2px 4px rgba(0, 0, 0, 0.06),
+      0 6px 12px rgba(0, 0, 0, 0.04);
+  }
+  .page-editor .ed-divider + .ed-section-label {
+    margin-top: 31px;
+  }
+  /* 섹션 라벨 — 액션바 아래 24px(위쪽 빠른 제작 영역과 구역을 나눔), 좌우는 그리드 마진 */
+  .page-editor .ed-section-label {
+    flex-shrink: 0;
+    margin-top: var(--space-6);
+    padding: 0 var(--cd-inset);
+  }
+  /* 손가락 번호 줄 — 위 카드들과 같은 그리드 컬럼 영역 왼쪽부터 10px 간격으로 나열. 부연 설명 아래 12px */
+  .page-editor .ed-finger-row {
+    flex-shrink: 0;
+    align-self: center;
+    display: flex;
+    align-items: flex-start;
+    justify-content: flex-start;
+    gap: 10px;   /* 사용자 지정(여백 스케일 4px 배수 밖) */
+    width: calc(100% - 2 * var(--cd-inset));
+    margin-top: var(--space-3);
+  }
+  /* 이름 휠 6개(.chord-builder > .wheel-picker) — 옛 에디터 카드 안에서 꺼내 온 것. 폭은 위 카드들과 같은
+     그리드 컬럼 영역, 라벨 아래 12px. 휠 안쪽 규칙(.builder-col·.col-scroll 등)은 전역 규칙을 그대로 쓴다 */
+  .page-editor .chord-builder {
+    flex-shrink: 0;
+    align-self: center;
+    width: calc(100% - 2 * var(--cd-inset));
+    margin-top: var(--space-3);
+  }
+  /* 추천 막대 — 섹션 라벨 아래 12px, 폭은 상단 카드와 같은 그리드 컬럼 영역 */
+  .page-editor .ed-suggest-card {
+    flex-shrink: 0;
+    align-self: center;
+    width: calc(100% - 2 * var(--cd-inset));
+    margin-top: var(--space-3);
+  }
+  /* 액션바 — 카드 아래 16px. 좌측 그리드 마진부터 왼쪽 정렬, 버튼 사이 12px(사전 조작 줄과 같은 간격) */
+  .page-editor .ed-action-bar {
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    justify-content: flex-start;
+    gap: var(--space-3);
+    margin-top: var(--space-4);
+    padding: 0 var(--cd-inset);
+  }
+  /* 다이어그램 카드 — 맨 위. 폭은 그리드 컬럼 영역 전체(좌우 그리드 마진 --cd-inset 안쪽 꽉 채움),
+     높이는 고정하지 않고 안쪽 요소(캔버스·버튼 등)의 높이 + 패딩으로 정해진다. 컬럼 flex 안에서 줄어들지 않도록 고정 */
+  .page-editor .ed-viewer-card {
+    flex-shrink: 0;
+    align-self: center;
+    width: calc(100% - 2 * var(--cd-inset));
+    margin-top: var(--space-4);
+  }
+}

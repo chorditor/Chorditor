@@ -5,7 +5,7 @@
 // 홈 쪽 원본은 정리 전까지 남겨둔다(P2). 이 페이지가 쓰는 것:
 //   shared.js(플랜·저장·분석·온보딩 관문) / voicing-canvas.js / chord-voicings.js /
 //   chords-library.js / voicing-library.js / guitar-audio.js
-// "에디터로"는 페이지 간 인계(sessionStorage → home.html?view=editor&from_lib=1).
+// "에디터로"는 페이지 간 인계(sessionStorage → editor.html?from_lib=1).
 // ═════════════════════════════════════════════════
 
 // ── 캔버스 구조 상수 (home.js와 동일 — VoicingCanvas 비율 계산용) ──
@@ -1115,8 +1115,8 @@ function closeModal(id) {
 // ═════════════════════════════════════════════════
 // 에디터로 인계 · 페이지 이탈
 // ═════════════════════════════════════════════════
-// 에디터는 home.html 안에 있어서 페이지 간 인계가 필요하다. 선택 코드(엔트리·운지 인덱스·번호 표시·샵/플랫)를
-// sessionStorage에 남기고 home.html?view=editor&from_lib=1로 이동 → home.js가 받아 기존 import 로직 실행.
+// 에디터는 별도 페이지(editor.html)라 페이지 간 인계가 필요하다. 선택 코드(엔트리·운지 인덱스·번호 표시·샵/플랫)를
+// sessionStorage에 남기고 editor.html?from_lib=1로 이동 → editor.js가 받아 import 로직 실행.
 const LIB_HANDOFF_KEY = 'chorditor_lib_handoff';
 
 function importLibChordToProject() {
@@ -1134,7 +1134,7 @@ function importLibChordToProject() {
     }));
   } catch (_) { return; } // 저장 실패하면 이동하지 않는다(빈 에디터로 가는 것보다 낫다)
   analytics.track('lib_chord_imported', { chord_name: dispName });
-  _leaveLibrary('home.html?view=editor&from_lib=1');
+  _leaveLibrary('editor.html?from_lib=1');
 }
 
 // 이탈 정리 함수 — 모든 출구(뒤로가기 버튼·하드웨어 뒤로가기·에디터로·새 노트·pagehide·앱 전환)가 같이 쓴다.
