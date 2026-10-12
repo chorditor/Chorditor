@@ -652,12 +652,15 @@ function selectLibSearchResult(idx) {
   const useFlat = accidental === 'flat';
   analytics.track('lib_search_result_selected', { chord_name: useFlat ? entry.flatName : entry.name });
   _libPanelCollapse();   // 패널을 펼친 상태였다면 접어서 코드뷰에서 결과 확인
-  // 모달 active 상태 갱신
-  // 사전패널 검색 중이면 결과가 코드 그리드(#lib-cards)에, 아니면 검색 모달에 있다
-  const container = document.getElementById(_libGridSearch ? 'lib-cards' : 'lib-search-cards');
-  container?.querySelectorAll('.lib-card').forEach((el, i) => {
-    el.classList.toggle('active', i === idx);
-  });
+  if (_libGridSearch) {
+    // 사전패널 검색 — 고르면 검색 종료: 창 닫기 + 입력 비움 + 키보드 내림 + 근음 그리드 복귀(다시 검색할 준비)
+    _closeLibPanelSearch();
+  } else {
+    // 검색 모달의 active 상태 갱신
+    document.getElementById('lib-search-cards')?.querySelectorAll('.lib-card').forEach((el, i) => {
+      el.classList.toggle('active', i === idx);
+    });
+  }
   window.Tutorial?.notify(`libsearchpick:${idx}`);
 }
 
@@ -1263,15 +1266,16 @@ function toggleLibPanelSearch() {
   const box   = document.getElementById('lib-panel-search');
   const input = document.getElementById('lib-panel-search-input');
   if (!box) return;
-  const open = box.classList.toggle('open');
-  if (open) {
-    _libPanelExpand();   // 세로: 키보드가 올라오기 전에 패널을 펼쳐 결과가 보이게(가로·이미 펼침이면 무시)
-    // 전환이 시작된 뒤에 포커스 — 한 프레임 미루지 않으면 폭이 0인 입력창에 포커스가 가서 스크롤이 튄다
-    requestAnimationFrame(() => input?.focus({ preventScroll: true }));
-  } else {
-    input?.blur();
-    _resetLibPanelSearch(); // 검색창을 접으면 입력과 결과를 비우고 근음 그리드로 복귀
+  // 세로·모바일: 아이콘은 "검색 시작" 전용 — 닫기는 결과·근음 선택에서만(토글이면 열린 채 남은 상태에서 첫 탭이 닫기가 됨).
+  // 가로: 기존대로 토글(열린 상태에서 아이콘을 다시 누르면 닫고 초기화)
+  if (!window.matchMedia('(max-width: 768px)').matches && box.classList.contains('open')) {
+    _closeLibPanelSearch();
+    return;
   }
+  box.classList.add('open');
+  _libPanelExpand();   // 세로: 키보드가 올라오기 전에 패널을 펼쳐 결과가 보이게(가로·이미 펼침이면 무시)
+  // 전환이 시작된 뒤에 포커스 — 한 프레임 미루지 않으면 폭이 0인 입력창에 포커스가 가서 스크롤이 튄다
+  requestAnimationFrame(() => input?.focus({ preventScroll: true }));
 }
 
 // ═════════════════════════════════════════════════
