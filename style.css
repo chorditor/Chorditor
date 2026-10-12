@@ -9803,7 +9803,8 @@ canvas {
     /* 폭 = 위쪽 고정 영역(탑바·머리·조작·팁 등 약 285px)을 빼고 패널 40dvh를 남긴 높이에 맞춘 카드 폭.
        카드 높이 ≈ (폭 − 18px) × 352/460 + 18px 이므로 폭 = (60dvh − 285px − 18px) × 1.307 + 18px.
        낮은 화면에선 다이어그램이 먼저 작아지고(최소 150px), 높으면 64%/300px 상한 */
-    width: clamp(150px, calc((60dvh - 303px) * 1.307 + 18px), min(64%, 300px));
+    /* dvh 대신 library.js가 잡는 고정 단위 --lib-dvh(키보드로 웹뷰가 줄어도 불변). 미설정이면 1dvh */
+    width: clamp(150px, calc((60 * var(--lib-dvh, 1dvh) - 303px) * 1.307 + 18px), min(64%, 300px));
     margin-top: var(--space-4);
     padding: 0;
   }
@@ -9826,7 +9827,7 @@ canvas {
     grid-row: auto;
     flex: 1 1 auto;
     min-height: 320px;   /* dvh 미지원 폴백 */
-    min-height: 40dvh;   /* 패널 바닥값 — 12key 아래 카드 약 2.5줄 이상 확보 */
+    min-height: calc(40 * var(--lib-dvh, 1dvh));   /* 패널 바닥값 — 12key 아래 카드 약 2.5줄 이상 확보 */
     /* 위 간격 16px + 펼침 버튼 반원(44px의 절반 22px) — 버튼이 코드뷰 쪽으로 튀어나오는 높이만큼 패널을 내려
        버튼이 손가락 영역을 침범하지 않게 하고, 그만큼 패널 높이가 줄어든다 */
     margin: calc(var(--space-4) + var(--lib-grip-size) / 2) 0 0;

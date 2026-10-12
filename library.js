@@ -1265,6 +1265,7 @@ function toggleLibPanelSearch() {
   if (!box) return;
   const open = box.classList.toggle('open');
   if (open) {
+    _libPanelExpand();   // 세로: 키보드가 올라오기 전에 패널을 펼쳐 결과가 보이게(가로·이미 펼침이면 무시)
     // 전환이 시작된 뒤에 포커스 — 한 프레임 미루지 않으면 폭이 0인 입력창에 포커스가 가서 스크롤이 튄다
     requestAnimationFrame(() => input?.focus({ preventScroll: true }));
   } else {
@@ -1442,6 +1443,20 @@ document.addEventListener('DOMContentLoaded', () => {
   (() => {
     const _mqN = window.matchMedia('(max-width: 768px)');
     _mqN.addEventListener('change', () => { if (!_mqN.matches) _libPanelReset(); });
+  })();
+
+  // 키보드가 올라와 웹뷰 높이가 줄어도 코드뷰·패널 크기가 변하지 않게 — 세로 레이아웃의 dvh 대신 쓰는 고정 단위(--lib-dvh = 1dvh).
+  // 같은 폭에서 높이가 줄어드는 건 키보드로 보고 무시, 폭이 바뀌면(회전·접힘) 새로 잡는다.
+  (() => {
+    let w = 0, h = 0;
+    const apply = () => {
+      const iw = window.innerWidth, ih = window.innerHeight;
+      if (iw !== w) { w = iw; h = ih; }
+      else if (ih > h) h = ih;
+      document.documentElement.style.setProperty('--lib-dvh', (h / 100) + 'px');
+    };
+    apply();
+    window.addEventListener('resize', apply);
   })();
 
   // 코드 사전 뷰어 캔버스 — CSS 표시폭이 미디어쿼리로 바뀔 때마다 비트맵 해상도 재계산.
