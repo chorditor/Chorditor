@@ -9492,9 +9492,10 @@ canvas {
     display: flex;
     align-items: center;
     justify-content: center;
-    width: auto;
-    height: auto;
-    aspect-ratio: 1 / 1;
+    width: var(--lib-codeview-btn);    /* 폭·높이 직접 지정 — aspect-ratio+stretch는 iOS Safari에서 타원이 됨 */
+    height: var(--lib-codeview-btn);
+    flex-shrink: 0;
+    align-self: center;
     padding: 0;
     border: 1px solid #fff;   /* 테두리 화이트(켜짐 .active의 검은 테두리도 덮음) */
     box-shadow: var(--lib-btn-shadow);
@@ -9939,10 +9940,6 @@ canvas {
   }
   #view-library .lib-finger-tip-slot {
     justify-content: center;
-  }
-  /* 높이가 옆 글자 줄에 맞춰 정해졌으므로 글자 줄이 없으면 직접 지정(정사각형) */
-  #view-library .lib-finger-tip-slot #lib-finger-btn {
-    height: var(--lib-codeview-btn);
   }
 }
 /* 태블릿 세로(481~768px) — 카드 그리드 4열 */
