@@ -12,7 +12,7 @@
   <link rel="stylesheet" href="style.css" />
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
 </head>
-<body>
+<body class="page-library">
 
   <!-- 페이지 커버: 초기화 완료 전 화면 가림 -->
   <div id="page-cover"></div>
@@ -24,6 +24,8 @@
       <button id="back-btn" class="icon-btn" onpointerup="closeLibraryPage()" aria-label="뒤로가기">
         <i data-lucide="chevron-left"></i>
       </button>
+      <!-- 세로·모바일: library.js가 사전패널의 검색(#lib-panel-search)을 이 슬롯(탑바 우측)으로 옮겨 온다 -->
+      <div class="cd-topbar-end" id="lib-topbar-search-slot"></div>
     </header>
 
     <!-- ── 메인 (style-guide.md §11 cd-main --stage: 자식이 스크롤·여백을 가짐) ── -->
@@ -34,6 +36,11 @@
         <!-- 사전패널 — 가로 배치(스플릿 뷰)에서만 보이는 좌측 카드. 세로 배치에선 CSS로 숨김.
              가로에선 탑바(cd-topbar--split-hidden)가 숨겨지므로 뒤로가기는 패널 안에 둔다 -->
         <div class="lib-panel" id="lib-panel">
+          <!-- 패널 펼침/접힘 버튼 — 세로·모바일 전용(가로에선 CSS로 숨김). 패널 위쪽 경계선 중앙에 반쯤 걸쳐 오버레이 -->
+          <button class="lib-panel-grip" id="lib-panel-grip" type="button"
+                  onclick="toggleLibPanelExpand()" aria-label="사전 패널 펼치기" aria-expanded="false">
+            <i data-lucide="chevron-up"></i>
+          </button>
           <!-- 패널 상단 줄: 우측 끝에 [#/b 토글][검색]. 홈으로 이동은 코드뷰 상단의 홈 아이콘이 담당 -->
           <div class="lib-panel-head">
             <!-- 우측 도구 묶음(우측 끝 고정): [샵/플랫 토글][검색]. 검색이 왼쪽으로 늘어나면 토글도 같이 밀려 이동.
@@ -193,7 +200,7 @@
         <div class="project-sheet-handle"></div>
         <div class="project-sheet-header">
           <span class="project-sheet-title">노트에 추가</span>
-          <button class="project-sheet-close" onclick="closeProjectSheet()">✕</button>
+          <button class="project-sheet-close" onclick="closeProjectSheet()" aria-label="닫기"><i data-lucide="x"></i></button>
         </div>
         <div class="project-sheet-list" id="project-sheet-list"></div>
       </div>
@@ -236,6 +243,12 @@
   <div class="img-save-backdrop" id="img-save-backdrop" onclick="closeImgSaveModal()"></div>
   <div class="img-save-modal" id="img-save-modal">
     <div class="ism-handle"></div>
+    <div class="ism-header">
+      <div class="ism-title">미리보기</div>
+      <button class="ism-close" type="button" onclick="closeImgSaveModal()" aria-label="닫기">
+        <i data-lucide="x"></i>
+      </button>
+    </div>
     <div class="ism-preview">
       <canvas id="img-preview-canvas"></canvas>
     </div>

@@ -9076,6 +9076,10 @@ canvas {
 .lib-panel {
   display: none;
 }
+/* 패널 펼침 버튼 — 세로·모바일에서만 표시(아래 세로 블록) */
+.lib-panel-grip {
+  display: none;
+}
 /* 코드뷰 상단 줄 — 가로 배치에서만 표시 */
 .lib-codeview-head {
   display: none;
@@ -9085,12 +9089,14 @@ canvas {
   display: none;
 }
 
-/* 큰 태블릿~데스크탑 — 코드 사전 와이드 레이아웃 = 스플릿 뷰 (769px~, 가로·세로 모드 무관).
+/* 코드 사전 공통 부품(전 폭) — 가로 스플릿 뷰(769px~)와 세로·모바일(~768px)이 같은 사전패널·코드뷰 부품을 쓴다.
+   배치 차이만 이 블록 뒤의 `@media (max-width: 768px)`(세로)에서 덮어쓴다.
+   (아래 설명은 가로 스플릿 뷰 기준) 와이드 레이아웃 = 스플릿 뷰 (769px~, 가로·세로 모드 무관).
    좌: 사전패널(홈으로·검색·#/b / 12key 셀렉터 / 코드 그리드), 우: 코드 뷰(상단 버튼 줄 + 다이어그램 + 조작 버튼 + 손가락 번호 팁).
    옛 좌측 목록(제목·검색바·근음 레일)은 이 구간에서 숨김 — 세로 배치만 그 요소를 쓴다.
    조건은 home.js libWideMq()와 정확히 일치시킬 것.
    library.js가 .lib-action-section(손가락 번호 팁)을 .lib-viewer 안으로 옮겨 우측 열에 배치한다. */
-@media (min-width: 769px) {
+@media all {
   /* 사전패널 폭 — 뷰포트 폭의 48%, 단 최소 360px ~ 최대 420px(750px 이하는 360, 875px~는 420). 전 구간 공통.
      열(--lib-list-w) = 패널 박스 + 왼쪽 바깥 여백 16px. 카드는 이 폭을 3등분해 자동으로 채운다(4:3 비율).
      Z Fold8(힌지 = 화면 중앙)도 48vw + 16px이라 힌지를 넘지 않아 별도 예외가 필요 없다. */
@@ -9278,7 +9284,7 @@ canvas {
     align-items: center;
     gap: var(--space-2);
   }
-  #view-library .lib-panel-search {
+  :is(#view-library, #lib-topbar-search-slot) .lib-panel-search {
     position: relative;
     flex-shrink: 0;
     display: flex;
@@ -9289,11 +9295,11 @@ canvas {
     overflow: hidden;
     transition: width .28s cubic-bezier(0.22, 1, 0.36, 1), background-color .2s;
   }
-  #view-library .lib-panel-search.open {
+  :is(#view-library, #lib-topbar-search-slot) .lib-panel-search.open {
     width: 176px;   /* 코드명만 입력(최장 "Cmaj7(#11)" 약 90px) — 전체 폭까지 늘릴 필요 없음 */
     background: var(--bg);   /* 테두리 없이 흰색 바로 아래 단계(#FEFEFD) — 눌렀을 때만 */
   }
-  #view-library .lib-panel-search-input {
+  :is(#view-library, #lib-topbar-search-slot) .lib-panel-search-input {
     flex: 1;
     min-width: 0;
     height: 100%;
@@ -9307,19 +9313,19 @@ canvas {
     opacity: 0;
     transition: opacity .2s;
   }
-  #view-library .lib-panel-search.open .lib-panel-search-input {
+  :is(#view-library, #lib-topbar-search-slot) .lib-panel-search.open .lib-panel-search-input {
     padding-right: var(--space-4);   /* 아이콘이 왼쪽이라 오른쪽 끝에만 여백 */
     opacity: 1;
   }
   /* 사전패널 아이콘 버튼 — 크기는 --cd-icon-btn-* 토큰(§8-1). .icon-btn 기본 18px/패딩 4px를 덮음 */
-  #view-library .lib-panel .icon-btn {
+  :is(#view-library .lib-panel, #lib-topbar-search-slot) .icon-btn {
     box-sizing: border-box;
     width: var(--cd-icon-btn-size);
     height: var(--cd-icon-btn-size);
     padding: 0;
     flex-shrink: 0;
   }
-  #view-library .lib-panel .icon-btn svg {
+  :is(#view-library .lib-panel, #lib-topbar-search-slot) .icon-btn svg {
     width: var(--cd-icon-btn-icon);
     height: var(--cd-icon-btn-icon);
   }
@@ -9379,8 +9385,11 @@ canvas {
   #view-library .lib-panel-key-item:active {
     transform: scale(0.92);
   }
+  /* 선택된 키 — 검은 배경 + 흰 글씨(링 방식 대체) */
   #view-library .lib-panel-key-item.active {
-    box-shadow: 0 0 0 2px var(--text-primary), 0 1px 4px rgba(0, 0, 0, 0.12);
+    background: var(--brand);
+    border-color: var(--brand);
+    color: #fff;
   }
   #view-library .lib-panel-head,
   #view-library .lib-panel-keys-track {
@@ -9392,13 +9401,17 @@ canvas {
   #view-library .lib-panel .lib-cards-area {
     flex: 1;
     min-height: 0;
-    margin-top: var(--space-2);
+    margin-top: 0;   /* 12key와의 흰 띠(총 24px)를 영역 안쪽 위 패딩으로 옮겨, 스크롤되는 카드가 그 띠 안에서 흐려지며 사라지게 함 */
     background: none;
     scrollbar-width: none;
+    /* 위쪽 16px 투명도 그라데이션 — 카드가 12key 아래 경계에서 뚝 잘리지 않고 자연스럽게 스며듦.
+       정지 상태의 첫 줄은 패딩(16px)이 이 구간을 지나 아래에 놓여 가려지지 않음 */
+    -webkit-mask-image: linear-gradient(to bottom, transparent 0, #000 var(--space-4));
+    mask-image: linear-gradient(to bottom, transparent 0, #000 var(--space-4));
   }
   #view-library .lib-panel .lib-cards-area::-webkit-scrollbar { display: none; }
   #view-library .lib-panel .lib-cards {
-    padding: var(--space-2) var(--space-2) var(--space-6);
+    padding: var(--space-4) var(--space-2) var(--space-6);   /* 위 16px = 위쪽 그라데이션 구간 */
   }
   /* 카드: 흰 배경 + 완전 흰 테두리 + 주변 그림자로 입체감. 선택(.active)은 검은 링을 그림자 위에 겹침 */
   #view-library .lib-panel .lib-card {
@@ -9424,19 +9437,13 @@ canvas {
   }
   /* 눌린 색이 남지 않게 — 기본 .icon-btn:hover 배경은 터치에서 탭 후에도 유지(sticky hover)되고
      마우스는 커서가 올라가 있는 동안 남음. 패널 안에선 hover 색을 끄고 누르는 동안만(:active) 표시 */
-  #view-library .lib-panel .icon-btn:hover {
+  :is(#view-library .lib-panel, #lib-topbar-search-slot) .icon-btn:hover {
     background: none;
     color: var(--text-secondary);
   }
-  #view-library .lib-panel .icon-btn:active {
+  :is(#view-library .lib-panel, #lib-topbar-search-slot) .icon-btn:active {
     background: var(--bg);
   }
-  /* 가로 스플릿 뷰에선 탑바(library.html)를 숨기고 뒤로가기를 패널 안에 둔다.
-     .cd-topbar { display:flex }가 파일 뒤쪽(페이지 셸 섹션)에 있어 같은 우선순위면 지므로 2클래스로 올림 */
-  .cd-topbar.cd-topbar--split-hidden {
-    display: none;
-  }
-
   /* 옛 좌측 목록(제목·검색바·근음 레일 + 카드 영역) — 사전패널이 대체하므로 가로에서는 쓰지 않는다.
      세로·모바일 배치는 같은 요소를 그대로 쓰기 때문에 마크업은 남기고 가로에서만 숨긴다.
      코드 그리드·운지 팝업·#/b 토글·액션바는 이미 패널/코드뷰로 옮겨져 있다(library.js) */
@@ -9678,6 +9685,270 @@ canvas {
   }
   #view-library {
     --lib-grid-cols: 5;
+  }
+}
+
+/* 코드 사전 가로 스플릿 뷰(769px~) — 탑바를 숨기고 홈 아이콘이 코드뷰 우상단에 있다. 세로는 탑바(뒤로가기) 유지.
+   .cd-topbar { display:flex }가 파일 뒤쪽(페이지 셸 섹션)에 있어 같은 우선순위면 지므로 2클래스로 올림 */
+@media (min-width: 769px) {
+  .cd-topbar.cd-topbar--split-hidden {
+    display: none;
+  }
+}
+
+/* 코드 사전 다이어그램 카드(가로·세로 공통) — 캔버스(.lib-canvas-row)만 감싼다. 운지 넘김·조작 버튼·손가락 팁은 카드 밖.
+   흰 배경 + 흰 1px 테두리 + 그림자(다른 흰 카드·버튼과 같은 처리). 빈 사이드버튼 영역은 높이를 먹으므로 숨김.
+   --lib-btn-shadow·--surface 토큰은 #view-library 안에서 정의되므로 같은 범위에서만 쓴다 */
+#view-library .lib-canvas-row {
+  box-sizing: border-box;
+  padding: var(--space-2);
+  border: 1px solid #fff;
+  border-radius: var(--radius-lg);
+  background: var(--surface);
+  /* 그림자만 — 가까운 접촉 그림자 + 넓고 부드러운 그림자 두 겹으로 떠 있는 느낌 */
+  box-shadow:
+    0 1px 2px rgba(0, 0, 0, 0.04),
+    0 8px 24px rgba(0, 0, 0, 0.08);
+}
+#view-library .lib-canvas-side-btns {
+  display: none;   /* 이미지 저장·재생은 library.js가 다이어그램 아래 조작 줄로 옮겨 비어 있음 */
+}
+
+/* 코드 사전 가로(769px~) 코드뷰 세로 간격 — 다이어그램 카드 / (운지 넘김) / 이미지·재생 / 손가락 버튼 영역 사이를 64px 고정으로 통일.
+   .lib-viewer의 gap 하나로 처리하고, 요소별로 따로 있던 margin-top(운지 넘김 6px, 조작 줄·팁 16px, 팁 안쪽 16px 이중)은 0으로 끔 */
+@media (min-width: 769px) {
+  /* 사전패널 상단 줄 — #/b 토글은 좌측 끝, 검색은 우측 끝(펼치면 왼쪽으로 늘어남).
+     도구 묶음(.lib-panel-tools)을 패널 폭 전체로 펴고 양끝 정렬 */
+  #view-library .lib-panel-tools {
+    left: 0;
+    right: 0;
+    justify-content: space-between;
+  }
+  #view-library .lib-viewer {
+    gap: 64px;   /* 여백 토큰(§3)에 64px는 없어 리터럴 */
+  }
+  #view-library .lib-fingering-nav,
+  #view-library .lib-codeview-tools,
+  #view-library .lib-action-section,
+  #view-library .lib-finger-tip {
+    margin-top: 0;
+  }
+}
+
+/* 코드 사전 세로·모바일(~768px) — 가로와 같은 부품을 위→아래로 쌓는다.
+   탑바(뒤로가기·검색) / 코드뷰 머리(코드사전) / 다이어그램 + 조작 버튼 + 손가락 팁 /
+   사전패널(상단 둥근 카드: #/b·검색, 12key, 코드 그리드 — 남은 높이를 채우고 내부 스크롤).
+   화면이 낮으면 패널 최소 높이(320px)를 지키고 페이지 전체가 세로 스크롤(§10).
+   부품 스타일은 위 `@media all` 블록 것을 그대로 쓰고 여기선 배치만 바꾼다. 위쪽 Fold·태블릿 옛 규칙이
+   #view-library 토큰·패딩을 덮어쓰므로 같은 명세 + 파일 뒤쪽에 둔다. */
+@media (max-width: 768px) {
+  #view-library.view {
+    --lib-grid-cols: 3;
+    --lib-tool-btn: 48px;   /* 세로 화면 높이 절약: 다이어그램 아래 조작 버튼 56 → 48px */
+    --lib-grip-size: 36px;   /* 패널 펼침 버튼(원) 지름 — 패널 위 여백·패딩 계산이 이 값을 따라감 */
+    --lib-codeview-btn: 32px;   /* 패널 머리 줄의 에디터로 편집·노트에 저장 높이 = #/b 토글 높이 */
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    padding: 0;
+    overflow-x: hidden;
+    overflow-y: auto;
+  }
+  /* 코드뷰 머리 — 가로에선 absolute로 우상단에 떴지만 세로에선 흐름 안. 제목 한 줄. 버튼 2개는 패널 머리로 이동 */
+  #view-library .lib-codeview-head {
+    position: static;
+    order: 1;
+    flex-shrink: 0;
+    height: auto;
+    flex-wrap: wrap;
+    align-items: center;
+    row-gap: var(--space-3);
+    /* 좌측 = 탑바 뒤로가기(<) 아이콘의 획 왼쪽 끝선에 제목 글자 왼쪽 끝을 맞춤(시각 보정).
+       #back-btn은 패딩 0·아이콘 24px(--icon-back-svg)라 chevron 획 시작(24 viewBox x=8) = 탑바 좌측 패딩 + 8px.
+       글자('코') 자체 좌측 여백 약 1px을 빼서 inset + 7px */
+    padding: var(--space-2) var(--cd-inset) 0 calc(var(--cd-inset) + 7px);
+  }
+  #view-library .lib-codeview-right {
+    display: contents;   /* 버튼 묶음을 머리의 직접 자식처럼 배치 */
+  }
+  /* 1줄: 우측 끝 [에디터로 편집][노트에 저장] / 2줄: 제목 "코드사전"(좌측 끝). 뒤로가기는 탑바가 담당 */
+  #view-library .lib-codeview-title {
+    order: 2;
+    flex: 1 0 100%;
+    font: var(--type-title-lg);   /* 세로: headline → title-lg(20~24px) */
+    font-weight: 700;           /* title 기본 600 → 700 (가이드 weight-bold) */
+    letter-spacing: var(--tracking-base);
+  }
+  /* 홈 아이콘 — 세로에선 탑바 뒤로가기가 있어 숨김 */
+  #view-library .lib-codeview-home {
+    display: none;
+  }
+  /* [에디터로 편집][노트에 저장] — library.js가 패널 머리(.lib-panel-head)로 옮겨 #/b 토글과 같은 줄 우측 끝에 둠 */
+  #view-library .lib-panel-head .lib-codeview-actions {
+    margin-left: auto;
+    justify-content: flex-end;
+  }
+  #view-library .lib-panel-head .lib-codeview-actions .ab-btn::before {
+    inset: -6px -2px;   /* 높이 32px → 터치 영역 44px */
+  }
+  /* 다이어그램 묶음 — 가로의 격자 배치 해제. 폭 64%(최대 300px)로 줄여 아래 패널 높이를 확보 */
+  #view-library .lib-viewer {
+    order: 2;
+    flex-shrink: 0;
+    grid-column: auto;
+    grid-row: auto;
+    align-self: center;
+    justify-self: auto;
+    /* 폭 = 위쪽 고정 영역(탑바·머리·조작·팁 등 약 285px)을 빼고 패널 40dvh를 남긴 높이에 맞춘 카드 폭.
+       카드 높이 ≈ (폭 − 18px) × 352/460 + 18px 이므로 폭 = (60dvh − 285px − 18px) × 1.307 + 18px.
+       낮은 화면에선 다이어그램이 먼저 작아지고(최소 150px), 높으면 64%/300px 상한 */
+    width: clamp(150px, calc((60dvh - 303px) * 1.307 + 18px), min(64%, 300px));
+    margin-top: var(--space-4);
+    padding: 0;
+  }
+  /* 세로 간격 통일 — 제목 / 다이어그램 카드 / (운지 넘김) / 이미지·재생 / 손가락 버튼 / 사전패널 사이를 모두 16px로.
+     제목↔카드는 .lib-viewer의 margin-top, 카드 아래 요소들은 .lib-viewer의 gap, 팁↔패널은 패널 margin-top.
+     요소마다 따로 있던 margin-top(운지 넘김 6px, 조작 줄·팁 16px, 팁 안쪽 16px 이중)은 0으로 끔 */
+  #view-library .lib-viewer {
+    gap: var(--space-4);
+  }
+  #view-library .lib-fingering-nav,
+  #view-library .lib-codeview-tools,
+  #view-library .lib-action-section,
+  #view-library .lib-finger-tip {
+    margin-top: 0;
+  }
+  /* 사전패널 — 하단 시트 형태: 좌우 끝까지, 위쪽만 둥글게, 그림자는 위로 */
+  #view-library .lib-panel {
+    order: 3;
+    grid-column: auto;
+    grid-row: auto;
+    flex: 1 1 auto;
+    min-height: 320px;   /* dvh 미지원 폴백 */
+    min-height: 40dvh;   /* 패널 바닥값 — 12key 아래 카드 약 2.5줄 이상 확보 */
+    /* 위 간격 16px + 펼침 버튼 반원(44px의 절반 22px) — 버튼이 코드뷰 쪽으로 튀어나오는 높이만큼 패널을 내려
+       버튼이 손가락 영역을 침범하지 않게 하고, 그만큼 패널 높이가 줄어든다 */
+    margin: calc(var(--space-4) + var(--lib-grip-size) / 2) 0 0;
+    /* 좌우 = 그리드 마진(--cd-inset) — 토글·버튼·12key·코드 그리드가 모두 같은 좌우선에 놓임.
+       테두리(1px)는 정렬을 1px 밀므로 세로에선 없앰(흰 테두리라 시각 차이 없음) */
+    padding-inline: var(--cd-inset);
+    border-width: 0;
+    /* 위 패딩 — 펼침 버튼(44px 원)의 아래쪽 반(22px)이 패널 안으로 들어오므로, 그 아래 8px에서 머리 줄(#/b·버튼)이 시작 */
+    --lib-panel-pad-top: calc(var(--lib-grip-size) / 2 + var(--space-2));
+    padding-top: var(--lib-panel-pad-top);
+    padding-bottom: calc(var(--space-2) + env(safe-area-inset-bottom));
+    border-radius: var(--radius-lg) var(--radius-lg) 0 0;
+    box-shadow: 0 -8px 40px rgba(0, 0, 0, 0.12);
+  }
+  #view-library .lib-panel .lib-voicing-modal {
+    border-radius: 0;
+  }
+  /* 12key 셀렉터·코드 그리드 — 화면 끝까지 풀블리드로 스크롤하되(그림자·흐림이 잘리지 않게),
+     첫 칸·카드 좌우 끝은 그리드 마진선에 맞춤(§11-4 풀블리드 패턴: 음수 마진 + 안쪽 패딩) */
+  #view-library .lib-panel-keys-track {
+    margin-inline: calc(var(--cd-inset) * -1);
+    padding-inline: var(--cd-inset);
+  }
+  #view-library .lib-panel .lib-cards-area {
+    margin-inline: calc(var(--cd-inset) * -1);
+  }
+  #view-library .lib-panel .lib-cards,
+  #view-library .lib-voicing-grid {
+    padding-inline: var(--cd-inset);
+  }
+  /* 패널 펼침 버튼 — 패널 위쪽 경계선 중앙에 반쯤 걸친 원(44px). 아이콘은 펼치면 아래로 회전 */
+  #view-library .lib-panel-grip {
+    position: absolute;
+    top: 0;
+    left: 50%;
+    z-index: 12;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-sizing: border-box;
+    width: var(--lib-grip-size);
+    height: var(--lib-grip-size);
+    padding: 0;
+    border: 1px solid #fff;
+    border-radius: 50%;
+    background: var(--surface);
+    /* 다이어그램 카드와 같은 그림자(접촉 + 넓고 부드러운 두 겹) */
+    box-shadow:
+      0 1px 2px rgba(0, 0, 0, 0.04),
+      0 8px 24px rgba(0, 0, 0, 0.08);
+    color: var(--text-primary);
+    cursor: pointer;
+    transform: translate(-50%, -50%);
+    transition: background-color .15s;
+  }
+  #view-library .lib-panel-grip:active {
+    background: var(--gray-light);
+  }
+  #view-library .lib-panel-grip svg {
+    width: 20px;
+    height: 20px;
+    transition: transform .3s cubic-bezier(0.22, 1, 0.36, 1);
+  }
+  #view-library .lib-panel-grip[aria-expanded="true"] svg {
+    transform: rotate(180deg);
+  }
+  /* 펼침 — library.js가 현재 위치(top, 인라인)에서 다이어그램 카드 위쪽 끝까지 트랜지션. 패널이 흐름에서 빠져
+     "코드사전" 영역 아래 전체를 덮음. 탑바(검색 포함)와 제목 줄은 그대로 보임. 펼친 동안 페이지 스크롤은 잠금 */
+  #view-library.lib-expanded {
+    overflow: hidden;
+  }
+  #view-library .lib-panel.lib-panel--float {
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    margin: 0;
+    min-height: 0;
+    transition: top .3s cubic-bezier(0.22, 1, 0.36, 1), border-radius .3s, padding-top .3s;
+  }
+  /* 운지 선택 팝업·오버레이는 머리 줄·12key 아래만 덮음 — 패널 위 패딩이 바뀌므로 변수로 따라가게 */
+  #view-library .lib-panel .lib-voicing-overlay,
+  #view-library .lib-panel .lib-voicing-modal {
+    top: calc(var(--lib-panel-pad-top) + var(--cd-icon-btn-size) + var(--space-2) + var(--space-3) + var(--lib-key-size) + var(--space-2));
+  }
+
+  /* #/b 토글 — 검색이 탑바로 올라갔으므로 패널 머리 좌측에 배치. 높이는 우측 버튼들과 같은 값 */
+  #view-library .lib-panel-tools {
+    right: auto;
+    left: 0;
+  }
+  #view-library .accidental-toggle {
+    height: var(--lib-codeview-btn);
+  }
+}
+/* 탑바 우측 검색 슬롯(세로) — 아이콘 끝선을 그리드 끝선에 맞춤(44px 영역 안 24px 아이콘의 안쪽 여백 10px 상쇄) */
+#lib-topbar-search-slot {
+  display: flex;
+  align-items: center;
+  margin-right: calc((var(--cd-icon-btn-size) - var(--cd-icon-btn-icon)) / -2);
+}
+/* 세로 화면이 낮을 때(~680px) 2단계 압축 — 다이어그램이 최소폭(150px)까지 줄어도 모자라므로 손가락 팁의 글자 줄(T 1 2 3 4)을 숨김.
+   손가락 번호 버튼은 남는다 */
+@media (max-width: 768px) and (max-height: 680px) {
+  #view-library .lib-finger-tip-items {
+    display: none;
+  }
+  #view-library .lib-finger-tip {
+    grid-template-columns: 1fr;
+    justify-items: center;
+  }
+  #view-library .lib-finger-tip-slot {
+    justify-content: center;
+  }
+  /* 높이가 옆 글자 줄에 맞춰 정해졌으므로 글자 줄이 없으면 직접 지정(정사각형) */
+  #view-library .lib-finger-tip-slot #lib-finger-btn {
+    height: var(--lib-codeview-btn);
+  }
+}
+/* 태블릿 세로(481~768px) — 카드 그리드 4열 */
+@media (min-width: 481px) and (max-width: 768px) {
+  #view-library.view {
+    --lib-grid-cols: 4;
   }
 }
 
@@ -21059,3 +21330,341 @@ html.ios-native .scale-item-list .scale-item-card {
 /* #15 에디터 저장·재생 버튼: 실측 결과 크기·위치는 정상인데 캔버스(#c)가 버튼 위에 그려져 가려짐
    (display:contents 래퍼 아래 grid 항목의 그리기 순서가 WebKit에서 다름). 쌓임 순서를 명시 */
 html.ios-native #canvas-main-btns { position: relative; z-index: 1; }
+
+/* ══ 하단 시트 — 노트에 추가(.project-sheet) · 이미지 저장(.img-save-modal) (2026-10-12) ══
+   세로·모바일(~768px): 범용 — 에디터 등 시트를 쓰는 모든 페이지에 적용(좌우 = 그리드 마진).
+   가로(769px~): 코드 사전 페이지 전용(body.page-library) — 다른 페이지의 가로 시트는 기존 그대로.
+   코드 사전 디자인과 통일: 흰 카드 + 흰 1px 테두리 + 그림자, 제목은 --type-title-lg 700, 닫기는 44px 아이콘 버튼. */
+@media (max-width: 768px) {
+
+  .project-sheet,
+  .img-save-modal {
+    --sheet-pad: var(--cd-inset);
+    box-sizing: border-box;
+    width: 100%;
+    max-width: none;
+    height: 65dvh;   /* 세로: 화면 높이의 65%까지 올라옴 */
+    max-height: 65dvh;
+    margin-inline: auto;
+    padding-inline: var(--sheet-pad);
+    background: var(--surface);
+    border-radius: var(--radius-lg) var(--radius-lg) 0 0;
+    box-shadow: 0 -12px 40px rgba(0, 0, 0, 0.12);
+  }
+  .project-sheet-handle,
+  .ism-handle {
+    background: var(--gray-light);
+  }
+  /* 노트에 추가 시트 */
+  .project-sheet-header {
+    padding-inline: 0;
+  }
+  .project-sheet-title {
+    font: var(--type-title-lg);
+    font-weight: 700;
+    letter-spacing: var(--tracking-base);
+  }
+  .project-sheet-close {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: var(--cd-icon-btn-size);
+    height: var(--cd-icon-btn-size);
+    margin-right: calc((var(--cd-icon-btn-size) - var(--cd-icon-btn-icon)) / -2);
+    padding: 0;
+    font-size: var(--cd-icon-btn-icon);
+    color: var(--text-primary);
+  }
+  .project-sheet-close svg {
+    width: var(--cd-icon-btn-icon);
+    height: var(--cd-icon-btn-icon);
+  }
+  /* 목록은 좌우 풀블리드(카드 그림자가 잘리지 않게), 카드는 시트 패딩선에 맞춤 */
+  .project-sheet-list {
+    margin-inline: calc(var(--sheet-pad) * -1);
+    padding: var(--space-1) var(--sheet-pad) var(--space-4);
+  }
+  .project-sheet-item,
+  .project-sheet-new-card {
+    min-height: 56px;
+    box-sizing: border-box;
+    border: 1px solid #fff;
+    border-radius: var(--space-3);
+    background: var(--surface);
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.12);
+  }
+  .project-sheet-new-card {
+    margin-bottom: var(--space-2);
+  }
+  .project-sheet-item-name,
+  .project-sheet-new-label {
+    font: var(--type-body-bold);
+    letter-spacing: var(--tracking-base);
+    color: var(--text-primary);
+  }
+  .project-sheet-item-count {
+    font: var(--type-caption);
+    letter-spacing: var(--tracking-base);
+    color: var(--text-secondary);
+  }
+  /* 이미지 저장 시트 */
+  .img-save-modal {
+    overflow-y: auto;   /* 65dvh보다 내용이 길면 시트 안에서 스크롤 */
+    padding-top: var(--space-3);
+    padding-bottom: calc(var(--space-5) + env(safe-area-inset-bottom));
+  }
+  #img-preview-canvas {
+    border: 1px solid #fff;
+    border-radius: var(--space-3);
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.12);
+  }
+  .ism-scale-label {
+    font: var(--type-label-lg);
+    letter-spacing: var(--tracking-base);
+  }
+  .ism-scale-val {
+    font: var(--type-label-sm);
+    letter-spacing: var(--tracking-base);
+  }
+  .ism-slider::-webkit-slider-thumb {
+    background: var(--surface);
+    border: 1px solid #fff;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.25);
+  }
+  .ism-save-btn {
+    height: var(--cd-icon-btn-size);
+    padding: 0 var(--space-6);
+    border-radius: 999px;
+    background: var(--brand);
+    color: #fff;
+    font: var(--type-label-lg);
+    font-weight: 700;
+    letter-spacing: var(--tracking-base);
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.12);
+  }
+
+}
+@media (min-width: 769px) {
+
+  .page-library .project-sheet,
+  .page-library .img-save-modal {
+    --sheet-pad: var(--space-6);
+    box-sizing: border-box;
+    width: 100%;
+    width: 80vw;   /* 가로: 뷰포트 폭의 80% */
+    max-width: none;
+    height: 65dvh;   /* 가로: 화면 높이의 65%까지 올라옴 */
+    max-height: 65dvh;
+    margin-inline: auto;
+    padding-inline: var(--sheet-pad);
+    background: var(--surface);
+    border-radius: var(--radius-lg) var(--radius-lg) 0 0;
+    box-shadow: 0 -12px 40px rgba(0, 0, 0, 0.12);
+  }
+  .page-library .project-sheet-handle,
+  .page-library .ism-handle {
+    background: var(--gray-light);
+  }
+  /* 노트에 추가 시트 */
+  .page-library .project-sheet-header {
+    padding-inline: 0;
+  }
+  .page-library .project-sheet-title {
+    font: var(--type-title-lg);
+    font-weight: 700;
+    letter-spacing: var(--tracking-base);
+  }
+  .page-library .project-sheet-close {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: var(--cd-icon-btn-size);
+    height: var(--cd-icon-btn-size);
+    margin-right: calc((var(--cd-icon-btn-size) - var(--cd-icon-btn-icon)) / -2);
+    padding: 0;
+    font-size: var(--cd-icon-btn-icon);
+    color: var(--text-primary);
+  }
+  .page-library .project-sheet-close svg {
+    width: var(--cd-icon-btn-icon);
+    height: var(--cd-icon-btn-icon);
+  }
+  /* 목록은 좌우 풀블리드(카드 그림자가 잘리지 않게), 카드는 시트 패딩선에 맞춤 */
+  .page-library .project-sheet-list {
+    margin-inline: calc(var(--sheet-pad) * -1);
+    padding: var(--space-1) var(--sheet-pad) var(--space-4);
+  }
+  .page-library .project-sheet-item,
+  .page-library .project-sheet-new-card {
+    min-height: 56px;
+    box-sizing: border-box;
+    border: 1px solid #fff;
+    border-radius: var(--space-3);
+    background: var(--surface);
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.12);
+  }
+  .page-library .project-sheet-new-card {
+    margin-bottom: var(--space-2);
+  }
+  .page-library .project-sheet-item-name,
+  .page-library .project-sheet-new-label {
+    font: var(--type-body-bold);
+    letter-spacing: var(--tracking-base);
+    color: var(--text-primary);
+  }
+  .page-library .project-sheet-item-count {
+    font: var(--type-caption);
+    letter-spacing: var(--tracking-base);
+    color: var(--text-secondary);
+  }
+  /* 이미지 저장 시트 */
+  .page-library .img-save-modal {
+    overflow-y: auto;   /* 65dvh보다 내용이 길면 시트 안에서 스크롤 */
+    padding-top: var(--space-3);
+    padding-bottom: calc(var(--space-5) + env(safe-area-inset-bottom));
+  }
+  .page-library #img-preview-canvas {
+    border: 1px solid #fff;
+    border-radius: var(--space-3);
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.12);
+  }
+  .page-library .ism-scale-label {
+    font: var(--type-label-lg);
+    letter-spacing: var(--tracking-base);
+  }
+  .page-library .ism-scale-val {
+    font: var(--type-label-sm);
+    letter-spacing: var(--tracking-base);
+  }
+  .page-library .ism-slider::-webkit-slider-thumb {
+    background: var(--surface);
+    border: 1px solid #fff;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.25);
+  }
+  .page-library .ism-save-btn {
+    height: var(--cd-icon-btn-size);
+    padding: 0 var(--space-6);
+    border-radius: 999px;
+    background: var(--brand);
+    color: #fff;
+    font: var(--type-label-lg);
+    font-weight: 700;
+    letter-spacing: var(--tracking-base);
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.12);
+  }
+
+}
+
+/* ══ 코드 사전 페이지 아이콘 색 — 전부 브랜드 컬러(--brand, 차콜블랙) (2026-10-12) ══
+   뒤로가기·검색·홈·펼침 버튼·이미지 저장·재생·운지 넘김·손가락 번호(꺼짐)·시트 닫기/새 노트.
+   손가락 번호 버튼이 켜진 상태(.active)는 검은 배경 + 흰 아이콘이라 건드리지 않음.
+   기본 규칙의 :hover/:active 색(text-secondary/primary)이 명세가 더 높아 같은 상태도 같이 선언 */
+.page-library #back-btn,
+.page-library .cd-topbar .icon-btn,
+.page-library #lib-topbar-search-slot .icon-btn,
+.page-library #lib-topbar-search-slot .icon-btn:hover,
+.page-library #lib-topbar-search-slot .icon-btn:active,
+.page-library #view-library .lib-panel .icon-btn,
+.page-library #view-library .lib-panel .icon-btn:hover,
+.page-library #view-library .lib-panel .icon-btn:active,
+.page-library #view-library .lib-codeview-home,
+.page-library #view-library .lib-panel-grip,
+.page-library #view-library .lib-codeview-tools #lib-btn-save-image,
+.page-library #view-library .lib-codeview-tools #lib-btn-play,
+.page-library #view-library .lib-codeview-tools #lib-btn-save-image:active,
+.page-library #view-library .lib-codeview-tools #lib-btn-play:active,
+.page-library #view-library .lib-fingering-btn,
+.page-library #view-library .lib-finger-tip-slot #lib-finger-btn:not(.active),
+.page-library .project-sheet-close,
+.page-library .project-sheet-new-icon {
+  color: var(--brand);
+}
+
+/* 이미지 저장 시트 배치 — 배율·저장 줄은 하단에 붙이고, 남는 위쪽 영역 가운데에 캔버스.
+   세로(~768px): 범용, 가로(769px~): 코드 사전 전용(.page-library) — 위 "하단 시트" 블록과 같은 범위 */
+@media (max-width: 768px) {
+  .img-save-modal {
+    display: flex;
+    flex-direction: column;
+  }
+  .ism-handle {
+    flex-shrink: 0;
+  }
+  /* 남는 위쪽 영역의 가운데에 미리보기(캔버스) */
+  .ism-preview {
+    flex: 1 1 auto;
+    min-height: 0;
+    align-items: center;
+    margin-bottom: 0;
+  }
+  /* 배율·저장 줄은 시트 아래쪽에 붙음 */
+  .ism-scale,
+  .ism-bottom {
+    flex-shrink: 0;
+  }
+  .ism-scale {
+    margin-top: var(--space-4);
+  }
+
+}
+@media (min-width: 769px) {
+  .page-library .img-save-modal {
+    display: flex;
+    flex-direction: column;
+  }
+  .page-library .ism-handle {
+    flex-shrink: 0;
+  }
+  /* 남는 위쪽 영역의 가운데에 미리보기(캔버스) */
+  .page-library .ism-preview {
+    flex: 1 1 auto;
+    min-height: 0;
+    align-items: center;
+    margin-bottom: 0;
+  }
+  /* 배율·저장 줄은 시트 아래쪽에 붙음 */
+  .page-library .ism-scale,
+  .page-library .ism-bottom {
+    flex-shrink: 0;
+  }
+  .page-library .ism-scale {
+    margin-top: var(--space-4);
+  }
+
+}
+
+/* 이미지 저장 시트 좌상단 라벨("미리보기") — 노트에 추가 시트 제목과 같은 --type-title-lg 700 */
+/* 제목 줄 — 좌측 "미리보기", 우측 끝 닫기(X) */
+.ism-header {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: var(--space-1);
+}
+.ism-close {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: var(--cd-icon-btn-size);
+  height: var(--cd-icon-btn-size);
+  margin-right: calc((var(--cd-icon-btn-size) - var(--cd-icon-btn-icon)) / -2);   /* 아이콘 끝선을 시트 우측 패딩선에 */
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--text-primary);
+  cursor: pointer;
+}
+.ism-close svg {
+  width: var(--cd-icon-btn-icon);
+  height: var(--cd-icon-btn-icon);
+}
+.page-library .ism-close {
+  color: var(--brand);
+}
+.ism-title {
+  font: var(--type-title-lg);
+  font-weight: 700;
+  letter-spacing: var(--tracking-base);
+  color: var(--text-primary);
+}

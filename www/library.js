@@ -107,9 +107,9 @@ const LIB_MINI_RATIO   = LIB_MINI_W / BASE_W;
 let _libWideMqCache = null;
 function libWideMq() {
   if (!_libWideMqCache) {
-    // 큰 태블릿~데스크탑(769px~) — 가로·세로 모드와 높이에 관계없이 폭만으로 판정(Fold8 와이드형도 이 안).
-    // style.css의 와이드 스코프(@media (min-width: 769px))와 정확히 일치시킬 것.
-    _libWideMqCache = window.matchMedia('(min-width: 769px)');
+    // 세로·모바일도 가로와 같은 부품(사전패널·코드뷰 버튼 줄)을 쓰므로 항상 true — 노드 이동·투명 다이어그램을
+    // 전 폭에 적용. 배치 차이는 style.css가 폭 미디어쿼리로 처리한다(옛 세로 목록 DOM은 숨김 상태로만 남음).
+    _libWideMqCache = window.matchMedia('all');
   }
   return _libWideMqCache;
 }
@@ -326,6 +326,7 @@ function onLibCardClick(event, sharpName) {
   if (idxList.length === 1) {
     _playTap(); // 더 펼칠 보이싱 없음 → 바로 선택(vibe)
     selectLibEntry(idxList[0]);
+    _libPanelCollapse();   // 패널을 펼친 상태였다면 접어서 코드뷰에서 결과 확인
     return;
   }
 
@@ -337,6 +338,98 @@ function onLibCardClick(event, sharpName) {
   _playSfx('page.mp3'); // 1차 그리드 펼침(보이싱 모달)
   openVoicingModal(sharpName, cardEl);
   window.Tutorial?.notify(`libcard:${sharpName}`);
+}
+
+// ── 사전패널 펼침/접힘 (세로·모바일 전용) ───────────────────────────────────────────────
+// 접힘(기본): 코드뷰 아래 흐름 안. 펼침: 패널이 흐름에서 빠져 #view-library(cd-main 전체)를 덮는다.
+// 펼친 상태에서 카드를 고르면 자동으로 접혀 코드뷰에서 결과를 확인한다. 검색·근음 선택·#/b는 펼침을 유지한다.
+let _libPanelExpanded = false;
+let _libPanelTimer = null;
+const LIB_PANEL_ANIM_MS = 320;   // style.css .lib-panel--float 트랜지션(.3s)보다 약간 길게
+
+function _libPanelEls() {
+  return {
+    view:   document.getElementById('view-library'),
+    panel:  document.getElementById('lib-panel'),
+    grip:   document.getElementById('lib-panel-grip'),
+    viewer: document.querySelector('#view-library .lib-viewer'),
+    head:   document.getElementById('lib-codeview-head'),
+  };
+}
+
+// 펼침 목표 top — 패널의 위쪽 경계선이 다이어그램 카드(.lib-viewer 맨 위의 .lib-canvas-row)의 위쪽 끝에 맞물리는 위치.
+// 카드·조작 버튼·손가락 팁이 덮이고, "코드사전" 줄과 그 아래 16px 여백은 남는다(펼침 버튼 원이 그 여백에 걸침).
+// 운지 넘김·글자 크기에 따라 달라질 수 있어 열 때마다 실측한다.
+function _libPanelOpenTop() {
+  const { view, viewer } = _libPanelEls();
+  if (!view) return 0;
+  const vr = view.getBoundingClientRect();
+  const card = viewer?.querySelector('.lib-canvas-row') || viewer;
+  const cardTop = card ? card.getBoundingClientRect().top : vr.top;
+  return Math.max(0, cardTop - vr.top);
+}
+
+function _libPanelReset() {
+  // 인라인·클래스 흔적 제거(타이머 포함) — 멱등
+  clearTimeout(_libPanelTimer); _libPanelTimer = null;
+  const { view, panel, grip } = _libPanelEls();
+  _libPanelExpanded = false;
+  view?.classList.remove('lib-expanded');
+  if (panel) {
+    panel.classList.remove('lib-panel--float', 'lib-panel--open');
+    panel.style.top = '';
+  }
+  if (grip) {
+    grip.setAttribute('aria-expanded', 'false');
+    grip.setAttribute('aria-label', '사전 패널 펼치기');
+  }
+}
+
+function _libPanelExpand() {
+  if (_libPanelExpanded || !window.matchMedia('(max-width: 768px)').matches) return;
+  const { view, panel, grip } = _libPanelEls();
+  if (!view || !panel) return;
+  clearTimeout(_libPanelTimer);
+  view.scrollTop = 0;                                   // 스크롤 잠그기 전에 맨 위로
+  const y = panel.getBoundingClientRect().top - view.getBoundingClientRect().top;
+  panel.style.top = y + 'px';                           // 흐름에서 빠지기 전 위치를 그대로 잡고
+  panel.classList.add('lib-panel--float');
+  view.classList.add('lib-expanded');
+  void panel.offsetHeight;                              // 시작 위치를 먼저 확정(트랜지션 발동)
+  panel.classList.add('lib-panel--open');
+  panel.style.top = _libPanelOpenTop() + 'px';          // 다이어그램 카드 위쪽 끝까지
+  _libPanelExpanded = true;
+  if (grip) {
+    grip.setAttribute('aria-expanded', 'true');
+    grip.setAttribute('aria-label', '사전 패널 접기');
+  }
+}
+
+function _libPanelCollapse() {
+  if (!_libPanelExpanded) return;
+  const { view, panel, grip, viewer } = _libPanelEls();
+  if (!view || !panel) { _libPanelReset(); return; }
+  // 접힌 위치 = 코드뷰(다이어그램 묶음) 아래 + 패널 위 여백(16px + 버튼 반원). 운지 넘김 유무로 코드뷰 높이가 바뀌므로 지금 실측.
+  const cs = getComputedStyle(document.documentElement);
+  const gap = parseFloat(cs.getPropertyValue('--space-4')) || 16;
+  const half = (grip ? grip.getBoundingClientRect().height : 44) / 2;
+  const vr = view.getBoundingClientRect();
+  const vbBottom = viewer ? viewer.getBoundingClientRect().bottom : vr.top;
+  panel.classList.remove('lib-panel--open');
+  panel.style.top = Math.max(0, vbBottom - vr.top + gap + half) + 'px';
+  _libPanelExpanded = false;
+  if (grip) {
+    grip.setAttribute('aria-expanded', 'false');
+    grip.setAttribute('aria-label', '사전 패널 펼치기');
+  }
+  clearTimeout(_libPanelTimer);
+  _libPanelTimer = setTimeout(_libPanelReset, LIB_PANEL_ANIM_MS);  // 트랜지션 뒤 흐름으로 복귀
+}
+
+function toggleLibPanelExpand() {
+  if (typeof _playTap === 'function') _playTap();
+  if (_libPanelExpanded) _libPanelCollapse();
+  else _libPanelExpand();
 }
 
 // 보이싱 모달 열기
@@ -389,7 +482,7 @@ function _renderVoicingGrid(sharpName) {
     // data-vpos: 이 코드 그룹 안에서 몇 번째 보이싱인지. 전역 인덱스는 코드마다 달라 튜토리얼이 못 쓴다.
     return `<div class="lib-card${_libEntry === e ? ' active' : ''}"
                  data-vpos="${pos}"
-                 onclick="event.stopPropagation(); _playTap(); selectLibEntry(${i}); window.Tutorial?.notify('libvoicing:${pos}');">
+                 onclick="event.stopPropagation(); _playTap(); selectLibEntry(${i}); _libPanelCollapse(); window.Tutorial?.notify('libvoicing:${pos}');">
                <canvas class="lib-card-canvas" data-vidx="${i}"
                        width="${LIB_MINI_W}"
                        height="${Math.round(BASE_H * LIB_MINI_RATIO)}"></canvas>
@@ -558,6 +651,7 @@ function selectLibSearchResult(idx) {
   _updateFingeringNav();
   const useFlat = accidental === 'flat';
   analytics.track('lib_search_result_selected', { chord_name: useFlat ? entry.flatName : entry.name });
+  _libPanelCollapse();   // 패널을 펼친 상태였다면 접어서 코드뷰에서 결과 확인
   // 모달 active 상태 갱신
   // 사전패널 검색 중이면 결과가 코드 그리드(#lib-cards)에, 아니면 검색 모달에 있다
   const container = document.getElementById(_libGridSearch ? 'lib-cards' : 'lib-search-cards');
@@ -1307,6 +1401,49 @@ document.addEventListener('DOMContentLoaded', () => {
     onViewportResync(_place); // iPad 복귀 시 change 누락 대비
   })();
 
+  // 검색 — 세로·모바일(~768px)은 탑바 우측 슬롯으로, 가로는 사전패널 도구 묶음(#/b 토글 오른쪽)으로.
+  // 같은 요소(id lib-panel-search)를 옮기므로 펼침·입력·결과 반영 코드는 그대로 동작한다.
+  (() => {
+    const _mqN  = window.matchMedia('(max-width: 768px)');
+    const _box  = document.getElementById('lib-panel-search');
+    const _slot = document.getElementById('lib-topbar-search-slot');
+    const _tools = document.getElementById('lib-panel-tools');
+    if (!_box || !_slot || !_tools) return;
+    const _place = () => { (_mqN.matches ? _slot : _tools).appendChild(_box); };
+    _place();
+    _mqN.addEventListener('change', _place);
+    onViewportResync(_place); // iPad 복귀 시 change 누락 대비
+  })();
+
+  // [에디터로 편집][노트에 저장] 묶음 — 세로·모바일은 패널 머리(#/b 토글 줄) 우측 끝으로, 가로는 코드뷰 상단 줄(홈 아이콘 왼쪽)로.
+  (() => {
+    const _mqN  = window.matchMedia('(max-width: 768px)');
+    const _acts = document.getElementById('lib-codeview-actions');
+    const _head = document.querySelector('#lib-panel .lib-panel-head');
+    const _right = document.querySelector('#lib-codeview-head .lib-codeview-right');
+    if (!_acts || !_head || !_right) return;
+    const _place = () => {
+      if (_mqN.matches) _head.appendChild(_acts);
+      else _right.prepend(_acts);
+    };
+    _place();
+    _mqN.addEventListener('change', _place);
+    onViewportResync(_place);
+  })();
+
+  // 펼친 채로 화면 크기가 바뀌면(주소창·키보드·회전) 위치를 다시 잡는다.
+  window.addEventListener('resize', () => {
+    if (!_libPanelExpanded) return;
+    const { panel } = _libPanelEls();
+    if (panel) panel.style.top = _libPanelOpenTop() + 'px';
+  });
+
+  // 가로(769px~)로 넘어가면 펼침 상태를 즉시 해제 — 가로는 스플릿 뷰라 패널을 덮는 상태가 없다.
+  (() => {
+    const _mqN = window.matchMedia('(max-width: 768px)');
+    _mqN.addEventListener('change', () => { if (!_mqN.matches) _libPanelReset(); });
+  })();
+
   // 코드 사전 뷰어 캔버스 — CSS 표시폭이 미디어쿼리로 바뀔 때마다 비트맵 해상도 재계산.
   // 안 하면 폭이 넓어진 스코프(와이드 레이아웃)에서 옛 320px 기준 비트맵이 업스케일되어 흐려진다
   // (코드 에디터 resizeCanvas()와 동일한 이유의 ResizeObserver).
@@ -1353,6 +1490,7 @@ document.addEventListener('DOMContentLoaded', () => {
   });
 
   // ── 이탈 처리 (CLAUDE.md 규칙 0-2): 어떤 경로로 나가든 소리 즉시 중단 ──
+  window.addEventListener('pagehide', _libPanelReset);   // 타이머·펼침 상태 정리(이탈 규칙 0-2)
   window.addEventListener('pagehide', _libCleanup);
   document.addEventListener('visibilitychange', () => { if (document.hidden) _libCleanup(); });
 
@@ -1366,6 +1504,7 @@ document.addEventListener('DOMContentLoaded', () => {
       if (_sheet && !_sheet.classList.contains('hidden')) { closeProjectSheet(); return; }
       if (document.getElementById('lib-search-modal')?.classList.contains('open')) { closeLibSearchModal(); return; }
       if (document.getElementById('lib-voicing-modal')?.classList.contains('open')) { closeVoicingModal(); return; }
+      if (_libPanelExpanded) { _libPanelCollapse(); return; }   // 펼친 패널은 홈보다 먼저 접는다
       closeLibraryPage();
     });
   }
