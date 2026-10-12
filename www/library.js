@@ -407,6 +407,7 @@ function _libPanelExpand() {
 
 function _libPanelCollapse() {
   if (!_libPanelExpanded) return;
+  _closeLibPanelSearch();   // 패널을 접으면(버튼·뒤로가기·카드 선택 모두) 검색도 종료 — 검색창·입력·키보드 정리
   const { view, panel, grip, viewer } = _libPanelEls();
   if (!view || !panel) { _libPanelReset(); return; }
   // 접힌 위치 = 코드뷰(다이어그램 묶음) 아래 + 패널 위 여백(16px + 버튼 반원). 운지 넘김 유무로 코드뷰 높이가 바뀌므로 지금 실측.
