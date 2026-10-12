@@ -2539,13 +2539,25 @@ function enterFromBlock(e, el, view) {
         setTimeout(_go, 450);                   // 폴백: 재생 차단/지연돼도 반드시 이동
         return;
       }
+      // 코드 사전은 별도 페이지(library.html) — training과 같은 방식으로 실제 페이지 이동.
+      if (view === 'library') {
+        window.Tutorial?.notify('view:library'); // 페이지가 넘어가기 전에 알린다 — 진행 위치가 저장된다
+        let _navd = false;
+        const _go = () => { if (!_navd) { _navd = true; location.href = 'library.html'; } };
+        _tapP.then(() => setTimeout(_go, 240));
+        setTimeout(_go, 450); // 폴백: 재생 차단/지연돼도 반드시 이동
+        return;
+      }
       // 홈블럭 직접 에디터 진입은 사전 복귀 대상 아님 → 플래그 해제
       if (view === 'editor') _fromLibraryToEditor = false;
-      // 에디터에서 뒤로가기(back-btn = 'home') 시, 사전 경유로 왔으면 홈 대신 사전으로 복귀
-      let _dest = view, _reverse = false;
-      if (view === 'home' && _homeSubView === 'editor' && _fromLibraryToEditor) { _dest = 'library'; _reverse = true; }
+      // 에디터에서 뒤로가기(back-btn = 'home') 시, 사전 경유로 왔으면 홈 대신 사전 페이지로 복귀
+      if (view === 'home' && _homeSubView === 'editor' && _fromLibraryToEditor) {
+        _fromLibraryToEditor = false;
+        location.href = 'library.html';
+        return;
+      }
       _fromLibraryToEditor = false; // 에디터 이탈 시 소진
-      enterFromHome(_dest, false, _reverse);
+      enterFromHome(view, false, false);
     }
   }
 
@@ -2703,13 +2715,10 @@ async function enterFromHome(view, skipAnim = false, reverse = false) {
         renderLibCards(_libRoot);
         const _initEntries = (window.chordsLibrary || {})[_libRoot] || [];
         if (_initEntries.length > 0) selectLibEntry(0, { silent: true });
-        // 와이드 레이아웃에서는 높이를 고정하지 않는다 — grid 컬럼 전체 높이를 flex로 채워야 하는데
-        // 여기서 인라인 flex:none을 박으면 CSS가 이길 수 없어 카드 영역이 짧게 굳는다.
-        // libWideMq() 문자열과 CSS 브레이크포인트를 따로 관리하면 새 와이드 스코프를 추가할 때마다
-        // 또 어긋날 수 있어서, 실제 CSS 상태(.lib-bottom-area가 grid인지)를 직접 물어봄 —
-        // 와이드 레이아웃이면 항상 이 값이라 스코프 목록과 무관하게 정확함.
-        const bottomArea = document.querySelector('.lib-bottom-area');
-        if (bottomArea && getComputedStyle(bottomArea).display === 'grid') return;
+        // 와이드 레이아웃(스플릿 뷰)에서는 높이를 고정하지 않는다 — 목록 패널 전체 높이를
+        // flex로 채워야 하는데 여기서 인라인 flex:none을 박으면 CSS가 이길 수 없어 카드 영역이
+        // 짧게 굳는다.
+        if (libWideMq().matches) return;
         const bottom = document.querySelector('.lib-bottom');
         if (bottom && !bottom.dataset.heightFixed) {
           bottom.style.height = bottom.getBoundingClientRect().height + 'px';
@@ -2734,6 +2743,13 @@ function handleNativeBack() {
   // user_project → 에디터로 들어온 모드: 화면 버튼이 없으므로 노트로 돌려보낸다
   if (_isFromProject && _editorReturnProjectId) {
     _returnToProject(_editorReturnProjectId);
+    return;
+  }
+
+  // 코드 사전에서 "에디터로" 넘어온 에디터 → 사전 페이지로 복귀(화면의 뒤로가기 버튼과 동일)
+  if (_activeTab === 'home' && _homeSubView === 'editor' && _fromLibraryToEditor) {
+    _fromLibraryToEditor = false;
+    location.href = 'library.html';
     return;
   }
 
@@ -5129,38 +5145,25 @@ document.addEventListener('DOMContentLoaded', async () => {
   const _sidebarVer = document.getElementById('sidebar-brand-version');
   if (_sidebarVer) _sidebarVer.textContent = _prodVer;
 
-  // 코드 사전 와이드 레이아웃 — 12key 근음 레일(#lib-root-tabs)을 .lib-bottom 안에서
-  // #view-library 직계로 꺼내 좌측 전체높이 컬럼으로 씀. CSS grid는 직계 자식에만 영역을
-  // 배정할 수 있어서 DOM 이동이 필요함(위 back-btn과 동일 패턴).
-  // renderLibRootTabs()는 getElementById로 잡으므로 위치가 바뀌어도 렌더링에 영향 없음.
+  // 코드 사전 와이드 레이아웃(스플릿 뷰) — 액션바(토글바)를 .lib-bottom-area(목록 패널) 밖으로 꺼내
+  // 다이어그램(.lib-viewer, 우측 코드 뷰) 안으로 넣어 한 묶음으로 쓴다. 근음 레일·제목은 이동하지
+  // 않고 원래 DOM 자리에서 CSS grid로 배치(style.css 와이드 블록).
   (() => {
     const _mq = libWideMq();
-    const _rail = document.getElementById('lib-root-tabs');
-    const _view = document.getElementById('view-library');
-    const _title = document.querySelector('#view-library .lib-title');
     const _bottom = document.querySelector('#view-library .lib-bottom');
     const _bottomArea = document.querySelector('#view-library .lib-bottom-area');
     const _actionSection = document.querySelector('#view-library .lib-action-section');
     const _viewer = document.querySelector('#view-library .lib-viewer');
-    if (!_rail || !_view || !_title || !_bottom || !_bottomArea || !_actionSection || !_viewer) return;
+    if (!_bottom || !_bottomArea || !_actionSection || !_viewer) return;
     const _place = () => {
       if (_mq.matches) {
-        _view.prepend(_rail);
-        // 좁은 화면에서 이미 굳혀둔 인라인 높이 고정을 해제 — 안 풀면 grid 컬럼을 못 채운다.
+        // 좁은 화면에서 이미 굳혀둔 인라인 높이 고정을 해제 — 안 풀면 목록 패널을 못 채운다.
         // dataset도 지워서 다시 좁아졌을 때 재고정될 수 있게 함.
         _bottom.style.height = '';
         _bottom.style.flex   = '';
         delete _bottom.dataset.heightFixed;
-        // 타이틀을 .lib-bottom-area 안으로 넣어 "레일 옆 컬럼 = 타이틀+카드 2행"을
-        // 독립된 내부 그리드로 만든다. 바깥 그리드의 행(검색/다이어그램/액션바 전용)과
-        // 더 이상 트랙을 공유하지 않아 서로 크기에 영향을 안 준다.
-        _bottomArea.prepend(_title);
-        // 액션바(토글바)를 .lib-bottom-area 밖으로 꺼내 다이어그램(.lib-viewer) 안으로
-        // 넣어 하나의 컨테이너로 묶는다 — 캔버스 행과 액션바 행을 그리드에서 합쳐 쓴다.
         _viewer.appendChild(_actionSection);
       } else {
-        _bottom.prepend(_rail);
-        _view.prepend(_title);
         _bottomArea.prepend(_actionSection);
       }
       // 와이드 진입/이탈로 .lib-card-canvas 표시폭이 바뀌므로 실제 비트맵 해상도도 다시 맞춘다.
@@ -5271,8 +5274,28 @@ document.addEventListener('DOMContentLoaded', async () => {
   // 서브페이지 사이드바 로그아웃 버튼 → home.html로 넘어와서 트리거
   if (_urlParams.get('action') === 'logout') confirmLogout();
 
+  // library.html "에디터로" 인계 — sessionStorage에 남긴 선택 코드를 받아 기존 import 로직 실행.
+  // 새로고침·직접 진입 등으로 인계 데이터가 없으면 아무것도 안 하고 일반 홈으로 연다.
+  let _libHandoff = null;
+  if (_urlParams.get('from_lib') === '1' && _urlParams.get('view') === 'editor') {
+    try {
+      _libHandoff = JSON.parse(sessionStorage.getItem('chorditor_lib_handoff') || 'null');
+      sessionStorage.removeItem('chorditor_lib_handoff');
+    } catch (_) { _libHandoff = null; }
+    if (!(_libHandoff && _libHandoff.entry && Date.now() - (_libHandoff.ts || 0) < 60000)) _libHandoff = null;
+  }
+
+  if (_libHandoff) {
+    switchTab('home', true);
+    _libEntry        = _libHandoff.entry;
+    _libFingeringIdx = _libHandoff.fingeringIdx || 0;
+    _libFingerMode   = _libHandoff.fingerMode !== false;
+    const _accMode   = _libHandoff.accidental === 'flat' ? 'flat' : 'sharp';
+    if (_accMode !== accidental) setAccidental(_accMode);
+    enterFromHome('editor', true); // 페이지 로드 직후라 슬라이드 없이 바로 에디터 — 이후 import 안의 navigateTo는 같은 뷰라 즉시 처리
+    importLibChordToProject(); // 에디터에 코드 로드 + _fromLibraryToEditor = true (뒤로가기 → library.html)
   // user_project → 에디터 진입
-  if (_fromProject && _urlParams.get('view') === 'editor') {
+  } else if (_fromProject && _urlParams.get('view') === 'editor') {
     _editorReturnProjectId = _fromProject;
     _editorEditingChordId  = _fromChordId || null;
     _isFromProject         = true;
@@ -5542,10 +5565,10 @@ const LIB_MINI_RATIO   = LIB_MINI_W / BASE_W;
 let _libWideMqCache = null;
 function libWideMq() {
   if (!_libWideMqCache) {
-    // 태블릿 가로/랩탑(1133~1599) + 데스크탑(1600~) + Z Fold8 와이드형(834~950×680~770) —
+    // 큰 태블릿 가로~데스크탑(769~) + Z Fold8 와이드형(834~950×680~770) —
     // 콤마는 matchMedia에서 OR로 동작. style.css의 각 와이드 스코프 조건과 정확히 일치시킬 것.
     _libWideMqCache = window.matchMedia(
-      '(min-width: 1133px) and (min-height: 600px) and (min-aspect-ratio: 1/1), ' +
+      '(min-width: 769px) and (min-height: 600px) and (min-aspect-ratio: 1/1), ' +
       '(min-width: 834px) and (max-width: 950px) and (min-height: 680px) and (max-height: 770px)');
   }
   return _libWideMqCache;
@@ -5673,7 +5696,8 @@ function _drawLibMiniCanvas(canvas, entry, nameOverride) {
   const ratio = Math.ceil((cssW > 0 ? cssW : 56) * _LIB_DPR) / BASE_W;
   canvas.width  = Math.round(BASE_W * ratio);
   canvas.height = Math.round(BASE_H * ratio);
-  _drawLibCanvas(canvas, ratio, entry, nameOverride);
+  // 미니 카드(메인 그리드·운지 선택 팝업·검색 결과)는 손가락 번호 없이 dot만 — 토글과 무관
+  _drawLibCanvas(canvas, ratio, entry, nameOverride, 0, false, false);
 }
 
 function _ensureLibCanvas() {
@@ -5698,7 +5722,7 @@ function drawLibViewerCanvas() {
 
 // 공통 캔버스 렌더 (viewer / mini card 공용)
 // fingeringIdx: 사용할 운지 인덱스 (미지정 시 0 = 대표 운지)
-function _drawLibCanvas(canvas, ratio, entry, nameOverride, fingeringIdx = 0, transparent = false) {
+function _drawLibCanvas(canvas, ratio, entry, nameOverride, fingeringIdx = 0, transparent = false, fingerNumMode = _libFingerMode) {
   // 코드 캔버스 드로잉은 voicing-canvas.js 모듈(VoicingCanvas)로 일원화.
   // 프렛 정규화·바레·도트·프렛번호·손가락번호·코드명 모두 모듈이 처리.
   VoicingCanvas.draw(canvas, {
@@ -5712,7 +5736,7 @@ function _drawLibCanvas(canvas, ratio, entry, nameOverride, fingeringIdx = 0, tr
     fingering:  entry.fingerings?.[fingeringIdx] ?? entry.fingerings?.[0] ?? entry.fingering,
   }, {
     chordName:     nameOverride,
-    fingerNumMode: _libFingerMode,
+    fingerNumMode,
     ratio,
     transparent,
   });
@@ -5870,8 +5894,6 @@ function toggleLibFingerNum() {
   const btn = document.getElementById('lib-finger-btn');
   if (btn) btn.classList.toggle('active', _libFingerMode);
   drawLibViewerCanvas();
-  // 미니 카드도 재렌더
-  if (_libEntry) renderLibCards(_libRoot);
   analytics.track('lib_finger_num_toggled', { active: _libFingerMode });
 }
 

@@ -7,7 +7,7 @@
 `style.css` `:root`에 정의. 새 색상 임의 추가 금지.
 
 ```css
---bg: #FAFAF9;
+--bg: #FEFEFD;
 --surface: #ffffff;
 --border: #d9d4cc;
 --gray-light: #ECECEA; /* --border보다 연한 회색 */
@@ -189,6 +189,21 @@ Material 3 / iOS HIG 타입스케일 기반 6카테고리 12토큰, §4 5단계�
 - 스타일: 아웃라인 — 배경 `#fff` + `box-shadow: 0 0 0 1px rgba(0,0,0,0.08)`
   (`.add-line-btn`만 `border: 1.5px solid var(--border)`).
 
+### 8-1. 아이콘 버튼 크기 토큰 (`--cd-icon-btn-*`, 2026-10-12)
+
+위 §8(원형, 구간별 가변)과 별개로, 신규 작업용 **터치 영역 고정** 아이콘 버튼 규격. 5단계 전부 같은 값.
+
+| 토큰 | 값 | 의미 |
+|---|---|---|
+| `--cd-icon-btn-size` | 44px | 터치 영역(정사각) — 터치 최소 44px 확보 |
+| `--cd-icon-btn-icon` | 24px | 그 안의 아이콘(lucide) — 터치 영역 대비 약 0.55 |
+
+- 근거: 독바·탑바 로고·피크바 아이콘이 이미 24px(§7·§11), Material 48dp 안 24dp / iOS 44pt 안 22~28pt.
+- 24px에서 lucide 기본 선 굵기(`stroke-width: 2`)가 그대로 맞아 별도 보정 불필요.
+- 적용: 사전 패널(`.lib-panel`) 안 `.icon-btn` — `width/height: var(--cd-icon-btn-size)`, `padding: 0`,
+  `svg`는 `var(--cd-icon-btn-icon)`. 기존 `.icon-btn` 기본(18px/패딩 4px)은 해당 스코프에서만 덮어씀.
+- 새 아이콘 버튼은 크기를 직접 쓰지 말고 이 토큰을 참조할 것. 배경·테두리 스타일은 컴포넌트별.
+
 ## 9. 뒤로가기 아이콘 옆 타이틀 정렬
 
 lucide 아이콘은 viewBox 안쪽에 획이 그려져 시각 중심이 살짝 안쪽 → 타이틀에 `margin-left: 2px`
@@ -244,6 +259,7 @@ lucide 아이콘은 viewBox 안쪽에 획이 그려져 시각 중심이 살짝 �
 | `cd-main--stage` | 자식이 `position:absolute`로 겹쳐 슬라이드 전환하는 페이지용(홈 탭). `relative`+`overflow:hidden`+패딩 없음. 스크롤·여백은 자식이 담당 |
 | `cd-dockbar` | A종 하단 탭 내비. 높이 `56px + safe-area-inset-bottom` **전 구간 고정**, 흰 배경 + 위 1px `--border`. 항목 `cd-dockbar-item`: 아이콘 24px + 라벨 `--font-caption`/500, 활성 시 `--text-primary`, 비활성 `--text-muted` |
 | `cd-topbar` 배경 | `var(--topbar-bg, var(--bg))`, `--white` 수식어 = `#fff` |
+| `cd-topbar--split-hidden` | 코드 사전(`library.html`) 가로 스플릿 뷰(769px~, 가로·세로 모드 무관)에서 탑바를 `display:none`. 뒤로가기는 사전패널 안에 둠. `.cd-topbar{display:flex}`가 파일 뒤쪽이라 `.cd-topbar.cd-topbar--split-hidden`(2클래스)로 우선순위를 올려 선언. 세로·모바일에선 탑바 그대로 |
 | `cd-main` | `flex:1` + `overflow-y:auto` + `padding-inline: var(--cd-inset)` + `padding-bottom: calc(var(--space-6) + env(safe-area-inset-bottom))` + 세로 flex + 스크롤바 숨김 (박스는 뷰포트 전체) |
 | `--cd-inset` | `max(var(--grid-margin), calc((100vw - 1440px) / 2 + var(--grid-margin)))` — 1440 이하 = 그리드 마진, 초과분은 좌우 균등 분배. `%`가 아니라 `vw`인 이유: 패딩과 자식 마진에서 기준이 달라지지 않게 |
 | 피크바 | 마크업 인라인 `margin-left:auto`로 우측 끝. 1600px~ 크기는 §7 |
@@ -316,6 +332,7 @@ lucide 아이콘은 viewBox 안쪽에 획이 그려져 시각 중심이 살짝 �
 | `home.html` 뼈대 | ✅ 탑바 `.top-bar.desktop-topbar` → `cd-topbar`(브랜드·튜토리얼·설정 슬롯), `.main-content` → `cd-main cd-main--stage`, `.bottom-nav` → `cd-dockbar`(2026-10-11). `.desktop-topbar`·`.bottom-nav`·데스크탑 사이드바 잔재(마크업·CSS) 삭제. 탭 안쪽(`cd-head`/`cd-body`)은 미착수 |
 | `training` / `metronome` / `tuner` / `strumming` / `attendance` / `mission-session` / `chord-name-quiz` / `user_project` | ✅ 뼈대 이식(2026-10-11) — `.top-bar.desktop-topbar`(빈 껍데기) 삭제, 안쪽 `.top-bar` → `header.cd-topbar`(main 밖으로), `.main-content` → `main.cd-main.cd-main--stage`. **안쪽 스크롤 wrapper(`.training-scroll`·`.metronome-scroll`·`.tuner-wire-scroll`·`.strum-scroll`·`.attendance-scroll`·`.ms-scroll`·`.content-body` 등)와 `cd-head`/`cd-body` 구조화는 미착수** — `--stage`는 "자식이 스크롤·여백을 갖는" 중간 단계 |
 | `home.html` 탭 본문 | 미착수(`cd-head`/`cd-body`) |
+| `library.html` (코드 사전) | ✅ 홈 탭의 `#view-library`를 별도 페이지로 분리(2026-10-12) — B종 뼈대(`cd-topbar` + `cd-main--stage`). 가로(769px~)는 **스플릿 뷰**: 탑바를 `cd-topbar--split-hidden`으로 숨기고 좌측 사전패널(`.lib-panel`, 카드 16px 라운드, 아이콘 버튼은 §8-1 토큰) + 우측 코드 뷰. 로직은 `library.js`, "에디터로"는 sessionStorage 인계(`home.html?view=editor&from_lib=1`). 홈 쪽 원본 코드는 정리 전까지 남아 있음 |
 | **정리 완료** | `.top-bar`·`.main-content`·`.desktop-topbar`·`.bottom-nav` 규칙 전부 삭제. `.top-bar-title/-version/-logo`만 `scale-level.html`이 써서 남음. 튜토리얼 모달 헤더는 `.tutorial-topbar` 자체 규칙 |
 
 ### 11-6. 미정

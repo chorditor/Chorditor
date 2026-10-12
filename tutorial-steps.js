@@ -1567,7 +1567,8 @@ const TUTORIAL_CHAPTERS = (() => {
       title: '코드 사전',
       steps: STEP2_STEPS,
       enterFirst: () => window.enterFromHome?.('home', true),
-      enter:      () => window.enterFromHome?.('library', true),
+      // 코드 사전은 별도 페이지(library.html) — 이어받기는 그 페이지의 Tutorial.resume()이 한다
+      enter:      () => { location.href = 'library.html'; },
       doneDesc:  '코드 사전을 다 둘러봤어요.',
     },
     'note-create': {
