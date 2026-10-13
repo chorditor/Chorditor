@@ -35,6 +35,9 @@
         <!-- 0. 페이지 제목 — 카드 위 -->
         <h1 class="ed-title">코드 에디터</h1>
 
+        <!-- 상단 영역(빠른 제작: 다이어그램 카드 + 액션바) — 세로는 display:contents로 풀어 그대로 쌓고, 가로에선 우측 열 -->
+        <div class="ed-upper">
+
         <!-- 1. 다이어그램 카드 — 중앙에 투명 배경 캔버스. 아래 옛 #c와 같은 상태(점·바레·뮤트·이름)를 그린다 -->
         <div class="ed-viewer-card" id="ed-viewer-card">
           <!-- 상단 줄: 좌측 샵/플랫 토글 · 우측 끝 초기화 -->
@@ -79,8 +82,13 @@
           <button class="ed-pill-btn" id="btn-add-to-project" type="button" onclick="_playTap();openProjectSheet()">노트에 저장</button>
         </div>
 
+        </div><!-- /ed-upper -->
+
         <!-- 상단(빠른 제작) / 하단(디테일 편집) 구분선 -->
         <hr class="ed-divider">
+
+        <!-- 하단 영역 스크롤 컨테이너 — 위(카드·액션바·구분선)는 고정, 추천 코드명부터 아래만 스크롤 -->
+        <div class="ed-lower">
 
         <!-- 3. 하단 영역(디테일 편집 리스트) — 섹션 라벨 -->
         <h2 class="ed-section-label">추천 코드명<span class="ed-section-hint">터치해서 적용</span></h2>
@@ -207,6 +215,8 @@
             <span class="ed-finger-label">소지</span>
           </div>
         </div>
+
+        </div><!-- /ed-lower -->
 
       </div>
 

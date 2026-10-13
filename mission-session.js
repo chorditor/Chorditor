@@ -484,15 +484,13 @@ function msShowPreQuizCountdown() {
   document.getElementById('ms-title-text').textContent = '';
   document.getElementById('ms-title-desc').style.display = 'none';
   _msHideTitleIcon();
-  document.getElementById('ms-main').innerHTML = `
-    <div class="ms-precountdown">
-      <div class="ms-precountdown-msgs">
-        <p class="ms-precountdown-msg ms-stagger-pending" id="ms-precountdown-msg1">${_msExamMode ? `제한시간 ${_msExamSectionTimeSec}초 안에` : '최대한 빠르게 맞춰보세요!'}</p>
-        <p class="ms-precountdown-msg ms-stagger-pending" id="ms-precountdown-msg2">${_msExamMode ? '맞춰주세요!' : '카운트가 시작됩니다.'}</p>
-      </div>
-      <div class="ms-countdown-num" id="ms-countdown-num"></div>
-    </div>
-  `;
+  // 문제 뷰와 같은 레이아웃을 빈 슬롯 상태(.cq-counting)로 그린다 — 안내문구는 문제 카드 헤더, 숫자는 문제 카드 본문,
+  // 답 영역은 말풍선 + 빈 카드 4칸(코드맞추기 페이지 startCountdown과 동일한 화면)
+  document.getElementById('ms-main').innerHTML = _msQuizViewHtml({
+    counting: true,
+    msg1: _msExamMode ? `제한시간 ${_msExamSectionTimeSec}초 안에` : '최대한 빠르게 맞춰보세요!',
+    msg2: _msExamMode ? '맞춰주세요!' : '카운트가 시작됩니다.',
+  });
 
   const msg1 = document.getElementById('ms-precountdown-msg1');
   const msg2 = document.getElementById('ms-precountdown-msg2');
@@ -530,30 +528,54 @@ function msShowPreQuizCountdown() {
   setTimeout(() => { showNum(1); _msPlayBeep(600, 0.06); }, 4300);
   setTimeout(() => {
     _msPlayBell(1046.50, 0, 0.20);
-    _msTransitionView(msShowQuizView);
+    msShowQuizView(); // 같은 레이아웃이 이미 떠 있으므로 슬라이드 전환 없이 그 자리에서 문제를 채운다
   }, 5300);
+}
+
+const MS_QUIZ_TOUCH_HINT = '터치해서 소리도 들어보세요!';
+
+// 코드맞추기 문제 뷰 마크업 — 문제 풀이(msShowQuizView)와 카운트다운(msShowPreQuizCountdown)이 같이 쓴다.
+// counting이면 .cq-counting 상태(경과시간·피드백·캔버스 숨김, 안내문구·숫자 표시)에 답 영역 빈 카드 4칸.
+function _msQuizViewHtml({ counting = false, msg1 = '', msg2 = '' } = {}) {
+  return `
+    <div class="ms-quiz-view${counting ? ' cq-counting' : ''}" id="ms-quiz-view">
+      <div class="ms-quiz-question-card" id="ms-quiz-question-card">
+        <div class="cq-inner">
+          <div class="cq-head">
+            <span class="ms-quiz-timer" id="ms-quiz-timer">0.0s</span>
+            <p class="ms-quiz-feedback" id="ms-quiz-feedback"></p>
+            <div class="cq-count-msgs">
+              <p class="ms-precountdown-msg ms-stagger-pending" id="ms-precountdown-msg1">${msg1}</p>
+              <p class="ms-precountdown-msg ms-stagger-pending" id="ms-precountdown-msg2">${msg2}</p>
+            </div>
+          </div>
+          <div class="ms-quiz-canvas-wrap" id="ms-quiz-canvas-wrap">
+            <div class="ms-quiz-canvas-slot" id="ms-quiz-canvas-slot"></div>
+            <span class="ms-quiz-question-name" id="ms-quiz-question-name" style="display:none"></span>
+            <div class="ms-countdown-num cq-count-num" id="ms-countdown-num"></div>
+          </div>
+        </div>
+      </div>
+      <div class="cq-answer">
+        <div class="cq-bubble">정답을 맞춰주세요!</div>
+        <div class="ms-quiz-choices" id="ms-quiz-choices">${counting ? '<div class="ms-quiz-choice-card cq-slot"></div>'.repeat(4) : ''}</div>
+      </div>
+    </div>
+  `;
 }
 
 // 튜토리얼 뷰 → 문제풀이 뷰 전환. 탑바(X+인디케이터)/타이틀/메인영역 3단 구조는
 // 그대로 재사용하고, 타이틀 텍스트와 메인영역 내부 콘텐츠만 교체함
 function msShowQuizView() {
   document.getElementById('mission-session-page').classList.remove('ms-countdown-lock');
-  document.getElementById('ms-title-text').textContent = '올바른 정답을 선택하세요';
+  document.getElementById('ms-title-text').textContent = ''; // 타이틀은 답 영역 말풍선("정답을 맞춰주세요!")이 대신함 — CSS가 문제 뷰에선 .ms-title을 숨김
   document.getElementById('ms-title-desc').style.display = 'none';
   _msHideTitleIcon();
-  document.getElementById('ms-main').innerHTML = `
-    <div class="ms-quiz-view" id="ms-quiz-view">
-      <div class="ms-quiz-question-card" id="ms-quiz-question-card">
-        <span class="ms-quiz-timer" id="ms-quiz-timer">0.0s</span>
-        <p class="ms-quiz-feedback" id="ms-quiz-feedback"></p>
-        <div class="ms-quiz-canvas-wrap" id="ms-quiz-canvas-wrap">
-          <div class="ms-quiz-canvas-slot" id="ms-quiz-canvas-slot"></div>
-          <span class="ms-quiz-question-name" id="ms-quiz-question-name" style="display:none"></span>
-        </div>
-      </div>
-      <div class="ms-quiz-choices" id="ms-quiz-choices"></div>
-    </div>
-  `;
+  document.getElementById('ms-main').innerHTML = _msQuizViewHtml();
+  // 문제 카드 탭 → 정답 코드 소리(코드맞추기 페이지와 동일). 카운트다운 화면은 이 핸들러를 달지 않으므로 소리가 나지 않는다
+  document.getElementById('ms-quiz-question-card').addEventListener('pointerup', () => {
+    if (_msQuizCurrent) _msPlayEntrySound(_msQuizCurrent.targetEntry);
+  });
   if (_msExamMode) {
     _msQuizIndex = 0; // 진행도바 자리는 남은시간 게이지가 쓰므로 msUpdateProgress는 안 부름
   } else if (!_msReviewMode) {
@@ -619,7 +641,8 @@ function _msQuizNext() {
   const choices = _msQuizPickChoices(targetName);
   _msQuizCurrent = { mode, targetName, targetEntry, choices, reviewItem };
 
-  document.getElementById('ms-quiz-feedback').textContent = '';
+  // 답하기 전 — 문제 카드 설명 자리에 안내(답하면 정답/오답 문구로 바뀜). 코드맞추기 페이지와 동일
+  document.getElementById('ms-quiz-feedback').textContent = MS_QUIZ_TOUCH_HINT;
 
   const canvasSlot = document.getElementById('ms-quiz-canvas-slot');
   const nameEl     = document.getElementById('ms-quiz-question-name');

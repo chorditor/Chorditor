@@ -689,6 +689,9 @@ function pickFeedbackMsg(isCorrect, speedSec, isTimeout = false) {
   return pick(c.s3_5);
 }
 
+// 문제를 푸는 동안(답하기 전) 문제 카드 설명 자리에 띄우는 안내 — 문제 카드를 탭하면 정답 코드 소리가 난다(_quizQuestionArea 핸들러)
+const QUESTION_TOUCH_HINT = '터치해서 소리도 들어보세요!';
+
 function showFeedbackMsg(msg) {
   const el = document.getElementById('quiz-feedback-msg');
   if (el) el.textContent = msg;
@@ -1576,14 +1579,26 @@ function startCountdown(callback) {
   if (typeof GuitarAudio !== 'undefined' && GuitarAudio.stop) GuitarAudio.stop();
   updateProgressDots();
 
+  // 카드 모드(세로·가로 디자인 공통): 문제 뷰를 숨기지 않고 빈 슬롯 상태로 보여주며, 안내문구는 문제 카드 헤더,
+  // 숫자는 문제 카드 본문에 띄운다. (기존 별도 화면 #quiz-precountdown 경로는 더 이상 쓰이지 않음)
+  const cardMode = true;
   const precountdown = document.getElementById('quiz-precountdown');
   const quizView      = document.getElementById('ms-quiz-view');
-  precountdown.style.display = '';
-  quizView.style.display     = 'none';
+  if (cardMode) {
+    precountdown.style.display = 'none';
+    quizView.style.display     = '';
+    quizView.classList.add('cq-counting');
+    // 답 영역 빈 슬롯 4칸 — renderQuestion()이 container.innerHTML = ''로 갈아끼운다
+    const slots = document.getElementById('quiz-choices');
+    slots.innerHTML = '<div class="ms-quiz-choice-card cq-slot"></div>'.repeat(4);
+  } else {
+    precountdown.style.display = '';
+    quizView.style.display     = 'none';
+  }
 
-  const msg1 = document.getElementById('quiz-precountdown-msg1');
-  const msg2 = document.getElementById('quiz-precountdown-msg2');
-  const numEl = document.getElementById('quiz-countdown');
+  const msg1 = document.getElementById(cardMode ? 'cq-count-msg1' : 'quiz-precountdown-msg1');
+  const msg2 = document.getElementById(cardMode ? 'cq-count-msg2' : 'quiz-precountdown-msg2');
+  const numEl = document.getElementById(cardMode ? 'cq-count-num' : 'quiz-countdown');
 
   const revealMsg = (el) => {
     el.classList.remove('ms-stagger-in');
@@ -1622,6 +1637,7 @@ function startCountdown(callback) {
     _playBell(1046.50, 0, 0.20);
     precountdown.style.display = 'none';
     quizView.style.display     = '';
+    quizView.classList.remove('cq-counting');
     numEl.classList.remove('active');
     numEl.style.animation = ''; // 다음 판을 위해 인라인 잔재를 남기지 않는다
     numEl.style.display   = 'none';
@@ -1713,6 +1729,7 @@ function renderQuestion() {
   _answered = false; // 새 문제 — 응답 가드 초기화
   if (typeof GuitarAudio !== 'undefined' && GuitarAudio.stop) GuitarAudio.stop();
   const { name, entry } = _questions[_current];
+  showFeedbackMsg(QUESTION_TOUCH_HINT); // 답하기 전 — 이전 문제의 피드백 문구를 안내로 교체(답하면 정답/오답 문구로 바뀜)
 
   // 레벨6·8: 문제마다 샵/플랫 표기 단순 랜덤 (내부 비교는 canonical 유지, 표시만 변환)
   const _isL6   = _isNoSlashEnharm(_currentLevel);
@@ -2353,6 +2370,7 @@ function showModeSelect() {
   // 퀴즈 이탈 시 카운트다운 + 문제 타이머 모두 정리
   _countdownTimers.forEach(id => clearTimeout(id));
   _countdownTimers = [];
+  document.getElementById('ms-quiz-view')?.classList.remove('cq-counting'); // 카운트다운 중 이탈 — 카드 모드 상태 정리
   clearQuestionTimer();
   hideResultModal();
   _currentView = 'mode-select';
@@ -2556,6 +2574,7 @@ document.addEventListener('DOMContentLoaded', () => {
   const _quizQuestionArea = document.querySelector('.ms-quiz-question-card');
   if (_quizQuestionArea) {
     _quizQuestionArea.addEventListener('pointerup', () => {
+      if (document.getElementById('ms-quiz-view')?.classList.contains('cq-counting')) return; // 카운트다운 중엔 소리 없음
       const q = _questions[_current];
       if (q) _playQuizEntrySound(q.entry);
     });

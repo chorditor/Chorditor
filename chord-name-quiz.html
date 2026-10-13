@@ -131,17 +131,32 @@
              #view-quiz가 #ms-main 역할까지 겸함(옛 .quiz-wrap/.quiz-inner 축소 레이어 제거) -->
         <div class="ms-quiz-view" id="ms-quiz-view">
           <div class="ms-quiz-question-card">
-            <span id="quiz-timer-text" class="ms-quiz-timer">0.0s</span>
-            <p id="quiz-feedback-msg" class="ms-quiz-feedback"></p>
-            <div class="ms-quiz-canvas-wrap">
-              <div id="quiz-canvas-slot" class="ms-quiz-canvas-slot">
-                <canvas id="quiz-canvas"></canvas>
-                <div id="quiz-loading" class="quiz-loading" style="display:none"><div class="quiz-loading-spinner"></div></div>
+            <!-- 내부 영역 — 문제 요소는 전부 이 안에 두고 밖으로 나가지 않는다. 위 헤더(경과시간·피드백) / 아래 본문(캔버스 또는 코드명) -->
+            <div class="cq-inner">
+              <div class="cq-head">
+                <span id="quiz-timer-text" class="ms-quiz-timer">0.0s</span>
+                <p id="quiz-feedback-msg" class="ms-quiz-feedback"></p>
+                <!-- 카운트다운 안내문구 — 카드 모드(≤768px)에서 .cq-counting일 때만 표시(기존 별도 화면 #quiz-precountdown 대체) -->
+                <div class="cq-count-msgs">
+                  <p id="cq-count-msg1" class="ms-precountdown-msg ms-stagger-pending">최대한 빠르게 맞춰보세요!</p>
+                  <p id="cq-count-msg2" class="ms-precountdown-msg ms-stagger-pending">카운트가 시작됩니다.</p>
+                </div>
               </div>
-              <span id="quiz-chord-name-display" class="ms-quiz-question-name" style="display:none"></span>
+              <div class="ms-quiz-canvas-wrap">
+                <div id="quiz-canvas-slot" class="ms-quiz-canvas-slot">
+                  <canvas id="quiz-canvas"></canvas>
+                  <div id="quiz-loading" class="quiz-loading" style="display:none"><div class="quiz-loading-spinner"></div></div>
+                </div>
+                <span id="quiz-chord-name-display" class="ms-quiz-question-name" style="display:none"></span>
+                <div id="cq-count-num" class="ms-countdown-num cq-count-num"></div>
+              </div>
             </div>
           </div>
-          <div id="quiz-choices" class="ms-quiz-choices"></div>
+          <!-- 답 영역 — 좌상단 말풍선(내용 비어 있음) + 선택지 카드. 선택지(#quiz-choices)는 JS가 innerHTML을 갈아끼우므로 말풍선은 그 밖에 둔다 -->
+          <div class="cq-answer">
+            <div class="cq-bubble" id="quiz-bubble">정답을 맞춰주세요!</div>
+            <div id="quiz-choices" class="ms-quiz-choices"></div>
+          </div>
         </div>
 
       </div><!-- /view-quiz -->

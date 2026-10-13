@@ -7044,6 +7044,10 @@ canvas {
 .ms-result-quiz-row::-webkit-scrollbar { display: none; }
 .ms-result-quiz-row--dragging { cursor: grabbing; user-select: none; }
 .ms-result-quiz-row--fit { justify-content: center; } /* 칩이 적어서 안 넘칠 때만 JS가 부여 */
+/* 코드맞추기 결산 — 기본은 중앙 배치, 칩이 넘칠 때만 1번이 맨 앞(왼쪽 끝)에서 시작하도록. JS 없이 처리:
+   첫·마지막 칩의 auto 마진은 남는 공간이 있을 때만 좌우로 나눠 가져서 가운데 정렬이 되고, 넘치면 0이라 왼쪽부터 시작 */
+#chord-quiz-page .ms-result-quiz-row > .ms-result-quiz-chip:first-child { margin-left: auto; }
+#chord-quiz-page .ms-result-quiz-row > .ms-result-quiz-chip:last-child  { margin-right: auto; }
 .ms-result-quiz-chip {
   flex-shrink: 0;
   width: 64px;
@@ -7529,50 +7533,8 @@ canvas {
     grid-template-columns: repeat(4, 1fr);
   }
 }
-/* 가로로 넓을 때만 좌:문제 우:사지선다(6:4). daily-mission.html #dm-gate가 확정한 "가로회전"
-   기준(width>=769px && height<500px, style.css:6790)과 orientation:landscape를 OR로 조합 —
-   순수 orientation만 쓰면 그 확정 기준을 깨버림(2026-08-25 발견). 콤마(,)는 미디어쿼리 OR.
-   반드시 모든 base 규칙(.ms-quiz-view/.ms-quiz-question-card/.ms-quiz-choices/.ms-quiz-choice-card)
-   보다 뒤에 와야 함 — 앞에 두면 같은 specificity라 뒤에 나오는 base가 이겨서 무시됨(2026-08-25 실수) */
-@media (orientation: landscape), (min-width: 900px) and (max-height: 499px) {
-  .ms-quiz-view {
-    flex-direction: row;
-    align-items: stretch;
-    gap: 96px;
-  }
-  .ms-quiz-question-card {
-    flex: 1; /* 남는 공간 전부 흡수 */
-  }
-  /* 우측 컬럼에서 4x1 세로 스택 — grid 대신 flex column. width:auto(콘텐츠 크기만큼만)로
-     하면 안의 카드가 height:100%+aspect-ratio로 폭을 역산하는 구조라 브라우저가 이 컨테이너
-     자신의 "auto 폭"을 구할 때 순환참조에 빠져 엉뚱하게 커짐(700px, 2026-08-25 발견) —
-     순환참조 없는 명시적 고정폭으로 대체 */
-  .ms-quiz-choices {
-    flex: none;
-    width: 200px; /* 순환참조(700px로 튐) 방지용 명시적 고정폭 — 넉넉하게 잡아서
-      내부 카드가 aspect-ratio 그대로 유지되면서 잘리지 않게 함 */
-    max-width: none;
-    margin-inline: 0;
-    display: flex;
-    flex-direction: column;
-    align-items: flex-end;
-    justify-content: center;
-    gap: 16px;
-  }
-  /* 비율(440/352)은 고정한 채, 4등분된 세로공간을 꽉 채우는 크기로만 — 높이 기준으로
-     aspect-ratio가 폭을 계산, 컬럼 폭을 넘으면 max-width로 안전캡 */
-  .ms-quiz-choice-card {
-    width: auto;
-    max-width: 100%;
-    height: 100%;
-    flex: 1;
-  }
-}
-@media (orientation: landscape) and (min-width: 1080px), (min-width: 1080px) and (max-height: 499px) {
-  .ms-quiz-choices {
-    width: 300px;
-  }
-}
+/* 공용 가로 분기(orientation 기준 좌:문제 우:사지선다)는 삭제(2026-10-13) — 코드맞추기·데일리미션 모두 폭 기준(≤768 세로 / 769~ 가로)
+   레이아웃으로 교체. 규칙은 '코드 맞추기 풀이 화면' 구역 참고 */
 .ms-scale-block-row {
   display: flex;
   align-items: flex-start;
@@ -9727,7 +9689,21 @@ canvas {
   }
   #view-library .lib-viewer {
     gap: 64px;   /* 여백 토큰(§3)에 64px는 없어 리터럴 */
+    /* 우측 코드뷰는 좌측 패널과 따로 상하 스크롤 — 우측 열 전체를 차지하는 스크롤 영역으로 두고
+       안쪽 콘텐츠 폭(80%, 최대 360px)은 좌우 패딩으로 만든다. 위쪽은 absolute 머리 줄(top 25px + 44px) 아래부터 시작 */
+    align-self: stretch;
+    justify-self: stretch;
+    width: auto;
+    margin-top: 77px;
+    box-sizing: border-box;
+    padding: var(--space-4) max(var(--space-4), calc((100% - 360px) / 2)) var(--space-8);   /* 위·좌우 16px = 그림자 잘림 방지 */
+    overflow-x: hidden;
+    overflow-y: auto;
+    scrollbar-width: none;
+    justify-content: center;
+    justify-content: safe center;   /* 넘치면 위에서부터 스크롤, 남으면 상하 중앙 */
   }
+  #view-library .lib-viewer::-webkit-scrollbar { display: none; }
   #view-library .lib-fingering-nav,
   #view-library .lib-codeview-tools,
   #view-library .lib-action-section,
@@ -12358,6 +12334,264 @@ canvas {
    오버레이·로딩스피너·정적 캔버스)만 */
 #chord-quiz-page .ms-quiz-canvas-slot { position: relative; } /* 로딩 스피너 오버레이 앵커 */
 
+/* 코드 맞추기 풀이 화면 — 1~2단계(폭 ≤768px) 세로 디자인: 위 문제 영역 / 아래 답 영역.
+   분기는 방향(orientation)이 아니라 폭 기준(§4) — 공용 .ms-quiz-* 가로 분기는 이 페이지에서 제외했다(위 :where).
+   3단계(769px~) 가로 디자인은 따로 설계. 문제 영역(.ms-quiz-question-card)을 흰 카드로 감쌈 — 처리는 코드 사전
+   다이어그램 카드(.lib-canvas-row)와 동일: 흰 배경 + 흰 1px 테두리 + 두 겹 그림자. 데일리미션과 공유하는 공용 규칙은 건드리지 않음 */
+/* 내부 영역(.cq-inner) / 헤더(.cq-head) — 769px~는 아직 래퍼 없이 이전 배치 그대로 보이도록 풀어 둔다 */
+:is(#chord-quiz-page, #mission-session-page) .cq-inner,
+:is(#chord-quiz-page, #mission-session-page) .cq-head,
+:is(#chord-quiz-page, #mission-session-page) .cq-answer {
+  display: contents;
+}
+:is(#chord-quiz-page, #mission-session-page) .cq-bubble {
+  display: none;   /* 말풍선은 ≤768px 세로 디자인에서만 */
+}
+/* 카운트다운 요소 — 평소엔 숨김. ≤768px 카드 모드에서 #ms-quiz-view.cq-counting일 때만 보임(아래 미디어쿼리) */
+:is(#chord-quiz-page, #mission-session-page) .cq-count-msgs,
+:is(#chord-quiz-page, #mission-session-page) .cq-count-num {
+  display: none;
+}
+@media all {
+  /* 문제 카드는 탑바 바로 아래에 붙여 시작(여백은 스타일가이드 §11-3a 토큰: 탑바↔카드 --cd-head-pad,
+     카드↔답 --cd-head-gap). 카드는 지나치게 커지지 않게 높이 상한 */
+  #chord-quiz-page #view-quiz {
+    padding-top: var(--cd-head-pad);
+    overflow: hidden;   /* 스크롤 없음 — 모든 요소가 한 화면 안에 들어와야 함(아래 카드 높이·답 카드 크기가 남은 높이로 계산됨) */
+  }
+  /* 문제 영역(위) / 답 영역(아래, 뷰포트 하단에 붙임). 뷰 자체를 크기 컨테이너로 삼아 답 카드가 "남은 높이"를 넘지 않게 함 */
+  :is(#chord-quiz-page, #mission-session-page) .ms-quiz-view {
+    container-type: size;
+    justify-content: flex-start;
+    gap: var(--cd-head-gap);
+  }
+  /* 답 영역 — 위 말풍선 / 아래 선택지 카드. 하단으로 밀착 */
+  :is(#chord-quiz-page, #mission-session-page) .cq-answer {
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    gap: var(--cq-bubble-gap);
+    flex: 1 1 0;   /* 남은 세로 공간 전부 — 말풍선 + 선택지 */
+    min-height: 0;
+    width: 100%;
+  }
+  /* 선택지 — 그리드 컬럼 폭 × 남은 높이를 꽉 채우고 2×2 균등 분할(481px~ 세로 화면의 공용 1×4 규칙도 이 페이지에선 2×2).
+     카드는 비율을 고정하지 않고 칸 크기를 그대로 받는다 */
+  :is(#chord-quiz-page, #mission-session-page) .ms-quiz-choices {
+    flex: 1 1 0;
+    min-height: 0;
+    width: 100%;
+    max-width: none;
+    margin-inline: 0;
+    grid-template-columns: 1fr 1fr;
+    grid-template-rows: 1fr 1fr;
+    gap: 12px;
+  }
+  /* 카운트다운(.cq-counting) — 문제 뷰를 빈 슬롯으로 두고 헤더에 안내문구, 본문에 숫자.
+     경과시간·피드백·캔버스·코드명은 숨기고, 답 영역은 말풍선 + 빈 카드 4칸(번호 포함) 그대로 */
+  :is(#chord-quiz-page, #mission-session-page) .cq-counting .ms-quiz-timer,
+  :is(#chord-quiz-page, #mission-session-page) .cq-counting .ms-quiz-feedback,
+  :is(#chord-quiz-page, #mission-session-page) .cq-counting .ms-quiz-canvas-slot,
+  :is(#chord-quiz-page, #mission-session-page) .cq-counting .ms-quiz-question-name {
+    display: none !important;   /* JS가 인라인 display를 건드리는 요소가 있어 !important */
+  }
+  :is(#chord-quiz-page, #mission-session-page) .cq-counting .cq-count-msgs {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: var(--space-1);
+    margin-top: var(--space-2);
+  }
+  :is(#chord-quiz-page, #mission-session-page) .cq-count-msgs .ms-precountdown-msg {
+    font: var(--type-title);
+    font-weight: 800;
+    letter-spacing: var(--tracking-base);
+  }
+  :is(#chord-quiz-page, #mission-session-page) .cq-counting .cq-count-num {
+    display: none;            /* .active일 때만 표시 */
+    flex: 1;
+    min-height: 0;
+  }
+  :is(#chord-quiz-page, #mission-session-page) .cq-counting .cq-count-num.active {
+    display: flex;
+  }
+  :is(#chord-quiz-page, #mission-session-page) .cq-slot {
+    pointer-events: none;
+  }
+
+  /* 답 카드 — 칸을 꽉 채우고(비율 고정 없음) 스스로를 크기 컨테이너로 삼는다. 안의 캔버스·텍스트는 카드 크기(cqw/cqh)에 맞춰
+     비율을 유지한 채 들어가므로 카드가 어느 쪽으로 쏠려도 카드 밖으로 나갈 수 없다 */
+  :is(#chord-quiz-page, #mission-session-page) .ms-quiz-choice-card {
+    container-type: size;
+    width: auto;
+    height: auto;
+    min-width: 0;
+    min-height: 0;
+    aspect-ratio: auto;
+  }
+  /* 카드 좌상단 번호(1~4) — CSS 카운터라 JS 변경 없음. 텍스트 선택지 버튼의 글자(textContent)에는 섞이지 않는다 */
+  :is(#chord-quiz-page, #mission-session-page) .ms-quiz-choices {
+    counter-reset: cq-choice;
+  }
+  :is(#chord-quiz-page, #mission-session-page) .ms-quiz-choice-card {
+    position: relative;
+    counter-increment: cq-choice;
+  }
+  :is(#chord-quiz-page, #mission-session-page) .ms-quiz-choice-card::before {
+    content: counter(cq-choice);
+    position: absolute;
+    top: var(--space-2);
+    left: var(--space-3);
+    font: var(--type-label-lg);
+    font-weight: 700;
+    letter-spacing: var(--tracking-base);
+    color: var(--text-muted);
+    pointer-events: none;
+  }
+  /* 다이어그램 슬롯 — 카드의 80% 안에 440:352 비율로 맞춤(폭·높이 중 먼저 닿는 쪽 기준) */
+  :is(#chord-quiz-page, #mission-session-page) .ms-quiz-choice-canvas-slot {
+    width: min(80cqw, calc(80cqh * 440 / 352));
+    height: auto;
+    aspect-ratio: 440 / 352;
+  }
+  /* JS가 그릴 때 캔버스에 박아 두는 px 크기는 무시하고 항상 슬롯을 꽉 채움(비트맵 해상도만 JS가 정함) — 창 크기가 바뀌어도 탈출 불가 */
+  :is(#chord-quiz-page, #mission-session-page) .ms-quiz-choice-canvas-slot canvas {
+    width: 100% !important;
+    height: 100% !important;
+  }
+  :is(#chord-quiz-page, #mission-session-page) .ms-quiz-question-card {
+    min-height: 0;   /* 공용 규칙(max-height:480px일 때 min-height:320px)이 높이 상한을 깨지 않도록 */
+    background: var(--surface);
+    border: 1px solid #fff;
+    border-radius: var(--radius-lg);
+    box-shadow:
+      0 1px 2px rgba(0, 0, 0, 0.04),
+      0 8px 24px rgba(0, 0, 0, 0.08);
+  }
+  /* 내부 영역 — 문제 요소(헤더·캔버스·코드명)는 전부 이 안. 카드 안쪽을 가득 채우되 폭 360px 상한, 넘치는 건 잘라 밖으로 안 나감 */
+  :is(#chord-quiz-page, #mission-session-page) .cq-inner {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    flex: 1;
+    min-height: 0;
+    width: 100%;
+    max-width: 360px;
+    overflow: hidden;
+  }
+  /* 헤더 — 위쪽: 경과 시간 + 문제 피드백 문구 */
+  :is(#chord-quiz-page, #mission-session-page) .cq-head {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    flex-shrink: 0;
+    width: 100%;
+  }
+  /* 본문 — 아래쪽: 캔버스 또는 코드명. 이 영역(남은 높이·폭)을 컨테이너로 삼아 캔버스를 비율 유지한 채 영역 안에 맞춤 */
+  :is(#chord-quiz-page, #mission-session-page) .ms-quiz-canvas-wrap {
+    container-type: size;
+    flex: 1;
+    min-height: 0;
+    width: 100%;
+  }
+  :is(#chord-quiz-page, #mission-session-page) .ms-quiz-canvas-slot {
+    width: min(100cqw, calc(100cqh * 440 / 352));
+    max-width: none;
+    max-height: none;
+    height: auto;
+  }
+}
+
+/* 1~2단계(폭 ≤768px) 세로 디자인 — 위 문제 카드(고정 높이) / 아래 답 영역(말풍선 + 2×2) */
+@media (max-width: 768px) {
+  #chord-quiz-page #view-quiz,
+  #mission-session-page .ms-main {
+    /* 문제 카드 높이 — 고정 360px, 단 아랫선이 화면 상단 절반을 넘지 않게(탑바 56px + 상단 안전영역 + 탑바↔카드 여백을 뺀 값) */
+    --cq-card-h: min(360px, calc(50vh - 56px - env(safe-area-inset-top, 0px) - var(--cd-head-pad)));
+    --cq-card-h: min(360px, calc(50dvh - 56px - env(safe-area-inset-top, 0px) - var(--cd-head-pad)));
+    --cq-bubble-h: 44px;     /* 답 영역 말풍선 높이 */
+    --cq-bubble-gap: 12px;   /* 말풍선 ↔ 선택지 카드 (꼬리가 들어갈 자리) */
+  }
+  :is(#chord-quiz-page, #mission-session-page) .ms-quiz-question-card {
+    flex: none;
+    /* 고정 높이 360px, 단 카드 아랫선이 화면 상단 절반(50%)을 넘지 않게 — 탑바(56px + 상단 안전영역)와 탑바↔카드 여백을 뺀 값으로 상한.
+       플립 분할(360×440)처럼 낮은 화면에서 카드가 답 영역을 밀어내지 않도록. vh는 dvh 미지원 폴백 */
+    height: var(--cq-card-h);
+    min-height: 0;   /* 공용 규칙(max-height:480px일 때 min-height:320px)이 상단 절반 상한을 깨지 않도록 */
+  }
+  /* 말풍선 — 답 영역 좌상단, 높이 44px, 내용 없음. 꼬리는 왼쪽 아래로 삐져나오는 뾰족한 모양(::after, 직각삼각형 클립) —
+     그림자는 drop-shadow 필터라 꼬리까지 같이 그려짐 */
+  :is(#chord-quiz-page, #mission-session-page) .cq-bubble {
+    position: relative;
+    align-self: flex-start;
+    box-sizing: border-box;
+    height: var(--cq-bubble-h);
+    display: flex;
+    align-items: center;
+    padding-inline: var(--space-4);
+    font: var(--type-label-lg);
+    font-weight: 600;
+    letter-spacing: var(--tracking-base);
+    color: var(--text-primary);
+    white-space: nowrap;
+    border-radius: 16px;
+    background: var(--surface);
+    filter: drop-shadow(0 2px 6px rgba(0, 0, 0, 0.12));
+  }
+  :is(#chord-quiz-page, #mission-session-page) .cq-bubble::after {
+    content: '';
+    position: absolute;
+    left: 14px;
+    bottom: -8px;
+    width: 14px;
+    height: 9px;   /* 1px는 본체와 겹쳐 이음매가 안 보이게 */
+    background: var(--surface);
+    clip-path: polygon(0 0, 100% 0, 0 100%);
+  }
+}
+
+/* 3단계~(폭 ≥769px) 가로 디자인 — 좌: 문제 영역 / 우: 답 영역(2×2). 말풍선은 없음(기본 display:none 유지).
+   두 영역은 같은 높이(뷰 높이 전체)로 나란히 놓이고, 간격은 헤드↔본문 토큰 */
+@media (min-width: 769px) {
+  /* 상하 여백 — 탑바 아래·화면 아래 각각 100px(사용자 지정). 두 영역은 이 안쪽 높이를 채움 */
+  #chord-quiz-page #view-quiz {
+    padding-top: 100px;
+    padding-bottom: calc(100px + env(safe-area-inset-bottom, 0px));
+  }
+  :is(#chord-quiz-page, #mission-session-page) .ms-quiz-view {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    grid-template-rows: minmax(0, 1fr);
+    align-items: stretch;
+  }
+  :is(#chord-quiz-page, #mission-session-page) .ms-quiz-question-card {
+    height: 100%;
+  }
+  :is(#chord-quiz-page, #mission-session-page) .cq-inner {
+    max-width: 480px;
+  }
+}
+
+/* 데일리미션 코드맞추기 문제(.ms-quiz-view가 떠 있는 동안) — 코드맞추기 페이지와 같은 레이아웃을 쓰기 위한 컨테이너 맞춤.
+   코드맞추기의 #view-quiz 역할을 .ms-scroll/.ms-main이 나눠 맡는다. 타이틀("올바른 정답을 선택하세요")은 말풍선이 대신하므로 숨김.
+   :has()로 문제 뷰가 있을 때만 걸려서 튜토리얼·스케일·코드조합·결산 화면에는 영향 없음 */
+#mission-session-page:has(.ms-quiz-view) .ms-title {
+  display: none;
+}
+#mission-session-page:has(.ms-quiz-view) .ms-scroll {
+  padding-top: var(--cd-head-pad);
+  overflow: hidden;   /* 스크롤 없음 — 한 화면 */
+}
+#mission-session-page:has(.ms-quiz-view) .ms-main {
+  padding-block: 0;
+}
+@media (min-width: 769px) {
+  #mission-session-page:has(.ms-quiz-view) .ms-scroll {
+    padding-top: 100px;
+    padding-bottom: calc(100px + env(safe-area-inset-bottom, 0px));
+  }
+}
+
 /* 카운?�다???�버?�이 */
 @keyframes countdown-pop {
   0%   { transform: scale(1.6); opacity: 0; }
@@ -12919,8 +13153,7 @@ canvas {
      이 패딩은 "훈련목록과 동일 너비" 목적의 chord-name-quiz 전용이므로 그 페이지의
      뷰 ID로만 좁힌다 — 예전엔 .quiz-view로 걸어서 chord-combo까지 새어들어갔음 */
   #view-level-select,
-  #view-mode-select,
-  #view-quiz {
+  #view-mode-select {
     padding-left: 25vw;   /* 훈련목록과 동일 너비(50vw) — inset:0라 width 대신 padding */
     padding-right: 25vw;
     box-sizing: border-box;
@@ -15230,6 +15463,9 @@ canvas {
   /* width는 JS(renderFullNeck)가 고정 기준값(FB_REF_FULL_W)으로 설정.
      transform(scale+translateX)은 JS(applyFbScale/scrollToFret)가 매번 갱신 */
   transform-origin: 0 0;
+  /* iOS(WebKit) — 점 탭 시 눌림/리플 transform 애니메이션이 시작되면 이 지판이 합성 레이어로 올라가며 scale(S)를
+     반영하지 않은 해상도로 다시 래스터돼 흐려졌음. 처음부터 합성 레이어로 고정해 해상도가 바뀌지 않게 함 */
+  will-change: transform;
 }
 
 /* ?�?� ?� ???�?� */
@@ -16228,6 +16464,7 @@ html:not([lang="ko"]) .test-note-grid {
   --fbu: calc(var(--test-fb-ref-neck-h) / 160);
   width: var(--test-fb-ref-width);
   transform-origin: 0 0;
+  will-change: transform;   /* iOS 탭 애니메이션 시 흐려짐 방지 — .fb-full-wrapper 주석 참고 */
 }
 
 #test-fb-full-neck,
@@ -17725,8 +17962,7 @@ html:not([lang="ko"]) .test-note-grid {
      이 스코프는 아래 chord-name-quiz/scale-level 전용 값만 유지(별도 검토 전까지 유지) */
   /* chord-name-quiz 전용(.quiz-view는 chord-combo와 공유 클래스라 ID로 좁힘).
      #view-level-select는 2026-08-31 --grid-margin 기반 base 규칙으로 이전, 여기선 제외 */
-  #view-mode-select,
-  #view-quiz { padding-left: 7.5vw; padding-right: 7.5vw; box-sizing: border-box; }
+  #view-mode-select { padding-left: 7.5vw; padding-right: 7.5vw; box-sizing: border-box; }
 
   .accidental-toggle-row {
     margin-bottom: 3vh;
@@ -17876,8 +18112,7 @@ html:not([lang="ko"]) .test-note-grid {
   /* 훈련소 관련 오버라이드는 2026-08-22 제거 — 표준 5단계(태블릿/큰태블릿)가 토큰으로
      담당하고, Fold 세로(580-768w/700h+/aspect 3/4~1) 전용값은 별도 스코프에서 유지됨.
      #view-level-select는 2026-08-31 --grid-margin 기반 base 규칙으로 이전, 여기선 제외 */
-  #view-mode-select,
-  #view-quiz { padding-left: 5vw; padding-right: 5vw; box-sizing: border-box; }
+  #view-mode-select { padding-left: 5vw; padding-right: 5vw; box-sizing: border-box; }
 
   /* #/b 토글·핑거번호·짝궁전환 — 공용 컴포넌트, 태블릿 세로 전역(scale-level 한정 아님,
      progression.html 등 같은 컴포넌트 쓰는 모든 페이지에 공통 적용) */
@@ -18103,8 +18338,7 @@ html:not([lang="ko"]) .test-note-grid {
      대신 표준 --grid-margin에 맡김. .training-scroll base 패딩(var(--grid-margin))·
      #view-level-select base 규칙(위, 12575줄)이 그대로 적용됨 — #view-mode-select/#view-quiz만
      당분간 유지(별도 검토 전까지) */
-  #view-mode-select,
-  #view-quiz { padding-left: 10vw; padding-right: 10vw; box-sizing: border-box; }
+  #view-mode-select { padding-left: 10vw; padding-right: 10vw; box-sizing: border-box; }
   /* 피크바 위치는 top-bar padding-inline(--grid-margin) + 인라인 margin-left:auto가 담당 —
      예전 margin-right:10vw !important(training-scroll이 피크바를 안에 품던 시절 값)는 이제
      불필요해서 제거. 크기(아이콘/폰트)는 training.html 전용값 유지, 다른 페이지 누수 방지로 스코프 */
@@ -18248,8 +18482,7 @@ html:not([lang="ko"]) .test-note-grid {
   }
   .profile-container--stats { min-height: 200px; }
   /* #view-level-select는 2026-08-31 --grid-margin 기반 base 규칙으로 이전, 여기선 제외 */
-  #view-mode-select,
-  #view-quiz { padding-left: 10vw; padding-right: 10vw; box-sizing: border-box; }
+  #view-mode-select { padding-left: 10vw; padding-right: 10vw; box-sizing: border-box; }
   /* 훈련소 관련 오버라이드(그리드/폰트/피크바)는 2026-08-22 제거 — 표준 8컬럼/span2 그리드로
      통일(style.css 16096 부근 동일 조건 블록 참고, 중복 스코프였음) */
 
@@ -18368,8 +18601,7 @@ html:not([lang="ko"]) .test-note-grid {
      그대로 덮어서 카드가 힌지에 걸치지 않음 — 컬럼수는 base .training-grid(§5) 그대로 사용.
      column-gap을 예전엔 힌지 여유폭으로 썼지만 이제 var(--grid-gutter)가 그 역할 겸함 */
   /* #view-level-select는 2026-08-31 --grid-margin 기반 base 규칙으로 이전, 여기선 제외 */
-  #view-mode-select,
-  #view-quiz { padding-left: 10vw; padding-right: 10vw; box-sizing: border-box; }
+  #view-mode-select { padding-left: 10vw; padding-right: 10vw; box-sizing: border-box; }
   /* 통계카드 폰트 — 폴드메인펼침 스코프와 동일값 */
   .training-stats-title { font-size: 15px; }
   .training-stat-value { font-size: 24px; }
@@ -18520,8 +18752,7 @@ html:not([lang="ko"]) .test-note-grid {
   }
   /* 5% 하드코딩 대신 top-bar와 동일한 그리드 인셋 공식 — col1/col-last 경계에 정확히 맞춤 */
   #view-level-select,
-  #view-mode-select,
-  #view-quiz {
+  #view-mode-select {
     padding-left: calc((100cqw - var(--grid-content-w)) / 2 + var(--grid-margin));
     padding-right: calc((100cqw - var(--grid-content-w)) / 2 + var(--grid-margin));
     box-sizing: border-box;
@@ -19599,7 +19830,10 @@ html:not([lang="ko"]) .test-note-grid {
   white-space: nowrap;
   cursor: pointer;
   user-select: none;
-  touch-action: pan-x; /* 카드 위에서 시작한 터치도 가로스크롤 먹게 (드래그꺼내기는 JS가 preventDefault로 가로챔) */
+  /* 카드 위에서 시작한 터치는 브라우저 네이티브 제스처를 전부 끄고 JS(chord-combo.js·mission-session.js의 PointerMove)가 방향을 판정한다.
+     pan-x로 두면 대각선만 돼도 브라우저가 가로 스크롤로 가져가 위로 끌어올리는 드래그가 pointercancel로 끊겼다. 가로 스크롤은 JS가 직접 처리(속도·관성 포함).
+     트레이 빈 공간에서 시작한 터치는 트레이의 pan-x가 그대로 네이티브 스크롤 */
+  touch-action: none;
 }
 .combo-block--source-hidden {
   visibility: hidden;
@@ -22068,18 +22302,12 @@ html.ios-native #canvas-main-btns { position: relative; z-index: 1; }
   }
 }
 
-/* 가로 스플릿 뷰(769px~) — 배치만 */
-@media (min-width: 769px) {
-  /* 가로 배치는 아직 설계 전 — 임시로 세로 배치(아래 블록, 전 폭 적용)를 가운데 560px 폭 안에 둔다.
-     각 컴포넌트의 폭이 "컨테이너 − 좌우 그리드 마진"이라 컨테이너 좌우 패딩만 주면 같이 가운데로 모인다 */
-  .page-editor #view-editor {
-    padding-inline: max(0px, calc((100% - 560px) / 2));
-  }
-}
-
-/* 세로·모바일 배치 — 가로 배치를 설계하기 전까지 임시로 전 폭에 적용한다(위 가로 블록이 폭만 560px로 가둠).
-   가로를 설계하면 이 블록의 조건을 (max-width: 768px)로 되돌릴 것 */
+/* 에디터 컴포넌트 공통 부품 + 세로·모바일 배치 — 전 폭 적용. 가로(769px~)는 파일 맨 끝 블록이 배치만 덮어쓴다.
+   상단 영역 래퍼(.ed-upper)는 세로에선 풀어서(display:contents) 자식들이 #view-editor의 세로 흐름에 그대로 놓인다 */
 @media all {
+  .page-editor .ed-upper {
+    display: contents;
+  }
   /* 제목 — 탑바 아래 8px. 좌측은 그리드 마진 + 7px(뒤로가기 < 아이콘 획이 viewBox 안쪽에 그려져 생기는 여백 보정, 사전과 같음) */
   .page-editor .ed-title {
     flex-shrink: 0;
@@ -22103,9 +22331,32 @@ html.ios-native #canvas-main-btns { position: relative; z-index: 1; }
       0 2px 4px rgba(0, 0, 0, 0.06),
       0 6px 12px rgba(0, 0, 0, 0.04);
   }
-  .page-editor .ed-divider + .ed-section-label {
+  .page-editor .ed-divider + .ed-section-label,
+  .page-editor .ed-lower > .ed-section-label:first-child {
     margin-top: 31px;
   }
+  /* 선 아래 그림자가 스크롤 영역 내용 위에 보이도록 */
+  .page-editor .ed-divider {
+    position: relative;
+    z-index: 1;
+  }
+  /* 하단 영역 — 추천 코드명부터 끝까지만 스크롤. 위쪽(카드·액션바·구분선)은 고정.
+     페이지 전체 스크롤(#view-editor)은 끄고 이 컨테이너가 남은 높이를 차지한다 */
+  .page-editor #view-editor {
+    overflow: hidden;
+    padding-bottom: 0;
+  }
+  .page-editor .ed-lower {
+    flex: 1 1 0;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+    overflow-y: auto;
+    overflow-x: hidden;
+    padding-bottom: 20px;
+    scrollbar-width: none;
+  }
+  .page-editor .ed-lower::-webkit-scrollbar { display: none; }
   /* 섹션 라벨 — 액션바 아래 24px(위쪽 빠른 제작 영역과 구역을 나눔), 좌우는 그리드 마진 */
   .page-editor .ed-section-label {
     flex-shrink: 0;
@@ -22155,5 +22406,83 @@ html.ios-native #canvas-main-btns { position: relative; z-index: 1; }
     align-self: center;
     width: calc(100% - 2 * var(--cd-inset));
     margin-top: var(--space-4);
+  }
+}
+
+/* 가로 스플릿 뷰(769px~, 큰 태블릿 이상) — 2열: 좌측 = 하단 영역(디테일 편집: 추천·이름 휠·손가락 번호),
+   우측 = 상단 영역(다이어그램 카드 + 액션바). 제목은 위에 전체 폭으로. 두 열은 각자 따로 상하 스크롤.
+   좌측 열 폭은 사전패널과 같은 규칙 — 뷰포트 48%, 최소 360px ~ 최대 480px(이름 휠 6개가 들어가는 폭) */
+@media (min-width: 769px) {
+  .page-editor #view-editor {
+    display: grid;
+    /* 두 열을 합친 묶음이 화면 가운데에 오도록 열 폭을 상한(좌 480 / 우 536 = 카드 480 + 좌우 그리드 마진)으로 두고 트랙을 가운데 정렬 */
+    grid-template-columns: clamp(360px, 48vw, 480px) minmax(0, 544px);   /* 우 544 = 카드 480 + 좌우 그리드 마진 32×2 */
+    justify-content: center;
+    /* 제목은 맨 위, 두 열은 그 아래 남은 높이(둘째 행)의 세로 중앙. 열이 넘치면 max-height:100%로 막혀 안에서 스크롤 */
+    grid-template-rows: minmax(0, 1fr);
+    padding: 48px 0 0;   /* 제목(absolute) 자리 */
+    overflow: hidden;
+  }
+  /* 제목 — 두 열 묶음이 가운데로 모여도 제목은 페이지 좌상단에 붙인다(그리드 밖 absolute). 높이만큼 위 패딩으로 열을 내려 겹치지 않게 */
+  .page-editor .ed-title {
+    position: absolute;
+    top: 0;
+    left: 0;
+  }
+  /* 좌측: 하단 영역 — 세로 배치의 .ed-lower 스크롤 컨테이너를 그대로 쓴다 */
+  .page-editor .ed-lower {
+    grid-column: 1;
+    grid-row: 1;
+    min-height: 0;
+    align-self: center;
+    max-height: 100%;
+  }
+  /* 구분선은 위·아래를 가르던 것 — 좌·우 열로 나뉘므로 숨김. 첫 라벨은 우측 카드 윗선(16px)에 맞춤 */
+  .page-editor .ed-divider {
+    display: none;
+  }
+  .page-editor .ed-lower > .ed-section-label:first-child {
+    margin-top: var(--space-4);
+  }
+  /* 우측: 상단 영역 — 카드·액션바를 가운데 정렬, 폭은 최대 480px */
+  .page-editor .ed-upper {
+    grid-column: 2;
+    grid-row: 1;
+    min-height: 0;
+    align-self: center;
+    max-height: 100%;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    overflow-x: hidden;
+    overflow-y: auto;
+    padding-bottom: 20px;
+    scrollbar-width: none;
+  }
+  .page-editor .ed-upper::-webkit-scrollbar { display: none; }
+  /* 열 안쪽 좌우 여백 — 전역 --cd-inset은 1440px를 넘으면 (100vw−1440)/2만큼 커져서(1920px에서 272px) 폭 480px짜리
+     열 안에선 내용 폭이 0이 된다. 열 안에서는 그리드 마진(--grid-margin)으로 고정. 제목은 탑바 뒤로가기 정렬 때문에 전역 값 유지 */
+  .page-editor .ed-lower,
+  .page-editor .ed-upper {
+    --cd-inset: var(--grid-margin);
+  }
+  .page-editor .ed-viewer-card,
+  .page-editor .ed-action-bar {
+    width: min(calc(100% - 2 * var(--cd-inset)), 480px);
+  }
+  .page-editor .ed-action-bar {
+    padding: 0;
+  }
+}
+
+/* 데스크탑(1600px~) — 전역 .accidental-toggle/.acc-btn이 36px/14px로 커지는 규칙(18584줄)을 에디터 카드에선 되돌림.
+   카드 안 요소는 고정 px 배치라 토글이 커지면 상단 줄이 4px 늘어 캔버스가 밀린다 */
+@media (min-width: 1600px) {
+  .page-editor .ed-acc-toggle {
+    height: 32px;
+  }
+  .page-editor .ed-acc-toggle .acc-btn {
+    font-size: 13px;
+    padding: 0 12px;
   }
 }
