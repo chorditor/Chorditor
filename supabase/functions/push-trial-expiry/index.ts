@@ -1,7 +1,7 @@
 // ───────────────────────────────────────────────────────────
 // push-trial-expiry : 1만 다운로드 7일 체험권 — 만료 하루 전(클레임 6일차) 리마인드.
 //   get_trial_expiry_targets() 대상에게 고정 문구 1회 발송(push_trial_expiry.sql).
-//   pg_cron 이 매일 1회 HTTP POST (push_cron_trial_expiry.sql).
+//   pg_cron 이 15분마다 HTTP POST (push_cron_trial_expiry.sql) — 현지 시각이 08:30 인 유저에게만 발송.
 //
 //   ⚠️ Supabase CLI 미사용 → Dashboard 에디터 직접 붙여넣기 배포.
 //   Dashboard 배포는 단일 파일이라 ../_shared/fcm.ts import 불가 → FCM 로직 인라인.
@@ -190,6 +190,17 @@ function isNightRestricted(tz?: string): boolean {
   return h >= 21 || h < 8;
 }
 
+// 지금 현지 시각이 hhmi(예: '0830')인 user_id 집합 (get_push_users_at_local(), push_due_users.sql).
+//   시간대 = 기기의 push_tokens.tz, 없으면 Asia/Seoul.
+async function fetchUsersAtLocal(hhmi: string): Promise<Set<string>> {
+  const resp = await fetch(`${SUPABASE_URL}/rest/v1/rpc/get_push_user_ids_at_local`, {
+    method: 'POST', headers: rpcHeaders,
+    body: JSON.stringify({ p_hhmi: hhmi, p_isodow: null }),
+  });
+  if (!resp.ok) throw new Error(`users at local error ${resp.status}: ${await resp.text()}`);
+  return new Set((await resp.json()) as string[]); // 배열 한 값 — 행수 제한에 안 잘림
+}
+
 // ── 다국어 푸시 (push_templates_<lang>) ─────────────────────
 //   대상 선정·딥링크는 한국어 문구(title=목적지) 기준으로 그대로 결정하고,
 //   기기 언어(push_tokens.lang)가 아래 목록에 있으면 보내기 직전에 같은 category 의
@@ -298,6 +309,14 @@ Deno.serve(async (_req) => {
   try {
     const testUserId = new URL(_req.url).searchParams.get('user_id');
 
+    // 현지 08:30 인 유저만 대상(cron 15분 간격). 없으면 바로 종료. ?user_id= 테스트는 시각 무관.
+    const dueUsers = testUserId ? null : await fetchUsersAtLocal('0830');
+    if (dueUsers && dueUsers.size === 0) {
+      return new Response(JSON.stringify({ skipped: 'no_due_users' }), {
+        headers: { 'Content-Type': 'application/json' },
+      });
+    }
+
     locked = await acquireLock();
     if (!locked) {
       return new Response(JSON.stringify({ skipped: 'already_running' }), {
@@ -308,11 +327,13 @@ Deno.serve(async (_req) => {
     const sa = loadServiceAccount();
     const accessToken = await getAccessToken(sa);
 
-    // 현지 야간(21~08시)인 기기는 이번엔 건너뜀 — sent 표시를 안 하므로 다음 호출에 다시 대상이 됨.
-    // ?user_id= 테스트는 시각 무관.
+    // 현지 08:30 인 유저 + 기기가 야간(21~08시)이 아닌 것만(유저의 다른 기기가 다른 시간대일 때 대비).
+    // 건너뛴 대상은 sent 표시를 안 하므로 다음 날 현지 08:30 에 다시 대상이 됨. ?user_id= 테스트는 시각 무관.
     const tokenTz = await fetchTokenTz();
     const targets = (await fetchTargets())
-      .filter(t => testUserId ? t.user_id === testUserId : !isNightRestricted(tokenTz.get(t.token)));
+      .filter(t => testUserId
+        ? t.user_id === testUserId
+        : dueUsers!.has(t.user_id) && !isNightRestricted(tokenTz.get(t.token)));
     let sent = 0, failed = 0, pruned = 0;
     const tokenLangs = await fetchTokenLangs();
 
