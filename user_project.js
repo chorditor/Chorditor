@@ -1,6 +1,11 @@
 // ═══════════════════════════════════════════════════════════════
 // 캔버스 상수 (canvas_structure.md 기준 — home.js와 동일)
 // ═══════════════════════════════════════════════════════════════
+// 노트 탭 스플릿 뷰의 iframe(?embed=1)으로 열린 경우 — 탑바 숨김·뒤로가기/페이지 이동/초기화 부가 동작 생략
+const IS_EMBED = new URLSearchParams(location.search).get('embed') === '1';
+// 다른 페이지(에디터 등)로 이동 — 임베드면 iframe이 아니라 최상위 창을 이동시킨다
+function _navTop(url) { (IS_EMBED && window.top ? window.top : window).location.href = url; }
+
 const STRINGS        = 6;
 const FRETS          = 4;
 const BASE_OPEN_W    = 70;
@@ -908,6 +913,7 @@ function _refreshUndoBtn() {
 // 노트 페이지는 홈이 아니므로 종료하지 않는다 — 화면의 뒤로가기 버튼과 똑같이
 // 노트 목록으로 물러난다. 앱 종료는 홈 탭 최상위(home.js)에서만 일어난다.
 function handleNativeBack() {
+  if (IS_EMBED) return; // 임베드(iframe)에선 부모(home.js)가 뒤로가기를 처리한다
   // 튜토리얼 중엔 화면을 옮기면 진행이 깨진다 → 그만둘지 묻는다(건너뛰기 버튼과 같은 경로).
   if (window.Tutorial?.isRunning?.()) { window.Tutorial.confirmSkip(); return; }
   closeProjectPage();
@@ -1784,6 +1790,7 @@ function renderProjectView(projectId) {
   if (!isEditMode) nameInput.style.pointerEvents = 'none';
   let nameDebounce = null;
   nameInput.addEventListener('input', () => {
+    if (IS_EMBED) return; // 스플릿 뷰(iframe): 입력 중 자동 저장 없음 — 체크(완료) 버튼을 눌렀을 때 한 번에 저장해 좌측 목록에 반영
     clearTimeout(nameDebounce);
     nameDebounce = setTimeout(() => {
       const p = getProject(projectId);
@@ -1797,6 +1804,12 @@ function renderProjectView(projectId) {
   modeBtn.className = 'project-icon-btn';
   modeBtn.innerHTML = isEditMode ? '<i data-lucide="check"></i>' : '<i data-lucide="pencil"></i>';
   modeBtn.onclick = () => {
+    // 스플릿 뷰(iframe): 편집 → 완료(체크)로 넘어갈 때 이름을 확정 저장 — storage 이벤트로 좌측 목록에 반영된다
+    if (IS_EMBED && isEditMode) {
+      const p = getProject(projectId);
+      const nm = nameInput.value.trim();
+      if (p && nm && nm !== p.name) { p.name = nm; p.updatedAt = Date.now(); updateProject(p); }
+    }
     isEditMode = !isEditMode;
     renderProjectView(projectId);
     window.Tutorial?.notify(`editmode:${isEditMode ? 'on' : 'off'}`);
@@ -3714,9 +3727,9 @@ function createPaletteItem(chord, idx, projectId, editMode = true) {
       const _shell = document.querySelector('.app-shell');
       if (_shell) {
         _shell.classList.add('project-exit');
-        setTimeout(() => { location.href = 'editor.html?from_project=' + projectId + '&chord_id=' + chord.id; }, 260);
+        setTimeout(() => { _navTop('editor.html?from_project=' + projectId + '&chord_id=' + chord.id); }, 260);
       } else {
-        location.href = 'editor.html?from_project=' + projectId + '&chord_id=' + chord.id;
+        _navTop('editor.html?from_project=' + projectId + '&chord_id=' + chord.id);
       }
     } else {
       openViewModal(chord, projectId);
@@ -3990,9 +4003,9 @@ async function paletteDictToEditor() {
   const _shell = document.querySelector('.app-shell');
   if (_shell) {
     _shell.classList.add('project-exit');
-    setTimeout(() => { location.href = 'editor.html?from_project=' + projectId; }, 260);
+    setTimeout(() => { _navTop('editor.html?from_project=' + projectId); }, 260);
   } else {
-    location.href = 'editor.html?from_project=' + projectId;
+    _navTop('editor.html?from_project=' + projectId);
   }
 }
 
@@ -4805,6 +4818,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   // → 슬라이드가 절반쯤 진행됐을 때 커버가 걷혀 자연스럽게 노출
   const _shell = document.querySelector('.app-shell');
   if (_shell) _shell.classList.add('project-enter');
+  if (IS_EMBED) document.body.classList.add('embed'); // 탑바 숨김 등 임베드 전용 스타일(style.css .embed)
 
   // ── UI 초기화 ──────────────────────────────────────────────
   setupOrientationListener();
@@ -4867,13 +4881,13 @@ document.addEventListener('DOMContentLoaded', async () => {
   const _allProjects = loadProjects();
   const _paramProject = projectIdParam ? _allProjects.find(p => p.id === projectIdParam) : null;
   if (projectIdParam && _paramProject && isProjectLocked(_paramProject, _allProjects)) {
-    location.href = 'home.html';
+    if (!IS_EMBED) location.href = 'home.html'; // 임베드에선 iframe 안에 홈이 중첩되지 않게 그대로 둔다
     return;
   }
   // 조회 불가한 id로 들어오면 스피너만 남아 무한 로딩처럼 보인다 → 홈으로 돌려보낸다
   // (튜토리얼 샌드박스가 해제된 뒤 그 노트로 이동하는 경우 등)
   if (projectIdParam && !_paramProject) {
-    location.href = 'home.html';
+    if (!IS_EMBED) location.href = 'home.html';
     return;
   }
   if (projectIdParam) {
@@ -4909,6 +4923,9 @@ document.addEventListener('DOMContentLoaded', async () => {
     location.href = 'home.html';
     return;
   }
+
+  // 임베드(스플릿 뷰): 로그인 확인·결제 초기화·공지·app_open 등 페이지 단위 초기화는 부모(home.html)가 이미 했다 — 중복 실행 방지
+  if (IS_EMBED) return;
 
   // URL share 파라미터 처리 (구: ?share=<base64 payload>, 신: ?c=<DB 16자 코드>)
   // 여기서 바로 파싱하지 않고 저장만 함 — 로그인 안 된 상태면 곧 onboarding.html로

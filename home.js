@@ -2444,6 +2444,9 @@ function _clearSlide(...els) {
 function switchTab(tab, noAnim = false) {
   const prevTab = _activeTab;
   _activeTab = tab;
+  _notesSplitShellSync(); // 노트 탭 스플릿이면 탑바 숨김, 다른 탭으로 가면 복원
+  // 노트 탭을 떠나면 우측 악보(iframe)를 비워 재생·타이머를 끊는다 — 복귀하면 마지막 노트를 다시 연다
+  if (prevTab === 'projects' && tab !== 'projects') _notesSplitClose(true);
 
   // SPA 내부 탭 이동은 pagehide가 안 뜸 → 코드에디터 재생 중이던 사운드가 안 멈춤. 하드컷.
   // (stopPlayAll은 user_project.js 전용 함수라 home.html엔 없음 — GuitarAudio.panic()이 그래프 절단+재초기화까지 처리)
@@ -2495,7 +2498,11 @@ function switchTab(tab, noAnim = false) {
   if (tab === 'profile' && typeof renderProfileXp === 'function') renderProfileXp();
 
   if (tab === 'home') enterFromHome('home');
-  if (tab === 'projects') renderProjectsList();
+  if (tab === 'projects') {
+    _notesSplitSync();
+    renderProjectsList();
+    if (_notesSplitEnabled() && _notesSplitLastId && !_notesSplitCurrentId) _notesSplitOpen(_notesSplitLastId);
+  }
   if (tab === 'profile') loadProfileFromDB();
   window.Tutorial?.notify(`tab:${tab}`);
 
@@ -2845,6 +2852,8 @@ async function openProject(projectId) {
     const ageDays    = proj.createdAt ? Math.floor((Date.now() - proj.createdAt) / 86400000) : 0;
     analytics.track('project_opened', { project_id: projectId, chord_count: chordCount, age_days: ageDays });
   }
+  // 태블릿 스플릿 뷰(프로토타입): 페이지 이동 없이 우측 패널에 악보를 연다
+  if (_notesSplitEnabled()) { _notesSplitOpen(projectId); return; }
   if (typeof GuitarAudio !== 'undefined') await GuitarAudio.stop({ wait: true });
   const shell = document.querySelector('.app-shell');
   if (shell) {
@@ -2891,11 +2900,71 @@ function renderSidebar() {
   renderProjectsList();
 }
 
+// ═══════════════════════════════════════════════════════════════
+// 노트 탭 태블릿 스플릿 뷰 — 프로토타입 (docs/notes-split-view-plan.md)
+// 좌: 노트 목록(이 파일) / 우: 악보 = user_project.html?embed=1 을 iframe으로. 데이터 레이어는 건드리지 않는다.
+// 켜는 법: 주소에 ?notesplit=1 (localStorage np_notes_split=1 저장, ?notesplit=0으로 끔) + 폭 ≥769px
+// ═══════════════════════════════════════════════════════════════
+const NOTES_SPLIT_MIN_W = 769;
+let _notesSplitCurrentId = null; // 지금 우측에 열려 있는 노트
+let _notesSplitLastId    = null; // 다른 탭에 다녀온 뒤 복원할 노트
+
+function _notesSplitEnabled() {
+  try {
+    const q = new URLSearchParams(location.search).get('notesplit');
+    if (q === '1') localStorage.setItem('np_notes_split', '1');
+    else if (q === '0') localStorage.removeItem('np_notes_split');
+    return localStorage.getItem('np_notes_split') === '1' && window.innerWidth >= NOTES_SPLIT_MIN_W;
+  } catch (_) { return false; }
+}
+function _notesSplitMarkActive() {
+  document.querySelectorAll('.projects-item').forEach(el =>
+    el.classList.toggle('notes-split-active', !!_notesSplitCurrentId && el.dataset.id === _notesSplitCurrentId));
+}
+// 우측 패널 닫기 — iframe을 비워 안의 재생·타이머를 즉시 끊는다(pagehide로 정리됨). keepLast면 복귀 때 다시 열 노트를 기억
+function _notesSplitClose(keepLast) {
+  const frame = document.getElementById('notes-split-frame');
+  if (frame && frame.getAttribute('src') && frame.getAttribute('src') !== 'about:blank') frame.src = 'about:blank';
+  if (!keepLast) _notesSplitLastId = null;
+  _notesSplitCurrentId = null;
+  document.getElementById('tab-view-projects')?.classList.remove('has-note');
+  _notesSplitMarkActive();
+}
+function _notesSplitOpen(projectId) {
+  const frame = document.getElementById('notes-split-frame');
+  if (!frame) return;
+  _notesSplitCurrentId = projectId;
+  _notesSplitLastId    = projectId;
+  frame.src = 'user_project.html?id=' + encodeURIComponent(projectId) + '&embed=1';
+  document.getElementById('tab-view-projects')?.classList.add('has-note');
+  _notesSplitMarkActive();
+}
+// 스플릿 모드(노트 탭 + 플래그 + 폭 ≥769px)일 때만 .app-shell에 .tab-notes-split — 상단 탑바를 숨기는 CSS 훅(즉시 토글, 전환 애니메이션 없음)
+function _notesSplitShellSync() {
+  document.querySelector('.app-shell')
+    ?.classList.toggle('tab-notes-split', _activeTab === 'projects' && _notesSplitEnabled());
+}
+function _notesSplitSync() {
+  _notesSplitShellSync();
+  const tab = document.getElementById('tab-view-projects');
+  if (!tab) return;
+  const on = _notesSplitEnabled();
+  tab.classList.toggle('notes-split', on);
+  if (!on && _notesSplitCurrentId) _notesSplitClose(false);
+}
+window.addEventListener('resize', _notesSplitSync);
+// 악보(iframe, 다른 문서)에서 노트를 저장하면 localStorage 변경 이벤트가 이 문서에 온다 → 목록 즉시 갱신
+window.addEventListener('storage', e => {
+  if (e.key === 'chorditor_projects' && _notesSplitCurrentId) renderProjectsList();
+});
+
 function renderProjectsList() {
   const container = document.getElementById('projects-list-body');
   if (!container) return;
 
   const projects = loadProjects();
+  // 스플릿: 우측에 열려 있던 노트가 삭제됐으면 패널을 비운다
+  if (_notesSplitCurrentId && !projects.some(p => p.id === _notesSplitCurrentId)) _notesSplitClose(false);
   const important = projects.filter(p => p.important).sort((a, b) => (a.importantOrder || 0) - (b.importantOrder || 0));
   const pinned    = projects.filter(p => p.pinned && !p.important).sort((a, b) => (a.pinnedOrder || 0) - (b.pinnedOrder || 0));
   const recent    = projects.filter(p => !p.pinned && !p.important).sort((a, b) => b.updatedAt - a.updatedAt);
@@ -2914,6 +2983,7 @@ function renderProjectsList() {
     container.appendChild(hint);
   }
 
+  _notesSplitMarkActive();
   lucide.createIcons();
 }
 
@@ -2989,7 +3059,8 @@ function _renderProjectsSection(container, label, projects, showDivider = true, 
     starBtn.addEventListener('pointerup', (e) => { e.stopPropagation(); toggleImportant(project.id); });
 
     actions.appendChild(deleteBtn); // 가장 좌측
-    actions.appendChild(renameBtn);
+    // 스플릿 뷰(프로토타입)에선 이름 변경을 악보 쪽(편집 → 체크)에서만 한다 — 좌측 패널에선 제거
+    if (!_notesSplitEnabled()) actions.appendChild(renameBtn);
     actions.appendChild(pinBtn);
     actions.appendChild(starBtn);
 

@@ -22486,3 +22486,154 @@ html.ios-native #canvas-main-btns { position: relative; z-index: 1; }
     padding: 0 12px;
   }
 }
+
+/* ═══ 노트 탭 태블릿 스플릿 뷰 — 프로토타입 (docs/notes-split-view-plan.md) ═══
+   평소(.notes-split 없음)엔 우측 패널이 숨겨져 기존 화면과 같다. home.js _notesSplitSync()가 플래그+폭 ≥769px일 때만 .notes-split를 붙인다 */
+.notes-split-pane { display: none; }
+#tab-view-projects.notes-split {
+  --notes-split-list-w: clamp(320px, 38vw, 420px);
+}
+#tab-view-projects.notes-split #view-projects-list {
+  right: auto;
+  width: var(--notes-split-list-w);
+}
+#tab-view-projects.notes-split .projects-list-container {
+  max-width: none;
+}
+#tab-view-projects.notes-split .notes-split-pane {
+  display: block;
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  left: var(--notes-split-list-w);
+  /* 좌측 패널(#view-projects-list)과 같은 바탕 + 바깥 여백 20px — 안쪽 .notes-split-card가 좌측 .projects-list-container와 같은 카드 */
+  box-sizing: border-box;
+  padding: 20px 20px 20px 0;
+  background: var(--bg);
+}
+.notes-split-card {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  background: #fff;
+  border-radius: var(--radius);
+  box-shadow: 0 1px 6px rgba(0,0,0,0.07);
+  overflow: hidden;   /* iframe(악보)을 카드 라운드에 맞춰 자름 */
+}
+.notes-split-empty {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin: 0;
+  color: var(--text-muted);
+  font-size: var(--font-body);
+}
+.notes-split-frame {
+  display: none;
+  width: 100%;
+  height: 100%;
+  border: 0;
+  background: #fff;
+}
+#tab-view-projects.has-note .notes-split-frame { display: block; }
+#tab-view-projects.has-note .notes-split-empty { display: none; }
+.projects-item.notes-split-active {
+  background: var(--gray-light);
+}
+
+/* 임베드(iframe) 안의 노트 페이지 — user_project.html?embed=1. 탑바(X 버튼)는 부모 화면이 담당하므로 숨긴다 */
+body.note-edit-page.embed .cd-topbar { display: none; }
+body.note-edit-page.embed { background: #fff; } /* 카드(흰색) 안에서 다른 배경이 비치지 않게 */
+/* 임베드 폭 정규화 — #view-project의 카드 폭·좌우 마진은 데스크탑/태블릿 기준(100vw로 계산한 그리드 col2~11 + margin-inline)이라
+   iframe 안에선 cd-main의 좌우 패딩과 겹쳐 우측으로 쏠린다. 임베드에선 iframe 영역을 꽉 채우도록 전부 덮는다.
+   (id 1 + 클래스 2 + body 라 .app-shell.app-land #view-project·미디어쿼리 규칙보다 우선순위가 높다) */
+body.note-edit-page.embed .cd-main {
+  padding: 0;
+}
+body.note-edit-page.embed #view-project {
+  position: absolute;
+  inset: 0;
+  width: auto;
+  height: auto;
+  max-width: none;
+  margin: 0;
+  border-radius: 0;
+  box-shadow: none;
+}
+body.note-edit-page.embed .view {
+  padding: 0;
+}
+
+/* 스플릿 모드의 노트 탭 — 상단 탑바를 없애고 cd-main + cd-dockbar만 남긴다(home.js _notesSplitShellSync). .cd-topbar{display:flex}가
+   파일 뒤쪽이라 같은 우선순위면 지므로 2클래스로 올림. 탑바가 하던 상단 안전영역(노치·상태바) 여백은 목록·악보 패널의 top으로 대신한다 */
+.app-shell.tab-notes-split .cd-topbar { display: none; }
+.app-shell.tab-notes-split #tab-view-projects.notes-split #view-projects-list,
+.app-shell.tab-notes-split #tab-view-projects.notes-split .notes-split-pane {
+  top: env(safe-area-inset-top, 0px);
+}
+
+/* 디버그 칩(🐞) 임시 숨김 — 노트 스플릿 디자인 작업 중. 다시 보려면 이 규칙만 삭제(칩 생성 코드는 shared.js 그대로) */
+#ms-dbg-chip, #ms-dbg-panel { display: none !important; }
+
+/* ── 노트 스플릿: 좌측 목록 헤더 / 우측 악보 헤더 높이 통일 (64px) ──
+   두 헤더는 서로 다른 문서(home.html / iframe의 user_project.html)라 변수를 양쪽에 같은 값으로 둔다 — 바꿀 땐 두 곳 같이.
+   좌: .projects-list-header(위아래 패딩 20px + 내용 ≈70px) → 64px 고정 / 우: .project-sticky-bar 위 8px + .project-title-bar 48px(56px) → 64px 고정.
+   내용은 둘 다 세로 중앙. 좌우 패딩·헤더 아래 간격은 다음 단계에서 맞춘다 */
+#tab-view-projects.notes-split {
+  --notes-split-header-h: 64px;
+}
+#tab-view-projects.notes-split .projects-list-header {
+  box-sizing: border-box;
+  height: var(--notes-split-header-h);
+  padding: 0;
+}
+body.note-edit-page.embed {
+  --notes-split-header-h: 64px;
+}
+body.note-edit-page.embed .project-sticky-bar {
+  padding-top: 0;
+}
+body.note-edit-page.embed .project-title-bar {
+  box-sizing: border-box;
+  height: var(--notes-split-header-h);
+  padding: 0;
+  align-items: center;
+}
+
+/* ── 노트 스플릿: 좌우 패딩 / 헤더 아래 간격 통일 ──
+   헤더 높이 변수와 같은 방식 — 좌(home.html)·우(iframe)가 다른 문서라 같은 값을 양쪽에 두므로 바꿀 땐 두 곳 같이.
+   · 좌우 패딩 16px: 좌 .projects-list-container(원래 20px) / 우 .project-inner(원래 iframe 폭에 따라 24·28·40px) — 슬롯 최소폭 56px 확보를 위해 24→16px
+   · 헤더(64px) 아래 간격 8px: 좌 첫 섹션 라벨 위 패딩 / 우 .project-header margin-top(원래 8px) */
+#tab-view-projects.notes-split {
+  --notes-split-pad-x: 16px;
+  --notes-split-gap-y: 8px;
+}
+#tab-view-projects.notes-split .projects-list-container {
+  padding-inline: var(--notes-split-pad-x);
+}
+#tab-view-projects.notes-split .projects-section:first-child .projects-section-label {
+  padding-top: var(--notes-split-gap-y);
+}
+body.note-edit-page.embed {
+  --notes-split-pad-x: 16px;
+  --notes-split-gap-y: 8px;
+}
+body.note-edit-page.embed .project-inner {
+  margin-inline: var(--notes-split-pad-x);
+}
+body.note-edit-page.embed .project-header {
+  margin-top: var(--notes-split-gap-y);
+}
+
+/* ── 노트 스플릿: 줄 안 코드 슬롯(다이어그램) 폭 56~72px ──
+   슬롯은 보조선을 박 단위로 등분한 칸(1fr)을 채우고 비율은 5:4 — 지금은 칸 폭 그대로라 화면에 따라 52px까지 줄거나 크게 늘어난다.
+   폭을 56~72px로 가두고 칸의 왼쪽에 붙인다(justify-self: start) → 슬롯 왼쪽선 = 박 시작 위치(박자 정렬)는 그대로.
+   칸이 56px보다 좁으면 56px로 두고 오른쪽 칸 쪽으로 약간 넘친다(좁은 폭에선 위 좌우 패딩 16px로 칸을 넓혀 피함) */
+body.note-edit-page.embed .chord-area.orient-port .chord-slot,
+body.note-edit-page.embed .chord-area.orient-land .chord-slot {
+  width: clamp(56px, 100%, 72px);
+  justify-self: start;
+}

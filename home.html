@@ -471,6 +471,16 @@
           </div>
         </div>
 
+        <!-- 태블릿 스플릿 뷰 우측 악보 패널(프로토타입, docs/notes-split-view-plan.md) — 평소 숨김.
+             플래그(localStorage np_notes_split=1, URL ?notesplit=1) + 폭 ≥769px일 때만 .notes-split로 표시 -->
+        <div class="notes-split-pane" id="notes-split-pane">
+          <!-- 좌측 목록 카드(.projects-list-container)와 같은 카드 형태 -->
+          <div class="notes-split-card">
+            <p class="notes-split-empty">왼쪽에서 노트를 선택하세요</p>
+            <iframe class="notes-split-frame" id="notes-split-frame" title="노트 악보"></iframe>
+          </div>
+        </div>
+
       </div><!-- /tab-view-projects -->
 
       <!-- ── 프로필 탭 ── -->
