@@ -25,6 +25,15 @@
         <i data-lucide="x"></i>
       </button>
     </header>
+    <script>
+      // 노트 탭 스플릿 뷰(home.html iframe, ?embed=1) — 프로토타입(docs/notes-split-view-plan.md).
+      // shared.js는 #back-btn이 있으면 history.pushState + popstate 가드를 건다. iframe 안에서 그게 걸리면 부모와 히스토리를
+      // 공유해 뒤로가기가 iframe만 홈으로 보낸다 → 임베드에선 id를 바꿔 가드가 안 걸리게 한다.
+      if (new URLSearchParams(location.search).get('embed') === '1') {
+        var _eb = document.getElementById('back-btn');
+        if (_eb) _eb.id = 'back-btn-embed';
+      }
+    </script>
 
     <!-- ── 메인 (style-guide.md §11 cd-main) ── -->
     <main class="cd-main cd-main--stage" id="main-content">
@@ -42,6 +51,9 @@
       </div><!-- /content-body -->
 
     </main><!-- /main-content -->
+
+    <!-- 노트 스플릿(임베드) 좌측 목록 펼치기 버튼 — 렌더(#view-project)에 포함되지 않는 정적 요소. 표시·위치는 style.css(body.embed.list-collapsed), 클릭은 user_project.js -->
+    <button class="icon-btn notes-split-expand-btn" id="notes-split-expand-btn" type="button" aria-label="목록 펼치기"><i data-lucide="panel-left"></i></button>
 
 
     <!-- 플랜 배지 (숨김 상태 유지, JS 참조용) -->
@@ -254,80 +266,39 @@
     </div>
   </div>
 
-  <!-- ── 코드사전 추가 모달 (코드 팔레트 + 버튼) ──
-       560px 기준으로 완전히 분리된 모달 2개(-sm 3x3 / -lg 4x4). 미디어쿼리로 하나의
-       모달을 변형하는 대신 처음부터 각자 독립 마크업+CSS — openPaletteDictionary가
-       matchMedia로 어느 쪽을 보여줄지 정한다. 구조는 100% 동일, id 접미사만 다름. -->
-  <div class="modal-overlay hidden" id="palette-dict-modal-sm"
+  <!-- ── 코드 추가 모달 (코드 팔레트 + 버튼) ──
+       코드사전(library.html)의 사전패널과 같은 디자인 — 코드뷰 없이 패널만.
+       상단 줄[닫기·에디터로 | #/b·검색] → 12key 셀렉터 → 코드 그리드(+ 보이싱 선택 팝업). -->
+  <div class="modal-overlay hidden" id="palette-dict-modal"
        onclick="if(event.target===this) closePaletteDictionary()">
-    <div class="modal palette-dict-card palette-dict-card--sm" onclick="event.stopPropagation()">
-      <div class="modal-header">
-        <span class="modal-title">코드 추가</span>
-        <button class="icon-btn" onclick="closePaletteDictionary()"><i data-lucide="x"></i></button>
-      </div>
-      <div class="modal-body palette-dict-body">
-        <div class="lib-bottom-area">
-          <div class="lib-action-section">
-            <div class="lib-action-bar">
-              <div class="accidental-toggle" onclick="toggleLibAccidental()">
-                <button class="acc-btn active" id="lib-acc-sharp-sm">#</button>
-                <button class="acc-btn" id="lib-acc-flat-sm">b</button>
-              </div>
-              <span class="ab-spacer"></span>
-              <button class="ab-btn ab-btn-primary" id="pd-btn-to-editor-sm" onclick="paletteDictToEditor()">에디터로</button>
-            </div>
-          </div><!-- /lib-action-section -->
-
-          <div class="lib-bottom">
-            <div class="lib-root-list" id="lib-root-tabs-sm"></div>
-            <div class="lib-cards-area">
-              <div class="lib-cards" id="lib-cards-sm"></div>
-            </div>
-            <div class="lib-voicing-overlay" id="lib-voicing-overlay-sm"
-                 onclick="closeVoicingModal()"></div>
-            <div class="lib-voicing-modal" id="lib-voicing-modal-sm"
-                 onclick="closeVoicingModal()">
-              <div class="lib-voicing-grid" id="lib-voicing-grid-sm"></div>
-            </div>
+    <div class="modal palette-dict-card" onclick="event.stopPropagation()">
+      <div class="lib-panel-head pd-head">
+        <button class="icon-btn pd-close" type="button" onclick="closePaletteDictionary()" aria-label="닫기"><i data-lucide="x"></i></button>
+        <button class="pd-editor-btn" id="pd-btn-to-editor-panel" type="button" onclick="paletteDictToEditor()">에디터로</button>
+        <div class="lib-panel-tools">
+          <div class="accidental-toggle" onclick="toggleLibAccidental()">
+            <button class="acc-btn active" id="lib-acc-sharp">#</button>
+            <button class="acc-btn" id="lib-acc-flat">b</button>
           </div>
-        </div><!-- /lib-bottom-area -->
-      </div>
-    </div>
-  </div>
-
-  <div class="modal-overlay hidden" id="palette-dict-modal-lg"
-       onclick="if(event.target===this) closePaletteDictionary()">
-    <div class="modal palette-dict-card palette-dict-card--lg" onclick="event.stopPropagation()">
-      <div class="modal-header">
-        <span class="modal-title">코드 추가</span>
-        <button class="icon-btn" onclick="closePaletteDictionary()"><i data-lucide="x"></i></button>
-      </div>
-      <div class="modal-body palette-dict-body">
-        <div class="lib-bottom-area">
-          <div class="lib-action-section">
-            <div class="lib-action-bar">
-              <div class="accidental-toggle" onclick="toggleLibAccidental()">
-                <button class="acc-btn active" id="lib-acc-sharp-lg">#</button>
-                <button class="acc-btn" id="lib-acc-flat-lg">b</button>
-              </div>
-              <span class="ab-spacer"></span>
-              <button class="ab-btn ab-btn-primary" id="pd-btn-to-editor-lg" onclick="paletteDictToEditor()">에디터로</button>
-            </div>
-          </div><!-- /lib-action-section -->
-
-          <div class="lib-bottom">
-            <div class="lib-root-list" id="lib-root-tabs-lg"></div>
-            <div class="lib-cards-area">
-              <div class="lib-cards" id="lib-cards-lg"></div>
-            </div>
-            <div class="lib-voicing-overlay" id="lib-voicing-overlay-lg"
-                 onclick="closeVoicingModal()"></div>
-            <div class="lib-voicing-modal" id="lib-voicing-modal-lg"
-                 onclick="closeVoicingModal()">
-              <div class="lib-voicing-grid" id="lib-voicing-grid-lg"></div>
-            </div>
+          <div class="lib-panel-search" id="lib-panel-search">
+            <button class="icon-btn lib-panel-search-btn" type="button"
+                    onpointerdown="event.preventDefault()" onclick="togglePdSearch()" aria-label="검색">
+              <i data-lucide="search"></i>
+            </button>
+            <input type="text" class="lib-panel-search-input" id="lib-panel-search-input"
+                   placeholder="코드 검색" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false"
+                   oninput="onPdSearchInput(this.value)"
+                   onkeydown="if(event.key==='Enter'){this.blur();}" />
           </div>
-        </div><!-- /lib-bottom-area -->
+        </div>
+      </div>
+      <div class="lib-panel-keys-track" id="lib-panel-keys-track"></div>
+      <div class="lib-cards-area">
+        <div class="lib-cards" id="lib-cards"></div>
+      </div>
+      <div class="lib-voicing-overlay" id="lib-voicing-overlay" onclick="closeVoicingModal()"></div>
+      <div class="lib-voicing-modal" id="lib-voicing-modal" onclick="closeVoicingModal()">
+        <div class="lib-voicing-grid" id="lib-voicing-grid"></div>
       </div>
     </div>
   </div>

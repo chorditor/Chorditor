@@ -740,7 +740,7 @@ const TUTORIAL_CHAPTERS = (() => {
       title: 'C 코드 담기',
       text: '팔레트에 C가 담겼어요!\n이제 닫기를 눌러볼까요?',
       panel: 'bottom',
-      target: '.modal-overlay:not(.hidden) .palette-dict-card .modal-header .icon-btn',
+      target: '.modal-overlay:not(.hidden) .palette-dict-card .pd-close',
       advanceOn: 'palettedict:close',
     },
     {

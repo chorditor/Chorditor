@@ -480,7 +480,12 @@
         <div class="notes-split-pane" id="notes-split-pane">
           <!-- 좌측 목록 카드(.projects-list-container)와 같은 카드 형태 -->
           <div class="notes-split-card">
-            <p class="notes-split-empty">왼쪽에서 노트를 선택하세요</p>
+            <div class="notes-split-empty">
+              <p class="notes-split-empty-text">새 노트를 생성하세요</p>
+              <button class="icon-btn notes-split-empty-btn" type="button" title="새 노트" aria-label="새 노트" onclick="_playTap();promptCreateProject()">
+                <i data-lucide="plus"></i>
+              </button>
+            </div>
             <iframe class="notes-split-frame" id="notes-split-frame" title="노트 악보"></iframe>
           </div>
         </div>

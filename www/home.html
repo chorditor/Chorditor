@@ -463,11 +463,30 @@
                 <button class="icon-btn" id="btn-create-note" onclick="_playTap();promptCreateProject()" title="새 노트">
                   <i data-lucide="circle-plus"></i>
                 </button>
+                <!-- 좌측 패널 접기 버튼 — 스플릿 뷰(.notes-split)에서만 보임. 동작은 다음 단계 -->
+                <button class="icon-btn notes-split-collapse-btn" id="notes-split-collapse-btn" type="button" title="목록 접기" aria-label="목록 접기" onclick="_playTap();_notesSplitSetCollapsed(true)">
+                  <i data-lucide="panel-left"></i>
+                </button>
               </div>
             </div>
             <div class="projects-list-body" id="projects-list-body">
               <!-- JS로 렌더링 -->
             </div>
+          </div>
+        </div>
+
+        <!-- 태블릿 스플릿 뷰 우측 악보 패널(프로토타입, docs/notes-split-view-plan.md) — 평소 숨김.
+             플래그(localStorage np_notes_split=1, URL ?notesplit=1) + 폭 ≥769px일 때만 .notes-split로 표시 -->
+        <div class="notes-split-pane" id="notes-split-pane">
+          <!-- 좌측 목록 카드(.projects-list-container)와 같은 카드 형태 -->
+          <div class="notes-split-card">
+            <div class="notes-split-empty">
+              <p class="notes-split-empty-text">새 노트를 생성하세요</p>
+              <button class="icon-btn notes-split-empty-btn" type="button" title="새 노트" aria-label="새 노트" onclick="_playTap();promptCreateProject()">
+                <i data-lucide="plus"></i>
+              </button>
+            </div>
+            <iframe class="notes-split-frame" id="notes-split-frame" title="노트 악보"></iframe>
           </div>
         </div>
 

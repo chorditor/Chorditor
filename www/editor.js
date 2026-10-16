@@ -5,7 +5,7 @@
 // 홈 쪽 원본은 정리 전까지 남겨둔다(library.js와 같은 방식). 이 페이지가 쓰는 것:
 //   shared.js(플랜·저장·분석·온보딩 관문) / voicing-canvas.js / chord-voicings.js / guitar-audio.js
 // 진입: 홈 카드 / library.html "에디터로"(sessionStorage 인계, ?from_lib=1) / user_project.html(?from_project=&chord_id=)
-// 뒤로가기: from_lib → library.html, from_project → user_project.html?id=, 그 외 → home.html
+// 뒤로가기: from_lib → library.html, from_project → user_project.html?id= (ret=split이면 home.html?tab=projects, 스플릿), 그 외 → home.html
 // ═════════════════════════════════════════════════
 
 // ═══════════════════════════════════════════════════════════════
@@ -412,6 +412,7 @@ let isEditMode = true;
 
 // user_project 페이지에서 에디터로 진입 시 복귀 정보
 let _editorReturnProjectId = null;  // 복귀할 프로젝트 ID
+let _editorReturnToSplit   = false; // 노트 스플릿(iframe)에서 나온 경우 — 복귀는 단독 노트 페이지가 아니라 홈 노트 탭(스플릿)
 let _editorEditingChordId  = null;  // 편집 중인 기존 코드 ID (null이면 신규 추가)
 let _isFromProject         = false; // user_project → 에디터 진입 모드 여부
 let _fromLibraryToEditor   = false; // 코드사전 '에디터로' → 에디터 진입 시 true. 에디터 뒤로가기를 사전으로 복귀시킴
@@ -2022,10 +2023,13 @@ function _leaveEditor(url) {
 
 // from_project 모드에서 user_project로 복귀(저장 후·돌아가기)
 function _returnToProject(returnId) {
+  const toSplit = _editorReturnToSplit;
   _editorReturnProjectId = null;
   _editorEditingChordId  = null;
   _isFromProject         = false;
-  _leaveEditor('user_project.html?id=' + returnId);
+  _editorReturnToSplit   = false;
+  // 스플릿에서 왔으면 홈 노트 탭으로 — 스플릿이 마지막으로 연 노트(np_notes_split_last)를 다시 열고, 편집 모드·스크롤(np_edit_return)도 복원된다
+  _leaveEditor(toSplit ? 'home.html?tab=projects&return=1' : 'user_project.html?id=' + returnId);
 }
 
 // 탑바 뒤로가기 — 진입 경로에 따라 복귀 지점이 다르다
@@ -2089,6 +2093,7 @@ document.addEventListener('DOMContentLoaded', () => {
     _editorReturnProjectId = _fromProject;
     _editorEditingChordId  = _fromChordId || null;
     _isFromProject         = true;
+    _editorReturnToSplit   = _urlParams.get('ret') === 'split';
 
     // 기존 코드 편집이면 state 복원
     if (_fromChordId) {
@@ -2099,16 +2104,27 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // 탑바 뒤로가기는 숨김(home.js와 동일) — 노트로는 "저장"/"돌아가기" 버튼과 하드웨어 뒤로가기로만 돌아간다
     document.getElementById('back-btn')?.style.setProperty('display', 'none');
+    // 노트에서 코드 추가·편집으로 들어온 에디터에는 "사전에서 가져오기"가 없다(코드 추가 모달이 그 역할)
+    document.getElementById('ed-btn-from-library')?.style.setProperty('display', 'none');
 
-    // 액션바의 "노트에 저장" → "저장"(그 노트에 반영) + 바로 앞에 "돌아가기"
+    // 제목 옆에 "노트 편집 모드" 표시 — 노트에서 들어온 에디터임을 알린다(홈에서 연 에디터와 구분)
+    const _edTitle = document.querySelector('.ed-title');
+    if (_edTitle) {
+      const _sub = document.createElement('span');
+      _sub.className = 'ed-title-sub';
+      _sub.textContent = '노트 편집 모드';
+      _edTitle.appendChild(_sub);
+    }
+
+    // 액션바의 "노트에 저장" → "노트에 저장하기"(그 노트에 반영) + 바로 앞에 "노트로 돌아가기"
     const _edSaveBtn = document.getElementById('btn-add-to-project');
     if (_edSaveBtn) {
-      _edSaveBtn.textContent = '저장';
+      _edSaveBtn.textContent = '노트에 저장하기';
       _edSaveBtn.onclick = () => _addChordToProject(_fromProject);
       const _edBackBtn = document.createElement('button');
       _edBackBtn.type = 'button';
       _edBackBtn.className = 'ed-pill-btn';
-      _edBackBtn.textContent = '돌아가기';
+      _edBackBtn.textContent = '노트로 돌아가기';
       _edBackBtn.onclick = () => _returnToProject(_fromProject);
       _edSaveBtn.parentElement.insertBefore(_edBackBtn, _edSaveBtn);
     }

@@ -3603,6 +3603,15 @@ canvas {
 }
 .project-name-input::-webkit-scrollbar { display: none; }
 .project-name-input:focus { border-bottom-color: var(--border); }
+/* 제목 수정 가능(편집 모드) — 밑줄 대신 회색 알약 박스. 포커스해도 변화 없음 */
+.project-title-bar .project-name-input:not([readonly]) {
+  background: #F5F5F5;
+  border-radius: 999px;
+  padding: 0 16px;
+  height: 40px;
+  line-height: 40px;
+}
+.project-title-bar .project-name-input:not([readonly]):focus { border-bottom-color: transparent; }   /* 기본 포커스 밑줄도 제거 */
 .project-name-input::placeholder { color: var(--text-muted); }
 
 .back-btn {
@@ -3811,6 +3820,7 @@ canvas {
 
 /* ?�?� ?�레???�크롤바 (?�딧모드) ?�?� */
 .palette-section { width: 100%; }
+.project-inner > .palette-section { flex-shrink: 0; } /* 헤더 밖 3단 구조 — 악보영역(flex:1)에 눌려 줄어들지 않게 */
 .palette-collapse-body {
   overflow: hidden;
   max-height: 220px;
@@ -3822,16 +3832,20 @@ canvas {
   display: flex;
   align-items: center;
   justify-content: center;
+  --palette-handle-gap: 12px; /* 아이콘 위(구분선 쪽)·아래(코드슬롯 쪽) 여백 — 아이콘이 위아래 여백 역할 */
   width: 100%;
-  height: 18px;
-  padding: 0;
+  /* 아래 여백 중 8px는 팔레트 위 패딩(삭제 뱃지 .chord-palette-delete가 top:-8px로 튀어나옴)이 맡으므로 그만큼 뺀다 */
+  height: calc(24px + var(--palette-handle-gap) * 2 - 8px);
+  padding: var(--palette-handle-gap) 0 calc(var(--palette-handle-gap) - 8px);
   border: none;
   background: none;
-  color: var(--text-muted);
+  color: var(--brand);
   cursor: pointer;
 }
-.palette-collapse-handle svg { width: 16px; height: 16px; transition: transform .2s ease; }
+.palette-collapse-handle svg { width: 24px; height: 24px; transition: transform .2s ease; }
 .palette-section.collapsed .palette-collapse-handle svg { transform: rotate(180deg); }
+/* 핸들 아래 여백(--palette-handle-gap)의 마지막 8px는 팔레트 위 패딩이 맡는다 — 0이면 코드 삭제 뱃지(top:-8px)가 팔레트 스크롤 영역에 잘림 */
+.palette-collapse-handle + .palette-collapse-body .chord-palette { padding-top: 8px; }
 .palette-scrollbar {
   display: flex;
   align-items: center;
@@ -4258,10 +4272,10 @@ canvas {
   min-height: 1.6em;
   margin-bottom: 19px;
 }
-/* 배지(선택) → chord-row-wrapper → project-line-text-row 3단 세로 스택 */
+/* 줄 = 상단 .project-line-meta(BPM·카포 배지) + 하단 .project-line-body(좌: 박자 레일 열 | 우: .project-line-content = 코드슬롯 → 가사) */
 .project-line-body {
   display: flex;
-  flex-direction: column;
+  flex-direction: row;
   align-items: stretch;
   width: 100%;
 }
@@ -4273,13 +4287,10 @@ canvas {
      chord-area와 정확히 같아진다 */
   padding-right: var(--row-menu-btn-w);
 }
-/* row-meter-rail 폭만큼 chord-row-wrapper 좌측을 비워서(padding-left) 코드슬롯1 좌측끝을
-   line-text 좌측끝과 정렬 — row-meter-rail은 이제 project-line-text-row 안에서만 실제로 그려짐 */
-.chord-row-wrapper { padding-left: var(--row-meter-rail-w); }
+/* 박자 레일은 .project-line-body의 좌측 독립 열 — 코드슬롯·가사가 같은 열(.project-line-content)에 있어 좌측 정렬이 자동으로 맞는다 */
 .row-meter-rail {
   flex-shrink: 0;
   width: var(--row-meter-rail-w);
-  padding-right: 4px;
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -8862,144 +8873,249 @@ canvas {
 }
 
 /* ══════════════════════════════════════════════════════════════
-   코드사전 추가 모달 — sm(3열)/lg(4열) 완전 분리 (자체 완결 섹션)
-
-   모달 자체가 560px 기준으로 완전히 다른 DOM 2벌이다(user_project.html:
-   #palette-dict-modal-sm, #palette-dict-modal-lg). 어느 쪽을 보여줄지는
-   openPaletteDictionary()가 matchMedia로 여는 시점에 정하고(user_project.js),
-   CSS는 미디어쿼리 없이 각 변형을 독립적으로 고정 치수로만 정의한다 —
-   화면 폭이 달라져도 이미 열린 모달의 크기가 바뀔 일이 없다.
-
-   두 변형이 페이지(#view-library)와 lib-* 클래스를 공유하므로, 페이지 쪽
-   와이드 레이아웃 규칙이 새어들지 않도록 .palette-dict-card--sm/--lg
-   스코프로만 기하를 정의한다. 값을 바꾸려면 아래 두 블록만 건드리면 됨. */
-
-#palette-dict-modal-sm, #palette-dict-modal-lg {
+   코드 추가 모달 — 코드사전(library.html) 사전패널과 같은 디자인, 코드뷰 없이 패널만 (user_project.html #palette-dict-modal)
+   상단 줄[닫기·에디터로 | #/b·검색] / 12key 셀렉터 / 코드 그리드 + 보이싱 선택 팝업.
+   사전패널 규칙은 전부 #view-library 스코프라 여기선 같은 값을 .palette-dict-card 스코프로 다시 정의한다
+   (사전패널 디자인을 바꾸면 이 구역도 같이 볼 것).
+   ══════════════════════════════════════════════════════════════ */
+#palette-dict-modal {
   animation: modal-overlay-in 0.2s ease both;
 }
-#palette-dict-modal-sm .modal, #palette-dict-modal-lg .modal {
+#palette-dict-modal .modal {
   animation: modal-scale-in 0.25s cubic-bezier(0.34, 1.56, 0.64, 1) both;
-  /* 레거시 .modal{margin:0 8px}(≤1400px)가 오버레이 패딩 16px 위에 또 붙어 모바일에서
-     좌우가 과하게 좁아짐 — 이 모달은 오버레이 패딩만 쓴다 */
-  margin: 0;
+  margin: 0;   /* 레거시 .modal{margin:0 8px}(≤1400px)가 오버레이 패딩 위에 또 붙지 않게 */
 }
-.palette-dict-body {
-  flex: 1;
-  min-height: 0;
-  padding: 0;
-  display: flex;
-  flex-direction: column;
-  overflow: hidden;
-}
-
-/* 모달 껍데기 공통 — 크기만 --sm/--lg가 각자 정의 */
 .palette-dict-card {
-  /* 여기 걸리는 상한이 2겹이라 둘 다 풀어야 함:
-     1) .modal 기본 max-width:480px(3023줄)
-     2) .modal-overlay > * { max-width:400px !important }(13734줄, 481px+ 앱프레임 캡)
-        — !important라 !important로만 이길 수 있고, id+class 조합이라 특이도도 위에서 이김. */
+  --lib-grid-cols: 3;
+  --lib-grid-gap: 6px;
+  --lib-grid-pad: 8px;
+  --lib-key-size: 32px;   /* 12key 셀렉터 한 칸(정사각형) */
+  /* 여기 걸리는 상한이 2겹이라 둘 다 풀어야 함: .modal 기본 max-width:480px, .modal-overlay > * { max-width:400px !important } */
   max-width: none !important;
-  padding: 0;
+  width: min(420px, calc(100vw - 32px));
+  height: min(80dvh, 720px);
+  max-height: none;
+  position: relative;
+  box-sizing: border-box;
+  padding: var(--space-2);   /* 내부 상하좌우 8px */
   overflow: hidden;
+  background: var(--surface);
+  border: 1px solid var(--surface);
+  border-radius: var(--radius-lg);
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.18);
 }
-.palette-dict-card .modal-header {
-  border-bottom: 1px solid var(--border);
+/* 상단 줄 — 좌: 닫기·에디터로 / 우: 도구 묶음(#/b 토글·검색, 우측 끝 고정, 검색이 열리면 왼쪽으로 자람) */
+.palette-dict-card .lib-panel-head {
+  position: relative;
+  flex-shrink: 0;
+  min-height: var(--cd-icon-btn-size);
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+.palette-dict-card .lib-panel-tools {
+  position: absolute;
+  top: 0;
+  right: 0;
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+.palette-dict-card .lib-panel-search {
+  position: relative;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  width: var(--cd-icon-btn-size);
+  height: var(--cd-icon-btn-size);
+  border-radius: 999px;
+  overflow: hidden;
+  transition: width .28s cubic-bezier(0.22, 1, 0.36, 1), background-color .2s;
+}
+.palette-dict-card .lib-panel-search.open {
+  width: 176px;
+  background: var(--bg);
+}
+.palette-dict-card .lib-panel-search-input {
+  flex: 1;
+  min-width: 0;
+  height: 100%;
+  padding: 0;
+  border: 0;
+  outline: 0;
+  background: transparent;
+  color: var(--text-primary);
+  font-family: inherit;
+  font-size: 16px;   /* 16px 미만이면 iOS가 입력 시 확대함 */
+  opacity: 0;
+  transition: opacity .2s;
+}
+.palette-dict-card .lib-panel-search.open .lib-panel-search-input {
+  padding-right: var(--space-4);
+  opacity: 1;
+}
+/* 검색이 열리면 좁은 폭에서 도구 묶음이 왼쪽 버튼을 덮으므로 에디터로를 숨김 */
+.palette-dict-card .lib-panel-head:has(.lib-panel-search.open) .pd-editor-btn { display: none; }
+.palette-dict-card .icon-btn {
+  box-sizing: border-box;
+  width: var(--cd-icon-btn-size);
+  height: var(--cd-icon-btn-size);
+  padding: 0;
   flex-shrink: 0;
 }
-/* 본문 = 액션바(고정) + 목록(나머지) 세로 2단.
-   display:flex는 페이지 와이드 레이아웃의 display:grid를 무력화하는 역할도 겸함 */
-.palette-dict-card .lib-bottom-area {
+.palette-dict-card .icon-btn svg {
+  width: var(--cd-icon-btn-icon);
+  height: var(--cd-icon-btn-icon);
+}
+.palette-dict-card .icon-btn:hover { background: none; color: var(--text-secondary); }
+.palette-dict-card .icon-btn:active { background: var(--bg); }
+.palette-dict-card .pd-close { color: var(--text-primary); }
+/* 에디터로 — 사전패널 머리 줄의 "에디터로 편집" 알약(.lib-codeview-actions .ab-btn)과 같은 스타일:
+   흰 배경 + 흰 1px 테두리 + 그림자, 높이 32px(#/b 토글과 같음), 터치 영역은 ::before로 44px */
+.pd-editor-btn {
+  position: relative;
+  flex-shrink: 0;
+  height: 32px;
+  padding: 0 var(--space-3);
+  border: 1px solid #fff;
+  border-radius: 999px;
+  background: var(--surface);
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.12);
+  color: var(--text-primary);
+  font: var(--type-label-sm);
+  font-weight: 500;
+  letter-spacing: -0.02em;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: background-color .15s;
+}
+.pd-editor-btn::before {
+  content: '';
+  position: absolute;
+  inset: -6px -2px;
+}
+.pd-editor-btn:active { background: var(--gray-light); }
+/* 12key 셀렉터 — 32px 정사각형 1줄 가로 스크롤 */
+.palette-dict-card .lib-panel-keys-track {
+  flex-shrink: 0;
   display: flex;
-  flex-direction: column;
+  align-items: center;
+  gap: var(--space-2);
+  margin-top: var(--space-2);
+  padding: var(--space-1) var(--space-2) var(--space-2);   /* 그림자·선택 링이 잘리지 않게 */
+  overflow-x: auto;
+  overflow-y: hidden;
+  scrollbar-width: none;
+  -webkit-overflow-scrolling: touch;
+  touch-action: pan-x;
+}
+.palette-dict-card .lib-panel-keys-track::-webkit-scrollbar { display: none; }
+.palette-dict-card .lib-panel-keys-track.fade-r {
+  -webkit-mask-image: linear-gradient(to right, #000 calc(100% - 16px), transparent);
+  mask-image: linear-gradient(to right, #000 calc(100% - 16px), transparent);
+}
+.palette-dict-card .lib-panel-keys-track.fade-l {
+  -webkit-mask-image: linear-gradient(to left, #000 calc(100% - 16px), transparent);
+  mask-image: linear-gradient(to left, #000 calc(100% - 16px), transparent);
+}
+.palette-dict-card .lib-panel-keys-track.fade-l.fade-r {
+  -webkit-mask-image: linear-gradient(to right, transparent, #000 16px, #000 calc(100% - 16px), transparent);
+  mask-image: linear-gradient(to right, transparent, #000 16px, #000 calc(100% - 16px), transparent);
+}
+.palette-dict-card .lib-panel-key-item {
+  position: relative;
+  flex: 0 0 var(--lib-key-size);
+  width: var(--lib-key-size);
+  height: var(--lib-key-size);
+  padding: 0;
+  border: 1px solid #fff;
+  border-radius: var(--space-2);
+  background: var(--surface);
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.12);
+  color: var(--text-primary);
+  font-family: inherit;
+  font-size: var(--font-label-sm);
+  font-weight: var(--weight-regular);
+  line-height: 1;
+  letter-spacing: var(--tracking-base);
+  cursor: pointer;
+  transition: transform .12s;
+}
+.palette-dict-card .lib-panel-key-item::before {
+  content: '';
+  position: absolute;
+  inset: -6px -4px;
+}
+.palette-dict-card .lib-panel-key-item:active { transform: scale(0.92); }
+.palette-dict-card .lib-panel-key-item.active {
+  background: var(--brand);
+  border-color: var(--brand);
+  color: #fff;
+}
+/* 코드 그리드 — 남은 높이를 채우고 세로 스크롤. 위쪽 16px 투명도 그라데이션으로 카드가 12key 경계에서 뚝 잘리지 않고 스며듦 */
+.palette-dict-card .lib-cards-area {
   flex: 1;
   min-height: 0;
+  background: none;
+  scrollbar-width: none;
+  -webkit-mask-image: linear-gradient(to bottom, transparent 0, #000 var(--space-4));
+  mask-image: linear-gradient(to bottom, transparent 0, #000 var(--space-4));
 }
-.palette-dict-card .lib-action-bar {
-  gap: 8px;
-  border-top: none; /* 바로 위 모달 헤더에 이미 구분선이 있음 */
-}
-/* #/b 토글은 알약 배경이 컨테이너(.accidental-toggle) 쪽이라 높이는 거기에 주고
-   내부 버튼은 100%로 채운다(안 그러면 3px 패딩만큼 버튼이 삐져나옴) */
-.palette-dict-card .lib-action-bar .acc-btn { height: 100%; }
-.palette-dict-card .lib-bottom {
-  flex: 1;
-  min-height: 0;
-  border-right: none;
-}
-/* 12key 근음 레일 — 12칸이 세로를 균등 분할, 공간이 모자라면 스크롤.
-   grid-column/row 리셋은 페이지 와이드 레이아웃이 이 레일을 그리드 배치할 때 대비 */
-.palette-dict-card .lib-root-list {
-  grid-column: auto;
-  grid-row: auto;
-  display: flex;
-  flex-direction: column;
-  overflow-y: auto;
-}
-.palette-dict-card .lib-root-item {
-  flex: 1 0 auto;
-  height: auto;
-  /* 터치타깃 하한만 잡고 나머지는 flex가 균등 분배 — 레일 폭을 하한으로 쓰면
-     12칸 합이 목록 높이를 넘겨 불필요한 스크롤이 생긴다 */
-  min-height: 36px;
-}
-/* 카드 그리드 — 열 수·슬롯 폭 둘 다 --sm/--lg가 고정값으로 지정.
-   1fr이나 auto-fill을 쓰면 화면 폭에 따라 슬롯 크기·열 수가 제멋대로 바뀌므로
-   둘 다 명시값이어야 한다. 남는 자투리 폭은 space-evenly가 간격으로만 흡수.
-   코드 목록과 보이싱 목록이 같은 슬롯 크기를 공유한다. */
+.palette-dict-card .lib-cards-area::-webkit-scrollbar { display: none; }
 .palette-dict-card .lib-cards,
 .palette-dict-card .lib-voicing-grid {
-  justify-content: space-evenly;
-  padding-bottom: 40px;
+  grid-template-columns: repeat(var(--lib-grid-cols), minmax(0, 1fr));
+  gap: var(--lib-grid-gap);
 }
-.palette-dict-card .lib-card-canvas { width: 100%; min-width: 0; }
-
-/* ── 3열 (~559px, .palette-dict-card--sm) ── */
-.palette-dict-card--sm {
-  --pd-canvas-w: 56px; /* JS(_libMiniW)가 카드 다이어그램 비트맵 해상도를 맞출 때 읽음 */
-  width: min(320px, calc(100vw - 32px)); /* 고정값 — 초소형 화면에서만 안전하게 축소 */
-  height: min(86dvh, 640px);
+.palette-dict-card .lib-cards {
+  padding: var(--space-4) var(--space-2) var(--space-6);   /* 위 16px = 위쪽 그라데이션 구간 */
 }
-.palette-dict-card--sm .modal-header,
-.palette-dict-card--sm .lib-action-bar { padding: 12px; }
-.palette-dict-card--sm .accidental-toggle,
-.palette-dict-card--sm .lib-action-bar .ab-btn { height: 32px; }
-.palette-dict-card--sm .lib-action-bar .acc-btn,
-.palette-dict-card--sm .lib-action-bar .ab-btn { font-size: 12px; }
-.palette-dict-card--sm .lib-root-list { width: 44px; }
-.palette-dict-card--sm .lib-root-item { font-size: 12px; }
-.palette-dict-card--sm .lib-cards,
-.palette-dict-card--sm .lib-voicing-grid {
-  grid-template-columns: repeat(3, minmax(0, 1fr)); /* minmax(0,1fr) 없으면 카드 내용(min-content)이 커서 트랙 폭이 제각각 벌어짐 */
-  gap: 4px;
-  padding: 10px 10px 40px;
+.palette-dict-card .lib-card {
+  box-sizing: border-box;
+  width: auto;
+  height: auto;
+  aspect-ratio: 4 / 3;
+  padding: 3px 4px 2px;
+  background: var(--surface);
+  border: 1px solid #fff;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.12);
 }
-.palette-dict-card--sm .lib-card-name { font-size: 12px; max-width: 100%; }
-.palette-dict-card--sm .lib-voicing-overlay,
-.palette-dict-card--sm .lib-voicing-modal { left: 45px; } /* rail(44) + border(1) */
-
-/* ── 4열 (560px~, .palette-dict-card--lg) ── */
-.palette-dict-card--lg {
-  --pd-canvas-w: 72px;
-  width: min(480px, calc(100vw - 32px));
-  height: min(80dvh, 720px);
+.palette-dict-card .lib-card.active {
+  box-shadow: 0 0 0 2px var(--text-primary), 0 2px 8px rgba(0, 0, 0, 0.12);
 }
-.palette-dict-card--lg .modal-header,
-.palette-dict-card--lg .lib-action-bar { padding: 20px; }
-.palette-dict-card--lg .accidental-toggle,
-.palette-dict-card--lg .lib-action-bar .ab-btn { height: 38px; }
-.palette-dict-card--lg .lib-action-bar .acc-btn,
-.palette-dict-card--lg .lib-action-bar .ab-btn { font-size: 14px; }
-.palette-dict-card--lg .lib-root-list { width: 56px; }
-.palette-dict-card--lg .lib-root-item { font-size: 16px; }
-.palette-dict-card--lg .lib-cards,
-.palette-dict-card--lg .lib-voicing-grid {
-  grid-template-columns: repeat(4, minmax(0, 1fr)); /* minmax(0,1fr) 없으면 카드 내용(min-content)이 커서 트랙 폭이 제각각 벌어짐 */
-  gap: 4px;
-  padding: 12px 12px 40px;
+.palette-dict-card .lib-card-canvas {
+  width: 70%;
+  height: auto;
+  aspect-ratio: auto;
+  min-width: 0;
 }
-.palette-dict-card--lg .lib-card-name { font-size: 14px; max-width: 100%; }
-.palette-dict-card--lg .lib-voicing-overlay,
-.palette-dict-card--lg .lib-voicing-modal { left: 57px; } /* rail(56) + border(1) */
+.palette-dict-card .lib-card-name {
+  font-size: 11px;
+  margin-top: 2px;
+  max-width: 100%;
+}
+.palette-dict-card .lib-card-badge {
+  top: 3px;
+  right: 3px;
+  width: 15px;
+  height: 15px;
+  font-size: 9px;
+}
+/* 보이싱 선택 팝업·오버레이 — 상단 줄·12key는 안 덮고 그 아래 영역만 덮는다 */
+.palette-dict-card .lib-voicing-overlay,
+.palette-dict-card .lib-voicing-modal {
+  top: calc(var(--space-2) + var(--cd-icon-btn-size) + var(--space-2) + var(--space-3) + var(--lib-key-size) + var(--space-2));
+  left: 0;
+  right: 0;
+  bottom: 0;
+}
+.palette-dict-card .lib-voicing-modal {
+  background: var(--surface);
+  border-radius: 0 0 var(--radius-lg) var(--radius-lg);
+}
+.palette-dict-card .lib-voicing-grid {
+  padding: var(--space-4) var(--lib-grid-pad) var(--space-6);
+}
 
 /* 태블릿 세로 — 코드 사전 카드 그리드 3열 → 4열 (--lib-grid-cols로 .lib-voicing-grid도 같이 따라감) */
 @media (min-width: 560px) and (min-height: 600px) and (max-aspect-ratio: 1/1) {
@@ -22525,12 +22641,39 @@ html.ios-native #canvas-main-btns { position: relative; z-index: 1; }
   position: absolute;
   inset: 0;
   display: flex;
+  flex-direction: column;
   align-items: center;
   justify-content: center;
+  gap: var(--space-2);
   margin: 0;
-  color: var(--text-muted);
+}
+.notes-split-empty-text {
+  margin: 0;
+  color: var(--brand);
   font-size: var(--font-body);
 }
+/* + 버튼 — 코드 에디터 이름 휠(.builder-col)과 같은 흰 유리 질감을 원형으로: 반투명 흰 그라데이션 + 블러 + 흰 테두리 + 안쪽 위 하이라이트 + 부드러운 그림자 */
+.notes-split-empty-btn {
+  width: 56px;
+  height: 56px;
+  padding: 0;
+  margin-top: var(--space-2);
+  border-radius: 50%;
+  border: 1px solid rgba(255, 255, 255, 0.85);
+  background: linear-gradient(145deg, rgba(255, 255, 255, 0.98) 0%, rgba(255, 255, 255, 0.7) 100%);
+  -webkit-backdrop-filter: blur(14px) saturate(1.3);
+  backdrop-filter: blur(14px) saturate(1.3);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.95),
+    inset 0 -1px 0 rgba(0, 0, 0, 0.04),
+    0 1px 2px rgba(0, 0, 0, 0.04),
+    0 8px 24px rgba(0, 0, 0, 0.08);
+  color: var(--brand);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.notes-split-empty-btn svg { width: var(--cd-icon-btn-icon); height: var(--cd-icon-btn-icon); }
 .notes-split-frame {
   display: none;
   width: 100%;
@@ -22540,8 +22683,16 @@ html.ios-native #canvas-main-btns { position: relative; z-index: 1; }
 }
 #tab-view-projects.has-note .notes-split-frame { display: block; }
 #tab-view-projects.has-note .notes-split-empty { display: none; }
-.projects-item.notes-split-active {
-  background: var(--gray-light);
+#tab-view-projects:not(.notes-none) .notes-split-empty { display: none; }   /* 문구는 노트가 하나도 없을 때만 */
+/* 스플릿 목록: 선택된 노트 강조 없음, 호버 강조도 없음 — 누르는 순간(클릭·탭)에만 눌림 애니메이션 */
+#tab-view-projects.notes-split .projects-item:hover { background: transparent; }
+#tab-view-projects.notes-split .projects-item {
+  transition: background .12s, transform .12s;
+}
+#tab-view-projects.notes-split .projects-item:active,
+#tab-view-projects.notes-split .projects-item.pressing {
+  background: #f0ede9;
+  transform: scale(0.97);
 }
 
 /* 임베드(iframe) 안의 노트 페이지 — user_project.html?embed=1. 탑바(X 버튼)는 부모 화면이 담당하므로 숨긴다 */
@@ -22624,8 +22775,48 @@ body.note-edit-page.embed {
 body.note-edit-page.embed .project-inner {
   margin-inline: var(--notes-split-pad-x);
 }
+/* 원형 아이콘 버튼 크기 고정 — 좌측 패널을 접고 펼쳐 iframe 폭이 바뀌어도(787px 경계 등) 32/18px 그대로 (style-guide §8 769~1599px 값) */
+body.note-edit-page.embed {
+  --icon-circle-size: 32px;
+  --icon-circle-svg: 18px;
+}
 body.note-edit-page.embed .project-header {
   margin-top: var(--notes-split-gap-y);
+}
+
+/* [시안] 노트 헤더 하단 구분선 — 카드 좌우 끝까지(.project-inner 좌우 마진만큼 확장). 마음에 안 들면 이 블록만 삭제 */
+body.note-edit-page.embed .project-sticky-bar {
+  position: relative;
+}
+body.note-edit-page.embed .project-sticky-bar::after {
+  content: '';
+  position: absolute;
+  left: calc(var(--notes-split-pad-x) * -1);
+  right: calc(var(--notes-split-pad-x) * -1);
+  bottom: 0;
+  height: 1px;
+  background: #fff;
+  box-shadow: 0 3px 8px rgba(0,0,0,0.28), 0 1px 3px rgba(0,0,0,0.18);
+  clip-path: inset(0 0 -20px 0);   /* 위·좌우로 번진 그림자는 잘라내고 아래쪽만 보이게 */
+  pointer-events: none;
+}
+/* 구분선 위아래 여백 20px 동일 — 위: 헤더 마지막 줄 아래(헤더 margin-bottom 대신 sticky-bar padding-bottom) / 아래: 팔레트(편집) 또는 악보 첫 줄(보기) 위 */
+body.note-edit-page.embed .project-header { margin-bottom: 0; }
+body.note-edit-page.embed .project-sticky-bar { padding-bottom: 20px; }
+body.note-edit-page.embed .project-sticky-bar + .project-view-wrapper .project-lines { padding-top: 20px; }
+/* 박자 레일(분수) 좌우 간격 대칭 — 카드 끝 → 레일 간격(.project-inner margin = --notes-split-pad-x)과 같은 값을 레일 오른쪽(코드슬롯·가사 앞)에도 둔다.
+   분수는 기존 레일 폭(--row-meter-rail-w) 안에서 가운데 정렬이므로 좌우 간격이 (카드→분수) = (분수→내용) 으로 같다. 대신 가사·코드 영역이 이 값만큼 좁아진다 */
+/* 박자 표시 크기 고정 — iframe 폭(좌측 패널 접힘/펼침)에 따라 레일 폭·글자·분수선이 바뀌지 않게 와이드태블릿(787~1599px) 값으로 */
+body.note-edit-page.embed {
+  --row-meter-rail-w: 24px;
+}
+body.note-edit-page.embed .row-meter-rail-num,
+body.note-edit-page.embed .row-meter-rail-den { font-size: 16px; }
+body.note-edit-page.embed .row-meter-rail-bar { width: 14px; }
+body.note-edit-page.embed .row-meter-rail {
+  box-sizing: border-box;
+  width: calc(var(--row-meter-rail-w) + var(--notes-split-pad-x));
+  padding-right: var(--notes-split-pad-x);
 }
 
 /* ── 노트 스플릿: 줄 안 코드 슬롯(다이어그램) 폭 56~72px ──
@@ -22675,11 +22866,18 @@ body.embed .project-lines {
 /* 좌측 패널 접기 버튼 — 스플릿 뷰에서만 표시(헤더 우측 끝) */
 .notes-split-collapse-btn { display: none; }
 #tab-view-projects.notes-split .notes-split-collapse-btn { display: inline-flex; }
+/* 우측에 열린 노트가 없으면 접기 버튼을 숨긴다 — 펼치기 버튼은 악보(iframe) 제목 옆에 있어서, 비어 있을 때 접으면 다시 펼 수 없다 */
+#tab-view-projects.notes-split:not(.has-note) .notes-split-collapse-btn { display: none; }
 
 /* 좌측 목록 접힘(.notes-split-collapsed, home.js _notesSplitSetCollapsed) — 목록을 숨기고 악보 카드가 전체 폭.
    펼치기 버튼은 악보(iframe) 제목 왼쪽에 — 접힘 상태는 body.list-collapsed로 전달됨 */
-/* 목록은 폭을 줄이지 않고 왼쪽으로 통째로 밀어낸다(transform — 내용이 찌그러지지 않음). 우측 패널은 left/padding-left가 같은 길이로 전환.
-   전환은 접고 펼치는 동안(.notes-split-animating, home.js)에만 걸어 창 크기 변경 때는 즉시 반영. 길이 280ms는 home.js NOTES_SPLIT_ANIM_MS와 동기 */
+/* 목록은 폭을 줄이지 않고 왼쪽으로 통째로 밀어낸다(transform — 내용이 찌그러지지 않음).
+   악보 카드도 전환 동안 폭을 바꾸지 않는다 — 폭이 매 프레임 바뀌면 iframe 안 노트 전체가 프레임마다 레이아웃을 다시 해서 끊긴다(측정: 0.5초에 6~10프레임).
+   전환 동안(.notes-split-animating)은 패널을 접힌 배치(넓은 폭)로 고정하고 카드 위치만 transform으로 옮긴다:
+   · 접기: 시작할 때 넓은 폭으로 바뀌고, 펼친 위치(목록 폭 − 20px만큼 오른쪽)에서 제자리로 미끄러진다
+   · 펼치기: 넓은 폭 그대로 오른쪽으로 밀려나고, 끝날 때(.notes-split-animating 해제) 좁은 폭으로 바뀐다
+   넓은 카드의 오른쪽 일부는 그동안 화면 밖에 있어 패널(overflow:hidden)이 잘라 낸다.
+   home.js가 시작 위치를 먼저 확정(.notes-split-animating)한 뒤 전환(.notes-split-run)을 건다. 창 크기 변경 때는 즉시 반영. 길이 280ms는 home.js NOTES_SPLIT_ANIM_MS와 동기 */
 #tab-view-projects.notes-split.notes-split-collapsed #view-projects-list {
   transform: translateX(-100%);
   visibility: hidden;
@@ -22695,20 +22893,51 @@ body.embed .project-lines {
   transition: transform .28s cubic-bezier(.22,.61,.36,1), visibility 0s;
 }
 #tab-view-projects.notes-split.notes-split-animating .notes-split-pane {
-  transition: left .28s cubic-bezier(.22,.61,.36,1), padding-left .28s cubic-bezier(.22,.61,.36,1);
+  left: 0;
+  padding-left: 20px;
+  background: transparent;   /* 아래로 미끄러지는 목록이 가려지지 않게 */
+  overflow: hidden;          /* 화면 밖으로 나간 카드 오른쪽을 화면 끝에서 자름 */
+}
+#tab-view-projects.notes-split.notes-split-animating .notes-split-card {
+  will-change: transform;
+}
+#tab-view-projects.notes-split.notes-split-animating:not(.notes-split-collapsed) .notes-split-card {
+  transform: translateX(calc(var(--notes-split-list-w) - 20px));   /* 펼친 배치의 카드 왼쪽(목록 폭) − 접힌 배치의 카드 왼쪽(20px) */
+}
+#tab-view-projects.notes-split.notes-split-run .notes-split-card {
+  transition: transform .28s cubic-bezier(.22,.61,.36,1);
 }
 @media (prefers-reduced-motion: reduce) {
   #tab-view-projects.notes-split.notes-split-animating #view-projects-list,
-  #tab-view-projects.notes-split.notes-split-animating .notes-split-pane { transition: none; }
+  #tab-view-projects.notes-split.notes-split-run .notes-split-card { transition: none; }
 }
 .notes-split-expand-btn { display: none; }
+/* 정적 버튼(user_project.html) — 헤더 타이틀바(높이 64px) 왼쪽에 겹쳐 놓고, 제목은 버튼 폭만큼 오른쪽으로 비킨다 */
 body.embed.list-collapsed .notes-split-expand-btn {
   display: inline-flex;
-  flex-shrink: 0;
-  margin-right: 8px;
+  position: fixed;
+  left: var(--notes-split-pad-x);
+  top: calc((var(--notes-split-header-h) - 30px) / 2);
+  z-index: 100;
   animation: notes-split-expand-in .2s ease .12s both;
 }
 /* 좌측 접기 버튼(.projects-list-header-actions .icon-btn)과 같은 아이콘 크기·색 */
 body.embed .notes-split-expand-btn { color: var(--text-primary); }
 body.embed .notes-split-expand-btn svg { width: 22px; height: 22px; }
+body.embed.list-collapsed .project-title-bar { padding-left: 38px; }   /* 버튼 30px + 간격 8px */
 @keyframes notes-split-expand-in { from { opacity: 0; } to { opacity: 1; } }
+
+/* 노트에서 들어온 에디터의 제목 옆 표시("노트 편집 모드", editor.js) — 같은 줄 알약이라 제목 높이·배치가 안 바뀐다 */
+.ed-title-sub {
+  display: inline-block;
+  margin-left: var(--space-2);
+  padding: 2px var(--space-2);
+  border-radius: 999px;
+  background: var(--gray-light);
+  color: var(--text-secondary);
+  font: var(--type-label-sm);
+  font-weight: 500;
+  letter-spacing: -0.02em;
+  vertical-align: middle;
+  white-space: nowrap;
+}

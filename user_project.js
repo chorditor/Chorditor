@@ -1966,16 +1966,31 @@ function renderProjectView(projectId) {
   bpmInput.type = 'number';
   bpmInput.min = 40; bpmInput.max = 240;
   bpmInput.value = project.bpm ?? 120;
-  bpmInput.addEventListener('change', () => {
-    const val = Math.min(240, Math.max(40, parseInt(bpmInput.value) || 120));
-    bpmInput.value = val;
+  // BPM 값이 바뀌는 어떤 경로든(타이핑·스피너·엔터·포커스 아웃·모바일 완료/바깥 터치) 줄의 ♩= 배지를 즉시 반영한다.
+  //  · input  : 타이핑 중 40~240 범위의 유효한 값이면 바로 저장+배지 갱신 (범위 밖·빈 값은 입력이 끝날 때까지 기다림)
+  //  · change/엔터/blur : 확정 — 범위로 보정해 입력창에 되돌려 쓰고 저장+배지 갱신, 분석 이벤트는 확정 때 한 번만
+  let bpmDirty = false;
+  const commitBpm = final => {
+    const raw = parseInt(bpmInput.value);
+    if (!final && !(raw >= 40 && raw <= 240)) return;
+    const val = Math.min(240, Math.max(40, raw || 120));
+    if (final) bpmInput.value = val;
     const p = getProject(projectId);
-    if (p) {
+    if (!p) return;
+    if (p.bpm !== val) {
       p.bpm = val; updateProject(p);
-      analytics.track('bpm_changed', { value: val, project_id: projectId });
       _refreshRowMetaFor(projectId); // 줄의 ♩= 배지 즉시 반영
+      bpmDirty = true;
     }
-  });
+    if (final && bpmDirty) {
+      bpmDirty = false;
+      analytics.track('bpm_changed', { value: val, project_id: projectId });
+    }
+  };
+  bpmInput.addEventListener('input', () => commitBpm(false));
+  bpmInput.addEventListener('change', () => commitBpm(true));
+  bpmInput.addEventListener('blur', () => commitBpm(true));
+  bpmInput.addEventListener('keydown', e => { if (e.key === 'Enter') { commitBpm(true); bpmInput.blur(); } });
   bpmWrap.append(bpmLabel, bpmInput);
   row2Left.append(bpmWrap, capoWrap); // BPM → 카포 순서
 
@@ -2007,7 +2022,8 @@ function renderProjectView(projectId) {
   // 재생-되돌리기만 8px로 어긋남). 세로모드는 기존 2행 구조 유지 —
   // 뷰모드(slot-toggle) 버튼은 row1로 옮겨서 [좌: 뷰모드][우: 되돌리기]로 채움
   // (row1이 되돌리기 하나뿐이라 휑했고, row2는 이미 4개라 더 못 채웠음)
-  if (currentOrient === 'landscape') {
+  // 3단계(769px~) 이상은 방향·좌측 패널 접힘과 무관하게 항상 이 한 줄 배치(뷰모드·BPM·카포·메트로놈·재생·되돌리기)로 고정 — 노트 스플릿(임베드)은 항상 해당
+  if (currentOrient === 'landscape' || IS_EMBED || window.innerWidth >= 769) {
     undoBtn.style.display = isEditMode ? '' : 'none';
     row2Right.appendChild(undoBtn);
     const headerRowLand = document.createElement('div');
@@ -2027,16 +2043,7 @@ function renderProjectView(projectId) {
   const titleBar = document.createElement('div');
   titleBar.className = 'project-title-bar';
 
-  // 노트 스플릿(iframe): 좌측 목록이 접혀 있을 때만 보이는 펼치기 버튼 — 제목 왼쪽 (표시는 CSS body.list-collapsed)
-  if (IS_EMBED) {
-    const expandBtn = document.createElement('button');
-    expandBtn.className = 'icon-btn notes-split-expand-btn';
-    expandBtn.type = 'button';
-    expandBtn.setAttribute('aria-label', '목록 펼치기');
-    expandBtn.innerHTML = '<i data-lucide="panel-left"></i>';
-    expandBtn.onclick = () => { try { window.parent.postMessage({ type: 'notes-split-expand' }, '*'); } catch (_) {} };
-    titleBar.appendChild(expandBtn);
-  }
+  // (노트 스플릿 펼치기 버튼은 렌더 대상이 아님 — user_project.html의 정적 #notes-split-expand-btn)
 
   titleBar.appendChild(nameInput);
 
@@ -2059,7 +2066,8 @@ function renderProjectView(projectId) {
   if (fixedW) stickyBar.style.width = fixedW;
   stickyBar.appendChild(titleBar);
   stickyBar.appendChild(header);
-  if (isEditMode) stickyBar.appendChild(buildChordPalette(project, isEditMode));
+  // 팔레트는 헤더(sticky-bar) 밖 — 헤더 / 팔레트 / 악보영역 3단 (편집 모드에서만)
+  const paletteEl = isEditMode ? buildChordPalette(project, isEditMode) : null;
 
   // ── 스크롤 콘텐츠 영역 ──
   const linesEl = buildLinesSection(project, isEditMode);
@@ -2072,6 +2080,7 @@ function renderProjectView(projectId) {
   const inner = document.createElement('div');
   inner.className = 'project-inner';
   inner.appendChild(stickyBar);
+  if (paletteEl) inner.appendChild(paletteEl);
   inner.appendChild(wrapper);
   viewEl.appendChild(inner);
 
@@ -2143,6 +2152,30 @@ function setLineText(lineDiv, text) {
   });
 }
 
+// 코드 다이어그램 이미지 캐시 — 같은 코드(보이싱·이름·손가락번호모드·크기가 같은)는 그리기+PNG 변환을 한 번만 한다.
+// 키에 chord.id는 쓰지 않는다(같은 코드가 다른 id로 여러 번 들어와도 공유). 페이지 수명 동안만 유지.
+const _chordImgCache = new Map();
+function _chordImgSrc(chord, pxW) {
+  const voicing = chordToVoicing(chord);
+  const key = JSON.stringify(voicing) + '|' + chord.name + '|' + (chord.fingerNumMode ? 1 : 0) + '|' + pxW;
+  let src = _chordImgCache.get(key);
+  if (src === undefined) {
+    const cv = document.createElement('canvas');
+    VoicingCanvas.draw(cv, voicing, {
+      chordName: chord.name, fingerNumMode: chord.fingerNumMode, ratio: pxW / VoicingCanvas.BASE_W,
+    });
+    src = cv.toDataURL('image/png');
+    _chordImgCache.set(key, src);
+  }
+  return src;
+}
+// 슬롯 이미지 픽셀 폭 = 슬롯 최대 표시 폭(css px) × 기기 해상도(최대 3), 원래 해상도(BASE_W)는 넘기지 않는다.
+// 임베드(스플릿)는 슬롯 폭이 56~72px로 묶여 있고, 그 외는 칸 폭 그대로라 태블릿 세로 4슬롯에서 150px대까지 커진다.
+function _slotImgPxW() {
+  const css = IS_EMBED ? 72 : 160;
+  return Math.min(VoicingCanvas.BASE_W, Math.ceil(css * Math.min(window.devicePixelRatio || 1, 3)));
+}
+
 function buildChordArea(line, project, editMode = true) {
   const textMode = project.slotsHidden === true;
   const land = currentSlotLand;
@@ -2203,12 +2236,8 @@ function buildChordArea(line, project, editMode = true) {
       const chord = project.chords.find(c => c.id === chordId);
       if (chord) {
         slot.className = 'chord-slot';
-        const cv = document.createElement('canvas');
-        VoicingCanvas.draw(cv, chordToVoicing(chord), {
-          chordName: chord.name, fingerNumMode: chord.fingerNumMode, ratio: 1,
-        });
         const img = document.createElement('img');
-        img.src = cv.toDataURL('image/png');
+        img.src = _chordImgSrc(chord, _slotImgPxW());
         img.className = 'chord-slot-img';
         img.addEventListener('click', () => {
           if (playbackActive) {
@@ -2362,6 +2391,10 @@ function buildProjectLine(line, project, editMode, prevLine = null, isFirstLine 
   const bodyContent = document.createElement('div');
   bodyContent.className = 'project-line-content';
 
+  // 줄 상단 영역: BPM·카포 배지 (표시될 때만 내용이 생김)
+  const metaArea = document.createElement('div');
+  metaArea.className = 'project-line-meta';
+
   // 첫 줄은 항상 기본세팅값(노트 전역 BPM) 표기.
   // 이후 줄은 앞줄의 실효 BPM과 다를 때만 표기 — 박자와 같은 기준.
   // ("line.bpm 보유 여부"로 판정하면, 앞줄이 90이고 새 줄이 기본 120으로 떨어져도
@@ -2380,7 +2413,7 @@ function buildProjectLine(line, project, editMode, prevLine = null, isFirstLine 
     if (showBpm) parts.push(`♩=${getRowBpm(project, line)}`);
     if (showCapo) parts.push(`${effCapo} Capo`);
     badge.textContent = parts.join('  ');
-    bodyContent.appendChild(badge);
+    metaArea.appendChild(badge);
   }
 
   bodyContent.appendChild(buildChordArea(line, project, editMode));
@@ -2411,13 +2444,15 @@ function buildProjectLine(line, project, editMode, prevLine = null, isFirstLine 
 
   const textRow = document.createElement('div');
   textRow.className = 'project-line-text-row';
-  textRow.appendChild(meterRail);
   textRow.appendChild(lineTextWrap);
   bodyContent.appendChild(textRow);
 
   const bodyRow = document.createElement('div');
   bodyRow.className = 'project-line-body';
+  // 하단 영역: 좌측 박자 레일(세로 열) | 우측 줄 내용(코드슬롯·가사·케밥)
+  bodyRow.appendChild(meterRail);
   bodyRow.appendChild(bodyContent);
+  div.appendChild(metaArea);
   div.appendChild(bodyRow);
 
   return div;
@@ -3062,13 +3097,13 @@ function _refreshRowMeta(linesEl, project) {
     const showBpm  = isFirst || (prevBpm != null && prevBpm !== bpm);
     const showCapo = capo > 0 && (isFirst || prevCapo == null || prevCapo !== capo);
 
-    const content = div.querySelector('.project-line-content');
-    let badge = content?.querySelector('.row-meta-badge');
+    const metaArea = div.querySelector('.project-line-meta');
+    let badge = metaArea?.querySelector('.row-meta-badge');
     if (showBpm || showCapo) {
-      if (!badge && content) {
+      if (!badge && metaArea) {
         badge = document.createElement('div');
         badge.className = 'row-meta-badge';
-        content.insertBefore(badge, content.firstChild);
+        metaArea.appendChild(badge);
       }
       if (badge) {
         const parts = [];
@@ -3712,6 +3747,12 @@ function initPaletteScrollbar(palette, track, dot) {
   });
 }
 
+// 에디터(editor.html) 주소 — 노트 스플릿(iframe)에서 나가면 ret=split을 붙여, 에디터가 끝난 뒤 단독 노트 페이지가 아니라
+// 홈 노트 탭(스플릿, 같은 노트를 다시 엶)으로 돌려보내게 한다(editor.js _returnToProject)
+function _editorUrl(projectId, chordId) {
+  return 'editor.html?from_project=' + projectId + (chordId ? '&chord_id=' + chordId : '') + (IS_EMBED ? '&ret=split' : '');
+}
+
 // 에디터로 이동하기 직전 복귀 상태 저장 (편집 모드 + 현재 스크롤 위치)
 function _saveEditReturnState(projectId) {
   const linesEl = document.getElementById('project-lines-' + projectId);
@@ -3728,14 +3769,9 @@ function createPaletteItem(chord, idx, projectId, editMode = true) {
   thumb.dataset.chordName = chord.name; // 튜토리얼이 특정 코드를 지목할 때 사용(id는 매번 달라짐)
   thumb.dataset.idx = idx;
 
-  const cv = document.createElement('canvas');
   const _thumbW = 160;
-  VoicingCanvas.draw(cv, chordToVoicing(chord), {
-    chordName: chord.name, fingerNumMode: chord.fingerNumMode,
-    ratio: _thumbW / VoicingCanvas.BASE_W,
-  });
   const thumbImg = document.createElement('img');
-  thumbImg.src = cv.toDataURL('image/png');
+  thumbImg.src = _chordImgSrc(chord, _thumbW);
 
   thumb.appendChild(thumbImg);
 
@@ -3786,9 +3822,9 @@ function createPaletteItem(chord, idx, projectId, editMode = true) {
       const _shell = document.querySelector('.app-shell');
       if (_shell) {
         _shell.classList.add('project-exit');
-        setTimeout(() => { _navTop('editor.html?from_project=' + projectId + '&chord_id=' + chord.id); }, 260);
+        setTimeout(() => { _navTop(_editorUrl(projectId, chord.id)); }, 260);
       } else {
-        _navTop('editor.html?from_project=' + projectId + '&chord_id=' + chord.id);
+        _navTop(_editorUrl(projectId, chord.id));
       }
     } else {
       openViewModal(chord, projectId);
@@ -3994,34 +4030,33 @@ let _libFingerMode   = false;
 let _voicingModalChord = null;
 
 const _LIB_DPR       = Math.min(window.devicePixelRatio || 1, 3);
-// 카드 다이어그램 비트맵 크기 = CSS 표시폭(활성 모달의 --pd-canvas-w, sm 56px/lg 72px) × DPR.
-// 고정값으로 두면 lg 모달에서 CSS가 확대할 때 흐려진다 — 그릴 때마다 활성 모달에서 읽어 맞춘다.
-function _libMiniW() {
-  const card = _pdEl('palette-dict-modal')?.querySelector('.palette-dict-card');
-  const css = card ? parseFloat(getComputedStyle(card).getPropertyValue('--pd-canvas-w')) : 56;
-  return Math.ceil((css || 56) * _LIB_DPR);
-}
+// 카드 다이어그램 비트맵 크기 = CSS 표시폭(카드 폭의 약 70% ≈ 88px, 여유 포함 96px) × DPR.
+function _libMiniW() { return Math.ceil(96 * _LIB_DPR); }
 
-// 코드사전 추가 모달은 560px 기준으로 완전히 분리된 두 벌(-sm 3x3 / -lg 4x4)로 존재한다.
-// 여는 시점에 한 번만 어느 쪽인지 정하고(_pdActiveModal), 이후 모든 렌더/토글 함수는
-// 이 헬퍼로 "지금 활성 모달"의 요소를 찾는다 — 함수 본문에 -sm/-lg 분기가 안 생기게.
-let _pdActiveModal = 'sm'; // 'sm' | 'lg'
-const _pdModalMq = window.matchMedia('(min-width: 560px)');
+// 코드 추가 모달은 한 벌 — 코드사전 사전패널과 같은 디자인(상단 줄 / 12key 셀렉터 / 코드 그리드).
+// _pdEl은 예전 sm/lg 두 벌을 가리던 헬퍼의 자리 — 지금은 id 그대로 찾는다.
 function _pdEl(baseId) {
-  return document.getElementById(`${baseId}-${_pdActiveModal}`);
+  return document.getElementById(baseId);
 }
 
 function openPaletteDictionary(projectId) {
   _pdProjectId = projectId;
   _voicingModalChord = null;
-  _pdActiveModal = _pdModalMq.matches ? 'lg' : 'sm';
+  _pdResetSearch();
+  _pdCloseSearchUi();
   // 샵/플랫 버튼을 전역 accidental 상태에 동기화
   _pdEl('lib-acc-sharp')?.classList.toggle('active', accidental === 'sharp');
   _pdEl('lib-acc-flat')?.classList.toggle('active', accidental === 'flat');
-  renderLibRootTabs();
+  _pdEl('palette-dict-modal').classList.remove('hidden');
+  const track = _pdEl('lib-panel-keys-track');
+  if (track && !track.dataset.pdInit) {   // 가로 스크롤 드래그·가장자리 흐림은 한 번만 연결
+    track.dataset.pdInit = '1';
+    if (typeof initKeySelectorDragScroll === 'function') initKeySelectorDragScroll(track);
+    if (typeof initKeySelectorFade === 'function') initKeySelectorFade(track);
+  }
+  renderLibRootTabs();   // 모달이 보인 뒤에 그려야 선택된 키를 가운데로 스크롤할 수 있다
   renderLibCards(_libRoot);
   closeVoicingModal();
-  _pdEl('palette-dict-modal').classList.remove('hidden');
   lucide.createIcons();
   analytics.track('palette_dict_opened', { project_id: projectId });
   window.Tutorial?.notify('palettedict:open');
@@ -4029,29 +4064,11 @@ function openPaletteDictionary(projectId) {
 
 function closePaletteDictionary() {
   closeVoicingModal();
-  // 열려있던 쪽이 어느 쪽인지 모를 수 있어(리사이즈로 전환 가능성) 둘 다 닫는다
-  document.getElementById('palette-dict-modal-sm')?.classList.add('hidden');
-  document.getElementById('palette-dict-modal-lg')?.classList.add('hidden');
+  _pdResetSearch();
+  _pdCloseSearchUi();
+  document.getElementById('palette-dict-modal')?.classList.add('hidden');
   window.Tutorial?.notify('palettedict:close');
 }
-
-// 모달을 열어둔 채로 560px 경계를 넘나들면 sm/lg를 실시간으로 전환한다
-_pdModalMq.addEventListener('change', (e) => {
-  const smOpen = document.getElementById('palette-dict-modal-sm')?.classList.contains('hidden') === false;
-  const lgOpen = document.getElementById('palette-dict-modal-lg')?.classList.contains('hidden') === false;
-  if (!smOpen && !lgOpen) return;
-  const next = e.matches ? 'lg' : 'sm';
-  if (next === _pdActiveModal) return;
-  document.getElementById(`palette-dict-modal-${_pdActiveModal}`)?.classList.add('hidden');
-  _pdActiveModal = next;
-  _pdEl('lib-acc-sharp')?.classList.toggle('active', accidental === 'sharp');
-  _pdEl('lib-acc-flat')?.classList.toggle('active', accidental === 'flat');
-  renderLibRootTabs();
-  renderLibCards(_libRoot);
-  closeVoicingModal();
-  _pdEl('palette-dict-modal').classList.remove('hidden');
-  lucide.createIcons();
-});
 
 // "에디터로" — 기존 + 버튼의 에디터 이동 로직 이식
 async function paletteDictToEditor() {
@@ -4062,24 +4079,147 @@ async function paletteDictToEditor() {
   const _shell = document.querySelector('.app-shell');
   if (_shell) {
     _shell.classList.add('project-exit');
-    setTimeout(() => { _navTop('editor.html?from_project=' + projectId); }, 260);
+    setTimeout(() => { _navTop(_editorUrl(projectId)); }, 260);
   } else {
-    _navTop('editor.html?from_project=' + projectId);
+    _navTop(_editorUrl(projectId));
   }
 }
 
-// ── root 세로 탭 ──
+// ── 12key 셀렉터 (32px 정사각형, 1줄 가로 스크롤) — 선택은 pointerup(드래그했으면 initKeySelectorDragScroll이 막아 줌) ──
 function renderLibRootTabs() {
-  const roots    = ['C','C#','D','D#','E','F','F#','G','G#','A','A#','B'];
-  const flatMap  = { 'C#':'Db','D#':'Eb','F#':'Gb','G#':'Ab','A#':'Bb' };
-  const useFlat  = accidental === 'flat';
-  const container = _pdEl('lib-root-tabs');
+  const roots   = ['C','C#','D','D#','E','F','F#','G','G#','A','A#','B'];
+  const flatMap = { 'C#':'Db','D#':'Eb','F#':'Gb','G#':'Ab','A#':'Bb' };
+  const useFlat = accidental === 'flat';
+  const track = _pdEl('lib-panel-keys-track');
+  if (!track) return;
+  const prevScroll = track.scrollLeft;
+  track.innerHTML = roots.map(r =>
+    `<button class="lib-panel-key-item${r === _libRoot ? ' active' : ''}" data-root="${r}"
+             onpointerup="pickPdKey('${r}')">${useFlat ? (flatMap[r] || r) : r}</button>`
+  ).join('');
+  track.scrollLeft = prevScroll;
+  const act = track.querySelector('.lib-panel-key-item.active');
+  if (act && track.clientWidth > 0) {
+    const left = act.offsetLeft, right = left + act.offsetWidth;
+    if (left < track.scrollLeft || right > track.scrollLeft + track.clientWidth) {
+      track.scrollLeft = left - (track.clientWidth - act.offsetWidth) / 2;
+    }
+  }
+  track.dispatchEvent(new Event('scroll')); // 흐림 상태 갱신
+}
+
+function pickPdKey(root) {
+  _pdCloseSearchUi();   // 검색 중이었으면 닫고 근음 그리드로 복귀
+  _pdResetSearch();
+  selectLibRoot(root);
+}
+
+// ── 검색 (library.js 사전패널 검색과 같은 규칙) — 입력하면 글자마다 코드 그리드가 검색 결과로 바뀜 ──
+function _pdMatch(name, q) {
+  if (!name || !q) return 0;
+  const m = q.match(/^([A-Ga-g][#b]?)(.*)/);
+  if (!m) {
+    const c0 = q[0], rest = q.slice(1);
+    if (name.includes(c0.toLowerCase() + rest) || name.includes(c0.toUpperCase() + rest)) return 1;
+    return name.toLowerCase().includes(q.toLowerCase()) ? 2 : 0;
+  }
+  const qRoot   = m[1][0].toUpperCase() + m[1].slice(1);
+  const qSuffix = m[2];
+  const nm = name.match(/^([A-G][#b]?)(.*)/);
+  if (!nm) return 0;
+  if (nm[1] === qRoot && nm[2].startsWith(qSuffix)) return 1;
+  const lm = q.toLowerCase().match(/^([a-g][#b]?)(.*)/);
+  if (lm && nm[1].toLowerCase() === lm[1] && nm[2].toLowerCase().startsWith(lm[2])) return 2;
+  return 0;
+}
+
+let _pdSearchResults = [];
+let _pdGridSearch    = false;   // 검색 중 — 코드 그리드가 근음 그리드 대신 검색 결과를 보여줌
+
+function onPdSearchInput(value) {
+  const q = (value || '').trim();
+  _pdSearchResults = [];
+  if (q) {
+    const lib = window.chordsLibrary || {};
+    const ranked = [];
+    let order = 0;
+    for (const root of Object.keys(lib)) {
+      for (const entry of lib[root]) {
+        const r = Math.min(...[_pdMatch(entry.name, q), _pdMatch(entry.flatName, q)].filter(Boolean), 99);
+        if (r < 99) ranked.push({ entry, rank: r, order });
+        order++;
+      }
+    }
+    ranked.sort((a, b) => (a.rank - b.rank) || (a.order - b.order));
+    _pdSearchResults = ranked.map(x => x.entry);
+  }
+  _pdGridSearch = !!q;
+  if (q) closeVoicingModal();
+  renderLibCards(_libRoot);   // 검색 중 → 결과 그리드, 비었으면 근음 그리드 복귀
+}
+
+// 검색 상태 초기화 — 입력 비움 + 결과 비움 + 근음 그리드 복귀(검색창 UI는 건드리지 않음)
+function _pdResetSearch() {
+  const input = _pdEl('lib-panel-search-input');
+  if (input) input.value = '';
+  _pdSearchResults = [];
+  if (_pdGridSearch) {
+    _pdGridSearch = false;
+    renderLibCards(_libRoot);
+  }
+}
+
+function _pdCloseSearchUi() {
+  _pdEl('lib-panel-search')?.classList.remove('open');
+  _pdEl('lib-panel-search-input')?.blur();
+}
+
+function togglePdSearch() {
+  const box   = _pdEl('lib-panel-search');
+  const input = _pdEl('lib-panel-search-input');
+  if (!box) return;
+  if (box.classList.contains('open')) {
+    _pdCloseSearchUi();
+    _pdResetSearch();
+    return;
+  }
+  box.classList.add('open');
+  requestAnimationFrame(() => input?.focus({ preventScroll: true }));
+}
+
+function _pdRenderSearchGrid() {
+  const container = _pdEl('lib-cards');
   if (!container) return;
-  container.innerHTML = roots.map(r => {
-    const label = useFlat ? (flatMap[r] || r) : r;
-    return `<button class="lib-root-item${r === _libRoot ? ' active' : ''}"
-                    onclick="selectLibRoot('${r}')">${label}</button>`;
-  }).join('');
+  if (!_pdSearchResults.length) {
+    container.innerHTML = '<div class="lib-empty">검색 결과 없음</div>';
+    return;
+  }
+  const miniW     = _libMiniW();
+  const miniRatio = miniW / VoicingCanvas.BASE_W;
+  const useFlat   = accidental === 'flat';
+  container.innerHTML = _pdSearchResults.map((entry, i) => `
+    <div class="lib-card" onclick="onPdSearchPick(event, ${i})">
+      <canvas class="lib-card-canvas" data-sidx="${i}"
+              width="${miniW}"
+              height="${Math.round(VoicingCanvas.BASE_H * miniRatio)}"></canvas>
+      <div class="lib-card-name">${useFlat ? entry.flatName : entry.name}</div>
+    </div>`).join('');
+  _pdSearchResults.forEach((entry, i) => {
+    const c = container.querySelector(`[data-sidx="${i}"]`);
+    if (c) _drawLibCanvas(c, miniRatio, entry);
+  });
+  if (container.parentElement) container.parentElement.scrollTop = 0;
+}
+
+// 검색 결과 카드 탭 → 해당 보이싱을 바로 추가 (모달 유지)
+function onPdSearchPick(event, idx) {
+  const entry = _pdSearchResults[idx];
+  if (!entry) return;
+  const cardEl = event.currentTarget;
+  cardEl.classList.add('lib-card-clicked');
+  setTimeout(() => cardEl.classList.remove('lib-card-clicked'), 300);
+  _pdFlyToPalette(cardEl);
+  _pdAddEntryToProject(entry);
 }
 
 function selectLibRoot(root) {
@@ -4092,6 +4232,7 @@ function selectLibRoot(root) {
 
 // ── 코드 카드 그리드 (코드명 기준 그룹화) ──
 function renderLibCards(root) {
+  if (_pdGridSearch) { _pdRenderSearchGrid(); return; }   // 검색 중이면 근음 그리드 대신 검색 결과
   const entries   = (window.chordsLibrary || {})[root] || [];
   const container = _pdEl('lib-cards');
   if (!container) return;
@@ -4213,7 +4354,7 @@ function openVoicingModal(sharpName, cardEl) {
   const overlay = _pdEl('lib-voicing-overlay');
   if (!modal) return;
 
-  const bottomEl = _pdEl('palette-dict-modal')?.querySelector('.lib-bottom');
+  const bottomEl = _pdEl('palette-dict-modal')?.querySelector('.palette-dict-card');
   if (bottomEl && cardEl) {
     const br = bottomEl.getBoundingClientRect();
     const cr = cardEl.getBoundingClientRect();
@@ -4892,6 +5033,43 @@ async function closeProjectPage() {
   }
 }
 
+// 노트 스플릿(iframe): 부모가 다른 노트를 고르면 페이지를 새로 로드하지 않고 이 문서에서 노트만 바꿔 그린다
+// (스크립트·CSS 재로드 비용 제거). 예전엔 새로 로드가 이전 노트를 통째로 치워 줬으므로, 그 정리를 여기서 직접 한다.
+//  · 런타임(소리·타이머)은 즉시 하드컷 — CLAUDE.md 0-2. 소리는 오디오를 한 번이라도 켰을 때만 panic(재초기화 비용)
+//  · 입력 중이던 가사는 blur → focusout(buildLinesSection)이 그 자리에서 저장
+//  · 열린 메뉴·모달은 닫고, 편집 모드·되돌리기·에디터 복귀 상태는 새로 로드했을 때와 같은 초기값으로
+function _embedOpenProject(projectId) {
+  if (!projectId || projectId === currentProjectId) return;
+  const all = loadProjects();
+  const target = all.find(p => p.id === projectId);
+  if (!target || isProjectLocked(target, all)) return;
+
+  _blurActiveEditable();
+
+  stopPlayAll();
+  stopMetronome();
+  if (typeof Tone !== 'undefined' && Tone.context?.state === 'running' && GuitarAudio.panic) GuitarAudio.panic();
+
+  _closeRowMenu();
+  closeScaleDropdown();
+  closeNoteSaveChoice();
+  closeImgSaveModal();
+  closeRowMeterModal();
+  closePaletteDictionary();
+  ['modal-view', 'modal-share'].forEach(id => document.getElementById(id)?.classList.add('hidden'));
+  const delOverlay = document.getElementById('delete-confirm-overlay');
+  if (delOverlay) { delOverlay.classList.add('hidden'); delOverlay.classList.remove('open'); }
+
+  isEditMode = false;
+  _pendingEditRestore = null;
+  _undoStack = [];
+  _undoProjectId = null;
+  _slotFitRetry = 0;
+
+  history.replaceState(null, '', location.pathname + '?id=' + encodeURIComponent(projectId) + '&embed=1');
+  renderProjectView(projectId);
+}
+
 document.addEventListener('DOMContentLoaded', async () => {
   // ── 페이지 진입 애니메이션 ────────────────────────────────
   // project-enter(슬라이드업)와 page-cover(fade-out)를 동시에 진행
@@ -4901,13 +5079,21 @@ document.addEventListener('DOMContentLoaded', async () => {
   if (IS_EMBED) document.body.classList.add('embed'); // 탑바 숨김 등 임베드 전용 스타일(style.css .embed)
   if (SLOT_FIT) document.body.classList.add('slot-fit'); // 8슬롯 촘촘 배치 스타일(style.css .slot-fit)
   if (IS_EMBED) {
+    // 정적 펼치기 버튼(user_project.html) — 렌더를 다시 해도 이 버튼은 그대로 유지된다
+    document.getElementById('notes-split-expand-btn')?.addEventListener('click', () => {
+      try { window.parent.postMessage({ type: 'notes-split-expand' }, '*'); } catch (_) {}
+    });
     // 부모(home.js)가 좌측 목록을 접고 펼 때마다 알려 준다 → 펼치기 버튼 표시(style.css .notes-split-expand-btn)
     window.addEventListener('message', e => {
-      if (e.source !== window.parent || e.data?.type !== 'notes-split-collapsed') return;
-      document.body.classList.toggle('list-collapsed', !!e.data.collapsed);
-      _npCollapseAnimUntil = performance.now() + 320; // home.js NOTES_SPLIT_ANIM_MS(280) + 여유
+      if (e.source !== window.parent) return;
+      if (e.data?.type === 'notes-split-collapsed') {
+        document.body.classList.toggle('list-collapsed', !!e.data.collapsed);
+        _npCollapseAnimUntil = performance.now() + 320; // home.js NOTES_SPLIT_ANIM_MS(280) + 여유
+      } else if (e.data?.type === 'notes-split-open') {
+        _embedOpenProject(e.data.id); // 다른 노트로 전환 — 새로 로드하지 않음
+      }
     });
-    try { window.parent.postMessage({ type: 'notes-split-ready' }, '*'); } catch (_) {}
+    // 'notes-split-ready'는 첫 렌더가 끝난 뒤 보낸다(아래) — 그 전에 전환 메시지가 오면 200ms 뒤의 첫 렌더가 덮어쓰므로
   }
 
   // ── UI 초기화 ──────────────────────────────────────────────
@@ -4993,21 +5179,23 @@ document.addEventListener('DOMContentLoaded', async () => {
       }
     } catch (_) {}
     sessionStorage.removeItem('np_edit_return');
-    const _vp = document.getElementById('view-project');
-    if (_vp) _vp.innerHTML = '<div class="project-loading-spinner"></div>';
-
+    // 첫 렌더는 첫 화면이 그려지기 전에 바로 한다 — 예전엔 200ms 뒤에 그려 슬라이드업(0.36s) 한가운데서 프레임이 끊겼다.
+    // 코드 이미지 캐시 뒤로 렌더가 수십 ms라, 먼저 그려 두고 슬라이드는 완성된 화면으로 시작한다.
+    renderProjectView(projectIdParam);
+    // 부모(home.js)에 준비 완료 알림 — 이후 노트 전환은 새로 로드하지 않고 메시지로 받는다(_embedOpenProject)
+    if (IS_EMBED) { try { window.parent.postMessage({ type: 'notes-split-ready' }, '*'); } catch (_) {} }
+    // 튜토리얼 진행 중이면 이어받기 — 대상 요소가 생긴 뒤라야 위치가 잡힌다
+    requestAnimationFrame(() => requestAnimationFrame(() => {
+      if (typeof Tutorial !== 'undefined') Tutorial.resume();
+    }));
+    // 덮개는 슬라이드가 절반쯤 진행됐을 때(200ms) 걷는다. 임베드는 슬라이드가 없어(style.css body.embed) 바로 걷는다
     const _cover = document.getElementById('page-cover');
-    setTimeout(() => {
-      renderProjectView(projectIdParam);
-      // 튜토리얼 진행 중이면 이어받기 — 대상 요소가 생긴 뒤라야 위치가 잡힌다
-      requestAnimationFrame(() => requestAnimationFrame(() => {
-        if (typeof Tutorial !== 'undefined') Tutorial.resume();
-      }));
-      if (_cover) {
+    if (_cover) {
+      setTimeout(() => {
         _cover.classList.add('cover-out');
         setTimeout(() => { _cover.style.display = 'none'; }, 200);
-      }
-    }, 200);
+      }, IS_EMBED ? 0 : 200);
+    }
   } else {
     // id 없이 접근한 경우 홈으로 리다이렉트
     location.href = 'home.html';
