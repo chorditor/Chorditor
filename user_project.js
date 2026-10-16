@@ -15,7 +15,7 @@ const SLOT_FIT = (() => {
     const q = new URLSearchParams(location.search).get('notesplit');
     if (q === '1') localStorage.setItem('np_notes_split', '1');
     else if (q === '0') localStorage.removeItem('np_notes_split');
-    return localStorage.getItem('np_notes_split') === '1';
+    return IS_EMBED || localStorage.getItem('np_notes_split') === '1'; // 스플릿(임베드)은 플래그 없이 항상 적용
   } catch (_) { return false; }
 })();
 const SLOT_LAND_MIN_AREA_W = 8 * (56 + 2); // 464px

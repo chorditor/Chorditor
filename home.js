@@ -2906,7 +2906,7 @@ function renderSidebar() {
 // ═══════════════════════════════════════════════════════════════
 // 노트 탭 태블릿 스플릿 뷰 — 프로토타입 (docs/notes-split-view-plan.md)
 // 좌: 노트 목록(이 파일) / 우: 악보 = user_project.html?embed=1 을 iframe으로. 데이터 레이어는 건드리지 않는다.
-// 켜는 법: 주소에 ?notesplit=1 (localStorage np_notes_split=1 저장, ?notesplit=0으로 끔) + 폭 ≥769px
+// 켜짐 조건: 폭 ≥769px (플래그 없이 접속하면 바로 적용)
 // ═══════════════════════════════════════════════════════════════
 const NOTES_SPLIT_MIN_W = 769;
 const NOTES_SPLIT_LAST_KEY = 'np_notes_split_last'; // 앱을 끄기 전까지 마지막으로 띄운 노트 id (sessionStorage — 웹뷰가 살아 있는 동안만 유지)
@@ -2914,12 +2914,7 @@ let _notesSplitCurrentId = null; // 지금 우측에 열려 있는 노트
 let _notesSplitLastId    = (() => { try { return sessionStorage.getItem(NOTES_SPLIT_LAST_KEY); } catch (_) { return null; } })(); // 다른 탭·페이지에 다녀온 뒤 복원할 노트
 
 function _notesSplitEnabled() {
-  try {
-    const q = new URLSearchParams(location.search).get('notesplit');
-    if (q === '1') localStorage.setItem('np_notes_split', '1');
-    else if (q === '0') localStorage.removeItem('np_notes_split');
-    return localStorage.getItem('np_notes_split') === '1' && window.innerWidth >= NOTES_SPLIT_MIN_W;
-  } catch (_) { return false; }
+  return window.innerWidth >= NOTES_SPLIT_MIN_W;
 }
 function _notesSplitMarkActive() {
   document.querySelectorAll('.projects-item').forEach(el =>
