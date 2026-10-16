@@ -2501,7 +2501,10 @@ function switchTab(tab, noAnim = false) {
   if (tab === 'projects') {
     _notesSplitSync();
     renderProjectsList();
-    if (_notesSplitEnabled() && _notesSplitLastId && !_notesSplitCurrentId) _notesSplitOpen(_notesSplitLastId);
+    if (_notesSplitEnabled() && !_notesSplitCurrentId) {
+      const initId = _notesSplitPickInitialId();
+      if (initId) _notesSplitOpen(initId);
+    }
   }
   if (tab === 'profile') loadProfileFromDB();
   window.Tutorial?.notify(`tab:${tab}`);
@@ -2906,8 +2909,9 @@ function renderSidebar() {
 // 켜는 법: 주소에 ?notesplit=1 (localStorage np_notes_split=1 저장, ?notesplit=0으로 끔) + 폭 ≥769px
 // ═══════════════════════════════════════════════════════════════
 const NOTES_SPLIT_MIN_W = 769;
+const NOTES_SPLIT_LAST_KEY = 'np_notes_split_last'; // 앱을 끄기 전까지 마지막으로 띄운 노트 id (sessionStorage — 웹뷰가 살아 있는 동안만 유지)
 let _notesSplitCurrentId = null; // 지금 우측에 열려 있는 노트
-let _notesSplitLastId    = null; // 다른 탭에 다녀온 뒤 복원할 노트
+let _notesSplitLastId    = (() => { try { return sessionStorage.getItem(NOTES_SPLIT_LAST_KEY); } catch (_) { return null; } })(); // 다른 탭·페이지에 다녀온 뒤 복원할 노트
 
 function _notesSplitEnabled() {
   try {
@@ -2925,7 +2929,10 @@ function _notesSplitMarkActive() {
 function _notesSplitClose(keepLast) {
   const frame = document.getElementById('notes-split-frame');
   if (frame && frame.getAttribute('src') && frame.getAttribute('src') !== 'about:blank') frame.src = 'about:blank';
-  if (!keepLast) _notesSplitLastId = null;
+  if (!keepLast) {
+    _notesSplitLastId = null;
+    try { sessionStorage.removeItem(NOTES_SPLIT_LAST_KEY); } catch (_) {}
+  }
   _notesSplitCurrentId = null;
   document.getElementById('tab-view-projects')?.classList.remove('has-note');
   _notesSplitMarkActive();
@@ -2935,6 +2942,7 @@ function _notesSplitOpen(projectId) {
   if (!frame) return;
   _notesSplitCurrentId = projectId;
   _notesSplitLastId    = projectId;
+  try { sessionStorage.setItem(NOTES_SPLIT_LAST_KEY, projectId); } catch (_) {}
   frame.src = 'user_project.html?id=' + encodeURIComponent(projectId) + '&embed=1';
   document.getElementById('tab-view-projects')?.classList.add('has-note');
   _notesSplitMarkActive();
@@ -2943,6 +2951,19 @@ function _notesSplitOpen(projectId) {
 function _notesSplitShellSync() {
   document.querySelector('.app-shell')
     ?.classList.toggle('tab-notes-split', _activeTab === 'projects' && _notesSplitEnabled());
+}
+// 노트 탭에 들어왔을 때 우측에 띄울 노트 — ① 앱 실행 중 마지막으로 띄운 노트(아직 있고 잠기지 않았으면) ② 없으면 목록에서 우선순위가 가장 높은 노트
+// 우선순위는 목록 표시 순서와 같다: 중요(importantOrder) → 즐겨찾기(pinnedOrder) → 최근(updatedAt 내림차순). 잠긴 노트는 건너뜀.
+function _notesSplitPickInitialId() {
+  const projects = loadProjects();
+  const usable = p => p && !isProjectLocked(p, projects);
+  const last = _notesSplitLastId && projects.find(p => p.id === _notesSplitLastId);
+  if (usable(last)) return last.id;
+  const important = projects.filter(p => p.important).sort((a, b) => (a.importantOrder || 0) - (b.importantOrder || 0));
+  const pinned    = projects.filter(p => p.pinned && !p.important).sort((a, b) => (a.pinnedOrder || 0) - (b.pinnedOrder || 0));
+  const recent    = projects.filter(p => !p.pinned && !p.important).sort((a, b) => b.updatedAt - a.updatedAt);
+  const first = [...important, ...pinned, ...recent].find(usable);
+  return first ? first.id : null;
 }
 function _notesSplitSync() {
   _notesSplitShellSync();
@@ -2953,6 +2974,33 @@ function _notesSplitSync() {
   if (!on && _notesSplitCurrentId) _notesSplitClose(false);
 }
 window.addEventListener('resize', _notesSplitSync);
+
+// 좌측 목록 패널 접기/펼치기 — 접으면 우측 악보가 전체 폭을 쓴다. 펼치기 버튼은 악보(iframe) 제목 왼쪽에 있어서
+// 접힘 상태를 iframe에 postMessage로 알리고(user_project.js가 body.list-collapsed로 반영), 버튼 클릭은 iframe이 부모에게 알린다.
+let _notesSplitCollapsed = false;
+function _notesSplitPostState() {
+  const frame = document.getElementById('notes-split-frame');
+  try { frame?.contentWindow?.postMessage({ type: 'notes-split-collapsed', collapsed: _notesSplitCollapsed }, '*'); } catch (_) {}
+}
+let _notesSplitAnimTimer = 0;
+const NOTES_SPLIT_ANIM_MS = 280; // style.css 접힘 전환 길이와 같은 값
+function _notesSplitSetCollapsed(collapsed) {
+  _notesSplitCollapsed = !!collapsed;
+  const tab = document.getElementById('tab-view-projects');
+  if (!tab) return;
+  // 전환은 접고 펼치는 동안에만(.notes-split-animating) — 창 크기 변경 때 패널이 끌려오며 늦게 따라오지 않게
+  tab.classList.add('notes-split-animating');
+  tab.classList.toggle('notes-split-collapsed', _notesSplitCollapsed);
+  clearTimeout(_notesSplitAnimTimer);
+  _notesSplitAnimTimer = setTimeout(() => tab.classList.remove('notes-split-animating'), NOTES_SPLIT_ANIM_MS + 40);
+  _notesSplitPostState();
+}
+window.addEventListener('message', e => {
+  const frame = document.getElementById('notes-split-frame');
+  if (!frame || e.source !== frame.contentWindow) return;
+  if (e.data?.type === 'notes-split-expand') _notesSplitSetCollapsed(false);
+  else if (e.data?.type === 'notes-split-ready') _notesSplitPostState(); // iframe이 (다시) 로드됐을 때 현재 상태 전달
+});
 // 악보(iframe, 다른 문서)에서 노트를 저장하면 localStorage 변경 이벤트가 이 문서에 온다 → 목록 즉시 갱신
 window.addEventListener('storage', e => {
   if (e.key === 'chorditor_projects' && _notesSplitCurrentId) renderProjectsList();

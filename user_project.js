@@ -6,6 +6,45 @@ const IS_EMBED = new URLSearchParams(location.search).get('embed') === '1';
 // 다른 페이지(에디터 등)로 이동 — 임베드면 iframe이 아니라 최상위 창을 이동시킨다
 function _navTop(url) { (IS_EMBED && window.top ? window.top : window).location.href = url; }
 
+// 코드슬롯 4/8개 판정을 "노트 영역 실측 폭" 기준으로 (테스트) — 노트 스플릿 플래그(np_notes_split=1, ?notesplit=1)가 켜졌을 때만.
+// 기본은 8슬롯(한 줄 2마디): 슬롯 폭 하한 56px + 슬롯 사이 간격 2px(다이어그램 자체에 좌우 여백이 있어 붙여도 됨) = 칸 폭 58px ×8.
+// 슬롯 영역(.chord-area)이 이보다 좁아 간격이 2px 밑으로 내려갈 때만 4슬롯(마디당 2칸) 모드. 꺼져 있으면 기존 innerWidth >= 787 기준.
+// docs/notes-split-view-plan.md
+const SLOT_FIT = (() => {
+  try {
+    const q = new URLSearchParams(location.search).get('notesplit');
+    if (q === '1') localStorage.setItem('np_notes_split', '1');
+    else if (q === '0') localStorage.removeItem('np_notes_split');
+    return localStorage.getItem('np_notes_split') === '1';
+  } catch (_) { return false; }
+})();
+const SLOT_LAND_MIN_AREA_W = 8 * (56 + 2); // 464px
+let _npCollapseAnimUntil = 0; // 스플릿 좌측 목록 접힘 전환이 끝나는 시각(performance.now 기준) — 전환 중엔 슬롯 모드 재판정을 미룬다
+let _slotFitInit  = false; // 첫 렌더는 8슬롯으로 그려 보고 폭을 잰다
+let _slotFitRetry = 0;     // 재렌더 무한 반복 방지
+
+// 한 번 그린 직후 슬롯 영역 폭을 재서 모드가 틀렸으면 맞는 모드로 한 번 더 그린다. 재렌더했으면 true.
+function _slotFitCheck(projectId) {
+  const area = document.querySelector('#view-project .chord-area');
+  const w = area ? area.clientWidth : 0;
+  if (w <= 0) { _slotFitRetry = 0; return false; }
+  const fits = w >= SLOT_LAND_MIN_AREA_W;
+  if (fits === currentSlotLand || _slotFitRetry >= 1) { _slotFitRetry = 0; return false; }
+  currentSlotLand = fits;
+  _slotFitRetry++;
+  renderProjectView(projectId);
+  return true;
+}
+
+// [임시] 1마디 줄 분할 실험(rowV3)으로 바뀐 테스트 노트를 원래 2마디 줄로 되돌린다 — 실험 폐기에 따른 복원. 다 되돌린 뒤 삭제.
+function _restoreLegacyRows(project) {
+  if (!project.rowV3 || !Array.isArray(project.legacyArrangement)) return false;
+  project.arrangement = project.legacyArrangement;
+  delete project.legacyArrangement;
+  delete project.rowV3;
+  return true;
+}
+
 const STRINGS        = 6;
 const FRETS          = 4;
 const BASE_OPEN_W    = 70;
@@ -1757,6 +1796,8 @@ function renderProjectView(projectId) {
     migrated = true;
   }
 
+  if (_restoreLegacyRows(project)) migrated = true;
+
   if (migrated) updateProject(project);
 
   // 뷰포트 실제 가로/세로 비율로 자동 판정 (기기 회전 시 setupOrientationListener가 재렌더)
@@ -1764,7 +1805,11 @@ function renderProjectView(projectId) {
   // 가로모드: 프레임을 812px까지 확장 (CSS .app-shell.app-land)
   document.querySelector('.app-shell')?.classList.toggle('app-land', currentOrient === 'landscape');
   // 코드슬롯 4/8개는 화면비가 아니라 뷰포트 폭 787px 기준 순수 판정(currentOrient와 무관)
-  currentSlotLand = window.innerWidth >= 787;
+  if (SLOT_FIT) {
+    if (!_slotFitInit) { currentSlotLand = true; _slotFitInit = true; } // 처음엔 8슬롯으로 그려 보고, 아래 _slotFitCheck가 폭을 재서 정정
+  } else {
+    currentSlotLand = window.innerWidth >= 787;
+  }
 
   const viewEl = document.getElementById('view-project');
   viewEl.innerHTML = '';
@@ -1982,6 +2027,17 @@ function renderProjectView(projectId) {
   const titleBar = document.createElement('div');
   titleBar.className = 'project-title-bar';
 
+  // 노트 스플릿(iframe): 좌측 목록이 접혀 있을 때만 보이는 펼치기 버튼 — 제목 왼쪽 (표시는 CSS body.list-collapsed)
+  if (IS_EMBED) {
+    const expandBtn = document.createElement('button');
+    expandBtn.className = 'icon-btn notes-split-expand-btn';
+    expandBtn.type = 'button';
+    expandBtn.setAttribute('aria-label', '목록 펼치기');
+    expandBtn.innerHTML = '<i data-lucide="panel-left"></i>';
+    expandBtn.onclick = () => { try { window.parent.postMessage({ type: 'notes-split-expand' }, '*'); } catch (_) {} };
+    titleBar.appendChild(expandBtn);
+  }
+
   titleBar.appendChild(nameInput);
 
   // 저장 버튼 (공유 좌측) — 팔레트 코드 이미지 저장 / 텍스트 복사 선택
@@ -2020,6 +2076,9 @@ function renderProjectView(projectId) {
   viewEl.appendChild(inner);
 
   lucide.createIcons();
+
+  // 플래그: 슬롯 영역 실측 폭으로 4/8슬롯 정정 (맞지 않으면 한 번 더 그리고 이 렌더는 여기서 끝)
+  if (SLOT_FIT && _slotFitCheck(projectId)) return;
 
   // 에디터 복귀 시 스크롤 위치 복원, 그 외엔 맨 위
   if (_pendingEditRestore) {
@@ -4546,11 +4605,32 @@ function setupOrientationListener() {
   // 코드슬롯 4/8개 판정 경계(787px) — 화면비 안 바뀌는 순수 폭 리사이즈(데스크탑 창 드래그 등)도
   // 이 경계를 넘으면 재렌더되도록 별도 감시
   const mqSlot = window.matchMedia('(min-width: 787px)');
-  try { mqSlot.addEventListener('change', handler); } catch(e) { mqSlot.addListener(handler); }
+  if (!SLOT_FIT) { try { mqSlot.addEventListener('change', handler); } catch(e) { mqSlot.addListener(handler); } }
+  // 플래그: 4/8슬롯 경계는 뷰포트가 아니라 노트 영역 폭 — 창 크기·회전·스플릿 패널 접기로 폭이 바뀌어 기준(464px)을 넘나들면 재렌더
+  if (SLOT_FIT && 'ResizeObserver' in window) {
+    const vp = document.getElementById('view-project');
+    if (vp) {
+      let raf = 0, tm = 0;
+      const recheck = () => {
+        if (!currentProjectId || vp.classList.contains('hidden')) return;
+        const area = vp.querySelector('.chord-area');
+        const w = area ? area.clientWidth : 0;
+        if (w > 0 && (w >= SLOT_LAND_MIN_AREA_W) !== currentSlotLand) renderProjectView(currentProjectId);
+      };
+      new ResizeObserver(() => {
+        cancelAnimationFrame(raf);
+        clearTimeout(tm);
+        // 좌측 목록 접힘 전환 중에는 폭이 프레임마다 변한다 — 4/8슬롯 재렌더가 중간에 끼어 깜빡이지 않게 전환이 끝난 뒤 한 번만 판정
+        const wait = _npCollapseAnimUntil - performance.now();
+        if (wait > 0) { tm = setTimeout(recheck, wait + 30); return; }
+        raf = requestAnimationFrame(recheck);
+      }).observe(vp);
+    }
+  }
   // iPad 복귀 시 change 누락 대비 — 마지막 렌더 기준(currentOrient·currentSlotLand)과 달라졌을 때만 재렌더
   onViewportResync(() => {
     const orient = window.innerWidth > window.innerHeight ? 'landscape' : 'portrait';
-    if (orient !== currentOrient || (window.innerWidth >= 787) !== currentSlotLand) handler();
+    if (orient !== currentOrient || (!SLOT_FIT && (window.innerWidth >= 787) !== currentSlotLand)) handler();
   });
 }
 
@@ -4819,6 +4899,16 @@ document.addEventListener('DOMContentLoaded', async () => {
   const _shell = document.querySelector('.app-shell');
   if (_shell) _shell.classList.add('project-enter');
   if (IS_EMBED) document.body.classList.add('embed'); // 탑바 숨김 등 임베드 전용 스타일(style.css .embed)
+  if (SLOT_FIT) document.body.classList.add('slot-fit'); // 8슬롯 촘촘 배치 스타일(style.css .slot-fit)
+  if (IS_EMBED) {
+    // 부모(home.js)가 좌측 목록을 접고 펼 때마다 알려 준다 → 펼치기 버튼 표시(style.css .notes-split-expand-btn)
+    window.addEventListener('message', e => {
+      if (e.source !== window.parent || e.data?.type !== 'notes-split-collapsed') return;
+      document.body.classList.toggle('list-collapsed', !!e.data.collapsed);
+      _npCollapseAnimUntil = performance.now() + 320; // home.js NOTES_SPLIT_ANIM_MS(280) + 여유
+    });
+    try { window.parent.postMessage({ type: 'notes-split-ready' }, '*'); } catch (_) {}
+  }
 
   // ── UI 초기화 ──────────────────────────────────────────────
   setupOrientationListener();

@@ -463,6 +463,10 @@
                 <button class="icon-btn" id="btn-create-note" onclick="_playTap();promptCreateProject()" title="새 노트">
                   <i data-lucide="circle-plus"></i>
                 </button>
+                <!-- 좌측 패널 접기 버튼 — 스플릿 뷰(.notes-split)에서만 보임. 동작은 다음 단계 -->
+                <button class="icon-btn notes-split-collapse-btn" id="notes-split-collapse-btn" type="button" title="목록 접기" aria-label="목록 접기" onclick="_playTap();_notesSplitSetCollapsed(true)">
+                  <i data-lucide="panel-left"></i>
+                </button>
               </div>
             </div>
             <div class="projects-list-body" id="projects-list-body">

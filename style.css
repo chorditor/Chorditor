@@ -22491,7 +22491,7 @@ html.ios-native #canvas-main-btns { position: relative; z-index: 1; }
    평소(.notes-split 없음)엔 우측 패널이 숨겨져 기존 화면과 같다. home.js _notesSplitSync()가 플래그+폭 ≥769px일 때만 .notes-split를 붙인다 */
 .notes-split-pane { display: none; }
 #tab-view-projects.notes-split {
-  --notes-split-list-w: clamp(320px, 38vw, 420px);
+  --notes-split-list-w: clamp(320px, 38vw, 360px);
 }
 #tab-view-projects.notes-split #view-projects-list {
   right: auto;
@@ -22518,7 +22518,7 @@ html.ios-native #canvas-main-btns { position: relative; z-index: 1; }
   height: 100%;
   background: #fff;
   border-radius: var(--radius);
-  box-shadow: 0 1px 6px rgba(0,0,0,0.07);
+  box-shadow: 0 1px 6px rgba(0,0,0,0.07);   /* 좌측 .projects-list-container와 같은 카드 그림자 */
   overflow: hidden;   /* iframe(악보)을 카드 라운드에 맞춰 자름 */
 }
 .notes-split-empty {
@@ -22632,8 +22632,83 @@ body.note-edit-page.embed .project-header {
    슬롯은 보조선을 박 단위로 등분한 칸(1fr)을 채우고 비율은 5:4 — 지금은 칸 폭 그대로라 화면에 따라 52px까지 줄거나 크게 늘어난다.
    폭을 56~72px로 가두고 칸의 왼쪽에 붙인다(justify-self: start) → 슬롯 왼쪽선 = 박 시작 위치(박자 정렬)는 그대로.
    칸이 56px보다 좁으면 56px로 두고 오른쪽 칸 쪽으로 약간 넘친다(좁은 폭에선 위 좌우 패딩 16px로 칸을 넓혀 피함) */
-body.note-edit-page.embed .chord-area.orient-port .chord-slot,
-body.note-edit-page.embed .chord-area.orient-land .chord-slot {
+body.note-edit-page.embed .chord-area.orient-port .chord-slot {
   width: clamp(56px, 100%, 72px);
   justify-self: start;
 }
+
+/* ── 8슬롯 촘촘 배치 (body.slot-fit, 노트 스플릿 테스트 플래그) ──
+   한 줄 2마디(8슬롯)를 기본으로 하고 슬롯 사이 간격을 2px까지 좁힌다(다이어그램 자체에 좌우 여백이 있다).
+   칸은 슬롯 영역을 8등분(1fr, 열 간격 0) — 슬롯 왼쪽선은 박 시작 위치 그대로. 슬롯 폭 = 칸 − 2px, 56~72px.
+   칸이 58px 밑(영역 464px 미만)이면 JS(_slotFitCheck)가 4슬롯 모드로 내리므로 이 규칙엔 오지 않는다.
+   뷰모드의 `#view-project.view-mode .chord-area {gap:4px}`(id 포함)를 이기려고 #view-project를 붙임 */
+body.slot-fit #view-project .chord-area.orient-land {
+  column-gap: 0;
+}
+body.slot-fit #view-project .chord-area.orient-land .chord-slot {
+  width: clamp(56px, calc(100% - 2px), 72px);
+  justify-self: start;
+}
+
+/* 임베드(노트 스플릿 iframe)는 노트를 열 때마다 새로 로드된다 — 단독 페이지용 진입 연출이 그대로 돌면 우측 카드 아래에서 옅은 막이
+   올라왔다 걷히는 "음영"으로 보인다. 슬라이드업(project-enter)을 끄고, 로드 중 덮개(#page-cover)는 회색빛(#FAFAF8) 대신 카드와 같은 흰색으로 */
+body.embed .app-shell.project-enter { animation: none; }
+body.embed #page-cover { background: #fff; }
+
+/* 임베드 노트 본문 하단 페이드 — 가사가 길어 스크롤 영역 아래에서 잘리는 부분을 카드 배경으로 자연스럽게 투명해지게 한다(하단 80px).
+   .project-lines는 맨 끝에 padding-bottom 160px이 있어 마지막 줄은 페이드 구간 밖에 놓인다. 헤더·팔레트(고정 영역)는 영향 없음 */
+body.embed .project-lines {
+  -webkit-mask-image: linear-gradient(to bottom, #000 calc(100% - 40px), transparent);
+  mask-image: linear-gradient(to bottom, #000 calc(100% - 40px), transparent);
+}
+
+/* 이미지 저장 바텀시트(.img-save-modal, 홈·노트·사전·에디터 공통) — translateY(100%)로 화면 아래에 숨겨 두지만 box-shadow(0 -6px 24px,
+   시트 테마에서는 0 -12px 40px)는 위쪽으로 번져 화면 하단 경계 위에 옅은 회색 그라데이션으로 보였다(홈에선 독바 위, 노트 임베드에선 우측 카드
+   하단). 숨겨져 있는 동안(.open 아님)은 그림자를 끄고, 열고 닫을 때 시트 슬라이드와 같은 길이로 그림자도 같이 켜졌다 꺼지게 한다. */
+.img-save-modal {
+  transition: transform .28s cubic-bezier(.22,.61,.36,1), box-shadow .28s;
+}
+.img-save-modal:not(.open) {
+  box-shadow: none;
+}
+
+/* 좌측 패널 접기 버튼 — 스플릿 뷰에서만 표시(헤더 우측 끝) */
+.notes-split-collapse-btn { display: none; }
+#tab-view-projects.notes-split .notes-split-collapse-btn { display: inline-flex; }
+
+/* 좌측 목록 접힘(.notes-split-collapsed, home.js _notesSplitSetCollapsed) — 목록을 숨기고 악보 카드가 전체 폭.
+   펼치기 버튼은 악보(iframe) 제목 왼쪽에 — 접힘 상태는 body.list-collapsed로 전달됨 */
+/* 목록은 폭을 줄이지 않고 왼쪽으로 통째로 밀어낸다(transform — 내용이 찌그러지지 않음). 우측 패널은 left/padding-left가 같은 길이로 전환.
+   전환은 접고 펼치는 동안(.notes-split-animating, home.js)에만 걸어 창 크기 변경 때는 즉시 반영. 길이 280ms는 home.js NOTES_SPLIT_ANIM_MS와 동기 */
+#tab-view-projects.notes-split.notes-split-collapsed #view-projects-list {
+  transform: translateX(-100%);
+  visibility: hidden;
+}
+#tab-view-projects.notes-split.notes-split-collapsed .notes-split-pane {
+  left: 0;
+  padding-left: 20px;
+}
+#tab-view-projects.notes-split.notes-split-animating #view-projects-list {
+  transition: transform .28s cubic-bezier(.22,.61,.36,1), visibility 0s linear .28s;
+}
+#tab-view-projects.notes-split.notes-split-animating:not(.notes-split-collapsed) #view-projects-list {
+  transition: transform .28s cubic-bezier(.22,.61,.36,1), visibility 0s;
+}
+#tab-view-projects.notes-split.notes-split-animating .notes-split-pane {
+  transition: left .28s cubic-bezier(.22,.61,.36,1), padding-left .28s cubic-bezier(.22,.61,.36,1);
+}
+@media (prefers-reduced-motion: reduce) {
+  #tab-view-projects.notes-split.notes-split-animating #view-projects-list,
+  #tab-view-projects.notes-split.notes-split-animating .notes-split-pane { transition: none; }
+}
+.notes-split-expand-btn { display: none; }
+body.embed.list-collapsed .notes-split-expand-btn {
+  display: inline-flex;
+  flex-shrink: 0;
+  margin-right: 8px;
+  animation: notes-split-expand-in .2s ease .12s both;
+}
+/* 좌측 접기 버튼(.projects-list-header-actions .icon-btn)과 같은 아이콘 크기·색 */
+body.embed .notes-split-expand-btn { color: var(--text-primary); }
+body.embed .notes-split-expand-btn svg { width: 22px; height: 22px; }
+@keyframes notes-split-expand-in { from { opacity: 0; } to { opacity: 1; } }
