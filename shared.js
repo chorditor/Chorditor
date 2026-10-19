@@ -406,9 +406,16 @@ function loadProjects() {
 
 function saveProjects(projects) {
   if (isTutorialSandbox()) { _sandboxSet(projects); return; } // 로컬·DB 모두 건드리지 않음
-  const prevIds = loadProjects().map(p => p.id); // 덮어쓰기 전에 캡처 — 삭제분 DB 반영용
+  const prev = loadProjects(); // 덮어쓰기 전에 캡처 — 삭제분·변경분 판정용
+  const prevJson = new Map(prev.map(p => [p.id, JSON.stringify(p)]));
   safeSave('chorditor_projects', JSON.stringify(projects));
-  _syncProjectsToDB(projects, prevIds).catch(() => {}); // 비동기 백그라운드, 로컬 흐름은 그대로 동기
+  const newIds = new Set(projects.map(p => p.id));
+  const removedIds = prev.map(p => p.id).filter(id => !newIds.has(id));
+  // 전체를 매번 올리지 않는다: 내용이 바뀌었거나 새로 생긴 노트 + 이전 업로드가 실패해 재시도 대기 중인 노트만.
+  // (전부 올리면 전송량이 노트 수에 비례하고, 오래된 기기가 저장만 해도 다른 기기의 최신본을 덮어쓴다)
+  const pending = _projPendingGet();
+  const toUpload = projects.filter(p => pending.has(p.id) || prevJson.get(p.id) !== JSON.stringify(p));
+  _syncProjectsToDB(toUpload, removedIds).catch(() => {}); // 비동기 백그라운드, 로컬 흐름은 그대로 동기
 }
 
 // ── 프로젝트 DB 백업 미러 + 공유 코드 ───────────────────────────
@@ -424,7 +431,27 @@ function _authSessionSync() {
   } catch (e) { return null; }
 }
 
-async function _syncProjectsToDB(projects, prevIds) {
+// 업로드 실패 재시도 대기 목록 — 요청 직전에 기록(write-ahead)하고 성공하면 지운다.
+// 오프라인·토큰 만료 등으로 실패한 노트는 다음 저장 때 내용이 안 바뀌었어도 다시 올라간다.
+const PROJ_PENDING_KEY = 'chorditor_proj_pending';
+function _projPendingGet() {
+  try { return new Set(JSON.parse(localStorage.getItem(PROJ_PENDING_KEY) || '[]')); }
+  catch (e) { return new Set(); }
+}
+function _projPendingSet(set) {
+  try {
+    if (set.size) localStorage.setItem(PROJ_PENDING_KEY, JSON.stringify([...set]));
+    else localStorage.removeItem(PROJ_PENDING_KEY);
+  } catch (e) {}
+}
+function _projPendingAdd(ids) { const s = _projPendingGet(); ids.forEach(id => s.add(id)); _projPendingSet(s); }
+function _projPendingRemove(ids) { const s = _projPendingGet(); ids.forEach(id => s.delete(id)); _projPendingSet(s); }
+
+// 업로드는 호출 순서대로 직렬 실행 — 같은 노트의 이전 저장이 뒤늦게 도착해 최신본을 덮어쓰는 것을 막는다.
+let _projSyncChain = Promise.resolve();
+
+// projects: 업로드할 노트(전체 목록이 아님). removedIds: DB에서 지울 노트 id.
+async function _syncProjectsToDB(projects, removedIds) {
   const session = _authSessionSync();
   if (!session) return; // 비로그인 — 로컬 전용으로 계속 동작
   const headers = {
@@ -432,17 +459,22 @@ async function _syncProjectsToDB(projects, prevIds) {
     apikey: SUPABASE_ANON,
     Authorization: 'Bearer ' + session.access_token,
   };
-  const newIds = new Set(projects.map(p => p.id));
-  const removedIds = (prevIds || []).filter(id => !newIds.has(id));
-  try {
-    if (removedIds.length) {
-      // keepalive: 삭제 직후 location.href로 페이지 이동하는 흐름(deleteProject 등)이 있어서,
-      // 이게 없으면 네비게이션이 이 요청을 끊어버려 DB row가 안 지워지는 문제가 있었음.
-      await fetch(`${SUPABASE_URL}/rest/v1/projects?project_id=in.(${removedIds.join(',')})`, {
-        method: 'DELETE', headers, keepalive: true,
-      });
-    }
-    if (projects.length) {
+  // 삭제는 직렬 큐를 기다리지 않고 즉시 보낸다 — keepalive: 삭제 직후 location.href로 페이지 이동하는
+  // 흐름(deleteProject 등)이 있어서, 큐 뒤에 두면 네비게이션이 이 요청을 끊어 DB row가 안 지워진다.
+  let delP = Promise.resolve();
+  if (removedIds && removedIds.length) {
+    _projPendingRemove(removedIds);
+    delP = fetch(`${SUPABASE_URL}/rest/v1/projects?project_id=in.(${removedIds.join(',')})`, {
+      method: 'DELETE', headers, keepalive: true,
+    }).catch(() => {});
+  }
+  if (!projects.length) { await delP; return; }
+
+  const ids = projects.map(p => p.id);
+  _projPendingAdd(ids);
+  _projSyncChain = _projSyncChain.then(() => delP).then(async () => {
+    let ok = false;
+    try {
       // code/payload는 여기서 안 보냄 — "공유하기"에서만 채움. 미포함 컬럼은 업서트 시 그대로 유지됨.
       const rows = projects.map(p => ({
         project_id: p.id,
@@ -455,13 +487,17 @@ async function _syncProjectsToDB(projects, prevIds) {
       }));
       // (업서트는 keepalive 안 씀 — 크롬은 keepalive 요청 바디를 64KB로 제한해서
       // content 전체를 보내는 이 요청엔 안 맞음. delete만 페이로드가 작아서 안전하게 적용)
-      await fetch(`${SUPABASE_URL}/rest/v1/projects?on_conflict=project_id`, {
+      const res = await fetch(`${SUPABASE_URL}/rest/v1/projects?on_conflict=project_id`, {
         method: 'POST',
         headers: { ...headers, Prefer: 'resolution=merge-duplicates,return=minimal' },
         body: JSON.stringify(rows),
       });
-    }
-  } catch (e) { /* 오프라인 등 — 다음 저장 때 다시 시도됨 */ }
+      ok = res.ok;
+    } catch (e) { /* 오프라인 등 */ }
+    if (ok) _projPendingRemove(ids);
+    else _projPendingAdd(ids); // 실패 — 재시도 대기 유지(앞선 요청이 지웠을 수 있어 다시 기록)
+  });
+  await _projSyncChain;
 }
 
 const SHARE_CODE_CHARS = '0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz';
