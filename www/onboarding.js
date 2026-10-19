@@ -567,7 +567,7 @@ function _showOnboardingButtons() {
   } else {
     document.getElementById('onboarding-google-btn')?.classList.remove('hidden');
     analytics.track('onboarding_viewed', {
-      platform: window.Capacitor?.isNativePlatform() ? 'android' : 'web',
+      platform: window.Capacitor?.getPlatform?.() || 'web',
     });
   }
 }
