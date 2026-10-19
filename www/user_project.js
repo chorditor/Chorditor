@@ -427,9 +427,18 @@ function _paletteSaveChords() {
 }
 
 // ── 저장 방식 선택 시트 ──
-function openNoteSaveChoice(projectId) {
+function openNoteSaveChoice(projectId, anchorEl) {
   _noteSaveProjectId = projectId;
-  document.getElementById('note-save-overlay')?.classList.remove('hidden');
+  const ov = document.getElementById('note-save-overlay');
+  const pop = document.getElementById('note-save-popup');
+  if (!ov || !pop) return;
+  ov.classList.remove('hidden');
+  // 세로는 버튼 하단, 가로는 버튼이 아니라 악보탭 전체(.project-inner)의 우측 끝에 붙임
+  const r = anchorEl ? anchorEl.getBoundingClientRect() : { bottom: 56 };
+  const inner = document.querySelector('.project-inner')?.getBoundingClientRect();
+  const right = inner ? inner.right : window.innerWidth - 16;
+  pop.style.top = (r.bottom + 6) + 'px';
+  pop.style.left = Math.max(8, right - pop.offsetWidth) + 'px';
 }
 function closeNoteSaveChoice() {
   document.getElementById('note-save-overlay')?.classList.add('hidden');
@@ -2023,7 +2032,9 @@ function renderProjectView(projectId) {
   // 뷰모드(slot-toggle) 버튼은 row1로 옮겨서 [좌: 뷰모드][우: 되돌리기]로 채움
   // (row1이 되돌리기 하나뿐이라 휑했고, row2는 이미 4개라 더 못 채웠음)
   // 3단계(769px~) 이상은 방향·좌측 패널 접힘과 무관하게 항상 이 한 줄 배치(뷰모드·BPM·카포·메트로놈·재생·되돌리기)로 고정 — 노트 스플릿(임베드)은 항상 해당
-  if (currentOrient === 'landscape' || IS_EMBED || window.innerWidth >= 769) {
+  // 스플릿(임베드)은 iframe 폭이 아니라 앱 화면(최상위 창) 폭으로 판정 — 좌측 패널 접힘/펼침으로 iframe 폭이 바뀌어도 헤더 배치가 안 바뀌게.
+  // 769px 미만(1~2단계)은 세로 3단 구조(타이틀 / 뷰모드·되돌리기 / BPM·카포·메트로놈·재생)로 폭 여유를 확보
+  if (IS_EMBED ? _topViewportW() >= 769 : (currentOrient === 'landscape' || window.innerWidth >= 769)) {
     undoBtn.style.display = isEditMode ? '' : 'none';
     row2Right.appendChild(undoBtn);
     const headerRowLand = document.createElement('div');
@@ -2051,7 +2062,7 @@ function renderProjectView(projectId) {
   const saveNoteBtn = document.createElement('button');
   saveNoteBtn.className = 'project-icon-btn';
   saveNoteBtn.innerHTML = '<i data-lucide="download"></i>';
-  saveNoteBtn.onclick = () => openNoteSaveChoice(projectId);
+  saveNoteBtn.onclick = () => openNoteSaveChoice(projectId, saveNoteBtn);
 
   // 타이틀바 우측: 삭제 · 저장 · 공유 · 완료/편집 (기존 row1-right에서 이동)
   const titleBtns = document.createElement('div');
@@ -3747,10 +3758,14 @@ function initPaletteScrollbar(palette, track, dot) {
   });
 }
 
-// 에디터(editor.html) 주소 — 노트 스플릿(iframe)에서 나가면 ret=split을 붙여, 에디터가 끝난 뒤 단독 노트 페이지가 아니라
-// 홈 노트 탭(스플릿, 같은 노트를 다시 엶)으로 돌려보내게 한다(editor.js _returnToProject)
+// 앱 화면 폭 — 임베드(iframe)에서는 최상위 창 폭
+function _topViewportW() {
+  try { return IS_EMBED ? window.top.innerWidth : window.innerWidth; } catch (_) { return window.innerWidth; }
+}
+
+// 에디터(editor.html) 주소 — 에디터가 끝나면 홈 노트 탭에서 이 노트를 다시 연다(editor.js _returnToProject)
 function _editorUrl(projectId, chordId) {
-  return 'editor.html?from_project=' + projectId + (chordId ? '&chord_id=' + chordId : '') + (IS_EMBED ? '&ret=split' : '');
+  return 'editor.html?from_project=' + projectId + (chordId ? '&chord_id=' + chordId : '');
 }
 
 // 에디터로 이동하기 직전 복귀 상태 저장 (편집 모드 + 현재 스크롤 위치)
@@ -5007,7 +5022,7 @@ async function _consumePendingShareCode() {
   };
   const list = loadProjects(); list.push(p); saveProjects(list);
   applyImportPayload(p.id, payload, { applyBpm: true, applyCapo: true, applyCol: true });
-  location.href = 'user_project.html?id=' + p.id;
+  _navTop('home.html?tab=projects&note=' + p.id);
 }
 
 // ── OAuth 리다이렉트 후 처리 (웹 전용, shared.js에서 typeof 가드로 호출) ──
@@ -5071,6 +5086,13 @@ function _embedOpenProject(projectId) {
 }
 
 document.addEventListener('DOMContentLoaded', async () => {
+  // 단독 페이지 진입 폐쇄 — 노트는 홈 노트 탭의 악보 패널(iframe, ?embed=1)에서만 연다. 단독 주소로 들어오면 홈의 그 노트로 넘긴다.
+  // (튜토리얼 STEP4 선물 노트 ?tutseed=1 진입도 폐쇄 — 튜토리얼 폐기)
+  if (!IS_EMBED) {
+    const _id = new URLSearchParams(location.search).get('id');
+    location.replace('home.html?tab=projects&return=1' + (_id ? '&note=' + encodeURIComponent(_id) : ''));
+    return;
+  }
   // ── 페이지 진입 애니메이션 ────────────────────────────────
   // project-enter(슬라이드업)와 page-cover(fade-out)를 동시에 진행
   // → 슬라이드가 절반쯤 진행됐을 때 커버가 걷혀 자연스럽게 노출

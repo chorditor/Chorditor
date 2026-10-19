@@ -2500,6 +2500,7 @@ function switchTab(tab, noAnim = false) {
   if (tab === 'home') enterFromHome('home');
   if (tab === 'projects') {
     _notesSplitSync();
+    _notesSplitDefaultCollapsed();
     renderProjectsList();
     if (_notesSplitEnabled() && !_notesSplitCurrentId) {
       const initId = _notesSplitPickInitialId();
@@ -2563,6 +2564,14 @@ function enterFromBlock(e, el, view) {
         window.Tutorial?.notify('view:editor'); // 페이지가 넘어가기 전에 알린다 — 진행 위치가 저장된다
         let _navd = false;
         const _go = () => { if (!_navd) { _navd = true; location.href = 'editor.html'; } };
+        _tapP.then(() => setTimeout(_go, 240));
+        setTimeout(_go, 450); // 폴백: 재생 차단/지연돼도 반드시 이동
+        return;
+      }
+      // 나의 기타 여정은 별도 페이지(journey.html) — library와 같은 방식으로 실제 페이지 이동.
+      if (view === 'journey') {
+        let _navd = false;
+        const _go = () => { if (!_navd) { _navd = true; location.href = 'journey.html'; } };
         _tapP.then(() => setTimeout(_go, 240));
         setTimeout(_go, 450); // 폴백: 재생 차단/지연돼도 반드시 이동
         return;
@@ -2837,11 +2846,11 @@ async function _returnToProject(returnId) {
     cover.offsetHeight; // reflow — cover 즉시 페인트
     resetAll();
     requestAnimationFrame(() => {
-      location.href = 'user_project.html?id=' + returnId;
+      location.href = 'home.html?tab=projects&return=1&note=' + returnId;
     });
   } else {
     resetAll();
-    location.href = 'user_project.html?id=' + returnId;
+    location.href = 'home.html?tab=projects&return=1&note=' + returnId;
   }
 }
 
@@ -2855,18 +2864,9 @@ async function openProject(projectId) {
     const ageDays    = proj.createdAt ? Math.floor((Date.now() - proj.createdAt) / 86400000) : 0;
     analytics.track('project_opened', { project_id: projectId, chord_count: chordCount, age_days: ageDays });
   }
-  // 태블릿 스플릿 뷰(프로토타입): 페이지 이동 없이 우측 패널에 악보를 연다
-  if (_notesSplitEnabled()) { _notesSplitOpen(projectId); return; }
-  if (typeof GuitarAudio !== 'undefined') await GuitarAudio.stop({ wait: true });
-  const shell = document.querySelector('.app-shell');
-  if (shell) {
-    shell.classList.add('home-recede');
-    setTimeout(() => {
-      location.href = 'user_project.html?id=' + projectId;
-    }, 200);
-  } else {
-    location.href = 'user_project.html?id=' + projectId;
-  }
+  // 노트는 홈 노트 탭의 악보 패널(스플릿)에서만 연다 — 단독 페이지(user_project.html) 진입 경로는 폐쇄
+  _notesSplitOpen(projectId);
+  if (_notesSplitOverlay()) _notesSplitSetCollapsed(true); // 오버레이: 노트를 고르면 목록이 닫히고 악보가 보인다
 }
 
 // ─── navigateTo ────────────────────────────────────────────────
@@ -2906,15 +2906,27 @@ function renderSidebar() {
 // ═══════════════════════════════════════════════════════════════
 // 노트 탭 태블릿 스플릿 뷰 — 프로토타입 (docs/notes-split-view-plan.md)
 // 좌: 노트 목록(이 파일) / 우: 악보 = user_project.html?embed=1 을 iframe으로. 데이터 레이어는 건드리지 않는다.
-// 켜짐 조건: 폭 ≥769px (플래그 없이 접속하면 바로 적용)
+// 켜짐 조건: 항상(모든 폭). 폭 ≤768px(1~2단계: 모바일·작은 태블릿)는 목록이 악보 위에 덮이는 오버레이이고 기본값이 접힘 —
+// 노트 탭에 들어오면 악보가 먼저 보이고 목록은 펼치기 버튼으로 연다. 769px~는 좌우 나란히(기본 펼침).
 // ═══════════════════════════════════════════════════════════════
-const NOTES_SPLIT_MIN_W = 769;
+const NOTES_SPLIT_OVERLAY_MAX_W = 768;
 const NOTES_SPLIT_LAST_KEY = 'np_notes_split_last'; // 앱을 끄기 전까지 마지막으로 띄운 노트 id (sessionStorage — 웹뷰가 살아 있는 동안만 유지)
 let _notesSplitCurrentId = null; // 지금 우측에 열려 있는 노트
 let _notesSplitLastId    = (() => { try { return sessionStorage.getItem(NOTES_SPLIT_LAST_KEY); } catch (_) { return null; } })(); // 다른 탭·페이지에 다녀온 뒤 복원할 노트
 
 function _notesSplitEnabled() {
-  return window.innerWidth >= NOTES_SPLIT_MIN_W;
+  return true;
+}
+// 목록이 악보 위에 덮이는 오버레이 모드(1~2단계, ≤768px)
+function _notesSplitOverlay() {
+  return window.innerWidth <= NOTES_SPLIT_OVERLAY_MAX_W;
+}
+// 오버레이 모드는 노트 탭에 들어올 때마다 접힌 상태로 시작 — 전환 없이 즉시(애니메이션 클래스 안 씀)
+function _notesSplitDefaultCollapsed() {
+  if (!_notesSplitOverlay()) return;
+  _notesSplitCollapsed = true;
+  document.getElementById('tab-view-projects')?.classList.add('notes-split-collapsed');
+  _notesSplitPostState();
 }
 function _notesSplitMarkActive() {
   document.querySelectorAll('.projects-item').forEach(el =>
@@ -2929,7 +2941,8 @@ function _notesSplitClose(keepLast) {
   if (frame && frame.getAttribute('src') && frame.getAttribute('src') !== 'about:blank') frame.src = 'about:blank';
   _notesSplitFrameReady = false;
   // 악보가 비면 펼치기 버튼(악보 제목 옆)도 사라진다 — 목록이 접혀 있었다면 펼쳐 둔다(접힌 채 남으면 다시 펼 방법이 없다)
-  if (_notesSplitCollapsed) {
+  // (오버레이 모드에서 노트가 하나도 없으면 접어 둔다 — 펼치면 목록이 '새 노트를 생성하세요' 빈 화면을 덮는다)
+  if (_notesSplitCollapsed && !(_notesSplitOverlay() && loadProjects().length === 0)) {
     _notesSplitCollapsed = false;
     document.getElementById('tab-view-projects')?.classList.remove('notes-split-collapsed');
   }
@@ -2960,6 +2973,13 @@ function _notesSplitOpen(projectId) {
 function _notesSplitShellSync() {
   document.querySelector('.app-shell')
     ?.classList.toggle('tab-notes-split', _activeTab === 'projects' && _notesSplitEnabled());
+}
+// 홈 안에서 특정 노트 열기 — 노트 탭이면 바로 열고, 아니면 노트 탭으로 전환(전환 시 이 노트가 '마지막 노트'로 열림)
+function _openNoteInHome(projectId) {
+  _notesSplitLastId = projectId;
+  try { sessionStorage.setItem(NOTES_SPLIT_LAST_KEY, projectId); } catch (_) {}
+  if (_activeTab === 'projects') openProject(projectId);
+  else switchTab('projects');
 }
 // 노트 탭에 들어왔을 때 우측에 띄울 노트 — ① 앱 실행 중 마지막으로 띄운 노트(아직 있고 잠기지 않았으면) ② 없으면 목록에서 우선순위가 가장 높은 노트
 // 우선순위는 목록 표시 순서와 같다: 중요(importantOrder) → 즐겨찾기(pinnedOrder) → 최근(updatedAt 내림차순). 잠긴 노트는 건너뜀.
@@ -3015,6 +3035,7 @@ window.addEventListener('message', e => {
   const frame = document.getElementById('notes-split-frame');
   if (!frame || e.source !== frame.contentWindow) return;
   if (e.data?.type === 'notes-split-expand') _notesSplitSetCollapsed(false);
+  else if (e.data?.type === 'plan-sheet-open') openPlanSheet(e.data.triggerSource, e.data.extraProps);
   else if (e.data?.type === 'notes-split-ready') { // iframe이 (다시) 로드돼 첫 렌더를 마침 — 현재 상태 전달, 이후 전환은 메시지로
     _notesSplitFrameReady = true;
     _notesSplitPostState();
@@ -3415,7 +3436,7 @@ function confirmCreateProject() {
   analytics.track('project_created', { total_count: projects.length });
   incrementStat('notes'); // 노트 생성 퀘스트 누적 카운터
   window.Tutorial?.notify('notecreate:done');
-  openProject(newProject.id);
+  _openNoteInHome(newProject.id); // 다른 탭에서 만들었으면 노트 탭으로 전환해 연다
 }
 
 // ═══════════════════════════════════════════════════════════════
@@ -4935,7 +4956,7 @@ function confirmImport(mode) {
   });
   _pendingImportPayload = null;
   renderSidebar(); populateProjectSelect();
-  openProject(targetId);
+  _openNoteInHome(targetId);
 }
 
 function applyImportPayload(projectId, payload, opts) {
@@ -5001,7 +5022,7 @@ async function _consumePendingShareCode() {
   };
   const list = loadProjects(); list.push(p); saveProjects(list);
   applyImportPayload(p.id, payload, { applyBpm: true, applyCapo: true, applyCol: true });
-  location.href = 'user_project.html?id=' + p.id;
+  _openNoteInHome(p.id);
 }
 
 // ── OAuth 리다이렉트 후 처리 (웹 전용, shared.js에서 typeof 가드로 호출) ──
@@ -5418,6 +5439,12 @@ document.addEventListener('DOMContentLoaded', async () => {
   const _reopenSettings = sessionStorage.getItem('reopen_settings') === '1';
   sessionStorage.removeItem('reopen_settings');
   const _initTab       = _reopenSettings ? 'profile' : (_urlParams.get('tab') || 'home');
+  // ?note=ID — 다른 페이지(에디터·코드사전·노트 단독 주소)에서 특정 노트를 열어 달라는 요청. 노트 탭 진입 시 이 노트를 먼저 연다
+  const _noteParam = _urlParams.get('note');
+  if (_noteParam) {
+    _notesSplitLastId = _noteParam;
+    try { sessionStorage.setItem(NOTES_SPLIT_LAST_KEY, _noteParam); } catch (_) {}
+  }
   const _fromProject   = _urlParams.get('from_project');
   const _fromChordId   = _urlParams.get('chord_id');
 

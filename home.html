@@ -52,7 +52,7 @@
           <div class="home-top-banner">
             <div class="htb-intro">
               <div class="htb-intro-title">누구나 기타를 즐기는 세상, 코디터</div>
-              <button class="htb-intro-btn" onclick="showTutorial()"><i data-lucide="chevron-right"></i></button>
+              <button class="htb-intro-btn" style="display:none" onclick="showTutorial()"><i data-lucide="chevron-right"></i></button>
             </div>
             <div class="htb-divider"></div>
             <div class="htb-status">
@@ -159,10 +159,10 @@
               <div class="home-block-title">코드 에디터</div>
               <div class="home-block-desc">코드표 제작 · 이미지 저장</div>
             </div>
-            <div class="home-block home-block--soon home-block--img" id="home-block-journey">
+            <div class="home-block home-block--img" id="home-block-journey" onpointerdown="enterFromBlock(event,this,'journey')">
               <div class="home-block-icon"><i class="ph-bold ph-map-trifold"></i></div>
               <div class="home-block-title">나의 기타 여정</div>
-              <div class="home-block-desc">Coming Soon</div>
+              <div class="home-block-desc">하나씩 따라가는 기타 학습</div>
             </div>
           </div>
         </div>
@@ -752,7 +752,7 @@
         <p class="hint">공유 코드를 입력하면 코드 배열을 노트로 가져올 수 있습니다.</p>
         <input type="text" id="paste-share-input" class="share-code-input"
                placeholder="공유 코드 붙여넣기"
-               style="border:none;box-shadow:0 0 0 1.5px rgba(0,0,0,0.09),0 2px 8px rgba(0,0,0,0.07);font-family:inherit;"
+               style="font-family:inherit;"
                onkeydown="if(event.key==='Enter') triggerManualImport()" />
       </div>
       <div class="modal-footer" style="border-top:none;">

@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <!-- 언어 결정·화면 번역: 다른 스크립트·본문보다 먼저 -->
+  <script src="i18n.js"></script>
+  <meta name="color-scheme" content="light dark" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <title>Chorditor - 나의 기타 여정</title>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css" />
+  <link rel="stylesheet" href="style.css" />
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
+</head>
+<body class="journey-page">
+
+  <!-- 페이지 커버: 초기화 완료 전 화면 가림 -->
+  <div id="page-cover"></div>
+
+  <div class="app-shell">
+
+    <!-- ── 뒤로가기 (style-guide.md §11 cd-topbar, B종) ── -->
+    <header class="cd-topbar cd-topbar--white">
+      <button id="back-btn" class="icon-btn" onpointerup="closeJourney()">
+        <i data-lucide="chevron-left"></i>
+      </button>
+      <div class="topbar-currency" id="topbar-currency" style="margin-left:auto;">
+        <div class="currency-item currency-item--clickable" onclick="openPeakboxModal()">
+          <span class="currency-count" id="currency-peakbox-count">0</span>
+          <div class="currency-icon-box"><img src="image/gift.png" alt=""></div>
+        </div>
+        <div class="currency-item currency-item--clickable" onclick="openPeakTimerPopup(event)">
+          <span class="currency-count" id="currency-peak-count">30/30</span>
+          <div class="currency-icon-box"><img src="image/peak.svg" alt=""></div>
+        </div>
+      </div>
+    </header>
+
+    <main class="cd-main cd-main--white">
+      <header class="cd-head cd-head--sticky journey-head"><div class="journey-head-card">
+        <div class="journey-head-text">
+          <span class="journey-head-label">챕터 1</span>
+          <span class="journey-head-title">기타와 친해지기</span>
+        </div>
+        <button type="button" class="journey-guide-btn" aria-label="가이드"><i data-lucide="book-open"></i></button>
+      </div></header>
+      <section class="cd-body">
+        <div class="journey-stage" id="journey-stage"><svg id="journey-svg" aria-hidden="true"></svg><div id="journey-nodes"></div></div>
+      </section>
+    </main>
+
+  </div><!-- /app-shell -->
+
+  <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.js"></script>
+  <script src="https://unpkg.com/@phosphor-icons/web"></script>
+  <script src="analytics-sdk.js"></script>
+  <script src="shared.js"></script>
+  <script src="journey-numbers.js"></script>
+  <script src="journey.js"></script>
+</body>
+</html>

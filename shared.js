@@ -2297,6 +2297,9 @@ const PENDING_SHARE_CODE_KEY = 'np_pending_share_code';
 window._handleShareImport = function(rawCode) {
   sessionStorage.setItem(PENDING_SHARE_CODE_KEY, rawCode);
   if (typeof _consumePendingShareCode === 'function') _consumePendingShareCode();
+  // 코드 사전은 처리 함수가 없는 별도 페이지 — 저장만 해두면 홈에 갈 때까지 노트가 안 생기므로 홈으로 보내 즉시 처리시킨다
+  // (코드 에디터는 작업 중인 코드가 날아갈 수 있어 보내지 않음 — 홈에 돌아갈 때 처리됨)
+  else if (_currentPageName() === 'library.html') location.href = 'home.html';
 };
 
 // ── RevenueCat (인앱 결제) ─────────────────────────────────────
@@ -2578,6 +2581,10 @@ async function _applyStorePrices() {
 }
 
 function openPlanSheet(triggerSource, extraProps) {
+  // 노트 스플릿의 악보 iframe(embed=1) 안에서는 시트가 카드 크기에 갇힌다 → 부모(home.html)에 맡겨 화면 전체 기준으로 연다
+  if (window.parent !== window && /[?&]embed=1/.test(location.search)) {
+    try { window.parent.postMessage({ type: 'plan-sheet-open', triggerSource, extraProps }, '*'); return; } catch (_) {}
+  }
   const overlay = document.getElementById('plan-sheet-overlay');
   const sheet   = document.getElementById('plan-sheet');
   if (!sheet) return;
@@ -5690,6 +5697,14 @@ function chordToVoicing(chord) {
   };
 }
 if (typeof window !== 'undefined') window.chordToVoicing = chordToVoicing;
+
+// ── 폴드/플립 힌지 띠 토글 (개발자 전용) ──
+// 기본은 style.css에서 숨김. Ctrl+Shift+H 로 body.hinge-debug 토글(저장 안 함 — 새로고침하면 다시 숨김).
+document.addEventListener('keydown', (e) => {
+  if (!(e.ctrlKey && e.shiftKey && (e.key === 'H' || e.key === 'h'))) return;
+  e.preventDefault();
+  document.body.classList.toggle('hinge-debug');
+});
 
 // ── 그리드 시스템 디버그 오버레이 (docs/style-guide.md §5) ──
 // 실제 레이아웃엔 미적용, 눈으로 확인만 하는 용도. 'G' 키로 토글.

@@ -1,5 +1,7 @@
 :root {
   color-scheme: light dark; /* dark�?'지???�로 ?�언?�야 ?�성?�터???�이 강제 ?�동반전?????? ?�제 ?��? ?�래 prefers-color-scheme:dark 블록?�서 ?�이?�로 고정 */
+  --note-icon-btn: 32px; /* 노트 화면 원형 아이콘 버튼 박스 — 악보탭(embed)과 목록 패널이 같은 변수를 읽는다 */
+  --note-icon-svg: 22px; /* 그 안의 아이콘 */
   --bg: #FEFEFD; /* hook test */
   --surface: #ffffff;
   --border: #d9d4cc;
@@ -3103,6 +3105,21 @@ canvas {
 }
 .modal-overlay.hidden { display: none; }
 
+/* 공유하기 모달 — 뒷배경 음영 없음 */
+/* 마디 정보 수정 모달 — 오버레이 페이드 + 카드 팝 */
+#row-meter-overlay {
+  animation: modal-overlay-in 0.2s ease both;
+}
+#row-meter-overlay .modal {
+  animation: modal-scale-in 0.25s cubic-bezier(0.34, 1.56, 0.64, 1) both;
+}
+#modal-share { background: transparent; }
+#modal-share .modal {
+  border: 1px solid #fff;
+  box-shadow: 0 1px 2px rgba(0,0,0,0.06), 0 6px 16px rgba(0,0,0,0.10), 0 20px 48px rgba(0,0,0,0.16);
+  animation: modal-scale-in 0.25s cubic-bezier(0.34, 1.56, 0.64, 1) both;
+}
+
 #modal-create-project,
 #modal-rename-project {
   animation: modal-overlay-in 0.2s ease both;
@@ -4898,6 +4915,13 @@ canvas {
   background: var(--bg); color: var(--text-primary);
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
+/* 새 노트·공유 코드 불러오기·공유하기 모달 — 구분선 없음, 입력창은 알약형 #f5f5f5 */
+#modal-create-project .modal-header, #modal-paste-share .modal-header, #modal-share .modal-header { border-bottom: none; }
+#modal-create-project .modal-footer, #modal-paste-share .modal-footer, #modal-share .modal-footer { border-top: none; }
+#modal-create-project .share-code-input, #modal-paste-share .share-code-input, #modal-share .share-code-input {
+  border: none; border-radius: 999px; background: #f5f5f5; box-shadow: none;
+  padding: 10px 16px; outline: none;
+}
 /* 공유 모달: 코드 아래 공유 채널 아이콘 줄 — 좌측부터 순서대로 붙이고 우측은 비워둠(향후 카톡 등 추가용) */
 .share-icon-row { display: flex; gap: 12px; justify-content: flex-start; }
 .share-icon-btn {
@@ -5280,67 +5304,44 @@ canvas {
   justify-content: center;
 }
 
-/* 노트 저장 방식 선택 모달 (이미지 저장 / 텍스트 복사) — 정사각 근접, 2열 카드 */
-.note-save-modal {
-  position: relative;
+/* 노트 저장 방식 선택 — 저장 버튼 하단 팝업 리스트 (위치는 openNoteSaveChoice가 버튼 기준으로 지정) */
+.note-save-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  background: transparent;
+}
+.note-save-overlay.hidden { display: none; }
+.note-save-popup {
+  position: fixed;
+  display: flex;
+  flex-direction: column;
+  min-width: 176px;
+  padding: var(--space-1);
   background: #ffffff;
   border-radius: var(--radius);
-  width: 264px;
-  max-width: 90vw;
-  padding: 24px 20px;
-  box-sizing: border-box;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 18px;
-  box-shadow: 0 8px 32px rgba(0,0,0,0.18);
+  box-shadow: 0 0 0 1px rgba(0,0,0,0.06), 0 8px 24px rgba(0,0,0,0.16);
+  transform-origin: top right;
+  animation: note-save-pop-in .18s cubic-bezier(0.22, 1, 0.36, 1) both;
 }
-.note-save-crown {
-  position: absolute;
-  top: 12px;
-  right: 12px;
-  font-size: 18px;
-  line-height: 1;
-  color: #E07B00;
+@keyframes note-save-pop-in {
+  from { opacity: 0; transform: translateY(-6px) scale(0.95); }
+  to   { opacity: 1; transform: none; }
 }
-.note-save-title {
-  font-size: 16px;
-  font-weight: 700;
+@media (prefers-reduced-motion: reduce) { .note-save-popup { animation: none; } }
+.note-save-item {
+  padding: var(--space-3) var(--space-4);
+  border: none;
+  border-radius: calc(var(--radius) - 4px);
+  background: none;
   color: var(--text-primary);
-}
-.note-save-opts {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 12px;
-  width: 100%;
-}
-.note-save-opt {
-  aspect-ratio: 4 / 5;
-  background: var(--bg);
-  border: 1px solid var(--border);
-  border-radius: 12px;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 12px;
-  padding: 10px;
+  font-family: inherit;
+  font-size: var(--font-label-lg);
+  text-align: left;
+  white-space: nowrap;
   cursor: pointer;
-  transition: background .15s, border-color .15s, transform .1s;
 }
-.note-save-opt:active { transform: scale(0.96); }
-.note-save-opt-icon {
-  width: 34px;
-  height: 34px;
-  color: var(--text-secondary);
-}
-.note-save-opt-label {
-  font-size: 12px;
-  font-weight: 400;
-  color: var(--text-primary);
-  text-align: center;
-  line-height: 1.4;
-}
+.note-save-item:active { background: var(--bg); }
 
 .upgrade-modal { max-width: 320px; }
 .upgrade-modal-body {
@@ -8916,6 +8917,7 @@ canvas {
 .palette-dict-card .lib-panel-tools {
   position: absolute;
   top: 0;
+  bottom: 0;   /* 머리 줄 높이를 채워 align-items:center가 먹게(없으면 토글이 위로 쏠림) */
   right: 0;
   display: flex;
   align-items: center;
@@ -9357,6 +9359,7 @@ canvas {
   #view-library .lib-panel-tools {
     position: absolute;
     top: 0;
+    bottom: 0;   /* 머리 줄 높이를 채워 align-items:center가 먹게(없으면 토글이 위로 쏠림) */
     right: 0;
     display: flex;
     align-items: center;
@@ -18830,6 +18833,10 @@ html:not([lang="ko"]) .test-note-grid {
   }
 }
 
+/* 위 DEV ONLY 힌지 띠 전부 기본 숨김 — 개발자 단축키(Ctrl+Shift+H, shared.js)로 body.hinge-debug 붙였을 때만 표시.
+   특이도(body:not(.x)::after)가 위 body::after보다 높아 파일 순서와 무관하게 이김 */
+body:not(.hinge-debug)::after { display: none; }
+
 /* 데스크탑+랩탑(1600px~) 전용 — 하단탭 대신 좌측 사이드바 목록, 항상 노출
    (2026-08-31: 데스크탑 경계 1440→1600으로 상향. 랩탑(1600/1920 등)은 그대로 커버되지만
    Tab S10 FE+ 가로(1440px)는 이제 경계 아래로 빠져 태블릿가로/랩탑 레이아웃(사이드바 없음)으로
@@ -22777,9 +22784,18 @@ body.note-edit-page.embed .project-inner {
 }
 /* 원형 아이콘 버튼 크기 고정 — 좌측 패널을 접고 펼쳐 iframe 폭이 바뀌어도(787px 경계 등) 32/18px 그대로 (style-guide §8 769~1599px 값) */
 body.note-edit-page.embed {
-  --icon-circle-size: 32px;
-  --icon-circle-svg: 18px;
+  --icon-circle-size: var(--note-icon-btn);
+  --icon-circle-svg: var(--note-icon-svg);
 }
+/* 악보탭 헤더 원형 아이콘 버튼 — 흰 원·링 제거, 아이콘만(켜짐 상태 .active의 채움은 유지) */
+body.note-edit-page.embed .project-icon-btn,
+body.note-edit-page.embed .metronome-btn:not(.active),
+body.note-edit-page.embed .play-all-btn,
+body.note-edit-page.embed .slot-toggle-btn:not(.active) {
+  background: transparent;
+  box-shadow: none;
+}
+body.note-edit-page.embed .project-icon-btn:active { box-shadow: none; }
 body.note-edit-page.embed .project-header {
   margin-top: var(--notes-split-gap-y);
 }
@@ -22923,7 +22939,7 @@ body.embed.list-collapsed .notes-split-expand-btn {
 }
 /* 좌측 접기 버튼(.projects-list-header-actions .icon-btn)과 같은 아이콘 크기·색 */
 body.embed .notes-split-expand-btn { color: var(--text-primary); }
-body.embed .notes-split-expand-btn svg { width: 22px; height: 22px; }
+body.embed .notes-split-expand-btn svg { width: var(--note-icon-svg); height: var(--note-icon-svg); }
 body.embed.list-collapsed .project-title-bar { padding-left: 38px; }   /* 버튼 30px + 간격 8px */
 @keyframes notes-split-expand-in { from { opacity: 0; } to { opacity: 1; } }
 
@@ -22940,4 +22956,183 @@ body.embed.list-collapsed .project-title-bar { padding-left: 38px; }   /* 버튼
   letter-spacing: -0.02em;
   vertical-align: middle;
   white-space: nowrap;
+}
+
+/* ── 노트 스플릿: 목록 패널 아이콘 크기 = 악보탭 아이콘 크기 ──
+   악보탭(user_project 임베드)의 원형 아이콘 버튼은 32px 박스 + 18px 아이콘(body.embed --icon-circle-size/svg)이므로 목록 패널도 같은 값.
+   헤더 버튼(불러오기·새 노트·접기)과 항목 버튼(삭제·고정·중요·케밥) 모두 해당. 악보 쪽 값을 바꾸면 여기도 같이 */
+#tab-view-projects.notes-split .projects-list-header-actions .icon-btn,
+#tab-view-projects.notes-split .projects-item-actions button,
+#tab-view-projects.notes-split .projects-item-kebab {
+  box-sizing: border-box;
+  width: var(--note-icon-btn) !important;
+  height: var(--note-icon-btn) !important;
+  padding: 0;
+  justify-content: center;
+}
+#tab-view-projects.notes-split .projects-list-header-actions .icon-btn svg,
+#tab-view-projects.notes-split .projects-item-actions button svg,
+#tab-view-projects.notes-split .projects-item-kebab svg {
+  width: var(--note-icon-svg) !important;
+  height: var(--note-icon-svg) !important;
+}
+/* 헤더 버튼 — 원형 배경 없이 아이콘만, 간격은 악보탭 헤더와 같게 */
+#tab-view-projects.notes-split .projects-list-header-actions {
+  gap: 6px;
+}
+
+/* ── 노트 스플릿: 1~2단계(≤768px, 모바일·작은 태블릿) 카드 뒤 페이지 모드 ──
+   악보 카드와 목록 카드는 같은 크기·같은 자리(전체 폭, 사방 12px 여백)에 겹쳐 있고, 목록 페이지가 악보 카드 뒤에 있다.
+   목록을 열면 악보 카드가 오른쪽 화면 밖으로 완전히 넘어가며 뒤의 목록 페이지가 드러난다(닫기는 목록 헤더의 접기 버튼 또는 노트 선택).
+   기본값은 접힘(= 악보 카드가 목록을 완전히 덮음, home.js _notesSplitDefaultCollapsed). 769px~는 위 나란히 배치 그대로 */
+@media (max-width: 768px) {
+  #tab-view-projects.notes-split {
+    --notes-split-list-w: 100%;
+  }
+  /* 악보 패널 — 항상 전체 폭, 투명(뒤의 목록 페이지가 보여야 함). 열린 동안은 터치가 목록으로 통과한다 */
+  #tab-view-projects.notes-split .notes-split-pane,
+  #tab-view-projects.notes-split.notes-split-collapsed .notes-split-pane,
+  #tab-view-projects.notes-split.notes-split-animating .notes-split-pane {
+    left: 0;
+    padding: 12px;
+    background: transparent;
+    overflow: hidden;   /* 밀려난 카드의 화면 밖 부분을 자름 */
+    z-index: 2;
+  }
+  #tab-view-projects.notes-split:not(.notes-split-collapsed) .notes-split-pane {
+    pointer-events: none;
+  }
+  /* 목록 페이지 — 악보 카드와 같은 자리·같은 크기의 카드 (악보 카드 뒤) */
+  #tab-view-projects.notes-split #view-projects-list,
+  #tab-view-projects.notes-split.notes-split-collapsed #view-projects-list {
+    z-index: 1;
+    padding: 12px;
+    transform: none;
+    background: var(--bg);
+  }
+  #tab-view-projects.notes-split .projects-list-container {
+    min-height: 0;
+  }
+  /* 악보 카드 — 접힘: 제자리 / 펼침: 오른쪽 화면 밖으로 완전히 넘어감(패널 overflow:hidden이 잘라 안 보임) */
+  #tab-view-projects.notes-split.notes-split-collapsed .notes-split-card {
+    transform: none;
+  }
+  #tab-view-projects.notes-split:not(.notes-split-collapsed) .notes-split-card,
+  #tab-view-projects.notes-split.notes-split-animating:not(.notes-split-collapsed) .notes-split-card {
+    transform: translateX(calc(100% + 24px));   /* 카드 폭 + 패널 좌우 여백 12px×2 → 화면 밖 */
+  }
+  #tab-view-projects.notes-split.notes-split-run .notes-split-card {
+    transition: transform .28s cubic-bezier(.22,.61,.36,1);
+  }
+}
+
+/* ══════════════════════════════════════════════════════════════
+   나의 기타 여정 (journey.html) — 6줄 사인파 경로 + 교차점 노드(눕힌 디스크)
+   노드 x/y와 줄 곡선은 journey.js가 같은 사인 함수로 계산한다.
+   디스크 = 윗면 타원 + 아래로 쌓인 단색 그림자 8겹(옆면 두께). 눌리면 두께만큼 내려앉음.
+   ══════════════════════════════════════════════════════════════ */
+/* 헤더 — 흰 카드(높이 80px) 하나. 스크롤 영역 밖에 고정, 바깥 영역은 투명해서 경로가 카드 주변으로 비침. 탑바·경로와 상하 여백 없이 붙음.
+   내용은 아직 비어 있음(챕터 제목 자리) */
+.journey-head { padding-top: 0; background: transparent; }
+.journey-head-card {
+  height: 80px;
+  box-sizing: border-box;
+  background: var(--surface);
+  border: 1px solid #fff;
+  border-radius: var(--radius-lg);
+  box-shadow: 0 1px 2px rgba(0,0,0,0.06), 0 5px 6px -2px rgba(0,0,0,0.22);
+  display: flex;
+  align-items: stretch;
+  overflow: hidden;   /* 우측 버튼의 눌림 배경이 카드 모서리에 맞게 잘리도록 */
+}
+.journey-head-text {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: var(--space-1);
+  padding: 0 var(--space-5);
+}
+.journey-head-label {
+  font: var(--type-label-sm);
+  letter-spacing: var(--tracking-base);
+  color: var(--text-secondary);
+}
+.journey-head-title {
+  font: var(--type-title);
+  letter-spacing: var(--tracking-base);
+  color: var(--text-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+/* 우측 영역 전체가 가이드 버튼 — 세로 구분선(왼쪽 테두리)으로 영역을 가름 */
+.journey-guide-btn {
+  flex-shrink: 0;
+  width: 80px;
+  border: 0;
+  border-left: 1px solid var(--gray-light);
+  background: none;
+  padding: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-primary);
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+.journey-guide-btn:active { background: var(--bg); }
+.journey-guide-btn svg { width: var(--cd-icon-btn-icon); height: var(--cd-icon-btn-icon); }
+/* 스크롤은 본문(cd-body)만 한다 — 헤더 카드는 스크롤 영역 밖이라, 경로·노드는 카드 아랫변에서 딱 잘려 보인다. */
+.journey-page .cd-main { overflow: hidden; padding-bottom: 0; }
+.journey-page .journey-head { position: relative; }
+.journey-page .cd-body {
+  align-items: center;
+  margin-top: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+  padding-bottom: calc(var(--space-6) + env(safe-area-inset-bottom));
+}
+.journey-page .cd-body::-webkit-scrollbar { display: none; }
+.journey-stage {
+  position: relative;
+  flex-shrink: 0;
+  margin: 0 auto;
+}
+.journey-stage > svg { position: absolute; left: 0; top: 0; display: block; pointer-events: none; }
+.journey-node {
+  --jd-side: #d3d0ca;   /* 옆면 색 */
+  --jd-edge: 8px;       /* 옆면 두께 */
+  position: absolute;
+  width: 68px;
+  height: 52px;
+  margin: -26px 0 0 -34px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: #f5f5f5;
+  color: #86827c;   /* 비활성 숫자 — #f5f5f5 디스크 위 대비 3.5:1 */
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: default;
+  -webkit-tap-highlight-color: transparent;
+  box-shadow:
+    0 1px 0 var(--jd-side), 0 2px 0 var(--jd-side), 0 3px 0 var(--jd-side), 0 4px 0 var(--jd-side),
+    0 5px 0 var(--jd-side), 0 6px 0 var(--jd-side), 0 7px 0 var(--jd-side), 0 8px 0 var(--jd-side),
+    0 14px 14px -4px rgba(0,0,0,0.18);
+  transition: transform .1s, box-shadow .1s;
+}
+/* 활성(현재) 노드 — 블루 디스크 + 흰 숫자 */
+.journey-node--active { --jd-side: #5275c6; background: #6a97ff; color: #fff; }
+.journey-num { width: 38px; height: 38px; display: block; flex-shrink: 0; } /* 숫자 높이 약 22px(58/100 비율) */
+.journey-node::before { content: ''; position: absolute; inset: -8px -6px -14px; border-radius: 50%; }
+.journey-node:active {
+  transform: translateY(6px);
+  box-shadow:
+    0 1px 0 var(--jd-side), 0 2px 0 var(--jd-side),
+    0 4px 6px -2px rgba(0,0,0,0.18);
 }

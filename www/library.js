@@ -1105,7 +1105,7 @@ function confirmCreateProject() {
   analytics.track('project_created', { total_count: projects.length });
   incrementStat('notes'); // 노트 생성 퀘스트 누적 카운터
   window.Tutorial?.notify('notecreate:done');
-  _leaveLibrary('user_project.html?id=' + newProject.id);
+  _leaveLibrary('home.html?tab=projects&return=1&note=' + newProject.id);
 }
 
 function closeModal(id) {

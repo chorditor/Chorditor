@@ -1,0 +1,193 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>나의 기타 여정 목업</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css" />
+<link rel="stylesheet" href="../style.css" />
+<style>
+  /* 나의 기타 여정 경로 화면 목업 (내부 전용, 앱과 무관) — style.css 토큰만 참조.
+     6줄 사인파 + 교차점 노드(원형). 노드 x/y와 줄 곡선은 같은 사인 함수로 계산한다. */
+  html, body { height: auto; overflow: visible; }
+  body {
+    margin: 0;
+    padding: 24px 16px 64px;
+    background: #ececea;
+    font-family: 'Pretendard', sans-serif;
+    color: var(--text-primary);
+  }
+  body, body * { user-select: auto; -webkit-user-select: auto; }
+
+  .jm-ctl {
+    max-width: 360px;
+    margin: 0 auto 16px;
+    padding: 12px 16px;
+    background: #fff;
+    border-radius: 12px;
+    display: grid;
+    gap: 6px;
+    font-size: 12px;
+    color: var(--text-secondary);
+  }
+  .jm-ctl-row { display: flex; align-items: center; gap: 8px; }
+  .jm-ctl-row label { width: 64px; flex-shrink: 0; }
+  .jm-ctl-row input { flex: 1; min-width: 0; }
+  .jm-ctl-row output { width: 28px; text-align: right; color: var(--text-primary); font-weight: 600; }
+
+  .jm-phone {
+    position: relative;
+    width: 360px;
+    margin: 0 auto;
+    background: #fff;
+    border-radius: 28px;
+    overflow: hidden;
+    box-shadow: 0 12px 40px rgba(0, 0, 0, 0.12);
+  }
+  .jm-top {
+    display: flex;
+    align-items: center;
+    height: 56px;
+    padding: 0 20px;
+    font: var(--type-title);
+    letter-spacing: var(--tracking-base);
+    font-weight: 700;
+  }
+  .jm-stage { position: relative; }
+  .jm-stage svg { position: absolute; left: 0; top: 0; display: block; }
+
+  /* 노드 — 흰 원 + 부드러운 음영(새 UI 스타일). 현재 위치만 --brand 채움 */
+  .jm-node {
+    position: absolute;
+    width: 56px;
+    height: 56px;
+    margin: -28px 0 0 -28px;
+    padding: 0;
+    border: 1px solid #fff;
+    border-radius: 50%;
+    background: var(--surface);
+    color: var(--text-secondary);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    box-shadow: 0 1px 2px rgba(0,0,0,0.06), 0 6px 16px rgba(0,0,0,0.10);
+    transition: transform .12s, box-shadow .12s;
+  }
+  .jm-node::before { content: ''; position: absolute; inset: -6px; }
+  .jm-node:active { transform: scale(0.94); }
+  .jm-node svg { width: 24px; height: 24px; }
+  .jm-node.cur {
+    background: var(--brand);
+    border-color: var(--brand);
+    color: #fff;
+    box-shadow: 0 0 0 6px rgba(26,26,26,0.08), 0 6px 16px rgba(0,0,0,0.18);
+  }
+  .jm-node.lock {
+    background: #f5f5f5;
+    border-color: #f5f5f5;
+    color: var(--text-muted);
+    box-shadow: none;
+  }
+  /* 챕터 알약 — 교차점 노드 옆 */
+  .jm-pill {
+    position: absolute;
+    transform: translateY(-50%);
+    padding: 5px 12px;
+    border-radius: 999px;
+    background: #fff;
+    box-shadow: 0 1px 4px rgba(0,0,0,0.12);
+    font-size: var(--font-label-sm);
+    color: var(--text-primary);
+    white-space: nowrap;
+  }
+</style>
+</head>
+<body>
+
+<div class="jm-ctl">
+  <div class="jm-ctl-row"><label>반파장 노드</label><input type="range" id="N" min="2" max="6" step="1" value="4"><output id="oN"></output></div>
+  <div class="jm-ctl-row"><label>진폭</label><input type="range" id="A" min="0" max="110" step="2" value="64"><output id="oA"></output></div>
+  <div class="jm-ctl-row"><label>노드 간격</label><input type="range" id="S" min="64" max="120" step="2" value="84"><output id="oS"></output></div>
+  <div class="jm-ctl-row"><label>줄 퍼짐</label><input type="range" id="G" min="0" max="12" step="1" value="5"><output id="oG"></output></div>
+  <div class="jm-ctl-row"><label>줄 두께</label><input type="range" id="T" min="0.5" max="2.5" step="0.1" value="1.4"><output id="oT"></output></div>
+  <div class="jm-ctl-row"><label>줄 수</label><input type="range" id="K" min="3" max="6" step="1" value="6"><output id="oK"></output></div>
+  <div class="jm-ctl-row"><label>노드 수</label><input type="range" id="C" min="5" max="20" step="1" value="9"><output id="oC"></output></div>
+</div>
+
+<div class="jm-phone">
+  <div class="jm-top">나의 기타 여정</div>
+  <div class="jm-stage" id="stage"><svg id="svg" width="360" aria-hidden="true"></svg><div id="nodes"></div></div>
+</div>
+
+<script>
+(function () {
+  var W = 360, CX = 180, Y0 = 56;
+  var cur = 3;
+  var $ = function (i) { return document.getElementById(i); };
+  var ids = ['N', 'A', 'S', 'G', 'T', 'K', 'C'];
+  var ICON = {
+    check: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>',
+    play: '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M8 5.5v13a1 1 0 0 0 1.5.86l10.5-6.5a1 1 0 0 0 0-1.72L9.5 4.64A1 1 0 0 0 8 5.5z"/></svg>',
+    lock: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="11" width="14" height="9" rx="2.5"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></svg>'
+  };
+  function val(k) { return parseFloat($(k).value); }
+
+  function render() {
+    var N = val('N'), A = val('A'), S = val('S'), G = val('G'), T = val('T'), K = val('K'), C = val('C');
+    if (cur > C - 1) cur = C - 1;
+    $('oN').textContent = N; $('oA').textContent = A; $('oS').textContent = S; $('oG').textContent = G;
+    $('oT').textContent = T.toFixed(1); $('oK').textContent = K; $('oC').textContent = C;
+
+    var H = N * S;
+    var total = Y0 + (C - 1) * S + Y0;
+    var svg = $('svg');
+    $('stage').style.height = total + 'px';
+    svg.setAttribute('height', total);
+    svg.setAttribute('viewBox', '0 0 ' + W + ' ' + total);
+
+    var progY = Y0 + cur * S;
+    var pr = (progY / total).toFixed(4);
+    var paths = '';
+    for (var k = 0; k < K; k++) {
+      var c = (k - (K - 1) / 2) * G;
+      var amp = A + c;
+      var d = '';
+      for (var y = 0; y <= total; y += 4) {
+        var x = CX + amp * Math.sin(Math.PI * (y - Y0) / H);
+        d += (y === 0 ? 'M' : 'L') + x.toFixed(1) + ' ' + y;
+      }
+      var w = T - T * 0.5 * (K > 1 ? k / (K - 1) : 0);
+      paths += '<path d="' + d + '" fill="none" stroke="url(#grad)" stroke-width="' + w.toFixed(2) + '" stroke-linecap="round" stroke-linejoin="round"/>';
+    }
+    var grad = '<defs><linearGradient id="grad" gradientUnits="userSpaceOnUse" x1="0" y1="0" x2="0" y2="' + total + '">' +
+      '<stop offset="0" stop-color="#b9b6b0"/><stop offset="' + pr + '" stop-color="#b9b6b0"/>' +
+      '<stop offset="' + pr + '" stop-color="#e3e1dc"/><stop offset="1" stop-color="#e3e1dc"/></linearGradient></defs>';
+    svg.innerHTML = grad + paths;
+
+    var html = '';
+    for (var i = 0; i < C; i++) {
+      var yy = Y0 + i * S;
+      var xx = CX + A * Math.sin(Math.PI * i / N);
+      var cls = i < cur ? 'jm-node' : (i === cur ? 'jm-node cur' : 'jm-node lock');
+      var ic = i < cur ? ICON.check : (i === cur ? ICON.play : ICON.lock);
+      html += '<button type="button" class="' + cls + '" data-i="' + i + '" style="left:' + xx.toFixed(1) + 'px;top:' + yy + 'px" aria-label="레슨 ' + (i + 1) + '">' + ic + '</button>';
+      if (i % (2 * N) === 0) {
+        html += '<span class="jm-pill" style="left:' + (xx + 40).toFixed(1) + 'px;top:' + yy + 'px">챕터 ' + (i / (2 * N) + 1) + '</span>';
+      }
+    }
+    $('nodes').innerHTML = html;
+  }
+
+  ids.forEach(function (k) { $(k).addEventListener('input', render); });
+  $('nodes').addEventListener('click', function (e) {
+    var b = e.target.closest('.jm-node');
+    if (!b) return;
+    cur = parseInt(b.getAttribute('data-i'), 10);
+    render();
+  });
+  render();
+})();
+</script>
+</body>
+</html>
