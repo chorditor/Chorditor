@@ -1775,6 +1775,13 @@ async function initSupabase() {
     const CapApp = window.Capacitor?.Plugins?.App;
     if (CapApp) {
       CapApp.addListener('appUrlOpen', async ({ url }) => {
+        // iOS 공유 링크 딥링크(chorditor://import?code=…) — Android는 MainActivity가 직접 전달하므로 중복 처리 방지로 iOS만
+        if (_isIOSNative() && url?.startsWith('chorditor://import')) {
+          let code = null;
+          try { code = new URL(url.replace('chorditor://', 'https://x.com/')).searchParams.get('code'); } catch (_) {}
+          if (code && window._handleShareImport) window._handleShareImport(code);
+          return;
+        }
         if (!url?.includes('auth-callback')) return;
         try {
           const fakeBase = 'https://x.com/';
@@ -4771,7 +4778,7 @@ async function makeupAttendance() {
   _attState = { day: res.day, makeup_left: res.makeup_left, full: !!res.full, loaded: true };
   renderPeakboxBadge();
   // 재렌더 UI는 호출부(attendance.html) 몫 — 모달 자동오픈 로직은 페이지 전환으로 대체되며 제거됨
-  if (res.reward > 0) setTimeout(() => showPeakboxRewardModal(res.reward), STAMP_ANIM_MS + 150);
+  if (res.reward > 0) setTimeout(() => showPeakboxRewardModal(res.reward, undefined, { source: 'attendance_milestone' }), STAMP_ANIM_MS + 150);
   return res;
 }
 
@@ -4795,7 +4802,7 @@ function showPeakboxRewardModal(count, onClose, opts) {
     onButton: closePeakReveal,
     onClose: onClose,
   });
-  if (typeof analytics !== 'undefined') analytics.track('attendance_milestone_reward', { peakbox: count });
+  if (typeof analytics !== 'undefined') analytics.track('attendance_milestone_reward', { peakbox: count, source: (opts && opts.source) || 'other' });
 }
 
 // ── 1.3.0 업데이트 감사 이벤트 (기존 유저 대상 1회성 픽박스 50개 지급) ──
@@ -4820,7 +4827,7 @@ async function claimEventThanks130() {
   if (!r || !r.ok) return;
   _peakState = { ..._peakState, peakbox_count: r.peakbox_count, loaded: true };
   renderPeakboxBadge();
-  showPeakboxRewardModal(r.reward);
+  showPeakboxRewardModal(r.reward, undefined, { source: 'event_130' });
   if (typeof analytics !== 'undefined') analytics.track('event_130_claimed', { reward: r.reward });
 }
 

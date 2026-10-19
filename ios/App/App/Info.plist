@@ -27,6 +27,12 @@
 		<dict>
 			<key>CFBundleURLSchemes</key>
 			<array>
+				<string>chorditor</string>
+			</array>
+		</dict>
+		<dict>
+			<key>CFBundleURLSchemes</key>
+			<array>
 				<string>com.googleusercontent.apps.495859421223-8r885stvann74g1p7knuso7g6r1rmpm0</string>
 			</array>
 		</dict>

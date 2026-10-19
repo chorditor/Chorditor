@@ -1931,7 +1931,7 @@ function _msShowRewardModal(kind, R, proDoubled) {
   const showAdBtn = MissionAdProvider.isEligible() && !_msRewardIsClaimed(kind + '_ad');
   if (!showAdBtn) {
     // 선택지가 없으면 앱 공용 피크상자 획득 연출(reward.mp3 + gift 등장)을 그대로 사용
-    showPeakboxRewardModal(R.box);
+    showPeakboxRewardModal(R.box, undefined, { source: 'mission_reward' });
     return;
   }
   showPeakReveal(null, {
@@ -2168,7 +2168,7 @@ function _msShowRewardPopup(kind, onDone) {
     setTimeout(() => showPeakboxRewardModal(boxes, () => {
       _msResultSyncGiftLabel();
       if (typeof onDone === 'function') onDone();
-    }, proBonusGiven ? { subText: 'Pro 보상 2배 적용!' } : null), 240);
+    }, proBonusGiven ? { subText: 'Pro 보상 2배 적용!', source: 'mission_reward' } : { source: 'mission_reward' }), 240);
   };
 
   document.getElementById('ms-reward-popup-ok').onclick = () => { _playTap(); settle(false); };
@@ -3258,7 +3258,7 @@ async function _msRunStampFlow(onDone) {
     if (isRewardDay) {
       setTimeout(() => {
         ov.classList.remove('ms-stamp-overlay--show');
-        setTimeout(() => showPeakboxRewardModal(res.reward, onDone), 240);
+        setTimeout(() => showPeakboxRewardModal(res.reward, onDone, { source: 'attendance_milestone' }), 240);
       }, 500); // 도장이 찍힌 걸 눈에 담을 짧은 여유 — 곧바로 다음 팝업으로 넘어가면 너무 급하다
       return;
     }

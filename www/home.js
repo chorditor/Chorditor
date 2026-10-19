@@ -3800,11 +3800,11 @@ async function submitProfileCode() {
 
     // 상자+pro 동시 지급이면 pro 모달 먼저 → 닫힌 뒤 상자 모달
     // (쿠폰 내용 안내가 먼저 오고 보상 연출이 뒤따르는 순서)
-    const showBoxIfAny = () => { if (r.peakbox > 0) showPeakboxRewardModal(r.peakbox); };
+    const showBoxIfAny = () => { if (r.peakbox > 0) showPeakboxRewardModal(r.peakbox, undefined, { source: 'promo_code' }); };
     if (r.pro_days > 0) {
       showPromoProModal(r, showBoxIfAny);
     } else if (r.peakbox > 0) {
-      showPeakboxRewardModal(r.peakbox); // 기존 피크상자 수령 모달 재사용
+      showPeakboxRewardModal(r.peakbox, undefined, { source: 'promo_code' }); // 기존 피크상자 수령 모달 재사용
     } else {
       showCodeResultModal('success');
     }
