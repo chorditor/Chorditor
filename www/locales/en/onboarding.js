@@ -1,10 +1,11 @@
 // 영어 사전 — 온보딩(onboarding.html / onboarding.js)
 I18N.add('en', {
   exact: {
-    '기타 코드표 제작 도구': 'Guitar chord chart maker',
+    '내 손안에 작은 기타 선생님': 'A little guitar teacher in your hand',
     '로그인 중...': 'Signing in...',
     '다른 계정으로 변경': 'Use a different account',
-    'Google 계정으로 계속하기': 'Continue with Google',
+    'Google로 계속하기': 'Continue with Google',
+    'Apple로 계속하기': 'Continue with Apple',
     '외부 브라우저에서 열어주세요': 'Please open in your browser',
     '현재 인앱 브라우저에서는 Google 로그인이 제한됩니다.': "Google sign-in isn't available in this in-app browser.",
     'Chrome 또는 Safari에서 다시 열어주세요.': 'Please reopen this page in Chrome or Safari.',

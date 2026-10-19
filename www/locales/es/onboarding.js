@@ -1,10 +1,11 @@
 // 스페인어 사전 — 온보딩(onboarding.html / onboarding.js)
 I18N.add('es', {
   exact: {
-    '기타 코드표 제작 도구': 'Creador de diagramas de acordes',
+    '내 손안에 작은 기타 선생님': 'Un pequeño profesor de guitarra en tu mano',
     '로그인 중...': 'Iniciando sesión...',
     '다른 계정으로 변경': 'Usar otra cuenta',
-    'Google 계정으로 계속하기': 'Continuar con Google',
+    'Google로 계속하기': 'Continuar con Google',
+    'Apple로 계속하기': 'Continuar con Apple',
     '외부 브라우저에서 열어주세요': 'Ábrelo en tu navegador',
     '현재 인앱 브라우저에서는 Google 로그인이 제한됩니다.': 'El inicio de sesión con Google no funciona en este navegador integrado.',
     'Chrome 또는 Safari에서 다시 열어주세요.': 'Vuelve a abrir esta página en Chrome o Safari.',

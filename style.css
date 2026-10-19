@@ -5577,6 +5577,44 @@ canvas {
   text-align: center;
 }
 
+/* 온보딩 메인 카드: 브랜드(로고·이름·부제) 묶음 / 액션(로그인 버튼 등) 묶음 */
+.onboarding-brand,
+.onboarding-actions {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 16px;
+}
+.onboarding-brand .onboarding-desc { margin-bottom: 0; }
+/* 메인 온보딩 레이아웃: 브랜드는 위쪽, 로그인 영역은 브랜드와 푸터 사이 세로 가운데, 푸터는 아래(절대배치) */
+#onboarding-overlay {
+  flex-direction: column;
+  justify-content: flex-start;
+}
+#onboarding-overlay .onboarding-card {
+  flex: 1;
+  width: 100%;
+  box-sizing: border-box;
+  justify-content: flex-start;
+  padding: calc(env(safe-area-inset-top) + max(var(--space-12), 20dvh)) var(--grid-margin) calc(var(--space-12) * 2);
+  overflow-y: auto;
+  touch-action: pan-y;
+}
+#onboarding-overlay .onboarding-actions {
+  margin-block: auto;
+  padding-block: var(--space-8);
+}
+/* 전환(스플래시) 상태: 로고+이름만 화면 가운데 — 부제·로그인 영역·푸터 숨김 */
+#onboarding-overlay.onboarding-overlay--splash .onboarding-card {
+  justify-content: center;
+  padding-block: 0;
+}
+#onboarding-overlay.onboarding-overlay--splash .onboarding-desc,
+#onboarding-overlay.onboarding-overlay--splash .onboarding-actions,
+#onboarding-overlay.onboarding-overlay--splash .onboarding-footer {
+  display: none;
+}
+
 .onboarding-logo-img {
   display: block;
   height: 80px;
@@ -5613,6 +5651,22 @@ canvas {
 }
 .onboarding-btn:hover { background: var(--surface); }
 .onboarding-btn:active { transform: scale(0.92); }
+/* 소셜 로그인 버튼(Google/Apple) — 라벨 길이와 무관하게 같은 크기. 높이·모서리는 .cd-btn 토큰(§12) 재사용 */
+#onboarding-google-btn, #onboarding-apple-btn {
+  width: min(420px, calc(100vw - 2 * var(--grid-margin)));
+  height: 56px;
+  padding-block: 0;
+  border-radius: var(--cd-btn-radius);
+  justify-content: center;
+  position: relative;
+}
+/* 아이콘은 왼쪽 끝, 텍스트는 버튼 전체 기준 가운데 */
+#onboarding-google-btn > svg, #onboarding-apple-btn > svg {
+  position: absolute;
+  left: var(--space-4);
+  top: 50%;
+  transform: translateY(-50%);
+}
 
 /* ?�?� ?�???�료 체크 ?�니메이???�?� */
 @keyframes check-circle-draw {

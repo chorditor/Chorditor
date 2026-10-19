@@ -555,17 +555,26 @@ async function _routeAuthedUser() {
   if (token && userId && (sessionStorage.getItem(PENDING_SHARE_CODE_KEY) || _hasPushTarget())) {
     goToHome(); return;
   }
+  // 네이티브 앱: 로그인 세션이 살아 있고 온보딩도 끝난 유저는 "시작하기" 없이 바로 진입
+  // (handleStart → _startOnboardingSteps 가 하던 것과 동일: onboarding_done 기록 후 goToHome).
+  // 웹은 시작하기를 유지한다.
+  if (window.Capacitor?.isNativePlatform() && token && userId) {
+    localStorage.setItem('onboarding_done', '1');
+    goToHome(); return;
+  }
   _showOnboardingButtons();
 }
 
 // ── 온보딩 버튼 표시 ─────────────────────────────────────────
 function _showOnboardingButtons() {
+  document.getElementById('onboarding-overlay')?.classList.remove('onboarding-overlay--splash');
   document.getElementById('onboarding-loading')?.classList.add('hidden');
   if (_authReady) {
     document.getElementById('onboarding-start-btn')?.classList.remove('hidden');
     document.getElementById('onboarding-switch-btn')?.classList.remove('hidden');
   } else {
     document.getElementById('onboarding-google-btn')?.classList.remove('hidden');
+    _toggleAppleBtn(true);
     analytics.track('onboarding_viewed', {
       platform: window.Capacitor?.getPlatform?.() || 'web',
     });
@@ -617,6 +626,7 @@ async function onboardingSwitchAccount() {
   document.getElementById('onboarding-start-btn')?.classList.add('hidden');
   document.getElementById('onboarding-switch-btn')?.classList.add('hidden');
   document.getElementById('onboarding-google-btn')?.classList.remove('hidden');
+  _toggleAppleBtn(true);
 }
 
 // ── Google 로그인 (온보딩 버튼) ──────────────────────────────
@@ -640,6 +650,7 @@ async function onboardingSignIn() {
     if (!_ios && !GoogleAuth) return;
 
     if (googleBtn)    googleBtn.classList.add('hidden');
+    _toggleAppleBtn(false);
     if (signinLoader) signinLoader.classList.remove('hidden');
 
     let idToken, _nonce = null;
@@ -678,6 +689,55 @@ async function onboardingSignIn() {
     }
     if (signinLoader) signinLoader.classList.add('hidden');
     if (googleBtn)    googleBtn.classList.remove('hidden');
+    _toggleAppleBtn(true);
+  }
+}
+
+// ── Apple 로그인 (iOS 전용 온보딩 버튼) ──────────────────────
+// Apple 버튼은 iOS 네이티브에서만 노출(+ file:// 로컬 열람은 UI 디자인 확인용). 로그인 이후 흐름은 Google(onboardingSignIn)과 동일.
+// file:// 은 어떤 배포 환경(웹·Android·iOS)에서도 쓰이지 않으므로 운영 노출 위험 없음.
+function _toggleAppleBtn(show) {
+  const allowed = _isIOSNative() || location.protocol === 'file:';
+  document.getElementById('onboarding-apple-btn')?.classList.toggle('hidden', !(show && allowed));
+}
+async function onboardingAppleSignIn() {
+  if (!_isIOSNative()) return;
+  const signinLoader = document.getElementById('onboarding-signin-loading');
+  const googleBtn    = document.getElementById('onboarding-google-btn');
+  try {
+    analytics.track('login_started', { method: 'apple' });
+    if (googleBtn)    googleBtn.classList.add('hidden');
+    _toggleAppleBtn(false);
+    if (signinLoader) signinLoader.classList.remove('hidden');
+
+    const { idToken, nonce } = await iosAppleSignIn();
+    if (!idToken) throw new Error('ID 토큰을 받지 못했습니다.');
+
+    const rawResp = await fetch(`${SUPABASE_URL}/auth/v1/token?grant_type=id_token`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'apikey': SUPABASE_ANON },
+      body: JSON.stringify({ provider: 'apple', id_token: idToken, nonce }),
+    });
+    const rawJson = await rawResp.json();
+    if (!rawResp.ok) throw new Error(rawJson?.error_description || 'Supabase 인증 실패');
+
+    const session = saveSessionToStorage(rawJson);
+    if (session.user) {
+      if (window._RC) await window._RC.logIn({ appUserID: session.user.id }).catch(() => {});
+      await fetchPlanWithToken(session.access_token);
+      await _restoreServerData();
+      _obFlow   = 'signup';
+      _obRouted = true;
+      _startOnboardingSteps();
+    }
+  } catch(e) {
+    const msg = e?.message || String(e) || '';
+    if (!msg.toLowerCase().includes('cancel')) {
+      console.error('[Auth] Apple 로그인 실패:', e);
+    }
+    if (signinLoader) signinLoader.classList.add('hidden');
+    if (googleBtn)    googleBtn.classList.remove('hidden');
+    _toggleAppleBtn(true);
   }
 }
 
@@ -768,7 +828,11 @@ document.addEventListener('DOMContentLoaded', async () => {
   }
 
   // 로딩 스피너 즉시 표시 (checkForceUpdate/initBilling 대기 중 빈 화면 방지)
-  document.getElementById('onboarding-overlay')?.classList.remove('hidden');
+  const _ov = document.getElementById('onboarding-overlay');
+  _ov?.classList.remove('hidden');
+  // 네이티브 앱: 세션 확인이 끝나 로그인 버튼이 필요해지기 전까지는 로고+이름만 보이는 전환 화면
+  // (로그인 상태면 이 화면 그대로 홈으로 넘어간다). _showOnboardingButtons()가 해제.
+  if (window.Capacitor?.isNativePlatform()) _ov?.classList.add('onboarding-overlay--splash');
 
   // 강제 업데이트 대상이면 여기서 완전히 멈춤 — 푸시 딥링크도 오버레이를 통과할 수 없다.
   if (await checkForceUpdate()) return;

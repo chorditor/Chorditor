@@ -2094,6 +2094,26 @@ async function iosGoogleSignIn() {
   return { idToken: res?.result?.idToken ?? null, nonce };
 }
 
+// iOS Apple 로그인 — SocialLogin 플러그인. 논스(nonce)는 Google과 동일하게 해시값은 플러그인에, 원문은 Supabase에 전달.
+// (유료 개발자 계정의 Sign in with Apple capability + Supabase Apple provider 설정이 있어야 동작)
+let _iosAppleInited = false;
+async function iosAppleSignIn() {
+  const SocialLogin = window.Capacitor?.Plugins?.SocialLogin;
+  if (!SocialLogin) throw new Error('SocialLogin 플러그인을 찾을 수 없습니다.');
+  if (!_iosAppleInited) {
+    await SocialLogin.initialize({ apple: {} });
+    _iosAppleInited = true;
+  }
+  const _hex = (buf) => Array.from(new Uint8Array(buf), b => b.toString(16).padStart(2, '0')).join('');
+  const nonce = _hex(crypto.getRandomValues(new Uint8Array(32)));
+  const hashedNonce = _hex(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(nonce)));
+  const res = await SocialLogin.login({
+    provider: 'apple',
+    options: { scopes: ['email', 'name'], nonce: hashedNonce },
+  });
+  return { idToken: res?.result?.idToken ?? null, nonce };
+}
+
 // ── Google 로그인 (공통 코어) ──────────────────────────────────
 async function signInWithGoogle() {
   if (!_supabase) { console.error('[Auth] Supabase 미초기화'); return; }
