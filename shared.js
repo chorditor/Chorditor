@@ -2089,7 +2089,9 @@ async function iosGoogleSignIn() {
   const hashedNonce = _hex(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(nonce)));
   const res = await SocialLogin.login({
     provider: 'google',
-    options: { scopes: ['email', 'profile'], nonce: hashedNonce },
+    // forcePrompt: 플러그인이 기기에 남은 이전 구글 로그인을 복원(restorePreviousSignIn)하면 새 nonce가 토큰에 안 들어가
+    // Supabase가 nonce 불일치로 거절한다 → 항상 계정 선택 경로(signIn)로 가게 한다.
+    options: { scopes: ['email', 'profile'], nonce: hashedNonce, forcePrompt: true },
   });
   return { idToken: res?.result?.idToken ?? null, nonce };
 }
@@ -2190,6 +2192,10 @@ async function signOutWeb() {
         }).catch(() => {});
       }
     } catch(e) {}
+    // iOS: 구글 SDK에 남은 로그인 기록도 해제(안 지우면 다음 로그인이 이전 계정 복원 경로로 간다)
+    if (_isIOSNative()) {
+      try { await window.Capacitor?.Plugins?.SocialLogin?.logout({ provider: 'google' }); } catch (_) {}
+    }
     localStorage.removeItem(SUPABASE_STORAGE_KEY);
     setPlan('free');
     if (typeof renderAuthUI === 'function') renderAuthUI(null);
