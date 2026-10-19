@@ -5577,6 +5577,12 @@ canvas {
   text-align: center;
 }
 
+.onboarding-logo-img {
+  display: block;
+  height: 80px;
+  width: auto;
+}
+
 .onboarding-logo {
   font-size: 28px;
   font-weight: 800;
