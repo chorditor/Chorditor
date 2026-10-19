@@ -3,6 +3,25 @@
 // DOM 조작 없음. 페이지별 함수는 typeof 가드로 호출.
 // ═══════════════════════════════════════════════════════════════
 
+// ── 노트 스플릿 뷰 iframe(?embed=1)용 Capacitor 대리 객체 ──────────
+// iOS WKWebView는 window.Capacitor를 최상위 프레임에만 주입한다 → iframe 안에서는 isNativePlatform()이 거짓이 돼
+// 이미지 저장(공유 시트) 등이 웹 분기로 떨어지고 analytics platform이 'web'으로 찍혔다.
+// 부모 객체를 통째로 쓰면 AdMob·appUrlOpen·푸시 리스너가 iframe에서 한 번 더 등록돼 중복 처리되므로,
+// 플랫폼 판별과 리스너 없는 플러그인(SaveImage·Share·Browser)만 노출한다.
+(function _embedCapacitorFacade() {
+  if (window.Capacitor || window.parent === window) return;
+  if (new URLSearchParams(location.search).get('embed') !== '1') return;
+  let pc = null;
+  try { pc = window.parent.Capacitor; } catch (_) { return; }
+  if (!pc) return;
+  const PASS = ['SaveImage', 'Share', 'Browser'];
+  window.Capacitor = {
+    getPlatform: () => pc.getPlatform(),
+    isNativePlatform: () => pc.isNativePlatform(),
+    Plugins: new Proxy({}, { get: (_, name) => (PASS.includes(name) ? pc.Plugins?.[name] : undefined) }),
+  };
+})();
+
 // ── iOS 네이티브 공통 초기화 (docs/ios-build.md §11 #1, #12) ───────
 // 안드로이드는 MainActivity에서 setTextZoom(90)을 주는데 iOS엔 없으므로 CSS(.ios-native)로 맞춤.
 // 확대 금지는 메타를 iOS 앱에서만 덧붙여 웹·안드로이드는 그대로 둠.
