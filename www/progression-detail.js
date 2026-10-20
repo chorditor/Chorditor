@@ -10,24 +10,6 @@ function _getKeyDisplayName(k) {
   return _useFlat ? KEY_NAMES_FLAT[k] : KEY_NAMES_SHARP[k];
 }
 
-const _SEMITONE_TO_DEGREE   = { 0:'I', 1:'bII', 2:'II', 3:'bIII', 4:'III', 5:'IV', 6:'#IV', 7:'V', 8:'bVI', 9:'VI', 10:'bVII', 11:'VII' };
-const _SEMITONE_TO_BASS_NUM = { 0:'1', 1:'b2', 2:'2', 3:'b3', 4:'3', 5:'4', 6:'#4', 7:'5', 8:'b6', 9:'6', 10:'b7', 11:'7' };
-
-function _getRomanNumeral(semitones, quality, bass, tension) {
-  const norm  = ((semitones % 12) + 12) % 12;
-  const roman = _SEMITONE_TO_DEGREE[norm] || '?';
-  const sfx   = { M:'', m:'m', '7':'7', M7:'M7', m7:'m7', dim:'dim', dim7:'dim7', aug:'aug', sus4:'sus4', sus2:'sus2', '7sus4':'7sus4', m6:'m6', '6':'6', 'm7(b5)':'m7(b5)' };
-  const suffix = sfx[quality] ?? '';
-  let result  = roman + (suffix ? `<span class="progd-prog-sfx">${suffix}</span>` : '');
-  if (tension) result += `<span class="progd-prog-sfx">${tension}</span>`;
-  if (bass != null) {
-    const bassNorm = ((bass % 12) + 12) % 12;
-    const bassNum  = _SEMITONE_TO_BASS_NUM[bassNorm];
-    if (bassNum != null) result += `<span class="progd-prog-sfx">/${bassNum}</span>`;
-  }
-  return result;
-}
-
 function _getChordName(rootKey, semitones, quality, bass, tension) {
   const names   = _useFlat ? KEY_NAMES_FLAT : KEY_NAMES_SHARP;
   const noteIdx = (rootKey + semitones + 12) % 12;
@@ -414,26 +396,47 @@ async function goBack() {
 }
 
 // ── UI 렌더 ──────────────────────────────────────────────────
+// 키 셀렉터 라벨 — scale-level과 동일: #/b 토글과 무관하게 항상 같은 모양.
+// 반음 키는 C#/Db 두 이름을 슬래시 기준 대각선(왼쪽 위 # · 오른쪽 아래 b)으로 함께 표기, 자연음 키는 한 줄.
+function _keyBtnHtml(k) {
+  const a = KEY_NAMES_SHARP[k], b = KEY_NAMES_FLAT[k];
+  if (a === b) return a;
+  return `<span class="key-acc key-acc--a">${a}</span><span class="key-acc key-acc--b">${b}</span>`;
+}
+// 키를 고르면 그 키의 기본 #/b로 토글 자동 전환: 자연음 키는 #, 반음 키는 b. 예외: F는 b(B♭이 있어서)
+function _defaultFlatForKey(k) {
+  return k === 5 || KEY_NAMES_SHARP[k] !== KEY_NAMES_FLAT[k];
+}
+function _syncAccidentalToKey(k) {
+  _useFlat = _defaultFlatForKey(k);
+  document.getElementById('detail-acc-sharp')?.classList.toggle('active', !_useFlat);
+  document.getElementById('detail-acc-flat')?.classList.toggle('active',  _useFlat);
+}
+
 function _renderKeyStrip() {
   const strip = document.getElementById('detail-key-strip');
   if (!strip) return;
-  const prevScroll = strip.scrollLeft; // 재렌더(키·#/b 변경)해도 가로 스크롤 위치 유지
-  strip.innerHTML = '';
-  for (let k = 0; k < 12; k++) {
-    const btn = document.createElement('button');
-    btn.className = 'key-btn' + (k === _key ? ' key-btn--active' : '');
-    btn.textContent = _getKeyDisplayName(k);
-    btn.addEventListener('pointerup', async () => {
-      _playTap();
-      if (k === _key) return;
-      await _stopPlay({ wait: true }); // 재생/예약 완전 정지 후 키 적용 (레이스 방지)
-      _key = k;
-      _renderKeyStrip();
-      _renderStage();
-    });
-    strip.appendChild(btn);
+  if (!strip.querySelector('.key-btn')) {
+    for (let k = 0; k < 12; k++) {
+      const btn = document.createElement('button');
+      btn.className = 'key-btn';
+      btn.dataset.key = k;
+      btn.innerHTML = _keyBtnHtml(k);
+      btn.classList.toggle('key-btn--split', KEY_NAMES_SHARP[k] !== KEY_NAMES_FLAT[k]);
+      btn.addEventListener('pointerup', async () => {
+        _playTap();
+        if (k === _key) return;
+        await _stopPlay({ wait: true }); // 재생/예약 완전 정지 후 키 적용 (레이스 방지)
+        _key = k;
+        _syncAccidentalToKey(k); // 이 키의 기본 #/b로 토글 맞춤
+        _renderKeyStrip();
+        _renderStage();
+      });
+      strip.appendChild(btn);
+    }
   }
-  strip.scrollTo({ left: prevScroll, behavior: 'instant' });
+  // 라벨은 #/b와 무관(항상 같은 모양)이라 다시 그리지 않음 — 선택 표시만 갱신
+  strip.querySelectorAll('.key-btn').forEach(b => b.classList.toggle('key-btn--active', Number(b.dataset.key) === _key));
 }
 
 let _stageRO    = null; // ResizeObserver 인스턴스
@@ -621,42 +624,12 @@ function _buildStepCache() {
   }));
 }
 
-// 코드 진행 바 렌더링
-// 조성/모드 헤더 — root 선택(_key) 따라 전조. 형식: "{tonic} {mode} / {key} key"
-const _MODE_KO = { Major: '메이저', Minor: '마이너', Dorian: '도리안' };
-function _renderKeyHeader() {
-  const el = document.getElementById('detail-key-header-text');
-  if (!el || !_prog) return;
-  const names    = _useFlat ? KEY_NAMES_FLAT : KEY_NAMES_SHARP;
-  const tonic    = _getKeyDisplayName(_key);                              // root 선택 = C기준 으뜸음
-  const keyName  = names[(( _prog.keySemitone + _key) % 12 + 12) % 12];   // 부모 조 음명 전조
-  el.textContent = `${tonic} ${_MODE_KO[_prog.mode] ?? _prog.mode} / ${keyName} key`;
-}
-
-function _renderProgBar() {
-  _renderKeyHeader();
-  const bar = document.getElementById('detail-prog-bar');
-  if (!bar || !_prog) return;
-  bar.innerHTML = '';
-  // 4열 grid 직접 배치 → 위·아랫줄 컬럼 정렬 (8코드 → 2줄)
-  _prog.steps.forEach((step, i) => {
-    const prev   = _prog.steps[i - 1];
-    const isSame = prev && prev.semitones === step.semitones && prev.quality === step.quality && (prev.bass ?? null) === (step.bass ?? null) && (prev.tension ?? null) === (step.tension ?? null);
-    const name   = isSame ? '-' : _getRomanNumeral(step.semitones, step.quality, step.bass, step.tension);
-    const chip = document.createElement('span');
-    chip.className = 'progd-prog-chip';
-    chip.innerHTML = name;
-    bar.appendChild(chip);
-  });
-}
-
 // 스테이지 초기화 (전체 재구성) — 4슬롯 모델
 function _renderStage() {
   if (!_prog) return;
   const row = document.getElementById('detail-chord-row');
   if (!row) return;
   row.innerHTML = '';
-  _renderProgBar();
 
   if (_stageRO) { _stageRO.disconnect(); _stageRO = null; }
 
@@ -794,6 +767,8 @@ document.addEventListener('DOMContentLoaded', () => {
   } else {
     _prog = null;
   }
+  const _titleEl = document.getElementById('detail-title');
+  if (_titleEl) _titleEl.innerHTML = getProgressionNameHtml(_prog);
   _restorePracticeUnlock();
   document.documentElement.classList.toggle('peak-free', getPlan() === 'pro'); // 연습 시작 버튼 피크 배지: Pro는 숨김
 

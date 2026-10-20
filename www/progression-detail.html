@@ -19,7 +19,7 @@
   <div class="app-shell">
 
     <!-- ── 탑바: 뒤로가기 + 피크바 (style-guide.md §11 cd-topbar) ── -->
-    <header class="cd-topbar cd-topbar--white">
+    <header class="cd-topbar">
       <button id="back-btn" onpointerup="requestBack()">
         <i data-lucide="chevron-left"></i>
       </button>
@@ -36,16 +36,11 @@
     </header>
 
     <!-- ── 메인 (style-guide.md §11 cd-main) ── -->
-    <main class="cd-main cd-main--white progd-main">
+    <main class="cd-main progd-main">
 
-      <!-- 헤드: 조성/모드 타이틀 (root 선택 따라 전조) + 코드 진행 나열 + 키 셀렉터 -->
+      <!-- 헤드: 타이틀(목록 카드 라벨과 같은 진행 이름) + 키 셀렉터 -->
       <header class="cd-head">
-        <div class="cd-title" id="detail-key-header">
-          <span id="detail-key-header-text"></span>
-        </div>
-
-        <!-- 코드 진행 나열 -->
-        <div class="progd-prog-bar" id="detail-prog-bar"></div>
+        <div class="cd-title" id="detail-title"></div>
 
         <!-- 셀렉터: Root 라벨 + #/b·손가락 토글 + 12key 1줄 (scale-level과 같은 방식) -->
         <div class="cd-selector">

@@ -242,6 +242,7 @@ const PROGRESSION_DATA = [
   },
   {
     id: 'VIm-IIIm-IV-IVm',
+    title: '4도 마이너 진행',
     no: 1,
     roots: ['C', 'G'],
     recommended: true,
@@ -383,6 +384,7 @@ const PROGRESSION_DATA = [
   },
   {
     id: 'I-III7-VIm7-IV',
+    title: '6도 세컨더리도미넌트 진행',
     no: 2,
     roots: ['C', 'G', 'A'],
     recommended: true,
@@ -395,6 +397,7 @@ const PROGRESSION_DATA = [
   },
   {
     id: 'I-VI7-IIm7-V7',
+    title: '2도 세컨더리도미넌트 진행',
     no: 2,
     roots: ['C', 'D', 'E', 'G', 'A'],
     steps: [
@@ -419,6 +422,7 @@ const PROGRESSION_DATA = [
   },
   {
     id: 'IIm7-V7-I-I7',
+    title: '4도 세컨더리도미넌트 거짓해결 진행',
     no: 2,
     roots: ['C', 'D', 'E', 'G', 'A'],
     steps: [
@@ -430,6 +434,7 @@ const PROGRESSION_DATA = [
   },
   {
     id: 'IIm7-V7-III7-VIm7',
+    title: '6도 세컨더리도미넌트 진행',
     no: 2,
     roots: ['C', 'D', 'E', 'G', 'A'],
     recommended: true,
@@ -454,6 +459,7 @@ const PROGRESSION_DATA = [
   },
   {
     id: 'IV-V-I-I7',
+    title: '4도 세컨더리도미넌트 진행',
     no: 2,
     roots: ['C', 'D', 'E', 'G', 'A'],
     steps: [
@@ -500,6 +506,7 @@ const PROGRESSION_DATA = [
   },
   {
     id: 'IV-III7-VIm7-I',
+    title: 'J-Pop 진행',
     no: 2,
     roots: ['C', 'D', 'E', 'G', 'A'],
     recommended: true,
@@ -570,6 +577,7 @@ const PROGRESSION_DATA = [
   },
   {
     id: 'I-IM7-I7-F',
+    title: '하향클리셰 진행',
     no: 2,
     roots: ['C', 'D', 'G', 'A'],
     steps: [
@@ -593,6 +601,7 @@ const PROGRESSION_DATA = [
   // 8코드 진행
   {
     id: 'I-V/3-VIm7-IIIm7-IV-I-IIm7-V7',
+    title: '캐논 진행',
     no: 2,
     roots: ['C'],
     steps: [
@@ -615,6 +624,7 @@ const PROGRESSION_DATA = [
 
   {
     id: 'I-bVII-IV-I',
+    title: '믹솔리디안 모달인터체인지 진행',
     no: 4,
     roots: ['C'],
     steps: [
@@ -626,6 +636,7 @@ const PROGRESSION_DATA = [
   },
   {
     id: 'bVIM7-bVII7-I-I',
+    title: '마이너 모달인터체인지 엔딩 진행',
     no: 4,
     roots: ['C'],
     steps: [
@@ -637,6 +648,7 @@ const PROGRESSION_DATA = [
   },
   {
     id: 'VIm7-II7-VIM7-CM7',
+    title: '도리안 모달인터체인지 진행',
     no: 4,
     roots: ['C'],
     steps: [
@@ -648,6 +660,7 @@ const PROGRESSION_DATA = [
   },
   {
     id: 'IV-V-I-bVII',
+    title: '믹솔리디안 모달인터체인지 진행',
     no: 4,
     roots: ['C'],
     steps: [
@@ -674,6 +687,7 @@ const PROGRESSION_DATA = [
   //8코드 진행
   {
     id: 'I-I-VIIdim-III7-VIm7-VIm7-Vm7-I7',
+    title: '어쿠스틱 음악 진행',
     no: 4,
     roots: ['C'],
     steps: [
@@ -704,5 +718,37 @@ const PROGRESSION_DATA = [
     ],
     recommended: true
   },
- 
+  {
+    id: 'VIm7-III7/#5-I/5-II7/#4-IVM7-IVM7-V7sus4-V7sus4',
+    title: '6도 하향진행1',
+    no: 4,
+    roots: ['C'],
+    steps: [
+      { chord: 'Am7' },
+      { chord: 'E7/G#' },
+      { chord: 'C/G' },
+      { chord: 'D7/F#' },
+      { chord: 'FM7' },
+      { chord: 'FM7' },
+      { chord: 'G7sus4' },
+      { chord: 'G7sus4' },
+    ],
+  },
+  {
+    id: 'VIm7-#Vdim7-VIm7/b7-#IVm7(b5)-IVM7-IVM7-IVm6-IVm6',
+    title: '6도 하향진행2',
+    no: 4,
+    roots: ['C'],
+    steps: [
+      { chord: 'Am7' },
+      { chord: 'G#dim7' },
+      { chord: 'Am7/G' },
+      { chord: 'F#m7(b5)' },
+      { chord: 'FM7' },
+      { chord: 'FM7' },
+      { chord: 'Fm6' },
+      { chord: 'Fm6' },
+    ],
+  },
+
 ];

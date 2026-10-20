@@ -1,0 +1,459 @@
+// ═══════════════════════════════════════════════════════════════
+// progression.js — 코드 진행 리스트 페이지
+// 데이터: progression-data.js (PROGRESSION_DATA) 에서 로드
+// ═══════════════════════════════════════════════════════════════
+
+// window.PROGRESSIONS 빌드: progression-parser.js에서 처리
+
+// ── 키 상수 ─────────────────────────────────────────────────
+const KEY_NAMES_SHARP = ['C','C#','D','D#','E','F','F#','G','G#','A','A#','B'];
+const KEY_NAMES_FLAT  = ['C','Db','D','Eb','E','F','Gb','G','Ab','A','Bb','B'];
+const USE_FLAT_KEY    = new Set([1, 3, 6, 8, 10]); // Db Eb Gb Ab Bb
+
+function _getKeyDisplayName(k) {
+  return _useFlat ? KEY_NAMES_FLAT[k] : KEY_NAMES_SHARP[k];
+}
+
+const _SEMITONE_TO_DEGREE   = { 0:'I', 1:'bII', 2:'II', 3:'bIII', 4:'III', 5:'IV', 6:'#IV', 7:'V', 8:'bVI', 9:'VI', 10:'bVII', 11:'VII' };
+const _SEMITONE_TO_BASS_NUM = { 0:'1', 1:'b2', 2:'2', 3:'b3', 4:'3', 5:'4', 6:'#4', 7:'5', 8:'b6', 9:'6', 10:'b7', 11:'7' };
+
+function _getRomanNumeral(semitones, quality, bass) {
+  const norm   = ((semitones % 12) + 12) % 12;
+  const roman  = _SEMITONE_TO_DEGREE[norm] || '?';
+  const sfx    = { M:'', m:'m', '7':'7', M7:'M7', m7:'m7', dim:'dim', dim7:'dim7', aug:'aug', sus4:'sus4', sus2:'sus2', '7sus4':'7sus4', m6:'m6', '6':'6', 'm7(b5)':'m7(b5)' };
+  const suffix = sfx[quality] ?? '';
+  let result   = roman + (suffix ? `<span class="prog-chord-sfx">${suffix}</span>` : '');
+  if (bass != null) {
+    const bassNorm = ((bass % 12) + 12) % 12;
+    const bassNum  = _SEMITONE_TO_BASS_NUM[bassNorm];
+    if (bassNum != null) result += `<span class="prog-chord-sfx">/${bassNum}</span>`;
+  }
+  return result;
+}
+
+function _getChordName(rootKey, semitones, quality, bass, tension) {
+  const names = _useFlat ? KEY_NAMES_FLAT : KEY_NAMES_SHARP;
+  const noteIdx = (rootKey + semitones + 12) % 12;
+  const note    = names[noteIdx];
+  const sfx     = { M: '', m: 'm', '7': '7', M7: 'M7', m7: 'm7', dim: 'dim', dim7: 'dim7', aug: 'aug', sus4: 'sus4', sus2: 'sus2', '7sus4': '7sus4', m6: 'm6', '6': '6', 'm7(b5)': 'm7(b5)' };
+  let result    = note + (sfx[quality] ?? '') + (tension ? `<sup class="prog-chord-tension">${tension}</sup>` : '');
+  if (bass != null) {
+    const bassIdx = (noteIdx + bass) % 12;
+    result += '/' + names[bassIdx];
+  }
+  return result;
+}
+
+// ── no 라벨 맵 ───────────────────────────────────────────────
+// 실제 라벨은 progression-data.js의 PROGRESSION_NO_LABELS에서 관리 (no 추가 시 거기만 편집)
+const _NO_LABELS = (typeof PROGRESSION_NO_LABELS !== 'undefined') ? PROGRESSION_NO_LABELS : {};
+const _NO_CHIP_LABELS = {
+  0: '목록 별',
+  1: '초보자',
+  2: '7th',
+  3: '고급',
+};
+
+// ── 상태 ────────────────────────────────────────────────────
+let _currentKey   = 0;
+let _useFlat      = true; // 기본 플랫
+let _playingId    = null;
+let _playStep     = 0;
+let _playTimer    = null;
+let _stepsFilter  = 0; // 0=전체, 4=4개, 8=8개
+let _noFilter     = 0; // 0=전체, 1/2/3=해당 no만
+
+// ── 재생/정지 ───────────────────────────────────────────────
+async function _stopPlay(options = {}) {
+  if (_playTimer) { clearTimeout(_playTimer); _playTimer = null; }
+  if (_playingId) {
+    const card = document.querySelector(`.prog-card[data-id="${_playingId}"]`);
+    if (card) {
+      card.querySelectorAll('.prog-chord-cell').forEach(c => c.classList.remove('prog-chord-cell--playing'));
+      const btn = card.querySelector('.prog-enter-btn');
+      if (btn) { btn.innerHTML = '<i data-lucide="chevron-right"></i>'; lucide.createIcons({ nodes: [btn] }); }
+    }
+  }
+  _playingId = null;
+  _playStep  = 0;
+  const stopPromise = GuitarAudio.stop({ wait: options.wait === true });
+  if (options.wait) await stopPromise;
+}
+
+function _startPlay(progId) {
+  if (_playingId === progId) { _stopPlay(); return; }
+  _stopPlay();
+
+  const prog = PROGRESSIONS.find(p => p.id === progId);
+  if (!prog) return;
+
+  _playingId = progId;
+  _playStep  = 0;
+
+  const card = document.querySelector(`.prog-card[data-id="${progId}"]`);
+  const btn  = card?.querySelector('.prog-enter-btn');
+  if (btn) { btn.innerHTML = '<i data-lucide="square"></i>'; lucide.createIcons({ nodes: [btn] }); }
+
+  analytics.track('progression_played', {
+    prog_id: progId,
+    key:     _getKeyDisplayName(_currentKey),
+  });
+
+  // 코드진행 누적 재생 퀘스트 카운터
+  const _ps = JSON.parse(localStorage.getItem('training_stats') || '{}');
+  _ps.progression_completed = (_ps.progression_completed || 0) + 1;
+  localStorage.setItem('training_stats', JSON.stringify(_ps));
+  if (typeof syncTrainingStatsToDB === 'function') syncTrainingStatsToDB();
+  if (typeof addXp === 'function') addXp(BEHAVE_XP.progression); // 행동형 XP: 코드 진행 재생 (사일런트)
+
+  function tick() {
+    const cells = card?.querySelectorAll('.prog-chord-cell');
+    if (cells) {
+      cells.forEach(c => c.classList.remove('prog-chord-cell--playing'));
+      const activeCell = cells[_playStep % prog.steps.length];
+      if (activeCell) activeCell.classList.add('prog-chord-cell--playing');
+    }
+
+    const step = prog.steps[_playStep % prog.steps.length];
+    GuitarAudio.playChord(_currentKey, step.semitones, step.quality);
+
+    _playStep++;
+    const msPerChord = (60000 / 80) * 2; // 2박자 per chord (BPM 고정 80 — 연습실로 이식 예정)
+    _playTimer = setTimeout(tick, msPerChord);
+  }
+  tick();
+}
+
+// ── 진행 카드 → 피크 소모 후 연습 화면 진입 ──────
+const CHORDPLAY_PEAK_COST = 5;
+let _chordplayEntering = false; // 소모 처리 중 연타로 이중 차감되는 것 방지
+async function _enterChordplay(prog, _tapP) {
+  if (_chordplayEntering) return;
+  _chordplayEntering = true;
+  let ok = false;
+  try { ok = await consumePeak(CHORDPLAY_PEAK_COST, 'progression'); } finally { _chordplayEntering = false; }
+  if (!ok) return; // 피크 부족 — consumePeak이 충전 모달을 띄움
+  await _stopPlay({ wait: true });
+  analytics.track('progression_detail_entered', { prog_id: prog.id, key: _getKeyDisplayName(_currentKey), no: prog.no ?? 1 });
+  const dest = `chordplay-practice.html?id=${encodeURIComponent(prog.id)}&key=${_currentKey}&flat=${_useFlat ? 1 : 0}`;
+  let _navd = false;
+  const _go = () => { if (!_navd) { _navd = true; location.href = dest; } };
+  _tapP.then(() => setTimeout(_go, 240));
+  setTimeout(_go, 450);
+}
+
+// ── UI 렌더 ──────────────────────────────────────────────────
+function _renderKeyGrid() {
+  const grid = document.getElementById('prog-key-grid');
+  if (!grid) return;
+  grid.innerHTML = '';
+  for (let k = 0; k < 12; k++) {
+    const btn = document.createElement('button');
+    btn.className = 'prog-key-grid-btn' + (k === _currentKey ? ' prog-key-grid-btn--active' : '');
+    btn.textContent = _getKeyDisplayName(k);
+    btn.addEventListener('pointerup', () => {
+      _playTap();
+      if (k === _currentKey) return;
+      _stopPlay();
+      const prevKey = _getKeyDisplayName(_currentKey);
+      _currentKey = k;
+      analytics.track('progression_key_changed', { from_key: prevKey, to_key: _getKeyDisplayName(_currentKey), flat: _useFlat });
+      _renderKeyGrid();
+      _renderProgList();
+      _updateKeyChipLabel();
+    });
+    grid.appendChild(btn);
+  }
+}
+
+function _updateKeyChipLabel() {
+  const chip = document.getElementById('filter-key');
+  if (!chip) return;
+  chip.textContent = _getKeyDisplayName(_currentKey);
+}
+
+function _renderProgList() {
+  const list = document.getElementById('prog-list');
+  if (!list) return;
+  list.innerHTML = '';
+
+  // steps 필터 + no 필터 적용
+  let filtered = _stepsFilter === 0
+    ? PROGRESSIONS
+    : PROGRESSIONS.filter(p => p.steps.length === _stepsFilter);
+  if (_noFilter !== 0) {
+    filtered = filtered.filter(p => p.no === _noFilter);
+  }
+
+  // no별 그룹 렌더 (섹션 라벨 포함)
+  const noGroups = [];
+  filtered.forEach(prog => {
+    const no = prog.no ?? 1;
+    let group = noGroups.find(g => g.no === no);
+    if (!group) { group = { no, items: [] }; noGroups.push(group); }
+    group.items.push(prog);
+  });
+
+  noGroups.forEach(group => {
+    const label = document.createElement('div');
+    label.className = 'prog-section-label';
+    label.textContent = _NO_LABELS[group.no] ?? `목록 ${group.no}`;
+    list.appendChild(label);
+
+    group.items.forEach(prog => {
+    const card = document.createElement('div');
+    card.className = 'prog-card' + (prog.steps.length > 4 ? ' prog-card--long' : '');   // 8코드: 코드 글자 한 단계 작게
+    card.dataset.id = prog.id;
+
+    // 셀을 4열 grid에 직접 배치 → 위·아랫줄 컬럼 정렬
+    const chordRows = prog.steps.map((step, i) => {
+      const prev   = prog.steps[i - 1];
+      const isSame = prev && prev.semitones === step.semitones && prev.quality === step.quality && (prev.bass ?? null) === (step.bass ?? null) && (prev.tension ?? null) === (step.tension ?? null);
+      const name   = isSame ? '%' : _getChordName(_currentKey, step.semitones, step.quality, step.bass, step.tension);
+      return `<div class="prog-chord-cell"><span class="prog-chord-name">${name}</span></div>`;
+    }).join('');
+
+    const progName = getProgressionNameHtml(prog);   // 공용(progression-parser.js)
+
+    card.innerHTML = `
+      <div class="prog-card-header">
+        <span class="prog-card-name">${progName}</span>
+        ${prog.recommended ? '<i class="ph-fill ph-star prog-recommended-star"></i>' : ''}
+        ${prog.roots?.length ? `<span class="prog-key-label">추천 Root</span><span class="prog-key-tag">${prog.roots.join('&nbsp; ')}</span>` : ''}
+      </div>
+      <div class="prog-card-body">
+        <div class="prog-chord-rows">${chordRows}</div>
+        <button class="prog-enter-btn"><i data-lucide="chevron-right"></i></button>
+      </div>`;
+
+      card.addEventListener('pointerup', () => {
+        const _tapP = _playTap();
+        // 확인 생략: Pro(소모 없음) / 잔액 부족이 확실할 때(바로 충전 모달로) — 스케일 훈련 연습하기와 같은 규칙
+        const skip = getPlan() === 'pro' || (_peakState.loaded && _peakState.balance < CHORDPLAY_PEAK_COST);
+        const enter = () => _enterChordplay(prog, _tapP);
+        if (skip) { enter(); return; }
+        showLeavePracticeModal(enter, {
+          title: '연습을 시작할까요?',
+          desc: `<span class="peak-confirm-body"><img src="image/peak.svg" alt="피크"><span class="peak-confirm-count">-${CHORDPLAY_PEAK_COST}</span></span>`,
+          stopText: '취소',
+          continueText: '시작하기',
+          confirmOnPrimary: true,
+          sfx: null, // 카드 탭 사운드가 이미 났음
+        });
+      });
+      list.appendChild(card);
+    }); // group.items.forEach
+  }); // noGroups.forEach
+
+  lucide.createIcons();
+  // 코드 영역이 넘치면 잘리는 쪽 끝을 흐리게(좌우 스크롤 위치에 따라)
+  requestAnimationFrame(() => list.querySelectorAll('.prog-chord-rows').forEach(el => {
+    _updateRowsFade(el);
+    el.addEventListener('scroll', () => _updateRowsFade(el), { passive: true });
+  }));
+}
+
+function _updateRowsFade(el) {
+  const max = el.scrollWidth - el.clientWidth;
+  el.style.setProperty('--fl', el.scrollLeft > 2 ? '24px' : '0px');
+  el.style.setProperty('--fr', el.scrollLeft < max - 2 ? '24px' : '0px');
+}
+window.addEventListener('resize', () => document.querySelectorAll('.prog-chord-rows').forEach(_updateRowsFade));
+
+// 드롭다운 열기/닫기 — 닫을 땐 .prog-dropdown--closing 애니메이션이 끝난 뒤 hidden
+function _isDdOpen(el) { return !el.hidden && !el.classList.contains('prog-dropdown--closing'); }
+function _showDd(el) { el.classList.remove('prog-dropdown--closing'); el.hidden = false; }
+function _hideDd(el) {
+  if (!_isDdOpen(el)) return;
+  el.classList.add('prog-dropdown--closing');
+  const done = () => {
+    if (!el.classList.contains('prog-dropdown--closing')) return;
+    el.classList.remove('prog-dropdown--closing');
+    el.hidden = true;
+  };
+  el.addEventListener('animationend', done, { once: true });
+  setTimeout(done, 300);
+}
+
+// 키 드롭다운이 열릴 때 선택된 키를 가운데로 스크롤
+function _positionKeyDropdown(chip, dd) {
+  const act = dd.querySelector('.prog-key-grid-btn--active');
+  if (act) act.scrollIntoView({ inline: 'center', block: 'nearest' });
+}
+
+// ── 닫기 ────────────────────────────────────────────────────
+async function closeProgressionPage() {
+  _playTap();
+  await _stopPlay({ wait: true });
+  const shell = document.querySelector('.app-shell');
+  if (shell) {
+    shell.classList.add('project-exit');
+    setTimeout(() => { location.href = 'training.html'; }, 260);
+  } else {
+    location.href = 'training.html';
+  }
+}
+
+// ── DOMContentLoaded ────────────────────────────────────────
+document.addEventListener('DOMContentLoaded', () => {
+  // progression-detail.html 등 다른 페이지에서 로드 시 DOM 초기화 건너뜀
+  if (!document.getElementById('prog-action-bar')) return;
+
+  const shell = document.querySelector('.app-shell');
+  if (shell) shell.classList.add('project-enter');
+
+  // 뒤로가기+피크바는 #main-content > .top-bar 안에 고정 — 모바일/데스크탑 공용, JS 이동 없음.
+
+  lucide.createIcons();
+
+  const cover = document.getElementById('page-cover');
+  if (cover) {
+    requestAnimationFrame(() => {
+      cover.classList.add('cover-out');
+      setTimeout(() => { cover.style.display = 'none'; }, 200);
+    });
+  }
+
+  _renderKeyGrid();
+  _renderProgList();
+
+  // Key 드롭다운 토글
+  const keyChip    = document.getElementById('filter-key');
+  const keyDropdown = document.getElementById('prog-key-dropdown');
+
+  keyChip.addEventListener('pointerup', e => {
+    e.stopPropagation();
+    _playTap();
+    const open = _isDdOpen(keyDropdown);
+    if (open) _hideDd(keyDropdown); else _showDd(keyDropdown);
+    keyChip.classList.toggle('prog-filter-chip--active', !open);
+    if (!open) _positionKeyDropdown(keyChip, keyDropdown);
+  });
+
+  document.addEventListener('pointerup', () => {
+    if (_isDdOpen(keyDropdown)) {
+      _hideDd(keyDropdown);
+      keyChip.classList.remove('prog-filter-chip--active');
+    }
+  });
+
+  keyDropdown.addEventListener('pointerup', e => e.stopPropagation());
+
+  // 목록 별(no) 필터 드롭다운
+  const diffBtn      = document.getElementById('filter-difficulty');
+  const noDropdown   = document.getElementById('prog-no-dropdown');
+  const noList       = document.getElementById('prog-no-list');
+
+  function _renderNoList() {
+    if (!noList) return;
+    noList.innerHTML = '';
+    const availableNos = [...new Set(PROGRESSIONS.map(p => p.no ?? 1))].sort((a, b) => a - b);
+    const options = [{ no: 0, label: '전체' }, ...availableNos.map(n => ({ no: n, label: _NO_LABELS[n] ?? `목록 ${n}` }))];
+    options.forEach(opt => {
+      const btn = document.createElement('button');
+      btn.className = 'prog-no-list-btn' + (opt.no === _noFilter ? ' prog-no-list-btn--active' : '');
+      btn.innerHTML = `<span>${opt.label}</span>${opt.no === _noFilter ? '<span class="prog-no-list-check"><svg viewBox="0 0 12 12"><polyline points="2,6 5,9 10,3"/></svg></span>' : ''}`;
+      btn.addEventListener('pointerup', () => {
+        _playTap();
+        _noFilter = opt.no;
+        diffBtn.classList.toggle('prog-filter-chip--active', _noFilter !== 0);
+        _hideDd(noDropdown);
+        diffBtn.classList.remove('prog-filter-chip--active-open');
+        _stopPlay();
+        _renderProgList();
+        // 섹션을 고르면 항상 맨 위로 — 위로 부드럽게 스크롤
+        document.querySelector('.prog-main')?.scrollTo({ top: 0, behavior: 'smooth' });
+      });
+      noList.appendChild(btn);
+    });
+  }
+
+  if (diffBtn && noDropdown) {
+    diffBtn.addEventListener('pointerup', e => {
+      e.stopPropagation();
+      _playTap();
+      // key 드롭다운 닫기
+      if (keyDropdown && _isDdOpen(keyDropdown)) {
+        _hideDd(keyDropdown);
+        keyChip.classList.remove('prog-filter-chip--active');
+      }
+      const open = _isDdOpen(noDropdown);
+      if (open) _hideDd(noDropdown); else _showDd(noDropdown);
+      if (!open) _renderNoList();
+      diffBtn.classList.toggle('prog-filter-chip--active', !open || _noFilter !== 0);
+    });
+
+    document.addEventListener('pointerup', () => {
+      if (_isDdOpen(noDropdown)) {
+        _hideDd(noDropdown);
+        diffBtn.classList.toggle('prog-filter-chip--active', _noFilter !== 0);
+      }
+    });
+
+    noDropdown.addEventListener('pointerup', e => e.stopPropagation());
+  }
+
+  // 4/8 스텝 필터
+  const stepsBtn = document.getElementById('filter-steps');
+  const _STEPS_CYCLE = [0, 4, 8];
+  const _STEPS_LABEL = { 0: '전체', 4: '4코드', 8: '8코드' };
+  if (stepsBtn) {
+    // "4코드" 기준 너비 고정
+    stepsBtn.textContent = '4코드';
+    stepsBtn.style.minWidth = stepsBtn.offsetWidth + 'px';
+    stepsBtn.textContent = _STEPS_LABEL[_stepsFilter];
+
+    stepsBtn.addEventListener('pointerup', () => {
+      _playTap();
+      const idx = _STEPS_CYCLE.indexOf(_stepsFilter);
+      _stepsFilter = _STEPS_CYCLE[(idx + 1) % _STEPS_CYCLE.length];
+      stepsBtn.textContent = _STEPS_LABEL[_stepsFilter];
+      stepsBtn.classList.toggle('prog-filter-chip--active', _stepsFilter !== 0);
+      _stopPlay();
+      _renderProgList();
+    });
+  }
+
+  // 샵/플랫 토글
+  const sharpBtn = document.getElementById('acc-sharp');
+  const flatBtn  = document.getElementById('acc-flat');
+
+  function _setAccidental(useFlat) {
+    _useFlat = useFlat;
+    sharpBtn.classList.toggle('active', !useFlat);
+    flatBtn .classList.toggle('active',  useFlat);
+    _stopPlay();
+    _renderKeyGrid();
+    _renderProgList();
+    _updateKeyChipLabel();
+  }
+
+  const accToggle = sharpBtn.closest('.accidental-toggle');
+  if (accToggle) {
+    accToggle.addEventListener('pointerup', () => { _playTap(); _setAccidental(!_useFlat); });
+  }
+
+  // 마우스 드래그 스크롤 (브라우저 환경)
+  const scroller = document.querySelector('.cd-main');
+  if (scroller) {
+    let _dragging = false, _startY = 0, _scrollY = 0;
+    scroller.addEventListener('mousedown', e => {
+      _dragging = true;
+      _startY   = e.clientY;
+      _scrollY  = scroller.scrollTop;
+      scroller.style.cursor = 'grabbing';
+      e.preventDefault();
+    });
+    document.addEventListener('mousemove', e => {
+      if (!_dragging) return;
+      scroller.scrollTop = _scrollY - (e.clientY - _startY);
+    });
+    document.addEventListener('mouseup', () => {
+      if (!_dragging) return;
+      _dragging = false;
+      scroller.style.cursor = '';
+    });
+  }
+
+  analytics.track('progression_page_viewed', {});
+});

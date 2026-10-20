@@ -1115,6 +1115,7 @@ function renderPeakBadge() {
 // source: 어떤 훈련에서 소모를 시도했는지('quiz'/'chord_combo'/'scale'/'progression'/'strum') —
 // 피크부족→완충모달 경유 페이월(peak_buffer)의 properties.training_type으로 이어짐.
 async function consumePeak(cost, source) {
+  if (APP_VERSION.includes('_dev')) return true; // DEV 빌드: 피크 소모 무시(개발 중 확인용). 출시 때 _dev 접미어를 떼면 자동으로 정상 소모
   if (getPlan() === 'pro') return true; // Pro: 피크 무제한 — 소모 없음
   const r = await _peakRpc('consume_peak', { p_cost: cost });
   if (r) {

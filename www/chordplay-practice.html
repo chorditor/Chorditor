@@ -1,0 +1,213 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <!-- 언어 결정·화면 번역: 다른 스크립트·본문보다 먼저 -->
+  <script src="i18n.js"></script>
+  <meta name="color-scheme" content="light dark" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <title>Chorditor - 코드반주 훈련</title>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css" />
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Serif:wght@400;700&display=swap" />
+  <link rel="stylesheet" href="style.css" />
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
+</head>
+<body class="training-flow-page">
+
+  <div id="page-cover"></div>
+
+  <div class="app-shell">
+
+    <!-- ── 탑바: 뒤로가기 + 피크바 (style-guide.md §11 cd-topbar) ── -->
+    <header class="cd-topbar">
+      <button id="back-btn" onpointerup="requestBack()">
+        <i data-lucide="chevron-left"></i>
+      </button>
+      <div class="topbar-currency" id="topbar-currency" style="margin-left:auto;">
+        <div class="currency-item currency-item--clickable" onclick="openPeakboxModal()">
+          <span class="currency-count" id="currency-peakbox-count">0</span>
+          <div class="currency-icon-box"><img src="image/gift.png" alt=""></div>
+        </div>
+        <div class="currency-item currency-item--clickable" onclick="openPeakTimerPopup(event)">
+          <span class="currency-count" id="currency-peak-count">30/30</span>
+          <div class="currency-icon-box"><img src="image/peak.svg" alt=""></div>
+        </div>
+      </div>
+    </header>
+
+    <!-- ── 메인 (style-guide.md §11 cd-main) ── -->
+    <main class="cd-main progd-main chordplay-practice-main">
+
+      <!-- 헤드: 타이틀(목록 카드 라벨과 같은 진행 이름) + 키 셀렉터 -->
+      <header class="cd-head">
+        <div class="cd-title" id="detail-title"></div>
+
+        <!-- 셀렉터: Root 라벨 + #/b·손가락 토글 + 12key 1줄 (scale-level과 같은 방식) -->
+        <div class="cd-selector">
+          <div class="key-selector-top-row">
+            <span class="key-selector-label">Root</span>
+            <div class="accidental-toggle-row">
+              <div class="accidental-toggle" id="detail-accidental-toggle">
+                <span class="acc-btn" id="detail-acc-sharp">#</span>
+                <span class="acc-btn active" id="detail-acc-flat">b</span>
+              </div>
+              <button class="finger-toggle" id="detail-finger-toggle" aria-label="손가락 번호 표시">
+                <i class="ph-bold ph-hand"></i>
+              </button>
+            </div>
+          </div>
+          <div class="key-selector" id="detail-key-strip"></div>
+        </div>
+      </header>
+
+      <!-- 본문: 그룹 2개를 남는 높이에 균등 분배 -->
+      <section class="cd-body">
+
+        <!-- 코드 진행 - BPM - 시작 버튼: 한 묶음, 등간격, 12key 아래 남는 영역의 세로 가운데 -->
+        <div class="progd-stack">
+          <!-- 코드 진행 캐러셀 -->
+          <div class="progd-chord-view-inner" id="detail-chord-row"></div>
+          <!-- 주법 그림(비트 박스보더) — 선택한 주법이 여기에 그려짐 -->
+          <div class="strum-play-grid" id="strum-display"></div>
+          <!-- 옵션 카드 — 남는 공간 전부. 처음엔 잠금(연습 시작하기 버튼만 중앙), 피크 소모로 해금되면 옵션이 나타남.
+               옵션은 좁은 공간이라 캐러셀 방식으로 배치 예정(지금은 재생 자리표시 — BPM은 별도 옵션으로 다시 들어올 예정) -->
+          <!-- 패널 탭 — 카드 우상단이 돌출된 폴더 탭 모양. 탭 이름이 곧 옵션 페이지 이름(후보: 주법 · 재생). 좌우로 넘기면 선택 탭이 따라 바뀜 -->
+        </div>
+
+        <!-- 옵션 영역 — cd-body의 마지막 자식(스택 아래) = 그리드 마진 위, 하단에 붙음 -->
+        <div class="option-zone">
+        <div class="option-panel cd-card" id="option-panel">
+          <div class="option-panel-body">
+            <!-- 재생 페이지: 1단 BPM · 재생/정지 · 스타일 / 2단 점진 가속 옵션 (값은 자리표시 — 실제 연결은 구현 단계) -->
+            <div class="option-page" data-page="play">
+              <!-- 칸 3개(간격 4px): 왼쪽 세로 전체 = 점진 가속, 오른쪽 위 = BPM·재생·슬라이더, 오른쪽 아래 = 스타일 -->
+              <div class="play-bpm-box">
+                <div class="play-bpm-top">
+                <div class="play-card-wrap play-card-wrap--start">
+                  <div class="play-card" id="play-bpm-card">
+                    <span class="play-card-val" id="play-bpm-val">80</span>
+                    <span class="play-card-lbl">BPM</span>
+                  </div>
+                </div>
+                <button class="play-btn" id="detail-play-btn" onpointerup="togglePlay()" aria-label="재생">
+                  <i class="ph-fill ph-play"></i>
+                </button>
+                </div>
+                <!-- 슬라이더 줄: − 슬라이더 + (원형 버튼, 1씩 증감·길게 누르면 연속) -->
+                <div class="bpm-slider-row">
+                  <button class="bpm-nudge-btn" id="bpm-nudge-minus" aria-label="BPM 1 내리기"><i class="ph-bold ph-minus"></i></button>
+                  <input class="bpm-slider bpm-slider--inline" id="bpm-inline-slider" type="range" min="10" max="300" step="1" value="80" aria-label="목표 BPM" />
+                  <button class="bpm-nudge-btn" id="bpm-nudge-plus" aria-label="BPM 1 올리기"><i class="ph-bold ph-plus"></i></button>
+                </div>
+                <!-- BPM 팝업 — BPM 카드를 누르면 점진 가속 영역을 덮어 열림: 가운데 BPM · 좌우 −/+(1씩) · 아래 슬라이더(10~300) -->
+                <div class="bpm-popup" id="bpm-popup" hidden>
+                  <div class="bpm-popup-row">
+                    <button class="bpm-step" id="bpm-minus" aria-label="BPM 1 내리기"><i class="ph-bold ph-minus"></i></button>
+                    <div class="bpm-popup-value"><span id="bpm-popup-val">80</span><small>BPM</small></div>
+                    <button class="bpm-step" id="bpm-plus" aria-label="BPM 1 올리기"><i class="ph-bold ph-plus"></i></button>
+                  </div>
+                  <input class="bpm-slider" id="bpm-slider" type="range" min="10" max="300" step="1" value="80" aria-label="BPM" />
+                </div>
+              </div>
+              <!-- 주법 칸: 칩 줄(추천·레벨·모두 보기) + 휠 -->
+              <div class="play-strum-box">
+                <div class="strum-picker">
+                  <div class="strum-picker-wheel-wrap">
+                    <div class="strum-picker-wheel" id="strum-picker-wheel"></div>
+                  </div>
+                </div>
+              </div>
+              <!-- 스타일 칸: 위 "주법 목록" 버튼(배경 없음) + 스타일 목록(선택한 주법에 허용된 백킹 스타일 세트 자리 — 지금은 자리표시) -->
+              <div class="play-style-box">
+                <button class="prog-filter-chip sp-chip-all" id="sp-chip-all">주법 목록</button>
+                <!-- 스타일 선택 — 누르면 카드 위로 팝업(좁은 목록) -->
+                <div class="play-card-wrap">
+                  <div class="play-card" id="play-style-card">
+                    <span class="play-card-val" id="play-style-val">기본1</span>
+                    <span class="play-card-lbl">스타일</span>
+                  </div>
+                  <div class="mini-popup style-popup" id="play-style-pop" hidden><div class="style-list" id="play-style-list"></div></div>
+                </div>
+              </div>
+              <div class="ramp-block">
+                <div class="ramp-head">
+                  <label class="settings-switch">
+                    <input type="checkbox" id="ramp-toggle" aria-label="점진 가속" />
+                    <span class="settings-switch-track"></span>
+                  </label>
+                </div>
+                <div class="ramp-cards">
+                  <div class="play-card-wrap play-card-wrap--start">
+                    <div class="play-card play-card--sm" id="ramp-start-card"><span class="play-card-val" id="ramp-start-val">60</span><span class="play-card-lbl">시작 BPM</span></div>
+                  </div>
+                  <div class="play-card-wrap">
+                    <div class="play-card play-card--sm" id="ramp-cycle-card"><span class="play-card-val" id="ramp-cycle-val">1</span><span class="play-card-lbl">사이클마다</span></div>
+                    <!-- 사이클 팝업 — 카드 위로 열리는 좁은 휠피커(1~10, 4칸 보임) -->
+                    <div class="mini-popup" id="ramp-cycle-pop" hidden><div class="mini-wheel-wrap"><div class="mini-wheel" id="ramp-cycle-wheel"></div></div></div>
+                  </div>
+                  <div class="play-card-wrap play-card-wrap--end">
+                    <div class="play-card play-card--sm" id="ramp-step-card"><span class="play-card-val" id="ramp-step-val">2</span><span class="play-card-lbl">BPM씩</span></div>
+                    <!-- BPM씩 팝업 — 카드 위로 열리는 좁은 휠피커(1~10, 4칸 보임) -->
+                    <div class="mini-popup" id="ramp-step-pop" hidden><div class="mini-wheel-wrap"><div class="mini-wheel" id="ramp-step-wheel"></div></div></div>
+                  </div>
+                  <!-- 시작 BPM 팝업 — 목표 BPM 팝업과 같은 디자인·같은 위치(재생 줄 아래)에 열림. 슬라이더는 목표 BPM 이상으로 못 감 -->
+                  <div class="bpm-popup" id="ramp-start-pop" hidden>
+                    <div class="bpm-popup-row">
+                      <button class="bpm-step" id="ramp-start-minus" aria-label="시작 BPM 1 내리기"><i class="ph-bold ph-minus"></i></button>
+                      <div class="bpm-popup-value"><span id="ramp-start-pop-val">60</span><small>시작 BPM</small></div>
+                      <button class="bpm-step" id="ramp-start-plus" aria-label="시작 BPM 1 올리기"><i class="ph-bold ph-plus"></i></button>
+                    </div>
+                    <input class="bpm-slider" id="ramp-start-slider" type="range" min="10" max="300" step="1" value="60" aria-label="시작 BPM" />
+                  </div>
+                </div>
+              </div>
+            </div><!-- /option-page play -->
+          </div>
+        </div>
+        </div><!-- /option-zone -->
+
+      </section>
+
+    </main><!-- /cd-main -->
+
+  </div>
+
+  <!-- 주법 선택 모달("모두 보기" 칩) — 레벨 디바이더별로 전체 주법을 위에서부터 나열 -->
+  <div class="modal-overlay hidden" id="sp-modal-overlay">
+    <div class="sp-modal" role="dialog" aria-label="주법 선택">
+      <div class="sp-modal-head">
+        <button class="icon-btn sp-modal-close" id="sp-modal-close" aria-label="닫기"><i class="ph-bold ph-x"></i></button>
+      </div>
+      <!-- 필터 탭 — 왼쪽 고정(추천 · 전체) + 오른쪽 레벨 탭(가로 스크롤, JS가 생성) -->
+      <div class="sp-modal-tabs">
+        <div class="sp-modal-tabs-fixed">
+          <button class="sp-modal-tab" data-f="rec">추천</button>
+          <button class="sp-modal-tab sp-modal-tab--active" data-f="all">전체</button>
+        </div>
+        <div class="sp-modal-tabs-scroll" id="sp-modal-level-tabs"></div>
+      </div>
+      <div class="sp-modal-body" id="sp-modal-body"></div>
+    </div>
+  </div>
+
+  <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.js"></script>
+  <script src="https://unpkg.com/@phosphor-icons/web"></script>
+  <script src="analytics-sdk.js"></script>
+  <script src="shared.js"></script>
+  <script src="voicing-canvas.js"></script>
+  <script src="chord-voicings.js"></script>
+  <script src="chords-library.js"></script>
+  <script src="guitar-samples.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/tone/14.8.49/Tone.js"></script>
+  <script src="guitar-audio.js"></script>
+  <script src="drum-samples.js"></script>
+  <script src="drum-audio.js"></script>
+  <script src="drum-sets.js"></script>
+  <script src="progression-data.js"></script>
+  <script src="progression-parser.js"></script>
+  <script src="strumming-list.js"></script>
+  <script src="progression-voicing-list.js"></script>
+  <script src="progression-voicings.js"></script>
+  <script src="chordplay-practice.js"></script>
+</body>
+</html>

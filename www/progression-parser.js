@@ -71,6 +71,8 @@
     id:          prog.id,
     no:          prog.no ?? 1,
     recommended: prog.recommended ?? false,
+    // 목록 카드 이름 예외(미지정 시 도수 숫자로 자동 생성, 예: "1364 진행")
+    title:       prog.title ?? null,
     // 조성/모드 (C기준 작성). key=부모 장조 음명, mode=조성명. 미지정 시 C Major
     mode:        prog.mode ?? 'Major',
     key:         prog.key  ?? 'C',
@@ -82,3 +84,22 @@
     }),
   }));
 })();
+
+// 진행 이름(HTML) — 목록 카드 라벨·상세 페이지 타이틀 공용.
+// 데이터에 title이 있으면 그대로, 없으면 도수 숫자만(예: C E7 Am F → "1364 진행").
+// 앞 코드와 같은 반복은 건너뛰고 4코드씩 " / "로 묶음(8코드 → "1563 / 4145 진행").
+// 도수 하나(반음 도수 b3·#4는 한 덩어리)씩 개별 span — 사이 간격은 .prog-num-group의 gap
+window.getProgressionNameHtml = function (prog) {
+  if (!prog) return '';
+  if (prog.title) return prog.title;
+  const DEG = { 0:'1', 1:'b2', 2:'2', 3:'b3', 4:'3', 5:'4', 6:'#4', 7:'5', 8:'b6', 9:'6', 10:'b7', 11:'7' };
+  const isRepeat = i => { const a = prog.steps[i - 1], b = prog.steps[i]; return a && a.semitones === b.semitones && a.quality === b.quality && (a.bass ?? null) === (b.bass ?? null) && (a.tension ?? null) === (b.tension ?? null); };
+  const groups = [];
+  prog.steps.forEach((step, i) => {
+    const g = Math.floor(i / 4);
+    (groups[g] = groups[g] || []);
+    if (!isRepeat(i)) groups[g].push(DEG[((step.semitones % 12) + 12) % 12] ?? '?');
+  });
+  const numHtml = g => '<span class="prog-num-group">' + g.map(tok => '<span>' + tok + '</span>').join('') + '</span>';
+  return groups.filter(g => g.length).map(numHtml).join(' / ') + ' 진행';
+};

@@ -47,6 +47,16 @@ function onTrainingCardTap(key) {
     }
     return;
   }
+  if (key === 'chordplay') {
+    const shell = document.querySelector('.app-shell');
+    if (shell) {
+      shell.classList.add('project-exit');
+      setTimeout(() => { location.href = 'chordplay.html'; }, 260);
+    } else {
+      location.href = 'chordplay.html';
+    }
+    return;
+  }
   if (key === 'strumming') {
     const shell = document.querySelector('.app-shell');
     if (shell) {

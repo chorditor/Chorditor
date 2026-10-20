@@ -31,12 +31,12 @@ function _getRomanNumeral(semitones, quality, bass) {
   return result;
 }
 
-function _getChordName(rootKey, semitones, quality, bass) {
+function _getChordName(rootKey, semitones, quality, bass, tension) {
   const names = _useFlat ? KEY_NAMES_FLAT : KEY_NAMES_SHARP;
   const noteIdx = (rootKey + semitones + 12) % 12;
   const note    = names[noteIdx];
   const sfx     = { M: '', m: 'm', '7': '7', M7: 'M7', m7: 'm7', dim: 'dim', dim7: 'dim7', aug: 'aug', sus4: 'sus4', sus2: 'sus2', '7sus4': '7sus4', m6: 'm6', '6': '6', 'm7(b5)': 'm7(b5)' };
-  let result    = note + (sfx[quality] ?? '');
+  let result    = note + (sfx[quality] ?? '') + (tension ? `<sup class="prog-chord-tension">${tension}</sup>` : '');
   if (bass != null) {
     const bassIdx = (noteIdx + bass) % 12;
     result += '/' + names[bassIdx];
@@ -184,28 +184,22 @@ function _renderProgList() {
 
     group.items.forEach(prog => {
     const card = document.createElement('div');
-    card.className = 'prog-card';
+    card.className = 'prog-card' + (prog.steps.length > 4 ? ' prog-card--long' : '');   // 8코드: 코드 글자 한 단계 작게
     card.dataset.id = prog.id;
 
     // 셀을 4열 grid에 직접 배치 → 위·아랫줄 컬럼 정렬
     const chordRows = prog.steps.map((step, i) => {
       const prev   = prog.steps[i - 1];
-      const isSame = prev && prev.semitones === step.semitones && prev.quality === step.quality && (prev.bass ?? null) === (step.bass ?? null);
-      const name   = isSame ? '-' : _getChordName(_currentKey, step.semitones, step.quality, step.bass);
+      const isSame = prev && prev.semitones === step.semitones && prev.quality === step.quality && (prev.bass ?? null) === (step.bass ?? null) && (prev.tension ?? null) === (step.tension ?? null);
+      const name   = isSame ? '%' : _getChordName(_currentKey, step.semitones, step.quality, step.bass, step.tension);
       return `<div class="prog-chord-cell"><span class="prog-chord-name">${name}</span></div>`;
     }).join('');
 
-    // 로마숫자도 코드셀과 동일하게 4열 grid 정렬
-    const romanRows = prog.steps.map((step, i) => {
-      const prev   = prog.steps[i - 1];
-      const isSame = prev && prev.semitones === step.semitones && prev.quality === step.quality && (prev.bass ?? null) === (step.bass ?? null);
-      const name   = isSame ? '-' : _getRomanNumeral(step.semitones, step.quality, step.bass);
-      return `<span class="prog-roman-cell">${name}</span>`;
-    }).join('');
+    const progName = getProgressionNameHtml(prog);   // 공용(progression-parser.js)
 
     card.innerHTML = `
       <div class="prog-card-header">
-        <span class="prog-card-name">${romanRows}</span>
+        <span class="prog-card-name">${progName}</span>
         ${prog.recommended ? '<i class="ph-fill ph-star prog-recommended-star"></i>' : ''}
         ${prog.roots?.length ? `<span class="prog-key-label">추천 Root</span><span class="prog-key-tag">${prog.roots.join('&nbsp; ')}</span>` : ''}
       </div>
@@ -214,7 +208,7 @@ function _renderProgList() {
         <button class="prog-enter-btn"><i data-lucide="chevron-right"></i></button>
       </div>`;
 
-      card.querySelector('.prog-enter-btn').addEventListener('pointerup', async () => {
+      card.addEventListener('pointerup', async () => {
         const _tapP = _playTap();
         await _stopPlay({ wait: true });
         analytics.track('progression_detail_entered', { prog_id: prog.id, key: _getKeyDisplayName(_currentKey), no: prog.no ?? 1 });
@@ -229,6 +223,39 @@ function _renderProgList() {
   }); // noGroups.forEach
 
   lucide.createIcons();
+  // 코드 영역이 넘치면 잘리는 쪽 끝을 흐리게(좌우 스크롤 위치에 따라)
+  requestAnimationFrame(() => list.querySelectorAll('.prog-chord-rows').forEach(el => {
+    _updateRowsFade(el);
+    el.addEventListener('scroll', () => _updateRowsFade(el), { passive: true });
+  }));
+}
+
+function _updateRowsFade(el) {
+  const max = el.scrollWidth - el.clientWidth;
+  el.style.setProperty('--fl', el.scrollLeft > 2 ? '24px' : '0px');
+  el.style.setProperty('--fr', el.scrollLeft < max - 2 ? '24px' : '0px');
+}
+window.addEventListener('resize', () => document.querySelectorAll('.prog-chord-rows').forEach(_updateRowsFade));
+
+// 드롭다운 열기/닫기 — 닫을 땐 .prog-dropdown--closing 애니메이션이 끝난 뒤 hidden
+function _isDdOpen(el) { return !el.hidden && !el.classList.contains('prog-dropdown--closing'); }
+function _showDd(el) { el.classList.remove('prog-dropdown--closing'); el.hidden = false; }
+function _hideDd(el) {
+  if (!_isDdOpen(el)) return;
+  el.classList.add('prog-dropdown--closing');
+  const done = () => {
+    if (!el.classList.contains('prog-dropdown--closing')) return;
+    el.classList.remove('prog-dropdown--closing');
+    el.hidden = true;
+  };
+  el.addEventListener('animationend', done, { once: true });
+  setTimeout(done, 300);
+}
+
+// 키 드롭다운이 열릴 때 선택된 키를 가운데로 스크롤
+function _positionKeyDropdown(chip, dd) {
+  const act = dd.querySelector('.prog-key-grid-btn--active');
+  if (act) act.scrollIntoView({ inline: 'center', block: 'nearest' });
 }
 
 // ── 닫기 ────────────────────────────────────────────────────
@@ -274,14 +301,15 @@ document.addEventListener('DOMContentLoaded', () => {
   keyChip.addEventListener('pointerup', e => {
     e.stopPropagation();
     _playTap();
-    const open = !keyDropdown.hidden;
-    keyDropdown.hidden = open;
+    const open = _isDdOpen(keyDropdown);
+    if (open) _hideDd(keyDropdown); else _showDd(keyDropdown);
     keyChip.classList.toggle('prog-filter-chip--active', !open);
+    if (!open) _positionKeyDropdown(keyChip, keyDropdown);
   });
 
   document.addEventListener('pointerup', () => {
-    if (!keyDropdown.hidden) {
-      keyDropdown.hidden = true;
+    if (_isDdOpen(keyDropdown)) {
+      _hideDd(keyDropdown);
       keyChip.classList.remove('prog-filter-chip--active');
     }
   });
@@ -306,10 +334,12 @@ document.addEventListener('DOMContentLoaded', () => {
         _playTap();
         _noFilter = opt.no;
         diffBtn.classList.toggle('prog-filter-chip--active', _noFilter !== 0);
-        noDropdown.hidden = true;
+        _hideDd(noDropdown);
         diffBtn.classList.remove('prog-filter-chip--active-open');
         _stopPlay();
         _renderProgList();
+        // 섹션을 고르면 항상 맨 위로 — 위로 부드럽게 스크롤
+        document.querySelector('.prog-main')?.scrollTo({ top: 0, behavior: 'smooth' });
       });
       noList.appendChild(btn);
     });
@@ -320,19 +350,19 @@ document.addEventListener('DOMContentLoaded', () => {
       e.stopPropagation();
       _playTap();
       // key 드롭다운 닫기
-      if (keyDropdown && !keyDropdown.hidden) {
-        keyDropdown.hidden = true;
+      if (keyDropdown && _isDdOpen(keyDropdown)) {
+        _hideDd(keyDropdown);
         keyChip.classList.remove('prog-filter-chip--active');
       }
-      const open = !noDropdown.hidden;
-      noDropdown.hidden = open;
+      const open = _isDdOpen(noDropdown);
+      if (open) _hideDd(noDropdown); else _showDd(noDropdown);
       if (!open) _renderNoList();
       diffBtn.classList.toggle('prog-filter-chip--active', !open || _noFilter !== 0);
     });
 
     document.addEventListener('pointerup', () => {
-      if (!noDropdown.hidden) {
-        noDropdown.hidden = true;
+      if (_isDdOpen(noDropdown)) {
+        _hideDd(noDropdown);
         diffBtn.classList.toggle('prog-filter-chip--active', _noFilter !== 0);
       }
     });
