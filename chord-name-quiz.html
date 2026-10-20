@@ -39,27 +39,25 @@
     <!-- ── 메인 (style-guide.md §11 cd-main) ── -->
     <main class="cd-main cd-main--stage" id="main-content">
 
-      <!-- ── content-body: 실제 콘텐츠(뷰들) ── -->
-      <div class="content-body">
-
-      <!-- ── 레벨 선택 뷰 ── -->
+      <!-- ── 레벨 선택 뷰 (4개 뷰가 cd-main--stage 안에서 슬라이드) ── -->
       <div id="view-level-select" class="quiz-view">
-        <div class="level-select-layout">
+        <section class="cd-body">
           <!-- 상단: 선택된 레벨 상세 패널 (JS로 채움) -->
-          <div id="level-detail-panel" class="level-detail-panel"></div>
+          <div id="level-detail-panel" class="level-detail-panel cd-card"></div>
           <!-- 하단: 레벨 리스트 -->
           <div id="level-wheel-track" class="level-wheel-track"></div>
-        </div>
+        </section>
       </div>
 
       <!-- ── 모드 선택 뷰 ── -->
       <div id="view-mode-select" class="quiz-view quiz-view--right">
-        <div class="mode-select-scroll">
+        <section class="cd-body">
           <!-- 튜토리얼 캐러셀 -->
         <div class="mode-carousel">
+          <div class="mode-carousel-card cd-card">
           <div class="mode-carousel-track" id="mode-carousel-track">
 
-            <div class="mode-carousel-card">
+            <div class="mode-carousel-slide">
               <div class="mode-carousel-card-header">
                 <i class="ph-fill ph-grid-nine"></i>
                 <span class="mode-carousel-card-title">두 가지 모드로 훈련해요</span>
@@ -70,7 +68,7 @@
               </ul>
             </div>
 
-            <div class="mode-carousel-card">
+            <div class="mode-carousel-slide">
               <div class="mode-carousel-card-header">
                 <i data-lucide="timer"></i>
                 <span class="mode-carousel-card-title">반응속도는 정답만 측정해요</span>
@@ -78,7 +76,7 @@
               <p class="mode-carousel-card-desc">오답은 속도 통계에서 제외되며, 정답들의 평균 반응속도로 기록됩니다.</p>
             </div>
 
-            <div class="mode-carousel-card">
+            <div class="mode-carousel-slide">
               <div class="mode-carousel-card-header">
                 <i data-lucide="trophy"></i>
                 <span class="mode-carousel-card-title">최고기록 기준</span>
@@ -86,6 +84,7 @@
               <p class="mode-carousel-card-desc">전문제 정답 달성 시에만 갱신돼요. 모든 문제를 맞히면서 가장 빠른 평균이 기록됩니다.</p>
             </div>
 
+          </div>
           </div>
           <div class="mode-carousel-dots" id="mode-carousel-dots">
             <div class="mode-carousel-dot mode-carousel-dot--active"></div>
@@ -111,7 +110,7 @@
             </div>
 
           </div>
-        </div>
+        </section>
       </div>
 
       <!-- ── 퀴즈 뷰 ── -->
@@ -129,8 +128,11 @@
 
         <!-- 데일리미션 문제풀이 뷰(.ms-quiz-view)와 완전히 동일한 구조(2026-08-31) —
              #view-quiz가 #ms-main 역할까지 겸함(옛 .quiz-wrap/.quiz-inner 축소 레이어 제거) -->
+        <section class="cd-body">
         <div class="ms-quiz-view" id="ms-quiz-view">
           <div class="ms-quiz-question-card">
+            <!-- 레벨 라벨 — 카드 좌상단. 글자·묶음 색은 JS(startLevel)가 설정 -->
+            <span id="quiz-level-label" class="cq-level-label"></span>
             <!-- 내부 영역 — 문제 요소는 전부 이 안에 두고 밖으로 나가지 않는다. 위 헤더(경과시간·피드백) / 아래 본문(캔버스 또는 코드명) -->
             <div class="cq-inner">
               <div class="cq-head">
@@ -154,10 +156,11 @@
           </div>
           <!-- 답 영역 — 좌상단 말풍선(내용 비어 있음) + 선택지 카드. 선택지(#quiz-choices)는 JS가 innerHTML을 갈아끼우므로 말풍선은 그 밖에 둔다 -->
           <div class="cq-answer">
-            <div class="cq-bubble" id="quiz-bubble">정답을 맞춰주세요!</div>
+            <div class="cq-bubble" id="quiz-bubble">알맞은 코드 이름을 고르세요</div>
             <div id="quiz-choices" class="ms-quiz-choices"></div>
           </div>
         </div>
+        </section>
 
       </div><!-- /view-quiz -->
 
@@ -195,8 +198,6 @@
           </button>
         </div>
       </div><!-- /view-result -->
-
-      </div><!-- /content-body -->
 
     </main>
 

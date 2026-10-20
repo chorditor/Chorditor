@@ -69,6 +69,36 @@
 :root {
   --cd-icon-btn-size: 44px;   /* 터치 영역(정사각) */
   --cd-icon-btn-icon: 24px;   /* 그 안의 아이콘(lucide) — 터치 영역 대비 약 0.55 */
+
+  /* 탑바 전용 토큰(cd-topbar 안 아이콘 버튼·뒤로가기·피크바 공용). 769px~ 값은 페이지 셸 섹션 @media에서 덮음 */
+  --cd-topbar-icon: 24px;          /* 탑바 아이콘(뒤로가기·설정·튜토리얼·검색) */
+  --cd-topbar-touch: 44px;         /* 위 버튼의 터치 영역 */
+  --cd-peak-box: 20px;             /* 피크바 아이콘 박스 */
+  --cd-peak-img-square: 18px;      /* 선물상자 이미지(정사각 키라인) */
+  --cd-peak-img-tall: 16px;      /* 피크 이미지 높이(세로 직사각 키라인) */
+  --cd-peak-h: 36px;               /* 알약 높이(고정값, 내용과 무관) */
+  --cd-peak-pad-x: 16px;           /* 알약 좌우 여백 */
+  --cd-peak-gap: 4px;              /* 아이콘-숫자 간격 */
+  --cd-peak-font: 14px;            /* 피크바 숫자(전 구간 동일) */
+
+  /* 카드 토큰(.cd-card, style-guide §13) — 값 하나만 바꾸면 .cd-card를 쓰는 모든 카드가 일괄 변경 */
+  --cd-card-bg: var(--surface);
+  --cd-card-radius: var(--radius-lg);
+  --cd-card-shadow:
+    inset 0 -1px 0 rgba(0, 0, 0, 0.04),   /* 안쪽 아래 음영 */
+    0 1px 2px rgba(0, 0, 0, 0.05),        /* 접촉 그림자 */
+    2px 8px 24px rgba(0, 0, 0, 0.10);     /* 넓은 번짐(왼쪽 위 빛 → 오른쪽 아래로 살짝 치우침) */
+  --cd-card-ring: linear-gradient(135deg, rgba(0, 0, 0, 0.03) 0%, rgba(255, 255, 255, 0) 45%, rgba(0, 0, 0, 0.10) 100%);   /* 테두리 대각선 그라데이션 */
+  --cd-card-ring-width: 1px;
+
+  /* 퀴즈 레벨 라벨 색(style-guide §1) — 배경 / 글자. 일반 레벨: 회색 Lv1~2 / 연두 Lv3~5 / 하늘 Lv6~8 / 보라 Lv9~, 챌린지: 금속(동·은·금) */
+  --level-gray-bg:   #E2E0DB;  --level-gray-text:   #6B6560;
+  --level-green-bg:  #D8EBAA;  --level-green-text:  #547A12;
+  --level-blue-bg:   #C2E1F0;  --level-blue-text:   #2F6F91;
+  --level-purple-bg: #DFCBF0;  --level-purple-text: #7B4A94;
+  --level-bronze-bg: linear-gradient(135deg, #F7D3AE 0%, #DBA06A 40%, #C98048 70%, #E8B888 100%);  --level-bronze-text: #ffffff;
+  --level-silver-bg: linear-gradient(135deg, #F3F5F8 0%, #C3CBD6 40%, #9AA6B5 70%, #DDE2E9 100%);  --level-silver-text: #ffffff;
+  --level-gold-bg:   linear-gradient(135deg, #FFF1B8 0%, #F2C94C 40%, #D4A017 70%, #F7DC7A 100%);  --level-gold-text:   #ffffff;
 }
 
 /* .cd-btn 컴포넌트 크기 토큰 (docs/style-guide.md §12, 2026-08-24 확정) — 5단계(§4 브레이크포인트) */
@@ -468,13 +498,6 @@ button, input, select, textarea {
   overflow: hidden;
 }
 
-/* 코드맞추기(chord-name-quiz.html) — 데일리미션 배경 그라데이션 틴트 이식(2026-08-31).
-   탑바는 평평한 틴트, 콘텐츠 영역은 위→아래 흰색으로 페이드 (.ms-scroll과 동일 색상값) */
-#chord-quiz-page .cd-topbar { background: rgba(58, 46, 36, 0.03); }
-#chord-quiz-page .content-body {
-  background: linear-gradient(to bottom, rgba(58, 46, 36, 0.03), var(--bg) 160px);
-}
-
 .tab-view {
   position: absolute;
   inset: 0;
@@ -557,6 +580,25 @@ button, input, select, textarea {
 }
 #page-cover.cover-out {
   opacity: 0;
+}
+/* 로드가 오래 걸릴 때만(0.6초 뒤) 스피너 표시 — 정상일 땐 안 보이고, 네트워크가 느려 덮개가 오래 남으면
+   "멈춘 것 같은" 빈 화면 대신 로딩 중임을 알린다. page-cover--spin은 자체 스피너가 있어 제외 */
+#page-cover:not(.page-cover--spin)::after {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 32px;
+  height: 32px;
+  margin: -16px 0 0 -16px;
+  border: 3px solid rgba(44,44,44,0.12);
+  border-top-color: #2C2C2C;
+  border-radius: 50%;
+  opacity: 0;
+  animation: project-spin 0.7s linear infinite, page-cover-spinner-in 0.2s ease-out 0.6s forwards;
+}
+@keyframes page-cover-spinner-in {
+  to { opacity: 1; }
 }
 /* ?�로/가�??�환 �? 조작 차단 + ?�피???�시 (?�전·?�렌?�로 ?�면 깨�???구간??가�? */
 #page-cover.page-cover--spin {
@@ -6445,9 +6487,6 @@ canvas {
    콘텐츠는 아직 없음(회색 배경 뼈대만) — 훈련별 튜토리얼/문제가 .ms-main에 들어갈 예정 */
 #mission-session-page .cd-topbar {
   background: rgba(58, 46, 36, 0.03);
-  gap: 12px;
-  /* 우측에 X버튼이 하나 더 있다고 가정하고 그 폭(26px)만큼 오른쪽을 추가로 비움 */
-  padding-right: calc(var(--cd-inset) + 26px);
   /* 아래 .ms-scroll-inner가 단계 전환 중 pointer-events:none / transform으로 stacking context를
      만들어도 탑바(뒤로가기)는 완전히 독립적으로 항상 클릭 가능해야 함 */
   position: relative;
@@ -6455,19 +6494,54 @@ canvas {
   pointer-events: auto;
 }
 #mission-session-page .cd-topbar .icon-btn { flex-shrink: 0; }
+/* 진행 막대가 있는 탑바(데일리미션·코드맞추기 퀴즈 공통) — 뒤로가기(X) ↔ 막대 12px, 오른쪽은 왼쪽 비움(X 폭 + 12px)과 같게
+   비워 막대가 그리드 가운데에 대칭으로 놓이게 함(2026-10-20). X 폭은 --cd-topbar-icon(769px~ 28px)이라 구간별로 자동 */
+.cd-topbar:has(.ms-progress-track) {
+  gap: var(--space-3);
+  padding-right: calc(var(--cd-inset) + var(--cd-topbar-icon) + var(--space-3));
+}
 .ms-progress-track {
   flex: 1;
-  height: 6px;
+  height: 16px;
   border-radius: 999px;
-  background: rgba(0, 0, 0, 0.08);
+  background: var(--gray-light);   /* 불투명 단색(그림자·반투명 없음) */
   overflow: hidden;
 }
 .ms-progress-fill {
+  position: relative;
+  overflow: hidden;   /* 채움이 아주 짧을 때 반사광(::after)이 회색 바탕으로 삐져나가지 않게 */
   height: 100%;
   width: 0%; /* mission-session.js의 msUpdateProgress()가 실제 값 관리 */
   border-radius: 999px;
   background: var(--blue);
   transition: width 0.2s ease, background-color 0.6s ease;
+}
+/* 반사광 — 채움의 위쪽에 가늘게 깔리는 알약 도형(그라데이션 아님, 블러로 윤곽만 흐림). JS가 인라인 background(경고 빨강/주황)로
+   색을 바꿔도 안 지워지게 background가 아니라 ::after로. 길이는 채움 폭을 따라감 */
+.ms-progress-fill::after {
+  content: '';
+  position: absolute;
+  top: 3px;
+  left: 8px;
+  right: 8px;   /* 채움 폭에 맞게 같이 길어짐(채움이 16px보다 짧으면 사라짐) */
+  height: 4px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.55);
+  filter: blur(3px);   /* 윤곽선이 부드럽게 번짐 */
+  pointer-events: none;
+}
+/* 좌→우 색 그라데이션 — 채움의 현재 색(background: inherit, JS 인라인 경고색 포함)을 복제한 층에 채도·밝기 필터를 걸고
+   왼쪽에서 오른쪽으로 마스크로 사라지게: 왼쪽은 같은 색상의 더 채도 높고 밝은 색, 오른쪽은 원래 색(흰색 덮기가 아님) */
+.ms-progress-fill::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: inherit;
+  filter: saturate(1.8) brightness(1.15);
+  -webkit-mask-image: linear-gradient(to right, #000 0%, transparent 100%);
+  mask-image: linear-gradient(to right, #000 0%, transparent 100%);
+  pointer-events: none;
 }
 /* 승급시험 전용 남은시간 숫자 — 평소엔 display:none(HTML 인라인), 시험 중에만 노출 */
 .ms-progress-time {
@@ -7541,13 +7615,18 @@ canvas {
   grid-template-columns: 1fr 1fr; /* 모바일: 2x2 */
   gap: 12px;
 }
+.ms-quiz-choice-card,
+.ms-quiz-question-card {
+  /* 카드 토큰(style-guide §13-1) 직접 적용 — 선택지 카드는 좌상단 번호가 ::before를 써서 .cd-card 링(::before)을 못 붙임.
+     링은 투명 border + 레이어 배경(흰 단색 위에 링 그라데이션)으로 만든다. 문제 카드도 같은 방식(데일리미션 JS 무변경) */
+  border: var(--cd-card-ring-width) solid transparent;
+  border-radius: var(--cd-card-radius);
+  background: linear-gradient(var(--cd-card-bg), var(--cd-card-bg)) padding-box, var(--cd-card-ring) border-box;
+  box-shadow: var(--cd-card-shadow);
+}
 .ms-quiz-choice-card {
   width: 100%;
   aspect-ratio: 440 / 352; /* VoicingCanvas.BASE_W/BASE_H — 코드 다이어그램 비율 고정, 절대 찌그러뜨리지 않음 */
-  border-radius: 14px;
-  background: #fff;
-  border: 1px solid rgba(0,0,0,0.06);
-  box-shadow: 0 6px 16px rgba(0,0,0,0.14);
   box-sizing: border-box;
   display: flex;
   align-items: center;
@@ -7559,7 +7638,6 @@ canvas {
   color: var(--text-primary);
 }
 .ms-quiz-choice-card--text {
-  border: 1px solid rgba(0,0,0,0.06);
   font-family: 'Pretendard', 'Noto Sans JP', sans-serif;
   font-size: var(--font-headline-sm);
   font-weight: 800;
@@ -7567,23 +7645,12 @@ canvas {
   cursor: pointer;
   -webkit-tap-highlight-color: transparent;
 }
-/* chord-name-quiz 전용 — 텍스트 선택지 카드만 쉐도우 오프셋2/블러8로(2026-08-31) */
-#chord-quiz-page .ms-quiz-choice-card.ms-quiz-choice-card--text {
-  box-shadow: 0 2px 8px rgba(0,0,0,0.14);
-}
+/* 정답/오답 — 초록·빨강 안쪽 링 + 카드 토큰 그림자(텍스트·다이어그램 선택지 공통, 2026-10-20 전용 그림자 규칙 삭제) */
 .ms-quiz-choice-card--correct {
-  box-shadow: 0 0 0 3px #34C759 inset, 0 6px 16px rgba(0,0,0,0.14);
+  box-shadow: 0 0 0 3px #34C759 inset, var(--cd-card-shadow);
 }
 .ms-quiz-choice-card--wrong {
-  box-shadow: 0 0 0 3px #FF3B30 inset, 0 6px 16px rgba(0,0,0,0.14);
-}
-/* 위 --text 전용 쉐도우 규칙(#chord-quiz-page 스코프)이 특이도가 더 높아서 텍스트모드에서
-   정답/오답 표시가 가려지던 버그(2026-09-01 발견) — 특이도 맞춰서 재정의 */
-#chord-quiz-page .ms-quiz-choice-card.ms-quiz-choice-card--text.ms-quiz-choice-card--correct {
-  box-shadow: 0 0 0 3px #34C759 inset, 0 2px 8px rgba(0,0,0,0.14);
-}
-#chord-quiz-page .ms-quiz-choice-card.ms-quiz-choice-card--text.ms-quiz-choice-card--wrong {
-  box-shadow: 0 0 0 3px #FF3B30 inset, 0 2px 8px rgba(0,0,0,0.14);
+  box-shadow: 0 0 0 3px #FF3B30 inset, var(--cd-card-shadow);
 }
 .ms-quiz-choice-canvas-slot {
   width: 80%;
@@ -11380,30 +11447,7 @@ canvas {
    전 구간에서 한 번에 무효화 (2026-08-22, 옛 절대배치/margin 스킴 잔재 차단) */
 .app-shell:has(.training-scroll) #topbar-currency { margin-right: 0 !important; }
 
-/* 훈련소 피크바 — 모바일(22×26/16px img/12px 숫자)은 기존값 그대로.
-   태블릿~데스크탑은 docs/style-guide.md §7 데스크탑 확정값까지 단계적으로 보간(2026-08-22 추천안). */
-@media (min-width: 481px) and (max-width: 768px) {
-  .app-shell:has(.training-scroll) #topbar-currency .currency-icon-box { width: 24px; height: 28px; }
-  .app-shell:has(.training-scroll) #topbar-currency .currency-count { font-size: 13px; }
-}
-@media (min-width: 769px) and (max-width: 1079px) {
-  .app-shell:has(.training-scroll) #topbar-currency .currency-icon-box { width: 26px; height: 30px; }
-  .app-shell:has(.training-scroll) #topbar-currency .currency-count { font-size: 14px; }
-}
-@media (min-width: 1080px) and (max-width: 1599px) {
-  .app-shell:has(.training-scroll) #topbar-currency .currency-icon-box { width: 28px; height: 32px; }
-  .app-shell:has(.training-scroll) #topbar-currency .currency-count { font-size: 16px; }
-}
-@media (min-width: 1600px) {
-  /* §7 데스크탑 확정값: 아이콘 24px(자체 마진 없음)·숫자18px·아이콘-숫자 갭4px·
-     배지 상하패딩8px(→높이40px)·필박스 좌우패딩20px(기존 10px에서 확대)·필박스간갭10px(기존값 유지) */
-  .app-shell:has(.training-scroll) #topbar-currency .currency-item { gap: 4px; padding-block: 8px; }
-  .app-shell:has(.training-scroll) #topbar-currency .currency-icon-box { width: 24px; height: 24px; }
-  .app-shell:has(.training-scroll) #topbar-currency .currency-icon-box img { width: 24px; height: 24px; margin: 0; }
-  .app-shell:has(.training-scroll) #topbar-currency .currency-count { font-size: 18px; }
-  .app-shell:has(.training-scroll) #topbar-currency .currency-item:first-child { padding-left: 20px; margin-left: -20px; }
-  .app-shell:has(.training-scroll) #topbar-currency .currency-item:last-child { padding-right: 20px; margin-right: -20px; }
-}
+/* 훈련소 피크바 크기 전용 규칙은 삭제(2026-10-19) — 모든 탑바 공통 --cd-peak-* 토큰(페이지 셸 섹션)을 따름. */
 
 /* ?�크�?컨테?�너 */
 .training-scroll {
@@ -12492,18 +12536,12 @@ canvas {
 #view-quiz {
   display: flex;
   flex-direction: column;
-  align-items: center;
-  padding-block: 20px;
+  /* 좌우는 --cd-inset(1440px 캡 포함) 한 곳, 안쪽은 .cd-body 하나(위 간격 = cd-body margin-top --cd-head-gap) — 2026-10-20.
+     옛 padding-block:20px / padding-inline:--grid-margin / max-width / margin-inline:auto 삭제 */
+  padding-inline: var(--cd-inset);
   /* 하단 사지선다 카드가 안드로이드 제스처바/네비게이션 바에 가려지는 문제 —
      #view-result .ms-bottom-actions(위, 2026-08-31)와 같은 이유로 여기도 누락돼 있었음 */
-  padding-bottom: calc(20px + env(safe-area-inset-bottom, 0px));
-  /* 데일리미션은 #ms-main 자체엔 좌우 패딩이 없고, 그 부모 .ms-scroll-inner가
-     padding-inline:var(--grid-margin) + max-width:var(--grid-container-max) 데스크탑 캡을
-     담당함(style.css #mission-session-page .ms-scroll-inner) — #view-quiz는 그 부모 역할까지
-     겸하니 여기서 같이 가져와야 함, 빠뜨렸었음(2026-08-31 지적) */
-  padding-inline: var(--grid-margin);
-  max-width: var(--grid-container-max);
-  margin-inline: auto;
+  padding-bottom: calc(var(--space-6) + env(safe-area-inset-bottom, 0px));
   box-sizing: border-box;
   overflow-y: auto; /* 저사양/저높이 기기에서 넘칠 때 스크롤로 흡수(공용 .quiz-view의 overflow:hidden 대신) */
 }
@@ -12532,10 +12570,9 @@ canvas {
   display: none;
 }
 @media all {
-  /* 문제 카드는 탑바 바로 아래에 붙여 시작(여백은 스타일가이드 §11-3a 토큰: 탑바↔카드 --cd-head-pad,
-     카드↔답 --cd-head-gap). 카드는 지나치게 커지지 않게 높이 상한 */
+  /* 문제 카드는 탑바 아래 --cd-head-gap(.cd-body margin-top)에서 시작, 카드↔답도 --cd-head-gap(스타일가이드 §11-3a).
+     카드는 지나치게 커지지 않게 높이 상한 */
   #chord-quiz-page #view-quiz {
-    padding-top: var(--cd-head-pad);
     overflow: hidden;   /* 스크롤 없음 — 모든 요소가 한 화면 안에 들어와야 함(아래 카드 높이·답 카드 크기가 남은 높이로 계산됨) */
   }
   /* 문제 영역(위) / 답 영역(아래, 뷰포트 하단에 붙임). 뷰 자체를 크기 컨테이너로 삼아 답 카드가 "남은 높이"를 넘지 않게 함 */
@@ -12608,24 +12645,34 @@ canvas {
     min-height: 0;
     aspect-ratio: auto;
   }
-  /* 카드 좌상단 번호(1~4) — CSS 카운터라 JS 변경 없음. 텍스트 선택지 버튼의 글자(textContent)에는 섞이지 않는다 */
-  :is(#chord-quiz-page, #mission-session-page) .ms-quiz-choices {
-    counter-reset: cq-choice;
-  }
+  /* 카드 좌상단 번호(1~4) — 원형 디스크 + 나의 기타 여정 노드와 같은 숫자(Fredoka 600을 SVG 경로로 뽑은 journey-numbers.js의 1~4).
+     폰트 파일이 없어 글자(counter) 대신 카드 순서(nth-child)별 SVG 배경. JS 변경 없음, 텍스트 선택지의 글자(textContent)에는 안 섞임.
+     디스크 = #f5f5f5 단색 + 그레이 숫자(#86827c), 그림자 없음 */
   :is(#chord-quiz-page, #mission-session-page) .ms-quiz-choice-card {
     position: relative;
-    counter-increment: cq-choice;
   }
   :is(#chord-quiz-page, #mission-session-page) .ms-quiz-choice-card::before {
-    content: counter(cq-choice);
+    content: '';
     position: absolute;
     top: var(--space-2);
-    left: var(--space-3);
-    font: var(--type-label-lg);
-    font-weight: 700;
-    letter-spacing: var(--tracking-base);
-    color: var(--text-muted);
+    left: var(--space-2);
+    width: 20px;
+    height: 20px;
+    border-radius: 50%;
+    background: var(--cq-num-img) center / 72% 72% no-repeat #f5f5f5;   /* 숫자 높이 ≈ 8.4px (SVG 숫자 높이는 박스의 약 58%) */
     pointer-events: none;
+  }
+  :is(#chord-quiz-page, #mission-session-page) .ms-quiz-choices > .ms-quiz-choice-card:nth-child(1) {
+    --cq-num-img: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='-50 -50 100 100'%3E%3Cpath fill='%2386827c' d='M4.9 29.68Q1.51 29.68 0.17 28.31Q-1.18 26.94 -1.18 23.49V-21.47Q-1.18 -24.88 0.18 -26.23Q1.53 -27.58 4.99 -27.58Q8.37 -27.58 9.72 -26.18Q11.07 -24.78 11.07 -21.31V23.57Q11.07 26.96 9.72 28.32Q8.37 29.68 4.9 29.68ZM-5.45 -5.38Q-7.8 -3.32 -9.66 -3.38Q-11.51 -3.44 -13.7 -5.79Q-15.92 -8.18 -15.78 -10.26Q-15.64 -12.34 -12.92 -14.71L-0.75 -25.51Q1.51 -27.58 3.44 -27.4Q5.37 -27.23 7.5 -24.9Q9.68 -22.59 9.51 -20.53Q9.33 -18.47 6.6 -16.04Z'/%3E%3C/svg%3E");
+  }
+  :is(#chord-quiz-page, #mission-session-page) .ms-quiz-choices > .ms-quiz-choice-card:nth-child(2) {
+    --cq-num-img: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='-50 -50 100 100'%3E%3Cpath fill='%2386827c' d='M-15.51 28.46Q-17.98 28.46 -19.83 26.55Q-21.67 24.64 -21.67 22.13Q-21.67 20.7 -21.41 19.39Q-21.14 18.09 -20.54 16.87Q-19.94 15.66 -18.9 14.61Q-15.98 11.71 -12.47 9.31Q-8.97 6.9 -5.5 4.72Q-2.03 2.55 0.86 0.37Q3.75 -1.8 5.49 -4.27Q7.24 -6.74 7.24 -9.71Q7.24 -11.36 6.55 -13.01Q5.85 -14.67 4.09 -15.79Q2.32 -16.91 -0.93 -16.91Q-3.05 -16.91 -4.62 -16.33Q-6.2 -15.75 -7.21 -14.63Q-8.22 -13.5 -8.74 -11.87Q-9.26 -10.24 -9.26 -8.15Q-9.26 -6.6 -9.54 -5.26Q-9.83 -3.93 -11.12 -3.11Q-12.4 -2.29 -15.51 -2.29Q-18.57 -2.29 -19.86 -3.22Q-21.14 -4.15 -21.41 -5.65Q-21.67 -7.15 -21.67 -8.75Q-21.67 -12.67 -20.29 -16.36Q-18.9 -20.06 -16.2 -22.97Q-13.51 -25.88 -9.69 -27.6Q-5.87 -29.33 -1.01 -29.33Q4.95 -29.33 9.63 -26.66Q14.31 -24 17.02 -19.35Q19.74 -14.71 19.74 -8.64Q19.74 -5.05 18.59 -2.03Q17.45 0.99 15.54 3.49Q13.63 5.98 11.32 7.93Q9.02 9.88 6.64 11.38Q4.26 12.88 2.22 13.97Q0.17 15.06 -1.21 15.8L-2.38 15.96H15.69Q17.33 15.96 18.75 16.27Q20.17 16.57 21.01 17.9Q21.86 19.23 21.86 22.29Q21.86 25.21 20.97 26.54Q20.08 27.87 18.63 28.16Q17.18 28.46 15.53 28.46Z'/%3E%3C/svg%3E");
+  }
+  :is(#chord-quiz-page, #mission-session-page) .ms-quiz-choices > .ms-quiz-choice-card:nth-child(3) {
+    --cq-num-img: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='-50 -50 100 100'%3E%3Cpath fill='%2386827c' d='M-1.15 29.25Q-5.52 29.25 -9.33 27.85Q-13.14 26.44 -16.09 23.98Q-19.04 21.52 -20.7 18.36Q-22.37 15.21 -22.45 11.78Q-22.45 7.39 -15.71 7.39Q-13.73 7.39 -12.73 7.76Q-11.73 8.14 -11.13 9.09Q-10.52 10.04 -9.91 11.75Q-9.63 12.57 -8.68 13.86Q-7.73 15.14 -5.89 16.17Q-4.05 17.19 -1.07 17.19Q1.69 17.19 3.69 16.35Q5.69 15.51 6.8 14Q7.91 12.49 7.91 10.55Q7.91 8.47 6.83 7.01Q5.75 5.55 3.91 4.8Q2.07 4.06 -0.34 4.06Q-2.01 4.06 -3.47 3.81Q-4.93 3.57 -5.82 2.33Q-6.71 1.1 -6.71 -1.89Q-6.71 -4.93 -5.82 -6.12Q-4.93 -7.32 -3.44 -7.53Q-1.95 -7.75 -0.25 -7.75Q1.93 -7.75 3.41 -8.23Q4.89 -8.71 5.66 -9.64Q6.42 -10.58 6.42 -11.93Q6.42 -13.65 5.59 -14.91Q4.75 -16.18 3.22 -16.86Q1.69 -17.55 -0.38 -17.55Q-2.54 -17.55 -3.97 -17Q-5.4 -16.44 -6.34 -15.48Q-7.28 -14.52 -8.01 -13.36Q-9.42 -10.46 -11.49 -9.91Q-13.57 -9.36 -16.63 -11.05Q-19.41 -12.75 -19.86 -14.64Q-20.31 -16.53 -19.02 -19.12Q-18.88 -19.34 -18.3 -20.45Q-17.73 -21.55 -16.46 -23.05Q-15.18 -24.55 -13.17 -26.02Q-11.16 -27.49 -8.15 -28.46Q-5.13 -29.43 -1.03 -29.43Q3.81 -29.43 7.52 -27.91Q11.22 -26.39 13.76 -23.92Q16.31 -21.45 17.61 -18.41Q18.92 -15.38 18.92 -12.28Q18.92 -9.38 17.89 -7.24Q16.86 -5.09 15.4 -3.76Q13.94 -2.44 12.73 -1.82Q13.96 -1.23 15.29 -0.11Q16.61 1.01 17.75 2.63Q18.88 4.24 19.6 6.19Q20.33 8.14 20.33 10.39Q20.33 15.82 17.56 20.08Q14.8 24.33 9.95 26.79Q5.1 29.25 -1.15 29.25Z'/%3E%3C/svg%3E");
+  }
+  :is(#chord-quiz-page, #mission-session-page) .ms-quiz-choices > .ms-quiz-choice-card:nth-child(4) {
+    --cq-num-img: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='-50 -50 100 100'%3E%3Cpath fill='%2386827c' d='M12.29 29.11Q9.31 29.11 8.01 28.22Q6.72 27.33 6.42 25.88Q6.12 24.43 6.12 22.86V12.4H-15.74Q-18.71 12.4 -20.01 11.5Q-21.32 10.61 -21.63 9.16Q-21.93 7.71 -21.93 6.15Q-21.93 5.38 -21.88 4.86Q-21.83 4.34 -21.69 3.81L-14.52 -23.37Q-13.6 -27.17 -11.93 -27.92Q-10.25 -28.66 -6.88 -27.89Q-4.29 -27.23 -2.9 -25.91Q-1.51 -24.6 -1.98 -22.68L-8.13 0.76H6.12V-22.21Q6.12 -23.74 6.43 -25.04Q6.74 -26.33 8.07 -27.18Q9.41 -28.03 12.45 -28.03Q15.44 -28.03 16.73 -27.14Q18.03 -26.25 18.33 -24.83Q18.62 -23.41 18.62 -21.78V22.96Q18.62 24.57 18.28 25.99Q17.95 27.41 16.65 28.26Q15.35 29.11 12.29 29.11Z'/%3E%3C/svg%3E");
   }
   /* 다이어그램 슬롯 — 카드의 80% 안에 440:352 비율로 맞춤(폭·높이 중 먼저 닿는 쪽 기준) */
   :is(#chord-quiz-page, #mission-session-page) .ms-quiz-choice-canvas-slot {
@@ -12640,12 +12687,7 @@ canvas {
   }
   :is(#chord-quiz-page, #mission-session-page) .ms-quiz-question-card {
     min-height: 0;   /* 공용 규칙(max-height:480px일 때 min-height:320px)이 높이 상한을 깨지 않도록 */
-    background: var(--surface);
-    border: 1px solid #fff;
-    border-radius: var(--radius-lg);
-    box-shadow:
-      0 1px 2px rgba(0, 0, 0, 0.04),
-      0 8px 24px rgba(0, 0, 0, 0.08);
+    /* 카드 외형은 공용 규칙(위, --cd-card-* 토큰)이 담당 — 옛 흰 테두리+2겹 그림자 삭제(2026-10-20) */
   }
   /* 내부 영역 — 문제 요소(헤더·캔버스·코드명)는 전부 이 안. 카드 안쪽을 가득 채우되 폭 360px 상한, 넘치는 건 잘라 밖으로 안 나감 */
   :is(#chord-quiz-page, #mission-session-page) .cq-inner {
@@ -12681,6 +12723,35 @@ canvas {
   }
 }
 
+/* 문제 카드 좌상단 레벨 라벨(코드맞추기 전용 — 데일리미션엔 요소 없음). 카드 모서리 기준 absolute라 가운데 영역(.cq-inner)과 안 겹침.
+   색은 :root의 --level-* 토큰, 묶음 클래스(--blue/--green/--purple)는 JS startLevel이 붙임 */
+#chord-quiz-page .ms-quiz-question-card {
+  position: relative;
+}
+#chord-quiz-page .cq-level-label {
+  position: absolute;
+  top: var(--space-4);
+  left: var(--space-4);
+  display: inline-flex;
+  align-items: center;
+  height: 28px;
+  padding-inline: var(--space-3);
+  border-radius: var(--space-2);
+  font: var(--type-label-lg);
+  font-weight: 700;
+  letter-spacing: 0.02em;   /* 앱 기본(-0.04em)과 달리 이 라벨만 벌림 — 짧은 영문+숫자라 또렷하게 */
+  pointer-events: none;
+}
+#chord-quiz-page .cq-level-label:empty { display: none; }
+#chord-quiz-page .cq-level-label--gray   { background: var(--level-gray-bg);   color: var(--level-gray-text); }
+#chord-quiz-page .cq-level-label--green  { background: var(--level-green-bg);  color: var(--level-green-text); }
+#chord-quiz-page .cq-level-label--blue   { background: var(--level-blue-bg);   color: var(--level-blue-text); }
+#chord-quiz-page .cq-level-label--purple { background: var(--level-purple-bg); color: var(--level-purple-text); }
+/* 챌린지 — 금속 라벨(동·은·금): 대각선 광택 그라데이션 */
+#chord-quiz-page .cq-level-label--bronze { background: var(--level-bronze-bg); color: var(--level-bronze-text); }
+#chord-quiz-page .cq-level-label--silver { background: var(--level-silver-bg); color: var(--level-silver-text); }
+#chord-quiz-page .cq-level-label--gold   { background: var(--level-gold-bg);   color: var(--level-gold-text); }
+
 /* 1~2단계(폭 ≤768px) 세로 디자인 — 위 문제 카드(고정 높이) / 아래 답 영역(말풍선 + 2×2) */
 @media (max-width: 768px) {
   #chord-quiz-page #view-quiz,
@@ -12690,6 +12761,11 @@ canvas {
     --cq-card-h: min(360px, calc(50dvh - 56px - env(safe-area-inset-top, 0px) - var(--cd-head-pad)));
     --cq-bubble-h: 44px;     /* 답 영역 말풍선 높이 */
     --cq-bubble-gap: 12px;   /* 말풍선 ↔ 선택지 카드 (꼬리가 들어갈 자리) */
+  }
+  /* 코드맞추기는 위 간격이 .cd-body margin-top(--cd-head-gap)이라 카드 높이 상한도 그 값 기준(데일리미션은 위 --cd-head-pad 그대로) */
+  #chord-quiz-page #view-quiz {
+    --cq-card-h: min(360px, calc(50vh - 56px - env(safe-area-inset-top, 0px) - var(--cd-head-gap)));
+    --cq-card-h: min(360px, calc(50dvh - 56px - env(safe-area-inset-top, 0px) - var(--cd-head-gap)));
   }
   :is(#chord-quiz-page, #mission-session-page) .ms-quiz-question-card {
     flex: none;
@@ -12736,6 +12812,9 @@ canvas {
   #chord-quiz-page #view-quiz {
     padding-top: 100px;
     padding-bottom: calc(100px + env(safe-area-inset-bottom, 0px));
+  }
+  #chord-quiz-page #view-quiz .cd-body {
+    margin-top: 0;   /* 위 100px는 #view-quiz padding-top이 담당(이중 간격 방지) */
   }
   :is(#chord-quiz-page, #mission-session-page) .ms-quiz-view {
     display: grid;
@@ -12816,37 +12895,50 @@ canvas {
 }
 
 /* ?�?� 모드 ?�택 ?�면 ?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?� */
-.mode-select-scroll {
+/* 좌우 여백은 #view-mode-select가 --cd-inset 한 곳에서 담당(레벨 선택과 동일, 구간별 옛 vw 패딩 규칙 삭제 2026-10-20),
+   안쪽은 .cd-body 하나. 5단계 전부 그리드 컬럼 전체 폭(폭 계산 없음). 캐러셀이 맨 위(--cd-head-gap 아래)에 붙고 모드 카드가 이어짐 */
+#view-mode-select {
+  --mode-content-max: 800px;   /* 캐러셀·모드 카드 최대 폭 — 그보다 넓은 화면에선 가운데 정렬 */
   display: flex;
   flex-direction: column;
-  height: 100%;
-  padding: 20px 20px 80px;
+  padding-inline: var(--cd-inset);
   box-sizing: border-box;
-  justify-content: center;
+}
+#view-mode-select .cd-body {
+  box-sizing: border-box;
+  justify-content: flex-start;
 }
 
 /* ?�?� ?�토리얼 캐러?� ?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?� */
 .mode-carousel {
   display: flex;
   flex-direction: column;
+  width: 100%;
+  max-width: var(--mode-content-max, 800px);
+  margin-inline: auto;
   gap: 12px;
-  margin-bottom: 20px;
+  margin-bottom: var(--space-6);   /* 캐러셀 ↔ 모드 카드: 마진(16)보다 넓어 다른 묶음 */
+}
+
+.mode-carousel-card {
+  /* 카드 외형(배경·모서리·그림자·링)은 마크업의 .cd-card(style-guide §13-1). 카드는 고정, 안쪽 슬라이드만 움직임.
+     overflow:hidden은 카드 자신의 바깥 그림자를 자르지 않음 — 슬라이드가 카드 가장자리에서 잘리게 하는 용도 */
+  height: 140px;
   overflow: hidden;
 }
 
 .mode-carousel-track {
   display: flex;
-  transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  height: 100%;
+  transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);   /* JS: translateX(-current*100%) */
   user-select: none;
   -webkit-user-select: none;
   touch-action: pan-y;
 }
 
-.mode-carousel-card {
+.mode-carousel-slide {
   min-width: 100%;
-  background: #fff;
-  border-radius: 16px;
-  box-shadow: 0 2px 6px rgba(0,0,0,0.14);
+  height: 100%;
   padding: 20px;
   box-sizing: border-box;
   display: flex;
@@ -12931,23 +13023,33 @@ canvas {
 }
 
 .mode-cards {
+  /* 캐러셀 아래 남은 세로 공간을 차지하고 카드(220px)를 그 안의 세로 가운데에 놓음. 공간이 220px보다 작으면 카드 높이 유지 */
+  flex: 1;
+  min-height: 220px;
+  align-items: center;
+  width: 100%;
+  max-width: var(--mode-content-max, 800px);
+  margin-inline: auto;
   display: flex;
   flex-direction: row;
-  gap: 12px;
-  height: 220px;
+  gap: var(--grid-gutter);
 }
 
 .mode-card {
   flex: 1;
+  height: 220px;
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
   gap: 14px;
   padding: 24px 16px;
-  background: #fff;
-  border-radius: 16px;
-  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.14);
+  /* 카드 토큰(§13-1) 직접 적용 — .cd-card는 ::before를 링에 쓰는데 .mode-card--peak가 ::before/::after를
+     피크 뱃지로 쓰므로, 링은 투명 border + 레이어 배경(흰 단색 위에 링 그라데이션)으로 만든다 */
+  border: var(--cd-card-ring-width) solid transparent;
+  border-radius: var(--cd-card-radius);
+  background: linear-gradient(var(--cd-card-bg), var(--cd-card-bg)) padding-box, var(--cd-card-ring) border-box;
+  box-shadow: var(--cd-card-shadow);
   cursor: pointer;
   position: relative;
   text-align: center;
@@ -13031,7 +13133,6 @@ canvas {
 .mode-card-arrow {
   display: none;
 }
-
 /* ?�드�?메시지 ??1줄↔2�??�환?�도 ?�이?�웃 고정
    14px × line-height 1.5 × 2�?= 42px ?�정 */
 /* ?�?� ?�즈 �??�환 (?�벨 ?�택 ???�즈) ?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?� */
@@ -13056,6 +13157,10 @@ canvas {
    이 페이지는 그 조상이 없어서 하단 여백이 아예 없었음(2026-08-31) */
 #view-result .ms-bottom-actions {
   padding-bottom: calc(20px + env(safe-area-inset-bottom, 0px));
+  /* 위 결산 내용(.ms-result-scroll / .ms-result-scores)은 max-width:480px 가운데 정렬 — 버튼 영역도 내용 폭이 480px(패딩 20px×2 포함 520px)에서
+     멈추게 해서 폭을 맞춤. 520px 이하에서는 지금과 동일 */
+  max-width: 520px;
+  margin-inline: auto;
 }
 
 .quiz-view--right {
@@ -13124,13 +13229,11 @@ canvas {
 }
 
 /* ?�?� ?�벨 ?�택 ???�이?�웃 ?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?� */
-.level-select-layout {
-  display: flex;
-  flex-direction: column;
-  height: 100%;
-  padding: 20px 0; /* 좌우는 #view-level-select가 --grid-margin으로 담당(이중 인셋 방지) */
+#view-level-select .cd-body {
+  /* 위 간격은 .cd-body의 margin-top(--cd-head-gap), 좌우는 #view-level-select가 --cd-inset으로 담당(이중 인셋 방지).
+     패널↔리스트 간격은 gap이 아니라 .level-wheel-track 상단 패딩(32px) — 스크롤 시 카드가 패널 경계선에서 잘리게 */
   box-sizing: border-box;
-  gap: 32px;
+  gap: 0;
   /* overflow:hidden이면 좌우 패딩이 0이라 .level-detail-panel의 box-shadow(가로 블러 16px)가
      바로 이 박스 경계에서 잘림(2026-08-31 발견) — .level-wheel-track이 자체 overflow-y:auto로
      스크롤을 이미 담당하고, 페이지 전환 클리핑은 바깥 #view-level-select(.quiz-view)가 담당하므로
@@ -13138,26 +13241,20 @@ canvas {
   overflow: visible;
 }
 
-/* 코드맞추기 레벨선택 — 좌우 여백은 여기 한 곳(--grid-margin)만 담당(2026-08-31, 5단계
-   그리드 시스템 정리). 이전엔 여기 아무 값도 없어서 방향에 따라 5vw/7.5vw(태블릿·큰태블릿)나
-   0px(769~1079 가로모드 등 사각지대)가 흩어져 있었고, 그 위에 .level-select-layout의 고정
-   20px까지 겹쳐 이중 인셋이었음. 데스크탑(1600px~)·Fold 전용값은 아래 별도 스코프가 이 규칙
-   뒤에서 그대로 덮어씀(파일 순서상 이김) */
+/* 코드맞추기 레벨선택 — 좌우 여백은 여기 한 곳(--cd-inset, 1440px 캡 포함)만 담당(2026-10-20,
+   이전엔 --grid-margin이라 캡이 안 걸렸음). 안쪽은 .cd-body 하나(옛 .level-select-layout 대체).
+   데스크탑(1600px~)·Fold 전용값은 아래 별도 스코프가 이 규칙 뒤에서 그대로 덮어씀(파일 순서상 이김) */
 #view-level-select {
-  padding-left: var(--grid-margin);
-  padding-right: var(--grid-margin);
+  display: flex;
+  flex-direction: column;
+  padding-inline: var(--cd-inset);
   box-sizing: border-box;
 }
 
 /* ?�?� ?�단 ?�세 ?�널 ?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?� */
 .level-detail-panel {
+  /* 카드 외형(배경·모서리·그림자·테두리 링)은 마크업의 .cd-card가 담당(style-guide §13) — 여기는 레이아웃만 */
   flex-shrink: 0;
-  background: #fff;
-  border-radius: var(--radius);
-  /* blur 32px가 위로도 번져 top-bar 밑에 옅은 선처럼 보였음 → blur 축소 + y오프셋만으로 아래쪽 강조 */
-  box-shadow:
-    0 2px 16px rgba(0,0,0,0.14),
-    inset 0 1px 0 rgba(255,255,255,0.9);
   display: flex;
   flex-direction: column;
   /* overflow:hidden을 이 요소 자신에 걸면 위 box-shadow까지 같이 잘림(overflow는 같은 요소의
@@ -13314,7 +13411,13 @@ canvas {
   display: flex;
   flex-direction: column;
   gap: 12px;
-  padding: 12px 12px 32px;
+  /* 상세 패널 바로 아래에서 시작(카드가 패널 경계선에서 잘림). 패널과의 간격은 상단 패딩 32px로 — 스크롤하면 같이 올라감.
+     좌우는 -16/+16으로 상쇄해 카드 폭 = 패널 폭, 그림자(blur 14px)가 안 잘릴 버퍼는 유지 */
+  margin-inline: calc(var(--space-4) * -1);
+  padding: var(--space-8) var(--space-4) var(--space-8);
+  /* 패널 경계선에서 카드가 서서히 투명해지며 사라짐(위쪽 12px 페이드). 상단 패딩(32px)보다 짧아서 첫 카드는 안 흐려짐 */
+  -webkit-mask-image: linear-gradient(to bottom, transparent 0, #000 var(--space-3));
+  mask-image: linear-gradient(to bottom, transparent 0, #000 var(--space-3));
 }
 .level-wheel-track::-webkit-scrollbar { display: none; }
 
@@ -13338,9 +13441,9 @@ canvas {
     box-sizing: border-box;
     overflow-y: auto;     /* 단일 스크롤 컨테이너 */
   }
-  .level-select-layout {
-    height: auto;         /* 100% 고정이면 내용이 넘쳐도 안 늘어남 */
-    min-height: 100%;
+  #view-level-select .cd-body {
+    flex: none;           /* flex:1이면 내용이 넘쳐도 안 늘어남 */
+    min-height: calc(100% - var(--cd-head-gap));
     overflow: visible;    /* 여기서 자르면 바깥이 스크롤할 게 없어짐 */
   }
   /* JS(chord-name-quiz.js)가 panel.style.minHeight를 인라인으로 굳혀서 CSS만으론 못 줄임 */
@@ -13349,26 +13452,26 @@ canvas {
     flex: none;           /* 남는 공간 배분 대상에서 제외 — 콘텐츠 높이 그대로 */
     min-height: auto;
     overflow: visible;    /* 안쪽 스크롤 해제 → 바깥 단일 스크롤로 위임 */
+    -webkit-mask-image: none;  /* 위쪽 페이드 해제 — 리스트가 스크롤하지 않아 경계가 스크롤과 함께 움직임 */
+    mask-image: none;
   }
 
   /* §0-1 원칙: 가로모드 전용 레이아웃을 새로 짜지 않는다 — 세로 레이아웃 그대로 두고
      내부에서 자르던 것들(overflow:hidden, height:100%+justify-center)만 풀어서
      바깥 .quiz-view 하나가 전체를 스크롤하게 만든다(위 level-select와 동일 패턴). */
-  .mode-select-scroll {
-    height: auto;
-    min-height: 100%;
-    justify-content: flex-start;
+  #view-mode-select .cd-body {
+    flex: none;           /* flex:1이면 내용이 넘쳐도 안 늘어남 */
+    min-height: calc(100% - var(--cd-head-gap));
   }
   /* #view-quiz는 이제 옛 .quiz-wrap/.quiz-inner 없이 base 자체가 overflow-y:auto라
      여기서 따로 풀어줄 게 없음(2026-08-31) */
 }
 
 .lw-item {
+  /* 일반 레벨 외형(배경·모서리·그림자·테두리 링)은 JS가 붙이는 .cd-card가 담당(style-guide §13-1).
+     챌린지 3종은 .cd-card 없이 아래 전용 디자인 유지 */
   height: 72px;
   flex-shrink: 0;
-  background: #fff;
-  border-radius: 14px;
-  box-shadow: 0 2px 4px rgba(0,0,0,0.06);
   padding: 0 14px;
   display: flex;
   flex-direction: column;
@@ -13415,6 +13518,7 @@ canvas {
 
 /* ?�?� 브론�?챌린지 (c1) ?�?� */
 .lw-item--challenge-bronze {
+  border-radius: var(--cd-card-radius);
   background: linear-gradient(135deg, #fff8f0 0%, #fff 60%);
   border: 1.5px solid rgba(184, 115, 51, 0.45);
   box-shadow: 0 2px 10px rgba(184, 115, 51, 0.15);
@@ -13433,6 +13537,7 @@ canvas {
 
 /* ?�?� ?�버 챌린지 (c2) ?�?� */
 .lw-item--challenge-silver {
+  border-radius: var(--cd-card-radius);
   background: linear-gradient(135deg, #f7f8fa 0%, #fff 60%);
   border: 1.5px solid rgba(148, 163, 184, 0.55);
   box-shadow: 0 2px 10px rgba(148, 163, 184, 0.18);
@@ -13451,6 +13556,7 @@ canvas {
 
 /* ?�?� 골드 챌린지 (c3) ?�?� */
 .lw-item--challenge-gold {
+  border-radius: var(--cd-card-radius);
   background: linear-gradient(135deg, #fffbeb 0%, #fff 60%);
   border: 1.5px solid rgba(234, 179, 8, 0.5);
   box-shadow: 0 2px 10px rgba(234, 179, 8, 0.18);
@@ -13469,6 +13575,9 @@ canvas {
 
 .lw-item--selected { background: rgba(59, 130, 246, 0.07); }
 .lw-item--selected:active { background: rgba(59, 130, 246, 0.13); }
+/* .cd-card의 배경(파일 뒤쪽 선언)이 위 선택색을 덮으므로 일반 레벨 카드는 선택자 특이도를 올려 선택색을 유지 */
+.cd-card.lw-item--selected { background: rgba(59, 130, 246, 0.07); }
+.cd-card.lw-item--selected:active { background: rgba(59, 130, 246, 0.13); }
 
 .lw-row1 {
   display: flex;
@@ -13780,7 +13889,7 @@ canvas {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 20px 16px 14px;
+  padding: 20px var(--space-6) 14px;   /* 좌우 24px — 아래 카드 그리드 좌우 패딩과 끝선 맞춤 */
   flex-shrink: 0;
 }
 
@@ -13791,6 +13900,11 @@ canvas {
 }
 
 .preview-modal-grid {
+  padding: 0 var(--space-6) var(--space-6);   /* 좌우 24px: 카드 그림자(번짐 24px)가 overflow에 잘리지 않을 버퍼 */
+  overflow-y: auto;
+}
+/* 격자는 패널(#/b 모드별로 하나씩, JS가 생성)이 담당 — 토글은 패널 display만 바꿈 */
+.preview-modal-grid-pane {
   display: grid;
   /* 모달 폭이 max-width:80vh로 가변이라 열 개수도 소프트코딩 — 기준 카드폭 110px 기준으로
      자동 늘고 줄되, clamp()로 3열~6열 범위 밖으로 안 나가게 상하한 고정.
@@ -13798,9 +13912,8 @@ canvas {
       상한: 100%/3칸 크기 초과면 2열↓이 되므로 그 값 위로 못 올라가게 = 최소 3열) */
   grid-template-columns: repeat(auto-fill, minmax(clamp(calc((100% - 50px) / 6), 110px, calc((100% - 20px) / 3)), 1fr));
   gap: 10px;
-  padding: 0 16px 20px;
-  overflow-y: auto;
 }
+.preview-modal-grid-pane--hidden { display: none; }
 
 .preview-section-label {
   grid-column: 1 / -1;
@@ -13815,12 +13928,13 @@ canvas {
   padding-top: 0;
 }
 
+/* 카드 외형(배경·모서리·그림자·링)은 .cd-card(style-guide §13-1). 캔버스는 border-radius로 카드 모서리에 맞춰 잘림.
+   ⚠ 여기에 overflow:hidden 금지 — 그리드 항목의 최소 높이가 0이 돼서 max-height 안에서 행이 납작하게 눌림 */
 .preview-chord-canvas {
   width: 100%;
   aspect-ratio: 440 / 352;
   display: block;
-  border-radius: 10px;
-  box-shadow: 0 1px 6px rgba(0, 0, 0, 0.08);
+  border-radius: inherit;
 }
 
 /* ?�?� ?�습 모달 #/b ?��? ?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?� */
@@ -18139,9 +18253,7 @@ html:not([lang="ko"]) .test-note-grid {
   /* 훈련소(.training-scroll/.page-title 등) 관련 오버라이드는 2026-08-22 그리드
      시스템 도입으로 전부 제거 — 표준 5단계(태블릿가로/랩탑 1080-1599) 규칙이 담당.
      이 스코프는 아래 chord-name-quiz/scale-level 전용 값만 유지(별도 검토 전까지 유지) */
-  /* chord-name-quiz 전용(.quiz-view는 chord-combo와 공유 클래스라 ID로 좁힘).
-     #view-level-select는 2026-08-31 --grid-margin 기반 base 규칙으로 이전, 여기선 제외 */
-  #view-mode-select { padding-left: 7.5vw; padding-right: 7.5vw; box-sizing: border-box; }
+  /* chord-name-quiz: #view-level-select·#view-mode-select 좌우 여백은 base 규칙(--cd-inset)이 담당 — 구간별 vw 패딩 삭제(2026-10-20) */
 
   .accidental-toggle-row {
     margin-bottom: 3vh;
@@ -18290,8 +18402,7 @@ html:not([lang="ko"]) .test-note-grid {
   }
   /* 훈련소 관련 오버라이드는 2026-08-22 제거 — 표준 5단계(태블릿/큰태블릿)가 토큰으로
      담당하고, Fold 세로(580-768w/700h+/aspect 3/4~1) 전용값은 별도 스코프에서 유지됨.
-     #view-level-select는 2026-08-31 --grid-margin 기반 base 규칙으로 이전, 여기선 제외 */
-  #view-mode-select { padding-left: 5vw; padding-right: 5vw; box-sizing: border-box; }
+     #view-level-select·#view-mode-select는 base 규칙(--cd-inset)으로 이전, 여기선 제외(2026-10-20) */
 
   /* #/b 토글·핑거번호·짝궁전환 — 공용 컴포넌트, 태블릿 세로 전역(scale-level 한정 아님,
      progression.html 등 같은 컴포넌트 쓰는 모든 페이지에 공통 적용) */
@@ -18515,15 +18626,9 @@ html:not([lang="ko"]) .test-note-grid {
   /* 훈련소/코드맞추기 좌우 여백 — 2026-08-31: 이 스코프도 폭 580~768+높이 700+ 정사각비율이면
      실제 폴드 기기가 아니어도 걸려서(일반 데스크탑 리사이즈로 748px 등에서 재현) 10vw 하드코딩
      대신 표준 --grid-margin에 맡김. .training-scroll base 패딩(var(--grid-margin))·
-     #view-level-select base 규칙(위, 12575줄)이 그대로 적용됨 — #view-mode-select/#view-quiz만
-     당분간 유지(별도 검토 전까지) */
-  #view-mode-select { padding-left: 10vw; padding-right: 10vw; box-sizing: border-box; }
+     #view-level-select·#view-mode-select base 규칙(--cd-inset)이 그대로 적용됨(옛 10vw 삭제, 2026-10-20) */
   /* 피크바 위치는 top-bar padding-inline(--grid-margin) + 인라인 margin-left:auto가 담당 —
-     예전 margin-right:10vw !important(training-scroll이 피크바를 안에 품던 시절 값)는 이제
-     불필요해서 제거. 크기(아이콘/폰트)는 training.html 전용값 유지, 다른 페이지 누수 방지로 스코프 */
-  .app-shell:has(.training-scroll) #topbar-currency .currency-icon-box { width: 22px; height: 26px; }
-  .app-shell:has(.training-scroll) #topbar-currency .currency-icon-box img { width: 16px; height: 16px; }
-  .app-shell:has(.training-scroll) #topbar-currency .currency-count { font-size: 12px; }
+     크기(아이콘/폰트)는 공통 --cd-peak-* 토큰(훈련소 전용 규칙 삭제, 2026-10-19) */
   .page-title { font-size: 22px; }
   .training-stats-title { font-size: 15px; }
   .training-stat-value { font-size: 24px; }
@@ -18660,8 +18765,7 @@ html:not([lang="ko"]) .test-note-grid {
     padding-top: 0;
   }
   .profile-container--stats { min-height: 200px; }
-  /* #view-level-select는 2026-08-31 --grid-margin 기반 base 규칙으로 이전, 여기선 제외 */
-  #view-mode-select { padding-left: 10vw; padding-right: 10vw; box-sizing: border-box; }
+  /* #view-level-select·#view-mode-select는 base 규칙(--cd-inset)으로 이전, 여기선 제외(2026-10-20) */
   /* 훈련소 관련 오버라이드(그리드/폰트/피크바)는 2026-08-22 제거 — 표준 8컬럼/span2 그리드로
      통일(style.css 16096 부근 동일 조건 블록 참고, 중복 스코프였음) */
 
@@ -18779,8 +18883,7 @@ html:not([lang="ko"]) .test-note-grid {
      계산해보면 카드2-3 사이 거터(약 405~429px, 834px 폭 기준)가 화면 정중앙 힌지(417px)를
      그대로 덮어서 카드가 힌지에 걸치지 않음 — 컬럼수는 base .training-grid(§5) 그대로 사용.
      column-gap을 예전엔 힌지 여유폭으로 썼지만 이제 var(--grid-gutter)가 그 역할 겸함 */
-  /* #view-level-select는 2026-08-31 --grid-margin 기반 base 규칙으로 이전, 여기선 제외 */
-  #view-mode-select { padding-left: 10vw; padding-right: 10vw; box-sizing: border-box; }
+  /* #view-level-select·#view-mode-select는 base 규칙(--cd-inset)으로 이전, 여기선 제외(2026-10-20) */
   /* 통계카드 폰트 — 폴드메인펼침 스코프와 동일값 */
   .training-stats-title { font-size: 15px; }
   .training-stat-value { font-size: 24px; }
@@ -18862,13 +18965,7 @@ html:not([lang="ko"]) .test-note-grid {
   .training-card-bottom { align-self: flex-start; }
   .training-card-name { text-align: left; white-space: normal; }
   .training-card-name br { display: revert; }
-  /* training.html 전용(스코프 좁혀서 다른 페이지 top-bar 피크바 누수 방지, 2026-08-31).
-     margin-right는 이제 .app-shell:has(.training-scroll) #topbar-currency{margin-right:0}
-     (line ~10803, 항상 적용)가 특이도로 이겨서 이 값 자체는 무효 — 그래도 스코프 없이 남겨두면
-     chord-name-quiz 등 다른 페이지 피크바에 16px가 새어 들어가므로 크기 규칙만 스코프 좁혀 유지 */
-  .app-shell:has(.training-scroll) #topbar-currency .currency-icon-box { width: 22px; height: 26px; }
-  .app-shell:has(.training-scroll) #topbar-currency .currency-icon-box img { width: 16px; height: 16px; }
-  .app-shell:has(.training-scroll) #topbar-currency .currency-count { font-size: 12px; }
+  /* 훈련소 피크바 크기 전용 규칙 삭제(2026-10-19) — 공통 --cd-peak-* 토큰을 따름 */
 }
 
 /* ⚠️ DEV ONLY — Z Fold8 시리즈를 위 기본 방향에서 90도 돌린 상태(704×933/752×835) 힌지 시각화.
@@ -18934,8 +19031,7 @@ body:not(.hinge-debug)::after { display: none; }
     margin-top: 8px; /* 탑바 ↔ 상단 배너 = #view-home padding-top 16px + 8px = 24px (4단계와 동일) */
   }
   /* 5% 하드코딩 대신 top-bar와 동일한 그리드 인셋 공식 — col1/col-last 경계에 정확히 맞춤 */
-  #view-level-select,
-  #view-mode-select {
+  #view-level-select {
     padding-left: calc((100cqw - var(--grid-content-w)) / 2 + var(--grid-margin));
     padding-right: calc((100cqw - var(--grid-content-w)) / 2 + var(--grid-margin));
     box-sizing: border-box;
@@ -19125,7 +19221,7 @@ body:not(.hinge-debug)::after { display: none; }
 @media (prefers-color-scheme: dark) {
   :root {
     color-scheme: light;
-    --bg: #F5F5F5;
+    --bg: #FEFEFD;
     --surface: #ffffff;
     --border: #d9d4cc;
     --text-primary: #242729;
@@ -21208,7 +21304,7 @@ body.tut-lock .tut-allow * {
    ══════════════════════════════════════════════ */
 :root {
   /* 모바일(360~480px) */
-  --grid-margin: 20px;
+  --grid-margin: 16px;
   --grid-gutter: 16px;
   --grid-container-max: 100%;
   --grid-cols: 6;
@@ -21217,21 +21313,22 @@ body.tut-lock .tut-allow * {
 @media (min-width: 481px) {
   :root {
     /* 태블릿(481~768px) — 아이패드 미니 실측(768px) 기준 */
-    --grid-margin: 24px;
-    --grid-gutter: 24px;
+    --grid-margin: 16px;
+    --grid-gutter: 16px;
   }
 }
 @media (min-width: 769px) {
   :root {
     /* 큰 태블릿(769~1079px) */
-    --grid-margin: 28px;
+    --grid-margin: 20px;
+    --grid-gutter: 20px;
     --grid-cols: 8;
   }
 }
 @media (min-width: 1080px) {
   :root {
     /* 태블릿 가로/랩탑(1080~1599px) */
-    --grid-margin: 32px;
+    --grid-margin: 20px;
     --grid-cols: 12;
     /* 1440px 도달 시 컬럼 폭 확대 중단, 그 이상은 margin-inline:auto가 흡수(2026-09-27) —
        1600px+ 데스크탑과 같은 패턴, 상한만 1440px로 더 낮게 */
@@ -21347,7 +21444,8 @@ body.tut-lock .tut-allow * {
      부모의 "padding box"(content+padding 포함)라서 padding으로 인셋하면 자식이 그
      padding 영역까지 침범해버림(전혀 안 줄어듦) — #tab-view-home(홈탭)에서 쓴 것과
      동일하게 margin으로 부모 박스 자체를 줄여야 함 */
-  .content-body {
+  .content-body,
+  #chord-quiz-page .cd-main--stage > .quiz-view {
     /* margin은 안 줌(요청) — 변수만 여기서 계산해서 자식(combo-sticky-head 등)이 상속해 쓰도록.
        컨테이너 캡 1440px — .tab-view/.main-content > .top-bar와 동일 */
     --grid-content-w: min(100cqw, 1440px);
@@ -21539,7 +21637,7 @@ body.tut-lock .tut-allow * {
   :root {
     /* 폭 481px 경계를 걸쳐서 작은태블릿 그리드값(24/20)이 새어들어오는 걸 막음 —
        높이 조건까지 같이 건 이 스코프 안에서만 모바일값(20/16) 고정 */
-    --grid-margin: 20px;
+    --grid-margin: 16px;
     --grid-gutter: 16px;
   }}/* 온보딩(사이드바 없음) — col1~마지막 컬럼 풀블리드로 5단계 전 티어 통일.
    --grid-margin이 :root 미디어쿼리(§5 그리드 토큰)에서 티어별로 이미 갱신되므로
@@ -21612,7 +21710,34 @@ body.tut-lock .tut-allow * {
    마지막 아이콘은 .icon-btn 패딩(4px)만큼 당겨 아이콘 끝선이 그리드 끝선에 닿게(터치 영역은 그대로). */
 .cd-topbar-end { margin-left: auto; }
 .cd-topbar-end:not(.hidden) ~ .cd-topbar-end { margin-left: 0; }
-.cd-topbar-end.icon-btn:last-child { margin-right: -4px; }
+.cd-topbar-end.icon-btn:last-child { margin-right: calc((var(--cd-topbar-icon) - var(--cd-topbar-touch)) / 2); }
+
+/* 탑바 아이콘 버튼 — 탑바 전용 토큰 --cd-topbar-icon/--cd-topbar-touch(:root, 769px~ 확대). style-guide §11-3b */
+.cd-topbar .icon-btn {
+  width: var(--cd-topbar-touch);
+  height: var(--cd-topbar-touch);
+  padding: 0;
+}
+.cd-topbar .icon-btn svg {
+  width: var(--cd-topbar-icon);
+  height: var(--cd-topbar-icon);
+}
+/* 탑바 뒤로가기/닫기 — #back-btn 전용 규칙(전역 --icon-back-svg 24px 고정)을 탑바 안에서만 토큰으로 덮음.
+   버튼 박스는 아이콘 크기 그대로(좌측 끝선이 그리드에 맞닿게), 터치 영역만 ::before로 확장. */
+.cd-topbar #back-btn {
+  position: relative;
+  width: var(--cd-topbar-icon);
+  height: var(--cd-topbar-icon);
+}
+.cd-topbar #back-btn svg {
+  width: var(--cd-topbar-icon);
+  height: var(--cd-topbar-icon);
+}
+.cd-topbar #back-btn::before {
+  content: "";
+  position: absolute;
+  inset: calc((var(--cd-topbar-icon) - var(--cd-topbar-touch)) / 2);
+}
 
 .cd-main {
   flex: 1;
@@ -21704,18 +21829,45 @@ body.tut-lock .tut-allow * {
   :root { --cd-head-pad: 20px; }
 }
 @media (min-width: 769px) {
-  :root { --cd-head-pad: 24px; --cd-title-gap: 20px; --cd-head-gap: 32px; }
+  :root {
+    --cd-head-pad: 24px; --cd-title-gap: 20px; --cd-head-gap: 32px;
+    --cd-topbar-icon: 28px; --cd-topbar-touch: 48px;
+  }
 }
 
-/* 피크바 데스크탑 크기(§7). 1600px+ 전역 #topbar-currency 30/34px 규칙을 특이도로 이김 */
-@media (min-width: 1600px) {
-  .cd-topbar .currency-item { gap: 4px; padding-block: 8px; }
-  .cd-topbar #topbar-currency .currency-icon-box { width: 24px; height: 24px; }
-  .cd-topbar #topbar-currency .currency-icon-box img { width: 24px; height: 24px; }
-  .cd-topbar #topbar-currency .currency-count { font-size: 18px; }
-  .cd-topbar #topbar-currency { padding-left: 20px; padding-right: 20px; }
-  .cd-topbar #topbar-currency .currency-item:first-child { padding-left: 20px; margin-left: -20px; }
-  .cd-topbar #topbar-currency .currency-item:last-child { padding-right: 20px; margin-right: -20px; }
+/* 피크바(§7) — 전부 --cd-topbar-*/--cd-peak-* 토큰 참조(값은 :root, 769px~는 위 블록).
+   전역 #topbar-currency 규칙(22×26·12px 등)과 훈련소 전용 규칙을 대체 */
+.cd-topbar #topbar-currency { box-sizing: border-box; height: var(--cd-peak-h); padding-block: 0; }
+.cd-topbar .currency-item { gap: var(--cd-peak-gap); box-sizing: border-box; height: var(--cd-peak-h); padding-block: 0; }
+.cd-topbar #topbar-currency .currency-icon-box { width: var(--cd-peak-box); height: var(--cd-peak-box); }
+/* 이미지 아이콘은 키라인 보정 — 박스를 꽉 채우면 lucide보다 커 보임. 정사각(선물상자)·세로직사각(피크) 각각 별도 크기 */
+.cd-topbar #topbar-currency .currency-icon-box img[src$="gift.png"] { width: var(--cd-peak-img-square); height: var(--cd-peak-img-square); }
+.cd-topbar #topbar-currency .currency-icon-box img[src$="peak.svg"] { width: auto; height: var(--cd-peak-img-tall); }
+.cd-topbar #topbar-currency .currency-count { font-size: var(--cd-peak-font); }
+.cd-topbar #topbar-currency { padding-left: var(--cd-peak-pad-x); padding-right: var(--cd-peak-pad-x); }
+.cd-topbar #topbar-currency .currency-item:first-child { padding-left: var(--cd-peak-pad-x); margin-left: calc(var(--cd-peak-pad-x) * -1); }
+.cd-topbar #topbar-currency .currency-item:last-child { padding-right: var(--cd-peak-pad-x); margin-right: calc(var(--cd-peak-pad-x) * -1); }
+
+/* ═══ 카드 .cd-card (style-guide §13) ═══════════════════════════════
+   배경은 단색, 깊이는 그림자 + 테두리 링(::before 대각선 그라데이션)으로만. 값은 :root의 --cd-card-* 토큰.
+   둥근 모서리에선 border-image가 안 먹어서 마스크로 링 두께(--cd-card-ring-width)만 남김. */
+.cd-card {
+  position: relative;
+  background: var(--cd-card-bg);
+  border-radius: var(--cd-card-radius);
+  box-shadow: var(--cd-card-shadow);
+}
+.cd-card::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  padding: var(--cd-card-ring-width);
+  background: var(--cd-card-ring);
+  -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
+  pointer-events: none;
 }
 
 

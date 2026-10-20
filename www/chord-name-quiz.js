@@ -307,7 +307,7 @@ function buildLevelList() {
                          : cfg.id === 'c2' ? ' lw-item--challenge-silver'
                          : cfg.id === 'c3' ? ' lw-item--challenge-gold'
                          : '';
-    el.className = `lw-item${challengeClass}${cfg.locked ? ' lw-item--locked' : ''}${!cfg.poolReady ? ' lw-item--coming-soon' : ''}${i === 0 ? ' lw-item--selected' : ''}`;
+    el.className = `lw-item${challengeClass || ' cd-card'}${cfg.locked ? ' lw-item--locked' : ''}${!cfg.poolReady ? ' lw-item--coming-soon' : ''}${i === 0 ? ' lw-item--selected' : ''}`;
     const badgeText = cfg.type === 'challenge' ? 'CHALLENGE' : `LEVEL ${cfg.id}`;
     el.innerHTML = `
       <div class="lw-row1">
@@ -480,23 +480,21 @@ function openPreviewModal(levelId) {
   _renderPreviewGrid();
 }
 
-function _renderPreviewGrid() {
-  if (!_previewPool) return;
-  // 보이싱 다수 렌더 중 끊김 가림 — 드로잉 완료 rAF에서 해제
-  document.getElementById('preview-loading')?.classList.add('preview-loading--show');
-  // 챌린지: #/b 변환 + 반대표기 숨김 / 레벨6: 비-슬래시 전체 플랫 변환 / 레벨7: 루트 12음 토글+슬래시 베이스 고정
-  const isChallenge = _previewLevelId === 'c1' || _previewLevelId === 'c2';
-  const isLevel6    = _isNoSlashEnharm(_previewLevelId); // 레벨6·8: 비-슬래시 토글
-  const isLevel7    = _previewLevelId === '7';
-  const grid = document.getElementById('preview-modal-grid');
-  grid.innerHTML = '';
+// ── 예습 모달 렌더링 (2026-10-20) ─────────────────────────────────
+// #/b 토글이 있는 레벨(챌린지·레벨6·7·8)은 sharp/flat 두 패널을 열 때 모두 만들고, 토글은 패널 보이기/숨기기만 한다.
+// 보이는 패널을 먼저 그려 로딩을 해제하고, 숨은 패널은 여러 프레임에 나눠 백그라운드로 그린다(토글 시 미완이면 남은 것만 즉시 그림).
+let _previewPanes       = {};   // mode → { pane, items:[{canvas,entry,name}], next }
+let _previewDrawCtx     = null; // { w, dpr } — 보이는 패널에서 잰 값(숨은 패널은 폭을 못 잼)
+let _previewRenderToken = 0;    // 다시 열거나 닫으면 올려서 이전 백그라운드 드로잉을 중단
 
+/** 모드별 표시 이름 변환 + (챌린지) 반대 임시표 숨김 + 정렬 + 근음 그룹화 */
+function _previewGroupsFor(mode, { isChallenge, isLevel6, isLevel7 }) {
   // 표시 이름 적용
   let displayItems = _previewPool.map(item => ({
     entry:       item.entry,
-    displayName: isChallenge ? _getPreviewDisplayName(item.name, _previewAccMode)
-               : isLevel6    ? enharmDisplayNoSlash(item.name, _previewAccMode)
-               : isLevel7    ? level7DisplayName(item.name, _previewAccMode)
+    displayName: isChallenge ? _getPreviewDisplayName(item.name, mode)
+               : isLevel6    ? enharmDisplayNoSlash(item.name, mode)
+               : isLevel7    ? level7DisplayName(item.name, mode)
                : item.name,
   }));
 
@@ -505,8 +503,8 @@ function _renderPreviewGrid() {
   if (isChallenge) {
     displayItems = displayItems.filter(({ displayName }) => {
       const { sharp, flat } = _noteAccidental(displayName);
-      if (_previewAccMode === 'sharp' && flat)  return false;
-      if (_previewAccMode === 'flat'  && sharp) return false;
+      if (mode === 'sharp' && flat)  return false;
+      if (mode === 'flat'  && sharp) return false;
       return true;
     });
   }
@@ -531,38 +529,108 @@ function _renderPreviewGrid() {
     else groups.push({ root, items: [{ displayName, entry }] });
   });
 
-  // DOM 생성
-  const canvasItems = [];
-  groups.forEach(({ root, items }) => {
+  return groups;
+}
+
+/** 한 모드의 패널(DOM) 생성 — 그리기는 따로 */
+function _previewBuildPane(groups, visible) {
+  const pane = document.createElement('div');
+  pane.className = 'preview-modal-grid-pane' + (visible ? '' : ' preview-modal-grid-pane--hidden');
+  const items = [];
+  groups.forEach(({ root, items: groupItems }) => {
     const label = document.createElement('div');
     label.className = 'preview-section-label';
     label.textContent = root;
-    grid.appendChild(label);
-    items.forEach(({ displayName, entry }) => {
+    pane.appendChild(label);
+    groupItems.forEach(({ displayName, entry }) => {
+      // 캔버스엔 ::before가 안 그려져서(대체 요소) 카드 토큰(.cd-card 링)은 감싸는 div에 붙임
+      const card = document.createElement('div');
+      card.className = 'preview-chord-card cd-card';
       const canvas = document.createElement('canvas');
       canvas.className = 'preview-chord-canvas';
-      grid.appendChild(canvas);
-      canvasItems.push({ canvas, entry, name: displayName });
+      card.appendChild(canvas);
+      pane.appendChild(card);
+      items.push({ canvas, entry, name: displayName });
     });
+  });
+  return { pane, items, next: 0 };
+}
+
+/** 패널의 안 그린 캔버스를 시간 예산(ms) 안에서 그림. 다 그렸으면 true. 화면 크기는 CSS(width:100% + aspect-ratio)가 정함 */
+function _previewDrawSome(p, budgetMs) {
+  const { w, dpr } = _previewDrawCtx;
+  const t0 = performance.now();
+  while (p.next < p.items.length) {
+    const { canvas, entry, name } = p.items[p.next++];
+    canvas.width = Math.round(w * dpr); // 높이는 VoicingCanvas.draw가 비율로 설정
+    drawLibEntryWithName(canvas, entry, name);
+    if (performance.now() - t0 > budgetMs) break;
+  }
+  return p.next >= p.items.length;
+}
+
+function _renderPreviewGrid() {
+  if (!_previewPool) return;
+  // 보이싱 다수 렌더 중 끊김 가림 — 보이는 패널 드로잉 완료 rAF에서 해제
+  document.getElementById('preview-loading')?.classList.add('preview-loading--show');
+  // 챌린지: #/b 변환 + 반대표기 숨김 / 레벨6: 비-슬래시 전체 플랫 변환 / 레벨7: 루트 12음 토글+슬래시 베이스 고정
+  const flags = {
+    isChallenge: _previewLevelId === 'c1' || _previewLevelId === 'c2',
+    isLevel6:    _isNoSlashEnharm(_previewLevelId), // 레벨6·8: 비-슬래시 토글
+    isLevel7:    _previewLevelId === '7',
+  };
+  const hasToggle = flags.isChallenge || flags.isLevel6 || flags.isLevel7;
+  const modes     = hasToggle ? ['sharp', 'flat'] : ['sharp'];
+  const showMode  = hasToggle ? _previewAccMode : 'sharp';
+
+  const grid = document.getElementById('preview-modal-grid');
+  grid.innerHTML = '';
+  const token = ++_previewRenderToken;
+  _previewPanes   = {};
+  _previewDrawCtx = null;
+  modes.forEach(mode => {
+    const p = _previewBuildPane(_previewGroupsFor(mode, flags), mode === showMode);
+    _previewPanes[mode] = p;
+    grid.appendChild(p.pane);
   });
 
   requestAnimationFrame(() => requestAnimationFrame(() => {
-    const dpr = window.devicePixelRatio || 1;
-    canvasItems.forEach(({ canvas, entry, name }) => {
-      const w = canvas.offsetWidth;
-      const h = Math.round(w * VoicingCanvas.BASE_H / VoicingCanvas.BASE_W);
-      canvas.style.width  = w + 'px';
-      canvas.style.height = h + 'px';
-      canvas.width  = Math.round(w * dpr);
-      canvas.height = Math.round(h * dpr);
-      drawLibEntryWithName(canvas, entry, name);
-    });
-    // 드로잉 완료 → 로딩 오버레이 해제
+    if (token !== _previewRenderToken) return;
+    const panes   = Object.values(_previewPanes);
+    const visible = panes.find(p => !p.pane.classList.contains('preview-modal-grid-pane--hidden'));
+    const first   = visible?.items[0]?.canvas;
+    if (first && first.offsetWidth > 0) { // 폭 0이면(모달이 이미 닫힘 등) 그리지 않음
+      _previewDrawCtx = { w: first.offsetWidth, dpr: window.devicePixelRatio || 1 };
+      _previewDrawSome(visible, Infinity);
+    }
+    // 보이는 패널 드로잉 완료 → 로딩 오버레이 해제
     document.getElementById('preview-loading')?.classList.remove('preview-loading--show');
+
+    // 숨은 패널은 프레임마다 8ms씩 나눠 백그라운드로(토글하면 남은 것만 즉시 그림)
+    const pump = () => {
+      if (token !== _previewRenderToken || !_previewDrawCtx) return;
+      const rest = panes.find(p => p.next < p.items.length);
+      if (!rest) return;
+      _previewDrawSome(rest, 8);
+      requestAnimationFrame(pump);
+    };
+    requestAnimationFrame(pump);
   }));
 }
 
+/** #/b 토글 — 이미 그린 패널을 보이기/숨기기만(미완이면 남은 캔버스만 즉시 그림) */
+function _previewShowPane(mode) {
+  const target = _previewPanes[mode] || _previewPanes.sharp;
+  if (!target) return;
+  Object.values(_previewPanes).forEach(p =>
+    p.pane.classList.toggle('preview-modal-grid-pane--hidden', p !== target));
+  if (_previewDrawCtx && target.next < target.items.length) _previewDrawSome(target, Infinity);
+  const grid = document.getElementById('preview-modal-grid');
+  if (grid) grid.scrollTop = 0;
+}
+
 function closePreviewModal() {
+  _previewRenderToken++; // 백그라운드 드로잉 중단
   document.getElementById('preview-modal-overlay').classList.remove('preview-modal-overlay--show');
   window.Tutorial?.notify('preview:close');
 }
@@ -574,7 +642,7 @@ function setPreviewAccidental(mode) {
     ?.classList.toggle('active', mode === 'sharp');
   document.getElementById('preview-acc-flat')
     ?.classList.toggle('active', mode === 'flat');
-  _renderPreviewGrid();
+  _previewShowPane(mode);
 }
 
 // toggleLevelCard → 휠피커 도입으로 제거됨
@@ -2403,6 +2471,16 @@ function startLevel(levelId) {
   });
   _currentLevel = levelId;
   _currentView  = 'mode-select';
+  // 문제 카드 좌상단 레벨 라벨 — 글자(Lv1 / C1)와 색: 챌린지 c1 동·c2 은·c3 금(금속) / Lv1~2 회색 / Lv3~5 연두 / Lv6~8 하늘 / 그 외(Lv9~) 보라
+  const _lvLabel = document.getElementById('quiz-level-label');
+  if (_lvLabel) {
+    const _isChal = cfg?.type === 'challenge';
+    const _tone = _isChal
+      ? ({ c1: 'bronze', c2: 'silver', c3: 'gold' }[levelId] || 'gold')
+      : ({ '1': 'gray', '2': 'gray', '3': 'green', '4': 'green', '5': 'green', '6': 'blue', '7': 'blue', '8': 'blue' }[levelId] || 'purple');
+    _lvLabel.textContent = _isChal ? String(levelId).toUpperCase() : `Lv${levelId}`;
+    _lvLabel.className   = 'cq-level-label cq-level-label--' + _tone;
+  }
   // 모드 카드 피크 배지(style.css .mode-card--peak): 이 레벨의 소모량 주입, Pro는 숨김
   document.documentElement.style.setProperty('--cd-btn-peak-cost', _quizPeakCost(levelId));
   document.documentElement.classList.toggle('peak-free', getPlan() === 'pro');
@@ -2445,6 +2523,11 @@ async function startQuiz(mode) {
   analytics.track('quiz_mode_selected', { level_id: _currentLevel, mode });
   _currentMode = mode;
   _currentView = 'quiz';
+  // 답 영역 말풍선 문구 — 모드별. 카운트다운 중에도 보이므로 문제 렌더가 아니라 모드 확정 시점에 설정
+  const _bubble = document.getElementById('quiz-bubble');
+  if (_bubble) _bubble.textContent = mode === 'name-from-diagram'
+    ? '알맞은 코드 이름을 고르세요'
+    : '알맞은 코드 다이어그램을 고르세요';
   const vmEl = document.getElementById('view-mode-select');
   const vqEl = document.getElementById('view-quiz');
   vmEl.classList.add('quiz-view--left');
@@ -2498,9 +2581,9 @@ function initModeCarousel() {
   const track = document.getElementById('mode-carousel-track');
   if (!track) return;
 
-  const cards    = track.querySelectorAll('.mode-carousel-card');
+  const slides   = track.querySelectorAll('.mode-carousel-slide');
   const dots     = document.querySelectorAll('.mode-carousel-dot');
-  const total    = cards.length;
+  const total    = slides.length;
   let current    = 0;
   let startX     = 0;
   let isDragging = false;

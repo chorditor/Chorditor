@@ -33,6 +33,15 @@
 --pastel-green:  #EBF5EC;
 --pastel-blue:   #E9F1FD;
 --pastel-purple: #EFEAFA;
+
+/* 퀴즈 레벨 라벨(배경 / 글자) — 코드맞추기 문제 카드 좌상단 라벨 전용. 일반 레벨 4색 + 챌린지 금속 3종 */
+--level-gray-bg:   #E2E0DB;  --level-gray-text:   #6B6560;   /* Lv1~2 */
+--level-green-bg:  #D8EBAA;  --level-green-text:  #547A12;   /* Lv3~5 */
+--level-blue-bg:   #C2E1F0;  --level-blue-text:   #2F6F91;   /* Lv6~8 */
+--level-purple-bg: #DFCBF0;  --level-purple-text: #7B4A94;   /* Lv9~ */
+--level-bronze-bg: linear-gradient(135deg, #F7D3AE 0%, #DBA06A 40%, #C98048 70%, #E8B888 100%);  --level-bronze-text: #ffffff;   /* C1 */
+--level-silver-bg: linear-gradient(135deg, #F3F5F8 0%, #C3CBD6 40%, #9AA6B5 70%, #DDE2E9 100%);  --level-silver-text: #ffffff;   /* C2 */
+--level-gold-bg:   linear-gradient(135deg, #FFF1B8 0%, #F2C94C 40%, #D4A017 70%, #F7DC7A 100%);  --level-gold-text:   #ffffff;   /* C3 */
 ```
 
 ## 2. 폰트 토큰
@@ -126,17 +135,26 @@ Material 3 / iOS HIG 타입스케일 기반 6카테고리 12토큰, §4 5단계�
 
 | 단계 | 폭 | 컬럼 | 마진 | 거터 | 컨테이너 캡 |
 |---|---|---|---|---|---|
-| 모바일 | 360~480px | 6 | 20px | 16px | 없음 |
-| 태블릿 | 481~768px | 6 | 24px | 24px | 없음 |
-| 큰 태블릿 | 769~1079px | 8 | 28px | 24px | 없음 |
-| 태블릿 가로/랩탑 | 1080~1599px | 12 | 32px | 24px | 1440px |
-| 데스크탑 | 1600px~ | 12 | 32px | 24px | 1440px |
+| 모바일 | 360~480px | 6 | 16px | 16px | 없음 |
+| 태블릿 | 481~768px | 6 | 16px | 16px | 없음 |
+| 큰 태블릿 | 769~1079px | 8 | 20px | 20px | 없음 |
+| 태블릿 가로/랩탑 | 1080~1599px | 12 | 20px | 20px | 1440px |
+| 데스크탑 | 1600px~ | 12 | 20px | 20px | 1440px |
+
+> 2026-10-20: 마진·거터를 16/16/20/20/20으로 하향(이전 마진 20/24/28/32/32, 거터 16/24/24/24/24). 마진=거터 동일값.
+
+**마진 = 묶음 기준값 (그룹핑 규칙)**
+
+그리드의 좌우 마진 값은 "컴포넌트 사이가 묶여 있다"는 기준 값이 된다.
+- 컴포넌트 간격이 **마진 값 이하**(모바일이면 16px 이하)면 암묵적으로 **한 묶음**이다.
+- 컴포넌트 간격이 **마진 값보다 넓으면**(모바일이면 16px 초과) **서로 다른 묶음**이라는 것을 시각적으로 보여준다.
+- 기준값은 구간별 마진을 따른다(모바일·태블릿 16px, 큰태블릿~데스크탑 20px). 컴포넌트 간격을 정할 때 "같은 묶음인가"를 먼저 정하고 그에 맞춰 마진 이하/초과로 둘 것.
 
 - 토큰: `--grid-cols` / `--grid-margin` / `--grid-gutter` / `--grid-track`(컬럼 1칸 폭).
 - 큰 태블릿(8컬럼)은 12컬럼 배치값을 그대로 못 씀 — 8칸 기준으로 따로 잡음.
 - **캡 1440px**: 넘는 폭은 `margin-inline:auto`로 좌우 대칭 흡수(데스크탑 사이드바 2026-09-23 폐기 →
   화면 전체 기준 대칭 그리드). 근거: 대형 태블릿 가로(Galaxy Tab S10 FE+ 1440px, iPad Pro 13" 1376px)에서
-  안정적으로 꽉 차도록. 트랙 92.67px(소수점)은 브라우저가 처리해서 정수화 안 함.
+  안정적으로 꽉 차도록. 트랙 98.33px(소수점, 마진·거터 20 기준)은 브라우저가 처리해서 정수화 안 함.
 - `.app-shell`·`cd-topbar`·`cd-main` 박스는 항상 뷰포트 전체 폭. 캡은 박스가 아니라 **안쪽 패딩
   `--cd-inset`**(§11)으로 걸어 내용만 1440px 그리드 안에 가운데 정렬.
 - 캡 사용처: `--cd-inset`, `--grid-track`(`min(100vw, 1440px)` 기준), `--grid-container-max`,
@@ -162,15 +180,22 @@ Material 3 / iOS HIG 타입스케일 기반 6카테고리 12토큰, §4 5단계�
 
 ## 7. 피크바(`.topbar-currency`)
 
-아이콘 크기 기준 역산. 데스크탑(1600px~)만 확정, 나머지 구간 미정.
+탑바 전용 토큰 `--cd-peak-*`(2026-10-19). **5단계 전부 같은 값(모바일 기준 고정, 구간 분기 없음)**.
+**모든 `cd-topbar` 페이지 공통** — 페이지별 덮어쓰기 금지(훈련소 메인 전용 규칙도 삭제됨). 값은 `:root`.
 
-| 요소 | 데스크탑 값 |
-|---|---|
-| 아이콘 | 24px (마진 없음) |
-| 숫자 폰트 | 18px |
-| 아이콘-숫자 갭 | 4px |
-| 배지 상하 패딩 | 8px → 배지·필박스 높이 40px |
-| 필박스 좌우 패딩 / 배지간 갭 | 20px / 10px |
+| 토큰 | 값 | 의미 |
+|---|---|---|
+| `--cd-peak-box` | 20px | 아이콘 박스 |
+| `--cd-peak-img-square` | 18px | 선물상자 이미지(정사각 키라인) |
+| `--cd-peak-img-tall` | 16px | 피크 이미지 높이(세로 직사각 키라인, 폭 자동) |
+| `--cd-peak-h` | 36px | **알약 높이 고정값**(`#topbar-currency`·`.currency-item`에 `height`로 직접 지정, 내용·줄높이와 무관) |
+| `--cd-peak-pad-x` | 16px | 알약 좌우 여백 |
+| `--cd-peak-gap` | 4px | 아이콘-숫자 간격 |
+| `--cd-peak-font` | 14px | 숫자(`--font-label-lg` 모바일값) |
+
+- 이미지 에셋(`gift.png` 512×512, `peak.svg` 13.4×16.22)은 투명 여백 없이 박스를 꽉 채워 lucide보다 커 보임 →
+  Material 키라인(24 박스 기준 정사각 18 / 세로 직사각 16×20)을 박스 비율로 환산해 별도 크기. 홀수는 반픽셀이라 올림(21→22).
+- 숫자 두께 700·색 `--text-secondary`는 전역 `.currency-count` 그대로.
 
 ## 8. 원형 아이콘 버튼 (`--icon-circle-*`)
 
@@ -191,7 +216,7 @@ Material 3 / iOS HIG 타입스케일 기반 6카테고리 12토큰, §4 5단계�
 
 ### 8-1. 아이콘 버튼 크기 토큰 (`--cd-icon-btn-*`, 2026-10-12)
 
-위 §8(원형, 구간별 가변)과 별개로, 신규 작업용 **터치 영역 고정** 아이콘 버튼 규격. 5단계 전부 같은 값.
+위 §8(원형, 구간별 가변)과 별개로, 신규 작업용 **터치 영역 고정** 아이콘 버튼 규격. 5단계 전부 같은 값. (탑바 안 버튼은 별도 `--cd-topbar-*`, §11-3b)
 
 | 토큰 | 값 | 의미 |
 |---|---|---|
@@ -200,8 +225,8 @@ Material 3 / iOS HIG 타입스케일 기반 6카테고리 12토큰, §4 5단계�
 
 - 근거: 독바·탑바 로고·피크바 아이콘이 이미 24px(§7·§11), Material 48dp 안 24dp / iOS 44pt 안 22~28pt.
 - 24px에서 lucide 기본 선 굵기(`stroke-width: 2`)가 그대로 맞아 별도 보정 불필요.
-- 적용: 사전 패널(`.lib-panel`) 안 `.icon-btn` — `width/height: var(--cd-icon-btn-size)`, `padding: 0`,
-  `svg`는 `var(--cd-icon-btn-icon)`. 기존 `.icon-btn` 기본(18px/패딩 4px)은 해당 스코프에서만 덮어씀.
+- 적용: 사전 패널(`.lib-panel`) 안 `.icon-btn` 등 — `width/height: var(--cd-icon-btn-size)`, `padding: 0`,
+  `svg`는 `var(--cd-icon-btn-icon)`. 탑바 안 버튼은 이 토큰이 아니라 `--cd-topbar-*`. 탑바 밖 기본 `.icon-btn`(18px/패딩 4px)은 그대로.
 - 새 아이콘 버튼은 크기를 직접 쓰지 말고 이 토큰을 참조할 것. 배경·테두리 스타일은 컴포넌트별.
 
 ## 9. 뒤로가기 아이콘 옆 타이틀 정렬
@@ -262,9 +287,24 @@ lucide 아이콘은 viewBox 안쪽에 획이 그려져 시각 중심이 살짝 �
 | `cd-topbar--split-hidden` | 코드 사전(`library.html`) 가로 스플릿 뷰(769px~, 가로·세로 모드 무관)에서 탑바를 `display:none`. 뒤로가기는 사전패널 안에 둠. `.cd-topbar{display:flex}`가 파일 뒤쪽이라 `.cd-topbar.cd-topbar--split-hidden`(2클래스)로 우선순위를 올려 선언. 세로·모바일에선 탑바 그대로 |
 | `cd-main` | `flex:1` + `overflow-y:auto` + `padding-inline: var(--cd-inset)` + `padding-bottom: calc(var(--space-6) + env(safe-area-inset-bottom))` + 세로 flex + 스크롤바 숨김 (박스는 뷰포트 전체) |
 | `--cd-inset` | `max(var(--grid-margin), calc((100vw - 1440px) / 2 + var(--grid-margin)))` — 1440 이하 = 그리드 마진, 초과분은 좌우 균등 분배. `%`가 아니라 `vw`인 이유: 패딩과 자식 마진에서 기준이 달라지지 않게 |
-| 피크바 | 마크업 인라인 `margin-left:auto`로 우측 끝. 1600px~ 크기는 §7 |
+| 피크바 | 마크업 인라인 `margin-left:auto`로 우측 끝. 크기는 `--cd-peak-*`(§7) |
 | 브랜드 슬롯 `cd-topbar-brand` | 로고(`cd-topbar-logo` 24px) + 앱이름 24px/800 + 버전(`cd-topbar-version` 11px). 폭과 무관하게 고정. 홈만 사용, 서브뷰에선 JS가 `.hidden` |
-| 우측 슬롯 `cd-topbar-end` | `margin-left:auto`. 여러 개면 보이는 첫 번째만 우측으로 밀고 나머지는 이어 붙음. 마지막 `.icon-btn`은 `margin-right:-4px`로 아이콘 끝선을 그리드 끝선에 맞춤 |
+| 우측 슬롯 `cd-topbar-end` | `margin-left:auto`. 여러 개면 보이는 첫 번째만 우측으로 밀고 나머지는 이어 붙음. 마지막 `.icon-btn`은 `margin-right: calc((--cd-topbar-icon − --cd-topbar-touch)/2)`(= -10px)로 아이콘 끝선을 그리드 끝선에 맞춤 |
+
+### 11-3b. 탑바 전용 토큰 (2026-10-19)
+
+`cd-topbar` 안 요소(아이콘 버튼·뒤로가기·피크바)는 **모든 페이지 공통 디자인**. 크기는 아래 토큰만 참조하고
+페이지별·스코프별 덮어쓰기(`.app-shell:has(...)` 등)는 금지. 값은 `:root`, 769px~ 값은 페이지 셸 섹션 `@media`.
+
+| 토큰 | ~768px | 769px~ | 적용 |
+|---|---|---|---|
+| `--cd-topbar-icon` | 24px | 28px | `.cd-topbar .icon-btn svg`, `#back-btn svg`(뒤로가기·X·설정·튜토리얼·검색) |
+| `--cd-topbar-touch` | 44px | 48px | `.cd-topbar .icon-btn` 터치 영역. `#back-btn`은 박스가 아이콘 크기(좌측 끝선 그리드 정렬)이고 터치는 `::before`로 확장 |
+| `--cd-peak-*` | §7 (구간 무관 고정) | §7 (구간 무관 고정) | 피크바 |
+
+- 근거: Material·iOS 순정은 아이콘 24, 터치 44~48을 기기 크기와 무관하게 고정. 큰 화면(769px~)에서 상대적으로
+  작아 보여 +4px만 확대(증가폭 4px 이내 원칙). dp/pt = CSS px.
+- `#back-btn` 전역 규칙(`--icon-back-svg` 24px)은 탑바 밖(설정 페이지 탑바 등)에서만 유효.
 
 ### 11-3a. `cd-main` 안쪽 — `cd-head` / `cd-body` (2026-10-03)
 
@@ -396,7 +436,42 @@ lucide 아이콘은 viewBox 안쪽에 획이 그려져 시각 중심이 살짝 �
 | `--cd-cardlist-icon-size` | 24px | 26px | 28px | 30px | 32px (`--icon` variant 전용) |
 | `--cd-cardlist-radius` | 8px | 10px | 12px | 14px | 16px |
 
-그림자(고정): `box-shadow: 0 2px 8px rgba(0,0,0,0.20)`.
+그림자·테두리: 카드 토큰(§13-1) 참조 — 코드 이전 예정.
+
+### 13-1. 카드 `.cd-card` (2026-10-20)
+
+모든 카드의 기본 디자인. **바탕은 `#fff` 단색**(앱 배경 `#FEFEFD`와 미세하게만 구분)이고, 깊이는 **그림자와 테두리 링의
+대각선 그라데이션**으로만 준다. 투명·블러·바탕 그라데이션 없음. 값은 `:root` 토큰 한 곳 — 바꾸면 `.cd-card`를 쓰는
+모든 카드가 일괄 변경된다.
+
+| 토큰 | 값 | 의미 |
+|---|---|---|
+| `--cd-card-bg` | `var(--surface)` (`#fff`) | 카드 배경(단색) |
+| `--cd-card-radius` | `var(--radius-lg)` (16px) | 모서리 |
+| `--cd-card-shadow` | `inset 0 -1px 0 rgba(0,0,0,.04), 0 1px 2px rgba(0,0,0,.05), 2px 8px 24px rgba(0,0,0,.10)` | 안쪽 아래 음영 + 접촉 그림자 + 넓은 번짐(왼쪽 위 빛 → 오른쪽 아래로 x 2px 치우침) |
+| `--cd-card-ring` | `linear-gradient(135deg, rgba(0,0,0,.03) 0%, rgba(255,255,255,0) 45%, rgba(0,0,0,.10) 100%)` | 테두리 링: 왼쪽 위 아주 옅은 선 → 가운데 사라짐 → 오른쪽 아래 진한 선 |
+| `--cd-card-ring-width` | `1px` | 링 두께 |
+
+마크업: 요소에 `cd-card` 클래스만 추가. `.cd-card`가 `position: relative`, 배경, 모서리, 그림자, `::before` 링을 선언한다.
+
+```html
+<div class="level-detail-panel cd-card">…</div>
+```
+
+- 링은 `::before`에 `padding: var(--cd-card-ring-width)` + 마스크(`mask-composite: exclude`)로 만든다(둥근 모서리에서 `border-image`가
+  안 먹음). `::before`는 전역 `*{box-sizing:border-box}`가 안 먹어 content-box라 크기 계산이 패딩만큼 다르게 찍힘(정상).
+- 안쪽 요소(내용)에 `overflow: hidden`을 걸 때는 카드 자신이 아니라 안쪽 래퍼(예: `.ldp-inner`)에 건다 — 카드 자신에 걸면 그림자가 같이 잘림.
+- 스크롤 컨테이너(`overflow: auto`) 안의 카드는 좌우 그림자가 잘리므로 컨테이너에 번짐(24px)+오프셋을 고려한 안쪽 패딩을 두고
+  음의 마진으로 상쇄(예: 레벨 리스트 `.level-wheel-track`, 16px).
+- 카드 안의 카드(중첩)에는 그림자를 중복하지 않는다.
+- 크기·패딩은 컴포넌트별. 구간별 분기 없음.
+- 적용 현황: 코드맞추기 레벨 상세 패널(`#level-detail-panel`), 레벨 리스트 일반 카드(`.lw-item.cd-card`, JS가 부착), 예습 모달 코드 카드(`.preview-chord-card.cd-card` — `canvas`는 `::before`가 안 그려지는 대체 요소라 감싸는 `div`에 `cd-card`를 붙임). 챌린지 3종(`.lw-item--challenge-*`)은
+  레벨 정체성이라 컬러 테두리·그림자·금속색 배경 전용 디자인을 유지(`.cd-card` 미부착, 모서리만 `--cd-card-radius`). 나머지 카드(`.cd-cardlist`, `.cd-modal`, 코드 사전 등)는 순차 이전.
+- `.cd-card`는 파일 뒤쪽에서 `background`를 선언하므로, 상태별 배경(예: 선택 `.lw-item--selected`)은 `.cd-card.상태클래스`로 특이도를 올려 덮는다.
+- **`::before`/`::after`를 이미 쓰는 요소**(피크 뱃지 `.mode-card--peak`, 번호 `.ms-quiz-choice-card`)는 `.cd-card` 클래스를 못 붙이므로 토큰을 직접 쓴다:
+  `border: var(--cd-card-ring-width) solid transparent; border-radius: var(--cd-card-radius); background: linear-gradient(var(--cd-card-bg), var(--cd-card-bg)) padding-box, var(--cd-card-ring) border-box; box-shadow: var(--cd-card-shadow);`
+  (흰 단색 위에 링 그라데이션을 레이어로 깔아 링을 만듦 — 대신 border 1px만큼 안쪽이 줄어듦). 상태 그림자는 `box-shadow: <상태 링>, var(--cd-card-shadow)`로 합친다.
+- 적용 현황 추가: 모드 선택 카드(`.mode-carousel-card.cd-card`, `.mode-card`는 직접 적용), 퀴즈 문제 카드·선택지 카드(`.ms-quiz-question-card`, `.ms-quiz-choice-card` — 데일리미션과 공용 규칙, 직접 적용).
 
 ## 14. `docs/style-guide-preview.html` (실물 미리보기)
 
@@ -420,8 +495,7 @@ lucide 아이콘은 viewBox 안쪽에 획이 그려져 시각 중심이 살짝 �
 |---|---|
 | `--cd-modal-width` | `clamp(300px, 80vw, 480px)` (미디어쿼리 없이 모바일만 비율, 그 이상 480px) |
 | `--cd-modal-padding` | `32px 24px 24px` |
-| radius / border / background | `var(--radius-lg)` / `1px solid var(--border)` / `var(--surface)` |
-| box-shadow | 없음 |
+| 외형(모서리·배경·테두리·그림자) | 카드 토큰(§13-1 `.cd-card`) 참조 — 코드 이전 예정 |
 | `--cd-modal-scale-from` / `--cd-modal-duration` / `--cd-modal-ease` | `0.8` / `0.38s` / `cubic-bezier(0.34, 1.5, 0.64, 1)` |
 
 텍스트: 제목 17px/800/`--text-primary`, 설명 13px/500/`--text-secondary`/line-height 1.5.
