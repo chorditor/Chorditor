@@ -15426,7 +15426,7 @@ canvas {
   right: 0;
   transform: translateY(-50%);
   background: #1a1a1a;
-  border-radius: 1px;
+  border-radius: calc(1px * var(--fbs, 1));
   pointer-events: none;
   z-index: 2;
 }
@@ -15436,7 +15436,7 @@ canvas {
   position: absolute;
   top: calc(100% / 12);      /* 1번줄 중심 = 8.33% */
   bottom: calc(100% / 12);   /* 6번줄 중심 = 8.33% */
-  width: 1.5px;
+  width: calc(1.5px * var(--fbs, 1));   /* 지판은 실제 크기로 직접 그림 — 고정 px도 배율(--fbs) 곱 */
   background: #d0d0d0;
   transform: translateX(-50%);
   pointer-events: none;
@@ -15647,7 +15647,7 @@ canvas {
 /* ?�?� 개방??(fret 0) ??�????�?� */
 .fb-note--open {
   background: transparent;
-  border: 2px solid var(--brand);
+  border: calc(2px * var(--fbs, 1)) solid var(--brand);
 }
 
 .fb-note--open.fb-note--root {
@@ -15713,9 +15713,9 @@ canvas {
   /* width는 JS(renderFullNeck)가 고정 기준값(FB_REF_FULL_W)으로 설정.
      transform(scale+translateX)은 JS(applyFbScale/scrollToFret)가 매번 갱신 */
   transform-origin: 0 0;
-  /* iOS(WebKit) — 점 탭 시 눌림/리플 transform 애니메이션이 시작되면 이 지판이 합성 레이어로 올라가며 scale(S)를
-     반영하지 않은 해상도로 다시 래스터돼 흐려졌음 → 합성 레이어로 고정해야 함. 단, CSS에 will-change를 미리 걸면
-     배율 1일 때 해상도로 굳어서 배율이 커질수록 흐려지므로, JS(applyFbLayout)가 배율 transform을 넣은 직후에 건다. */
+  /* 지판은 확대(scale) 없이 실제 크기로 직접 그림(JS applyFbLayout가 폭·--fbu·--fbs를 넣음) — transform은 좌우 이동(translateX)뿐이라
+     합성 레이어로 고정해도 해상도 문제가 없고, iOS 점 탭 시 레이어가 따로 올라가며 흐려지던 것도 막음 */
+  will-change: transform;
 }
 
 /* ?�?� ?� ???�?� */
@@ -15733,7 +15733,7 @@ canvas {
   bottom: calc(100% / 12);
   width: calc(4 * var(--fbu, var(--cs, 1px)));
   background: #1a1a1a;
-  border-radius: 2px;
+  border-radius: calc(2px * var(--fbs, 1));
   transform: translateX(-50%);
   pointer-events: none;
   z-index: 2;
@@ -16764,8 +16764,8 @@ html:not([lang="ko"]) .test-note-grid {
 
 #test-fb-full-wrapper {
   /* 360px 기준 고정 디자인 — 화살표가 없어 전체 폭을 그대로 지판에 씀(진입화면 --fb-ref-span처럼
-     화살표폭을 빼지 않음). --fbu는 이 상수에서 파생되고, 실제 화면 반영은 transform:scale()
-     (JS가 매번 계산) 하나로만 함 — .fretboard-row와 동일 원칙(style-guide.md §17) */
+     화살표폭을 빼지 않음). 아래 값은 JS(applyTestFbLayout)가 실제 크기로
+     덮어쓰기 전의 기본값 — 지금은 확대(scale) 없이 폭·--fbu·--fbs를 실제 값으로 넣어 직접 그림(선명) */
   --test-fb-ref-width: 360px;
   --test-fb-ratio: 2.3;
   --test-fb-ref-span: calc(var(--test-fb-ref-width) / var(--test-fb-ratio));
@@ -16773,7 +16773,7 @@ html:not([lang="ko"]) .test-note-grid {
   --fbu: calc(var(--test-fb-ref-neck-h) / 160);
   width: var(--test-fb-ref-width);
   transform-origin: 0 0;
-  will-change: transform;   /* iOS 탭 애니메이션 시 흐려짐 방지 — .fb-full-wrapper 주석 참고 */
+  will-change: transform;   /* transform이 없으니 레이어를 고정해도 해상도 문제 없음 — .fb-full-wrapper 주석 참고 */
 }
 
 #test-fb-full-neck,

@@ -234,18 +234,20 @@ function applyFbLayout() {
   const realNeckH = FB_REF_NECK_H * _fbScale;
   _fbEls.row.style.setProperty('--fb-arrow-top', Math.max((realNeckH - 44) / 2, 0) + 'px');
 
+  // 실제 크기로 직접 그림 — 지판 안쪽 치수(--fbu 배수)와 고정 px(--fbs 배수)를 배율로 환산하고 폭도 실제 값으로. transform:scale 없음
+  const wrapper = _fbEls.wrapper;
+  if (wrapper) {
+    wrapper.style.width = (FB_REF_FULL_W * _fbScale) + 'px';
+    wrapper.style.setProperty('--fbu', (FB_REF_FBU * _fbScale) + 'px');
+    wrapper.style.setProperty('--fbs', String(_fbScale));
+  }
   applyFbPan(); // 배율이 바뀌었으니 transform도 같이 갱신
-  // 합성 레이어 고정은 배율 transform을 넣은 뒤에 건다 — CSS에 미리 걸면 배율 1일 때의 해상도로 굳어서 확대하면 흐려짐
-  // (iOS 탭 시 흐려짐 방지가 목적이라 설정 자체는 유지, style.css .fb-full-wrapper 주석 참고)
-  if (_fbEls.wrapper && !_fbEls.wrapper.style.willChange) _fbEls.wrapper.style.willChange = 'transform';
 }
 
 // 가벼운 쪽 — transform 한 줄만 갱신. scrollToFret() 팬 애니메이션의 매 프레임이 이걸 호출.
 function applyFbPan() {
   if (!_fbEls || !_fbEls.wrapper) return;
-  // scale이 먼저(오른쪽) 적용돼야 translateX가 기준좌표계 값 그대로 유지되면서
-  // 전체(이동분 포함)가 한 배율로 같이 확대/축소됨 — 순서 바뀌면 이동량이 배율 영향을 안 받음
-  _fbEls.wrapper.style.transform = `scale(${_fbScale}) translateX(${_fbPanRef}px)`;
+  _fbEls.wrapper.style.transform = `translateX(${_fbPanRef * _fbScale}px)`;   // 기준좌표 이동량 × 배율 = 실제 px (scale 없음)
 }
 
 function initFbScaleResize() {
@@ -294,7 +296,12 @@ function applyTestFbLayout() {
   }
   // 지판 실제 폭을 CSS 변수로도 넘김 — 폼 이름 라벨(.test-fb-label-row)이 넓은 화면에서 지판이 아니라 바깥 컨테이너 왼쪽 끝에 붙던 것을 지판 좌상단에 맞추려고 같은 폭·가운데 정렬로 둠
   document.querySelector('.scale-test-fb-wrap')?.style.setProperty('--test-fb-w', (TEST_FB_REF_WIDTH * scale) + 'px');
-  if (wrapper) wrapper.style.transform = `scale(${scale})`;
+  if (wrapper) {   // 실제 크기로 직접 그림(transform:scale 없음) — 메인 지판과 같은 방식
+    wrapper.style.width = (TEST_FB_REF_WIDTH * scale) + 'px';
+    wrapper.style.setProperty('--fbu', ((TEST_FB_REF_NECK_H / 160) * scale) + 'px');
+    wrapper.style.setProperty('--fbs', String(scale));
+    wrapper.style.transform = 'none';
+  }
   // 좌우 화살표 세로 위치 = 넥 높이의 중앙 (슬롯은 프렛번호 줄까지 포함해서 50%면 아래로 치우침)
   document.querySelector('.test-fb-neck-slot')?.style.setProperty('--test-fb-arrow-top', (TEST_FB_REF_NECK_H * scale / 2) + 'px');
 }
@@ -1998,8 +2005,7 @@ function renderFullNeck(ids = {}) {
   const wrapper = document.getElementById(ids.wrapper || 'fb-full-wrapper');
   if (!neckEl || !numsEl || !wrapper) return;
 
-  // 전체 너비 = 기준좌표계 고정값(더 이상 %/vw 아님 — transform:scale이 실제 크기를 담당)
-  wrapper.style.width = FB_REF_FULL_W + 'px';
+  // 전체 너비는 applyFbLayout가 실제 크기(기준값 × 배율)로 넣음 — 확대(transform:scale) 없이 처음부터 그 크기로 그림(선명)
   neckEl.style.width  = '100%';
   numsEl.style.width  = '100%';
 
@@ -2013,7 +2019,7 @@ function renderFullNeck(ids = {}) {
     const topPct = (s + 0.5) / STRINGS * 100;
     const el = document.createElement('div');
     el.className = 'fb-string';
-    el.style.cssText = `top:${topPct}%; height:${STRING_THICKNESS[s] * FB_REF_FBU}px; left:${nutLeftPct}%;`;
+    el.style.cssText = `top:${topPct}%; height:calc(${STRING_THICKNESS[s] * FB_REF_FBU}px * var(--fbs, 1)); left:${nutLeftPct}%;`;
     neckEl.appendChild(el);
   }
 
@@ -2196,8 +2202,8 @@ function measureDegreeOffsets() {
 function applyDegOffset(deg, lbl) {
   const o = _DEG_OFFSETS[lbl];
   if (!o) return;   // 미측정 시 CSS 폴백(translate(-50%,-50%)) 유지
-  deg.style.transform  = `translate(${o.tx.toFixed(2)}px, ${o.ty.toFixed(2)}px)`;
-  deg.style.lineHeight = o.lh.toFixed(2) + 'px';
+  deg.style.transform  = `translate(calc(${o.tx.toFixed(2)}px * var(--fbs, 1)), calc(${o.ty.toFixed(2)}px * var(--fbs, 1)))`;   // 기준 px × 배율
+  deg.style.lineHeight = `calc(${o.lh.toFixed(2)}px * var(--fbs, 1))`;
 }
 
 // ── 노트 DOM 생성 함수 ───────────────────────────────────────
