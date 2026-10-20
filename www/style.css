@@ -16412,8 +16412,7 @@ canvas {
   display: flex;
   justify-content: center;
   flex-shrink: 0;
-  padding-bottom: 24px; /* 그룹 순서 변경(2026-09-22)으로 이 그룹이 맨 아래로 이동 —
-                            "화면 하단에서 24px" 고정 규칙이 이제 여기 적용됨 */
+  /* 하단 여백은 .scale-level-main의 padding-bottom(그리드 마진)이 담당 — 여기서 또 주면 이중 여백 */
 }
 
 .stt-peak-cost {
@@ -21761,7 +21760,7 @@ body.tut-lock .tut-allow * {
   overflow-y: auto;
   overflow-x: hidden;
   padding-inline: var(--cd-inset);
-  padding-bottom: calc(var(--space-6) + env(safe-area-inset-bottom, 0px)); /* 내용이 얼마나 많아도 스크롤 끝에서 하단 24px(+안전영역) 여백 — 안정감 */
+  padding-bottom: calc(var(--grid-margin) + env(safe-area-inset-bottom, 0px)); /* 내용이 얼마나 많아도 스크롤 끝에서 하단 그리드 마진(16/16/20/20/20px, +안전영역) 여백 — 안정감 */
   display: flex;
   flex-direction: column;
 }
