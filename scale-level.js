@@ -169,15 +169,16 @@ let _fbEls = null;
 
 // 지판(fb-viewport) 폭 — 화면 폭에 비례하지 않고 스타일가이드 §4 단계별로 고정한 상대 배율(computeFbRelScale)로 정함. 360px 화면(row 320px)에서 312px = 1.0배.
 const FB_BASE_VIEWPORT_W = 312;
-const FB_MAX_VIEWPORT_W = 480; // 4단계 이상(1080px~)의 지판 폭(px) — 지판 폭이 곧 화면에 보이는 실제 크기. 상대 배율로는 480/312 ≈ 1.54배
+const FB_MAX_VIEWPORT_W = 499.2; // 3단계 이상(769px~) 세로 화면의 지판 폭(px) — 상대 배율 1.6배(넥 높이 약 256px). 가로 화면은 1.2배
 const FB_BASE_ROW_W = 320;   // 위 폭의 기준이 되는 row 폭(360px 화면 − 좌우 그리드 마진 20×2)
 // 지판 상대 배율 R — 360px 화면(지판 폭 312px)을 1.0배로 정의(R = 지판 폭 ÷ 312). 단계별 배율을 조정할 땐 이 값 기준으로 말하면 됨(1.8배 = 지판 폭 562px).
-// 단계(스타일가이드 §4, 창 폭 기준)마다 고정값: 1단계(~480px) 1.0배 / 2~3단계(481~1079px) 1.2배 / 4~5단계(1080px~) 480/312 ≈ 1.54배(지판 폭 480px).
+// 단계(스타일가이드 §4, 창 폭 기준)마다 고정값: 1단계(~480px) 1.0배 / 2단계(481~768px) 1.2배 / 3~5단계(769px~)는 세로 화면 1.6배(지판 폭 499px, 넥 높이 약 256px), 가로 화면 1.2배(지판 폭 374px, 넥 높이 약 192px).
 function _fbTierRelScale() {
   const w = window.innerWidth;
   if (w <= 480) return 1.0;
-  if (w <= 1079) return 1.2;
-  return FB_MAX_VIEWPORT_W / FB_BASE_VIEWPORT_W;
+  if (w <= 768) return 1.2;
+  if (window.innerWidth > window.innerHeight) return 1.2;   // 3단계~ 가로 화면은 작게(높이가 모자람)
+  return FB_MAX_VIEWPORT_W / FB_BASE_VIEWPORT_W;          // 3단계~ 세로 화면은 크게
 }
 function computeFbRelScale() {
   const rowWidth = _fbEls ? _fbEls.row.clientWidth : FB_REF_WIDTH;
@@ -234,6 +235,9 @@ function applyFbLayout() {
   _fbEls.row.style.setProperty('--fb-arrow-top', Math.max((realNeckH - 44) / 2, 0) + 'px');
 
   applyFbPan(); // 배율이 바뀌었으니 transform도 같이 갱신
+  // 합성 레이어 고정은 배율 transform을 넣은 뒤에 건다 — CSS에 미리 걸면 배율 1일 때의 해상도로 굳어서 확대하면 흐려짐
+  // (iOS 탭 시 흐려짐 방지가 목적이라 설정 자체는 유지, style.css .fb-full-wrapper 주석 참고)
+  if (_fbEls.wrapper && !_fbEls.wrapper.style.willChange) _fbEls.wrapper.style.willChange = 'transform';
 }
 
 // 가벼운 쪽 — transform 한 줄만 갱신. scrollToFret() 팬 애니메이션의 매 프레임이 이걸 호출.
@@ -305,8 +309,8 @@ function applyTestFbLayout() {
 function alignMicBtnRowToDesc() {
   const startTestBtn = document.getElementById('start-test-btn');
   if (!startTestBtn) return;
-  const width = window.matchMedia('(min-width: 769px)').matches ? 200 : 188;
-  startTestBtn.style.width = width + 'px';
+  // 3단계(769px~)는 CSS(.scale-test-btn-group .start-test-btn)가 마이크 그룹 폭에 맞춤 — 인라인 폭을 비워 CSS가 이기게 함
+  startTestBtn.style.width = window.matchMedia('(min-width: 769px)').matches ? '' : '188px';
 }
 
 // ── 그룹1~4 간격 30px 미만 → 스크롤모드(40px 고정 gap) 전환 ──────────────────
@@ -333,25 +337,6 @@ function updateScaleGapScrollMode() {
   const bodyH = Number.isFinite(cap) ? Math.min(avail, cap) : avail;
   const naturalGap = (bodyH - sumH) / 2;
   body.classList.toggle('scale-gap-scroll', naturalGap < 30);
-}
-
-// 본문 스크롤 영역(.cd-main) 아래로 더 스크롤할 내용이 남았을 때만 .has-scroll-more를 붙임 — CSS가 이 클래스일 때만 맨 아래 투명 그라데이션(스크롤 힌트)을 그림.
-// 스크롤할 게 없거나 맨 아래까지 내려오면 클래스가 빠져서 그라데이션 자체가 없음(display:none).
-function initScrollMoreHint() {
-  const main = document.querySelector('.scale-level-main');
-  if (!main) return;
-  const update = () => {
-    main.classList.toggle('has-scroll-more', main.scrollHeight - main.scrollTop - main.clientHeight > 2);
-  };
-  main.addEventListener('scroll', update, { passive: true });
-  window.addEventListener('resize', update);
-  if (window.ResizeObserver) { // 내용 높이가 바뀌는 경우(기타 버튼 패널, 폰트 로드, 스크롤 모드 전환 등)도 따라감
-    const ro = new ResizeObserver(update);
-    ro.observe(main);
-    Array.from(main.children).forEach(c => ro.observe(c));
-  }
-  if (document.fonts && document.fonts.ready) document.fonts.ready.then(update);
-  update();
 }
 
 // ── 상태 ─────────────────────────────────────────────────────
@@ -2716,8 +2701,8 @@ function checkAnswer() {
   }
 
   // 버튼 상태 갱신 + 뒤로가기 표시
-  const label = document.getElementById('test-submit-btn-label');
-  if (label) label.textContent = '다시 풀기';
+  document.getElementById('test-submit-btn')?.classList.add('is-hidden');
+  document.getElementById('test-retry-btn')?.classList.add('is-visible');
   document.getElementById('test-back-btn')?.classList.add('is-visible');
 }
 
@@ -4194,6 +4179,8 @@ function startTest() {
   }
   const submitLabel = document.getElementById('test-submit-btn-label');
   if (submitLabel) submitLabel.textContent = '제출하기';
+  document.getElementById('test-submit-btn')?.classList.remove('is-hidden');
+  document.getElementById('test-retry-btn')?.classList.remove('is-visible');
   document.getElementById('test-back-btn')?.classList.remove('is-visible');
 
   // 질문 텍스트 초기화 (애니메이션 이후 바뀌도록 숨김)
@@ -5544,7 +5531,6 @@ renderFullNeck();
   renderPracticeChords();
   updateScaleGapScrollMode(); // 그룹1~4 간격 30px 미만이면 스크롤모드로 초기 진입 — 모든 그룹 콘텐츠(타이틀/인디케이터/키선택 그리드) 확정 이후에 측정
   alignMicBtnRowToDesc(); // scale-mic-btn-row를 desc 첫 줄 좌우 경계에 맞춤
-  initScrollMoreHint();   // 아래로 스크롤할 내용이 남았을 때만 하단 그라데이션
 
   initTestTap();
 
@@ -5574,27 +5560,29 @@ renderFullNeck();
     startTest();
   });
 
-  // 제출하기 / 다시 풀기 버튼
+  // 제출하기(미니강의에서는 '다음') 버튼
   document.getElementById('test-submit-btn')?.addEventListener('pointerup', (e) => {
     if (e.currentTarget.disabled) return;
     if (_tutorialMode) { _playTap(); advanceTutorialStep(); return; }
-    if (_testSubmitted) {
-      _playConfirmSfx();
-      analytics.track('scale_test_retry', {
-        ..._scaleBase(),
-        root_name: (_useFlat ? KEY_NAMES_FLAT : KEY_NAMES)[_rootNote],
-      });
-      startTest();
-    } else {
-      analytics.track('scale_test_submitted', {
-        ..._scaleBase(),
-        root_name: (_useFlat ? KEY_NAMES_FLAT : KEY_NAMES)[_rootNote],
-        form:      _testItem.block.label || FORM_NAMES[_testItem.bi] || (_testItem.bi + 1 + '번폼'),
-        bi:        _testItem?.bi,
-      });
-      _playConfirmSfx();
-      checkAnswer();
-    }
+    if (_testSubmitted) return;   // 제출 후엔 이 버튼이 숨겨지고 '다시 풀기'(#test-retry-btn)가 대신함
+    analytics.track('scale_test_submitted', {
+      ..._scaleBase(),
+      root_name: (_useFlat ? KEY_NAMES_FLAT : KEY_NAMES)[_rootNote],
+      form:      _testItem.block.label || FORM_NAMES[_testItem.bi] || (_testItem.bi + 1 + '번폼'),
+      bi:        _testItem?.bi,
+    });
+    _playConfirmSfx();
+    checkAnswer();
+  });
+
+  // 다시 풀기 — 제출하기와 별개의 요소(제출 후에만 보임)
+  document.getElementById('test-retry-btn')?.addEventListener('pointerup', () => {
+    _playConfirmSfx();
+    analytics.track('scale_test_retry', {
+      ..._scaleBase(),
+      root_name: (_useFlat ? KEY_NAMES_FLAT : KEY_NAMES)[_rootNote],
+    });
+    startTest();
   });
 
   // 테스트 오버레이 초기화 (X 버튼 / 뒤로가기 버튼 처리)

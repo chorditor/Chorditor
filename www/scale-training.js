@@ -214,8 +214,8 @@ function _showChapter(n) {
   });
   const list = document.getElementById(`ch-${n}`);
   if (list) {
-    document.querySelector('.scale-chapter-title').textContent = list.dataset.title;
-    document.querySelector('.scale-chapter-subtitle').textContent = list.dataset.subtitle;
+    document.querySelector('.scale-chapter-num').textContent = `Ch. ${n}`;
+    document.querySelector('.scale-chapter-name').textContent = list.dataset.subtitle;
   }
   return list;
 }

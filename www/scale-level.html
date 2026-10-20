@@ -175,12 +175,23 @@
 
     <!-- ── 스케일 테스트 오버레이 ── -->
     <div class="scale-test-overlay" id="scale-test-overlay">
-      <div class="scale-test-top">
-        <button class="icon-btn" id="test-close-btn">
-          <i data-lucide="x"></i>
+      <header class="cd-topbar">
+        <button class="icon-btn cd-topbar-back" id="test-close-btn">
+          <i data-lucide="chevron-left"></i>
         </button>
-      </div>
-      <div class="scale-test-body">
+        <!-- 피크바 — 위 페이지 탑바와 같은 마크업(숫자 갱신은 shared.js가 querySelectorAll('#currency-…')로 둘 다 갱신) -->
+        <div class="topbar-currency" id="topbar-currency" style="margin-left:auto;">
+          <div class="currency-item currency-item--clickable" onclick="openPeakboxModal()">
+            <span class="currency-count" id="currency-peakbox-count">0</span>
+            <div class="currency-icon-box"><img src="image/gift.png" alt=""></div>
+          </div>
+          <div class="currency-item currency-item--clickable" onclick="openPeakTimerPopup(event)">
+            <span class="currency-count" id="currency-peak-count">30/30</span>
+            <div class="currency-icon-box"><img src="image/peak.svg" alt=""></div>
+          </div>
+        </div>
+      </header>
+      <main class="cd-main scale-test-body">
         <p class="test-question-text" id="test-question-text"></p>
         <div class="test-note-grid" id="test-note-grid"></div>
         <div class="test-chord-labels" id="test-chord-labels"></div>
@@ -212,8 +223,12 @@
           <button class="test-submit-btn cd-btn cd-btn--brand" id="test-submit-btn">
             <span id="test-submit-btn-label">제출하기</span>
           </button>
+          <!-- 제출 후에만 보이는 별도 버튼 — 제출하기와 같은 요소를 재사용하면 누르던 효과(눌림·호버)가 새 글자 위에서 이어져 보임 -->
+          <button class="test-submit-btn test-retry-btn cd-btn cd-btn--brand" id="test-retry-btn">
+            <span>다시 풀기</span>
+          </button>
         </div>
-      </div>
+      </main>
     </div>
 
   </div>

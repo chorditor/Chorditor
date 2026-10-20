@@ -81,6 +81,18 @@
   --cd-peak-gap: 4px;              /* 아이콘-숫자 간격 */
   --cd-peak-font: 14px;            /* 피크바 숫자(전 구간 동일) */
 
+  /* 원 안 숫자 `.cd-num` — 크기·색·숫자 모양. 숫자는 Fredoka 600 경로(코드맞추기 번호 원·나의 기타 여정과 같은 모양), 현재 1~4 */
+  --cd-num-size: 32px;             /* 원 지름 */
+  --cd-num-digit: 0.4;             /* 숫자 높이 ÷ 원 지름 */
+  --cd-num-bg: #e2e8f0;            /* 평소 원 */
+  --cd-num-fg: var(--text-muted);  /* 평소 숫자 */
+  --cd-num-bg-on: var(--brand);           /* 선택 원 */
+  --cd-num-fg-on: #ffffff;                /* 선택 숫자 */
+  --cd-num-img-1: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='-50 -50 100 100'%3E%3Cpath fill='%2386827c' d='M4.9 29.68Q1.51 29.68 0.17 28.31Q-1.18 26.94 -1.18 23.49V-21.47Q-1.18 -24.88 0.18 -26.23Q1.53 -27.58 4.99 -27.58Q8.37 -27.58 9.72 -26.18Q11.07 -24.78 11.07 -21.31V23.57Q11.07 26.96 9.72 28.32Q8.37 29.68 4.9 29.68ZM-5.45 -5.38Q-7.8 -3.32 -9.66 -3.38Q-11.51 -3.44 -13.7 -5.79Q-15.92 -8.18 -15.78 -10.26Q-15.64 -12.34 -12.92 -14.71L-0.75 -25.51Q1.51 -27.58 3.44 -27.4Q5.37 -27.23 7.5 -24.9Q9.68 -22.59 9.51 -20.53Q9.33 -18.47 6.6 -16.04Z'/%3E%3C/svg%3E");
+  --cd-num-img-2: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='-50 -50 100 100'%3E%3Cpath fill='%2386827c' d='M-15.51 28.46Q-17.98 28.46 -19.83 26.55Q-21.67 24.64 -21.67 22.13Q-21.67 20.7 -21.41 19.39Q-21.14 18.09 -20.54 16.87Q-19.94 15.66 -18.9 14.61Q-15.98 11.71 -12.47 9.31Q-8.97 6.9 -5.5 4.72Q-2.03 2.55 0.86 0.37Q3.75 -1.8 5.49 -4.27Q7.24 -6.74 7.24 -9.71Q7.24 -11.36 6.55 -13.01Q5.85 -14.67 4.09 -15.79Q2.32 -16.91 -0.93 -16.91Q-3.05 -16.91 -4.62 -16.33Q-6.2 -15.75 -7.21 -14.63Q-8.22 -13.5 -8.74 -11.87Q-9.26 -10.24 -9.26 -8.15Q-9.26 -6.6 -9.54 -5.26Q-9.83 -3.93 -11.12 -3.11Q-12.4 -2.29 -15.51 -2.29Q-18.57 -2.29 -19.86 -3.22Q-21.14 -4.15 -21.41 -5.65Q-21.67 -7.15 -21.67 -8.75Q-21.67 -12.67 -20.29 -16.36Q-18.9 -20.06 -16.2 -22.97Q-13.51 -25.88 -9.69 -27.6Q-5.87 -29.33 -1.01 -29.33Q4.95 -29.33 9.63 -26.66Q14.31 -24 17.02 -19.35Q19.74 -14.71 19.74 -8.64Q19.74 -5.05 18.59 -2.03Q17.45 0.99 15.54 3.49Q13.63 5.98 11.32 7.93Q9.02 9.88 6.64 11.38Q4.26 12.88 2.22 13.97Q0.17 15.06 -1.21 15.8L-2.38 15.96H15.69Q17.33 15.96 18.75 16.27Q20.17 16.57 21.01 17.9Q21.86 19.23 21.86 22.29Q21.86 25.21 20.97 26.54Q20.08 27.87 18.63 28.16Q17.18 28.46 15.53 28.46Z'/%3E%3C/svg%3E");
+  --cd-num-img-3: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='-50 -50 100 100'%3E%3Cpath fill='%2386827c' d='M-1.15 29.25Q-5.52 29.25 -9.33 27.85Q-13.14 26.44 -16.09 23.98Q-19.04 21.52 -20.7 18.36Q-22.37 15.21 -22.45 11.78Q-22.45 7.39 -15.71 7.39Q-13.73 7.39 -12.73 7.76Q-11.73 8.14 -11.13 9.09Q-10.52 10.04 -9.91 11.75Q-9.63 12.57 -8.68 13.86Q-7.73 15.14 -5.89 16.17Q-4.05 17.19 -1.07 17.19Q1.69 17.19 3.69 16.35Q5.69 15.51 6.8 14Q7.91 12.49 7.91 10.55Q7.91 8.47 6.83 7.01Q5.75 5.55 3.91 4.8Q2.07 4.06 -0.34 4.06Q-2.01 4.06 -3.47 3.81Q-4.93 3.57 -5.82 2.33Q-6.71 1.1 -6.71 -1.89Q-6.71 -4.93 -5.82 -6.12Q-4.93 -7.32 -3.44 -7.53Q-1.95 -7.75 -0.25 -7.75Q1.93 -7.75 3.41 -8.23Q4.89 -8.71 5.66 -9.64Q6.42 -10.58 6.42 -11.93Q6.42 -13.65 5.59 -14.91Q4.75 -16.18 3.22 -16.86Q1.69 -17.55 -0.38 -17.55Q-2.54 -17.55 -3.97 -17Q-5.4 -16.44 -6.34 -15.48Q-7.28 -14.52 -8.01 -13.36Q-9.42 -10.46 -11.49 -9.91Q-13.57 -9.36 -16.63 -11.05Q-19.41 -12.75 -19.86 -14.64Q-20.31 -16.53 -19.02 -19.12Q-18.88 -19.34 -18.3 -20.45Q-17.73 -21.55 -16.46 -23.05Q-15.18 -24.55 -13.17 -26.02Q-11.16 -27.49 -8.15 -28.46Q-5.13 -29.43 -1.03 -29.43Q3.81 -29.43 7.52 -27.91Q11.22 -26.39 13.76 -23.92Q16.31 -21.45 17.61 -18.41Q18.92 -15.38 18.92 -12.28Q18.92 -9.38 17.89 -7.24Q16.86 -5.09 15.4 -3.76Q13.94 -2.44 12.73 -1.82Q13.96 -1.23 15.29 -0.11Q16.61 1.01 17.75 2.63Q18.88 4.24 19.6 6.19Q20.33 8.14 20.33 10.39Q20.33 15.82 17.56 20.08Q14.8 24.33 9.95 26.79Q5.1 29.25 -1.15 29.25Z'/%3E%3C/svg%3E");
+  --cd-num-img-4: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='-50 -50 100 100'%3E%3Cpath fill='%2386827c' d='M12.29 29.11Q9.31 29.11 8.01 28.22Q6.72 27.33 6.42 25.88Q6.12 24.43 6.12 22.86V12.4H-15.74Q-18.71 12.4 -20.01 11.5Q-21.32 10.61 -21.63 9.16Q-21.93 7.71 -21.93 6.15Q-21.93 5.38 -21.88 4.86Q-21.83 4.34 -21.69 3.81L-14.52 -23.37Q-13.6 -27.17 -11.93 -27.92Q-10.25 -28.66 -6.88 -27.89Q-4.29 -27.23 -2.9 -25.91Q-1.51 -24.6 -1.98 -22.68L-8.13 0.76H6.12V-22.21Q6.12 -23.74 6.43 -25.04Q6.74 -26.33 8.07 -27.18Q9.41 -28.03 12.45 -28.03Q15.44 -28.03 16.73 -27.14Q18.03 -26.25 18.33 -24.83Q18.62 -23.41 18.62 -21.78V22.96Q18.62 24.57 18.28 25.99Q17.95 27.41 16.65 28.26Q15.35 29.11 12.29 29.11Z'/%3E%3C/svg%3E");
+
   /* 카드 토큰(.cd-card, style-guide §13) — 값 하나만 바꾸면 .cd-card를 쓰는 모든 카드가 일괄 변경 */
   --cd-card-bg: var(--surface);
   --cd-card-radius: var(--radius-lg);
@@ -542,13 +554,17 @@ button, input, select, textarea {
 }
 
 /* user_project.html 진입 ?�니메이??*/
-.app-shell.project-enter {
-  animation: project-page-enter 0.36s cubic-bezier(0.32, 0.72, 0, 1) forwards;
+/* 탑바(.cd-topbar)는 제자리 — 슬라이드는 그 아래 내용(cd-main·독바 등)만. 끝 상태가 원위치(transform 없음)라 forwards 대신 backwards:
+   forwards로 transform을 남기면 안쪽 position:fixed 요소의 기준이 바뀜 */
+.app-shell.project-enter > :not(.cd-topbar) {
+  animation: project-page-enter 0.36s cubic-bezier(0.32, 0.72, 0, 1) backwards;
 }
 /* user_project.html ?�기 ?�니메이??*/
 .app-shell.project-exit {
-  animation: project-page-exit 0.28s cubic-bezier(0.4, 0, 1, 1) forwards;
   pointer-events: none;
+}
+.app-shell.project-exit > :not(.cd-topbar) {
+  animation: project-page-exit 0.28s cubic-bezier(0.4, 0, 1, 1) forwards;
 }
 /* home.html ?�로 물러?�는 ?�니메이??*/
 .app-shell.home-recede {
@@ -571,7 +587,7 @@ button, input, select, textarea {
   width: 100vw;
   height: 100vh; /* dvh 미지원 폴백 */
   height: 100dvh;
-  background: #FAFAF8;
+  background: var(--bg);   /* 페이지 배경(#FEFEFD)과 같게 — 걷힐 때 음영이 안 보이게 */
   z-index: 9999;
   pointer-events: none;
   opacity: 1;
@@ -6453,8 +6469,7 @@ canvas {
   width: 100%;
   max-width: var(--grid-container-max);
   margin-inline: auto;
-  padding-inline: var(--grid-margin);
-  box-sizing: border-box;
+  box-sizing: border-box;   /* 좌우 인셋은 cd-main(--cd-inset)이 담당 — 여기서 또 주면 이중 인셋 */
   display: flex;
   flex-direction: column;
   flex: 1;
@@ -6531,14 +6546,15 @@ canvas {
   pointer-events: none;
 }
 /* 좌→우 색 그라데이션 — 채움의 현재 색(background: inherit, JS 인라인 경고색 포함)을 복제한 층에 채도·밝기 필터를 걸고
-   왼쪽에서 오른쪽으로 마스크로 사라지게: 왼쪽은 같은 색상의 더 채도 높고 밝은 색, 오른쪽은 원래 색(흰색 덮기가 아님) */
+   왼쪽에서 오른쪽으로 마스크로 사라지게: 왼쪽은 같은 색상의 더 채도 높은 색, 오른쪽은 원래 색(흰색 덮기가 아님).
+   밝기 필터는 안 씀 — 밝은 노랑(#FFD60A)이 거의 흰빛으로 뜸 */
 .ms-progress-fill::before {
   content: '';
   position: absolute;
   inset: 0;
   border-radius: inherit;
   background: inherit;
-  filter: saturate(1.8) brightness(1.15);
+  filter: saturate(1.8);
   -webkit-mask-image: linear-gradient(to right, #000 0%, transparent 100%);
   mask-image: linear-gradient(to right, #000 0%, transparent 100%);
   pointer-events: none;
@@ -12659,20 +12675,20 @@ canvas {
     width: 20px;
     height: 20px;
     border-radius: 50%;
-    background: var(--cq-num-img) center / 72% 72% no-repeat #f5f5f5;   /* 숫자 높이 ≈ 8.4px (SVG 숫자 높이는 박스의 약 58%) */
+    background: var(--cq-num-img) center / calc(var(--cd-num-digit) / 0.58 * 100%) no-repeat #f5f5f5;   /* 숫자 높이 = 원의 --cd-num-digit(40%) — 숫자 모양·비율은 :root --cd-num-* (SVG 숫자 높이는 박스의 약 58%) */
     pointer-events: none;
   }
   :is(#chord-quiz-page, #mission-session-page) .ms-quiz-choices > .ms-quiz-choice-card:nth-child(1) {
-    --cq-num-img: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='-50 -50 100 100'%3E%3Cpath fill='%2386827c' d='M4.9 29.68Q1.51 29.68 0.17 28.31Q-1.18 26.94 -1.18 23.49V-21.47Q-1.18 -24.88 0.18 -26.23Q1.53 -27.58 4.99 -27.58Q8.37 -27.58 9.72 -26.18Q11.07 -24.78 11.07 -21.31V23.57Q11.07 26.96 9.72 28.32Q8.37 29.68 4.9 29.68ZM-5.45 -5.38Q-7.8 -3.32 -9.66 -3.38Q-11.51 -3.44 -13.7 -5.79Q-15.92 -8.18 -15.78 -10.26Q-15.64 -12.34 -12.92 -14.71L-0.75 -25.51Q1.51 -27.58 3.44 -27.4Q5.37 -27.23 7.5 -24.9Q9.68 -22.59 9.51 -20.53Q9.33 -18.47 6.6 -16.04Z'/%3E%3C/svg%3E");
+    --cq-num-img: var(--cd-num-img-1);
   }
   :is(#chord-quiz-page, #mission-session-page) .ms-quiz-choices > .ms-quiz-choice-card:nth-child(2) {
-    --cq-num-img: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='-50 -50 100 100'%3E%3Cpath fill='%2386827c' d='M-15.51 28.46Q-17.98 28.46 -19.83 26.55Q-21.67 24.64 -21.67 22.13Q-21.67 20.7 -21.41 19.39Q-21.14 18.09 -20.54 16.87Q-19.94 15.66 -18.9 14.61Q-15.98 11.71 -12.47 9.31Q-8.97 6.9 -5.5 4.72Q-2.03 2.55 0.86 0.37Q3.75 -1.8 5.49 -4.27Q7.24 -6.74 7.24 -9.71Q7.24 -11.36 6.55 -13.01Q5.85 -14.67 4.09 -15.79Q2.32 -16.91 -0.93 -16.91Q-3.05 -16.91 -4.62 -16.33Q-6.2 -15.75 -7.21 -14.63Q-8.22 -13.5 -8.74 -11.87Q-9.26 -10.24 -9.26 -8.15Q-9.26 -6.6 -9.54 -5.26Q-9.83 -3.93 -11.12 -3.11Q-12.4 -2.29 -15.51 -2.29Q-18.57 -2.29 -19.86 -3.22Q-21.14 -4.15 -21.41 -5.65Q-21.67 -7.15 -21.67 -8.75Q-21.67 -12.67 -20.29 -16.36Q-18.9 -20.06 -16.2 -22.97Q-13.51 -25.88 -9.69 -27.6Q-5.87 -29.33 -1.01 -29.33Q4.95 -29.33 9.63 -26.66Q14.31 -24 17.02 -19.35Q19.74 -14.71 19.74 -8.64Q19.74 -5.05 18.59 -2.03Q17.45 0.99 15.54 3.49Q13.63 5.98 11.32 7.93Q9.02 9.88 6.64 11.38Q4.26 12.88 2.22 13.97Q0.17 15.06 -1.21 15.8L-2.38 15.96H15.69Q17.33 15.96 18.75 16.27Q20.17 16.57 21.01 17.9Q21.86 19.23 21.86 22.29Q21.86 25.21 20.97 26.54Q20.08 27.87 18.63 28.16Q17.18 28.46 15.53 28.46Z'/%3E%3C/svg%3E");
+    --cq-num-img: var(--cd-num-img-2);
   }
   :is(#chord-quiz-page, #mission-session-page) .ms-quiz-choices > .ms-quiz-choice-card:nth-child(3) {
-    --cq-num-img: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='-50 -50 100 100'%3E%3Cpath fill='%2386827c' d='M-1.15 29.25Q-5.52 29.25 -9.33 27.85Q-13.14 26.44 -16.09 23.98Q-19.04 21.52 -20.7 18.36Q-22.37 15.21 -22.45 11.78Q-22.45 7.39 -15.71 7.39Q-13.73 7.39 -12.73 7.76Q-11.73 8.14 -11.13 9.09Q-10.52 10.04 -9.91 11.75Q-9.63 12.57 -8.68 13.86Q-7.73 15.14 -5.89 16.17Q-4.05 17.19 -1.07 17.19Q1.69 17.19 3.69 16.35Q5.69 15.51 6.8 14Q7.91 12.49 7.91 10.55Q7.91 8.47 6.83 7.01Q5.75 5.55 3.91 4.8Q2.07 4.06 -0.34 4.06Q-2.01 4.06 -3.47 3.81Q-4.93 3.57 -5.82 2.33Q-6.71 1.1 -6.71 -1.89Q-6.71 -4.93 -5.82 -6.12Q-4.93 -7.32 -3.44 -7.53Q-1.95 -7.75 -0.25 -7.75Q1.93 -7.75 3.41 -8.23Q4.89 -8.71 5.66 -9.64Q6.42 -10.58 6.42 -11.93Q6.42 -13.65 5.59 -14.91Q4.75 -16.18 3.22 -16.86Q1.69 -17.55 -0.38 -17.55Q-2.54 -17.55 -3.97 -17Q-5.4 -16.44 -6.34 -15.48Q-7.28 -14.52 -8.01 -13.36Q-9.42 -10.46 -11.49 -9.91Q-13.57 -9.36 -16.63 -11.05Q-19.41 -12.75 -19.86 -14.64Q-20.31 -16.53 -19.02 -19.12Q-18.88 -19.34 -18.3 -20.45Q-17.73 -21.55 -16.46 -23.05Q-15.18 -24.55 -13.17 -26.02Q-11.16 -27.49 -8.15 -28.46Q-5.13 -29.43 -1.03 -29.43Q3.81 -29.43 7.52 -27.91Q11.22 -26.39 13.76 -23.92Q16.31 -21.45 17.61 -18.41Q18.92 -15.38 18.92 -12.28Q18.92 -9.38 17.89 -7.24Q16.86 -5.09 15.4 -3.76Q13.94 -2.44 12.73 -1.82Q13.96 -1.23 15.29 -0.11Q16.61 1.01 17.75 2.63Q18.88 4.24 19.6 6.19Q20.33 8.14 20.33 10.39Q20.33 15.82 17.56 20.08Q14.8 24.33 9.95 26.79Q5.1 29.25 -1.15 29.25Z'/%3E%3C/svg%3E");
+    --cq-num-img: var(--cd-num-img-3);
   }
   :is(#chord-quiz-page, #mission-session-page) .ms-quiz-choices > .ms-quiz-choice-card:nth-child(4) {
-    --cq-num-img: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='-50 -50 100 100'%3E%3Cpath fill='%2386827c' d='M12.29 29.11Q9.31 29.11 8.01 28.22Q6.72 27.33 6.42 25.88Q6.12 24.43 6.12 22.86V12.4H-15.74Q-18.71 12.4 -20.01 11.5Q-21.32 10.61 -21.63 9.16Q-21.93 7.71 -21.93 6.15Q-21.93 5.38 -21.88 4.86Q-21.83 4.34 -21.69 3.81L-14.52 -23.37Q-13.6 -27.17 -11.93 -27.92Q-10.25 -28.66 -6.88 -27.89Q-4.29 -27.23 -2.9 -25.91Q-1.51 -24.6 -1.98 -22.68L-8.13 0.76H6.12V-22.21Q6.12 -23.74 6.43 -25.04Q6.74 -26.33 8.07 -27.18Q9.41 -28.03 12.45 -28.03Q15.44 -28.03 16.73 -27.14Q18.03 -26.25 18.33 -24.83Q18.62 -23.41 18.62 -21.78V22.96Q18.62 24.57 18.28 25.99Q17.95 27.41 16.65 28.26Q15.35 29.11 12.29 29.11Z'/%3E%3C/svg%3E");
+    --cq-num-img: var(--cd-num-img-4);
   }
   /* 다이어그램 슬롯 — 카드의 80% 안에 440:352 비율로 맞춤(폭·높이 중 먼저 닿는 쪽 기준) */
   :is(#chord-quiz-page, #mission-session-page) .ms-quiz-choice-canvas-slot {
@@ -15019,6 +15035,7 @@ canvas {
 
 /* 스크롤·좌우 그리드마진·1440 캡·세로배치는 뼈대(.cd-main, 파일 끝 페이지 셸 섹션)가 전담 */
 /* 스크롤 컨테이너 안쪽 간격은 cd-head/cd-body 토큰이 담당(.cd-head--sticky = 풀블리드 스티키 헤드) */
+.scale-training-main .cd-head--sticky { background: var(--bg); }   /* 페이지 배경(#FEFEFD)과 통일 — 공용 기본은 #fff */
 .scale-training-main .cd-body { min-height: auto; } /* 캐러셀 min-height(448px)만큼 본문이 커지고 .cd-main이 스크롤 */
 
 .st-track {
@@ -15026,54 +15043,35 @@ canvas {
   justify-content: space-between; /* 첫/끝 점이 그리드 양끝, 나머지 균등 배치 */
   margin-inline: calc(var(--cd-inset) * -1); /* 구분선·그림자는 뷰포트 전체 — 부모 .cd-head--sticky 패딩 상쇄. 위 간격은 .cd-selector margin-top 토큰 */
   padding: 0 var(--cd-inset) 14px; /* 점은 그리드 col1~끝 안쪽 */
-  border-bottom: 1px solid var(--border-color, #eee);
-  box-shadow: 0 6px 10px -6px rgba(0,0,0,0.12);
   /* 점 연결선 — 그리드 양끝 길이 1줄, 점 뒤에 깔림. y = (점 44px − 선 2px) / 2 */
   background: linear-gradient(#e2e8f0, #e2e8f0) var(--cd-inset) 21px / calc(100% - var(--cd-inset) * 2) 2px no-repeat;
 }
 
+/* 챕터 점 — 박스는 터치 영역 44px(투명), 안의 원+숫자는 공용 .cd-num(:root --cd-num-*, 정의는 .cd-card 근처). 글자 숫자는 .cd-num이 숨김 */
 .st-dot {
   width: 44px;
   height: 44px;
-  border-radius: 50%;
-  background: #e2e8f0;
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 16px;
-  font-weight: 700;
-  color: var(--text-muted);
-  transition: background .25s, color .25s;
 }
+.st-dot:first-child { margin-left: calc((var(--cd-num-size) - 44px) / 2); }    /* 원 왼쪽 끝을 그리드 끝선에 */
+.st-dot:last-child  { margin-right: calc((var(--cd-num-size) - 44px) / 2); }
+/* 선택된 챕터 점 = .cd-num--on과 같은 색 */
+.st-dot.active .cd-num { background: var(--cd-num-bg-on); color: var(--cd-num-fg-on); }
 
-/* 현재 선택한 원만 채움 */
-.st-dot.active {
-  background: var(--charcoal-blue);
-  color: #fff;
-}
-
-/* 챕터 헤더 — .cd-main 직속, 스티키바 바로 아래(스크롤됨). 글자는 챕터 점 클릭 시 JS(_showChapter)가 교체.
-   좌우는 .cd-main 패딩(--cd-inset)이 담당 → 왼쪽 끝이 그리드 col1(타이틀·첫 점과 같은 선), 별도 마진 없음 */
-.scale-chapter-header {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  gap: 3px;
-  flex-shrink: 0;
-}
-
-.scale-chapter-label {
-  font-size: 11px;
-  font-weight: 700;
-  color: var(--text-muted);
-  letter-spacing: 1.2px;
-  text-transform: uppercase;
-}
-
-.scale-chapter-title {
-  font: var(--type-headline-sm);
+/* 챕터 이름 라벨 — .cd-head 안, 타이틀 바로 아래. 글자는 챕터 점 클릭 시 JS(_showChapter)가 교체.
+   타이틀과 한 묶음(4px), 아래 챕터 점과는 .cd-selector의 --cd-title-gap */
+.scale-chapter-subtitle {
+  margin-top: var(--space-1);
+  font: var(--type-label-lg);
+  font-weight: var(--weight-semibold);   /* 번호·이름 모두 600 */
   letter-spacing: var(--tracking-base);
-  color: var(--text-primary);
+  color: var(--text-muted);   /* 번호·이름 모두 연한 색 */
+}
+/* "Ch. N"과 이름 사이 4px */
+.scale-chapter-num {
+  margin-right: var(--space-1);
 }
 
 
@@ -15132,27 +15130,20 @@ canvas {
 .scale-item-card .lw-name  { color: #1a1a1a; }
 
 .scale-item-card {
-  background: linear-gradient(145deg, #f6f8ff 0%, #ffffff 45%, #eef1f9 100%);
-  border: 1.5px solid rgba(170, 190, 225, 0.35);
-  border-radius: 14px;
+  /* 카드 외형(배경·모서리·그림자·링)은 마크업의 .cd-card(style-guide §13-1) */
   padding: 0 14px;
   height: 72px;
   display: flex;
   flex-direction: column;
   justify-content: center;
   overflow: hidden;
-  box-shadow:
-    0 2px 10px rgba(90, 110, 160, 0.1),
-    inset 0 1px 0 rgba(255, 255, 255, 0.95);
   cursor: pointer;
   box-sizing: border-box;
-  position: relative;
   transition: background 0.15s, transform 0.1s, box-shadow 0.1s;
   -webkit-tap-highlight-color: transparent;
 }
 .scale-item-card:active:not(.scale-item-card--soon) {
   transform: translateY(2px);
-  box-shadow: 0 1px 4px rgba(90, 110, 160, 0.08);
 }
 .scale-item-card--soon {
   opacity: 0.42;
@@ -15162,12 +15153,7 @@ canvas {
 
 /* 캐러셀에서 현재 중앙(선택된) 카드 강조 — JS(_updateCarouselScale)가 거리 계산해서 토글 */
 .scale-item-list .scale-item-card--selected {
-  border-color: rgba(0, 0, 0, 0.6);
-  box-shadow:
-    0 0 0 1.5px rgba(0, 0, 0, 0.6),
-    0 12px 28px rgba(90, 110, 160, 0.22),
-    0 2px 6px rgba(90, 110, 160, 0.15),
-    inset 0 1px 0 rgba(255, 255, 255, 0.95);
+  box-shadow: 0 0 0 3px rgba(26, 26, 26, 0.5), var(--cd-card-shadow);   /* 선택 링(--brand #1a1a1a, 불투명도 50%) + 카드 토큰 그림자 */
 }
 
 /* 탭 전환 시 중앙 카드 pop-in (통통 튀는 오버슈트) */
@@ -15187,16 +15173,12 @@ canvas {
   align-items: flex-start;
   justify-content: flex-start;
   padding: calc(22 * var(--cs));
-  border-radius: calc(14 * var(--cs));
-  box-shadow:
-    0 12px 28px rgba(90, 110, 160, 0.22),
-    0 2px 6px rgba(90, 110, 160, 0.15),
-    inset 0 1px 0 rgba(255, 255, 255, 0.95);
 }
 
 .scale-item-card--template .lw-badge {
   color: #9ca3af;
   font: var(--type-label-sm);
+  font-weight: var(--weight-semibold);
   letter-spacing: -0.02em;
 }
 
@@ -15205,26 +15187,17 @@ canvas {
   flex-direction: column;
   align-self: stretch;
   background: linear-gradient(180deg, rgba(210, 216, 230, 0.1) 0%, rgba(210, 216, 230, 0) 100%);
-  border-radius: calc(14 * var(--cs)) calc(14 * var(--cs)) 0 0;
+  border-radius: var(--cd-card-radius) var(--cd-card-radius) 0 0;
   padding: calc(22 * var(--cs));
   margin: calc(-22 * var(--cs)) calc(-22 * var(--cs)) 0;
   position: relative;
-}
-.scale-card-header::after {
-  content: '';
-  position: absolute;
-  left: calc(22 * var(--cs));
-  right: calc(22 * var(--cs));
-  bottom: 0;
-  height: 1px;
-  background: rgba(170, 190, 225, 0.35);
 }
 
 .scale-card-header .lw-row1 { margin-bottom: 0; }   /* 공용 .lw-row1의 2px 상쇄 — 간격은 아래 요소(.lw-name) margin-top 한 곳 */
 .scale-item-card--template .lw-name {
   margin-top: 8px;
   font: var(--type-title);
-  font-weight: 800;
+  font-weight: var(--weight-bold);
   letter-spacing: var(--tracking-base);
 }
 
@@ -15238,6 +15211,10 @@ canvas {
 .scale-card-shot .fb-full-neck { height: calc(160 * var(--cs)); }
 .scale-card-shot .fb-full-nums { height: calc(22 * var(--cs)); margin-top: calc(6 * var(--cs)); }
 .scale-card-shot .fb-fret-num  { font-size: 12px; }
+/* 카드 안 지판 그림: 프렛 번호는 숨김(마크업은 남겨둠, 확정되면 삭제 예정), 줄·프렛선은 80%로 흐리게(점은 그대로) */
+.scale-card-shot .fb-full-nums { display: none; }
+.scale-card-shot .fb-string,
+.scale-card-shot .fb-fret-line { opacity: 0.8; }
 
 .fb-shot-neck {
   position: relative;
@@ -15314,11 +15291,6 @@ canvas {
 
 
 
-.scale-chapter-subtitle {
-  font: var(--type-title);
-  letter-spacing: var(--tracking-base);
-  color: #64748b;
-}
 
 .scale-item-num {
   width: 34px;
@@ -15389,24 +15361,6 @@ canvas {
   max-height: var(--cd-body-max-h);
   background: #ffffff;
 }
-/* 스크롤 힌트 — 아래로 더 스크롤할 내용이 남았을 때(JS initScrollMoreHint가 .has-scroll-more를 붙임)만 뷰포트 하단에 투명→흰색 그라데이션.
-   평소엔 display:none이라 스크롤할 게 없으면 아예 만들어지지 않음. 높이 48px − margin-top 48px = 레이아웃 높이 0이라 켜고 꺼도 스크롤 높이가 변하지 않음(깜빡임 방지).
-   sticky bottom:0 → 스크롤 중에도 항상 보이는 영역 맨 아래에 붙음. 좌우는 cd-main 패딩을 상쇄해서 뷰포트 끝까지. */
-.scale-level-main::after {
-  content: '';
-  display: none;
-  flex: none;
-  position: sticky;
-  bottom: 0;
-  height: 48px;
-  margin-top: -48px;
-  margin-inline: calc(var(--cd-inset) * -1);
-  background: linear-gradient(to bottom, rgba(255, 255, 255, 0), #ffffff);
-  pointer-events: none;
-  z-index: 2;
-}
-.scale-level-main.has-scroll-more::after { display: block; }
-
 /* 전 스코프 공통: 본문 높이에 상한(--cd-body-max-h)이 걸리면 남는 공간을 위/아래로 반반 나눠 본문이 cd-head 아래 남은 영역의 세로 가운데에 오게 함.
    본문 margin-top(헤드↔본문 간격 토큰)을 auto로 바꾸면 최소 간격이 사라지므로, 그 간격은 cd-head의 margin-bottom으로 옮김(상한이 안 걸려 본문이 영역을 꽉 채우면 auto는 0이라 기존과 같은 모양).
    스크롤 모드(.scale-gap-scroll)에서도 안 넘치는 동안은 가운데, 넘치면 auto가 0이 되어 위에서부터 쌓임. */
@@ -15426,6 +15380,9 @@ canvas {
   background: #ffffff;
   position: relative;
   flex-shrink: 0; /* 프랫보드+block-indicator는 절대 안 찌그러뜨림 — 공간 부족하면 scale-mic-wrap만 줄어듦 */
+  width: 100%;
+  max-width: 800px;   /* 지판 그룹 폭 상한 — 넓은 화면에서 지판 좌우 고스트 프렛(peek)이 끝없이 늘어나지 않게. 그 이상이면 가운데 정렬 */
+  margin-inline: auto;
 }
 
 /* ?�?� ?�랫보드 ?�퍼 ?�?� */
@@ -15757,8 +15714,8 @@ canvas {
      transform(scale+translateX)은 JS(applyFbScale/scrollToFret)가 매번 갱신 */
   transform-origin: 0 0;
   /* iOS(WebKit) — 점 탭 시 눌림/리플 transform 애니메이션이 시작되면 이 지판이 합성 레이어로 올라가며 scale(S)를
-     반영하지 않은 해상도로 다시 래스터돼 흐려졌음. 처음부터 합성 레이어로 고정해 해상도가 바뀌지 않게 함 */
-  will-change: transform;
+     반영하지 않은 해상도로 다시 래스터돼 흐려졌음 → 합성 레이어로 고정해야 함. 단, CSS에 will-change를 미리 걸면
+     배율 1일 때 해상도로 굳어서 배율이 커질수록 흐려지므로, JS(applyFbLayout)가 배율 transform을 넣은 직후에 건다. */
 }
 
 /* ?�?� ?� ???�?� */
@@ -15923,6 +15880,18 @@ canvas {
   gap: 40px;
   max-height: none; /* 위에서부터 쌓는 스크롤 구조 — 높이 상한 적용 안 함 */
 }
+/* 3단계(769px~) 이상은 스크롤 허용 안 함 — 한 화면 고정. 스크롤 모드로 안 넘어가고(위 규칙 되돌림) 넘치는 부분은 잘림.
+   위 .scale-gap-scroll 규칙보다 뒤에 둘 것(같은 우선순위라 나중 규칙이 이김) */
+@media (min-width: 769px) {
+  .scale-level-main { overflow-y: hidden; }
+  .scale-level-main .cd-body.scale-gap-scroll {
+    flex: 1;
+    min-height: 0;
+    justify-content: space-between;
+    gap: 0;
+    max-height: var(--cd-body-max-h);
+  }
+}
 
 /* scale-mic-wrap이 더 이상 flex:1로 안 늘어나서(콘텐츠 크기만큼만 차지) —
    절대배치 트릭 필요없이 그냥 자연스러운 세로 흐름으로 배치 */
@@ -16079,6 +16048,26 @@ canvas {
   .scale-practice-opts .metronome-option-card.scale-practice-card {
     width: 56px;
     height: 56px;
+  }
+}
+/* 3단계(769px~) 코드 진행 텍스트 28px — 토큰 미사용, 별도 디자인. 위 .scale-chord-item(20px)보다 뒤에 둘 것 */
+@media (min-width: 769px) {
+  .scale-chord-item { font-size: 28px; }
+}
+/* 3단계(769px~) — 마이크 그룹이 최대 300px까지 벌어짐: 안내 문구·연습 패널·버튼 줄의 고정 폭(188/200px)을 그룹 폭에 맞추고
+   버튼 줄·연습 옵션은 space-between이라 양끝으로 퍼짐. 위 .scale-mic-btn-row / .scale-practice-panel 200px 규칙보다 뒤에 둘 것 */
+@media (min-width: 769px) {
+  .scale-mic-wrap,
+  .scale-test-btn-group {
+    width: 100%;
+    max-width: 300px;
+    margin-inline: auto;
+  }
+  .scale-test-btn-group .start-test-btn { width: 100%; }   /* '선택한 블럭 암기하기' 버튼도 마이크 그룹과 같은 폭 */
+  .scale-mic-info,
+  .scale-mic-btn-row,
+  .scale-practice-panel {
+    width: 100%;
   }
 }
 
@@ -16453,19 +16442,32 @@ canvas {
 .scale-test-overlay {
   position: fixed;
   inset: 0;
-  background: #ffffff;
+  background: transparent;   /* 틀은 제자리·투명 — 슬라이드는 본문(.scale-test-body)만, 탑바는 위 페이지 탑바와 같은 자리에 그대로 */
   z-index: 300;
   display: flex;
   flex-direction: column;
-  padding-top: env(safe-area-inset-top);
+  pointer-events: none; /* 닫힌 동안 클릭 차단 */
+}
+.scale-test-overlay.is-open {
+  pointer-events: auto;
+}
+/* 본문만 아래에서 올라옴(0.32s — JS TUTORIAL_CLOSE_SLIDE_MS 340ms와 짝). 배경은 불투명이라 아래 페이지를 덮음 */
+.scale-test-overlay .scale-test-body {
+  background: var(--bg);
   transform: translateY(100%);
   transition: transform 0.32s cubic-bezier(0.4, 0, 0.2, 1);
-  pointer-events: none; /* ?��??�을 ????차단 */
 }
-
-.scale-test-overlay.is-open {
+.scale-test-overlay.is-open .scale-test-body {
   transform: translateY(0);
-  pointer-events: auto;
+}
+/* 탑바: 열릴 땐 즉시, 닫힐 땐 본문이 다 내려간 뒤(0.32s)에 숨김 — 위 페이지 탑바와 모양이 같아 전환이 안 보임 */
+.scale-test-overlay > .cd-topbar {
+  visibility: hidden;
+  transition: visibility 0s linear 0.32s;
+}
+.scale-test-overlay.is-open > .cd-topbar {
+  visibility: visible;
+  transition-delay: 0s;
 }
 
 /* "?" 버튼 튜토리얼(2026-09-25, 2026-09-27 단계별 설명 추가) — 테스트 오버레이 재사용.
@@ -16654,6 +16656,7 @@ html:not([lang="ko"]) .test-note-grid {
   justify-content: center; /* 제출버튼이 cd-btn 고정폭 토큰을 쓰면서 flex:1 stretch를 뺐음 —
                                직접 명시 안 하면 왼쪽으로 붙어버림 */
   gap: 10px;
+  width: 100%;   /* 본문(.scale-test-body)이 align-items:center라 줄이 내용 폭만 차지함 — 그리드 폭을 다 써야 버튼이 flex:1로 채워짐 */
   margin-top: 20px;
 }
 
@@ -16667,9 +16670,22 @@ html:not([lang="ko"]) .test-note-grid {
   white-space: nowrap;
   -webkit-tap-highlight-color: transparent;
   transition: opacity 0.25s;
+  /* 기본은 그리드 폭(cd-main 안쪽)을 다 쓰고(돌아가기와 나란히면 반반), 최댓값은 '선택한 블럭 암기하기'(.start-test-btn) 폭 —
+     1~2단계 188px, 3단계(769px~) 300px */
+  flex: 1 1 0;
+  min-width: 0;
+  max-width: 188px;
+}
+@media (min-width: 769px) {
+  .test-submit-btn { max-width: 300px; }
 }
 
 
+/* 제출하기를 누르면 같은 자리의 버튼이 '다시 풀기'로 바뀌는데, 마우스가 그 위에 그대로 있어 .cd-btn:hover(투명도 .85)가 바로 걸림 — 호버 효과 없음 */
+/* 제출 후엔 '제출하기'를 숨기고 별도 버튼 '다시 풀기'(.test-retry-btn)를 같은 자리에 보임 */
+.test-submit-btn.is-hidden,
+.test-retry-btn:not(.is-visible) { display: none; }
+.test-submit-btn:hover { opacity: 1; }
 .test-submit-btn:active {
   opacity: 0.7;
 }
@@ -16681,7 +16697,9 @@ html:not([lang="ko"]) .test-note-grid {
 
 .test-back-btn.is-visible {
   display: block;
-  flex: 1;
+  flex: 1 1 0;   /* 제출 버튼과 같은 규칙 — 그리드 폭을 다 쓰되 최댓값은 188px(3단계 300px) */
+  min-width: 0;
+  max-width: 188px;
   padding: 13px 20px;
   white-space: nowrap;
   border-radius: 14px;
@@ -16696,17 +16714,13 @@ html:not([lang="ko"]) .test-note-grid {
   transition: opacity 0.15s;
 }
 
+@media (min-width: 769px) {
+  .test-back-btn.is-visible { max-width: 300px; }
+}
 .test-back-btn:active {
   opacity: 0.7;
 }
 
-.scale-test-top {
-  height: 54px;
-  display: flex;
-  align-items: center;
-  padding: 0 8px;
-  flex-shrink: 0;
-}
 
 .scale-test-info {
   flex: 1;
@@ -16733,6 +16747,8 @@ html:not([lang="ko"]) .test-note-grid {
    JS(computeTestFbScale/applyTestFbLayout, scale-level.js)가 transform:scale() 하나로 통째로
    맞춤. 화살표 버튼이 없는 화면이라(진입화면과 달리 좌우 이동 UI 자체가 없음) 그 폭을 빼지 않고
    그리드 컬럼 처음~끝(§5 컨테이너 캡+마진, .grid-12/.training-scroll과 동일 패턴)을 그대로 다 씀 */
+/* 좌우 인셋은 cd-main(--cd-inset)이 담당 — 각자 가진 20px 패딩은 이중 인셋이라 0 */
+.scale-test-body :is(.test-question-text, .test-note-grid, .test-chord-labels) { padding-inline: 0; }
 .scale-test-fb-wrap {
   width: 100%;
   max-width: var(--grid-container-max);
@@ -19065,7 +19081,6 @@ body:not(.hinge-debug)::after { display: none; }
     --fb-span: min(var(--fb-h-budget), calc((min(100vw, 1440px) - 2 * var(--grid-margin) - 2 * var(--fb-arrow-w)) / var(--fb-ratio))); /* 그리드 1440px 캡 기준 */
   }
   .test-question-text { font-size: 24px; }
-  .scale-test-top .icon-btn svg { width: 32px; height: 32px; }
   .start-test-btn {
     gap: 14px;
     padding: 22px 56px;
@@ -21724,16 +21739,17 @@ body.tut-lock .tut-allow * {
 }
 /* 탑바 뒤로가기/닫기 — #back-btn 전용 규칙(전역 --icon-back-svg 24px 고정)을 탑바 안에서만 토큰으로 덮음.
    버튼 박스는 아이콘 크기 그대로(좌측 끝선이 그리드에 맞닿게), 터치 영역만 ::before로 확장. */
-.cd-topbar #back-btn {
+.cd-topbar :is(#back-btn, .cd-topbar-back) {
   position: relative;
   width: var(--cd-topbar-icon);
   height: var(--cd-topbar-icon);
+  color: var(--brand);   /* 탑바 뒤로가기/닫기 아이콘은 전 페이지 브랜드 컬러 */
 }
-.cd-topbar #back-btn svg {
+.cd-topbar :is(#back-btn, .cd-topbar-back) svg {
   width: var(--cd-topbar-icon);
   height: var(--cd-topbar-icon);
 }
-.cd-topbar #back-btn::before {
+.cd-topbar :is(#back-btn, .cd-topbar-back)::before {
   content: "";
   position: absolute;
   inset: calc((var(--cd-topbar-icon) - var(--cd-topbar-touch)) / 2);
@@ -21869,6 +21885,39 @@ body.tut-lock .tut-allow * {
   mask-composite: exclude;
   pointer-events: none;
 }
+
+/* 원 안 숫자 — 마크업: <span class="cd-num" data-n="1">1</span> (선택 상태는 cd-num--on). 크기·색·숫자 모양은 :root --cd-num-*.
+   원은 요소 자신, 숫자는 ::after(SVG 마스크, currentColor). 글자는 접근성용으로 남기고 font-size:0으로 숨김.
+   숫자 높이는 SVG 박스의 약 58%라 박스를 (원 × --cd-num-digit ÷ 0.58)로 키움.
+   ::before/::after를 이미 쓰는 요소(퀴즈 선택지 번호 원)는 클래스를 못 붙이므로 --cd-num-img-N·--cd-num-digit만 직접 참조 */
+.cd-num {
+  position: relative;
+  display: inline-block;
+  flex-shrink: 0;
+  width: var(--cd-num-size);
+  height: var(--cd-num-size);
+  border-radius: 50%;
+  background: var(--cd-num-bg);
+  color: var(--cd-num-fg);
+  font-size: 0;
+  transition: background .25s, color .25s;
+}
+.cd-num::after {
+  content: '';
+  position: absolute;
+  top: 50%; left: 50%;
+  width: calc(var(--cd-num-size) * var(--cd-num-digit) / 0.58);
+  height: calc(var(--cd-num-size) * var(--cd-num-digit) / 0.58);
+  transform: translate(-50%, -50%);
+  background: currentColor;
+  -webkit-mask: var(--cd-num-img) center / 100% 100% no-repeat;
+  mask: var(--cd-num-img) center / 100% 100% no-repeat;
+}
+.cd-num[data-n="1"] { --cd-num-img: var(--cd-num-img-1); }
+.cd-num[data-n="2"] { --cd-num-img: var(--cd-num-img-2); }
+.cd-num[data-n="3"] { --cd-num-img: var(--cd-num-img-3); }
+.cd-num[data-n="4"] { --cd-num-img: var(--cd-num-img-4); }
+.cd-num--on { background: var(--cd-num-bg-on); color: var(--cd-num-fg-on); }
 
 
 /* ═══ iOS 네이티브 전용 보정 ═══════════════════════════════════════
@@ -23071,7 +23120,7 @@ body.slot-fit #view-project .chord-area.orient-land .chord-slot {
 
 /* 임베드(노트 스플릿 iframe)는 노트를 열 때마다 새로 로드된다 — 단독 페이지용 진입 연출이 그대로 돌면 우측 카드 아래에서 옅은 막이
    올라왔다 걷히는 "음영"으로 보인다. 슬라이드업(project-enter)을 끄고, 로드 중 덮개(#page-cover)는 회색빛(#FAFAF8) 대신 카드와 같은 흰색으로 */
-body.embed .app-shell.project-enter { animation: none; }
+body.embed .app-shell.project-enter > :not(.cd-topbar) { animation: none; }
 body.embed #page-cover { background: #fff; }
 
 /* 임베드 노트 본문 하단 페이드 — 가사가 길어 스크롤 영역 아래에서 잘리는 부분을 카드 배경으로 자연스럽게 투명해지게 한다(하단 80px).

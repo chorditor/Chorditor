@@ -19,7 +19,7 @@
   <div class="app-shell">
 
     <!-- ── 탑바: 뒤로가기 + 피크바 (style-guide.md §11 cd-topbar) ── -->
-    <header class="cd-topbar cd-topbar--white">
+    <header class="cd-topbar">
       <button id="back-btn" class="icon-btn" onpointerup="closeScaleTraining()">
         <i data-lucide="x"></i>
       </button>
@@ -38,31 +38,26 @@
     <!-- ── 메인 (style-guide.md §11 cd-main) ── -->
     <main class="cd-main scale-training-main">
 
-      <!-- 헤드(스티키): 타이틀 + 챕터 점 트랙 -->
+      <!-- 헤드(스티키): 타이틀 + 챕터 이름 라벨 + 챕터 점 트랙 -->
       <header class="cd-head cd-head--sticky">
           <div class="cd-title">스케일 훈련</div>
+          <div class="scale-chapter-subtitle"><span class="scale-chapter-num">Ch. 1</span><span class="scale-chapter-name">기초 스케일 연습</span></div>
           <div class="cd-selector st-track">
-            <div class="st-dot active" data-chapter="1" onpointerup="onChapterTabTap(this)">1</div>
-            <div class="st-dot" data-chapter="2" onpointerup="onChapterTabTap(this)">2</div>
-            <div class="st-dot" data-chapter="3" onpointerup="onChapterTabTap(this)">3</div>
-            <div class="st-dot" data-chapter="4" onpointerup="onChapterTabTap(this)">4</div>
+            <div class="st-dot active" data-chapter="1" onpointerup="onChapterTabTap(this)"><span class="cd-num" data-n="1">1</span></div>
+            <div class="st-dot" data-chapter="2" onpointerup="onChapterTabTap(this)"><span class="cd-num" data-n="2">2</span></div>
+            <div class="st-dot" data-chapter="3" onpointerup="onChapterTabTap(this)"><span class="cd-num" data-n="3">3</span></div>
+            <div class="st-dot" data-chapter="4" onpointerup="onChapterTabTap(this)"><span class="cd-num" data-n="4">4</span></div>
           </div>
       </header>
 
-      <!-- 본문: 챕터 헤더 + 챕터별 캐러셀 -->
+      <!-- 본문: 챕터별 캐러셀 -->
       <section class="cd-body">
 
-        <!-- 챕터 헤더: 챕터 점을 누르면 JS가 선택 챕터의 data-title/data-subtitle로 글자 교체 -->
-        <div class="scale-chapter-header">
-          <span class="scale-chapter-title">Ch. 1</span>
-          <span class="scale-chapter-subtitle">기초 스케일 연습</span>
-        </div>
-
         <!-- ── Ch. 1: 기초 스케일 연습 ── -->
-          <div class="scale-item-list" id="ch-1" data-title="Ch. 1" data-subtitle="기초 스케일 연습">
+          <div class="scale-item-list" id="ch-1" data-subtitle="기초 스케일 연습">
 
             <!-- 1. 메이저 스케일 -->
-            <div class="scale-item-card scale-item-card--template" data-key="major" data-level="1">
+            <div class="scale-item-card scale-item-card--template cd-card" data-key="major" data-level="1">
               <div class="scale-card-header">
                 <div class="lw-row1">
                   <span class="lw-badge">LEVEL 1</span>
@@ -114,7 +109,7 @@
             </div>
 
             <!-- 메이저 펜타토닉 스케일 (내부 레벨 25, 표시 2) -->
-            <div class="scale-item-card scale-item-card--template" data-key="major-pentatonic" data-level="25">
+            <div class="scale-item-card scale-item-card--template cd-card" data-key="major-pentatonic" data-level="25">
               <div class="scale-card-header">
                 <div class="lw-row1">
                   <span class="lw-badge">LEVEL 2</span>
@@ -161,7 +156,7 @@
             </div>
 
             <!-- 메이저 블루스 스케일 (내부 레벨 26, 표시 3) -->
-            <div class="scale-item-card scale-item-card--template" data-key="major-blues" data-level="26">
+            <div class="scale-item-card scale-item-card--template cd-card" data-key="major-blues" data-level="26">
               <div class="scale-card-header">
                 <div class="lw-row1">
                   <span class="lw-badge">LEVEL 3</span>
@@ -211,7 +206,7 @@
             </div>
 
             <!-- 2. 마이너 펜타토닉 스케일 -->
-            <div class="scale-item-card scale-item-card--template" data-key="pentatonic" data-level="2">
+            <div class="scale-item-card scale-item-card--template cd-card" data-key="pentatonic" data-level="2">
               <div class="scale-card-header">
                 <div class="lw-row1">
                   <span class="lw-badge">LEVEL 4</span>
@@ -258,7 +253,7 @@
             </div>
 
             <!-- 3. 마이너 블루스 스케일 -->
-            <div class="scale-item-card scale-item-card--template" data-key="blues" data-level="3">
+            <div class="scale-item-card scale-item-card--template cd-card" data-key="blues" data-level="3">
               <div class="scale-card-header">
                 <div class="lw-row1">
                   <span class="lw-badge">LEVEL 5</span>
@@ -308,7 +303,7 @@
             </div>
 
             <!-- 4. 내추럴 마이너 스케일 -->
-            <div class="scale-item-card scale-item-card--template" data-key="natural-minor" data-level="4">
+            <div class="scale-item-card scale-item-card--template cd-card" data-key="natural-minor" data-level="4">
               <div class="scale-card-header">
                 <div class="lw-row1">
                   <span class="lw-badge">LEVEL 6</span>
@@ -360,7 +355,7 @@
             </div>
 
             <!-- 5. 하모닉 마이너 스케일 -->
-            <div class="scale-item-card scale-item-card--template" data-key="harmonic-minor" data-level="5">
+            <div class="scale-item-card scale-item-card--template cd-card" data-key="harmonic-minor" data-level="5">
               <div class="scale-card-header">
                 <div class="lw-row1">
                   <span class="lw-badge">LEVEL 7</span>
@@ -415,10 +410,10 @@
           </div><!-- /scale-item-list -->
 
         <!-- ── Ch. 2: 세컨더리 도미넌트 활용 ── -->
-          <div class="scale-item-list scale-item-list--hidden" id="ch-2" data-title="Ch. 2" data-subtitle="세컨더리 도미넌트 활용">
+          <div class="scale-item-list scale-item-list--hidden" id="ch-2" data-subtitle="세컨더리 도미넌트 활용">
 
             <!-- 6. 4도 세컨더리 도미넌트 -->
-            <div class="scale-item-card scale-item-card--template" data-key="secondary-iv" data-level="6">
+            <div class="scale-item-card scale-item-card--template cd-card" data-key="secondary-iv" data-level="6">
               <div class="scale-card-header">
                 <div class="lw-row1">
                   <span class="lw-badge">LEVEL 8</span>
@@ -471,7 +466,7 @@
             </div>
 
             <!-- 7. 5도 세컨더리 도미넌트 -->
-            <div class="scale-item-card scale-item-card--template" data-key="secondary-v" data-level="7">
+            <div class="scale-item-card scale-item-card--template cd-card" data-key="secondary-v" data-level="7">
               <div class="scale-card-header">
                 <div class="lw-row1">
                   <span class="lw-badge">LEVEL 9</span>
@@ -523,7 +518,7 @@
             </div>
 
             <!-- 8. 6도 세컨더리 도미넌트 -->
-            <div class="scale-item-card scale-item-card--template" data-key="secondary-ii" data-level="8">
+            <div class="scale-item-card scale-item-card--template cd-card" data-key="secondary-ii" data-level="8">
               <div class="scale-card-header">
                 <div class="lw-row1">
                   <span class="lw-badge">LEVEL 10</span>
@@ -575,7 +570,7 @@
             </div>
 
             <!-- 9. 2도 세컨더리 도미넌트 -->
-            <div class="scale-item-card scale-item-card--template" data-key="secondary-vi" data-level="9">
+            <div class="scale-item-card scale-item-card--template cd-card" data-key="secondary-vi" data-level="9">
               <div class="scale-card-header">
                 <div class="lw-row1">
                   <span class="lw-badge">LEVEL 11</span>
@@ -627,7 +622,7 @@
             </div>
 
             <!-- 10. 3도 세컨더리 도미넌트 -->
-            <div class="scale-item-card scale-item-card--template" data-key="secondary-iii" data-level="10">
+            <div class="scale-item-card scale-item-card--template cd-card" data-key="secondary-iii" data-level="10">
               <div class="scale-card-header">
                 <div class="lw-row1">
                   <span class="lw-badge">LEVEL 12</span>
@@ -682,10 +677,10 @@
           </div><!-- /scale-item-list -->
 
         <!-- ── Ch. 3: 모드 스케일 ── -->
-          <div class="scale-item-list scale-item-list--hidden" id="ch-3" data-title="Ch. 3" data-subtitle="모드 스케일">
+          <div class="scale-item-list scale-item-list--hidden" id="ch-3" data-subtitle="모드 스케일">
 
             <!-- 11. 아이오니안 스케일 -->
-            <div class="scale-item-card scale-item-card--template" data-key="ionian" data-level="11">
+            <div class="scale-item-card scale-item-card--template cd-card" data-key="ionian" data-level="11">
               <div class="scale-card-header">
                 <div class="lw-row1">
                   <span class="lw-badge">LEVEL 13</span>
@@ -737,7 +732,7 @@
             </div>
 
             <!-- 12. 도리안 스케일 -->
-            <div class="scale-item-card scale-item-card--template" data-key="dorian" data-level="12">
+            <div class="scale-item-card scale-item-card--template cd-card" data-key="dorian" data-level="12">
               <div class="scale-card-header">
                 <div class="lw-row1">
                   <span class="lw-badge">LEVEL 14</span>
@@ -790,7 +785,7 @@
             </div>
 
             <!-- 13. 프리지안 스케일 -->
-            <div class="scale-item-card scale-item-card--template" data-key="phrygian" data-level="13">
+            <div class="scale-item-card scale-item-card--template cd-card" data-key="phrygian" data-level="13">
               <div class="scale-card-header">
                 <div class="lw-row1">
                   <span class="lw-badge">LEVEL 15</span>
@@ -842,7 +837,7 @@
             </div>
 
             <!-- 14. 리디안 스케일 -->
-            <div class="scale-item-card scale-item-card--template" data-key="lydian" data-level="14">
+            <div class="scale-item-card scale-item-card--template cd-card" data-key="lydian" data-level="14">
               <div class="scale-card-header">
                 <div class="lw-row1">
                   <span class="lw-badge">LEVEL 16</span>
@@ -894,7 +889,7 @@
             </div>
 
             <!-- 15. 믹솔리디안 스케일 -->
-            <div class="scale-item-card scale-item-card--template" data-key="mixolydian" data-level="15">
+            <div class="scale-item-card scale-item-card--template cd-card" data-key="mixolydian" data-level="15">
               <div class="scale-card-header">
                 <div class="lw-row1">
                   <span class="lw-badge">LEVEL 17</span>
@@ -946,7 +941,7 @@
             </div>
 
             <!-- 16. 에올리안 스케일 -->
-            <div class="scale-item-card scale-item-card--template" data-key="aeolian" data-level="16">
+            <div class="scale-item-card scale-item-card--template cd-card" data-key="aeolian" data-level="16">
               <div class="scale-card-header">
                 <div class="lw-row1">
                   <span class="lw-badge">LEVEL 18</span>
@@ -998,7 +993,7 @@
             </div>
 
             <!-- 17. 로크리안 스케일 -->
-            <div class="scale-item-card scale-item-card--template" data-key="locrian" data-level="17">
+            <div class="scale-item-card scale-item-card--template cd-card" data-key="locrian" data-level="17">
               <div class="scale-card-header">
                 <div class="lw-row1">
                   <span class="lw-badge">LEVEL 19</span>
@@ -1053,10 +1048,10 @@
           </div><!-- /scale-item-list -->
 
         <!-- ── Ch. 4: 고급 스케일 ── -->
-          <div class="scale-item-list scale-item-list--hidden" id="ch-4" data-title="Ch. 4" data-subtitle="고급 스케일">
+          <div class="scale-item-list scale-item-list--hidden" id="ch-4" data-subtitle="고급 스케일">
 
             <!-- 18. 믹솔리디안 b9 b13 스케일 -->
-            <div class="scale-item-card scale-item-card--template" data-key="mixolydian-b9b13" data-level="18">
+            <div class="scale-item-card scale-item-card--template cd-card" data-key="mixolydian-b9b13" data-level="18">
               <div class="scale-card-header">
                 <div class="lw-row1">
                   <span class="lw-badge">LEVEL 20</span>
@@ -1110,7 +1105,7 @@
             </div>
 
             <!-- 19. 멜로딕 마이너 스케일 -->
-            <div class="scale-item-card scale-item-card--template" data-key="melodic-minor" data-level="19">
+            <div class="scale-item-card scale-item-card--template cd-card" data-key="melodic-minor" data-level="19">
               <div class="scale-card-header">
                 <div class="lw-row1">
                   <span class="lw-badge">LEVEL 21</span>
@@ -1162,7 +1157,7 @@
             </div>
 
             <!-- 20. 얼터드 스케일 -->
-            <div class="scale-item-card scale-item-card--template" data-key="altered" data-level="20">
+            <div class="scale-item-card scale-item-card--template cd-card" data-key="altered" data-level="20">
               <div class="scale-card-header">
                 <div class="lw-row1">
                   <span class="lw-badge">LEVEL 22</span>
@@ -1215,7 +1210,7 @@
             </div>
 
             <!-- 21. 로크리안 내추럴6 스케일 -->
-            <div class="scale-item-card scale-item-card--template" data-key="locrian-sharp6" data-level="21">
+            <div class="scale-item-card scale-item-card--template cd-card" data-key="locrian-sharp6" data-level="21">
               <div class="scale-card-header">
                 <div class="lw-row1">
                   <span class="lw-badge">LEVEL 23</span>
@@ -1268,7 +1263,7 @@
             </div>
 
             <!-- 22. 리디안 도미넌트 스케일 -->
-            <div class="scale-item-card scale-item-card--template" data-key="lydian-dominant" data-level="22">
+            <div class="scale-item-card scale-item-card--template cd-card" data-key="lydian-dominant" data-level="22">
               <div class="scale-card-header">
                 <div class="lw-row1">
                   <span class="lw-badge">LEVEL 24</span>
@@ -1321,7 +1316,7 @@
             </div>
 
             <!-- 23. 믹솔리디안 9 b13 스케일 -->
-            <div class="scale-item-card scale-item-card--template" data-key="mixolydian-b13" data-level="23">
+            <div class="scale-item-card scale-item-card--template cd-card" data-key="mixolydian-b13" data-level="23">
               <div class="scale-card-header">
                 <div class="lw-row1">
                   <span class="lw-badge">LEVEL 25</span>
@@ -1374,7 +1369,7 @@
             </div>
 
             <!-- 24. 로크리안 내추럴2 스케일 -->
-            <div class="scale-item-card scale-item-card--template" data-key="locrian-sharp2" data-level="24">
+            <div class="scale-item-card scale-item-card--template cd-card" data-key="locrian-sharp2" data-level="24">
               <div class="scale-card-header">
                 <div class="lw-row1">
                   <span class="lw-badge">LEVEL 26</span>
