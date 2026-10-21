@@ -66,17 +66,11 @@ function _voicingMidis(voicing) {
 // 다이어그램 탭 → 현재 표시 중인 코드 즉시 스트럼 (재생 중 스트럼과 동일한 간격)
 async function _playCurrentChord() {
   if (typeof GuitarAudio === 'undefined') return;
-  const cached = _stepCache && _stepCache[_currentDisplayStep];
+  const cached = _stepCache && _stepCache[_dispFirst[_currentDisplayStep]];
   const midis  = _voicingMidis(cached && cached.voicing);
   if (!midis.length) return;
   if (GuitarAudio.resume) { try { await GuitarAudio.resume(); } catch (e) {} }
   GuitarAudio.strumNotes(midis, 0.008);
-}
-
-// 절대 오디오 시각 t에 스트럼 (드리프트 없는 스케줄용). dur 동안 울린 뒤 감쇄.
-function _strumVoicingAt(voicing, t, dur) {
-  const midis = _voicingMidis(voicing);
-  if (midis.length) GuitarAudio.strumAt(midis, 0.008, t, dur, 0.3);
 }
 
 // 보이싱 후보 조회 (progression-voicings.js 기반)
@@ -119,9 +113,17 @@ async function _stopPlay(options = {}) {
     }
   }
   _playStartMs = 0;
+  _visualQueue = [];
+  _stopClicks();
+  _restoreBpmDisplay();   // 점진 가속 중 올라간 표시를 목표 BPM으로 되돌림
+  _strumClearHighlight();
   if (typeof DrumAudio !== 'undefined' && DrumAudio.stop) DrumAudio.stop();
-  const stopPromise = GuitarAudio.stop({ wait: options.wait === true });
+  // 이탈(options.hard)은 즉시 하드컷(panic), 일반 정지는 페이드 stop
+  let stopPromise;
+  if (options.hard && GuitarAudio.panic) { GuitarAudio.panic(); stopPromise = Promise.resolve(); }
+  else stopPromise = GuitarAudio.stop({ wait: options.wait === true });
   _playing    = false;
+  _syncBpmLock();
   window._chordSoundPlaying = false;
   _masterBeat = 0;
   _updateActiveCard(-1);
@@ -129,76 +131,336 @@ async function _stopPlay(options = {}) {
   if (options.wait) await stopPromise;
 }
 
-// 한 박자(beatPhase) 분량의 드럼 step을 절대시각 t에 스케줄 (DRUM_SETS[1])
-function _drumBeatAt(beatPhase, t, beatSec) {
-  if (typeof DrumAudio === 'undefined' || !window.DRUM_SETS) return;
-  const set = window.DRUM_SETS[1];
-  if (!set) return;
-  const stepsPerBeat = set.steps / 4;          // 8 step / 4박 = 2
-  const stepSec = beatSec / stepsPerBeat;
-  for (let k = 0; k < stepsPerBeat; k++) {
-    const step = beatPhase * stepsPerBeat + k;
-    const tt = t + k * stepSec;
-    if ((set.kick  || []).includes(step)) DrumAudio.hit('kick',  tt);
-    if ((set.snare || []).includes(step)) DrumAudio.hit('snare', tt);
-    if ((set.hat   || []).includes(step)) DrumAudio.hit('hat',   tt);
+// ── 주법 재생 (strum-play.js의 셀 스케줄러 이식) ─────────────────────────
+// 모델: 주법 그리드 1회 = 1마디. 4코드 진행은 마디당 코드 1개, 8코드 진행은 마디당 코드 2개(마디 절반씩). 1사이클 = 진행 전체 = 4마디.
+// 셀: D/U=스트럼, '-'(헛스트로크)=소리 없음(타이밍만 소비), 컷팅 셀=울리던 음 차단 + 짧은 긁기.
+// 오디오 클럭 lookahead 스케줄러 — 절대시각 누적이라 박자가 밀리지 않음. _masterBeat = 재생 시작 후 누적 박 수.
+const STRUM_STROKE_SEC  = 0.005;  // 스트로크 속도 = 현 간 딜레이(초)
+const STRUM_NOTE_RELEASE = 0.1;   // 마디(코드) 끝에서 자연스럽게 컷
+const STRUM_CUT_DUR     = 0.05;
+const STRUM_CUT_RELEASE = 0.04;
+// D/U 현 순서 (캔버스 인덱스: 0=1번줄 … 5=6번줄)
+//   orig: 악센트 미지정 카드 — D=전체6현 / U=1~3현 · acc: 악센트 셀 — U=1~4현 · weak: 악센트 있는 카드의 비악센트 셀 — D=4·5·6현 / U=1·2현
+const STRUM_DIR_STRINGS = {
+  orig: { D: [5, 4, 3, 2, 1, 0], U: [0, 1, 2] },
+  acc:  { D: [5, 4, 3, 2, 1, 0], U: [0, 1, 2, 3] },
+  weak: { D: [5, 4, 3],          U: [0, 1] },
+};
+// 점진 가속: 켜면 시작 BPM(_rampStart)에서 출발해 '사이클마다'(_rampCycles) '한 번에 BPM씩'(_rampStep) 올라 목표 BPM(_bpm)에서 멈춤.
+// 1사이클 = 진행 전체(4코드=4마디, 8코드=8마디). 켜져 있으면 재생 BPM은 _liveBpm, 꺼져 있으면 항상 목표 BPM(슬라이더 즉시 반영).
+let _rampOn        = false;
+let _rampCanReach  = false;   // 이번 재생이 목표 BPM에 닿을 수 있는 구간인가(시작 BPM < 목표 BPM)
+let _rampReached   = false;   // 이번 재생에서 이미 목표 도달을 셌는가(재생 한 번에 한 번)
+let _liveBpm       = 80;    // 점진 가속 중 현재 BPM
+let _liveShown     = null;  // 큰 BPM 숫자에 마지막으로 표시한 현재 BPM(변할 때만 갱신)
+// 현재 BPM 숫자 — 오도미터(자리별 숫자 띠): 자리마다 0~9가 세로로 늘어선 띠가 있고, 목표 숫자 위치로 띠를 CSS transition으로 이동.
+// 올라가면 띠가 위로, 내려가면 아래로 굴러가고(9→0처럼 넘어갈 땐 띠를 한 바퀴 더 이어붙여 같은 방향으로 계속 굴러감),
+// 자리수가 바뀌면(99↔100) 맨 앞 칸이 빈 칸에서/빈 칸으로 굴러 나타나고 사라짐. 띠 항목: [빈칸, 0~9, 0~9] (띠 위치 = 1 + 숫자 + 10 × 바퀴)
+const ODO_MS = 700;
+const ODO_EASE = 'cubic-bezier(0.4, 0, 0.2, 1)';   // Material 표준 이징
+function _odoPlace(col, pos) {
+  const s = col._strip;
+  s.style.transition = 'none';
+  s.style.transform = `translateY(${-pos}em)`;
+}
+function _odoMake(d) {
+  const col = document.createElement('span');
+  col.className = 'odo-col';
+  const strip = document.createElement('span');
+  strip.className = 'odo-strip';
+  let h = '<i></i>';
+  for (let k = 0; k < 20; k++) h += `<i>${k % 10}</i>`;
+  strip.innerHTML = h;
+  col.appendChild(strip);
+  col._strip = strip;
+  col._d = d;   // 현재 숫자(-1 = 빈 칸)
+  _odoPlace(col, d < 0 ? 0 : 1 + d);
+  return col;
+}
+function _odoRoll(col, nd, dir) {
+  const cur = col._d;
+  if (cur === nd) return;
+  let from, to;
+  if (cur < 0) { from = 0; to = 1 + nd; }
+  else if (nd < 0) { from = 1 + cur; to = 0; }
+  else if (dir > 0) { from = 1 + cur; to = nd >= cur ? 1 + nd : 11 + nd; }
+  else { from = nd <= cur ? 1 + cur : 11 + cur; to = 1 + nd; }
+  col._d = nd;
+  const s = col._strip;
+  _odoPlace(col, from);
+  void s.offsetHeight;   // 시작 위치 확정 후 이동
+  s.style.transition = `transform ${ODO_MS}ms ${ODO_EASE}`;
+  s.style.transform = `translateY(${-to}em)`;
+  clearTimeout(col._t);
+  col._t = setTimeout(() => {
+    if (col._d !== nd) return;
+    if (nd < 0) col.remove(); else { _odoPlace(col, 1 + nd); col.style.maxWidth = ''; }
+  }, ODO_MS + 30);
+}
+function _setBpmText(el, to, animate) {
+  const next = String(to);
+  if (!animate) { el.textContent = next; el._cols = null; return; }
+  // 띠 구조가 없거나(처음/슬라이더가 글자를 덮어씀) 깨졌으면 현재 글자로 새로 만듦
+  if (!el._cols || (el._cols[0] && el._cols[0].parentNode !== el)) {
+    const cur = el.textContent;
+    el.textContent = '';
+    el._cols = Array.from(cur).map(ch => { const c = _odoMake(Number(ch)); el.appendChild(c); return c; });
   }
+  let cols = el._cols;
+  const dir = Number(next) >= Number(cols.map(c => c._d).join('')) ? 1 : -1;
+  while (cols.length < next.length) {   // 자리수 늘어남: 앞에 빈 칸을 만들어 폭이 0에서 자라며 숫자가 굴러 들어옴
+    const c = _odoMake(-1);
+    c.style.maxWidth = '0px';
+    el.insertBefore(c, el.firstChild);
+    cols.unshift(c);
+    void c.offsetWidth;
+    c.style.maxWidth = '1em';
+  }
+  while (cols.length > next.length) {   // 자리수 줄어듦: 맨 앞 칸이 빈 칸으로 굴러가며 폭이 줄어든 뒤 제거
+    const c = cols.shift();
+    c.style.maxWidth = c.offsetWidth + 'px';
+    void c.offsetWidth;
+    c.style.maxWidth = '0px';
+    _odoRoll(c, -1, dir);
+  }
+  cols.forEach((c, i) => _odoRoll(c, Number(next[i]), dir));
 }
 
-// 비트 1개 스케줄 (오디오=절대시각, 비주얼=시각 맞춰 setTimeout)
-function _scheduleBeat(beatIndex, t) {
-  const beatPhase = beatIndex % 4;
-  const beatSec   = 60 / _bpm;
-  const count     = _prog.steps.length;
-  const now       = Tone.now();
-  // 코드당 박수: 8코드 진행은 1/2마디(2박)마다, 그 외 1마디(4박)마다 코드 전환
-  const bpc        = (count === 8) ? 2 : 4;
-  const chordPhase = beatIndex % bpc;
-
-  // 드럼 (절대시각)
-  _drumBeatAt(beatPhase, t, beatSec);
-
-  // 코드 경계: 스트럼 (절대시각, 코드 지속만큼 울림)
-  if (chordPhase === 0) {
-    const currDomIdx = _slotRoles ? _slotRoles.indexOf(2) : -1;
-    const voicing    = (currDomIdx >= 0 && _slotData) ? _slotData[currDomIdx]?.voicing : null;
-    _strumVoicingAt(voicing, t, beatSec * bpc);
-  }
-
-  // 코드 마지막 박 + 0.5박에 다음 코드 슬라이드
-  if (chordPhase === bpc - 1) {
-    const nextChordIdx = (Math.floor(beatIndex / bpc) + 1) % count;
-    const slideDelay = Math.max(0, (t + beatSec * 0.5 - now) * 1000);
-    setTimeout(() => {
-      if (!_playing) return;
-      _updateActiveCard(nextChordIdx);
-    }, slideDelay);
-  }
+// 목표 BPM 슬라이더(인라인) 손잡이를 부드럽게 이동. 소수 값을 쓰려면 step이 any여야 해서 끝나면 1로 되돌림
+let _sliderRaf = 0;
+function _animateSlider(to, onDone) {
+  const s = document.getElementById('bpm-inline-slider');
+  if (!s) return;
+  cancelAnimationFrame(_sliderRaf);
+  const from = Number(s.value), min = Number(s.min), max = Number(s.max), t0 = performance.now(), D = 600;
+  s.step = 'any';
+  const frame = now => {
+    const k = Math.min(1, (now - t0) / D);
+    const v = from + (to - from) * (1 - Math.pow(1 - k, 3));
+    s.value = v;
+    s.style.setProperty('--pct', ((v - min) / (max - min) * 100) + '%');
+    if (k < 1) _sliderRaf = requestAnimationFrame(frame);
+    else if (onDone) onDone();
+  };
+  _sliderRaf = requestAnimationFrame(frame);
 }
 
-// 오디오클럭 lookahead 스케줄러 — 절대시각 누적 → 무드리프트
+// 점진 가속 재생 중에는 BPM 조작 잠금(슬라이더·+/−·BPM 카드 팝업) — 값은 스스로 올라감
+function _syncBpmLock() {
+  const on = _rampOn && (_playing || _starting);
+  const box = document.querySelector('.play-bpm-box');
+  if (box) box.classList.toggle('bpm-locked', on);
+  if (on) _popups.forEach(p => p.close());
+}
+
+// 정지: 큰 숫자와 슬라이더를 목표 BPM으로 되돌림
+function _restoreBpmDisplay() {
+  const el = document.getElementById('play-bpm-val');
+  if (el) _setBpmText(el, _bpm, false);
+  const s = document.getElementById('bpm-inline-slider');
+  if (s && s.step === 'any') _animateSlider(_bpm, () => { s.step = '1'; s.value = _bpm; });
+}
+
+let _playStrum     = null;  // 재생 시작 시점에 고정한 주법(재생 중 선택이 바뀌면 정지하므로 항상 화면의 주법과 같음)
+
+function _strumMidis(voicing, dir, mode) {
+  if (!voicing || !voicing.frets) return [];
+  const set = STRUM_DIR_STRINGS[mode] || STRUM_DIR_STRINGS.orig;
+  const midis = [];
+  for (const s of (set[dir] || set.D)) {
+    const f = voicing.frets[s];
+    if (f === null) continue;
+    midis.push(_OPEN_MIDI[s] + f);
+  }
+  return midis;
+}
+
+// 박자 → 백킹 드럼 세트 (drum-sets.js)
+function _strumDrumSetId(beat) {
+  return beat === '3/4' ? 2 : beat === '12/8' ? 3 : beat === '6/8' ? 4 : 1;
+}
+
+function _strumMainBeats(item) {
+  const [n, d] = String(item.beat || '4/4').split('/').map(Number);
+  return d === 8 ? n / 3 : n;
+}
+
+// 재생 위치 세로선: 주법 디스플레이 위를 한 마디에 한 번 왼쪽→오른쪽으로 지나감(칸이 2줄이면 줄마다 한 번씩).
+// 박마다 { 마디 안 박 위치, 박 시작 시각, 박 길이 }만 받아 두고, 매 프레임 오디오 시계로 위치 = 마디 진행률로 계산
+let _strumCellEls = [];
+let _strumPlayhead = null;
+let _phBeat = null;
+function _strumTickPlayhead(now) {
+  const ph = _strumPlayhead, b = _phBeat;
+  if (!ph || !b) return;
+  const rows = ph.parentNode.querySelectorAll('.strum-beat-grid');
+  if (!rows.length) return;
+  const p = Math.min(1, (b.beat + Math.max(0, (now - b.time) / b.beatDur)) / b.mainBeats);   // 마디 진행률 0~1
+  const r = Math.min(rows.length - 1, Math.floor(p * rows.length));
+  const first = rows[r].firstElementChild, last = rows[r].lastElementChild;
+  const x0 = first.offsetLeft, x1 = last.offsetLeft + last.offsetWidth;
+  ph.style.transition = 'none';
+  ph.style.top = first.offsetTop + 'px';
+  ph.style.height = first.offsetHeight + 'px';
+  // 화면 기준(부모 위치 포함)으로 기기 픽셀에 맞춰 반올림 — 부모가 소수 위치에 있으면 부모 기준으로만 반올림해선 2px 선이 번져 가늘어 보임
+  const dpr = window.devicePixelRatio || 1;
+  const pl = ph.parentNode.getBoundingClientRect().left;
+  ph.style.left = (Math.round((pl + x0 + (p * rows.length - r) * (x1 - x0)) * dpr) / dpr - pl) + 'px';
+  ph.style.opacity = '1';
+}
+function _strumClearHighlight() {
+  _phBeat = null;
+  if (_strumPlayhead) _strumPlayhead.style.opacity = '0';
+}
+
+// 코드반주 훈련 퀘스트 카운터: 정지 없이 4사이클을 연속으로 연주할 때마다 1회(4·8·12… 사이클째). 정지·주법/키 변경 등으로 멈추면 누적 사이클은 0부터 다시 시작.
+// 카운터는 progression_completed 하나(퀘스트 '코드반주 훈련')
+const CYCLES_PER_COUNT = 4;
+function _countAccompaniment() {
+  const s = JSON.parse(localStorage.getItem('training_stats') || '{}');
+  s.progression_completed = (s.progression_completed || 0) + 1;
+  localStorage.setItem('training_stats', JSON.stringify(s));
+  if (typeof syncTrainingStatsToDB === 'function') syncTrainingStatsToDB();
+  if (typeof addXp === 'function') addXp(BEHAVE_XP.progression);   // 행동형 XP: 카운트마다 (사일런트)
+}
+
+// 점진 가속 퀘스트 카운터: 점진 가속이 시작 BPM에서 올라가 목표 BPM에 닿을 때 1회(재생 한 번에 한 번, 시작 BPM = 목표 BPM이면 세지 않음)
+function _countRampReached() {
+  const s = JSON.parse(localStorage.getItem('training_stats') || '{}');
+  s.ramp_completed = (s.ramp_completed || 0) + 1;
+  localStorage.setItem('training_stats', JSON.stringify(s));
+  if (typeof syncTrainingStatsToDB === 'function') syncTrainingStatsToDB();
+}
+
+// 박 단위 단일 시계 (메트로놈과 같은 구조): 박 하나를 스케줄할 때 BPM을 한 번만 읽고, 그 박 안의 스트럼 셀·드럼 step 시각을
+// 전부 같은 박 시작 시각 + 박 안 비율 × 박 길이로 계산한다. 스트럼과 드럼이 시계를 따로 쌓지 않으므로 슬라이더로 BPM을 바꿔도 어긋나지 않음.
 function _masterTick() {
-  if (!_playing || !_prog) return;
+  const item = _playStrum;
+  if (!_playing || !_prog || !_stepCache || !item) return;
+  const strokes = strumStrokeString(item);
+  const cells = strokes.length;
+  const mainBeats = _strumMainBeats(item);   // 1마디 = mainBeats박
+  const count = _prog.steps.length;
+  // 한 마디에 코드 1개(박자·코드 수 무관). 1사이클 = 진행 전체 = 코드 수만큼의 마디(4코드=4마디, 8코드=8마디)
+  const perBar = 1;
+  const barsPerCycle = count;
+  const cut = item.cut || [];
+  const hasAccent = Array.isArray(item.accent) && item.accent.length > 0;
+  const drumSet = window.DRUM_SETS && window.DRUM_SETS[_strumDrumSetId(String(item.beat || '4/4'))];
   const now = Tone.now();
+
   while (_beatNextTime < now + SCHED_LOOKAHEAD) {
-    _scheduleBeat(_masterBeat, _beatNextTime);
+    const bar = Math.floor(_masterBeat / mainBeats);
+    const beatInBar = _masterBeat % mainBeats;
+    const sess = _playSession;
+    // 사이클 경계(4마디마다)에서 점진 가속 한 단계 상승
+    if (_rampOn && beatInBar === 0 && bar > 0 && bar % barsPerCycle === 0 && (bar / barsPerCycle) % _rampCycles === 0) {
+      _liveBpm = Math.min(_liveBpm + _rampStep, _bpm);
+    }
+    const bpmNow = _rampOn ? Math.min(_liveBpm, _bpm) : _bpm;
+    const beatDur = 60 / bpmNow;   // 이 박의 길이 — BPM을 박마다 한 번만 읽음
+    const bt = _beatNextTime;
+    if (_rampCanReach && !_rampReached && bpmNow >= _bpm) { _rampReached = true; _visualQueue.push({ time: bt, rampReached: true, sess }); }   // 점진 가속이 목표 BPM에 도달
+    _visualQueue.push({ time: bt, beat: beatInBar, beatDur, mainBeats, sess });   // 세로선용: 이 박의 위치
+    // 사이클이 끝나는 순간(진행 전체를 1회 연주 완료) — 재생 시작부터 센 완료 사이클 수. 정지하면 다음 재생은 0부터라 누적이 자동 초기화됨
+    if (beatInBar === 0 && bar > 0 && bar % barsPerCycle === 0) _visualQueue.push({ time: bt, cycles: bar / barsPerCycle, sess });
+    if (_rampOn && bpmNow !== _liveShown) { _liveShown = bpmNow; _visualQueue.push({ time: bt, bpm: bpmNow, sess }); }
+
+    // 이 박에서 시작하는 스트럼 셀 (셀 i의 시작 = i × mainBeats / cells 박)
+    for (let i = Math.ceil(beatInBar * cells / mainBeats); i < Math.ceil((beatInBar + 1) * cells / mainBeats); i++) {
+      const t = bt + (i * mainBeats / cells - beatInBar) * beatDur;
+      const cellDur = (mainBeats / cells) * beatDur;
+      // 이 셀이 속한 코드 구간(마디를 perBar등분)
+      const seg = Math.floor(i * perBar / cells);
+      const segStart = Math.ceil(seg * cells / perBar);
+      const segEnd = Math.ceil((seg + 1) * cells / perBar);
+      const chordIdx = (bar * perBar + seg) % count;
+      const voicing = _stepCache[chordIdx] && _stepCache[chordIdx].voicing;
+      const noteDur = (segEnd - i) * cellDur;   // 코드 구간 끝까지 → 코드 전환 시점에 스스로 종료
+      const ch = strokes[i];
+      if (ch !== '-') {   // 헛스트로크는 소리 없음
+        const mode = !hasAccent ? 'orig' : (item.accent.includes(i + 1) ? 'acc' : 'weak');
+        const midis = _strumMidis(voicing, ch, mode);
+        if (midis.length) {
+          if (cut.includes(i + 1)) {
+            GuitarAudio.cutAt(t, STRUM_CUT_RELEASE);
+            GuitarAudio.strumAtCut(midis, STRUM_STROKE_SEC, t, STRUM_CUT_DUR, STRUM_CUT_RELEASE);
+          } else {
+            GuitarAudio.strumAt(midis, STRUM_STROKE_SEC, t, noteDur, STRUM_NOTE_RELEASE, mode);
+          }
+        }
+      }
+      // 시각: 비트 셀 강조(헛스트로크 포함) + 코드 구간 7/8 지점에서 캐러셀 슬라이드 — rAF 큐가 오디오 시계로 발화
+      if (i === segStart + Math.floor((segEnd - segStart) * 7 / 8)) _visualQueue.push({ time: t, chord: (chordIdx + 1) % count, sess });
+    }
+
+    // 메트로놈 백킹: 박마다 클릭(마디 첫 박 강세)
+    if (_backing === 'click') _clickAt(bt, beatInBar === 0);
+    // 이 박에서 시작하는 드럼 step (set.steps = 1마디 분할 수)
+    if (_backing === 'drum' && drumSet && typeof DrumAudio !== 'undefined') {
+      for (let s = Math.ceil(beatInBar * drumSet.steps / mainBeats); s < Math.ceil((beatInBar + 1) * drumSet.steps / mainBeats); s++) {
+        const t = bt + (s * mainBeats / drumSet.steps - beatInBar) * beatDur;
+        if ((drumSet.kick  || []).includes(s)) DrumAudio.hit('kick',  t);
+        if ((drumSet.snare || []).includes(s)) DrumAudio.hit('snare', t);
+        if ((drumSet.hat   || []).includes(s)) {
+          // hatStrong 지정 세트는 강박만 살리고 나머지는 hatSoftVel로 약하게
+          const hv = drumSet.hatStrong ? (drumSet.hatStrong.includes(s) ? 1 : (drumSet.hatSoftVel != null ? drumSet.hatSoftVel : 0.15)) : 1;
+          DrumAudio.hit('hat', t, hv);
+        }
+      }
+    }
+
+    _beatNextTime += beatDur;
     _masterBeat++;
-    _beatNextTime += 60 / _bpm; // 라이브 BPM
   }
 }
 
-// 4비트 hat 카운트인 (오디오클럭) 후 onComplete(startTime) 호출
-function _runCountIn(onComplete) {
-  const beatSec = 60 / _bpm;
-  const anchor  = Tone.now() + 0.12;
-
-  // 시작 전 4박 카운트인 — 소리(하이햇)만, 점 표시는 없음
-  for (let i = 0; i < 4; i++) {
-    const t = anchor + i * beatSec;
-    if (typeof DrumAudio !== 'undefined') DrumAudio.hit('hat', t);
+// 시각 큐 — setTimeout은 누적 오차가 생기므로 쓰지 않고, rAF가 매 프레임 오디오 시계와 비교해 발화
+let _visualQueue = [];
+function _visualLoop() {
+  if (!_playing) { _visualQueue = []; return; }
+  const now = Tone.now();
+  while (_visualQueue.length && _visualQueue[0].time <= now) {
+    const ev = _visualQueue.shift();
+    if (ev.sess !== _playSession) continue;
+    if (ev.bpm != null) { const el = document.getElementById('play-bpm-val'); if (el) _setBpmText(el, ev.bpm, true); _animateSlider(ev.bpm); }
+    else if (ev.chord != null) { const d = _dispIdx[ev.chord]; if (d !== _currentDisplayStep) _updateActiveCard(d); }
+    else if (ev.rampReached) _countRampReached();
+    else if (ev.cycles != null) { if (ev.cycles % CYCLES_PER_COUNT === 0) _countAccompaniment(); }
+    else if (ev.beat != null) _phBeat = ev;
   }
+  _strumTickPlayhead(now);   // 이벤트가 없는 프레임에도 세로선을 오디오 시계에 맞춰 전진
+  requestAnimationFrame(_visualLoop);
+}
 
-  const startTime = anchor + 4 * beatSec;
+// hat 카운트인 1마디(박자별 박 수: 4/4=4, 3/4=3, 12/8=4, 6/8=6) 후 onComplete(startTime) 호출
+function _runCountIn(onComplete) {
+  // 점진 가속이면 카운트인 시작과 함께 큰 숫자·슬라이더가 시작 BPM으로 이동
+  if (_rampOn) {
+    _liveShown = _liveBpm;
+    const el = document.getElementById('play-bpm-val');
+    if (el) _setBpmText(el, _liveBpm, true);
+    _animateSlider(_liveBpm);
+  }
+  const item = _playStrum;
+  const beatStr = String(item && item.beat || '4/4');
+  const [cn, cd] = beatStr.split('/').map(Number);
+  const mainBeats = cd === 8 ? cn / 3 : cn;
+  const barDur = (60 / _liveBpm) * mainBeats;
+  const click = _backing === 'click';   // 메트로놈이면 카운트도 클릭(본 연주와 같은 박 단위, 첫 박 강세)
+  const countBeats = (beatStr === '6/8' && !click) ? 6 : mainBeats;
+  const hatDur = barDur / countBeats;
+  const anchor = Tone.now() + 0.12;
+  const countSet = window.DRUM_SETS && window.DRUM_SETS[_strumDrumSetId(beatStr)];
+  for (let i = 0; i < countBeats; i++) {
+    if (click) { _clickAt(anchor + i * hatDur, i === 0); continue; }
+    // 강박/약박 세트(hatStrong)면 카운트도 강박만 살림
+    const hv = (countSet && countSet.hatStrong)
+      ? (countSet.hatStrong.includes(i) ? 1 : (countSet.hatSoftVel != null ? countSet.hatSoftVel : 0.15))
+      : 1;
+    if (typeof DrumAudio !== 'undefined') DrumAudio.hit('hat', anchor + i * hatDur, hv);
+  }
+  const startTime = anchor + barDur;
   const startDelay = Math.max(0, (startTime - Tone.now()) * 1000);
   setTimeout(() => {
     if (!_playing) return;
@@ -217,7 +479,14 @@ async function togglePlay() {
     await _stopPlay();
     return;
   }
+  _playStrum = _spItems[_spIdx] || null;   // 화면에서 고른 주법으로 재생
+  if (!_playStrum) return;
+  _liveBpm = _rampOn ? Math.min(_rampStart, _bpm) : _bpm;   // 점진 가속이면 시작 BPM에서 출발
+  _rampCanReach = _rampOn && _liveBpm < _bpm;
+  _rampReached = false;
+  _liveShown = null;
   _starting = true;
+  _syncBpmLock();
   const sess = _playSession; // 이 시작 시도의 세션. 중간에 정지/키변경되면 폐기
   // _metroCtx와 Tone.js 동기화 (첫 재생 시)
   if (!_metroCtx) _metroCtx = new _MetroCtx();
@@ -242,13 +511,15 @@ async function togglePlay() {
     _renderStage();
   }
   _playStartMs = Date.now(); // 훈련시간 측정 시작
-  analytics.track('progression_detail_played', { prog_id: _prog?.id, key: _getKeyDisplayName(_key), bpm: _bpm });
+  analytics.track('progression_detail_played', { prog_id: _prog?.id, key: _getKeyDisplayName(_key), bpm: _bpm, strum: _playStrum.title });
   _updatePlayBtn();
   const playSess = _playSession;
   _runCountIn((startTime) => {
     if (!_playing || playSess !== _playSession) return;
     _masterBeat   = 0;
     _beatNextTime = startTime;
+    _visualQueue  = [];
+    requestAnimationFrame(_visualLoop);
     _schedTimer   = setInterval(_masterTick, SCHED_TICK_MS);
   });
 }
@@ -340,7 +611,7 @@ function requestBack() {
 }
 
 async function goBack() {
-  await _stopPlay({ wait: true });
+  await _stopPlay({ hard: true });   // 이탈 — 소리 즉시 중단
   const shell = document.querySelector('.app-shell');
   if (shell) {
     shell.classList.add('project-exit');
@@ -420,9 +691,9 @@ function _redrawCanvas(canvas, wrap, voicing, chordName) {
 
 // 특정 슬롯 캔버스 업데이트 (캐시 우선 사용)
 function _drawSlot(domIdx, stepIdx) {
-  const count   = _prog.steps.length;
+  const count   = _dispCount;
   const safeIdx = ((stepIdx % count) + count) % count;
-  const cached  = _stepCache && _stepCache[safeIdx];
+  const cached  = _stepCache && _stepCache[_dispFirst[safeIdx]];
   const voicing   = cached ? cached.voicing   : null;
   const chordName = cached ? cached.chordName : '';
   _slotData[domIdx] = { voicing, chordName };
@@ -445,7 +716,26 @@ const _ROLE_NAMES = ['far-left', 'prev', 'current', 'next'];
 //   2. 같은 줄 이동 우선 — 줄 변경 시 CROSS_PENALTY 가산
 //   3. 동률이면 더 낮은 프렛 보이싱 우선
 //   4. 결과를 _stepCache에 고정 → 재생 반복 중 변경 없음
+// 캐러셀 표시용 묶음: 같은 코드가 연속이면 카드 1장으로 렌더링(재생은 원래 스텝 단위로 계속 진행 — 카드는 코드가 실제로 바뀔 때만 넘어감)
+//   _dispFirst[d] = d번째 카드의 첫 스텝 / _dispIdx[스텝] = 그 스텝이 속한 카드 / _dispCount = 카드 수
+let _dispFirst = [0], _dispIdx = [0], _dispCount = 1;
 function _buildStepCache() {
+  _buildVoicingCache();
+  const n = _stepCache ? _stepCache.length : 0;
+  _dispFirst = []; _dispIdx = [];
+  for (let i = 0; i < n; i++) {
+    if (i > 0 && _stepCache[i].chordName === _stepCache[i - 1].chordName) {
+      _stepCache[i] = { voicing: _stepCache[i - 1].voicing, chordName: _stepCache[i].chordName };   // 같은 코드는 같은 보이싱
+      _dispIdx[i] = _dispFirst.length - 1;
+    } else {
+      _dispIdx[i] = _dispFirst.length;
+      _dispFirst.push(i);
+    }
+  }
+  _dispCount = Math.max(1, _dispFirst.length);
+}
+
+function _buildVoicingCache() {
   if (!_prog) return;
   const count = _prog.steps.length;
   if (count === 0) { _stepCache = []; return; }
@@ -605,7 +895,7 @@ function _renderStage() {
   }
 
   const cur   = _currentDisplayStep;
-  const count = _prog.steps.length;
+  const count = _dispCount;
   _drawSlot(0, (cur - 2 + count) % count); // far-left
   _drawSlot(1, (cur - 1 + count) % count); // prev
   _drawSlot(2, cur);                         // current
@@ -627,7 +917,7 @@ function _renderStage() {
 function _advanceStage(newCurrent) {
   if (!_slotDoms) { _renderStage(); return; }
 
-  const count   = _prog.steps.length;
+  const count   = _dispCount;
   const domFL   = _getSlotByRole(0); // far-left (완전히 화면 밖)
   const domPrev = _getSlotByRole(1); // prev
   const domCurr = _getSlotByRole(2); // current
@@ -663,7 +953,7 @@ function _advanceStage(newCurrent) {
 // far-left 슬롯엔 이미 (cur-2) 콘텐츠가 있어 그대로 prev로 들어옴
 function _advanceStageBack(newCurrent) {
   if (!_slotDoms) { _renderStage(); return; }
-  const count   = _prog.steps.length;
+  const count   = _dispCount;
   const domFL   = _getSlotByRole(0);
   const domPrev = _getSlotByRole(1);
   const domCurr = _getSlotByRole(2);
@@ -784,6 +1074,12 @@ function renderStrumDisplay(selected) {
     gridsHtml += `<div class="strum-beat-grid${gClass}">${cellsHtml}</div>`;
   }
   wrap.innerHTML = gridsHtml;
+  // 셀 DOM 캐시(재생 시 비트 강조용 — DOM 순서 = 셀 순서) + 플레이헤드(이동 세로선)
+  _strumCellEls = Array.from(wrap.querySelectorAll('.strum-beat-cell'));
+  const ph = document.createElement('div');
+  ph.className = 'strum-playhead';
+  wrap.appendChild(ph);
+  _strumPlayhead = ph;
 }
 
 // ── 주법 선택 화면 (옵션패널) — 라벨 "주법" + 주법 이름 휠피커. 디자인 확인용(선택하면 주법 디스플레이만 바뀜) ──
@@ -807,14 +1103,13 @@ function initSpAllModal() {
   const close = () => overlay.classList.add('hidden');
   const tabsBox = document.getElementById('sp-modal-level-tabs');
   const allTabs = () => overlay.querySelectorAll('.sp-modal-tab');
-  let filter = 'all';   // 'all' | 'rec' | 레벨 숫자
+  let filter = 'all';   // 'all' | 레벨 숫자
   const levels = [...new Set(_spAll().map(i => i.level))].sort((x, y) => x - y);
   if (tabsBox) tabsBox.innerHTML = levels.map(l => `<button class="sp-modal-tab" data-f="${l}">Lv${l}</button>`).join('');
   const syncTabs = () => allTabs().forEach(b => b.classList.toggle('sp-modal-tab--active', b.dataset.f === String(filter)));
   const render = () => {
     const all = _spAll();
     const cur = _spItems[_spIdx];
-    if (filter === 'rec') { body.innerHTML = '<div class="sp-modal-empty">추천 기준은 준비 중이에요</div>'; return; }   // 추천 기준 미정
     let html = '', lastLv = null;
     all.forEach((it, i) => {
       if (filter !== 'all' && it.level !== filter) return;
@@ -828,7 +1123,7 @@ function initSpAllModal() {
     const b = e.target.closest('.sp-modal-tab');
     if (!b) return;
     _playTap();
-    filter = b.dataset.f === 'all' || b.dataset.f === 'rec' ? b.dataset.f : Number(b.dataset.f);
+    filter = b.dataset.f === 'all' ? 'all' : Number(b.dataset.f);
     syncTabs();
     render();
     body.scrollTop = 0;
@@ -886,8 +1181,10 @@ function _spSelect(idx) {
   idx = Math.max(0, Math.min(_spItems.length - 1, idx));
   if (idx === _spIdx) return;
   _spIdx = idx;
+  if (_playing || _starting) _stopPlay();   // 재생 중 주법을 바꾸면 멈춤
   wheel.querySelectorAll('.strum-picker-item').forEach((el, i) => el.classList.toggle('strum-picker-item--active', i === idx));
   renderStrumDisplay(_spItems[idx]);   // 위의 주법 디스플레이 갱신
+  if (_applyBeatDefaults) _applyBeatDefaults(_spItems[idx]);   // 박자가 바뀌면 그 박자의 BPM·점진 가속 기본값
 }
 
 // ── 재생 탭 팝업들 ───────────────────────────────────────────
@@ -899,36 +1196,28 @@ let _rampCycles = 1;    // 몇 사이클마다 올릴지 (1~10)
 let _rampStep   = 2;    // 한 번에 몇 BPM씩 올릴지 (1~10)
 const _popups = [];     // 열린 팝업을 하나로 유지하기 위한 목록
 
-// 팝업은 옵션패널(overflow hidden)·옵션 페이지 안에서 잘리거나 가려지지 않게 .cd-main 직속으로 옮겨 position:fixed로 띄움.
-// anchor(카드 또는 영역)의 화면 좌표로 위치를 계산하고, 위로 열면 anchor 위, 아래로 열면 anchor 아래. 화면 위/아래가 모자라면 반대로 뒤집음
-function _placePopup(pop, anchor, wide, preferUp, cover) {
-  const r = anchor.getBoundingClientRect();
-  if (cover) {   // anchor를 위치·크기 그대로 정확히 덮음(아래 요소가 처음부터 없었던 것처럼)
-    pop.style.left = r.left + 'px'; pop.style.top = r.top + 'px'; pop.style.width = r.width + 'px'; pop.style.height = r.height + 'px';
-    pop.style.bottom = 'auto'; pop.style.transformOrigin = '50% 50%';
-    return;
+// 옆으로 열리는 팝업: 카드 오른쪽에 붙음. 높이 미지정이면 세로 범위가 block(점진 가속 영역)과 같고,
+// 높이(h)를 주면 카드와 세로 중앙을 맞추되 block 밖으로 나가지 않음
+function _placeSidePopup(pop, card, block, h) {
+  const c = card.getBoundingClientRect(), b = block.getBoundingClientRect();
+  pop.style.left = (c.right + 8) + 'px';
+  if (h) {
+    pop.style.top = Math.max(b.top, Math.min(c.top + c.height / 2 - h / 2, b.bottom - h)) + 'px';
+    pop.style.height = h + 'px';
+  } else {
+    pop.style.top = b.top + 'px';
+    pop.style.height = b.height + 'px';
   }
-  pop.style.height = '';
-  const main = document.querySelector('.cd-main').getBoundingClientRect();
-  if (wide) { pop.style.left = r.left + 'px'; pop.style.width = r.width + 'px'; }
-  else { pop.style.left = Math.max(8, r.left + r.width / 2 - pop.offsetWidth / 2) + 'px'; }
-  pop.style.top = 'auto'; pop.style.bottom = 'auto';
-  const h = pop.offsetHeight, gap = 8;
-  const roomAbove = r.top - main.top, roomBelow = main.bottom - r.bottom;
-  let up = preferUp;
-  if (up && roomAbove < h + gap && roomBelow >= h + gap) up = false;     // 위가 모자라면 아래로
-  else if (!up && roomBelow < h + gap && roomAbove >= h + gap) up = true; // 아래가 모자라면 위로
-  if (up) { pop.style.bottom = (window.innerHeight - r.top + gap) + 'px'; pop.style.transformOrigin = '50% 100%'; }
-  else { pop.style.top = (r.bottom + gap) + 'px'; pop.style.transformOrigin = '50% 0'; }
+  pop.style.width = ''; pop.style.bottom = 'auto';
+  pop.style.transformOrigin = '0 50%';
 }
 
 function _makePopup(card, pop, onOpen, opts) {
   opts = opts || {};
   const anchor = opts.anchor || card;
   document.querySelector('.cd-main').appendChild(pop);   // 오버레이: 옵션패널 밖으로
-  const isOpen = () => !pop.hidden && !pop.classList.contains('bpm-popup--closing') && !pop.classList.contains('mini-popup--closing');
-  const closingCls = pop.classList.contains('mini-popup') ? 'mini-popup--closing' : 'bpm-popup--closing';
-  const preferUp = !!opts.up;
+  const isOpen = () => !pop.hidden && !pop.classList.contains('bpm-popup--closing');
+  const closingCls = 'bpm-popup--closing';
   const ctl = {
     isOpen,
     close() {
@@ -948,9 +1237,8 @@ function _makePopup(card, pop, onOpen, opts) {
       pop.classList.remove(closingCls);
       pop.hidden = false;
       if (onOpen) onOpen();
-      _placePopup(pop, anchor, !!opts.wide, preferUp, !!opts.cover);
-      // 덮이는 영역 안의 카드(시작 BPM)는 테두리 강조를 안 줌 — 강조 링이 팝업 가장자리 밖으로 삐져나와 보이기 때문
-      if (!(opts.cover && anchor.contains(card))) card.classList.add('play-card--open');
+      _placeSidePopup(pop, card, anchor, opts.sideH);
+      card.classList.add('play-card--open');
     },
   };
   card.addEventListener('pointerup', e => {
@@ -967,23 +1255,20 @@ function _makePopup(card, pop, onOpen, opts) {
 // 슬라이더 팝업(가운데 값 · 좌우 −/+ 1씩(길게 누르면 연속) · 아래 슬라이더). max()가 함수라 시작 BPM은 목표 BPM에 묶임
 function _initSliderPopup(o) {
   const el = id => document.getElementById(id);
-  const card = el(o.card), pop = el(o.pop), slider = el(o.slider), popVal = el(o.popVal), cardVal = el(o.cardVal), minus = el(o.minus), plus = el(o.plus);
-  const mirror = o.mirror ? el(o.mirror) : null;   // 팝업 밖에 따로 놓인 슬라이더(값 동기화)
-  if (!card || !pop || !slider || !popVal || !cardVal || !minus || !plus) return null;
+  const card = el(o.card), pop = el(o.pop), slider = el(o.slider), cardVal = el(o.cardVal), minus = o.minus ? el(o.minus) : null, plus = o.plus ? el(o.plus) : null;   // +/− 버튼은 선택
+  if (!card || !pop || !slider || !cardVal || (o.minus && !minus) || (o.plus && !plus)) return null;
+  const min = o.min != null ? o.min : BPM_MIN;
   const set = v => {
     const max = o.max();
-    v = Math.max(BPM_MIN, Math.min(max, Math.round(v)));
+    v = Math.max(min, Math.min(max, Math.round(v)));
     o.write(v);
     cardVal.textContent = v;
-    popVal.textContent = v;
-    slider.min = BPM_MIN; slider.max = max; slider.value = v;
-    const pct = (max > BPM_MIN ? (v - BPM_MIN) / (max - BPM_MIN) * 100 : 100) + '%';
+    slider.min = min; slider.max = max; slider.value = v;
+    const pct = (max > min ? (v - min) / (max - min) * 100 : 100) + '%';
     slider.style.setProperty('--pct', pct);
-    if (mirror) { mirror.min = BPM_MIN; mirror.max = max; mirror.value = v; mirror.style.setProperty('--pct', pct); }
     if (o.onSet) o.onSet(v);
   };
   slider.addEventListener('input', () => set(Number(slider.value)));
-  if (mirror) mirror.addEventListener('input', () => set(Number(mirror.value)));
   const hold = (btn, delta) => {
     let t1 = null, t2 = null;
     const stop = () => { clearTimeout(t1); clearInterval(t2); t1 = t2 = null; };
@@ -994,73 +1279,84 @@ function _initSliderPopup(o) {
     });
     ['pointerup', 'pointerleave', 'pointercancel'].forEach(ev => btn.addEventListener(ev, stop));
   };
-  hold(minus, -1);
-  hold(plus, 1);
-  const ctl = _makePopup(card, pop, () => set(o.read()), { anchor: o.anchor ? el(o.anchor) || document.querySelector(o.anchor) : card, wide: true, up: !!o.up, cover: !!o.cover });
+  if (minus) hold(minus, -1);
+  if (plus) hold(plus, 1);
+  const ctl = _makePopup(card, pop, () => set(o.read()), { anchor: o.anchor ? el(o.anchor) || document.querySelector(o.anchor) : card, sideH: o.sideH });
   set(o.read());
   return { set, ctl };
 }
 
-// 좁은 휠 팝업 — 1~10, 한 번에 4칸 보임(위에서 두 번째 칸이 선택값 — scrollTop = (값-1) × 칸높이)
-const MINI_ITEM_H = 36;   // CSS --mp-item-h와 같은 값
-function _initMiniWheelPopup(o) {
-  const el = id => document.getElementById(id);
-  const card = el(o.card), pop = el(o.pop), wheel = el(o.wheel), cardVal = el(o.cardVal);
-  if (!card || !pop || !wheel || !cardVal) return;
-  let html = '';
-  for (let v = o.min; v <= o.max; v++) html += `<div class="mini-item" data-v="${v}">${v}</div>`;
-  wheel.innerHTML = html;
-  const set = v => {
-    v = Math.max(o.min, Math.min(o.max, v));
-    o.write(v);
-    cardVal.textContent = v;
-    wheel.querySelectorAll('.mini-item--active').forEach(x => x.classList.remove('mini-item--active'));
-    wheel.children[v - o.min]?.classList.add('mini-item--active');
-  };
-  wheel.addEventListener('scroll', () => {
-    cancelAnimationFrame(wheel._raf);
-    wheel._raf = requestAnimationFrame(() => set(o.min + Math.round(wheel.scrollTop / MINI_ITEM_H)));
-  });
-  wheel.addEventListener('pointerup', e => {
-    const it = e.target.closest('.mini-item');
-    if (it) wheel.scrollTo({ top: (Number(it.dataset.v) - o.min) * MINI_ITEM_H, behavior: 'smooth' });
-  });
-  if (typeof enableMouseDragScroll === 'function') enableMouseDragScroll(wheel);
-  _makePopup(card, pop, () => { wheel.scrollTop = (o.read() - o.min) * MINI_ITEM_H; set(o.read()); }, { up: true });
-  set(o.read());
+// 백킹 선택 — 드럼(박자별 드럼 세트) / 메트로놈(박마다 클릭, 마디 첫 박 강세). 재생 중에 바꿔도 다음 박부터 바로 바뀜
+let _backing = 'drum';
+function _initBackingPick() {
+  const btns = { drum: document.getElementById('backing-drum'), click: document.getElementById('backing-click') };
+  if (!btns.drum || !btns.click) return;
+  Object.entries(btns).forEach(([key, btn]) => btn.addEventListener('pointerup', () => {
+    _playTap();
+    _backing = key;
+    Object.entries(btns).forEach(([k, b]) => {
+      b.classList.toggle('backing-btn--active', k === key);
+      b.setAttribute('aria-checked', k === key ? 'true' : 'false');
+    });
+  }));
 }
 
-// 스타일 선택 — 카드를 누르면 위로 열리는 좁은 목록 팝업(탭하면 선택하고 닫힘). 항목은 자리표시: 실제로는 선택한 주법에 허용된 백킹 스타일 세트
-const PLAY_STYLES = ['기본1', '기본2', '기본3', '재즈1'];
-let _playStyle = PLAY_STYLES[0];
-function _initStylePopup() {
-  const card = document.getElementById('play-style-card');
-  const pop  = document.getElementById('play-style-pop');
-  const list = document.getElementById('play-style-list');
-  const val  = document.getElementById('play-style-val');
-  if (!card || !pop || !list || !val) return;
-  const render = () => {
-    list.innerHTML = PLAY_STYLES.map(s => `<button class="style-item${s === _playStyle ? ' style-item--active' : ''}" data-s="${s}">${s}</button>`).join('');
-  };
-  const ctl = _makePopup(card, pop, render, { up: true });
-  list.addEventListener('pointerup', e => {
-    const b = e.target.closest('.style-item');
-    if (!b) return;
-    _playTap();
-    _playStyle = b.dataset.s;
-    val.textContent = _playStyle;
-    ctl.close();
+// 메트로놈 클릭 — metronome.js의 클릭 소리와 같은 값(사인파 + 로우패스, 강세 740Hz / 약박 520Hz).
+// 룩어헤드로 미리 예약된 노드는 정지해도 울리므로 모아두고 정지 때 전부 끊음
+const _clickNodes = [];
+function _clickAt(time, isDownbeat) {
+  if (!_metroCtx) return;
+  const osc = _metroCtx.createOscillator();
+  const gain = _metroCtx.createGain();
+  const filter = _metroCtx.createBiquadFilter();
+  filter.type = 'lowpass'; filter.frequency.value = 1400; filter.Q.value = 0.3;
+  osc.connect(filter); filter.connect(gain); gain.connect(_metroCtx.destination);
+  osc.type = 'sine';
+  osc.frequency.value = isDownbeat ? 740 : 520;
+  if (time < _metroCtx.currentTime) time = _metroCtx.currentTime;
+  gain.gain.setValueAtTime(isDownbeat ? 0.38 : 0.22, time);
+  gain.gain.exponentialRampToValueAtTime(0.0001, time + 0.055);
+  const node = { osc, gain };
+  _clickNodes.push(node);
+  osc.onended = () => { const i = _clickNodes.indexOf(node); if (i >= 0) _clickNodes.splice(i, 1); try { osc.disconnect(); gain.disconnect(); } catch (e) {} };
+  osc.start(time);
+  osc.stop(time + 0.06);
+}
+function _stopClicks() {
+  _clickNodes.splice(0).forEach(({ osc, gain }) => {
+    try { gain.gain.cancelScheduledValues(0); gain.gain.value = 0; osc.stop(); osc.disconnect(); gain.disconnect(); } catch (e) {}
   });
 }
+
+// 박자별 기본값: 목표 BPM / 시작 BPM (점진 가속은 1사이클마다 2BPM씩). 주법의 박자가 바뀌면 그 박자의 기본값으로 맞춤 —
+// 같은 박자 안에서 주법만 바꿀 땐 사용자가 맞춰 둔 값을 유지
+const BEAT_DEFAULTS = {
+  '4/4':  { bpm: 90,  start: 50 },
+  '6/8':  { bpm: 50,  start: 30 },
+  '3/4':  { bpm: 120, start: 80 },
+  '12/8': { bpm: 90,  start: 50 },
+};
+const RAMP_DEFAULT_CYCLES = 1, RAMP_DEFAULT_STEP = 2;
+let _applyBeatDefaults = null;   // initPlayPopups가 UI 연결 후 채움
+let _lastDefaultsBeat = null;
 
 function initPlayPopups() {
   // 목표 BPM — 값이 시작 BPM보다 낮아지면 시작 BPM도 같이 내려감
   let startApi = null;
-  _initSliderPopup({
-    card: 'play-bpm-card', pop: 'bpm-popup', slider: 'bpm-slider', mirror: 'bpm-inline-slider', popVal: 'bpm-popup-val', cardVal: 'play-bpm-val', minus: 'bpm-minus', plus: 'bpm-plus',
-    read: () => _bpm, max: () => BPM_MAX, anchor: '.ramp-block', cover: true,   // 아래 점진 가속 영역(라벨+카드 3개)을 정확히 덮음
-    write: v => { _bpm = v; if (_rampStart > v) { _rampStart = v; } startApi?.set(_rampStart); },
-  });
+  const bpmSlider = document.getElementById('bpm-inline-slider');
+  const bpmVal = document.getElementById('play-bpm-val');
+  const setTargetBpm = v => {
+    v = Math.max(BPM_MIN, Math.min(BPM_MAX, Math.round(v)));
+    _bpm = v;
+    _liveShown = null;
+    if (_rampStart > v) _rampStart = v;
+    startApi?.set(_rampStart);
+    bpmVal.textContent = v;
+    bpmSlider.min = BPM_MIN; bpmSlider.max = BPM_MAX; bpmSlider.value = v;
+    bpmSlider.style.setProperty('--pct', ((v - BPM_MIN) / (BPM_MAX - BPM_MIN) * 100) + '%');
+  };
+  bpmSlider.addEventListener('input', () => setTargetBpm(Number(bpmSlider.value)));
+  setTargetBpm(_bpm);
   // 숫자 좌측 +/− — 슬라이더 값을 1씩 바꾸고 input 이벤트로 기존 set()을 태움(길게 누르면 연속)
   const nudgeSlider = document.getElementById('bpm-inline-slider');
   [['bpm-nudge-plus', 1], ['bpm-nudge-minus', -1]].forEach(([id, d]) => {
@@ -1074,31 +1370,34 @@ function initPlayPopups() {
   });
   // 시작 BPM — 목표 BPM(_bpm) 이하만
   startApi = _initSliderPopup({
-    card: 'ramp-start-card', pop: 'ramp-start-pop', slider: 'ramp-start-slider', popVal: 'ramp-start-pop-val', cardVal: 'ramp-start-val', minus: 'ramp-start-minus', plus: 'ramp-start-plus',
-    read: () => _rampStart, max: () => _bpm, anchor: '.ramp-block', cover: true,   // 목표 BPM 팝업과 같은 위치(점진 가속 영역을 덮음)
+    card: 'ramp-start-card', pop: 'ramp-start-pop', slider: 'ramp-start-slider', cardVal: 'ramp-start-val', minus: 'ramp-start-minus', plus: 'ramp-start-plus',
+    read: () => _rampStart, max: () => _bpm, anchor: '.ramp-block',   // 카드 오른쪽에 세로로 길고 좁게(높이 = 점진 가속 영역)
     write: v => { _rampStart = v; },
   });
   // 사이클마다 · BPM씩 — 1~10 좁은 휠 팝업(위로)
-  _initMiniWheelPopup({ card: 'ramp-cycle-card', pop: 'ramp-cycle-pop', wheel: 'ramp-cycle-wheel', cardVal: 'ramp-cycle-val', min: 1, max: 10, read: () => _rampCycles, write: v => { _rampCycles = v; } });
-  _initMiniWheelPopup({ card: 'ramp-step-card',  pop: 'ramp-step-pop',  wheel: 'ramp-step-wheel',  cardVal: 'ramp-step-val',  min: 1, max: 10, read: () => _rampStep,   write: v => { _rampStep = v; } });
-  _initStylePopup();
+  const cycleApi = _initSliderPopup({ card: 'ramp-cycle-card', pop: 'ramp-cycle-pop', slider: 'ramp-cycle-slider', cardVal: 'ramp-cycle-val',
+    min: 1, read: () => _rampCycles, max: () => 10, anchor: '.ramp-block', sideH: 120, write: v => { _rampCycles = v; } });
+  const stepApi = _initSliderPopup({ card: 'ramp-step-card', pop: 'ramp-step-pop', slider: 'ramp-step-slider', cardVal: 'ramp-step-val',
+    min: 1, read: () => _rampStep, max: () => 10, anchor: '.ramp-block', sideH: 120, write: v => { _rampStep = v; } });
+  _applyBeatDefaults = item => {
+    const beat = String(item && item.beat || '4/4');
+    if (beat === _lastDefaultsBeat) return;
+    _lastDefaultsBeat = beat;
+    const d = BEAT_DEFAULTS[beat];
+    if (!d) return;
+    setTargetBpm(d.bpm);        // 목표를 먼저(시작 BPM은 목표 이하로 제한되므로)
+    startApi.set(d.start);
+    cycleApi.set(RAMP_DEFAULT_CYCLES);
+    stepApi.set(RAMP_DEFAULT_STEP);
+  };
+  _applyBeatDefaults(_spItems[_spIdx]);
+  _initBackingPick();
+  const rampToggle = document.getElementById('ramp-toggle');
+  if (rampToggle) rampToggle.addEventListener('change', () => {
+    _rampOn = rampToggle.checked;
+    if (_playing || _starting) _stopPlay();   // 재생 중 켜고 끄면 멈추고 새 설정으로 다시 시작
+  });
   document.addEventListener('pointerup', () => _popups.forEach(p => p.close()));   // 바깥을 누르면 모두 닫힘
-}
-
-// 점진 가속 줄 정렬 — 라벨은 카드 안에서 가운데 정렬이라 카드 끝에서 안쪽으로 들어가 있어서, 그 거리를 실측해 맞춤:
-//  · "점진 가속" 제목의 왼쪽 끝 = "시작 BPM" 라벨의 왼쪽 끝 (--ramp-title-indent)
-//  · 스위치의 오른쪽 끝 = "BPM씩" 라벨의 오른쪽 끝에서 오른쪽으로 4px 더(시각 보정) (--ramp-switch-indent, 음수 가능)
-// 재생 탭이 보일 때·화면 크기가 바뀔 때 다시 계산
-function alignRampTitle() {
-  const title = document.querySelector('.ramp-title');
-  const label = document.querySelector('#ramp-start-card .play-card-lbl');
-  const lastLabel = document.querySelector('#ramp-step-card .play-card-lbl');
-  const block = document.querySelector('.ramp-block');
-  if (!title || !label || !lastLabel || !block) return;
-  const b = block.getBoundingClientRect(), l = label.getBoundingClientRect(), z = lastLabel.getBoundingClientRect();
-  if (!b.width || !l.width || !z.width) return;   // 재생 탭이 숨겨진 상태면 측정 불가
-  block.style.setProperty('--ramp-title-indent', Math.max(0, Math.round(l.left - b.left)) + 'px');
-  block.style.setProperty('--ramp-switch-indent', Math.round(b.right - z.right - 4) + 'px');   // 라벨 오른쪽 끝에 맞춘 뒤 4px 더 오른쪽
 }
 
 document.addEventListener('DOMContentLoaded', () => {
@@ -1137,7 +1436,9 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   // 페이지 이탈 중 재생이면 훈련시간 적립
-  window.addEventListener('pagehide', () => { if (_playing) _stopPlay(); });
+  // 이탈 경로: 뒤로가기(goBack) · 하드웨어 뒤로가기(requestBack→goBack) · 페이지 이동/새로고침/닫기(pagehide) · 홈 버튼/앱 전환(visibilitychange) — 전부 즉시 하드컷
+  window.addEventListener('pagehide', () => { if (_playing || _starting) _stopPlay({ hard: true }); });
+  document.addEventListener('visibilitychange', () => { if (document.hidden && (_playing || _starting)) _stopPlay({ hard: true }); });
 
   // 페이지 커버
   lucide.createIcons();
@@ -1195,7 +1496,7 @@ document.addEventListener('DOMContentLoaded', () => {
       if (_busy || !_prog) return;
       const dx = e.clientX - _sx;
       if (Math.abs(dx) < 40) { _playCurrentChord(); return; } // 스와이프 아닌 탭 → 코드 사운드
-      const count = _prog.steps.length;
+      const count = _dispCount;
       if (count < 2) return;
       _busy = true;
       setTimeout(() => { _busy = false; }, 460);
@@ -1225,8 +1526,6 @@ document.addEventListener('DOMContentLoaded', () => {
   _renderStage();
   renderStrumPicker();
   initSpAllModal();
-  window.addEventListener('resize', alignRampTitle);
-  requestAnimationFrame(alignRampTitle);   // 3단계 이상은 재생 화면이 처음부터 보이므로 바로 정렬 계산
   initPlayPopups();
 
   var _pushEntry = null; try { _pushEntry = localStorage.getItem('_push_entry'); if (_pushEntry) localStorage.removeItem('_push_entry'); } catch(_) {}

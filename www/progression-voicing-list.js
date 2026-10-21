@@ -121,10 +121,20 @@ const _ALLOWED_SLASH_SHAPES = [
   [0, 1, 0, null, 1, null],
   // G/F(b7 베이스): x x r r+1 r r (rootStr:4) → [0,0,1,0,null,null]
   [0, 0, 1, 0, null, null],
+  // Am/G = Am7/G(b7 베이스): r+2 x r+1 r+1 r x (rootStr:6) → [null,0,1,1,null,2]
+  [null, 0, 1, 1, null, 2],
+  // Am/G = Am7/G(b7 베이스): x r+1 r+1 r r+1 x (rootStr:5) → [null,1,0,1,1,null]
+  [null, 1, 0, 1, 1, null],
+  // C/G(2전위): r+1 x r+3 r+3 r+3 r+1 (rootStr:6) → [0,2,2,2,null,0]
+  [0, 2, 2, 2, null, 0],
+  // C/G(2전위): x r+3 r+3 r+2 r+1 r+1 (rootStr:5, quality 'slashM') → [0,0,1,2,2,null]
+  [0, 0, 1, 2, 2, null],
+  // C/G(2전위): x x r+2 r+2 r+2 r (rootStr:4) → [0,2,2,2,null,null]
+  [0, 2, 2, 2, null, null],
 ];
 
 function isAllowedSlashVoicing(v) {
-  if (!v || v.quality !== 'slash' || v.source !== 'pattern') return false;
+  if (!v || (v.quality !== 'slash' && v.quality !== 'slashM') || v.source !== 'pattern') return false;
   const shape = _shapeOf(v.frets);
   return _ALLOWED_SLASH_SHAPES.some(allowed =>
     allowed.every((f, i) => f === shape[i])

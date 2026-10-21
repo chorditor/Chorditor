@@ -2874,7 +2874,7 @@ async function restoreTrainingStatsFromDB() {
 
   try {
     const resp = await fetch(
-      `${SUPABASE_URL}/rest/v1/subscriptions?user_id=eq.${userId}&select=streak,training_time_min,total_completed,scale_completed,progression_completed,strum_completed,streak_synced_date,review_rated,user_xp`,
+      `${SUPABASE_URL}/rest/v1/subscriptions?user_id=eq.${userId}&select=streak,training_time_min,total_completed,scale_completed,progression_completed,strum_completed,ramp_completed,streak_synced_date,review_rated,user_xp`,
       { headers: { 'apikey': SUPABASE_ANON, 'Authorization': `Bearer ${accessToken}` } }
     );
     if (!resp.ok) return;
@@ -2896,6 +2896,8 @@ async function restoreTrainingStatsFromDB() {
       merged.progression_completed = overview.progression_completed;
     if ((overview.strum_completed   || 0) > (local.strum_completed   || 0))
       merged.strum_completed = overview.strum_completed;
+    if ((overview.ramp_completed    || 0) > (local.ramp_completed    || 0))
+      merged.ramp_completed = overview.ramp_completed;
     if ((overview.training_time_min || 0) > (local.training_time_min || 0))
       merged.training_time_min = overview.training_time_min;
     // streak_last_counted_date: 서버 streak이 더 크면 함께 복원
@@ -2937,6 +2939,7 @@ async function syncTrainingStatsToDB() {
     p_scale_completed:       stats.scale_completed   || 0,
     p_progression_completed: stats.progression_completed || 0,
     p_strum_completed:       stats.strum_completed   || 0,
+    p_ramp_completed:        stats.ramp_completed    || 0,
   });
   if (!r) return; // RPC 실패/비로그인 → 로컬만 유지, 다음 호출 때 재시도
 
@@ -2947,6 +2950,7 @@ async function syncTrainingStatsToDB() {
   take('scale_completed',       r.scale_completed);
   take('progression_completed', r.progression_completed);
   take('strum_completed',       r.strum_completed);
+  take('ramp_completed',        r.ramp_completed);
   // streak은 서버가 고른 (streak, 날짜) 쌍을 그대로 채택 — 값만 따로 취하면 어긋난다.
   if (r.streak_date && r.streak_date !== local.streak_last_counted_date) {
     local.streak = r.streak;
@@ -3680,7 +3684,8 @@ async function claimScaleLevelQuest() {
   addXp(_xpGain); // 레벨 경험치
 }
 
-// ── 퀘스트: 코드진행 누적 재생횟수 (코드맞추기 누적과 동일 티어) ────────
+// ── 퀘스트: 코드반주 훈련 누적 횟수 (코드맞추기 누적과 동일 티어) ────────
+// 옛 '코드 진행 리스트'와 '주법 리듬 훈련' 퀘스트를 하나로 통합. 카운터는 progression_completed 하나(옛 strum_completed는 서버에서 합산 이관 예정).
 // 진행값 = progression_completed(폴백 training_stats.progression_completed), 수령 = progression_quest_claimed.
 function _localProgressionQuestGet() {
   const s = JSON.parse(localStorage.getItem('training_stats') || '{}');
@@ -3722,38 +3727,45 @@ async function claimProgressionQuest() {
   addXp(_xpGain); // 레벨 경험치
 }
 
-// ── 퀘스트: 주법훈련 누적 재생횟수 (코드맞추기 누적과 동일 티어) ────────
-// 진행값 = strum_completed(폴백 training_stats.strum_completed), 수령 = strum_quest_claimed.
-function _localStrumQuestGet() {
-  const s = JSON.parse(localStorage.getItem('training_stats') || '{}');
-  return { total: s.strum_completed || 0, claimed: s.strum_quest_claimed || 0 };
+// ── 퀘스트: 점진 가속 목표 BPM 도달 누적 횟수 ────────
+// 코드반주 훈련에서 점진 가속을 켜고 시작 BPM에서 올라가 목표 BPM에 닿을 때마다 1회(재생 한 번에 한 번).
+// 티어는 코드맞추기 누적과 같고 보상만 다름: [횟수, 상자, XP]. 500회 이후 매 100회마다 상자 3 / 250XP.
+// 진행값 = ramp_completed(폴백 training_stats.ramp_completed), 수령 = ramp_quest_claimed.
+const RAMP_QUEST_TIERS = [[1, 2, 50], [5, 2, 75], [15, 3, 150], [30, 3, 150], [50, 3, 250], [100, 4, 500], [200, 4, 600], [300, 4, 750], [400, 4, 1000], [500, 6, 1000]];
+function _rampQuestNext(claimed) {
+  for (const [d, r] of RAMP_QUEST_TIERS) if (claimed < d) return { day: d, reward: r };
+  return { day: claimed + 100, reward: 3 };
 }
-function _localStrumQuestSetClaimed(claimed) {
+function _localRampQuestGet() {
   const s = JSON.parse(localStorage.getItem('training_stats') || '{}');
-  s.strum_quest_claimed = claimed;
+  return { total: s.ramp_completed || 0, claimed: s.ramp_quest_claimed || 0 };
+}
+function _localRampQuestSetClaimed(claimed) {
+  const s = JSON.parse(localStorage.getItem('training_stats') || '{}');
+  s.ramp_quest_claimed = claimed;
   localStorage.setItem('training_stats', JSON.stringify(s));
 }
 
-async function loadStrumQuest() {
-  const r = await _peakRpc('get_strum_quest');
+async function loadRampQuest() {
+  const r = await _peakRpc('get_ramp_quest');
   if (r) return { total: r.total, claimed: r.claimed, next_day: r.next_day, next_reward: r.next_reward };
-  const l = _localStrumQuestGet();
-  const n = _quizQuestNext(l.claimed);
+  const l = _localRampQuestGet();
+  const n = _rampQuestNext(l.claimed);
   return { total: l.total, claimed: l.claimed, next_day: n.day, next_reward: n.reward };
 }
 
-async function claimStrumQuest() {
+async function claimRampQuest() {
   const _boxBefore = _peakState.peakbox_count || 0;
-  const _xpGain = _tierXp(QUIZ_QUEST_TIERS, (await loadStrumQuest()).next_day, 1200);
-  const r = await _peakRpc('claim_strum_quest');
+  const _xpGain = _tierXp(RAMP_QUEST_TIERS, (await loadRampQuest()).next_day, 250);
+  const r = await _peakRpc('claim_ramp_quest');
   if (r) {
     if (!r.ok) return;
     _peakState = { ..._peakState, peakbox_count: (_peakState.peakbox_count || 0) + r.reward, loaded: true };
   } else {
-    const l = _localStrumQuestGet();
-    const n = _quizQuestNext(l.claimed);
+    const l = _localRampQuestGet();
+    const n = _rampQuestNext(l.claimed);
     if (l.total < n.day) return;
-    _localStrumQuestSetClaimed(n.day);
+    _localRampQuestSetClaimed(n.day);
     const local = _localPeakGet();
     _localPeakSet(local.balance, local.peakbox_count + n.reward);
     _peakState = { ..._peakState, peakbox_count: (_peakState.peakbox_count || 0) + n.reward, loaded: true };
@@ -4652,11 +4664,11 @@ async function renderQuestList() {
   const top   = [];
 
   // 전 퀘스트 병렬 로드 — 직렬 await 16회(왕복 누적 지연) → 동시 발사
-  const [a, i, nc, ns, t, qz, ql, pf, cg, sc, sl, spf, pg, st, cl, cpf, iv, sb] = await Promise.all([
+  const [a, i, nc, ns, t, qz, ql, pf, cg, sc, sl, spf, pg, rq, cl, cpf, iv, sb] = await Promise.all([
     loadAttendanceQuest(), loadImageQuest(), loadNoteQuest('create'), loadNoteQuest('share'),
     loadTimeQuest(), loadQuizQuest(), loadQuizLevelQuest(), loadPerfectQuest(),
     loadChallengeQuest(), loadScaleQuest(), loadScaleLevelQuest(), loadScalePerfectQuest(),
-    loadProgressionQuest(), loadStrumQuest(), loadComboLevelQuest(), loadComboPerfectQuest(),
+    loadProgressionQuest(), loadRampQuest(), loadComboLevelQuest(), loadComboPerfectQuest(),
     loadInviteQuest(), loadScaleBonusQuest(),
   ]);
 
@@ -4745,17 +4757,15 @@ async function renderQuestList() {
   const spfClaimable = spf.filter(q => q.earned > q.claimed);
   spfClaimable.forEach(q => top.push(_scalePerfectCardsHtml([q])));
 
-  parts.push(_questDividerHtml('코드 진행 리스트'));
-  const pgHtml = _questCardHtml('코드 진행', '누적 ' + pg.next_day + '회 재생',
+  parts.push(_questDividerHtml('코드반주 훈련'));
+  const pgHtml = _questCardHtml('코드반주', '누적 ' + pg.next_day + '회 연주',
     pg.next_reward, _tierXp(QUIZ_QUEST_TIERS, pg.next_day, 1200), pg.total, pg.next_day, 'claimProgressionQuest');
   parts.push(pgHtml);
   if (_isClaimable(pg.total, pg.next_day)) top.push(pgHtml);
-
-  parts.push(_questDividerHtml('주법 리듬 훈련'));
-  const stHtml = _questCardHtml('주법 훈련', '누적 ' + st.next_day + '회 재생',
-    st.next_reward, _tierXp(QUIZ_QUEST_TIERS, st.next_day, 1200), st.total, st.next_day, 'claimStrumQuest');
-  parts.push(stHtml);
-  if (_isClaimable(st.total, st.next_day)) top.push(stHtml);
+  const rqHtml = _questCardHtml('점진 가속', '목표 BPM 도달 ' + rq.next_day + '회',
+    rq.next_reward, _tierXp(RAMP_QUEST_TIERS, rq.next_day, 250), rq.total, rq.next_day, 'claimRampQuest');
+  parts.push(rqHtml);
+  if (_isClaimable(rq.total, rq.next_day)) top.push(rqHtml);
 
   parts.push(_questDividerHtml('코드 조합 훈련'));
   const clDone = Math.min(cl.done, 1);
@@ -4799,7 +4809,7 @@ const XP_INFO_ROWS = [
   ['노트 생성',            BEHAVE_XP.note],
   ['일일 출석',            BEHAVE_XP.attendance],
   ['훈련 10분당',          BEHAVE_XP.per10min],
-  ['코드 진행 재생',        BEHAVE_XP.progression],
+  ['코드반주 훈련 (4사이클 완주)', BEHAVE_XP.progression],
   ['주법 훈련',            BEHAVE_XP.strum],
   ['코드 맞추기 완료',      BEHAVE_XP.quiz],
   ['스케일 훈련 완료',      BEHAVE_XP.scale],
@@ -4984,7 +4994,7 @@ if (typeof window !== 'undefined') {
   window.incrementScalePerfect        = incrementScalePerfect;
   window.claimScalePerfectQuest       = claimScalePerfectQuest;
   window.claimProgressionQuest        = claimProgressionQuest;
-  window.claimStrumQuest              = claimStrumQuest;
+  window.claimRampQuest               = claimRampQuest;
   window.renderQuestList              = renderQuestList;
 }
 

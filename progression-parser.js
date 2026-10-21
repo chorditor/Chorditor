@@ -35,6 +35,7 @@
 
   // 텐션 표기 '(9)', '(#11)' 등을 코드문자열 끝에서 분리
   function _extractTension(part) {
+    if (part.endsWith('m7(b5)')) return { base: part, tension: null };   // m7(b5)는 텐션이 아니라 코드 품질(QUALITY_SUFFIXES)
     const m = part.match(/(\([^)]*\))$/);
     if (!m) return { base: part, tension: null };
     return { base: part.slice(0, -m[1].length), tension: m[1] };

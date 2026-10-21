@@ -50,8 +50,11 @@ const ProgressionVoicings = (() => {
       const bassNorm = (rootSemitone + bass) % 12;
       const nameS    = NOTE_SHARP[rootSemitone] + sfx + '/' + NOTE_SHARP[bassNorm];
       const nameF    = NOTE_FLAT[rootSemitone]  + sfx + '/' + NOTE_FLAT[bassNorm];
+      // Xm7/(b7 베이스) = Xm/(b7 베이스): 라이브러리는 b7 베이스 마이너 전위를 'Xm/Y'로 이름 붙여 둠
+      const alt = (quality === 'm7' && bass === 10) ? [NOTE_SHARP[rootSemitone] + 'm/' + NOTE_SHARP[bassNorm], NOTE_FLAT[rootSemitone] + 'm/' + NOTE_FLAT[bassNorm]] : [];
       const nameMatch = v => v.name === nameS || v.name === nameF ||
-                             v.flatName === nameS || v.flatName === nameF;
+                             v.flatName === nameS || v.flatName === nameF ||
+                             alt.some(n => v.name === n || v.flatName === n);
 
       const slashStatics  = entries.filter(v => isAllowedSlashStaticVoicing(v) && nameMatch(v));
       const slashPatterns = entries.filter(v => isAllowedSlashVoicing(v)  && nameMatch(v));
