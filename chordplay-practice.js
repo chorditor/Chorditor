@@ -112,6 +112,15 @@ async function _stopPlay(options = {}) {
       recordTrainingAttendance();
     }
   }
+  if (_pStat) {
+    const s = _pStat; _pStat = null;
+    const sec = Math.round((Date.now() - s.t0) / 1000);
+    if (_visit) { _visit.playCount++; _visit.playSec += sec; }
+    analytics.track('chordplay_play_stopped', {
+      prog_id: s.prog, strum_title: s.strum, play_sec: sec, cycles_done: s.cycles, counts_awarded: s.counts,
+      ramp_on: s.ramp, ramp_reached: s.rampReached, reach_sec: s.reachSec, stop_reason: options.reason || 'user',
+    });
+  }
   _playStartMs = 0;
   _visualQueue = [];
   _stopClicks();
@@ -317,6 +326,7 @@ function _strumClearHighlight() {
 // 카운터는 progression_completed 하나(퀘스트 '코드반주 훈련')
 const CYCLES_PER_COUNT = 4;
 function _countAccompaniment() {
+  if (_pStat) _pStat.counts++;
   const s = JSON.parse(localStorage.getItem('training_stats') || '{}');
   s.progression_completed = (s.progression_completed || 0) + 1;
   localStorage.setItem('training_stats', JSON.stringify(s));
@@ -326,6 +336,7 @@ function _countAccompaniment() {
 
 // 점진 가속 퀘스트 카운터: 점진 가속이 시작 BPM에서 올라가 목표 BPM에 닿을 때 1회(재생 한 번에 한 번, 시작 BPM = 목표 BPM이면 세지 않음)
 function _countRampReached() {
+  if (_pStat) { _pStat.rampReached = true; _pStat.reachSec = Math.round((Date.now() - _pStat.t0) / 1000); }
   const s = JSON.parse(localStorage.getItem('training_stats') || '{}');
   s.ramp_completed = (s.ramp_completed || 0) + 1;
   localStorage.setItem('training_stats', JSON.stringify(s));
@@ -426,7 +437,7 @@ function _visualLoop() {
     if (ev.bpm != null) { const el = document.getElementById('play-bpm-val'); if (el) _setBpmText(el, ev.bpm, true); _animateSlider(ev.bpm); }
     else if (ev.chord != null) { const d = _dispIdx[ev.chord]; if (d !== _currentDisplayStep) _updateActiveCard(d); }
     else if (ev.rampReached) _countRampReached();
-    else if (ev.cycles != null) { if (ev.cycles % CYCLES_PER_COUNT === 0) _countAccompaniment(); }
+    else if (ev.cycles != null) { if (_pStat) _pStat.cycles = ev.cycles; if (ev.cycles % CYCLES_PER_COUNT === 0) _countAccompaniment(); }
     else if (ev.beat != null) _phBeat = ev;
   }
   _strumTickPlayhead(now);   // 이벤트가 없는 프레임에도 세로선을 오디오 시계에 맞춰 전진
@@ -468,13 +479,68 @@ function _runCountIn(onComplete) {
   }, startDelay);
 }
 
-// 연습 화면은 처음부터 열려 있음 — 피크(5)는 코드반주 훈련 목록(chordplay.js)에서 진입할 때 소모. 이후 재생은 무한.
-let _practiceUnlocked = true;
+// ── 이벤트 로그(chordplay_*) ─────────────────────────────────
+// 버튼 사용은 클릭마다 로그를 찍지 않고 한 방문 동안 횟수만 누적(_btn) → 떠날 때 chordplay_practice_left 하나로 보냄.
+// 재생은 한 번마다 chordplay_play_started / chordplay_play_stopped(요약: 시간·사이클·카운트·점진 가속 도달·정지 사유).
+let _visit = null;   // { t0, unlockedAt, counts, strumPicks, playCount, playSec }
+let _pStat = null;   // 재생 한 번의 통계
+let _strumPickEnabled = false;   // 첫 렌더의 기본 선택은 세지 않음
+let _strumPickTimer = null;
+function _visitStart() { _visit = { t0: Date.now(), unlockedAt: null, counts: {}, strumPicks: {}, playCount: 0, playSec: 0 }; }
+function _btn(name) { if (_visit) _visit.counts[name] = (_visit.counts[name] || 0) + 1; }
+function _flushVisit(via) {
+  if (!_visit) return;
+  const v = _visit; _visit = null;
+  const now = Date.now();
+  analytics.track('chordplay_practice_left', {
+    prog_id: _prog && _prog.id,
+    key: _getKeyDisplayName(_key),
+    unlocked: _practiceUnlocked,
+    screen_sec: Math.round((now - v.t0) / 1000),
+    panel_open_sec: v.unlockedAt ? Math.round((now - v.unlockedAt) / 1000) : 0,   // 옵션패널이 열려 있던 시간
+    play_count: v.playCount,
+    play_sec_total: v.playSec,
+    button_counts: v.counts,
+    strum_picks: v.strumPicks,
+    via,
+  });
+  if (analytics.flush) analytics.flush();
+}
+
+// 연습 잠금 — 옵션패널은 "연습하기"(피크 5 소모)를 눌러야 열림. 이후 재생은 무한. Pro는 처음부터 열림.
+// 푼 상태는 진행 id별로 sessionStorage에 저장 → 새로고침해도 유지, 나갈 때(뒤로가기) 지움 → 앞으로 가기·URL 직접 진입은 다시 잠김.
+const PRACTICE_PEAK_COST = 5;
+let _practiceUnlocked = false;
+let _unlocking = false;   // 소모 처리 중 연타로 이중 차감되는 것 방지
+const _unlockKey = () => 'cp_unlock_' + (_prog && _prog.id);
+function _clearUnlock() { try { if (_prog && _prog.id) sessionStorage.removeItem(_unlockKey()); } catch (e) {} }
 window._leaveGuardActive = () => _practiceUnlocked; // shared.js 사이드바 네비 이탈 확인용
-window._clearLeaveGuard = () => {}; // shared.js 사이드바 네비로 이탈 확정 시 호출(언락 상태를 따로 저장하지 않으므로 할 일 없음)
+window._clearLeaveGuard = _clearUnlock; // shared.js 사이드바 네비로 이탈 확정 시 언락 해제
+
+function _applyPracticeLock() {
+  const gate = document.getElementById('practice-gate');
+  const body = document.getElementById('option-panel-body');
+  if (gate) gate.hidden = _practiceUnlocked;
+  if (body) { if (_practiceUnlocked) body.removeAttribute('inert'); else body.setAttribute('inert', ''); }   // 잠금 중엔 포커스·키보드 접근도 차단
+}
+
+async function unlockPractice() {
+  if (_practiceUnlocked || _unlocking) return;
+  _unlocking = true;
+  try {
+    if (typeof _playConfirmSfx === 'function') _playConfirmSfx();
+    if (!(await consumePeak(PRACTICE_PEAK_COST, 'chordplay'))) return;   // 피크 부족 — consumePeak이 충전 모달을 띄움
+    _practiceUnlocked = true;
+    try { if (_prog && _prog.id) sessionStorage.setItem(_unlockKey(), '1'); } catch (e) {}
+    _applyPracticeLock();
+    if (_visit) _visit.unlockedAt = Date.now();
+    analytics.track('chordplay_unlocked', { prog_id: _prog && _prog.id, via: 'peak' });
+  } finally { _unlocking = false; }
+}
 
 async function togglePlay() {
   if (!_practiceUnlocked) return;
+  _btn('play_toggle');
   if (_playing || _starting) {
     await _stopPlay();
     return;
@@ -511,7 +577,11 @@ async function togglePlay() {
     _renderStage();
   }
   _playStartMs = Date.now(); // 훈련시간 측정 시작
-  analytics.track('progression_detail_played', { prog_id: _prog?.id, key: _getKeyDisplayName(_key), bpm: _bpm, strum: _playStrum.title });
+  analytics.track('chordplay_play_started', {
+    prog_id: _prog?.id, key: _getKeyDisplayName(_key), strum_title: _playStrum.title, strum_level: _playStrum.level, beat: _playStrum.beat || '4/4',
+    bpm: _bpm, ramp_on: _rampOn, ramp_start: _rampStart, ramp_cycles: _rampCycles, ramp_step: _rampStep, backing: _backing,
+  });
+  _pStat = { t0: Date.now(), prog: _prog?.id, strum: _playStrum.title, ramp: _rampOn, cycles: 0, counts: 0, rampReached: false, reachSec: null };
   _updatePlayBtn();
   const playSess = _playSession;
   _runCountIn((startTime) => {
@@ -611,7 +681,9 @@ function requestBack() {
 }
 
 async function goBack() {
-  await _stopPlay({ hard: true });   // 이탈 — 소리 즉시 중단
+  await _stopPlay({ hard: true, reason: 'leave' });   // 이탈 — 소리 즉시 중단
+  _flushVisit('back');
+  _clearUnlock();
   const shell = document.querySelector('.app-shell');
   if (shell) {
     shell.classList.add('project-exit');
@@ -652,7 +724,8 @@ function _renderKeyStrip() {
       btn.addEventListener('pointerup', async () => {
         _playTap();
         if (k === _key) return;
-        await _stopPlay({ wait: true }); // 재생/예약 완전 정지 후 키 적용 (레이스 방지)
+        _btn('key_select');
+        await _stopPlay({ wait: true, reason: 'key_changed' }); // 재생/예약 완전 정지 후 키 적용 (레이스 방지)
         _key = k;
         _syncAccidentalToKey(k); // 이 키의 기본 #/b로 토글 맞춤
         _renderKeyStrip();
@@ -1123,6 +1196,7 @@ function initSpAllModal() {
     const b = e.target.closest('.sp-modal-tab');
     if (!b) return;
     _playTap();
+    _btn('strum_filter');
     filter = b.dataset.f === 'all' ? 'all' : Number(b.dataset.f);
     syncTabs();
     render();
@@ -1131,6 +1205,7 @@ function initSpAllModal() {
   chip.addEventListener('pointerup', e => {
     e.stopPropagation();
     _playTap();
+    _btn('strum_modal_open');
     filter = 'all';   // 열 때는 항상 전체
     syncTabs();
     render();
@@ -1181,9 +1256,14 @@ function _spSelect(idx) {
   idx = Math.max(0, Math.min(_spItems.length - 1, idx));
   if (idx === _spIdx) return;
   _spIdx = idx;
-  if (_playing || _starting) _stopPlay();   // 재생 중 주법을 바꾸면 멈춤
+  if (_playing || _starting) _stopPlay({ reason: 'strum_changed' });   // 재생 중 주법을 바꾸면 멈춤
   wheel.querySelectorAll('.strum-picker-item').forEach((el, i) => el.classList.toggle('strum-picker-item--active', i === idx));
   renderStrumDisplay(_spItems[idx]);   // 위의 주법 디스플레이 갱신
+  clearTimeout(_strumPickTimer);
+  if (_strumPickEnabled) _strumPickTimer = setTimeout(() => {
+    const it = _spItems[_spIdx];
+    if (_visit && it) _visit.strumPicks[it.title] = (_visit.strumPicks[it.title] || 0) + 1;
+  }, 700);
   if (_applyBeatDefaults) _applyBeatDefaults(_spItems[idx]);   // 박자가 바뀌면 그 박자의 BPM·점진 가속 기본값
 }
 
@@ -1244,7 +1324,7 @@ function _makePopup(card, pop, onOpen, opts) {
   card.addEventListener('pointerup', e => {
     e.stopPropagation();
     _playTap();
-    if (isOpen()) ctl.close(); else ctl.open();
+    if (isOpen()) ctl.close(); else { _btn('open_' + card.id); ctl.open(); }
   });
   pop.addEventListener('pointerup', e => e.stopPropagation());
   _popups.push(ctl);
@@ -1269,11 +1349,13 @@ function _initSliderPopup(o) {
     if (o.onSet) o.onSet(v);
   };
   slider.addEventListener('input', () => set(Number(slider.value)));
+  slider.addEventListener('change', () => _btn('adjust_' + o.slider));
   const hold = (btn, delta) => {
     let t1 = null, t2 = null;
     const stop = () => { clearTimeout(t1); clearInterval(t2); t1 = t2 = null; };
     btn.addEventListener('pointerdown', e => {
       e.preventDefault();
+      _btn('adjust_' + o.slider);
       set(o.read() + delta);
       t1 = setTimeout(() => { t2 = setInterval(() => set(o.read() + delta), 60); }, 350);
     });
@@ -1293,6 +1375,7 @@ function _initBackingPick() {
   if (!btns.drum || !btns.click) return;
   Object.entries(btns).forEach(([key, btn]) => btn.addEventListener('pointerup', () => {
     _playTap();
+    _btn('backing_' + key);
     _backing = key;
     Object.entries(btns).forEach(([k, b]) => {
       b.classList.toggle('backing-btn--active', k === key);
@@ -1356,6 +1439,7 @@ function initPlayPopups() {
     bpmSlider.style.setProperty('--pct', ((v - BPM_MIN) / (BPM_MAX - BPM_MIN) * 100) + '%');
   };
   bpmSlider.addEventListener('input', () => setTargetBpm(Number(bpmSlider.value)));
+  bpmSlider.addEventListener('change', () => _btn('bpm_slider'));   // 손을 뗄 때 한 번
   setTargetBpm(_bpm);
   // 숫자 좌측 +/− — 슬라이더 값을 1씩 바꾸고 input 이벤트로 기존 set()을 태움(길게 누르면 연속)
   const nudgeSlider = document.getElementById('bpm-inline-slider');
@@ -1365,7 +1449,7 @@ function initPlayPopups() {
     let t1 = null, t2 = null;
     const step = () => { nudgeSlider.value = Math.max(BPM_MIN, Math.min(Number(nudgeSlider.max), Number(nudgeSlider.value) + d)); nudgeSlider.dispatchEvent(new Event('input')); };
     const stop = () => { clearTimeout(t1); clearInterval(t2); t1 = t2 = null; };
-    b.addEventListener('pointerdown', e => { e.preventDefault(); e.stopPropagation(); step(); t1 = setTimeout(() => { t2 = setInterval(step, 60); }, 350); });
+    b.addEventListener('pointerdown', e => { e.preventDefault(); e.stopPropagation(); _btn('bpm_nudge'); step(); t1 = setTimeout(() => { t2 = setInterval(step, 60); }, 350); });
     ['pointerup', 'pointerleave', 'pointercancel'].forEach(ev => b.addEventListener(ev, stop));
   });
   // 시작 BPM — 목표 BPM(_bpm) 이하만
@@ -1395,7 +1479,8 @@ function initPlayPopups() {
   const rampToggle = document.getElementById('ramp-toggle');
   if (rampToggle) rampToggle.addEventListener('change', () => {
     _rampOn = rampToggle.checked;
-    if (_playing || _starting) _stopPlay();   // 재생 중 켜고 끄면 멈추고 새 설정으로 다시 시작
+    _btn('ramp_toggle');
+    if (_playing || _starting) _stopPlay({ reason: 'ramp_toggled' });   // 재생 중 켜고 끄면 멈추고 새 설정으로 다시 시작
   });
   document.addEventListener('pointerup', () => _popups.forEach(p => p.close()));   // 바깥을 누르면 모두 닫힘
 }
@@ -1414,12 +1499,22 @@ document.addEventListener('DOMContentLoaded', () => {
     const noList = String(progNo).split(',');
     const group = PROGRESSIONS.filter(p => noList.includes(String(p.no)));
     _prog = group.length ? group[Math.floor(Math.random() * group.length)] : null;
+    // 뽑은 진행을 주소에 고정 — 새로고침해도 같은 진행이 나와야 푼 상태(진행 id별 저장)가 유지됨
+    if (_prog) { const u = new URL(location.href); u.searchParams.delete('no'); u.searchParams.set('id', _prog.id); history.replaceState(null, '', u); }
   } else {
     _prog = null;
   }
   const _titleEl = document.getElementById('detail-title');
   if (_titleEl) _titleEl.innerHTML = getProgressionNameHtml(_prog);
   document.documentElement.classList.toggle('peak-free', getPlan() === 'pro'); // 연습 시작 버튼 피크 배지: Pro는 숨김
+  let _wasUnlocked = false; try { _wasUnlocked = !!(_prog && _prog.id) && sessionStorage.getItem(_unlockKey()) === '1'; } catch (e) {}
+  _practiceUnlocked = getPlan() === 'pro' || _wasUnlocked;   // Pro는 처음부터 열림 / 새로고침은 이미 푼 상태 유지
+  _applyPracticeLock();
+  _visitStart();
+  if (_practiceUnlocked) {
+    _visit.unlockedAt = Date.now();
+    analytics.track('chordplay_unlocked', { prog_id: _prog && _prog.id, via: getPlan() === 'pro' ? 'pro' : 'restored' });
+  }
 
   // 뒤로가기+피크바는 #main-content > .top-bar 안에 고정 — 모바일/데스크탑 공용, JS 이동 없음.
 
@@ -1437,8 +1532,11 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // 페이지 이탈 중 재생이면 훈련시간 적립
   // 이탈 경로: 뒤로가기(goBack) · 하드웨어 뒤로가기(requestBack→goBack) · 페이지 이동/새로고침/닫기(pagehide) · 홈 버튼/앱 전환(visibilitychange) — 전부 즉시 하드컷
-  window.addEventListener('pagehide', () => { if (_playing || _starting) _stopPlay({ hard: true }); });
-  document.addEventListener('visibilitychange', () => { if (document.hidden && (_playing || _starting)) _stopPlay({ hard: true }); });
+  window.addEventListener('pagehide', () => { if (_playing || _starting) _stopPlay({ hard: true, reason: 'leave' }); _flushVisit('pagehide'); });
+  document.addEventListener('visibilitychange', () => {
+    if (document.hidden) { if (_playing || _starting) _stopPlay({ hard: true, reason: 'background' }); _flushVisit('background'); }
+    else if (!_visit) _visitStart();   // 앱으로 돌아오면 새 방문으로 이어서 집계
+  });
 
   // 페이지 커버
   lucide.createIcons();
@@ -1458,14 +1556,14 @@ document.addEventListener('DOMContentLoaded', () => {
     _useFlat = useFlat;
     sharpBtn.classList.toggle('active', !useFlat);
     flatBtn .classList.toggle('active',  useFlat);
-    _stopPlay();
+    _stopPlay({ reason: 'key_changed' });
     _renderKeyStrip();
     _renderStage();
   }
 
   const accToggle = document.getElementById('detail-accidental-toggle');
   if (accToggle) {
-    accToggle.addEventListener('pointerup', () => { _playTap(); _setAccidental(!_useFlat); });
+    accToggle.addEventListener('pointerup', () => { _playTap(); _btn('accidental_toggle'); _setAccidental(!_useFlat); });
   }
 
   if (_useFlat) _setAccidental(true);
@@ -1475,6 +1573,7 @@ document.addEventListener('DOMContentLoaded', () => {
   if (fingerBtn) {
     fingerBtn.addEventListener('pointerup', () => {
       _playTap();
+      _btn('finger_toggle');
       _showFingers = !_showFingers;
       fingerBtn.classList.toggle('active', _showFingers);
       _redrawAllSlots();
@@ -1495,9 +1594,10 @@ document.addEventListener('DOMContentLoaded', () => {
       _swiping = false;
       if (_busy || !_prog) return;
       const dx = e.clientX - _sx;
-      if (Math.abs(dx) < 40) { _playCurrentChord(); return; } // 스와이프 아닌 탭 → 코드 사운드
+      if (Math.abs(dx) < 40) { _btn('chord_tap'); _playCurrentChord(); return; } // 스와이프 아닌 탭 → 코드 사운드
       const count = _dispCount;
       if (count < 2) return;
+      _btn('carousel_swipe');
       _busy = true;
       setTimeout(() => { _busy = false; }, 460);
       if (dx < 0) { // 좌 → 다음
@@ -1527,7 +1627,9 @@ document.addEventListener('DOMContentLoaded', () => {
   renderStrumPicker();
   initSpAllModal();
   initPlayPopups();
+  _strumPickEnabled = true;
 
   var _pushEntry = null; try { _pushEntry = localStorage.getItem('_push_entry'); if (_pushEntry) localStorage.removeItem('_push_entry'); } catch(_) {}
-  analytics.track('progression_detail_viewed', { prog_id: progId, entry: _pushEntry || 'direct' });
+  let _cpEntry = null; try { _cpEntry = sessionStorage.getItem('cp_entry'); sessionStorage.removeItem('cp_entry'); } catch (e) {}
+  analytics.track('chordplay_practice_viewed', { prog_id: _prog && _prog.id, key: _getKeyDisplayName(_key), entry: _pushEntry || _cpEntry || 'direct', plan: getPlan() });
 });

@@ -37,16 +37,6 @@ function onTrainingCardTap(key) {
     }
     return;
   }
-  if (key === 'progression') {
-    const shell = document.querySelector('.app-shell');
-    if (shell) {
-      shell.classList.add('project-exit');
-      setTimeout(() => { location.href = 'progression.html'; }, 260);
-    } else {
-      location.href = 'progression.html';
-    }
-    return;
-  }
   if (key === 'chordplay') {
     const shell = document.querySelector('.app-shell');
     if (shell) {
@@ -54,16 +44,6 @@ function onTrainingCardTap(key) {
       setTimeout(() => { location.href = 'chordplay.html'; }, 260);
     } else {
       location.href = 'chordplay.html';
-    }
-    return;
-  }
-  if (key === 'strumming') {
-    const shell = document.querySelector('.app-shell');
-    if (shell) {
-      shell.classList.add('project-exit');
-      setTimeout(() => { location.href = 'strumming.html'; }, 260);
-    } else {
-      location.href = 'strumming.html';
     }
     return;
   }

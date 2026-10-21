@@ -21,8 +21,11 @@
 | 스케일 훈련 | Scale Blocks | スケールブロック | Bloques de Escalas | |
 | 코드 조합 훈련 | Reharm Quiz | リハモクイズ | Quiz de Reharm | 「리하모」는 일본 뮤지션 약칭, 스페인어도 reharm을 그대로 씀(정식어 rearmonización은 라벨로 김). 초보용 부제로 보완(예: "Swap chords, keep the feel") |
 | 코드 진행 리스트 | Chord Loops | コード進行 | Progresiones | 영어는 Progressions가 카드·제목에 길어서 Chord Loops로 통일. 설명 문장 속 음악 용어로서의 "chord progression"은 그대로 씀 |
-| 오늘의 코드진행 | Chord Loop of the Day | 今日のコード進行 | Progresión del Día | |
 | 주법 리듬 훈련 | Strumming Patterns | ストロークパターン | Patrones de Rasgueo | |
+| 코드반주 훈련 | Chord Accompaniment | コード伴奏 | Acompañamiento de Acordes | 옛 '코드 진행 리스트'+'주법 리듬 훈련'을 통합한 훈련(2026-10-22). 훈련소 카드는 `Chord`/`Accompaniment`로 줄바꿈 — 좁은 카드에서 긴 단어(Accompaniment·Acompañamiento) 넘침 여부 실기기 확인. 퀘스트 카드 짧은 이름: Accompaniment / コード伴奏 / Acompañamiento |
+| 진행 (이름 끝, 예: "1564 진행") | Progression | コード進行 | Progresión | 진행 이름 뒤에 붙는 글자. 메뉴명(코드 진행 리스트 = Chord Loops)과 달리 숫자 이름 뒤라 짧은 Progression 사용 |
+| 점진 가속 | Speed Ramp | だんだん加速 | Aceleración gradual | 코드반주 훈련의 옵션(시작 BPM에서 목표 BPM까지 단계적으로 올림) |
+| 주법 목록 (버튼) | Patterns | パターン | Patrones | 좁은 칸용 약칭. 주법 = 정식명 Strumming Patterns |
 | 코드 청음 챌린지 | Chord Ear Challenge | コード聴音チャレンジ | Desafío de Oído: Acordes | |
 | 리하모니 청음챌린지 | Reharm Ear Challenge | リハモ聴音チャレンジ | Desafío de Oído: Reharm | |
 | 훈련소 | Practice Room | 練習ルーム | Sala de Ensayo | 스페인어 「sala de ensayo」=밴드 합주실 표준어 |

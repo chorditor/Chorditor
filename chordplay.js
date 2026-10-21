@@ -94,10 +94,7 @@ function _startPlay(progId) {
   const btn  = card?.querySelector('.prog-enter-btn');
   if (btn) { btn.innerHTML = '<i data-lucide="square"></i>'; lucide.createIcons({ nodes: [btn] }); }
 
-  analytics.track('progression_played', {
-    prog_id: progId,
-    key:     _getKeyDisplayName(_currentKey),
-  });
+  _listBtn('preview_play');
 
   if (typeof addXp === 'function') addXp(BEHAVE_XP.progression); // 행동형 XP: 코드 진행 재생 (사일런트)
 
@@ -119,17 +116,28 @@ function _startPlay(progId) {
   tick();
 }
 
-// ── 진행 카드 → 피크 소모 후 연습 화면 진입 ──────
-const CHORDPLAY_PEAK_COST = 5;
-let _chordplayEntering = false; // 소모 처리 중 연타로 이중 차감되는 것 방지
+// ── 이벤트 로그: 버튼 사용은 클릭마다 찍지 않고 방문 동안 횟수를 누적했다가 떠날 때 chordplay_list_left 한 번으로 보냄 ──────
+let _listVisit = null;
+function _listVisitStart() { _listVisit = { t0: Date.now(), counts: {} }; }
+function _listBtn(name) { if (_listVisit) _listVisit.counts[name] = (_listVisit.counts[name] || 0) + 1; }
+function _flushList(via) {
+  if (!_listVisit) return;
+  const v = _listVisit; _listVisit = null;
+  analytics.track('chordplay_list_left', { screen_sec: Math.round((Date.now() - v.t0) / 1000), button_counts: v.counts, via });
+  if (analytics.flush) analytics.flush();
+}
+window.addEventListener('pagehide', () => _flushList('pagehide'));
+document.addEventListener('visibilitychange', () => { if (document.hidden) _flushList('background'); else if (!_listVisit) _listVisitStart(); });
+
+// ── 진행 카드 → 연습 화면 진입 (피크는 연습 화면의 "연습하기"에서 소모) ──────
+let _chordplayEntering = false; // 연타로 이중 이동 방지
 async function _enterChordplay(prog, _tapP) {
   if (_chordplayEntering) return;
   _chordplayEntering = true;
-  let ok = false;
-  try { ok = await consumePeak(CHORDPLAY_PEAK_COST, 'progression'); } finally { _chordplayEntering = false; }
-  if (!ok) return; // 피크 부족 — consumePeak이 충전 모달을 띄움
   await _stopPlay({ wait: true });
-  analytics.track('progression_detail_entered', { prog_id: prog.id, key: _getKeyDisplayName(_currentKey), no: prog.no ?? 1 });
+  analytics.track('chordplay_prog_selected', { prog_id: prog.id, key: _getKeyDisplayName(_currentKey), no: prog.no ?? 1 });
+  try { sessionStorage.setItem('cp_entry', 'list'); } catch (e) {}   // 연습 화면의 진입 경로(entry) 표시
+  _flushList('select');
   const dest = `chordplay-practice.html?id=${encodeURIComponent(prog.id)}&key=${_currentKey}&flat=${_useFlat ? 1 : 0}`;
   let _navd = false;
   const _go = () => { if (!_navd) { _navd = true; location.href = dest; } };
@@ -150,9 +158,8 @@ function _renderKeyGrid() {
       _playTap();
       if (k === _currentKey) return;
       _stopPlay();
-      const prevKey = _getKeyDisplayName(_currentKey);
       _currentKey = k;
-      analytics.track('progression_key_changed', { from_key: prevKey, to_key: _getKeyDisplayName(_currentKey), flat: _useFlat });
+      _listBtn('key_change');
       _renderKeyGrid();
       _renderProgList();
       _updateKeyChipLabel();
@@ -221,21 +228,7 @@ function _renderProgList() {
         <button class="prog-enter-btn"><i data-lucide="chevron-right"></i></button>
       </div>`;
 
-      card.addEventListener('pointerup', () => {
-        const _tapP = _playTap();
-        // 확인 생략: Pro(소모 없음) / 잔액 부족이 확실할 때(바로 충전 모달로) — 스케일 훈련 연습하기와 같은 규칙
-        const skip = getPlan() === 'pro' || (_peakState.loaded && _peakState.balance < CHORDPLAY_PEAK_COST);
-        const enter = () => _enterChordplay(prog, _tapP);
-        if (skip) { enter(); return; }
-        showLeavePracticeModal(enter, {
-          title: '연습을 시작할까요?',
-          desc: `<span class="peak-confirm-body"><img src="image/peak.svg" alt="피크"><span class="peak-confirm-count">-${CHORDPLAY_PEAK_COST}</span></span>`,
-          stopText: '취소',
-          continueText: '시작하기',
-          confirmOnPrimary: true,
-          sfx: null, // 카드 탭 사운드가 이미 났음
-        });
-      });
+      card.addEventListener('pointerup', () => _enterChordplay(prog, _playTap()));
       list.appendChild(card);
     }); // group.items.forEach
   }); // noGroups.forEach
@@ -450,5 +443,6 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   }
 
-  analytics.track('progression_page_viewed', {});
+  _listVisitStart();
+  analytics.track('chordplay_list_viewed', {});
 });

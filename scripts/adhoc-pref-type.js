@@ -16,6 +16,7 @@ const bigquery = new BigQuery({ projectId: PROJECT_ID, keyFilename: KEY_FILE });
 const EVENTS = {
   quiz:        'quiz_completed',          // 컴핑 - 코드맞추기
   strum:       'strum_play_started',      // 컴핑 - 주법훈련
+  chordplay:   'chordplay_play_started',  // 컴핑 - 코드반주 훈련(새 앱, 주법 항목에 합산)
   scale:       'scale_test_result',       // 솔로잉 - 스케일훈련
   combo:       'combo_training_completed',// 화성학 - 코드조합훈련
   progression: 'progression_detail_played', // 화성학 - 진행리스트 (progression_played는 리스트페이지 미리듣기라 거의 안 찍힘, 실제 재생행동은 상세페이지 이벤트)
@@ -25,14 +26,14 @@ const query = `
 SELECT
   user_id,
   COUNTIF(event_name = '${EVENTS.quiz}') AS quiz_n,
-  COUNTIF(event_name = '${EVENTS.strum}') AS strum_n,
+  COUNTIF(event_name IN ('${EVENTS.strum}', '${EVENTS.chordplay}')) AS strum_n,
   COUNTIF(event_name = '${EVENTS.scale}') AS scale_n,
   COUNTIF(event_name = '${EVENTS.combo}') AS combo_n,
   COUNTIF(event_name = '${EVENTS.progression}') AS prog_n,
 FROM \`chorditor-50f9f.chorditor_analytics.analytics_events\`
 WHERE user_id IS NOT NULL
   AND created_at >= TIMESTAMP_SUB(CURRENT_TIMESTAMP(), INTERVAL ${WINDOW_DAYS} DAY)
-  AND event_name IN ('${EVENTS.quiz}', '${EVENTS.strum}', '${EVENTS.scale}', '${EVENTS.combo}', '${EVENTS.progression}')
+  AND event_name IN ('${EVENTS.quiz}', '${EVENTS.strum}', '${EVENTS.chordplay}', '${EVENTS.scale}', '${EVENTS.combo}', '${EVENTS.progression}')
 GROUP BY user_id
 `;
 

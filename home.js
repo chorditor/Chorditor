@@ -5083,77 +5083,6 @@ function enterTrainingFromBanner(key) {
   }
 }
 
-function enterProgressionFromBanner() {
-  analytics.track('home_banner_click', { target: 'progression', prog_id: _dailyProg?.id || null });
-  // 오늘의 코드진행 → 해당 진행의 디테일 페이지로 직행 (C키 / 플랫 표기 = 리스트 기본값)
-  const href = _dailyProg
-    ? `progression-detail.html?id=${encodeURIComponent(_dailyProg.id)}&key=0&flat=1`
-    : 'progression.html';
-  const shell = document.querySelector('.app-shell');
-  if (shell) {
-    shell.classList.add('project-exit');
-    setTimeout(() => { location.href = href; }, 260);
-  } else {
-    location.href = href;
-  }
-}
-
-// ── 오늘의 코드진행 ────────────────────────────────────────────
-// 페르소나별 노출 목록 (progression-data.js의 no 그룹: 1=초보자용, 2=7th, 3=실전형, 4=고급)
-const _DAILY_PROG_NO_BY_PERSONA = {
-  unboxing:      [1],
-  beginner:      [1],
-  sheet_reader:  [2, 4],
-  home_master:   [2, 4],
-  guitar_master: [2, 4],
-};
-
-// 하루 경계는 오전 5시. 05시 이전 접속은 전날로 취급 → 05시에 딱 한 번만 바뀐다.
-function _dailyProgDayKey() {
-  const d = new Date(Date.now() - 5 * 60 * 60 * 1000);
-  return `${d.getFullYear()}-${d.getMonth() + 1}-${d.getDate()}`;
-}
-
-let _dailyProg = null;
-
-// 같은 날이면 localStorage에 저장된 진행을 그대로 사용(재접속해도 불변).
-// 최초 선택은 랜덤이라 개인마다 다르게 뽑히고, 페르소나가 바뀌면 풀이 달라져 재선택된다.
-function _pickDailyProgression() {
-  if (typeof PROGRESSION_DATA === 'undefined' || !PROGRESSION_DATA.length) return null;
-  const allowNo = _DAILY_PROG_NO_BY_PERSONA[getUserPersona()] || [1];
-  const pool = PROGRESSION_DATA.filter(p => p.steps.length <= 4 && allowNo.indexOf(p.no ?? 1) !== -1);
-  if (!pool.length) return null;
-
-  const day = _dailyProgDayKey();
-  let saved = null;
-  try { saved = JSON.parse(localStorage.getItem('home_daily_prog') || 'null'); } catch (_) {}
-  if (saved && saved.day === day) {
-    const hit = pool.find(p => p.id === saved.id);
-    if (hit) return hit;
-  }
-  const picked = pool[Math.floor(Math.random() * pool.length)];
-  localStorage.setItem('home_daily_prog', JSON.stringify({ day, id: picked.id }));
-  return picked;
-}
-
-// 2번 배너 배경 장식: 오늘의 코드진행 코드명 표시 (C키 기준).
-// 잘림은 마스크 그라디언트가 처리하므로 폰트 축소 로직 불필요.
-function renderHomeAdBannerProgression() {
-  const bg = document.getElementById('home-ad-banner-prog-bg');
-  if (!bg) return;
-  const prog = _pickDailyProgression();
-  if (!prog) return;
-  _dailyProg = prog;
-  bg.innerHTML = prog.steps.map(s => `<span>${s.chord}</span>`).join('');
-
-  // 코드명이 길수록(m7·M7·sus4 등) 컬럼 gap을 좁혀 전체 폭이 과하게 늘어나지 않게 한다.
-  // 글자수 2 이하 → GAP_MAX, 6 이상 → GAP_MIN, 사이는 선형 보간.
-  const GAP_MIN = 12, GAP_MAX = 28;
-  const maxLen = Math.max(...prog.steps.map(s => s.chord.length));
-  const gap = Math.round(Math.min(GAP_MAX, Math.max(GAP_MIN, GAP_MAX - (maxLen - 2) * 4)));
-  bg.style.columnGap = gap + 'px';
-}
-
 // 배너 캐러셀: 순환 이동 + 5초 자동 넘김 + 데스크탑 마우스 드래그(터치는 네이티브 스크롤).
 // 순환은 앞뒤에 클론 슬라이드를 하나씩 붙이고, 스크롤이 멈춘 뒤 클론 위치면
 // 애니메이션 없이 반대편 실제 슬라이드로 순간 이동시키는 방식.
@@ -5422,7 +5351,6 @@ document.addEventListener('DOMContentLoaded', async () => {
   renderRootBtns();
   renderBassBtns();
   initStaticWheelPickers();
-  renderHomeAdBannerProgression(); // 클론 슬라이드에도 내용이 담기도록 캐러셀 초기화보다 먼저
   initHomeAdBannerCarousel();
   updateChordDisplay(false); // 초기 렌더 = 비유저, chord_build 제외
   const _fnGroup = document.getElementById('finger-group');

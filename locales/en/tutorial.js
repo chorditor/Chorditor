@@ -308,6 +308,7 @@ I18N.add('en', {
     '매번 따로 외워야 했던 코드 진행, 패턴으로 몸에 각인시켜요.':
       'Chord progressions you used to memorize one by one:\nlearn them as patterns your body remembers.',
     '노래에 자주 쓰이는 리듬 패턴만 집중적으로 공략해요.': 'Focus on just the rhythm patterns\nused most in songs.',
+    '코드 진행을 고르고 여러 주법을 붙여가며 반주를 연습해요.': 'Pick a chord progression, then try\nstrumming patterns to play along.',
     '어렵게만 느껴지던 화성학, 퀴즈만 풀어도 자연스럽게 익혀져요.':
       'Music theory always felt hard?\nJust play the quizzes and it sinks in naturally.',
     '흐릿한 카드는 준비 중이에요. 앞으로 계속 늘어날 거예요.': 'Faded cards are coming soon.\nMore will keep being added.',

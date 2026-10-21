@@ -77,7 +77,11 @@
         <!-- 옵션 영역 — cd-body의 마지막 자식(스택 아래) = 그리드 마진 위, 하단에 붙음 -->
         <div class="option-zone">
         <div class="option-panel cd-card" id="option-panel">
-          <div class="option-panel-body">
+          <!-- 연습 잠금 — 옵션패널을 흰색 반투명 블러로 덮고 가운데 "연습하기"(피크 소모). Pro는 처음부터 열림 -->
+          <div class="practice-gate" id="practice-gate">
+            <button class="cd-btn cd-btn--brand cd-btn--auto-width cd-btn--peak" id="detail-practice-gate" onpointerup="unlockPractice()">연습하기</button>
+          </div>
+          <div class="option-panel-body" id="option-panel-body">
             <!-- 재생 페이지: 1단 BPM · 재생/정지 · 스타일 / 2단 점진 가속 옵션 (값은 자리표시 — 실제 연결은 구현 단계) -->
             <div class="option-page" data-page="play">
               <!-- 칸 3개(간격 4px): 왼쪽 세로 전체 = 점진 가속, 오른쪽 위 = BPM·재생·슬라이더, 오른쪽 아래 = 스타일 -->

@@ -1707,7 +1707,9 @@ function showLeavePracticeModal(onConfirm, opts) {
     document.body.appendChild(ov);
   }
   ov.querySelector('#leave-practice-title').textContent = opts.title || '연습을 그만두시겠어요?';
-  ov.querySelector('#leave-practice-desc').innerHTML    = opts.desc  || '지금 나가면 다시 연습할 때<br>피크를 사용해야 해요.';
+  ov.querySelector('#leave-practice-desc').innerHTML    = opts.desc  || (getPlan() === 'pro'
+    ? '지금 나가면 연습이 종료돼요.'                          // 유료: 피크 소모 없음
+    : '지금 나가면 다시 연습할 때<br>피크를 사용해야 해요.');   // 무료
   ov.querySelector('#leave-practice-stop').textContent     = opts.stopText     || '그만할래요';
   ov.querySelector('#leave-practice-continue').textContent = opts.continueText || '계속할래요';
   ov.style.display = 'flex';
@@ -5234,12 +5236,12 @@ function initPushNotifications() {
     };
     if (data.progId != null) {
       setEntry('progression');
-      go('progression-detail.html?id=' + encodeURIComponent(data.progId)
+      go('chordplay-practice.html?id=' + encodeURIComponent(data.progId)
         + '&key=' + (data.key || 0) + '&flat=' + (data.flat ? 1 : 0));
     } else if (data.progNo != null) {
-      // 넛지: no 그룹만 지정 → progression-detail 이 해당 no 중 랜덤 진행 선택
+      // 넛지: no 그룹만 지정 → 코드반주 연습 화면이 해당 no 중 랜덤 진행 선택(선택한 진행은 주소에 고정)
       setEntry('progression');
-      go('progression-detail.html?no=' + encodeURIComponent(data.progNo));
+      go('chordplay-practice.html?no=' + encodeURIComponent(data.progNo));
     } else if (data.quizLevel != null) {
       setEntry('quiz');
       go('chord-name-quiz.html?level=' + encodeURIComponent(data.quizLevel));
@@ -5248,11 +5250,10 @@ function initPushNotifications() {
       go('scale-training.html?key=' + encodeURIComponent(data.scaleKey)); // 연습하기(피크 소모)를 거치도록 목록에서 해당 카드 선택된 채로 열림
     } else if (data.strumId != null) {
       setEntry('strum');
-      go('strum-play.html?id=' + encodeURIComponent(data.strumId));
+      go('chordplay.html');   // 주법 단독 훈련 폐기 — 코드반주 훈련 목록으로
     } else if (data.strumLv != null) {
-      // 넛지: lv 만 지정 → strum-play 가 해당 lv 카드 중 랜덤 선택
       setEntry('strum');
-      go('strum-play.html?lv=' + encodeURIComponent(data.strumLv));
+      go('chordplay.html');   // 주법 단독 훈련 폐기 — 코드반주 훈련 목록으로
     } else if (data.comboChapter != null) {
       // 넛지: chapter 만 지정(콤마로 여러 장 가능) → chord-combo 가 그중 랜덤 장 선택
       setEntry('combo');
@@ -5262,7 +5263,7 @@ function initPushNotifications() {
       // 적극형(주간 결산): 특정 레벨 없이 해당 훈련의 메인 목록 페이지로 이동
       const HOME_URL = {
         quiz: 'chord-name-quiz.html', scale: 'scale-training.html',
-        progression: 'progression.html', strum: 'strumming.html', combo: 'chord-combo.html',
+        progression: 'chordplay.html', strum: 'chordplay.html', combo: 'chord-combo.html',   // 진행·주법 → 코드반주 훈련 목록
       };
       const url = HOME_URL[data.trainingHome];
       if (url) { setEntry(data.trainingHome); go(url); }

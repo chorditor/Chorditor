@@ -1210,62 +1210,6 @@ button, input, select, textarea {
   height: 24px;
 }
 .home-ad-banner-slide--2 {
-  background: linear-gradient(135deg, #ffffff 0%, #f7f7f8 45%, #eeeef0 100%);
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 10px;
-  padding: 0 20px;
-  box-sizing: border-box;
-  position: relative;
-  overflow: hidden;
-}
-
-/* 코드진행을 배경 장식으로 표시. 살짝 blur + 낮은 불투명도로 배경처럼 뒤로 물러나 보이게 한다.
-   우측은 화살표 앞에 고정(right), 좌측은 내용 길이만큼 자동으로 넓어짐(width: max-content).
-   → m7/M7처럼 표기가 길어져도 잘리지 않고, 짧으면 우측 기준으로 자연스럽게 붙는다.
-   2열 grid라 윗줄·아랫줄 컬럼 정렬이 맞는다. */
-.ad-banner-prog-bg {
-  position: absolute;
-  top: 0;
-  bottom: 0;
-  right: 80px;
-  width: max-content;
-  max-width: calc(100% - 96px); /* 카드 밖으로는 못 나가게 */
-  display: grid;
-  grid-template-columns: repeat(2, max-content);
-  justify-content: start;
-  align-content: center;
-  gap: 10px 20px;
-  font-size: 20px;
-  font-weight: 600;
-  letter-spacing: -0.03em;
-  white-space: nowrap;
-  color: var(--charcoal-blue, #2E323B);
-  opacity: 0.35;
-  filter: blur(0.4px);
-  pointer-events: none;
-  -webkit-mask-image: linear-gradient(to right, rgba(0,0,0,0.55) 0%, rgba(0,0,0,0.55) 15%, rgba(0,0,0,0.35) 100%);
-  mask-image: linear-gradient(to right, rgba(0,0,0,0.55) 0%, rgba(0,0,0,0.55) 15%, rgba(0,0,0,0.35) 100%);
-}
-
-/* 배너가 가로로 넓을 때만(컨테이너 실제 폭 기준) 코드진행 배경을 1줄 4열로 펴고 크기 상향 */
-@container (min-width: 700px) {
-  .ad-banner-prog-bg {
-    grid-template-columns: repeat(4, max-content);
-    gap: 0 24px;
-    font-size: 32px;
-    font-weight: 800;
-  }
-}
-
-/* 배경 레이어 위로 텍스트·버튼이 오도록 */
-.home-ad-banner-slide--2 .ad-banner-text,
-.home-ad-banner-slide--2 .ad-banner-cta {
-  position: relative;
-  z-index: 1;
-}
-.home-ad-banner-slide--3 {
   display: flex;
   align-items: stretch;
 }
@@ -12392,7 +12336,6 @@ canvas {
 .training-card--chord-diagram .training-card-icon i,
 .training-card--fretboard     .training-card-icon i,
 .training-card--rhythm        .training-card-icon i,
-.training-card--strumming     .training-card-icon i,
 .training-card--family        .training-card-icon i,
 .training-card--reharmony     .training-card-icon i,
 .training-card--reharmony-ear .training-card-icon i { color: #334155; }
@@ -17410,6 +17353,16 @@ html:not([lang="ko"]) .test-note-grid {
 .chordplay-practice-main .play-bpm-top { display: flex; align-items: center; justify-content: space-between; }
 .chordplay-practice-main .option-panel { overflow: hidden; min-height: 240px; border-top-left-radius: var(--cd-card-radius); }   /* 탭 없음 — 네 모서리 모두 둥글게 */
 .chordplay-practice-main .option-panel.cd-card { background: #f5f5f5; }   /* 옵션패널 배경(.cd-card 흰색보다 특이도 높게) */
+/* 연습 잠금 — 옵션패널 위를 흰색 반투명 블러로 덮고 가운데 "연습하기"(피크 배지는 .cd-btn--peak). 블러를 못 쓰는 웹뷰는 불투명도 높은 흰색으로 대체 */
+.chordplay-practice-main .practice-gate {
+  position: absolute; inset: 0; z-index: 5;
+  display: flex; align-items: center; justify-content: center;
+  background: rgba(255, 255, 255, 0.85);
+}
+@supports ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+  .chordplay-practice-main .practice-gate { background: rgba(255, 255, 255, 0.55); -webkit-backdrop-filter: blur(3px); backdrop-filter: blur(3px); }
+}
+.chordplay-practice-main .practice-gate[hidden] { display: none; }
 /* 1단계(~480px): 우선순위 = 옵션패널. 잘리지 않게 내용 높이 그대로 뷰포트 하단에 붙이고, 캐러셀·주법 디스플레이는 그 위 남는 영역에서 가운데(모자라면 거기서 줄어듦) */
 @media (max-width: 480px) {
   .chordplay-practice-main .option-zone { flex: none; max-height: none; min-height: min-content; }

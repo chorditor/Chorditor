@@ -308,6 +308,7 @@ I18N.add('es', {
     '매번 따로 외워야 했던 코드 진행, 패턴으로 몸에 각인시켜요.':
       'Las progresiones que antes memorizabas una por una:\napréndelas como patrones que tu cuerpo recuerda.',
     '노래에 자주 쓰이는 리듬 패턴만 집중적으로 공략해요.': 'Enfócate solo en los patrones rítmicos\nmás usados en las canciones.',
+    '코드 진행을 고르고 여러 주법을 붙여가며 반주를 연습해요.': 'Elige una progresión y prueba distintos patrones\npara acompañar.',
     '어렵게만 느껴지던 화성학, 퀴즈만 풀어도 자연스럽게 익혀져요.':
       '¿La teoría siempre te pareció difícil?\nSolo juega los quizzes y se te queda sola.',
     '흐릿한 카드는 준비 중이에요. 앞으로 계속 늘어날 거예요.': 'Las tarjetas atenuadas llegan pronto.\nSe irán sumando más.',

@@ -77,6 +77,15 @@ class AnalyticsSDK {
     strumming_training_viewed: 'strumming',
     strum_play_viewed:         'strumming',
     strum_play_started:        'strumming',
+    // chordplay (코드반주 훈련 — 이벤트는 chordplay_ 접두어. 버튼 사용은 클릭마다가 아니라 방문 단위로 누적해 *_left 이벤트 하나에 담음)
+    chordplay_list_viewed:     'chordplay',
+    chordplay_prog_selected:   'chordplay',
+    chordplay_list_left:       'chordplay',
+    chordplay_practice_viewed: 'chordplay',
+    chordplay_unlocked:        'chordplay',
+    chordplay_play_started:    'chordplay',
+    chordplay_play_stopped:    'chordplay',
+    chordplay_practice_left:   'chordplay',
     // quiz
     quiz_page_viewed:          'quiz',
     quiz_level_started:        'quiz',

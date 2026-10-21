@@ -38,6 +38,7 @@ const PREF_WEIGHTS = { quiz: 0.4, strum: 0.6, combo: 0.7, prog: 0.3 };
 const EVENTS = {
   quiz:  'quiz_completed',
   strum: 'strum_play_started',
+  chordplay: 'chordplay_play_started', // 코드반주 훈련(새 앱) — 컴핑의 주법 항목에 합산
   scale: 'scale_test_result',
   combo: 'combo_training_completed',
   prog:  'progression_detail_played', // progression_played 아님(리스트페이지 미리듣기라 거의 안 찍힘)
@@ -82,7 +83,7 @@ raw_events AS (
   FROM \`chorditor-50f9f.chorditor_analytics.analytics_events\`
   WHERE user_id IS NOT NULL
     AND created_at >= TIMESTAMP_SUB(CURRENT_TIMESTAMP(), INTERVAL ${WINDOW_DAYS} DAY)
-    AND event_name IN ('${EVENTS.quiz}', '${EVENTS.strum}', '${EVENTS.scale}', '${EVENTS.combo}', '${EVENTS.prog}')
+    AND event_name IN ('${EVENTS.quiz}', '${EVENTS.strum}', '${EVENTS.chordplay}', '${EVENTS.scale}', '${EVENTS.combo}', '${EVENTS.prog}')
 ),
 per_user_events AS (
   SELECT
@@ -91,7 +92,7 @@ per_user_events AS (
     SUM(IF(event_name = '${EVENTS.quiz}', CAST(JSON_EXTRACT_SCALAR(properties, '$.correct_count') AS FLOAT64), 0)) AS quiz_correct_sum,
     SUM(IF(event_name = '${EVENTS.quiz}', CAST(JSON_EXTRACT_SCALAR(properties, '$.total') AS FLOAT64), 0)) AS quiz_total_sum,
 
-    COUNTIF(event_name = '${EVENTS.strum}') AS strum_n,
+    COUNTIF(event_name IN ('${EVENTS.strum}', '${EVENTS.chordplay}')) AS strum_n,
 
     COUNTIF(event_name = '${EVENTS.scale}') AS scale_n,
     AVG(IF(event_name = '${EVENTS.scale}', CAST(JSON_EXTRACT_SCALAR(properties, '$.score_pct') AS FLOAT64), NULL)) AS scale_score_avg,

@@ -13,7 +13,7 @@
 | `note_locked` | 한도 초과로 잠긴 프로젝트 열람 시도 | `home.js openProject()` 등 |
 | `image_transparent` | 이미지 저장 시 투명배경(프리미엄 전용) 옵션 시도 | `home.js` |
 | `image_scale` | 이미지 저장 시 배율 한도 초과. **노트저장 + 라이브러리내보내기 두 경로가 통합돼있음(의도적 유지, 표본이 적어 분리 안 함)** | `home.js onImgSave()`/`_doSavePNG()`/`_doExportLibChordImage()` |
-| `peak_buffer` | 피크 부족 → 완충모달 경유 → "Pro 플랜 보기" 클릭. `properties.training_type`으로 어떤 훈련에서 왔는지 구분(`quiz`/`chord_combo`/`scale`/`progression`/`strum`) | `shared.js consumePeak()` → `_peakBufferOpenPlan()` |
+| `peak_buffer` | 피크 부족 → 완충모달 경유 → "Pro 플랜 보기" 클릭. `properties.training_type`으로 어떤 훈련에서 왔는지 구분(`quiz`/`chord_combo`/`scale`/`progression`/`strum`/`chordplay` — 코드반주 훈련은 `chordplay`) | `shared.js consumePeak()` → `_peakBufferOpenPlan()` |
 | `promo_expiry_notice` | 프로모션 만료 임박 알림에서 업그레이드 클릭 | `shared.js promoExpiryUpgrade()` |
 
 ## 구버전 (더 이상 발생 안 함)
