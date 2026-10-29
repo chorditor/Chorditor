@@ -6,7 +6,7 @@
   <script src="i18n.js"></script>
   <meta name="color-scheme" content="light dark" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
-  <title>Chorditor - 코드 조합 훈련</title>
+  <title>Chorditor - 리하모니 화성학</title>
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css" />
   <link rel="stylesheet" href="style.css" />
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
@@ -16,19 +16,51 @@
   <!-- 페이지 커버: 초기화 완료 전 화면 가림 -->
   <div id="page-cover"></div>
 
+  <!-- 건너뛰기 테스트 안내 페이지 — 모달이 아니라 전체 화면을 덮음(읽는 문구는 위쪽 영역, 시작/취소는 하단). app-shell 밖(body 직속)이라 fixed가 뷰포트 기준 -->
+  <section id="combo-v2-skip-page" class="combo-v2-skip-page" hidden>
+    <div class="combo-v2-skip-main"><div class="combo-v2-skip-text" id="combo-v2-skip-text"></div></div>
+    <div class="combo-v2-skip-actions">
+      <button type="button" class="cd-btn cd-btn--brand combo-v2-skip-start" id="combo-v2-skip-start">시작하기</button>
+      <button type="button" class="combo-v2-skip-cancel" id="combo-v2-skip-cancel">취소</button>
+    </div>
+  </section>
+
+  <!-- 챕터 미니강의 — 스케일 훈련 "?" 튜토리얼과 같은 구성: 페이지 탑바(X·피크)는 그대로 두고 그 아래 본문만 아래에서 올라옴.
+       문구(.test-question-text 공용)와 연출은 위쪽~가운데, 다음/완료 버튼(.test-submit-btn 공용)은 하단. 연출·소리는 chord-combo-lecture.js -->
+  <section id="combo-v2-lecture" class="combo-v2-lec">
+    <main class="cd-main combo-v2-lec-body">
+      <div class="combo-v2-lec-content">
+        <p class="test-question-text combo-v2-lec-text" id="combo-v2-lec-text"></p>
+        <div class="combo-v2-lec-stage" id="combo-v2-lec-stage"></div>
+      </div>
+      <div class="test-btn-row combo-v2-lec-actions">
+        <button type="button" class="test-submit-btn cd-btn cd-btn--brand combo-v2-lec-next" id="combo-v2-lec-next" disabled><span id="combo-v2-lec-next-label">다음</span></button>
+      </div>
+    </main>
+  </section>
+
+  <!-- 첫 접속 시작 페이지 — 처음 이 훈련에 들어온 유저에게 한 번만 띄우고, 버튼으로 챕터 1 미니강의에 바로 들어감(건너뛰기 테스트 안내 페이지와 같은 골격) -->
+  <section id="combo-v2-welcome" class="combo-v2-skip-page combo-v2-welcome" hidden>
+    <div class="combo-v2-skip-main">
+      <div class="combo-v2-welcome-body">
+        <div class="combo-v2-skip-text">리하모니 화성학에<br>오신 걸 환영해요!</div>
+        <div class="combo-v2-welcome-sub">먼저 1장 미니강의로 시작해요</div>
+      </div>
+    </div>
+    <div class="combo-v2-skip-actions">
+      <button type="button" class="cd-btn cd-btn--brand combo-v2-skip-start" id="combo-v2-welcome-go">강의 시작하기</button>
+    </div>
+  </section>
+
   <div class="app-shell">
 
-    <!-- ── 탑바: 닫기 + 퀴즈 진행 점(중앙) + 피크바 (style-guide.md §11 cd-topbar) ── -->
+    <!-- ── 탑바: 닫기 + 퀴즈 진행 막대(중앙) + 피크 개수(리하모니 화성학 전용 — 피크상자 없이 피크 개수만) (style-guide.md §11 cd-topbar) ── -->
     <header class="cd-topbar combo-topbar">
       <button id="back-btn" class="icon-btn" onpointerup="handleComboBack()">
         <i data-lucide="x"></i>
       </button>
       <div id="combo-quiz-progress" class="quiz-topbar-center combo-quiz-dots" style="display:none"></div>
       <div class="topbar-currency" id="topbar-currency" style="margin-left:auto;">
-        <div class="currency-item currency-item--clickable" onclick="openPeakboxModal()">
-          <span class="currency-count" id="currency-peakbox-count">0</span>
-          <div class="currency-icon-box"><img src="image/gift.png" alt=""></div>
-        </div>
         <div class="currency-item currency-item--clickable" onclick="openPeakTimerPopup(event)">
           <span class="currency-count" id="currency-peak-count">30/30</span>
           <div class="currency-icon-box"><img src="image/peak.svg" alt=""></div>
@@ -44,7 +76,7 @@
 
         <!-- 헤드: 타이틀 + 부제(스티키) -->
         <header class="cd-head cd-head--sticky">
-          <div class="cd-title">코드 조합 훈련</div>
+          <div class="cd-title">리하모니 화성학</div>
           <div class="cd-selector"><span class="combo-subtitle">어려운 화성학을 쉽게 배워요!</span></div>
         </header>
 
@@ -917,6 +949,753 @@
 
       </main><!-- /combo-view-select -->
 
+      <!-- ── 선택 뷰 v2 (개편 디자인 — 옛 선택 뷰 위에 덮음. 옛 뷰 정리 시 이 블록만 남기고 id/클래스 정리) ── -->
+      <main id="combo-view-select-v2" class="cd-main quiz-view combo-v2-main">
+        <header class="cd-head cd-head--sticky">
+          <div class="cd-title">리하모니 화성학</div>
+          <!-- 챕터 위치 표시: 현재 챕터 = 숫자 원(.cd-num--on), 나머지 = 회색 작은 점. 점을 누르면 그 챕터로 바로 이동. 전체 9장 -->
+          <div class="cd-selector combo-v2-chapter-dots">
+            <div class="combo-v2-chapter-track">
+              <button class="combo-v2-chapter-slot" aria-label="1장"></button><button class="combo-v2-chapter-slot" aria-label="2장"></button><button class="combo-v2-chapter-slot" aria-label="3장"></button><button class="combo-v2-chapter-slot" aria-label="4장"></button><button class="combo-v2-chapter-slot" aria-label="5장"></button><button class="combo-v2-chapter-slot" aria-label="6장"></button><button class="combo-v2-chapter-slot" aria-label="7장"></button><button class="combo-v2-chapter-slot" aria-label="8장"></button><button class="combo-v2-chapter-slot" aria-label="9장"></button>
+              <span class="cd-num cd-num--on combo-v2-chapter-cur" data-n="1" style="--ch-accent: #3b93f2;">1</span>
+            </div>
+          </div>
+        </header>
+        <section class="cd-body" id="combo-v2-body">
+          <div class="combo-v2-list">
+
+            <!-- 챕터 카드(열림) — 카드는 흰색, 챕터 색(--ch-accent)은 재생 아이콘에만 -->
+            <div class="combo-v2-chapter combo-v2-chapter--split cd-card" style="--ch-accent: #3b93f2;">
+              <div class="combo-v2-chapter-main">
+                <div class="combo-v2-chapter-label">1장</div>
+                <div class="combo-v2-chapter-text">
+                  <div class="combo-v2-chapter-title">다이어토닉코드 이해하기</div>
+                  <div class="combo-v2-chapter-desc">key와 도수에 맞는 코드를 매칭해 외워요</div>
+                </div>
+              </div>
+              <button class="combo-v2-chapter-play" aria-label="미니강의 듣기"><i data-lucide="play"></i></button>
+            </div>
+
+            <!-- 레벨 카드 — 번호를 감싼 도넛(호 3개 = 클리어 3회, 채워진 호 = 완료 횟수). 목업: 1-1만 1회 완료 표시, 나머지는 0회 -->
+            <!-- 필수 구간 (1-1 ~ 1-6) -->
+            <div class="combo-v2-level cd-card" data-level="1-1" style="--ch-accent: #3b93f2;">
+              <div class="combo-v2-donut" role="img" aria-label="1/3"><svg viewBox="0 0 44 44" aria-hidden="true"><circle class="combo-v2-donut-arc is-on" cx="22" cy="22" r="19"></circle><circle class="combo-v2-donut-arc" cx="22" cy="22" r="19"></circle><circle class="combo-v2-donut-arc" cx="22" cy="22" r="19"></circle></svg><span class="combo-v2-donut-num">1-1</span></div>
+              <div class="combo-v2-level-title">C key 다이어토닉</div>            </div>
+            <div class="combo-v2-level cd-card" data-level="1-2" style="--ch-accent: #3b93f2;">
+              <div class="combo-v2-donut" role="img" aria-label="0/3"><svg viewBox="0 0 44 44" aria-hidden="true"><circle class="combo-v2-donut-arc" cx="22" cy="22" r="19"></circle><circle class="combo-v2-donut-arc" cx="22" cy="22" r="19"></circle><circle class="combo-v2-donut-arc" cx="22" cy="22" r="19"></circle></svg><span class="combo-v2-donut-num">1-2</span></div>
+              <div class="combo-v2-level-title">G key 다이어토닉</div>            </div>
+            <div class="combo-v2-level cd-card" data-level="1-3" style="--ch-accent: #3b93f2;">
+              <div class="combo-v2-donut" role="img" aria-label="0/3"><svg viewBox="0 0 44 44" aria-hidden="true"><circle class="combo-v2-donut-arc" cx="22" cy="22" r="19"></circle><circle class="combo-v2-donut-arc" cx="22" cy="22" r="19"></circle><circle class="combo-v2-donut-arc" cx="22" cy="22" r="19"></circle></svg><span class="combo-v2-donut-num">1-3</span></div>
+              <div class="combo-v2-level-title">D key 다이어토닉</div>            </div>
+            <div class="combo-v2-level cd-card" data-level="1-4" style="--ch-accent: #3b93f2;">
+              <div class="combo-v2-donut" role="img" aria-label="0/3"><svg viewBox="0 0 44 44" aria-hidden="true"><circle class="combo-v2-donut-arc" cx="22" cy="22" r="19"></circle><circle class="combo-v2-donut-arc" cx="22" cy="22" r="19"></circle><circle class="combo-v2-donut-arc" cx="22" cy="22" r="19"></circle></svg><span class="combo-v2-donut-num">1-4</span></div>
+              <div class="combo-v2-level-title">A key 다이어토닉</div>            </div>
+            <div class="combo-v2-level cd-card" data-level="1-5" style="--ch-accent: #3b93f2;">
+              <div class="combo-v2-donut" role="img" aria-label="0/3"><svg viewBox="0 0 44 44" aria-hidden="true"><circle class="combo-v2-donut-arc" cx="22" cy="22" r="19"></circle><circle class="combo-v2-donut-arc" cx="22" cy="22" r="19"></circle><circle class="combo-v2-donut-arc" cx="22" cy="22" r="19"></circle></svg><span class="combo-v2-donut-num">1-5</span></div>
+              <div class="combo-v2-level-title">E key 다이어토닉</div>            </div>
+            <div class="combo-v2-level cd-card" data-level="1-6" style="--ch-accent: #3b93f2;">
+              <div class="combo-v2-donut" role="img" aria-label="0/3"><svg viewBox="0 0 44 44" aria-hidden="true"><circle class="combo-v2-donut-arc" cx="22" cy="22" r="19"></circle><circle class="combo-v2-donut-arc" cx="22" cy="22" r="19"></circle><circle class="combo-v2-donut-arc" cx="22" cy="22" r="19"></circle></svg><span class="combo-v2-donut-num">1-6</span></div>
+              <div class="combo-v2-level-title">5key 다이어토닉 종합</div>            </div>
+
+            <!-- 선택 구간 (1-7 ~ 1-14) — 1-6 클리어 전까지 잠김 -->
+            <div class="combo-v2-section-label">1-6을 클리어한 후 도전해요</div>
+            <div class="combo-v2-level cd-card" data-level="1-7" style="--ch-accent: #3b93f2;">
+              <div class="combo-v2-donut" role="img" aria-label="0/3"><svg viewBox="0 0 44 44" aria-hidden="true"><circle class="combo-v2-donut-arc" cx="22" cy="22" r="19"></circle><circle class="combo-v2-donut-arc" cx="22" cy="22" r="19"></circle><circle class="combo-v2-donut-arc" cx="22" cy="22" r="19"></circle></svg><span class="combo-v2-donut-num">1-7</span></div>
+              <div class="combo-v2-level-title">F key 다이어토닉</div>
+            </div>
+            <div class="combo-v2-level cd-card" data-level="1-8" style="--ch-accent: #3b93f2;">
+              <div class="combo-v2-donut" role="img" aria-label="0/3"><svg viewBox="0 0 44 44" aria-hidden="true"><circle class="combo-v2-donut-arc" cx="22" cy="22" r="19"></circle><circle class="combo-v2-donut-arc" cx="22" cy="22" r="19"></circle><circle class="combo-v2-donut-arc" cx="22" cy="22" r="19"></circle></svg><span class="combo-v2-donut-num">1-8</span></div>
+              <div class="combo-v2-level-title">Bb key 다이어토닉</div>
+            </div>
+            <div class="combo-v2-level cd-card" data-level="1-9" style="--ch-accent: #3b93f2;">
+              <div class="combo-v2-donut" role="img" aria-label="0/3"><svg viewBox="0 0 44 44" aria-hidden="true"><circle class="combo-v2-donut-arc" cx="22" cy="22" r="19"></circle><circle class="combo-v2-donut-arc" cx="22" cy="22" r="19"></circle><circle class="combo-v2-donut-arc" cx="22" cy="22" r="19"></circle></svg><span class="combo-v2-donut-num">1-9</span></div>
+              <div class="combo-v2-level-title">B key 다이어토닉</div>
+            </div>
+            <div class="combo-v2-level cd-card" data-level="1-10" style="--ch-accent: #3b93f2;">
+              <div class="combo-v2-donut" role="img" aria-label="0/3"><svg viewBox="0 0 44 44" aria-hidden="true"><circle class="combo-v2-donut-arc" cx="22" cy="22" r="19"></circle><circle class="combo-v2-donut-arc" cx="22" cy="22" r="19"></circle><circle class="combo-v2-donut-arc" cx="22" cy="22" r="19"></circle></svg><span class="combo-v2-donut-num">1-10</span></div>
+              <div class="combo-v2-level-title">Db key 다이어토닉</div>
+            </div>
+            <div class="combo-v2-level cd-card" data-level="1-11" style="--ch-accent: #3b93f2;">
+              <div class="combo-v2-donut" role="img" aria-label="0/3"><svg viewBox="0 0 44 44" aria-hidden="true"><circle class="combo-v2-donut-arc" cx="22" cy="22" r="19"></circle><circle class="combo-v2-donut-arc" cx="22" cy="22" r="19"></circle><circle class="combo-v2-donut-arc" cx="22" cy="22" r="19"></circle></svg><span class="combo-v2-donut-num">1-11</span></div>
+              <div class="combo-v2-level-title">Eb key 다이어토닉</div>
+            </div>
+            <div class="combo-v2-level cd-card" data-level="1-12" style="--ch-accent: #3b93f2;">
+              <div class="combo-v2-donut" role="img" aria-label="0/3"><svg viewBox="0 0 44 44" aria-hidden="true"><circle class="combo-v2-donut-arc" cx="22" cy="22" r="19"></circle><circle class="combo-v2-donut-arc" cx="22" cy="22" r="19"></circle><circle class="combo-v2-donut-arc" cx="22" cy="22" r="19"></circle></svg><span class="combo-v2-donut-num">1-12</span></div>
+              <div class="combo-v2-level-title">Gb key 다이어토닉</div>
+            </div>
+            <div class="combo-v2-level cd-card" data-level="1-13" style="--ch-accent: #3b93f2;">
+              <div class="combo-v2-donut" role="img" aria-label="0/3"><svg viewBox="0 0 44 44" aria-hidden="true"><circle class="combo-v2-donut-arc" cx="22" cy="22" r="19"></circle><circle class="combo-v2-donut-arc" cx="22" cy="22" r="19"></circle><circle class="combo-v2-donut-arc" cx="22" cy="22" r="19"></circle></svg><span class="combo-v2-donut-num">1-13</span></div>
+              <div class="combo-v2-level-title">Ab key 다이어토닉</div>
+            </div>
+            <div class="combo-v2-level cd-card" data-level="1-14" style="--ch-accent: #3b93f2;">
+              <div class="combo-v2-donut" role="img" aria-label="0/3"><svg viewBox="0 0 44 44" aria-hidden="true"><circle class="combo-v2-donut-arc" cx="22" cy="22" r="19"></circle><circle class="combo-v2-donut-arc" cx="22" cy="22" r="19"></circle><circle class="combo-v2-donut-arc" cx="22" cy="22" r="19"></circle></svg><span class="combo-v2-donut-num">1-14</span></div>
+              <div class="combo-v2-level-title">코드진행 챌린지</div>
+            </div>
+
+            <!-- 챕터 카드(열림) — 2장. 제목·학습목표는 임시 문구 -->
+            <div class="combo-v2-chapter combo-v2-chapter--split cd-card" style="--ch-accent: #20b2c7;">
+              <div class="combo-v2-chapter-main">
+                <div class="combo-v2-chapter-label">2장</div>
+                <div class="combo-v2-chapter-text">
+                  <div class="combo-v2-chapter-title">코드의 기능 이해하기</div>
+                  <div class="combo-v2-chapter-desc">해결·예비·긴장으로 코드의 역할을 나눠봐요</div>
+                </div>
+              </div>
+              <button class="combo-v2-chapter-play" aria-label="미니강의 듣기"><i data-lucide="play"></i></button>
+            </div>
+
+            <!-- 2장 레벨 카드 — 필수 구간은 열림, 선택 구간은 잠김. 제목 중 2-8·2-16은 임시 -->
+            <!-- 필수 구간 (2-1 ~ 2-8) -->
+            <div class="combo-v2-level cd-card" data-level="2-1" style="--ch-accent: #20b2c7;">
+              <div class="combo-v2-donut" role="img" aria-label="0/3"><svg viewBox="0 0 44 44" aria-hidden="true"><circle class="combo-v2-donut-arc" cx="22" cy="22" r="19"></circle><circle class="combo-v2-donut-arc" cx="22" cy="22" r="19"></circle><circle class="combo-v2-donut-arc" cx="22" cy="22" r="19"></circle></svg><span class="combo-v2-donut-num">2-1</span></div>
+              <div class="combo-v2-level-title">C key 다이어토닉 7th 확장</div>            </div>
+            <div class="combo-v2-level cd-card" data-level="2-2" style="--ch-accent: #20b2c7;">
+              <div class="combo-v2-donut" role="img" aria-label="0/3"><svg viewBox="0 0 44 44" aria-hidden="true"><circle class="combo-v2-donut-arc" cx="22" cy="22" r="19"></circle><circle class="combo-v2-donut-arc" cx="22" cy="22" r="19"></circle><circle class="combo-v2-donut-arc" cx="22" cy="22" r="19"></circle></svg><span class="combo-v2-donut-num">2-2</span></div>
+              <div class="combo-v2-level-title">G key 다이어토닉 7th 확장</div>            </div>
+            <div class="combo-v2-level cd-card" data-level="2-3" style="--ch-accent: #20b2c7;">
+              <div class="combo-v2-donut" role="img" aria-label="0/3"><svg viewBox="0 0 44 44" aria-hidden="true"><circle class="combo-v2-donut-arc" cx="22" cy="22" r="19"></circle><circle class="combo-v2-donut-arc" cx="22" cy="22" r="19"></circle><circle class="combo-v2-donut-arc" cx="22" cy="22" r="19"></circle></svg><span class="combo-v2-donut-num">2-3</span></div>
+              <div class="combo-v2-level-title">C key 기능·대리코드</div>            </div>
+            <div class="combo-v2-level cd-card" data-level="2-4" style="--ch-accent: #20b2c7;">
+              <div class="combo-v2-donut" role="img" aria-label="0/3"><svg viewBox="0 0 44 44" aria-hidden="true"><circle class="combo-v2-donut-arc" cx="22" cy="22" r="19"></circle><circle class="combo-v2-donut-arc" cx="22" cy="22" r="19"></circle><circle class="combo-v2-donut-arc" cx="22" cy="22" r="19"></circle></svg><span class="combo-v2-donut-num">2-4</span></div>
+              <div class="combo-v2-level-title">G key 기능·대리코드</div>            </div>
+            <div class="combo-v2-level cd-card" data-level="2-5" style="--ch-accent: #20b2c7;">
+              <div class="combo-v2-donut" role="img" aria-label="0/3"><svg viewBox="0 0 44 44" aria-hidden="true"><circle class="combo-v2-donut-arc" cx="22" cy="22" r="19"></circle><circle class="combo-v2-donut-arc" cx="22" cy="22" r="19"></circle><circle class="combo-v2-donut-arc" cx="22" cy="22" r="19"></circle></svg><span class="combo-v2-donut-num">2-5</span></div>
+              <div class="combo-v2-level-title">D key 기능·대리코드</div>            </div>
+            <div class="combo-v2-level cd-card" data-level="2-6" style="--ch-accent: #20b2c7;">
+              <div class="combo-v2-donut" role="img" aria-label="0/3"><svg viewBox="0 0 44 44" aria-hidden="true"><circle class="combo-v2-donut-arc" cx="22" cy="22" r="19"></circle><circle class="combo-v2-donut-arc" cx="22" cy="22" r="19"></circle><circle class="combo-v2-donut-arc" cx="22" cy="22" r="19"></circle></svg><span class="combo-v2-donut-num">2-6</span></div>
+              <div class="combo-v2-level-title">A key 기능·대리코드</div>            </div>
+            <div class="combo-v2-level cd-card" data-level="2-7" style="--ch-accent: #20b2c7;">
+              <div class="combo-v2-donut" role="img" aria-label="0/3"><svg viewBox="0 0 44 44" aria-hidden="true"><circle class="combo-v2-donut-arc" cx="22" cy="22" r="19"></circle><circle class="combo-v2-donut-arc" cx="22" cy="22" r="19"></circle><circle class="combo-v2-donut-arc" cx="22" cy="22" r="19"></circle></svg><span class="combo-v2-donut-num">2-7</span></div>
+              <div class="combo-v2-level-title">E key 기능·대리코드</div>            </div>
+            <div class="combo-v2-level cd-card" data-level="2-8" style="--ch-accent: #20b2c7;">
+              <div class="combo-v2-donut" role="img" aria-label="0/3"><svg viewBox="0 0 44 44" aria-hidden="true"><circle class="combo-v2-donut-arc" cx="22" cy="22" r="19"></circle><circle class="combo-v2-donut-arc" cx="22" cy="22" r="19"></circle><circle class="combo-v2-donut-arc" cx="22" cy="22" r="19"></circle></svg><span class="combo-v2-donut-num">2-8</span></div>
+              <div class="combo-v2-level-title">기능·대리코드 종합</div>            </div>
+
+            <!-- 선택 구간 (2-9 ~ 2-16) — 2-8 클리어 전까지 잠김 -->
+            <div class="combo-v2-section-label">2-8을 클리어한 후 도전해요</div>
+            <div class="combo-v2-level combo-v2-level--locked cd-card" data-level="2-9">
+              <div class="combo-v2-donut" aria-hidden="true"><svg viewBox="0 0 44 44"><circle class="combo-v2-donut-arc" cx="22" cy="22" r="19"></circle><circle class="combo-v2-donut-arc" cx="22" cy="22" r="19"></circle><circle class="combo-v2-donut-arc" cx="22" cy="22" r="19"></circle></svg><span class="combo-v2-donut-num">2-9</span></div>
+              <div class="combo-v2-level-title">F key 기능·대리코드</div><i data-lucide="lock" class="combo-v2-lock-icon"></i>
+            </div>
+            <div class="combo-v2-level combo-v2-level--locked cd-card" data-level="2-10">
+              <div class="combo-v2-donut" aria-hidden="true"><svg viewBox="0 0 44 44"><circle class="combo-v2-donut-arc" cx="22" cy="22" r="19"></circle><circle class="combo-v2-donut-arc" cx="22" cy="22" r="19"></circle><circle class="combo-v2-donut-arc" cx="22" cy="22" r="19"></circle></svg><span class="combo-v2-donut-num">2-10</span></div>
+              <div class="combo-v2-level-title">Bb key 기능·대리코드</div><i data-lucide="lock" class="combo-v2-lock-icon"></i>
+            </div>
+            <div class="combo-v2-level combo-v2-level--locked cd-card" data-level="2-11">
+              <div class="combo-v2-donut" aria-hidden="true"><svg viewBox="0 0 44 44"><circle class="combo-v2-donut-arc" cx="22" cy="22" r="19"></circle><circle class="combo-v2-donut-arc" cx="22" cy="22" r="19"></circle><circle class="combo-v2-donut-arc" cx="22" cy="22" r="19"></circle></svg><span class="combo-v2-donut-num">2-11</span></div>
+              <div class="combo-v2-level-title">B key 기능·대리코드</div><i data-lucide="lock" class="combo-v2-lock-icon"></i>
+            </div>
+            <div class="combo-v2-level combo-v2-level--locked cd-card" data-level="2-12">
+              <div class="combo-v2-donut" aria-hidden="true"><svg viewBox="0 0 44 44"><circle class="combo-v2-donut-arc" cx="22" cy="22" r="19"></circle><circle class="combo-v2-donut-arc" cx="22" cy="22" r="19"></circle><circle class="combo-v2-donut-arc" cx="22" cy="22" r="19"></circle></svg><span class="combo-v2-donut-num">2-12</span></div>
+              <div class="combo-v2-level-title">Db key 기능·대리코드</div><i data-lucide="lock" class="combo-v2-lock-icon"></i>
+            </div>
+            <div class="combo-v2-level combo-v2-level--locked cd-card" data-level="2-13">
+              <div class="combo-v2-donut" aria-hidden="true"><svg viewBox="0 0 44 44"><circle class="combo-v2-donut-arc" cx="22" cy="22" r="19"></circle><circle class="combo-v2-donut-arc" cx="22" cy="22" r="19"></circle><circle class="combo-v2-donut-arc" cx="22" cy="22" r="19"></circle></svg><span class="combo-v2-donut-num">2-13</span></div>
+              <div class="combo-v2-level-title">Eb key 기능·대리코드</div><i data-lucide="lock" class="combo-v2-lock-icon"></i>
+            </div>
+            <div class="combo-v2-level combo-v2-level--locked cd-card" data-level="2-14">
+              <div class="combo-v2-donut" aria-hidden="true"><svg viewBox="0 0 44 44"><circle class="combo-v2-donut-arc" cx="22" cy="22" r="19"></circle><circle class="combo-v2-donut-arc" cx="22" cy="22" r="19"></circle><circle class="combo-v2-donut-arc" cx="22" cy="22" r="19"></circle></svg><span class="combo-v2-donut-num">2-14</span></div>
+              <div class="combo-v2-level-title">Gb key 기능·대리코드</div><i data-lucide="lock" class="combo-v2-lock-icon"></i>
+            </div>
+            <div class="combo-v2-level combo-v2-level--locked cd-card" data-level="2-15">
+              <div class="combo-v2-donut" aria-hidden="true"><svg viewBox="0 0 44 44"><circle class="combo-v2-donut-arc" cx="22" cy="22" r="19"></circle><circle class="combo-v2-donut-arc" cx="22" cy="22" r="19"></circle><circle class="combo-v2-donut-arc" cx="22" cy="22" r="19"></circle></svg><span class="combo-v2-donut-num">2-15</span></div>
+              <div class="combo-v2-level-title">Ab key 기능·대리코드</div><i data-lucide="lock" class="combo-v2-lock-icon"></i>
+            </div>
+            <div class="combo-v2-level combo-v2-level--locked cd-card" data-level="2-16">
+              <div class="combo-v2-donut" aria-hidden="true"><svg viewBox="0 0 44 44"><circle class="combo-v2-donut-arc" cx="22" cy="22" r="19"></circle><circle class="combo-v2-donut-arc" cx="22" cy="22" r="19"></circle><circle class="combo-v2-donut-arc" cx="22" cy="22" r="19"></circle></svg><span class="combo-v2-donut-num">2-16</span></div>
+              <div class="combo-v2-level-title">12key 챌린지</div><i data-lucide="lock" class="combo-v2-lock-icon"></i>
+            </div>
+
+            <!-- 챕터 카드(열림) — 3장. 제목·학습목표는 임시 문구 -->
+            <div class="combo-v2-chapter combo-v2-chapter--split cd-card" style="--ch-accent: #7b6cf0;">
+              <div class="combo-v2-chapter-main">
+                <div class="combo-v2-chapter-label">3장</div>
+                <div class="combo-v2-chapter-text">
+                  <div class="combo-v2-chapter-title">코드 꾸미기</div>
+                  <div class="combo-v2-chapter-desc">꾸밈코드와 전위코드로 코드를 꾸며봐요</div>
+                </div>
+              </div>
+              <button class="combo-v2-chapter-play" aria-label="미니강의 듣기"><i data-lucide="play"></i></button>
+            </div>
+
+            <!-- 3장 레벨 카드 — 필수 구간은 열림, 선택 구간은 잠김 -->
+            <!-- 필수 구간 (3-1 ~ 3-6) -->
+            <div class="combo-v2-level cd-card" data-level="3-1" style="--ch-accent: #7b6cf0;">
+              <div class="combo-v2-donut" role="img" aria-label="0/3"><svg viewBox="0 0 44 44" aria-hidden="true"><circle class="combo-v2-donut-arc" cx="22" cy="22" r="19"></circle><circle class="combo-v2-donut-arc" cx="22" cy="22" r="19"></circle><circle class="combo-v2-donut-arc" cx="22" cy="22" r="19"></circle></svg><span class="combo-v2-donut-num">3-1</span></div>
+              <div class="combo-v2-level-title">C key 코드 꾸미기</div>            </div>
+            <div class="combo-v2-level cd-card" data-level="3-2" style="--ch-accent: #7b6cf0;">
+              <div class="combo-v2-donut" role="img" aria-label="0/3"><svg viewBox="0 0 44 44" aria-hidden="true"><circle class="combo-v2-donut-arc" cx="22" cy="22" r="19"></circle><circle class="combo-v2-donut-arc" cx="22" cy="22" r="19"></circle><circle class="combo-v2-donut-arc" cx="22" cy="22" r="19"></circle></svg><span class="combo-v2-donut-num">3-2</span></div>
+              <div class="combo-v2-level-title">G key 코드 꾸미기</div>            </div>
+            <div class="combo-v2-level cd-card" data-level="3-3" style="--ch-accent: #7b6cf0;">
+              <div class="combo-v2-donut" role="img" aria-label="0/3"><svg viewBox="0 0 44 44" aria-hidden="true"><circle class="combo-v2-donut-arc" cx="22" cy="22" r="19"></circle><circle class="combo-v2-donut-arc" cx="22" cy="22" r="19"></circle><circle class="combo-v2-donut-arc" cx="22" cy="22" r="19"></circle></svg><span class="combo-v2-donut-num">3-3</span></div>
+              <div class="combo-v2-level-title">D key 코드 꾸미기</div>            </div>
+            <div class="combo-v2-level cd-card" data-level="3-4" style="--ch-accent: #7b6cf0;">
+              <div class="combo-v2-donut" role="img" aria-label="0/3"><svg viewBox="0 0 44 44" aria-hidden="true"><circle class="combo-v2-donut-arc" cx="22" cy="22" r="19"></circle><circle class="combo-v2-donut-arc" cx="22" cy="22" r="19"></circle><circle class="combo-v2-donut-arc" cx="22" cy="22" r="19"></circle></svg><span class="combo-v2-donut-num">3-4</span></div>
+              <div class="combo-v2-level-title">A key 코드 꾸미기</div>            </div>
+            <div class="combo-v2-level cd-card" data-level="3-5" style="--ch-accent: #7b6cf0;">
+              <div class="combo-v2-donut" role="img" aria-label="0/3"><svg viewBox="0 0 44 44" aria-hidden="true"><circle class="combo-v2-donut-arc" cx="22" cy="22" r="19"></circle><circle class="combo-v2-donut-arc" cx="22" cy="22" r="19"></circle><circle class="combo-v2-donut-arc" cx="22" cy="22" r="19"></circle></svg><span class="combo-v2-donut-num">3-5</span></div>
+              <div class="combo-v2-level-title">E key 코드 꾸미기</div>            </div>
+            <div class="combo-v2-level cd-card" data-level="3-6" style="--ch-accent: #7b6cf0;">
+              <div class="combo-v2-donut" role="img" aria-label="0/3"><svg viewBox="0 0 44 44" aria-hidden="true"><circle class="combo-v2-donut-arc" cx="22" cy="22" r="19"></circle><circle class="combo-v2-donut-arc" cx="22" cy="22" r="19"></circle><circle class="combo-v2-donut-arc" cx="22" cy="22" r="19"></circle></svg><span class="combo-v2-donut-num">3-6</span></div>
+              <div class="combo-v2-level-title">5key 코드 꾸미기 종합</div>            </div>
+
+            <!-- 선택 구간 (3-7 ~ 3-14) — 3-6 클리어 전까지 잠김 -->
+            <div class="combo-v2-section-label">3-6을 클리어한 후 도전해요</div>
+            <div class="combo-v2-level combo-v2-level--locked cd-card" data-level="3-7">
+              <div class="combo-v2-donut" aria-hidden="true"><svg viewBox="0 0 44 44"><circle class="combo-v2-donut-arc" cx="22" cy="22" r="19"></circle><circle class="combo-v2-donut-arc" cx="22" cy="22" r="19"></circle><circle class="combo-v2-donut-arc" cx="22" cy="22" r="19"></circle></svg><span class="combo-v2-donut-num">3-7</span></div>
+              <div class="combo-v2-level-title">F key 코드 꾸미기</div><i data-lucide="lock" class="combo-v2-lock-icon"></i>
+            </div>
+            <div class="combo-v2-level combo-v2-level--locked cd-card" data-level="3-8">
+              <div class="combo-v2-donut" aria-hidden="true"><svg viewBox="0 0 44 44"><circle class="combo-v2-donut-arc" cx="22" cy="22" r="19"></circle><circle class="combo-v2-donut-arc" cx="22" cy="22" r="19"></circle><circle class="combo-v2-donut-arc" cx="22" cy="22" r="19"></circle></svg><span class="combo-v2-donut-num">3-8</span></div>
+              <div class="combo-v2-level-title">Bb key 코드 꾸미기</div><i data-lucide="lock" class="combo-v2-lock-icon"></i>
+            </div>
+            <div class="combo-v2-level combo-v2-level--locked cd-card" data-level="3-9">
+              <div class="combo-v2-donut" aria-hidden="true"><svg viewBox="0 0 44 44"><circle class="combo-v2-donut-arc" cx="22" cy="22" r="19"></circle><circle class="combo-v2-donut-arc" cx="22" cy="22" r="19"></circle><circle class="combo-v2-donut-arc" cx="22" cy="22" r="19"></circle></svg><span class="combo-v2-donut-num">3-9</span></div>
+              <div class="combo-v2-level-title">B key 코드 꾸미기</div><i data-lucide="lock" class="combo-v2-lock-icon"></i>
+            </div>
+            <div class="combo-v2-level combo-v2-level--locked cd-card" data-level="3-10">
+              <div class="combo-v2-donut" aria-hidden="true"><svg viewBox="0 0 44 44"><circle class="combo-v2-donut-arc" cx="22" cy="22" r="19"></circle><circle class="combo-v2-donut-arc" cx="22" cy="22" r="19"></circle><circle class="combo-v2-donut-arc" cx="22" cy="22" r="19"></circle></svg><span class="combo-v2-donut-num">3-10</span></div>
+              <div class="combo-v2-level-title">Db key 코드 꾸미기</div><i data-lucide="lock" class="combo-v2-lock-icon"></i>
+            </div>
+            <div class="combo-v2-level combo-v2-level--locked cd-card" data-level="3-11">
+              <div class="combo-v2-donut" aria-hidden="true"><svg viewBox="0 0 44 44"><circle class="combo-v2-donut-arc" cx="22" cy="22" r="19"></circle><circle class="combo-v2-donut-arc" cx="22" cy="22" r="19"></circle><circle class="combo-v2-donut-arc" cx="22" cy="22" r="19"></circle></svg><span class="combo-v2-donut-num">3-11</span></div>
+              <div class="combo-v2-level-title">Eb key 코드 꾸미기</div><i data-lucide="lock" class="combo-v2-lock-icon"></i>
+            </div>
+            <div class="combo-v2-level combo-v2-level--locked cd-card" data-level="3-12">
+              <div class="combo-v2-donut" aria-hidden="true"><svg viewBox="0 0 44 44"><circle class="combo-v2-donut-arc" cx="22" cy="22" r="19"></circle><circle class="combo-v2-donut-arc" cx="22" cy="22" r="19"></circle><circle class="combo-v2-donut-arc" cx="22" cy="22" r="19"></circle></svg><span class="combo-v2-donut-num">3-12</span></div>
+              <div class="combo-v2-level-title">Gb key 코드 꾸미기</div><i data-lucide="lock" class="combo-v2-lock-icon"></i>
+            </div>
+            <div class="combo-v2-level combo-v2-level--locked cd-card" data-level="3-13">
+              <div class="combo-v2-donut" aria-hidden="true"><svg viewBox="0 0 44 44"><circle class="combo-v2-donut-arc" cx="22" cy="22" r="19"></circle><circle class="combo-v2-donut-arc" cx="22" cy="22" r="19"></circle><circle class="combo-v2-donut-arc" cx="22" cy="22" r="19"></circle></svg><span class="combo-v2-donut-num">3-13</span></div>
+              <div class="combo-v2-level-title">Ab key 코드 꾸미기</div><i data-lucide="lock" class="combo-v2-lock-icon"></i>
+            </div>
+            <div class="combo-v2-level combo-v2-level--locked cd-card" data-level="3-14">
+              <div class="combo-v2-donut" aria-hidden="true"><svg viewBox="0 0 44 44"><circle class="combo-v2-donut-arc" cx="22" cy="22" r="19"></circle><circle class="combo-v2-donut-arc" cx="22" cy="22" r="19"></circle><circle class="combo-v2-donut-arc" cx="22" cy="22" r="19"></circle></svg><span class="combo-v2-donut-num">3-14</span></div>
+              <div class="combo-v2-level-title">12key 코드 꾸미기 챌린지</div><i data-lucide="lock" class="combo-v2-lock-icon"></i>
+            </div>
+
+            <!-- 챕터 카드(열림) — 4장. 제목·학습목표는 임시 문구 -->
+            <div class="combo-v2-chapter combo-v2-chapter--split cd-card" style="--ch-accent: #c35ad8;">
+              <div class="combo-v2-chapter-main">
+                <div class="combo-v2-chapter-label">4장</div>
+                <div class="combo-v2-chapter-text">
+                  <div class="combo-v2-chapter-title">세컨더리 도미넌트</div>
+                  <div class="combo-v2-chapter-desc">코드를 향해 이끄는 5도 위 도미넌트를 찾아봐요</div>
+                </div>
+              </div>
+              <button class="combo-v2-chapter-play" aria-label="미니강의 듣기"><i data-lucide="play"></i></button>
+            </div>
+
+            <!-- 4장 레벨 카드 — 필수 구간은 열림, 선택 구간은 잠김 -->
+            <!-- 필수 구간 (4-1 ~ 4-6) -->
+            <div class="combo-v2-level cd-card" data-level="4-1" style="--ch-accent: #c35ad8;">
+              <div class="combo-v2-donut" role="img" aria-label="0/3"><svg viewBox="0 0 44 44" aria-hidden="true"><circle class="combo-v2-donut-arc" cx="22" cy="22" r="19"></circle><circle class="combo-v2-donut-arc" cx="22" cy="22" r="19"></circle><circle class="combo-v2-donut-arc" cx="22" cy="22" r="19"></circle></svg><span class="combo-v2-donut-num">4-1</span></div>
+              <div class="combo-v2-level-title">C key 세컨더리 도미넌트</div>            </div>
+            <div class="combo-v2-level cd-card" data-level="4-2" style="--ch-accent: #c35ad8;">
+              <div class="combo-v2-donut" role="img" aria-label="0/3"><svg viewBox="0 0 44 44" aria-hidden="true"><circle class="combo-v2-donut-arc" cx="22" cy="22" r="19"></circle><circle class="combo-v2-donut-arc" cx="22" cy="22" r="19"></circle><circle class="combo-v2-donut-arc" cx="22" cy="22" r="19"></circle></svg><span class="combo-v2-donut-num">4-2</span></div>
+              <div class="combo-v2-level-title">G key 세컨더리 도미넌트</div>            </div>
+            <div class="combo-v2-level cd-card" data-level="4-3" style="--ch-accent: #c35ad8;">
+              <div class="combo-v2-donut" role="img" aria-label="0/3"><svg viewBox="0 0 44 44" aria-hidden="true"><circle class="combo-v2-donut-arc" cx="22" cy="22" r="19"></circle><circle class="combo-v2-donut-arc" cx="22" cy="22" r="19"></circle><circle class="combo-v2-donut-arc" cx="22" cy="22" r="19"></circle></svg><span class="combo-v2-donut-num">4-3</span></div>
+              <div class="combo-v2-level-title">D key 세컨더리 도미넌트</div>            </div>
+            <div class="combo-v2-level cd-card" data-level="4-4" style="--ch-accent: #c35ad8;">
+              <div class="combo-v2-donut" role="img" aria-label="0/3"><svg viewBox="0 0 44 44" aria-hidden="true"><circle class="combo-v2-donut-arc" cx="22" cy="22" r="19"></circle><circle class="combo-v2-donut-arc" cx="22" cy="22" r="19"></circle><circle class="combo-v2-donut-arc" cx="22" cy="22" r="19"></circle></svg><span class="combo-v2-donut-num">4-4</span></div>
+              <div class="combo-v2-level-title">A key 세컨더리 도미넌트</div>            </div>
+            <div class="combo-v2-level cd-card" data-level="4-5" style="--ch-accent: #c35ad8;">
+              <div class="combo-v2-donut" role="img" aria-label="0/3"><svg viewBox="0 0 44 44" aria-hidden="true"><circle class="combo-v2-donut-arc" cx="22" cy="22" r="19"></circle><circle class="combo-v2-donut-arc" cx="22" cy="22" r="19"></circle><circle class="combo-v2-donut-arc" cx="22" cy="22" r="19"></circle></svg><span class="combo-v2-donut-num">4-5</span></div>
+              <div class="combo-v2-level-title">E key 세컨더리 도미넌트</div>            </div>
+            <div class="combo-v2-level cd-card" data-level="4-6" style="--ch-accent: #c35ad8;">
+              <div class="combo-v2-donut" role="img" aria-label="0/3"><svg viewBox="0 0 44 44" aria-hidden="true"><circle class="combo-v2-donut-arc" cx="22" cy="22" r="19"></circle><circle class="combo-v2-donut-arc" cx="22" cy="22" r="19"></circle><circle class="combo-v2-donut-arc" cx="22" cy="22" r="19"></circle></svg><span class="combo-v2-donut-num">4-6</span></div>
+              <div class="combo-v2-level-title">세컨더리 도미넌트 종합</div>            </div>
+
+            <!-- 선택 구간 (4-7 ~ 4-14) — 4-6 클리어 전까지 잠김 -->
+            <div class="combo-v2-section-label">4-6을 클리어한 후 도전해요</div>
+            <div class="combo-v2-level combo-v2-level--locked cd-card" data-level="4-7">
+              <div class="combo-v2-donut" aria-hidden="true"><svg viewBox="0 0 44 44"><circle class="combo-v2-donut-arc" cx="22" cy="22" r="19"></circle><circle class="combo-v2-donut-arc" cx="22" cy="22" r="19"></circle><circle class="combo-v2-donut-arc" cx="22" cy="22" r="19"></circle></svg><span class="combo-v2-donut-num">4-7</span></div>
+              <div class="combo-v2-level-title">F key 세컨더리 도미넌트</div><i data-lucide="lock" class="combo-v2-lock-icon"></i>
+            </div>
+            <div class="combo-v2-level combo-v2-level--locked cd-card" data-level="4-8">
+              <div class="combo-v2-donut" aria-hidden="true"><svg viewBox="0 0 44 44"><circle class="combo-v2-donut-arc" cx="22" cy="22" r="19"></circle><circle class="combo-v2-donut-arc" cx="22" cy="22" r="19"></circle><circle class="combo-v2-donut-arc" cx="22" cy="22" r="19"></circle></svg><span class="combo-v2-donut-num">4-8</span></div>
+              <div class="combo-v2-level-title">Bb key 세컨더리 도미넌트</div><i data-lucide="lock" class="combo-v2-lock-icon"></i>
+            </div>
+            <div class="combo-v2-level combo-v2-level--locked cd-card" data-level="4-9">
+              <div class="combo-v2-donut" aria-hidden="true"><svg viewBox="0 0 44 44"><circle class="combo-v2-donut-arc" cx="22" cy="22" r="19"></circle><circle class="combo-v2-donut-arc" cx="22" cy="22" r="19"></circle><circle class="combo-v2-donut-arc" cx="22" cy="22" r="19"></circle></svg><span class="combo-v2-donut-num">4-9</span></div>
+              <div class="combo-v2-level-title">B key 세컨더리 도미넌트</div><i data-lucide="lock" class="combo-v2-lock-icon"></i>
+            </div>
+            <div class="combo-v2-level combo-v2-level--locked cd-card" data-level="4-10">
+              <div class="combo-v2-donut" aria-hidden="true"><svg viewBox="0 0 44 44"><circle class="combo-v2-donut-arc" cx="22" cy="22" r="19"></circle><circle class="combo-v2-donut-arc" cx="22" cy="22" r="19"></circle><circle class="combo-v2-donut-arc" cx="22" cy="22" r="19"></circle></svg><span class="combo-v2-donut-num">4-10</span></div>
+              <div class="combo-v2-level-title">Db key 세컨더리 도미넌트</div><i data-lucide="lock" class="combo-v2-lock-icon"></i>
+            </div>
+            <div class="combo-v2-level combo-v2-level--locked cd-card" data-level="4-11">
+              <div class="combo-v2-donut" aria-hidden="true"><svg viewBox="0 0 44 44"><circle class="combo-v2-donut-arc" cx="22" cy="22" r="19"></circle><circle class="combo-v2-donut-arc" cx="22" cy="22" r="19"></circle><circle class="combo-v2-donut-arc" cx="22" cy="22" r="19"></circle></svg><span class="combo-v2-donut-num">4-11</span></div>
+              <div class="combo-v2-level-title">Eb key 세컨더리 도미넌트</div><i data-lucide="lock" class="combo-v2-lock-icon"></i>
+            </div>
+            <div class="combo-v2-level combo-v2-level--locked cd-card" data-level="4-12">
+              <div class="combo-v2-donut" aria-hidden="true"><svg viewBox="0 0 44 44"><circle class="combo-v2-donut-arc" cx="22" cy="22" r="19"></circle><circle class="combo-v2-donut-arc" cx="22" cy="22" r="19"></circle><circle class="combo-v2-donut-arc" cx="22" cy="22" r="19"></circle></svg><span class="combo-v2-donut-num">4-12</span></div>
+              <div class="combo-v2-level-title">Gb key 세컨더리 도미넌트</div><i data-lucide="lock" class="combo-v2-lock-icon"></i>
+            </div>
+            <div class="combo-v2-level combo-v2-level--locked cd-card" data-level="4-13">
+              <div class="combo-v2-donut" aria-hidden="true"><svg viewBox="0 0 44 44"><circle class="combo-v2-donut-arc" cx="22" cy="22" r="19"></circle><circle class="combo-v2-donut-arc" cx="22" cy="22" r="19"></circle><circle class="combo-v2-donut-arc" cx="22" cy="22" r="19"></circle></svg><span class="combo-v2-donut-num">4-13</span></div>
+              <div class="combo-v2-level-title">Ab key 세컨더리 도미넌트</div><i data-lucide="lock" class="combo-v2-lock-icon"></i>
+            </div>
+            <div class="combo-v2-level combo-v2-level--locked cd-card" data-level="4-14">
+              <div class="combo-v2-donut" aria-hidden="true"><svg viewBox="0 0 44 44"><circle class="combo-v2-donut-arc" cx="22" cy="22" r="19"></circle><circle class="combo-v2-donut-arc" cx="22" cy="22" r="19"></circle><circle class="combo-v2-donut-arc" cx="22" cy="22" r="19"></circle></svg><span class="combo-v2-donut-num">4-14</span></div>
+              <div class="combo-v2-level-title">12key 세컨더리 도미넌트 챌린지</div><i data-lucide="lock" class="combo-v2-lock-icon"></i>
+            </div>
+
+            <!-- 챕터 카드(열림) — 5장. 제목·학습목표는 임시 문구 -->
+            <div class="combo-v2-chapter combo-v2-chapter--split cd-card" style="--ch-accent: #ec5f94;">
+              <div class="combo-v2-chapter-main">
+                <div class="combo-v2-chapter-label">5장</div>
+                <div class="combo-v2-chapter-text">
+                  <div class="combo-v2-chapter-title">릴레이티드 투-마이너</div>
+                  <div class="combo-v2-chapter-desc">타겟을 1도로 하는 2-5-1 진행을 찾아봐요</div>
+                </div>
+              </div>
+              <button class="combo-v2-chapter-play" aria-label="미니강의 듣기"><i data-lucide="play"></i></button>
+            </div>
+
+            <!-- 5장 레벨 카드 — 필수 구간은 열림, 선택 구간은 잠김 -->
+            <!-- 필수 구간 (5-1 ~ 5-6) -->
+            <div class="combo-v2-level cd-card" data-level="5-1" style="--ch-accent: #ec5f94;">
+              <div class="combo-v2-donut" role="img" aria-label="0/3"><svg viewBox="0 0 44 44" aria-hidden="true"><circle class="combo-v2-donut-arc" cx="22" cy="22" r="19"></circle><circle class="combo-v2-donut-arc" cx="22" cy="22" r="19"></circle><circle class="combo-v2-donut-arc" cx="22" cy="22" r="19"></circle></svg><span class="combo-v2-donut-num">5-1</span></div>
+              <div class="combo-v2-level-title">C key 릴레이티드 투-마이너</div>            </div>
+            <div class="combo-v2-level cd-card" data-level="5-2" style="--ch-accent: #ec5f94;">
+              <div class="combo-v2-donut" role="img" aria-label="0/3"><svg viewBox="0 0 44 44" aria-hidden="true"><circle class="combo-v2-donut-arc" cx="22" cy="22" r="19"></circle><circle class="combo-v2-donut-arc" cx="22" cy="22" r="19"></circle><circle class="combo-v2-donut-arc" cx="22" cy="22" r="19"></circle></svg><span class="combo-v2-donut-num">5-2</span></div>
+              <div class="combo-v2-level-title">G key 릴레이티드 투-마이너</div>            </div>
+            <div class="combo-v2-level cd-card" data-level="5-3" style="--ch-accent: #ec5f94;">
+              <div class="combo-v2-donut" role="img" aria-label="0/3"><svg viewBox="0 0 44 44" aria-hidden="true"><circle class="combo-v2-donut-arc" cx="22" cy="22" r="19"></circle><circle class="combo-v2-donut-arc" cx="22" cy="22" r="19"></circle><circle class="combo-v2-donut-arc" cx="22" cy="22" r="19"></circle></svg><span class="combo-v2-donut-num">5-3</span></div>
+              <div class="combo-v2-level-title">D key 릴레이티드 투-마이너</div>            </div>
+            <div class="combo-v2-level cd-card" data-level="5-4" style="--ch-accent: #ec5f94;">
+              <div class="combo-v2-donut" role="img" aria-label="0/3"><svg viewBox="0 0 44 44" aria-hidden="true"><circle class="combo-v2-donut-arc" cx="22" cy="22" r="19"></circle><circle class="combo-v2-donut-arc" cx="22" cy="22" r="19"></circle><circle class="combo-v2-donut-arc" cx="22" cy="22" r="19"></circle></svg><span class="combo-v2-donut-num">5-4</span></div>
+              <div class="combo-v2-level-title">A key 릴레이티드 투-마이너</div>            </div>
+            <div class="combo-v2-level cd-card" data-level="5-5" style="--ch-accent: #ec5f94;">
+              <div class="combo-v2-donut" role="img" aria-label="0/3"><svg viewBox="0 0 44 44" aria-hidden="true"><circle class="combo-v2-donut-arc" cx="22" cy="22" r="19"></circle><circle class="combo-v2-donut-arc" cx="22" cy="22" r="19"></circle><circle class="combo-v2-donut-arc" cx="22" cy="22" r="19"></circle></svg><span class="combo-v2-donut-num">5-5</span></div>
+              <div class="combo-v2-level-title">E key 릴레이티드 투-마이너</div>            </div>
+            <div class="combo-v2-level cd-card" data-level="5-6" style="--ch-accent: #ec5f94;">
+              <div class="combo-v2-donut" role="img" aria-label="0/3"><svg viewBox="0 0 44 44" aria-hidden="true"><circle class="combo-v2-donut-arc" cx="22" cy="22" r="19"></circle><circle class="combo-v2-donut-arc" cx="22" cy="22" r="19"></circle><circle class="combo-v2-donut-arc" cx="22" cy="22" r="19"></circle></svg><span class="combo-v2-donut-num">5-6</span></div>
+              <div class="combo-v2-level-title">릴레이티드 투-마이너 종합</div>            </div>
+
+            <!-- 선택 구간 (5-7 ~ 5-14) — 5-6 클리어 전까지 잠김 -->
+            <div class="combo-v2-section-label">5-6을 클리어한 후 도전해요</div>
+            <div class="combo-v2-level combo-v2-level--locked cd-card" data-level="5-7">
+              <div class="combo-v2-donut" aria-hidden="true"><svg viewBox="0 0 44 44"><circle class="combo-v2-donut-arc" cx="22" cy="22" r="19"></circle><circle class="combo-v2-donut-arc" cx="22" cy="22" r="19"></circle><circle class="combo-v2-donut-arc" cx="22" cy="22" r="19"></circle></svg><span class="combo-v2-donut-num">5-7</span></div>
+              <div class="combo-v2-level-title">F key 릴레이티드 투-마이너</div><i data-lucide="lock" class="combo-v2-lock-icon"></i>
+            </div>
+            <div class="combo-v2-level combo-v2-level--locked cd-card" data-level="5-8">
+              <div class="combo-v2-donut" aria-hidden="true"><svg viewBox="0 0 44 44"><circle class="combo-v2-donut-arc" cx="22" cy="22" r="19"></circle><circle class="combo-v2-donut-arc" cx="22" cy="22" r="19"></circle><circle class="combo-v2-donut-arc" cx="22" cy="22" r="19"></circle></svg><span class="combo-v2-donut-num">5-8</span></div>
+              <div class="combo-v2-level-title">Bb key 릴레이티드 투-마이너</div><i data-lucide="lock" class="combo-v2-lock-icon"></i>
+            </div>
+            <div class="combo-v2-level combo-v2-level--locked cd-card" data-level="5-9">
+              <div class="combo-v2-donut" aria-hidden="true"><svg viewBox="0 0 44 44"><circle class="combo-v2-donut-arc" cx="22" cy="22" r="19"></circle><circle class="combo-v2-donut-arc" cx="22" cy="22" r="19"></circle><circle class="combo-v2-donut-arc" cx="22" cy="22" r="19"></circle></svg><span class="combo-v2-donut-num">5-9</span></div>
+              <div class="combo-v2-level-title">B key 릴레이티드 투-마이너</div><i data-lucide="lock" class="combo-v2-lock-icon"></i>
+            </div>
+            <div class="combo-v2-level combo-v2-level--locked cd-card" data-level="5-10">
+              <div class="combo-v2-donut" aria-hidden="true"><svg viewBox="0 0 44 44"><circle class="combo-v2-donut-arc" cx="22" cy="22" r="19"></circle><circle class="combo-v2-donut-arc" cx="22" cy="22" r="19"></circle><circle class="combo-v2-donut-arc" cx="22" cy="22" r="19"></circle></svg><span class="combo-v2-donut-num">5-10</span></div>
+              <div class="combo-v2-level-title">Db key 릴레이티드 투-마이너</div><i data-lucide="lock" class="combo-v2-lock-icon"></i>
+            </div>
+            <div class="combo-v2-level combo-v2-level--locked cd-card" data-level="5-11">
+              <div class="combo-v2-donut" aria-hidden="true"><svg viewBox="0 0 44 44"><circle class="combo-v2-donut-arc" cx="22" cy="22" r="19"></circle><circle class="combo-v2-donut-arc" cx="22" cy="22" r="19"></circle><circle class="combo-v2-donut-arc" cx="22" cy="22" r="19"></circle></svg><span class="combo-v2-donut-num">5-11</span></div>
+              <div class="combo-v2-level-title">Eb key 릴레이티드 투-마이너</div><i data-lucide="lock" class="combo-v2-lock-icon"></i>
+            </div>
+            <div class="combo-v2-level combo-v2-level--locked cd-card" data-level="5-12">
+              <div class="combo-v2-donut" aria-hidden="true"><svg viewBox="0 0 44 44"><circle class="combo-v2-donut-arc" cx="22" cy="22" r="19"></circle><circle class="combo-v2-donut-arc" cx="22" cy="22" r="19"></circle><circle class="combo-v2-donut-arc" cx="22" cy="22" r="19"></circle></svg><span class="combo-v2-donut-num">5-12</span></div>
+              <div class="combo-v2-level-title">Gb key 릴레이티드 투-마이너</div><i data-lucide="lock" class="combo-v2-lock-icon"></i>
+            </div>
+            <div class="combo-v2-level combo-v2-level--locked cd-card" data-level="5-13">
+              <div class="combo-v2-donut" aria-hidden="true"><svg viewBox="0 0 44 44"><circle class="combo-v2-donut-arc" cx="22" cy="22" r="19"></circle><circle class="combo-v2-donut-arc" cx="22" cy="22" r="19"></circle><circle class="combo-v2-donut-arc" cx="22" cy="22" r="19"></circle></svg><span class="combo-v2-donut-num">5-13</span></div>
+              <div class="combo-v2-level-title">Ab key 릴레이티드 투-마이너</div><i data-lucide="lock" class="combo-v2-lock-icon"></i>
+            </div>
+            <div class="combo-v2-level combo-v2-level--locked cd-card" data-level="5-14">
+              <div class="combo-v2-donut" aria-hidden="true"><svg viewBox="0 0 44 44"><circle class="combo-v2-donut-arc" cx="22" cy="22" r="19"></circle><circle class="combo-v2-donut-arc" cx="22" cy="22" r="19"></circle><circle class="combo-v2-donut-arc" cx="22" cy="22" r="19"></circle></svg><span class="combo-v2-donut-num">5-14</span></div>
+              <div class="combo-v2-level-title">12key 릴레이티드 투-마이너 챌린지</div><i data-lucide="lock" class="combo-v2-lock-icon"></i>
+            </div>
+
+            <!-- 챕터 카드(열림) — 6장. 제목·학습목표는 임시 문구 -->
+            <div class="combo-v2-chapter combo-v2-chapter--split cd-card" style="--ch-accent: #f07a3a;">
+              <div class="combo-v2-chapter-main">
+                <div class="combo-v2-chapter-label">6장</div>
+                <div class="combo-v2-chapter-text">
+                  <div class="combo-v2-chapter-title">도미넌트의 대리코드</div>
+                  <div class="combo-v2-chapter-desc">도미넌트를 대신하는 코드의 원리를 알아봐요</div>
+                </div>
+              </div>
+              <button class="combo-v2-chapter-play" aria-label="미니강의 듣기"><i data-lucide="play"></i></button>
+            </div>
+
+            <!-- 6장 레벨 카드 — 필수 구간은 열림, 선택 구간은 잠김 -->
+            <!-- 필수 구간 (6-1 ~ 6-6) -->
+            <div class="combo-v2-level cd-card" data-level="6-1" style="--ch-accent: #f07a3a;">
+              <div class="combo-v2-donut" role="img" aria-label="0/3"><svg viewBox="0 0 44 44" aria-hidden="true"><circle class="combo-v2-donut-arc" cx="22" cy="22" r="19"></circle><circle class="combo-v2-donut-arc" cx="22" cy="22" r="19"></circle><circle class="combo-v2-donut-arc" cx="22" cy="22" r="19"></circle></svg><span class="combo-v2-donut-num">6-1</span></div>
+              <div class="combo-v2-level-title">C key 도미넌트의 대리코드</div>            </div>
+            <div class="combo-v2-level cd-card" data-level="6-2" style="--ch-accent: #f07a3a;">
+              <div class="combo-v2-donut" role="img" aria-label="0/3"><svg viewBox="0 0 44 44" aria-hidden="true"><circle class="combo-v2-donut-arc" cx="22" cy="22" r="19"></circle><circle class="combo-v2-donut-arc" cx="22" cy="22" r="19"></circle><circle class="combo-v2-donut-arc" cx="22" cy="22" r="19"></circle></svg><span class="combo-v2-donut-num">6-2</span></div>
+              <div class="combo-v2-level-title">G key 도미넌트의 대리코드</div>            </div>
+            <div class="combo-v2-level cd-card" data-level="6-3" style="--ch-accent: #f07a3a;">
+              <div class="combo-v2-donut" role="img" aria-label="0/3"><svg viewBox="0 0 44 44" aria-hidden="true"><circle class="combo-v2-donut-arc" cx="22" cy="22" r="19"></circle><circle class="combo-v2-donut-arc" cx="22" cy="22" r="19"></circle><circle class="combo-v2-donut-arc" cx="22" cy="22" r="19"></circle></svg><span class="combo-v2-donut-num">6-3</span></div>
+              <div class="combo-v2-level-title">D key 도미넌트의 대리코드</div>            </div>
+            <div class="combo-v2-level cd-card" data-level="6-4" style="--ch-accent: #f07a3a;">
+              <div class="combo-v2-donut" role="img" aria-label="0/3"><svg viewBox="0 0 44 44" aria-hidden="true"><circle class="combo-v2-donut-arc" cx="22" cy="22" r="19"></circle><circle class="combo-v2-donut-arc" cx="22" cy="22" r="19"></circle><circle class="combo-v2-donut-arc" cx="22" cy="22" r="19"></circle></svg><span class="combo-v2-donut-num">6-4</span></div>
+              <div class="combo-v2-level-title">A key 도미넌트의 대리코드</div>            </div>
+            <div class="combo-v2-level cd-card" data-level="6-5" style="--ch-accent: #f07a3a;">
+              <div class="combo-v2-donut" role="img" aria-label="0/3"><svg viewBox="0 0 44 44" aria-hidden="true"><circle class="combo-v2-donut-arc" cx="22" cy="22" r="19"></circle><circle class="combo-v2-donut-arc" cx="22" cy="22" r="19"></circle><circle class="combo-v2-donut-arc" cx="22" cy="22" r="19"></circle></svg><span class="combo-v2-donut-num">6-5</span></div>
+              <div class="combo-v2-level-title">E key 도미넌트의 대리코드</div>            </div>
+            <div class="combo-v2-level cd-card" data-level="6-6" style="--ch-accent: #f07a3a;">
+              <div class="combo-v2-donut" role="img" aria-label="0/3"><svg viewBox="0 0 44 44" aria-hidden="true"><circle class="combo-v2-donut-arc" cx="22" cy="22" r="19"></circle><circle class="combo-v2-donut-arc" cx="22" cy="22" r="19"></circle><circle class="combo-v2-donut-arc" cx="22" cy="22" r="19"></circle></svg><span class="combo-v2-donut-num">6-6</span></div>
+              <div class="combo-v2-level-title">5key 도미넌트의 대리코드 종합</div>            </div>
+
+            <!-- 선택 구간 (6-7 ~ 6-14) — 6-6 클리어 전까지 잠김 -->
+            <div class="combo-v2-section-label">6-6을 클리어한 후 도전해요</div>
+            <div class="combo-v2-level combo-v2-level--locked cd-card" data-level="6-7">
+              <div class="combo-v2-donut" aria-hidden="true"><svg viewBox="0 0 44 44"><circle class="combo-v2-donut-arc" cx="22" cy="22" r="19"></circle><circle class="combo-v2-donut-arc" cx="22" cy="22" r="19"></circle><circle class="combo-v2-donut-arc" cx="22" cy="22" r="19"></circle></svg><span class="combo-v2-donut-num">6-7</span></div>
+              <div class="combo-v2-level-title">F key 도미넌트의 대리코드</div><i data-lucide="lock" class="combo-v2-lock-icon"></i>
+            </div>
+            <div class="combo-v2-level combo-v2-level--locked cd-card" data-level="6-8">
+              <div class="combo-v2-donut" aria-hidden="true"><svg viewBox="0 0 44 44"><circle class="combo-v2-donut-arc" cx="22" cy="22" r="19"></circle><circle class="combo-v2-donut-arc" cx="22" cy="22" r="19"></circle><circle class="combo-v2-donut-arc" cx="22" cy="22" r="19"></circle></svg><span class="combo-v2-donut-num">6-8</span></div>
+              <div class="combo-v2-level-title">Bb key 도미넌트의 대리코드</div><i data-lucide="lock" class="combo-v2-lock-icon"></i>
+            </div>
+            <div class="combo-v2-level combo-v2-level--locked cd-card" data-level="6-9">
+              <div class="combo-v2-donut" aria-hidden="true"><svg viewBox="0 0 44 44"><circle class="combo-v2-donut-arc" cx="22" cy="22" r="19"></circle><circle class="combo-v2-donut-arc" cx="22" cy="22" r="19"></circle><circle class="combo-v2-donut-arc" cx="22" cy="22" r="19"></circle></svg><span class="combo-v2-donut-num">6-9</span></div>
+              <div class="combo-v2-level-title">B key 도미넌트의 대리코드</div><i data-lucide="lock" class="combo-v2-lock-icon"></i>
+            </div>
+            <div class="combo-v2-level combo-v2-level--locked cd-card" data-level="6-10">
+              <div class="combo-v2-donut" aria-hidden="true"><svg viewBox="0 0 44 44"><circle class="combo-v2-donut-arc" cx="22" cy="22" r="19"></circle><circle class="combo-v2-donut-arc" cx="22" cy="22" r="19"></circle><circle class="combo-v2-donut-arc" cx="22" cy="22" r="19"></circle></svg><span class="combo-v2-donut-num">6-10</span></div>
+              <div class="combo-v2-level-title">Db key 도미넌트의 대리코드</div><i data-lucide="lock" class="combo-v2-lock-icon"></i>
+            </div>
+            <div class="combo-v2-level combo-v2-level--locked cd-card" data-level="6-11">
+              <div class="combo-v2-donut" aria-hidden="true"><svg viewBox="0 0 44 44"><circle class="combo-v2-donut-arc" cx="22" cy="22" r="19"></circle><circle class="combo-v2-donut-arc" cx="22" cy="22" r="19"></circle><circle class="combo-v2-donut-arc" cx="22" cy="22" r="19"></circle></svg><span class="combo-v2-donut-num">6-11</span></div>
+              <div class="combo-v2-level-title">Eb key 도미넌트의 대리코드</div><i data-lucide="lock" class="combo-v2-lock-icon"></i>
+            </div>
+            <div class="combo-v2-level combo-v2-level--locked cd-card" data-level="6-12">
+              <div class="combo-v2-donut" aria-hidden="true"><svg viewBox="0 0 44 44"><circle class="combo-v2-donut-arc" cx="22" cy="22" r="19"></circle><circle class="combo-v2-donut-arc" cx="22" cy="22" r="19"></circle><circle class="combo-v2-donut-arc" cx="22" cy="22" r="19"></circle></svg><span class="combo-v2-donut-num">6-12</span></div>
+              <div class="combo-v2-level-title">Gb key 도미넌트의 대리코드</div><i data-lucide="lock" class="combo-v2-lock-icon"></i>
+            </div>
+            <div class="combo-v2-level combo-v2-level--locked cd-card" data-level="6-13">
+              <div class="combo-v2-donut" aria-hidden="true"><svg viewBox="0 0 44 44"><circle class="combo-v2-donut-arc" cx="22" cy="22" r="19"></circle><circle class="combo-v2-donut-arc" cx="22" cy="22" r="19"></circle><circle class="combo-v2-donut-arc" cx="22" cy="22" r="19"></circle></svg><span class="combo-v2-donut-num">6-13</span></div>
+              <div class="combo-v2-level-title">Ab key 도미넌트의 대리코드</div><i data-lucide="lock" class="combo-v2-lock-icon"></i>
+            </div>
+            <div class="combo-v2-level combo-v2-level--locked cd-card" data-level="6-14">
+              <div class="combo-v2-donut" aria-hidden="true"><svg viewBox="0 0 44 44"><circle class="combo-v2-donut-arc" cx="22" cy="22" r="19"></circle><circle class="combo-v2-donut-arc" cx="22" cy="22" r="19"></circle><circle class="combo-v2-donut-arc" cx="22" cy="22" r="19"></circle></svg><span class="combo-v2-donut-num">6-14</span></div>
+              <div class="combo-v2-level-title">12key 도미넌트의 대리코드 챌린지</div><i data-lucide="lock" class="combo-v2-lock-icon"></i>
+            </div>
+
+            <!-- 챕터 카드(열림) — 7장. 제목·학습목표는 임시 문구 -->
+            <div class="combo-v2-chapter combo-v2-chapter--split cd-card" style="--ch-accent: #e2a81c;">
+              <div class="combo-v2-chapter-main">
+                <div class="combo-v2-chapter-label">7장</div>
+                <div class="combo-v2-chapter-text">
+                  <div class="combo-v2-chapter-title">텐션코드</div>
+                  <div class="combo-v2-chapter-desc">코드에 어울리는 텐션을 찾아 바꿔봐요</div>
+                </div>
+              </div>
+              <button class="combo-v2-chapter-play" aria-label="미니강의 듣기"><i data-lucide="play"></i></button>
+            </div>
+
+            <!-- 7장 레벨 카드 — 필수 구간은 열림, 선택 구간은 잠김 -->
+            <!-- 필수 구간 (7-1 ~ 7-6) -->
+            <div class="combo-v2-level cd-card" data-level="7-1" style="--ch-accent: #e2a81c;">
+              <div class="combo-v2-donut" role="img" aria-label="0/3"><svg viewBox="0 0 44 44" aria-hidden="true"><circle class="combo-v2-donut-arc" cx="22" cy="22" r="19"></circle><circle class="combo-v2-donut-arc" cx="22" cy="22" r="19"></circle><circle class="combo-v2-donut-arc" cx="22" cy="22" r="19"></circle></svg><span class="combo-v2-donut-num">7-1</span></div>
+              <div class="combo-v2-level-title">C key 텐션코드</div>            </div>
+            <div class="combo-v2-level cd-card" data-level="7-2" style="--ch-accent: #e2a81c;">
+              <div class="combo-v2-donut" role="img" aria-label="0/3"><svg viewBox="0 0 44 44" aria-hidden="true"><circle class="combo-v2-donut-arc" cx="22" cy="22" r="19"></circle><circle class="combo-v2-donut-arc" cx="22" cy="22" r="19"></circle><circle class="combo-v2-donut-arc" cx="22" cy="22" r="19"></circle></svg><span class="combo-v2-donut-num">7-2</span></div>
+              <div class="combo-v2-level-title">G key 텐션코드</div>            </div>
+            <div class="combo-v2-level cd-card" data-level="7-3" style="--ch-accent: #e2a81c;">
+              <div class="combo-v2-donut" role="img" aria-label="0/3"><svg viewBox="0 0 44 44" aria-hidden="true"><circle class="combo-v2-donut-arc" cx="22" cy="22" r="19"></circle><circle class="combo-v2-donut-arc" cx="22" cy="22" r="19"></circle><circle class="combo-v2-donut-arc" cx="22" cy="22" r="19"></circle></svg><span class="combo-v2-donut-num">7-3</span></div>
+              <div class="combo-v2-level-title">D key 텐션코드</div>            </div>
+            <div class="combo-v2-level cd-card" data-level="7-4" style="--ch-accent: #e2a81c;">
+              <div class="combo-v2-donut" role="img" aria-label="0/3"><svg viewBox="0 0 44 44" aria-hidden="true"><circle class="combo-v2-donut-arc" cx="22" cy="22" r="19"></circle><circle class="combo-v2-donut-arc" cx="22" cy="22" r="19"></circle><circle class="combo-v2-donut-arc" cx="22" cy="22" r="19"></circle></svg><span class="combo-v2-donut-num">7-4</span></div>
+              <div class="combo-v2-level-title">A key 텐션코드</div>            </div>
+            <div class="combo-v2-level cd-card" data-level="7-5" style="--ch-accent: #e2a81c;">
+              <div class="combo-v2-donut" role="img" aria-label="0/3"><svg viewBox="0 0 44 44" aria-hidden="true"><circle class="combo-v2-donut-arc" cx="22" cy="22" r="19"></circle><circle class="combo-v2-donut-arc" cx="22" cy="22" r="19"></circle><circle class="combo-v2-donut-arc" cx="22" cy="22" r="19"></circle></svg><span class="combo-v2-donut-num">7-5</span></div>
+              <div class="combo-v2-level-title">E key 텐션코드</div>            </div>
+            <div class="combo-v2-level cd-card" data-level="7-6" style="--ch-accent: #e2a81c;">
+              <div class="combo-v2-donut" role="img" aria-label="0/3"><svg viewBox="0 0 44 44" aria-hidden="true"><circle class="combo-v2-donut-arc" cx="22" cy="22" r="19"></circle><circle class="combo-v2-donut-arc" cx="22" cy="22" r="19"></circle><circle class="combo-v2-donut-arc" cx="22" cy="22" r="19"></circle></svg><span class="combo-v2-donut-num">7-6</span></div>
+              <div class="combo-v2-level-title">5key 텐션코드 종합</div>            </div>
+
+            <!-- 선택 구간 (7-7 ~ 7-14) — 7-6 클리어 전까지 잠김 -->
+            <div class="combo-v2-section-label">7-6을 클리어한 후 도전해요</div>
+            <div class="combo-v2-level cd-card" data-level="7-7" style="--ch-accent: #e2a81c;">
+              <div class="combo-v2-donut" role="img" aria-label="0/3"><svg viewBox="0 0 44 44" aria-hidden="true"><circle class="combo-v2-donut-arc" cx="22" cy="22" r="19"></circle><circle class="combo-v2-donut-arc" cx="22" cy="22" r="19"></circle><circle class="combo-v2-donut-arc" cx="22" cy="22" r="19"></circle></svg><span class="combo-v2-donut-num">7-7</span></div>
+              <div class="combo-v2-level-title">F key 텐션코드</div>
+            </div>
+            <div class="combo-v2-level cd-card" data-level="7-8" style="--ch-accent: #e2a81c;">
+              <div class="combo-v2-donut" role="img" aria-label="0/3"><svg viewBox="0 0 44 44" aria-hidden="true"><circle class="combo-v2-donut-arc" cx="22" cy="22" r="19"></circle><circle class="combo-v2-donut-arc" cx="22" cy="22" r="19"></circle><circle class="combo-v2-donut-arc" cx="22" cy="22" r="19"></circle></svg><span class="combo-v2-donut-num">7-8</span></div>
+              <div class="combo-v2-level-title">Bb key 텐션코드</div>
+            </div>
+            <div class="combo-v2-level cd-card" data-level="7-9" style="--ch-accent: #e2a81c;">
+              <div class="combo-v2-donut" role="img" aria-label="0/3"><svg viewBox="0 0 44 44" aria-hidden="true"><circle class="combo-v2-donut-arc" cx="22" cy="22" r="19"></circle><circle class="combo-v2-donut-arc" cx="22" cy="22" r="19"></circle><circle class="combo-v2-donut-arc" cx="22" cy="22" r="19"></circle></svg><span class="combo-v2-donut-num">7-9</span></div>
+              <div class="combo-v2-level-title">B key 텐션코드</div>
+            </div>
+            <div class="combo-v2-level cd-card" data-level="7-10" style="--ch-accent: #e2a81c;">
+              <div class="combo-v2-donut" role="img" aria-label="0/3"><svg viewBox="0 0 44 44" aria-hidden="true"><circle class="combo-v2-donut-arc" cx="22" cy="22" r="19"></circle><circle class="combo-v2-donut-arc" cx="22" cy="22" r="19"></circle><circle class="combo-v2-donut-arc" cx="22" cy="22" r="19"></circle></svg><span class="combo-v2-donut-num">7-10</span></div>
+              <div class="combo-v2-level-title">Db key 텐션코드</div>
+            </div>
+            <div class="combo-v2-level cd-card" data-level="7-11" style="--ch-accent: #e2a81c;">
+              <div class="combo-v2-donut" role="img" aria-label="0/3"><svg viewBox="0 0 44 44" aria-hidden="true"><circle class="combo-v2-donut-arc" cx="22" cy="22" r="19"></circle><circle class="combo-v2-donut-arc" cx="22" cy="22" r="19"></circle><circle class="combo-v2-donut-arc" cx="22" cy="22" r="19"></circle></svg><span class="combo-v2-donut-num">7-11</span></div>
+              <div class="combo-v2-level-title">Eb key 텐션코드</div>
+            </div>
+            <div class="combo-v2-level cd-card" data-level="7-12" style="--ch-accent: #e2a81c;">
+              <div class="combo-v2-donut" role="img" aria-label="0/3"><svg viewBox="0 0 44 44" aria-hidden="true"><circle class="combo-v2-donut-arc" cx="22" cy="22" r="19"></circle><circle class="combo-v2-donut-arc" cx="22" cy="22" r="19"></circle><circle class="combo-v2-donut-arc" cx="22" cy="22" r="19"></circle></svg><span class="combo-v2-donut-num">7-12</span></div>
+              <div class="combo-v2-level-title">Gb key 텐션코드</div>
+            </div>
+            <div class="combo-v2-level cd-card" data-level="7-13" style="--ch-accent: #e2a81c;">
+              <div class="combo-v2-donut" role="img" aria-label="0/3"><svg viewBox="0 0 44 44" aria-hidden="true"><circle class="combo-v2-donut-arc" cx="22" cy="22" r="19"></circle><circle class="combo-v2-donut-arc" cx="22" cy="22" r="19"></circle><circle class="combo-v2-donut-arc" cx="22" cy="22" r="19"></circle></svg><span class="combo-v2-donut-num">7-13</span></div>
+              <div class="combo-v2-level-title">Ab key 텐션코드</div>
+            </div>
+            <div class="combo-v2-level cd-card" data-level="7-14" style="--ch-accent: #e2a81c;">
+              <div class="combo-v2-donut" role="img" aria-label="0/3"><svg viewBox="0 0 44 44" aria-hidden="true"><circle class="combo-v2-donut-arc" cx="22" cy="22" r="19"></circle><circle class="combo-v2-donut-arc" cx="22" cy="22" r="19"></circle><circle class="combo-v2-donut-arc" cx="22" cy="22" r="19"></circle></svg><span class="combo-v2-donut-num">7-14</span></div>
+              <div class="combo-v2-level-title">12key 텐션코드 챌린지</div>
+            </div>
+
+            <!-- 챕터 카드(열림) — 8장. 제목·학습목표는 임시 문구 -->
+            <div class="combo-v2-chapter combo-v2-chapter--split cd-card" style="--ch-accent: #7fb539;">
+              <div class="combo-v2-chapter-main">
+                <div class="combo-v2-chapter-label">8장</div>
+                <div class="combo-v2-chapter-text">
+                  <div class="combo-v2-chapter-title">마이너 다이어토닉</div>
+                  <div class="combo-v2-chapter-desc">마이너 key의 코드와 도수를 외워요</div>
+                </div>
+              </div>
+              <button class="combo-v2-chapter-play" aria-label="미니강의 듣기"><i data-lucide="play"></i></button>
+            </div>
+
+            <!-- 8장 레벨 카드 — 필수 구간은 열림, 선택 구간은 잠김 -->
+            <!-- 필수 구간 (8-1 ~ 8-6) -->
+            <div class="combo-v2-level cd-card" data-level="8-1" style="--ch-accent: #7fb539;">
+              <div class="combo-v2-donut" role="img" aria-label="0/3"><svg viewBox="0 0 44 44" aria-hidden="true"><circle class="combo-v2-donut-arc" cx="22" cy="22" r="19"></circle><circle class="combo-v2-donut-arc" cx="22" cy="22" r="19"></circle><circle class="combo-v2-donut-arc" cx="22" cy="22" r="19"></circle></svg><span class="combo-v2-donut-num">8-1</span></div>
+              <div class="combo-v2-level-title">Am key 다이어토닉</div>            </div>
+            <div class="combo-v2-level cd-card" data-level="8-2" style="--ch-accent: #7fb539;">
+              <div class="combo-v2-donut" role="img" aria-label="0/3"><svg viewBox="0 0 44 44" aria-hidden="true"><circle class="combo-v2-donut-arc" cx="22" cy="22" r="19"></circle><circle class="combo-v2-donut-arc" cx="22" cy="22" r="19"></circle><circle class="combo-v2-donut-arc" cx="22" cy="22" r="19"></circle></svg><span class="combo-v2-donut-num">8-2</span></div>
+              <div class="combo-v2-level-title">Em key 다이어토닉</div>            </div>
+            <div class="combo-v2-level cd-card" data-level="8-3" style="--ch-accent: #7fb539;">
+              <div class="combo-v2-donut" role="img" aria-label="0/3"><svg viewBox="0 0 44 44" aria-hidden="true"><circle class="combo-v2-donut-arc" cx="22" cy="22" r="19"></circle><circle class="combo-v2-donut-arc" cx="22" cy="22" r="19"></circle><circle class="combo-v2-donut-arc" cx="22" cy="22" r="19"></circle></svg><span class="combo-v2-donut-num">8-3</span></div>
+              <div class="combo-v2-level-title">Dm key 다이어토닉</div>            </div>
+            <div class="combo-v2-level cd-card" data-level="8-4" style="--ch-accent: #7fb539;">
+              <div class="combo-v2-donut" role="img" aria-label="0/3"><svg viewBox="0 0 44 44" aria-hidden="true"><circle class="combo-v2-donut-arc" cx="22" cy="22" r="19"></circle><circle class="combo-v2-donut-arc" cx="22" cy="22" r="19"></circle><circle class="combo-v2-donut-arc" cx="22" cy="22" r="19"></circle></svg><span class="combo-v2-donut-num">8-4</span></div>
+              <div class="combo-v2-level-title">Gm key 다이어토닉</div>            </div>
+            <div class="combo-v2-level cd-card" data-level="8-5" style="--ch-accent: #7fb539;">
+              <div class="combo-v2-donut" role="img" aria-label="0/3"><svg viewBox="0 0 44 44" aria-hidden="true"><circle class="combo-v2-donut-arc" cx="22" cy="22" r="19"></circle><circle class="combo-v2-donut-arc" cx="22" cy="22" r="19"></circle><circle class="combo-v2-donut-arc" cx="22" cy="22" r="19"></circle></svg><span class="combo-v2-donut-num">8-5</span></div>
+              <div class="combo-v2-level-title">Cm key 다이어토닉</div>            </div>
+            <div class="combo-v2-level cd-card" data-level="8-6" style="--ch-accent: #7fb539;">
+              <div class="combo-v2-donut" role="img" aria-label="0/3"><svg viewBox="0 0 44 44" aria-hidden="true"><circle class="combo-v2-donut-arc" cx="22" cy="22" r="19"></circle><circle class="combo-v2-donut-arc" cx="22" cy="22" r="19"></circle><circle class="combo-v2-donut-arc" cx="22" cy="22" r="19"></circle></svg><span class="combo-v2-donut-num">8-6</span></div>
+              <div class="combo-v2-level-title">5key 마이너 다이어토닉 종합</div>            </div>
+
+            <!-- 선택 구간 (8-7 ~ 8-14) — 8-6 클리어 전까지 잠김 -->
+            <div class="combo-v2-section-label">8-6을 클리어한 후 도전해요</div>
+                        <div class="combo-v2-level combo-v2-level--locked cd-card" data-level="8-7">
+              <div class="combo-v2-donut" aria-hidden="true"><svg viewBox="0 0 44 44"><circle class="combo-v2-donut-arc" cx="22" cy="22" r="19"></circle><circle class="combo-v2-donut-arc" cx="22" cy="22" r="19"></circle><circle class="combo-v2-donut-arc" cx="22" cy="22" r="19"></circle></svg><span class="combo-v2-donut-num">8-7</span></div>
+              <div class="combo-v2-level-title">Bm key 다이어토닉</div><i data-lucide="lock" class="combo-v2-lock-icon"></i>
+            </div>
+            <div class="combo-v2-level combo-v2-level--locked cd-card" data-level="8-8">
+              <div class="combo-v2-donut" aria-hidden="true"><svg viewBox="0 0 44 44"><circle class="combo-v2-donut-arc" cx="22" cy="22" r="19"></circle><circle class="combo-v2-donut-arc" cx="22" cy="22" r="19"></circle><circle class="combo-v2-donut-arc" cx="22" cy="22" r="19"></circle></svg><span class="combo-v2-donut-num">8-8</span></div>
+              <div class="combo-v2-level-title">F#m key 다이어토닉</div><i data-lucide="lock" class="combo-v2-lock-icon"></i>
+            </div>
+                        <div class="combo-v2-level combo-v2-level--locked cd-card" data-level="8-9">
+              <div class="combo-v2-donut" aria-hidden="true"><svg viewBox="0 0 44 44"><circle class="combo-v2-donut-arc" cx="22" cy="22" r="19"></circle><circle class="combo-v2-donut-arc" cx="22" cy="22" r="19"></circle><circle class="combo-v2-donut-arc" cx="22" cy="22" r="19"></circle></svg><span class="combo-v2-donut-num">8-9</span></div>
+              <div class="combo-v2-level-title">C#m key 다이어토닉</div><i data-lucide="lock" class="combo-v2-lock-icon"></i>
+            </div>
+            <div class="combo-v2-level combo-v2-level--locked cd-card" data-level="8-10">
+              <div class="combo-v2-donut" aria-hidden="true"><svg viewBox="0 0 44 44"><circle class="combo-v2-donut-arc" cx="22" cy="22" r="19"></circle><circle class="combo-v2-donut-arc" cx="22" cy="22" r="19"></circle><circle class="combo-v2-donut-arc" cx="22" cy="22" r="19"></circle></svg><span class="combo-v2-donut-num">8-10</span></div>
+              <div class="combo-v2-level-title">Fm key 다이어토닉</div><i data-lucide="lock" class="combo-v2-lock-icon"></i>
+            </div>
+            <div class="combo-v2-level combo-v2-level--locked cd-card" data-level="8-11">
+              <div class="combo-v2-donut" aria-hidden="true"><svg viewBox="0 0 44 44"><circle class="combo-v2-donut-arc" cx="22" cy="22" r="19"></circle><circle class="combo-v2-donut-arc" cx="22" cy="22" r="19"></circle><circle class="combo-v2-donut-arc" cx="22" cy="22" r="19"></circle></svg><span class="combo-v2-donut-num">8-11</span></div>
+              <div class="combo-v2-level-title">Bbm key 다이어토닉</div><i data-lucide="lock" class="combo-v2-lock-icon"></i>
+            </div>
+            <div class="combo-v2-level combo-v2-level--locked cd-card" data-level="8-12">
+              <div class="combo-v2-donut" aria-hidden="true"><svg viewBox="0 0 44 44"><circle class="combo-v2-donut-arc" cx="22" cy="22" r="19"></circle><circle class="combo-v2-donut-arc" cx="22" cy="22" r="19"></circle><circle class="combo-v2-donut-arc" cx="22" cy="22" r="19"></circle></svg><span class="combo-v2-donut-num">8-12</span></div>
+              <div class="combo-v2-level-title">Ebm key 다이어토닉</div><i data-lucide="lock" class="combo-v2-lock-icon"></i>
+            </div>
+            <div class="combo-v2-level combo-v2-level--locked cd-card" data-level="8-13">
+              <div class="combo-v2-donut" aria-hidden="true"><svg viewBox="0 0 44 44"><circle class="combo-v2-donut-arc" cx="22" cy="22" r="19"></circle><circle class="combo-v2-donut-arc" cx="22" cy="22" r="19"></circle><circle class="combo-v2-donut-arc" cx="22" cy="22" r="19"></circle></svg><span class="combo-v2-donut-num">8-13</span></div>
+              <div class="combo-v2-level-title">G#m key 다이어토닉</div><i data-lucide="lock" class="combo-v2-lock-icon"></i>
+            </div>
+            <div class="combo-v2-level combo-v2-level--locked cd-card" data-level="8-14">
+              <div class="combo-v2-donut" aria-hidden="true"><svg viewBox="0 0 44 44"><circle class="combo-v2-donut-arc" cx="22" cy="22" r="19"></circle><circle class="combo-v2-donut-arc" cx="22" cy="22" r="19"></circle><circle class="combo-v2-donut-arc" cx="22" cy="22" r="19"></circle></svg><span class="combo-v2-donut-num">8-14</span></div>
+              <div class="combo-v2-level-title">12key 마이너 다이어토닉 챌린지</div><i data-lucide="lock" class="combo-v2-lock-icon"></i>
+            </div>
+
+            <!-- 챕터 카드(열림) — 9장. 제목·학습목표는 임시 문구 -->
+            <div class="combo-v2-chapter combo-v2-chapter--split cd-card" style="--ch-accent: #5b6b82;">
+              <div class="combo-v2-chapter-main">
+                <div class="combo-v2-chapter-label">9장</div>
+                <div class="combo-v2-chapter-text">
+                  <div class="combo-v2-chapter-title">모달 인터체인지</div>
+                  <div class="combo-v2-chapter-desc">나란한조의 코드를 빌려와 쓰는 법을 익혀요</div>
+                </div>
+              </div>
+              <button class="combo-v2-chapter-play" aria-label="미니강의 듣기"><i data-lucide="play"></i></button>
+            </div>
+
+            <!-- 9장 레벨 카드 — 필수 구간은 열림, 선택 구간은 잠김 -->
+            <!-- 필수 구간 (9-1 ~ 9-6) -->
+            <div class="combo-v2-level cd-card" data-level="9-1" style="--ch-accent: #5b6b82;">
+              <div class="combo-v2-donut" role="img" aria-label="0/3"><svg viewBox="0 0 44 44" aria-hidden="true"><circle class="combo-v2-donut-arc" cx="22" cy="22" r="19"></circle><circle class="combo-v2-donut-arc" cx="22" cy="22" r="19"></circle><circle class="combo-v2-donut-arc" cx="22" cy="22" r="19"></circle></svg><span class="combo-v2-donut-num">9-1</span></div>
+              <div class="combo-v2-level-title">C key 모달 인터체인지</div>            </div>
+            <div class="combo-v2-level cd-card" data-level="9-2" style="--ch-accent: #5b6b82;">
+              <div class="combo-v2-donut" role="img" aria-label="0/3"><svg viewBox="0 0 44 44" aria-hidden="true"><circle class="combo-v2-donut-arc" cx="22" cy="22" r="19"></circle><circle class="combo-v2-donut-arc" cx="22" cy="22" r="19"></circle><circle class="combo-v2-donut-arc" cx="22" cy="22" r="19"></circle></svg><span class="combo-v2-donut-num">9-2</span></div>
+              <div class="combo-v2-level-title">G key 모달 인터체인지</div>            </div>
+            <div class="combo-v2-level cd-card" data-level="9-3" style="--ch-accent: #5b6b82;">
+              <div class="combo-v2-donut" role="img" aria-label="0/3"><svg viewBox="0 0 44 44" aria-hidden="true"><circle class="combo-v2-donut-arc" cx="22" cy="22" r="19"></circle><circle class="combo-v2-donut-arc" cx="22" cy="22" r="19"></circle><circle class="combo-v2-donut-arc" cx="22" cy="22" r="19"></circle></svg><span class="combo-v2-donut-num">9-3</span></div>
+              <div class="combo-v2-level-title">D key 모달 인터체인지</div>            </div>
+            <div class="combo-v2-level cd-card" data-level="9-4" style="--ch-accent: #5b6b82;">
+              <div class="combo-v2-donut" role="img" aria-label="0/3"><svg viewBox="0 0 44 44" aria-hidden="true"><circle class="combo-v2-donut-arc" cx="22" cy="22" r="19"></circle><circle class="combo-v2-donut-arc" cx="22" cy="22" r="19"></circle><circle class="combo-v2-donut-arc" cx="22" cy="22" r="19"></circle></svg><span class="combo-v2-donut-num">9-4</span></div>
+              <div class="combo-v2-level-title">A key 모달 인터체인지</div>            </div>
+            <div class="combo-v2-level cd-card" data-level="9-5" style="--ch-accent: #5b6b82;">
+              <div class="combo-v2-donut" role="img" aria-label="0/3"><svg viewBox="0 0 44 44" aria-hidden="true"><circle class="combo-v2-donut-arc" cx="22" cy="22" r="19"></circle><circle class="combo-v2-donut-arc" cx="22" cy="22" r="19"></circle><circle class="combo-v2-donut-arc" cx="22" cy="22" r="19"></circle></svg><span class="combo-v2-donut-num">9-5</span></div>
+              <div class="combo-v2-level-title">E key 모달 인터체인지</div>            </div>
+            <div class="combo-v2-level cd-card" data-level="9-6" style="--ch-accent: #5b6b82;">
+              <div class="combo-v2-donut" role="img" aria-label="0/3"><svg viewBox="0 0 44 44" aria-hidden="true"><circle class="combo-v2-donut-arc" cx="22" cy="22" r="19"></circle><circle class="combo-v2-donut-arc" cx="22" cy="22" r="19"></circle><circle class="combo-v2-donut-arc" cx="22" cy="22" r="19"></circle></svg><span class="combo-v2-donut-num">9-6</span></div>
+              <div class="combo-v2-level-title">5key 모달 인터체인지 종합</div>            </div>
+
+            <!-- 선택 구간 (9-7 ~ 9-14) — 9-6 클리어 전까지 잠김 -->
+            <div class="combo-v2-section-label">9-6을 클리어한 후 도전해요</div>
+            <div class="combo-v2-level combo-v2-level--locked cd-card" data-level="9-7">
+              <div class="combo-v2-donut" aria-hidden="true"><svg viewBox="0 0 44 44"><circle class="combo-v2-donut-arc" cx="22" cy="22" r="19"></circle><circle class="combo-v2-donut-arc" cx="22" cy="22" r="19"></circle><circle class="combo-v2-donut-arc" cx="22" cy="22" r="19"></circle></svg><span class="combo-v2-donut-num">9-7</span></div>
+              <div class="combo-v2-level-title">F key 모달 인터체인지</div><i data-lucide="lock" class="combo-v2-lock-icon"></i>
+            </div>
+            <div class="combo-v2-level combo-v2-level--locked cd-card" data-level="9-8">
+              <div class="combo-v2-donut" aria-hidden="true"><svg viewBox="0 0 44 44"><circle class="combo-v2-donut-arc" cx="22" cy="22" r="19"></circle><circle class="combo-v2-donut-arc" cx="22" cy="22" r="19"></circle><circle class="combo-v2-donut-arc" cx="22" cy="22" r="19"></circle></svg><span class="combo-v2-donut-num">9-8</span></div>
+              <div class="combo-v2-level-title">Bb key 모달 인터체인지</div><i data-lucide="lock" class="combo-v2-lock-icon"></i>
+            </div>
+            <div class="combo-v2-level combo-v2-level--locked cd-card" data-level="9-9">
+              <div class="combo-v2-donut" aria-hidden="true"><svg viewBox="0 0 44 44"><circle class="combo-v2-donut-arc" cx="22" cy="22" r="19"></circle><circle class="combo-v2-donut-arc" cx="22" cy="22" r="19"></circle><circle class="combo-v2-donut-arc" cx="22" cy="22" r="19"></circle></svg><span class="combo-v2-donut-num">9-9</span></div>
+              <div class="combo-v2-level-title">B key 모달 인터체인지</div><i data-lucide="lock" class="combo-v2-lock-icon"></i>
+            </div>
+            <div class="combo-v2-level combo-v2-level--locked cd-card" data-level="9-10">
+              <div class="combo-v2-donut" aria-hidden="true"><svg viewBox="0 0 44 44"><circle class="combo-v2-donut-arc" cx="22" cy="22" r="19"></circle><circle class="combo-v2-donut-arc" cx="22" cy="22" r="19"></circle><circle class="combo-v2-donut-arc" cx="22" cy="22" r="19"></circle></svg><span class="combo-v2-donut-num">9-10</span></div>
+              <div class="combo-v2-level-title">Db key 모달 인터체인지</div><i data-lucide="lock" class="combo-v2-lock-icon"></i>
+            </div>
+            <div class="combo-v2-level combo-v2-level--locked cd-card" data-level="9-11">
+              <div class="combo-v2-donut" aria-hidden="true"><svg viewBox="0 0 44 44"><circle class="combo-v2-donut-arc" cx="22" cy="22" r="19"></circle><circle class="combo-v2-donut-arc" cx="22" cy="22" r="19"></circle><circle class="combo-v2-donut-arc" cx="22" cy="22" r="19"></circle></svg><span class="combo-v2-donut-num">9-11</span></div>
+              <div class="combo-v2-level-title">Eb key 모달 인터체인지</div><i data-lucide="lock" class="combo-v2-lock-icon"></i>
+            </div>
+            <div class="combo-v2-level combo-v2-level--locked cd-card" data-level="9-12">
+              <div class="combo-v2-donut" aria-hidden="true"><svg viewBox="0 0 44 44"><circle class="combo-v2-donut-arc" cx="22" cy="22" r="19"></circle><circle class="combo-v2-donut-arc" cx="22" cy="22" r="19"></circle><circle class="combo-v2-donut-arc" cx="22" cy="22" r="19"></circle></svg><span class="combo-v2-donut-num">9-12</span></div>
+              <div class="combo-v2-level-title">Gb key 모달 인터체인지</div><i data-lucide="lock" class="combo-v2-lock-icon"></i>
+            </div>
+            <div class="combo-v2-level combo-v2-level--locked cd-card" data-level="9-13">
+              <div class="combo-v2-donut" aria-hidden="true"><svg viewBox="0 0 44 44"><circle class="combo-v2-donut-arc" cx="22" cy="22" r="19"></circle><circle class="combo-v2-donut-arc" cx="22" cy="22" r="19"></circle><circle class="combo-v2-donut-arc" cx="22" cy="22" r="19"></circle></svg><span class="combo-v2-donut-num">9-13</span></div>
+              <div class="combo-v2-level-title">Ab key 모달 인터체인지</div><i data-lucide="lock" class="combo-v2-lock-icon"></i>
+            </div>
+            <div class="combo-v2-level combo-v2-level--locked cd-card" data-level="9-14">
+              <div class="combo-v2-donut" aria-hidden="true"><svg viewBox="0 0 44 44"><circle class="combo-v2-donut-arc" cx="22" cy="22" r="19"></circle><circle class="combo-v2-donut-arc" cx="22" cy="22" r="19"></circle><circle class="combo-v2-donut-arc" cx="22" cy="22" r="19"></circle></svg><span class="combo-v2-donut-num">9-14</span></div>
+              <div class="combo-v2-level-title">12key 모달 인터체인지 챌린지</div><i data-lucide="lock" class="combo-v2-lock-icon"></i>
+            </div>
+
+          </div>
+        </section>
+      </main><!-- /combo-view-select-v2 -->
+
+      <!-- ── 문제 화면 v2 (1-1 목업) — 선택 뷰 v2 오른쪽에서 슬라이드 인. 탑바(X·진행 점·피크바)는 페이지 공용 탑바를 그대로 씀 ── -->
+      <main id="combo-view-quiz-v2" class="cd-main quiz-view quiz-view--right combo-v2-quiz">
+        <header class="cd-head">
+          <div class="combo-v2-q-titlerow">
+            <div class="combo-v2-q-title" id="combo-v2-q-title">같은 짝끼리 이어주세요</div>
+            <!-- 건너뛰기 테스트 전용 — 남은 기회(노란 하트 3개 — Phosphor heart-fill 모양, 오답마다 오른쪽부터 회색) -->
+            <div class="combo-v2-hearts" id="combo-v2-hearts" role="img" aria-label="남은 기회 3개" hidden><span class="combo-v2-heart"><svg viewBox="0 0 256 256" aria-hidden="true"><path d="M240,94c0,70-103.79,126.66-108.21,129a8,8,0,0,1-7.58,0C119.79,220.66,16,164,16,94A62.07,62.07,0,0,1,78,32c20.65,0,38.73,8.88,50,23.89C139.27,40.88,157.35,32,178,32A62.07,62.07,0,0,1,240,94Z"></path></svg></span><span class="combo-v2-heart"><svg viewBox="0 0 256 256" aria-hidden="true"><path d="M240,94c0,70-103.79,126.66-108.21,129a8,8,0,0,1-7.58,0C119.79,220.66,16,164,16,94A62.07,62.07,0,0,1,78,32c20.65,0,38.73,8.88,50,23.89C139.27,40.88,157.35,32,178,32A62.07,62.07,0,0,1,240,94Z"></path></svg></span><span class="combo-v2-heart"><svg viewBox="0 0 256 256" aria-hidden="true"><path d="M240,94c0,70-103.79,126.66-108.21,129a8,8,0,0,1-7.58,0C119.79,220.66,16,164,16,94A62.07,62.07,0,0,1,78,32c20.65,0,38.73,8.88,50,23.89C139.27,40.88,157.35,32,178,32A62.07,62.07,0,0,1,240,94Z"></path></svg></span></div>
+          </div>
+          <!-- 오답풀이 중에만 표시(JS가 hidden 토글) -->
+          <div class="combo-v2-review-badge" id="combo-v2-review-badge" hidden>오답풀기</div>
+          <!-- 부가설명 줄 — 유형에 따라 필요할 때만 표시(JS가 hidden 토글) -->
+          <div class="combo-v2-q-sub" id="combo-v2-q-sub" hidden></div>
+        </header>
+        <section class="cd-body" id="combo-v2-quiz-body">
+          <!-- 문제 영역 — 유형별 내용이 들어갈 자리(남는 높이를 전부 차지) -->
+          <div class="combo-v2-quiz-content" id="combo-v2-quiz-content">
+            <!-- 연결형 목업(C key): 왼쪽 = 코드 이름, 오른쪽 = 로마자 도수(로마숫자 크게 + 퀄리티 작게). 두 열은 서로 독립적으로 섞임 -->
+            <div class="combo-v2-type" data-type="pair">
+              <!-- 안내 카드 — 배치형·빈칸형과 같은 모양(스피커 없음). 문구는 JS가 그림 -->
+              <div class="combo-v2-info-card cd-card" id="combo-v2-pair-card"></div>
+            <div class="combo-v2-pairs">
+              <div class="combo-v2-pair-col" data-side="left">
+                <button class="combo-v2-pair-card cd-card" data-pair="I">C</button>
+                <button class="combo-v2-pair-card cd-card" data-pair="VIm">Am</button>
+                <button class="combo-v2-pair-card cd-card" data-pair="V">G</button>
+                <button class="combo-v2-pair-card cd-card" data-pair="IV">F</button>
+              </div>
+              <div class="combo-v2-pair-col" data-side="right">
+                <button class="combo-v2-pair-card cd-card" data-pair="VIm"><span class="combo-v2-deg-num">VI</span><span class="combo-v2-deg-q">m</span></button>
+                <button class="combo-v2-pair-card cd-card" data-pair="V"><span class="combo-v2-deg-num">V</span></button>
+                <button class="combo-v2-pair-card cd-card" data-pair="I"><span class="combo-v2-deg-num">I</span></button>
+                <button class="combo-v2-pair-card cd-card" data-pair="IV"><span class="combo-v2-deg-num">IV</span></button>
+              </div>
+            </div>
+            </div><!-- /pair -->
+
+            <!-- 배치형 목업(C key, 진행 I - IV - V - VIm): 위 = 밑줄 4개 + 아래 로마자 + 왼쪽 스피커 아이콘(소리는 아직 안 붙임), 아래 = 코드 풀(다이어토닉 7개, 최대 2줄) -->
+            <div class="combo-v2-type" data-type="place" hidden>
+              <!-- 설명 카드 — 타이틀 아래 남는 높이를 차지(코드 진행 재생·설명이 들어갈 자리, 내용은 아직 비어 있음) -->
+              <div class="combo-v2-info-card cd-card" id="combo-v2-place-card">
+                <button class="combo-v2-speaker" aria-label="코드 진행 듣기"><i data-lucide="volume-2"></i></button>
+              </div>
+              <div class="combo-v2-blanks-wrap">
+                <div class="combo-v2-blanks" id="combo-v2-blanks">
+                  <div class="combo-v2-blank" data-answer="C"><div class="combo-v2-blank-slot"></div><div class="combo-v2-blank-deg"><span class="rn">I</span></div></div>
+                  <div class="combo-v2-blank" data-answer="F"><div class="combo-v2-blank-slot"></div><div class="combo-v2-blank-deg"><span class="rn">IV</span></div></div>
+                  <div class="combo-v2-blank" data-answer="G"><div class="combo-v2-blank-slot"></div><div class="combo-v2-blank-deg"><span class="rn">V</span></div></div>
+                  <div class="combo-v2-blank" data-answer="Am"><div class="combo-v2-blank-slot"></div><div class="combo-v2-blank-deg"><span class="rn">VI</span><span class="rq">m</span></div></div>
+                </div>
+              </div>
+              <div class="combo-v2-pool" id="combo-v2-pool">
+                <button class="combo-v2-chip cd-card" data-chord="C">C</button>
+                <button class="combo-v2-chip cd-card" data-chord="Dm">Dm</button>
+                <button class="combo-v2-chip cd-card" data-chord="Em">Em</button>
+                <button class="combo-v2-chip cd-card" data-chord="F">F</button>
+                <button class="combo-v2-chip cd-card" data-chord="G">G</button>
+                <button class="combo-v2-chip cd-card" data-chord="Am">Am</button>
+                <button class="combo-v2-chip cd-card" data-chord="Bdim">Bdim</button>
+              </div>
+            </div><!-- /place -->
+
+            <!-- 교체형 목업(C key, 원래 진행 IV - V - I - VIm = F G C Am): 4칸 중 1칸만 칩(교체 대상), 나머지는 순수 텍스트. 아래 선택지 3개(정답 1 + 오답 2)를 탭하면 대상 칸이 바로 바뀜. 칸·선택지는 JS가 그림 -->
+            <div class="combo-v2-type" data-type="swap" hidden>
+              <div class="combo-v2-info-card cd-card" id="combo-v2-swap-card">
+                <button class="combo-v2-speaker" aria-label="코드 진행 듣기"><i data-lucide="volume-2"></i></button>
+              </div>
+              <div class="combo-v2-blanks-wrap">
+                <div class="combo-v2-blanks" id="combo-v2-swap-blanks"></div>
+              </div>
+              <div class="combo-v2-choices" id="combo-v2-swap-choices"></div>
+            </div><!-- /swap -->
+
+            <!-- 분류형 목업(C key, 2장): 위 = 3열 헤더(해결·예비·긴장 + 토닉·서브도미넌트·도미넌트 캡션 + 로마자 I·IV·V) + 열 레인, 아래 = 코드풀 한 줄(글자 길이만큼 생성, 넘치면 안 만듦). 레인·풀 칩은 JS가 그림 -->
+            <div class="combo-v2-type" data-type="sort" hidden>
+              <div class="combo-v2-sort-key" id="combo-v2-sort-key"></div>
+              <div class="combo-v2-sort" id="combo-v2-sort">
+                <div class="combo-v2-sort-col" data-col="0">
+                  <div class="combo-v2-sort-head">
+                    <div class="combo-v2-sort-name">해결</div>
+                    <div class="combo-v2-sort-sub">토닉</div>
+                    <div class="combo-v2-sort-deg"><span class="rn">I</span></div>
+                  </div>
+                  <div class="combo-v2-sort-lane"></div>
+                </div>
+                <div class="combo-v2-sort-col" data-col="1">
+                  <div class="combo-v2-sort-head">
+                    <div class="combo-v2-sort-name">예비</div>
+                    <div class="combo-v2-sort-sub">서브도미넌트</div>
+                    <div class="combo-v2-sort-deg"><span class="rn">IV</span></div>
+                  </div>
+                  <div class="combo-v2-sort-lane"></div>
+                </div>
+                <div class="combo-v2-sort-col" data-col="2">
+                  <div class="combo-v2-sort-head">
+                    <div class="combo-v2-sort-name">긴장</div>
+                    <div class="combo-v2-sort-sub">도미넌트</div>
+                    <div class="combo-v2-sort-deg"><span class="rn">V</span></div>
+                  </div>
+                  <div class="combo-v2-sort-lane"></div>
+                </div>
+              </div>
+              <div class="combo-v2-sort-hint" id="combo-v2-sort-hint">꾹 눌러서 드래그하세요!</div>
+              <div class="combo-v2-sort-pool" id="combo-v2-sort-pool"></div>
+            </div><!-- /sort -->
+          </div>
+          <!-- 하단 제출 버튼 전용 — 답을 다 채우기 전까지 비활성(목업) -->
+          <button class="cd-btn cd-btn--gray combo-v2-submit" id="combo-v2-submit" disabled>제출하기</button>
+        </section>
+      </main><!-- /combo-view-quiz-v2 -->
+
       <!-- ── 퀴즈 뷰 ── -->
       <main id="combo-view-quiz" class="cd-main quiz-view quiz-view--right">
         <section class="cd-body combo-quiz-wrap" id="combo-quiz-wrap">
@@ -971,6 +1750,31 @@
         </section><!-- /combo-quiz-wrap -->
       </main><!-- /combo-view-quiz -->
 
+      <!-- ── 오버레이(문제 화면 위) — 오답풀이 안내 / 레벨 클리어 축하. 줄·요소가 순서대로(.combo-v2-seq) 등장 ── -->
+      <section id="combo-v2-overlay" class="combo-v2-overlay" hidden>
+        <div id="combo-v2-intro" class="combo-v2-scene" hidden>
+          <!-- 윗묶음: 피크 아이콘 + 환급 안내(Pro는 제목만) — 화면 가운데 쪽에서 읽힘 -->
+          <div class="combo-v2-intro-main">
+            <img src="image/peak.svg" alt="" class="combo-v2-seq combo-v2-seq--pop combo-v2-intro-peak" data-peak>
+            <div class="combo-v2-seq combo-v2-scene-title" data-peak>오답을 풀면 피크 <span id="combo-v2-intro-refund">1</span>개를 돌려받아요</div>
+            <div class="combo-v2-seq combo-v2-scene-title" hidden id="combo-v2-intro-title-pro">이제 오답풀이예요</div>
+          </div>
+          <!-- 아랫묶음: 보충 설명 -->
+          <div class="combo-v2-intro-sub">
+            <div class="combo-v2-seq combo-v2-scene-line">끝까지 완주해야 레벨 클리어예요</div>
+            <div class="combo-v2-seq combo-v2-scene-line">틀려도 맞힐 때까지 다시 도전할 수 있어서 부담 없어요!</div>
+          </div>
+        </div>
+        <div id="combo-v2-clear" class="combo-v2-scene" hidden>
+          <img src="image/trophy.png" alt="" class="combo-v2-seq combo-v2-seq--pop combo-v2-clear-trophy">
+          <div class="combo-v2-seq combo-v2-scene-title combo-v2-clear-title" id="combo-v2-clear-title">완주!</div>
+          <div class="combo-v2-seq combo-v2-scene-line combo-v2-clear-level" id="combo-v2-clear-level"></div>
+          <div class="combo-v2-seq combo-v2-scene-line" id="combo-v2-clear-praise"></div>
+          <div class="combo-v2-seq combo-v2-scene-line combo-v2-clear-refund" id="combo-v2-clear-refund" hidden><img src="image/peak.svg" alt="" class="combo-v2-clear-refund-icon"><span>피크 <span id="combo-v2-clear-refund-n">2</span>개를 돌려받았어요</span></div>
+          <button class="combo-v2-seq combo-v2-clear-btn" id="combo-v2-clear-btn">돌아가기</button>
+        </div>
+      </section>
+
     </div><!-- /combo-stage -->
 
   </div><!-- /app-shell -->
@@ -979,8 +1783,8 @@
        (.project-enter, 0.36s) 끝난 뒤 chord-combo.js DOMContentLoaded에서 표시 -->
   <div class="modal-overlay hidden" id="tutorial-entry-overlay">
     <div class="cd-modal">
-      <div class="cd-modal-title">코드 조합 훈련</div>
-      <div class="cd-modal-desc">코드 조합 훈련이 처음이시네요!<br>튜토리얼을 해보시겠어요?</div>
+      <div class="cd-modal-title">리하모니 화성학</div>
+      <div class="cd-modal-desc">리하모니 화성학이 처음이시네요!<br>튜토리얼을 해보시겠어요?</div>
       <div class="cd-modal-actions">
         <button class="cd-btn cd-btn--gray" onclick="closeTutorialEntryModal()">나중에 할래요</button>
         <button class="cd-btn cd-btn--brand" onclick="closeTutorialEntryModal()">지금 할래요!</button>
@@ -999,8 +1803,11 @@
   <script src="guitar-audio.js"></script>
   <script src="progression-voicing-list.js"></script>
   <script src="progression-voicings.js"></script>
+  <script src="voicing-cycle.js"></script>
   <script src="voicing-canvas.js"></script>
+  <script src="progression-data.js"></script>
   <script src="chord-combo-questions.js"></script>
   <script src="chord-combo.js"></script>
+  <script src="chord-combo-lecture.js"></script>
 </body>
 </html>

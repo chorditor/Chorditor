@@ -176,7 +176,7 @@ if (window.Capacitor?.Plugins?.App) {
   });
 }
 
-// 코드 조합 훈련 대상 key(C/D/E/G/A) — 데일리미션 시작 시 1개만 랜덤 선택해서 세션 내내 고정
+// 리하모니 화성학 대상 key(C/D/E/G/A) — 데일리미션 시작 시 1개만 랜덤 선택해서 세션 내내 고정
 const MS_COMBO_KEY_IDX_MAP = { C: 0, D: 2, E: 4, G: 7, A: 9 };
 let _msComboSessionKey = 'C';
 
@@ -1266,7 +1266,7 @@ function msScaleSubmit() {
     } else if (_msScaleIndex < MS_SCALE_TOTAL) {
       _msTransitionQuestion('#ms-main .ms-chord-tutorial', _msScaleInitQuestion);
     } else {
-      // 스케일 문제를 다 풀었으면 다음 훈련(코드 조합 훈련)으로 이동
+      // 스케일 문제를 다 풀었으면 다음 훈련(리하모니 화성학)으로 이동
       _msEnterPart(msShowChordComboTutorial, msShowComboQuizView, 'combo');
     }
     return;
@@ -1570,14 +1570,14 @@ function _msResultComboSectionHTML() {
   }).join('');
   return `
     <section class="ms-result-section">
-      ${_msResultSectionTitleHTML('코드 조합 훈련', 'ph-fill ph-pencil', '#7B52CC')}
+      ${_msResultSectionTitleHTML('리하모니 화성학', 'ph-fill ph-pencil', '#7B52CC')}
       <p class="ms-result-section-sub">이번에 학습한 Key : ${_msComboSessionKey}</p>
       <ul class="ms-result-list">${items}</ul>
     </section>
   `;
 }
 
-// 코드 조합 결과 항목의 4개 코드 다이어그램 — innerHTML 삽입 후 canvas가 실제로 DOM에
+// 리하모니 화성학 결과 항목의 4개 코드 다이어그램 — innerHTML 삽입 후 canvas가 실제로 DOM에
 // 붙은 다음 그려야 함(_msComboDrawSlotDiagram과 동일 패턴, source 표시는 결과 화면이라 생략)
 function _msResultDrawComboDiagrams() {
   if (typeof VoicingCanvas === 'undefined') return;
@@ -1656,7 +1656,7 @@ function msShowResultView() {
         <div class="ms-result-scores">
           ${_msScoreRowHTML('코드맞추기',    scores.quiz,  'blue')}
           ${_msScoreRowHTML('스케일 훈련',   scores.scale, 'red')}
-          ${_msScoreRowHTML('코드 조합 훈련', scores.combo, 'purple')}
+          ${_msScoreRowHTML('리하모니 화성학', scores.combo, 'purple')}
         </div>
 
         ${_msResultQuizSectionHTML()}
@@ -2205,10 +2205,10 @@ function msResultReviewWrong() {
   _msReviewNextStage();
 }
 
-// 코드 조합 훈련 튜토리얼 뷰 — 3단 구조 뼈대만, 콘텐츠 없음
+// 리하모니 화성학 튜토리얼 뷰 — 3단 구조 뼈대만, 콘텐츠 없음
 function msShowChordComboTutorial() {
   _msComboKey = _msComboSessionKey; // 미리보기 칩 초기 선택값도 이번 세션에 배정된 key로 시작
-  document.getElementById('ms-title-text').textContent = '코드 조합 훈련';
+  document.getElementById('ms-title-text').textContent = '리하모니 화성학';
   _msSetTitleIcon('ph-fill ph-pencil', '#7B52CC'); // 훈련카드 아이콘 + 결산게이지 purple톤과 통일
   const desc = document.getElementById('ms-title-desc');
   desc.style.display = '';
@@ -2291,7 +2291,7 @@ function msComboStart() {
   _msTransitionView(msShowComboQuizView);
 }
 
-// 코드 조합 문제풀이 뷰 — chord-combo.html의 실제 퀴즈 마크업/CSS클래스를 그대로 재사용
+// 리하모니 화성학 문제풀이 뷰 — chord-combo.html의 실제 퀴즈 마크업/CSS클래스를 그대로 재사용
 // (①문제카드 .combo-quiz-question ②4칸 정답슬롯 .combo-quiz-answer ③코드블럭 풀 .combo-quiz-blocks)
 function msShowComboQuizView() {
   document.getElementById('ms-title-desc').style.display = 'none';
@@ -2414,7 +2414,7 @@ let _msComboQuestion = null;
 let _msComboChapter    = '1';  // 이번 문제의 장 — 채점/보이싱 분기에 필요
 let _msComboReviewItem = null; // 오답 풀기에서 현재 출제 중인 큐 항목 { question, chapter }
 let _msComboLastTarget = null; // 같은 타겟 연속 출제 방지(chord-combo.js _comboLastTarget과 동일 역할)
-const MS_COMBO_TOTAL = _msDailyTotals.combo;      // 코드 조합 훈련 문제 수
+const MS_COMBO_TOTAL = _msDailyTotals.combo;      // 리하모니 화성학 문제 수
 let _msComboQuestionIndex = 0; // 0-indexed, 답변 완료한 코드조합 문제 수
 
 // 장별 생성함수/렌더옵션 — chord-combo.js renderComboQuestion()의 분기를 그대로 옮김
@@ -3494,7 +3494,7 @@ const MS_PROMO_SECTION_META = [
     ability: '지판 위 스케일 블럭을 손이 기억하게 만드는 훈련입니다',
   },
   {
-    key: 'combo', title: '코드 조합', icon: 'ph-fill ph-pencil', color: '#7B52CC',
+    key: 'combo', title: '리하모니 화성학', icon: 'ph-fill ph-pencil', color: '#7B52CC',
     ability: '코드끼리 자연스럽게 이어붙이는 화성 감각을 기릅니다',
   },
 ];

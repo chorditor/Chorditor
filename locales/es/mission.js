@@ -23,8 +23,7 @@
       '매일 연습 루틴': 'Rutina Diaria de Práctica',
       '아래의 훈련을 진행해요': 'Esto es lo que toca hoy',
       '코드맞추기': 'Quiz de Acordes',
-      '코드조합훈련': 'Quiz de Reharm',
-      '코드 조합': 'Quiz de Reharm',
+      '리하모니 화성학': 'Quiz de Reharm',
       '시작할래요!': '¡Vamos!',
 
       // ── 준비 화면 ──
@@ -81,7 +80,7 @@
       '올바른 곳을 채우세요!': '¡Completa los lugares correctos!',
       '제출하기': 'Enviar',
 
-      // ── 코드 조합 ──
+      // ── 리하모니 화성학 ──
       '코드 진행을 연습할 수 있어요!': '¡Practica progresiones de acordes reales!',
       '악보 없이 연주하는데 최고의 연습이 될 거예요!': '¡El mejor entrenamiento para tocar sin partitura!',
       '순서를 외워주세요!': '¡Memoriza el orden!',
@@ -194,7 +193,7 @@
       [/^(\d+)번폼$/, 'forma {1}'],
       [/^오답 (\d+)개$/, m => pl(m[1], 'fallo')],
 
-      // 코드 조합 힌트·지문
+      // 리하모니 화성학 힌트·지문
       [/^([A-G][#b]?) ?메이저 스케일은 (.+) 예요[.!]$/, 'La escala de {1} mayor es {2}.'],
       [/^([A-G][#b]?m?) ?마이너 스케일은 (.+) 예요[.!]$/, 'La escala de {1} menor es {2}.'],
       [/^(.+) 스케일은 (.+) 예요[.!]$/, 'La escala {1} es {2}.'],

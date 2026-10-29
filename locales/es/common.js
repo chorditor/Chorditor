@@ -154,7 +154,7 @@
       '코드 진행': 'Progresiones',
       '주법 리듬 훈련': 'Patrones de Rasgueo',
       '주법 훈련': 'Rasgueo',
-      '코드 조합 훈련': 'Quiz de Reharm',
+      '리하모니 화성학': 'Quiz de Reharm',
       '일일 출석': 'Check-in diario',
       '훈련 10분당': 'Cada 10 min de práctica',
       '코드 진행 재생': 'Reproducir una progresión',
@@ -165,7 +165,7 @@
       '진행': 'Progresión',   // 진행 이름 끝("1564 진행")
       '코드 맞추기 완료': 'Completar un Quiz de Acordes',
       '스케일 훈련 완료': 'Completar Bloques de Escalas',
-      '코드 조합 훈련 완료': 'Completar un Quiz de Reharm',
+      '리하모니 화성학 완료': 'Completar un Quiz de Reharm',
 
       // ── 코드 맞추기 레벨 이름 ──
       '필수 코드': 'Acordes Esenciales',
@@ -183,7 +183,7 @@
       '실버 챌린지': 'Desafío Plata',
       '골드 챌린지': 'Desafío Oro',
 
-      // ── 코드 조합 훈련 장 이름 ──
+      // ── 리하모니 화성학 장 이름 ──
       '패밀리코드': 'Acordes Diatónicos',
       '패밀리코드의 대리코드': 'Sustituciones Diatónicas',
       '세컨더리 도미넌트': 'Dominantes Secundarias',

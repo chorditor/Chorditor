@@ -1375,7 +1375,7 @@ const TUTORIAL_CHAPTERS = (() => {
       nextLabel: '다음',
     },
     {
-      title: '코드 조합 훈련',
+      title: '리하모니 화성학',
       text: '어렵게만 느껴지던 화성학,\n퀴즈만 풀어도 자연스럽게 익혀져요.',
       panel: 'top',
       pulse: '.training-card[data-key="reharmony"]',

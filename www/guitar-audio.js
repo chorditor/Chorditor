@@ -10,6 +10,10 @@ const GuitarAudio = (() => {
   // 하나하나 들려줘야 하는 상황 — 데일리미션 튜토리얼 등)을 명확히 구분
   const STRUM_INTERVAL_SAMPLE = 0.035;
 
+  // 기타 출력 트림(0~1) — 컴프레서 뒤 최종단(_outGain)에 곱해짐. 기타 샘플은 컴프레서(threshold -24dB, ratio 6)를 지나서 벨로시티를 낮춰도
+  // 소리가 거의 안 줄어듦 → 다른 소리(피아노 멜로디 등)와 균형을 맞춰야 할 때만 setOutputTrim으로 컴프레서 뒤에서 줄임. panic()이 1로 되돌림
+  let _outTrim = 1;
+
   // 코드 보이싱 인터벌 (root MIDI 기준 반음 오프셋)
   const QUALITY_INTERVALS = {
     'M':    [0,  7, 12, 16, 19],
@@ -77,7 +81,7 @@ const GuitarAudio = (() => {
     // 설정>사운드 마스터 볼륨 — 컴프레서 뒤 최종단에서 적용(압축이 감소분 안 먹게)
     if (_outGain) {
       const mv = (typeof _getSfxMasterVolume === 'function') ? _getSfxMasterVolume() : 1;
-      _outGain.gain.value = mv;
+      _outGain.gain.value = mv * _outTrim;
     }
   }
 
@@ -392,6 +396,7 @@ const GuitarAudio = (() => {
   // 즉시 전체 묵음 (잔향 없이 하드컷) — master gain 즉시 0 + 모든 보이스 release
   function panic() {
     if (_releaseTimer) { clearTimeout(_releaseTimer); _releaseTimer = null; }
+    _outTrim = 1;   // 트림은 임시 균형용이라 하드컷하면 원래대로
     _lastNotes = [];
     _ready = false;
     // 오디오 그래프 즉시 절단 → 출력중·예약 사운드 즉시 묵음, 후 dispose + 재초기화
@@ -432,7 +437,19 @@ const GuitarAudio = (() => {
   function setOutputVolume(v) {
     if (!_outGain) return;
     const mv = Math.max(0, Math.min(1, (typeof v === 'number' ? v : 1)));
-    _outGain.gain.value = mv;
+    _outGain.gain.value = mv * _outTrim;
+  }
+
+  // 기타 출력만 컴프레서 뒤에서 줄임/되돌림(0~1, 1 = 원래). 설정>사운드 마스터 볼륨과 곱해짐
+  function setOutputTrim(v) {
+    _outTrim = Math.max(0, Math.min(1, (typeof v === 'number' ? v : 1)));
+    if (!_outGain) return;
+    const mv = (typeof _getSfxMasterVolume === 'function') ? _getSfxMasterVolume() : 1;
+    _outGain.gain.value = mv * _outTrim;
+  }
+  // 피아노 출력 게인(기본 0.6, 컴프레서를 거치지 않음). 샘플러를 새로 만들면(resetPiano·fadeOutPiano 뒤) 기본값으로 돌아감
+  function setPianoGain(v) {
+    if (_pianoGain && typeof v === 'number') _pianoGain.gain.value = Math.max(0, v);
   }
 
   // 외부 AudioContext와 동기화 (메트로놈 등) — lookAhead 0으로 지연 제거
@@ -576,5 +593,5 @@ const GuitarAudio = (() => {
     _initPiano();
   }
 
-  return { playChord, strumNotes, strumAt, strumAtCut, cutAt, playNote, tapNote, tapRelease, stop, panic, ready, resume, syncContext, setOutputVolume, STRUM_INTERVAL_SAMPLE, playPianoChord, pianoReady, stopPiano, resetPiano, fadeOutPiano, warmupPiano, playBassNote, bassReady, resetBass };
+  return { playChord, strumNotes, strumAt, strumAtCut, cutAt, playNote, tapNote, tapRelease, stop, panic, ready, resume, syncContext, setOutputVolume, setOutputTrim, setPianoGain, STRUM_INTERVAL_SAMPLE, playPianoChord, pianoReady, stopPiano, resetPiano, fadeOutPiano, warmupPiano, playBassNote, bassReady, resetBass };
 })();

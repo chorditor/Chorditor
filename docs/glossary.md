@@ -19,7 +19,7 @@
 |---|---|---|---|---|
 | 코드 맞추기 | Chord Quiz | コードクイズ | Quiz de Acordes | |
 | 스케일 훈련 | Scale Blocks | スケールブロック | Bloques de Escalas | |
-| 코드 조합 훈련 | Reharm Quiz | リハモクイズ | Quiz de Reharm | 「리하모」는 일본 뮤지션 약칭, 스페인어도 reharm을 그대로 씀(정식어 rearmonización은 라벨로 김). 초보용 부제로 보완(예: "Swap chords, keep the feel") |
+| 리하모니 화성학 | Reharm Quiz | リハモクイズ | Quiz de Reharm | 「리하모」는 일본 뮤지션 약칭, 스페인어도 reharm을 그대로 씀(정식어 rearmonización은 라벨로 김). 초보용 부제로 보완(예: "Swap chords, keep the feel") |
 | 코드 진행 리스트 | Chord Loops | コード進行 | Progresiones | 영어는 Progressions가 카드·제목에 길어서 Chord Loops로 통일. 설명 문장 속 음악 용어로서의 "chord progression"은 그대로 씀 |
 | 주법 리듬 훈련 | Strumming Patterns | ストロークパターン | Patrones de Rasgueo | |
 | 코드반주 훈련 | Chord Accompaniment | コード伴奏 | Acompañamiento de Acordes | 옛 '코드 진행 리스트'+'주법 리듬 훈련'을 통합한 훈련(2026-10-22). 훈련소 카드는 `Chord`/`Accompaniment`로 줄바꿈 — 좁은 카드에서 긴 단어(Accompaniment·Acompañamiento) 넘침 여부 실기기 확인. 퀘스트 카드 짧은 이름: Accompaniment / コード伴奏 / Acompañamiento |

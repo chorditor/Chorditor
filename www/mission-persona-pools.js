@@ -11,9 +11,9 @@
 // chords          : 코드맞추기 출제 후보 코드 (chords-library.js 기준 코드명 — 샵/플랫 표기 둘 다 매칭)
 // scaleBlocks     : 스케일 훈련 블럭 id (scale-data.js 기준, 표시 순서). 스케일 종류 무관하게
 //                   id가 전역 유일하므로 여러 종류를 한 배열에 섞어도 됨. 근음은 항상 C 고정
-// comboKeys       : 코드조합훈련 대상 key 칩 목록
-// comboChapters   : 코드조합훈련 출제 장(chord-combo-questions.js 기준)
-// comboDifficulty : 코드조합훈련 난이도(low/mid/high) — key 풀이 여기서 갈림
+// comboKeys       : 리하모니 화성학 대상 key 칩 목록
+// comboChapters   : 리하모니 화성학 출제 장(chord-combo-questions.js 기준)
+// comboDifficulty : 리하모니 화성학 난이도(low/mid/high) — key 풀이 여기서 갈림
 //
 // 코드풀 근거는 docs/chord-roadmap.md 의 도수표(카테고리 1~14) 참고.
 // ═══════════════════════════════════════════════════════════════

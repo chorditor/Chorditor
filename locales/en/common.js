@@ -153,7 +153,7 @@
       '코드 진행': 'Chord Loops',
       '주법 리듬 훈련': 'Strumming Patterns',
       '주법 훈련': 'Strumming',
-      '코드 조합 훈련': 'Reharm Quiz',
+      '리하모니 화성학': 'Reharm Quiz',
       '일일 출석': 'Daily check-in',
       '훈련 10분당': 'Every 10 min of practice',
       '코드 진행 재생': 'Play a Chord Loop',
@@ -164,7 +164,7 @@
       '진행': 'Progression',   // 진행 이름 끝("1564 진행")
       '코드 맞추기 완료': 'Finish a Chord Quiz',
       '스케일 훈련 완료': 'Finish Scale Blocks',
-      '코드 조합 훈련 완료': 'Finish a Reharm Quiz',
+      '리하모니 화성학 완료': 'Finish a Reharm Quiz',
 
       // ── 코드 맞추기 레벨 이름 ──
       '필수 코드': 'Essential Chords',
@@ -182,7 +182,7 @@
       '실버 챌린지': 'Silver Challenge',
       '골드 챌린지': 'Gold Challenge',
 
-      // ── 코드 조합 훈련 장 이름 ──
+      // ── 리하모니 화성학 장 이름 ──
       '패밀리코드': 'Diatonic Chords',
       '패밀리코드의 대리코드': 'Diatonic Substitutions',
       '세컨더리 도미넌트': 'Secondary Dominants',

@@ -1,5 +1,5 @@
 // ═══════════════════════════════════════════════════════════════
-// chord-combo-questions.js — 코드 조합 훈련 문제은행
+// chord-combo-questions.js — 리하모니 화성학 문제은행
 // ═══════════════════════════════════════════════════════════════
 //
 // [표기 규칙 — 내부 로직용 도수 코드]
@@ -170,6 +170,7 @@ const CC_DEGREE_TRIAD = {
   m_III:    { offset: 3,  suffix: 'M7',     label7: 'M7',     suffix7: 'M7',     quality: 'M7',     quality7: 'M7',     alwaysLabel: 'bIIIM7'   },
   m_IV:     { offset: 5,  suffix: 'm7',     label7: 'm7',     suffix7: 'm7',     quality: 'm7',     quality7: 'm7',     alwaysLabel: 'IVm7'     },
   m_V:      { offset: 7,  suffix: '7',      label7: '7',      suffix7: '7',      quality: '7',      quality7: '7',      alwaysLabel: 'V7'       }, // 멜로딕 마이너 차용(자연단조는 Vm7)
+  m_Vm:     { offset: 7,  suffix: 'm',     label7: 'm7',     suffix7: 'm7',     quality: 'm',     quality7: 'm7',     alwaysLabel: 'Vm7'      }, // 내추럴 마이너 5도(챕터 8) — 로마자 힌트는 Vm
   m_VI:     { offset: 8,  suffix: 'M7',     label7: 'M7',     suffix7: 'M7',     quality: 'M7',     quality7: 'M7',     alwaysLabel: 'bVIM7'    },
   m_VII:    { offset: 10, suffix: '7',      label7: '7',      suffix7: '7',      quality: '7',      quality7: '7',      alwaysLabel: 'bVII7'    },
   m_VIIdim: { offset: 11, suffix: 'dim7',   label7: 'dim7',   suffix7: 'dim7',   quality: 'dim7',   quality7: 'dim7',   alwaysLabel: 'VIIdim7'  }, // 하모닉 마이너 차용

@@ -52,7 +52,7 @@ if (window.Capacitor?.getPlatform?.() === 'ios') {
 // ── 상수 ─────────────────────────────────────────────────────
 const SUPABASE_URL  ='https://jbvkygeksohlysyvaoab.supabase.co';
 const SUPABASE_ANON = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Impidmt5Z2Vrc29obHlzeXZhb2FiIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzYzOTk5NjgsImV4cCI6MjA5MTk3NTk2OH0.6RSgChy0Yq0H2TJpZPSoMKQ2V-OYfR0XzE1aJBBZkXI';
-const APP_VERSION   = '1.3.6.1_pre';
+const APP_VERSION   = '1.3.6.1_pre_dev';
 const SUPABASE_STORAGE_KEY = 'sb-jbvkygeksohlysyvaoab-auth-token';
 
 // 이용약관/개인정보처리방침 버전 — 광고식별자 수집 항목 추가(2026-09) 시 1로 올림.
@@ -875,6 +875,69 @@ async function _peakGrantByAd() {
   return false;
 }
 
+// 리하모니 화성학 피크 환급(정답 5개마다 +1) — consumePeak의 짝.
+// 정답이 쌓일 때마다 서버를 부르지 않는다: 화면 숫자만 올리고(잔액 + 대기분) 대기분을 localStorage에 쌓아 두었다가,
+// 훈련을 나가거나 클리어할 때 flushPendingRefund가 서버 refund_peak RPC로 한 번에 반영한다. 앱이 꺼져도 대기분이 남아 다음 로드 때 보낸다.
+const _PEAK_REFUND_PENDING_KEY = 'chorditor_peak_refund_pending';
+let _peakRefundFlushing = false;
+
+function _peakRefundPending() {
+  let n = 0;
+  try { n = parseInt(localStorage.getItem(_PEAK_REFUND_PENDING_KEY), 10); } catch (_) {}
+  return n > 0 ? n : 0;
+}
+
+function _peakRefundPendingSet(n) {
+  try { localStorage.setItem(_PEAK_REFUND_PENDING_KEY, String(Math.max(0, n))); } catch (_) {}
+}
+
+// 환급 대기분 추가 + 화면 숫자 즉시 반영. Pro는 소모가 없으니 환급도 없음(false)
+function addPendingRefund(amount) {
+  if (getPlan() === 'pro') return false;
+  _peakRefundPendingSet(_peakRefundPending() + amount);
+  renderPeakBadge();
+  return true;
+}
+
+// 서버(또는 DEV/비로그인 로컬)에 amount만큼 반영. 잔액 상태만 갱신하고 화면은 호출부가 그림(대기분 차감 전에 그리면 숫자가 두 번 보임).
+// true = 반영됨 / false = 반영 안 됨(로그인 상태 RPC 실패 — _peakGrantByAd와 같은 이유로 로컬 성공 처리하지 않음, 대기분을 남겨 다음에 다시 보냄)
+async function _sendPeakRefund(amount, source) {
+  if (APP_VERSION.includes('_dev')) { // DEV 빌드는 소모를 안 하므로 서버·로컬 저장 없이 화면 잔액만 올림(환급 연출 확인용)
+    _peakState = { ..._peakState, balance: (_peakState.balance || 0) + amount, loaded: true };
+    return true;
+  }
+  const { token, userId } = getStoredAuth();
+  const r = await _peakRpc('refund_peak', { p_amount: amount });
+  if (r && r.ok) {
+    _peakState = { ..._peakState, balance: r.balance, peakbox_count: r.peakbox_count, loaded: true };
+    analytics.track('peak_refunded', { amount, balance_after: r.balance, training_type: source });
+    return true;
+  }
+  if (!token || !userId) { // 비로그인 — consumePeak의 로컬 폴백과 짝
+    const local = _localPeakGet();
+    _localPeakSet(local.balance + amount, local.peakbox_count);
+    _peakState = { ..._peakState, balance: (_peakState.balance || 0) + amount, loaded: true };
+    analytics.track('peak_refunded', { amount, balance_after: _peakState.balance, training_type: source });
+    return true;
+  }
+  console.warn('[Peak] refund_peak RPC 실패(로그인 상태) — 대기분 유지, 다음에 다시 전송');
+  return false;
+}
+
+// 대기분 서버 전송(멱등) — 나가기·클리어·이탈(pagehide/백그라운드)·다음 로드에서 호출. 전송 중 중복 호출은 무시, 성공한 만큼만 대기분에서 뺌
+async function flushPendingRefund(source) {
+  const n = _peakRefundPending();
+  if (!n || _peakRefundFlushing) return;
+  if (getPlan() === 'pro') { _peakRefundPendingSet(0); renderPeakBadge(); return; } // 무료였다가 Pro가 된 경우 — 환급 불필요
+  _peakRefundFlushing = true;
+  try {
+    if (await _sendPeakRefund(n, source)) _peakRefundPendingSet(_peakRefundPending() - n);
+  } finally {
+    _peakRefundFlushing = false;
+  }
+  renderPeakBadge();
+}
+
 // 효과음 프리로드 캐시 — 매번 new Audio()의 디스크 로드·디코드 지연 제거.
 // 프리로드 안 하면 첫 재생이 100ms+ 늦어 화면전환(페이지 이동)과 레이스로 소리가 잘림.
 // ⛔ 안드로이드 WebView는 HTMLAudioElement.volume 설정을 무시한다(하드웨어 볼륨만 적용).
@@ -1101,12 +1164,13 @@ async function refreshPeakState() {
   }
   renderPeakBadge();
   renderPeakboxBadge();
+  if (typeof _comboV2InQuiz === 'undefined' || !_comboV2InQuiz) flushPendingRefund('chord_combo');   // 앱이 꺼져서 못 보낸 환급 대기분(훈련 중엔 나갈 때 보냄)
   return _peakState;
 }
 
 function renderPeakBadge() {
   document.querySelectorAll('#currency-peak-count').forEach(el => {
-    el.textContent = getPlan() === 'pro' ? '∞' : `${_peakState.balance}/${PEAK_CAP}`;
+    el.textContent = getPlan() === 'pro' ? '∞' : `${_peakState.balance + _peakRefundPending()}/${PEAK_CAP}`;   // 환급 대기분(아직 서버에 안 보낸 것)도 미리 보여 줌
   });
 }
 
@@ -3286,7 +3350,7 @@ const BEHAVE_XP = {
   quiz: 5,         // 코드 맞추기 세션 완료
   scale: 5,        // 스케일 훈련 세션 완료
   image: 2,        // 코드 이미지 저장
-  combo: 15,       // 코드 조합 훈련 세션 완료 (정답 무관)
+  combo: 15,       // 리하모니 화성학 세션 완료 (정답 무관)
 };
 
 // ── 퀘스트: 누적출석 (평생 총 출석일수, 30일 순환달력과 별개) ──────
@@ -4142,7 +4206,7 @@ function _perfectCardsHtml(list) {
   }).join('');
 }
 
-// ── 퀘스트: 코드 조합 훈련 장 첫 완료 (1~8, 순차, 1회성) ──────────────
+// ── 퀘스트: 리하모니 화성학 장 첫 완료 (1~8, 순차, 1회성) ──────────────
 // 정답 수 무관 — 10문제 세션 1회만 완료하면 수령. 코드맞추기 레벨퀘스트와 동일 패턴.
 // 보상 1·2장→1, 3~5장→2, 6~8장→3. XP는 _quizLvlXp 재사용(동일 곡선).
 const COMBO_LVL_MAX = 8;
@@ -4204,7 +4268,7 @@ async function claimComboLevelQuest() {
   addXp(_xpGain); // 레벨 경험치
 }
 
-// ── 퀘스트: 코드 조합 훈련 티어별 퍼펙트 (반복, 장 3개 그룹) ────────────
+// ── 퀘스트: 리하모니 화성학 티어별 퍼펙트 (반복, 장 3개 그룹) ────────────
 // 장마다 독립 — 그 장 퍼펙트(10문제 전부 정답) 3회 누적마다 보상. 난이도 무관.
 // 보상은 장 범위(티어)로 결정: 1~2장→300XP+상자3 / 3~5장→500XP+상자5 / 6~8장→750XP+상자8.
 function _comboPerfectTierFor(ch) { return ch <= 2 ? { reward: 3, xp: 300 } : (ch <= 5 ? { reward: 5, xp: 500 } : { reward: 8, xp: 750 }); }
@@ -4769,10 +4833,10 @@ async function renderQuestList() {
   parts.push(rqHtml);
   if (_isClaimable(rq.total, rq.next_day)) top.push(rqHtml);
 
-  parts.push(_questDividerHtml('코드 조합 훈련'));
+  parts.push(_questDividerHtml('리하모니 화성학'));
   const clDone = Math.min(cl.done, 1);
   const clNextDay = cl.next_level ? 1 : 0;
-  const clHtml = _questCardHtml('코드 조합 훈련',
+  const clHtml = _questCardHtml('리하모니 화성학',
     (COMBO_CHAPTER_NAMES[cl.next_level] || ('제' + cl.next_level + '장')) + ' 첫 완료',
     cl.reward, _quizLvlXp(cl.next_level), clDone, clNextDay, 'claimComboLevelQuest');
   parts.push(clHtml);
@@ -4816,7 +4880,7 @@ const XP_INFO_ROWS = [
   ['코드 맞추기 완료',      BEHAVE_XP.quiz],
   ['스케일 훈련 완료',      BEHAVE_XP.scale],
   ['코드 이미지 저장',      BEHAVE_XP.image],
-  ['코드 조합 훈련 완료',    BEHAVE_XP.combo],
+  ['리하모니 화성학 완료',    BEHAVE_XP.combo],
 ];
 
 function openXpInfoModal() {

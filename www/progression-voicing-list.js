@@ -32,6 +32,12 @@ const _ALLOWED_STATIC_FRETS = [
   _parseFrets('x 0 2 2 1 0'),   // Am
   _parseFrets('0 2 2 0 0 0'),   // Em
   _parseFrets('x x 0 2 3 1'),   // Dm
+  // add9 오픈
+  _parseFrets('x 3 2 0 3 0'),   // Cadd9
+  _parseFrets('x 3 2 0 3 3'),   // Cadd9
+  _parseFrets('3 x 0 2 0 3'),   // Gadd9
+  _parseFrets('3 x 0 2 3 3'),   // Gadd9
+  _parseFrets('x 0 2 4 2 0'),   // Aadd9
   // sus4 오픈
   _parseFrets('x 3 3 0 1 1'),   // Csus4
   _parseFrets('x 0 2 2 3 0'),   // Asus4
@@ -115,6 +121,10 @@ const _ALLOWED_SLASH_SHAPES = [
   [1, 0, 0, 0, 2, null],
   // C7/E: x x r+1 r+2 r r+2 (rootStr:4) → [2,0,2,1,null,null]
   [2, 0, 2, 1, null, null],
+  // FM7/A 드롭3: r+2 x r r+2 r+2 x (rootStr:6) → [null,2,2,0,null,2]
+  [null, 2, 2, 0, null, 2],
+  // CM7/E 드롭2,4: x r r+2 x r+1 r+1 (rootStr:5) → [1,1,null,2,0,null]
+  [1, 1, null, 2, 0, null],
   // G/F(b7 베이스): r+1 x r r r x (rootStr:6) → [null,0,0,0,null,1]
   [null, 0, 0, 0, null, 1],
   // G/F(b7 베이스): x r r+1 r x x (rootStr:5) → [0,1,0,null,1,null]
@@ -176,9 +186,13 @@ const _ALLOWED_PATTERN_SHAPES = [
   [0, 2, 2, 2, 0, null],      // M rootStr:5
   [0, 0, 0, 2, 2, 0],         // m rootStr:6
   [0, 1, 2, 2, 0, null],      // m rootStr:5
+  [2, 3, 2, 0, null, null],   // M rootStr:4  (x x r r+2 r+3 r+2, 예: Eb x x 1 3 4 3)
+  [1, 3, 2, 0, null, null],   // m rootStr:4  (x x r r+2 r+3 r+1, 예: Ebm x x 1 3 4 2)
   [0, 0, 2, 2, 2, 0],         // sus4 rootStr:6
   [0, 3, 2, 2, 0, null],      // sus4 rootStr:5
   [0, 0, 2, 2, 0, null],      // sus2 rootStr:5
+  [2, 0, 1, 2, null, 0],      // add9 rootStr:6  (T x r+2 r+1 r r+2, 예: Gb 2 x 4 3 2 4)
+  [2, 0, 1, 2, null, null],   // add9 rootStr:4  (x x r r-1 r-2 r, 예: Gb x x 4 3 2 4)
   [0, 3, 2, 0, null, null],   // sus2 rootStr:4
   [null, 0, 1, 1, null, 0],   // M7 rootStr:6
   [0, 2, 1, 2, 0, null],      // M7 rootStr:5
@@ -256,11 +270,14 @@ const _ALLOWED_TENSION_SHAPES = [
   [2, 2, 0, 1, null, null],    // 7(#9) rootStr:4
   [null, 0, 2, 1, null, 1],    // 7(#11) rootStr:6
   [null, 2, 1, 0, 1, null],    // 7(#11) rootStr:5 (dup shape w/ #9, harmless)
+  [null, 2, 0, 1, 0, null],    // 7(#11) rootStr:5 (x r+1 r+2 r+1 r+3 x, 예: C x 3 4 3 5 x)
   [2, 1, 1, 0, null, null],    // 7(#11) rootStr:4
   [1, 0, 1, 0, null, 0],       // 7(b13) rootStr:6 (dup shape w/ b9, harmless)
   [1, 2, 0, 2, 0, null],       // 7(b13) rootStr:5
   [1, 2, 0, null, 0, null],    // 7(b13) rootStr:5 (alt)
   [3, 0, 1, 0, 2, 0],          // 7(13) rootStr:6 (dup shape w/ #9, harmless)
+  [0, 2, 1, 0, 2, 0],          // 7(13) rootStr:6 패턴1 (r+1 r+3 r+1 r+2 r+3 r+1, 예: G 3 5 3 4 5 3)
+  [null, 2, 1, 0, null, 0],    // 7(13) rootStr:6 패턴2 (r+1 x r+1 r+2 r+3 x, 예: G 3 x 3 4 5 x)
   [2, 2, 0, null, 0, null],    // 7(13) rootStr:5
 ];
 

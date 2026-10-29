@@ -97,7 +97,7 @@ window.CHORD_STATIC = [
   // ── E 계열 ────────────────────────────────────────────────
   ['0 2 2 1 0 0',  ['E'],    'x 2 3 1 x x',  'M',  2],
   ['0 2 2 0 0 0',  ['Em'],    'x 2 3 x x x',  'm',  2],
-  ['0 2 4 1 0 0',  ['Eadd9'],    'x 2 4 1 x x',  'm',  2],
+  ['0 2 4 1 0 0',  ['Eadd9'],    'x 2 4 1 x x',  'add9',  2],
   ['0 2 1 1 0 0',  ['EM7'],    'x 3 2 1 x x',  'M7',  2],
   ['0 2 0 1 0 0',  ['E7'],    'x 3 x 1 x x',  '7',  2],
   ['0 2 2 1 3 0',  ['E7'],    'x 2 3 1 4 x',  '7',  2],
@@ -208,6 +208,10 @@ window.CHORD_PATTERN = [
   { pattern: 'x r+1 r+3 r+3 r+1 r+1', rootStr: 5, fingers: 'x 1 3 4 1 1', barre: true, quality: 'sus2', name: (r, flat) => chordNoteName(1, r+1, flat) + 'sus2'},
   { pattern: 'x x r r+2 r+3 r', rootStr: 4, fingers: 'x x 1 3 4 1', barre: true, quality: 'sus2', name: (r, flat) => chordNoteName(2, r, flat) + 'sus2'},
 
+  // add9 코드 (5번줄 근음 패턴 없음)
+  { pattern: 'r+1 x r+3 r+2 r+1 r+3', rootStr: 6, fingers: 'T x 3 2 1 4', barre: false, quality: 'add9', name: (r, flat) => chordNoteName(0, r+1, flat) + 'add9'},
+  { pattern: 'x x r+2 r+1 r r+2', rootStr: 4, fingers: 'x x 3 2 1 4', barre: false, quality: 'add9', name: (r, flat) => chordNoteName(2, r+2, flat) + 'add9'},
+
   //dim 코드
   { pattern: 'r+1 r+2 r+3 r+1 x x', rootStr: 6, fingers: '1 2 3 1 x x', barre: true, quality: 'dim', name: (r, flat) => chordNoteName(0, r+1, flat) + 'dim'},
   { pattern: 'x r+1 r+2 r+3 r+2 x', rootStr: 5, fingers: 'x 1 2 4 3 x', barre: false, quality: 'dim', name: (r, flat) => chordNoteName(1, r+1, flat) + 'dim'},
@@ -283,6 +287,10 @@ window.CHORD_PATTERN = [
   // 1전위 코드 (CM7/E)
   { pattern: 'x r r+2 r+2 r+1 x', rootStr: 6, fingers: 'x 1 3 4 2 x', barre: false, quality: 'slash', name: (r, flat) => chordNoteName(0, r+1, flat) + 'M7' + '/' + chordNoteName(1, r, flat)},
   { pattern: 'x x r r+2 r+3 r+1', rootStr: 5, fingers: 'x x 1 3 4 2', barre: false, quality: 'slash', name: (r, flat) => chordNoteName(1, r+1, flat) + 'M7' + '/' + chordNoteName(2, r, flat)},
+  // FM7/A (드롭3) — 베이스 6번줄
+  { pattern: 'r+2 x r r+2 r+2 x', rootStr: 6, fingers: '2 x 1 3 4 x', barre: false, quality: 'slash', name: (r, flat) => chordNoteName(2, r, flat) + 'M7' + '/' + chordNoteName(0, r+2, flat)},
+  // CM7/E (드롭2,4) — 베이스 5번줄
+  { pattern: 'x r r+2 x r+1 r+1', rootStr: 5, fingers: 'x 1 4 x 2 3', barre: false, quality: 'slash', name: (r, flat) => chordNoteName(5, r+1, flat) + 'M7' + '/' + chordNoteName(1, r, flat)},
 
   // 1전위 코드 (C7/E)
   { pattern: 'r+2 x r r+2 r+1 x', rootStr: 6, fingers: '3 x 1 4 2 x', barre: false, quality: 'slash', name: (r, flat) => chordNoteName(2, r, flat) + '7' + '/' + chordNoteName(0, r+2, flat)},
@@ -416,6 +424,7 @@ window.CHORD_PATTERN = [
   // C7(13)
   { pattern: 'r+1 r+3 r+1 r+2 r+3 r+1', rootStr: 6, fingers: '1 3 1 2 4 1', barre: true, quality: 'tension', name: (r, flat) => chordNoteName(0, r+1, flat) + '7' + '(13)'},
   { pattern: 'x r+1 x r+1 r+3 r+3', rootStr: 5, fingers: 'x 1 x 1 3 4', barre: true, quality: 'tension', name: (r, flat) => chordNoteName(1, r+1, flat) + '7' + '(13)'},
+  { pattern: 'r+1 x r+1 r+2 r+3 x', rootStr: 6, fingers: '1 x 2 3 4 x', barre: false, quality: 'tension', name: (r, flat) => chordNoteName(0, r+1, flat) + '7' + '(13)'},
 
   // ──Drop 보이싱(미완성) ─────────────────────────────────────
 
