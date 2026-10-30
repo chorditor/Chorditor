@@ -1,4 +1,4 @@
-// 스페인어 사전 — 훈련 페이지: 훈련소, 코드 맞추기, 코드 조합 훈련, 코드 진행, 주법, 메트로놈, 튜너, 백킹
+// 스페인어 사전 — 훈련 페이지: 훈련소, 코드 맞추기, 리하모니 화성학, 코드 진행, 주법, 메트로놈, 튜너, 백킹
 (() => {
   const MODE = { '메이저': 'mayor', '마이너': 'menor', '도리안': 'dórico' };
 
@@ -7,7 +7,7 @@
       // ── 페이지 제목 ──
       'Chorditor - 훈련소': 'Chorditor - Sala de Ensayo',
       'Chorditor - 코드 이름 맞추기': 'Chorditor - Quiz de Acordes',
-      'Chorditor - 코드 조합 훈련': 'Chorditor - Quiz de Reharm',
+      'Chorditor - 리하모니 화성학': 'Chorditor - Quiz de Reharm',
       'Chorditor - 코드 진행 리스트': 'Chorditor - Progresiones',
       'Chorditor - 코드 진행 연습': 'Chorditor - Práctica de Progresiones',
       'Chorditor - 주법 리듬 훈련': 'Chorditor - Patrones de Rasgueo',
@@ -79,9 +79,9 @@
       '코드마스터 챌린지': 'Desafío Maestro de Acordes',
       '코디터의 모든 코드가 수록되어 있습니다!': '¡Aquí están todos los acordes de Chorditor!',
 
-      // ── 코드 조합 훈련 ──
+      // ── 리하모니 화성학 ──
       '어려운 화성학을 쉽게 배워요!': '¡La teoría musical, fácil!',
-      '코드 조합 훈련이 처음이시네요!': '¿Primera vez en Quiz de Reharm?',
+      '리하모니 화성학이 처음이시네요!': '¿Primera vez en Quiz de Reharm?',
       '쉬움': 'Fácil',
       '보통': 'Medio',
       '어려움': 'Difícil',
@@ -306,7 +306,7 @@
       '코드 진행 <br>리스트': 'Progresiones<1/>de Acordes',
       '주법 리듬 <br>훈련': 'Patrones de<1/>Rasgueo',
       '코드반주 <br>훈련': 'Acompañamiento<1/>de Acordes',
-      '코드 조합 <br>훈련': 'Quiz de<1/>Reharm',
+      '리하모니 <br>화성학': 'Quiz de<1/>Reharm',
       '코드 청음 <br>챌린지': 'Desafío de Oído:<1/>Acordes',
       '리하모니 <br>청음챌린지': 'Desafío de Oído:<1/>Reharm',
     },

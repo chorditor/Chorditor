@@ -6,7 +6,6 @@
   I18N.add('en', {
     exact: {
       'Chorditor - 오늘의 미션': 'Chorditor - Daily Mission',
-      'Chorditor - 출석체크': 'Chorditor - Daily Check-in',
 
       // ── 출석 ──
       '꾸준히 연습해서 실력을 키워봐요!': 'Keep at it and watch your skills grow!',

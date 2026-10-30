@@ -1,4 +1,4 @@
-// 영어 사전 — 훈련 페이지: 훈련소, 코드 맞추기, 코드 조합 훈련, 코드 진행, 주법, 메트로놈, 튜너, 백킹
+// 영어 사전 — 훈련 페이지: 훈련소, 코드 맞추기, 리하모니 화성학, 코드 진행, 주법, 메트로놈, 튜너, 백킹
 (() => {
   const ORD = { 1: '1st', 2: '2nd', 3: '3rd', 4: '4th', 5: '5th', 6: '6th' };
   const MODE = { '메이저': 'Major', '마이너': 'Minor', '도리안': 'Dorian' };
@@ -8,7 +8,7 @@
       // ── 페이지 제목 ──
       'Chorditor - 훈련소': 'Chorditor - Practice Room',
       'Chorditor - 코드 이름 맞추기': 'Chorditor - Chord Quiz',
-      'Chorditor - 코드 조합 훈련': 'Chorditor - Reharm Quiz',
+      'Chorditor - 리하모니 화성학': 'Chorditor - Reharm Quiz',
       'Chorditor - 코드 진행 리스트': 'Chorditor - Chord Loops',
       'Chorditor - 코드 진행 연습': 'Chorditor - Chord Loops Practice',
       'Chorditor - 주법 리듬 훈련': 'Chorditor - Strumming Patterns',
@@ -80,9 +80,9 @@
       '코드마스터 챌린지': 'Chord Master Challenge',
       '코디터의 모든 코드가 수록되어 있습니다!': 'Every chord in Chorditor is in here!',
 
-      // ── 코드 조합 훈련 ──
+      // ── 리하모니 화성학 ──
       '어려운 화성학을 쉽게 배워요!': 'Music theory made easy!',
-      '코드 조합 훈련이 처음이시네요!': 'First time in Reharm Quiz?',
+      '리하모니 화성학이 처음이시네요!': 'First time in Reharm Quiz?',
       '쉬움': 'Easy',
       '보통': 'Medium',
       '어려움': 'Hard',
@@ -307,7 +307,7 @@
       '코드 진행 <br>리스트': 'Chord<1/>Loops',
       '주법 리듬 <br>훈련': 'Strumming<1/>Patterns',
       '코드반주 <br>훈련': 'Chord<1/>Accompaniment',
-      '코드 조합 <br>훈련': 'Reharm<1/>Quiz',
+      '리하모니 <br>화성학': 'Reharm<1/>Quiz',
       '코드 청음 <br>챌린지': 'Chord Ear<1/>Challenge',
       '리하모니 <br>청음챌린지': 'Reharm Ear<1/>Challenge',
     },

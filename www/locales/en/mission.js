@@ -6,7 +6,6 @@
   I18N.add('en', {
     exact: {
       'Chorditor - 오늘의 미션': 'Chorditor - Daily Mission',
-      'Chorditor - 출석체크': 'Chorditor - Daily Check-in',
 
       // ── 출석 ──
       '꾸준히 연습해서 실력을 키워봐요!': 'Keep at it and watch your skills grow!',
@@ -23,8 +22,7 @@
       '매일 연습 루틴': 'Daily Practice Routine',
       '아래의 훈련을 진행해요': "Here's today's lineup",
       '코드맞추기': 'Chord Quiz',
-      '코드조합훈련': 'Reharm Quiz',
-      '코드 조합': 'Reharm Quiz',
+      '리하모니 화성학': 'Reharm Quiz',
       '시작할래요!': "Let's go!",
 
       // ── 준비 화면 ──
@@ -81,7 +79,7 @@
       '올바른 곳을 채우세요!': 'Fill in the right spots!',
       '제출하기': 'Submit',
 
-      // ── 코드 조합 ──
+      // ── 리하모니 화성학 ──
       '코드 진행을 연습할 수 있어요!': 'Practice real chord progressions!',
       '악보 없이 연주하는데 최고의 연습이 될 거예요!': 'The best training for playing without a chart!',
       '순서를 외워주세요!': 'Memorize the order!',
@@ -194,7 +192,7 @@
       [/^(\d+)번폼$/, 'Form {1}'],
       [/^오답 (\d+)개$/, '{1} missed'],
 
-      // 코드 조합 힌트·지문
+      // 리하모니 화성학 힌트·지문
       [/^([A-G][#b]?) ?메이저 스케일은 (.+) 예요[.!]$/, 'The {1} major scale is {2}.'],
       [/^([A-G][#b]?m?) ?마이너 스케일은 (.+) 예요[.!]$/, 'The {1} minor scale is {2}.'],
       [/^(.+) 스케일은 (.+) 예요[.!]$/, 'The {1} scale is {2}.'],

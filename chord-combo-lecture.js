@@ -1,10 +1,11 @@
 // ───────────────────────────────────────────────────────────
 // 리하모니 화성학 — 챕터 미니강의(모션그래픽 강의)
 //   스케일 훈련 "?" 튜토리얼(scale-level.js showTutorialStep)과 같은 진행 방식이되, 본체는 연출이고 문구는 위쪽의 작은 보조 캡션이다.
-//   단계가 시작되면 캡션(0.5s 페이드)과 연출·소리가 동시에 시작 → 끝나면 +0.1초에 "다음" 활성화(style-guide §18). 단, 12단계를 묶음(GROUPS_CH1)으로 나눠
+//   단계가 시작되면 캡션(0.5s 페이드)과 연출·소리가 동시에 시작 → 끝나면 +0.1초에 "다음" 활성화(style-guide §18). 단, 1장은 단계를 묶음(GROUPS_CH1)으로 나눠
 //   "다음"은 묶음의 마지막 단계가 끝나야 켜지고, 묶음 안의 단계는 앞 단계가 끝나면(최소 2초) 버튼 없이 자동으로 이어진다.
 //   "다음"을 누르면 울리던 소리는 짧은 페이드로 끊고 다음 단계로.
-//   지금은 챕터 1·2·3·4·5·6이 있다(LECTURES[1~6]). 강의를 만든 챕터는 chord-combo.js의 COMBO_V2_LECTURE_READY에도 추가.
+//   진행 바(LECTURES[n].durs가 있는 챕터 — 지금은 1~9장): "다음" 버튼 대신 페이즈(묶음) 하나의 게이지 + 이전/이후 화살표. 칸 터치로 단계 이동(아래 "진행 바" 절).
+//   지금은 챕터 1·2·3·4·5·6·7·8이 있다(LECTURES[1~8]). 강의를 만든 챕터는 chord-combo.js의 COMBO_V2_LECTURE_READY에도 추가.
 //   chord-combo.js의 진행도 함수(_comboV2ProgLoad/Save·_comboV2RenderProgress), 챕터 판정(_comboV2LectureDone), 스크롤(_comboV2ScrollToChapter)을 그대로 쓴다.
 //
 //   화면 원칙(CLAUDE.md 0-5): 단계마다 "핵심"을 정하고 그것만 진하게/파랑, 나머지는 옅게. 요소는 자리를 옮기지 않고 투명도·색으로만 등장·강조·교체
@@ -45,6 +46,11 @@
     2: ['E', 'F', 'G', 'A', 'B', 'C', 'D'],
     3: ['G', 'A', 'B', 'C', 'D', 'E', 'F'],
   };
+  const D_ROWS = {   // D key(D 메이저 스케일에서 같은 방식으로 쌓은 세 줄) — 1장 끝의 "4도 찾기"에서 첫 줄(스케일)을 세어 보임
+    1: ['D', 'E', 'F#', 'G', 'A', 'B', 'C#'],
+    2: ['F#', 'G', 'A', 'B', 'C#', 'D', 'E'],
+    3: ['A', 'B', 'C#', 'D', 'E', 'F#', 'G'],
+  };
   // 문구 안에서 강조할 부분 — 따옴표 대신 파랑(.lec-em). 문구는 코드 안의 고정 문자열이라 innerHTML로 넣어도 안전
   function em(s) { return '<span class="lec-em">' + s + '</span>'; }
   // 한국어 낱말 아래에 영어를 작은 라벨로 덧붙임 — 라벨은 줄 높이에 안 들어가(한국어 문장 기준 행간 그대로) 줄 아래 빈 자리에 걸쳐 놓임. 문구의 마지막 줄에만 쓸 것(아래 줄이 있으면 겹침)
@@ -52,6 +58,38 @@
   // 마무리 단계 — 모든 챕터 강의가 공통으로 쓴다(챕터 번호만 바뀜). 버튼은 마지막 묶음이라 "완료"
   function endingStep(n) {
     return { text: '수고하셨습니다!\n완료 버튼을 눌러서 ' + n + '장 훈련을 시작해봐요!', run: function () { return Promise.resolve(); } };
+  }
+  // 단계 묶기 — 진행 바에서 칸 하나로 보이게 여러 단계를 한 단계로 이어 붙임(지우지 않음). 문구·연출·간격은 엔진이 단계를 넘길 때와 똑같은 순서로 진행:
+  //  구성 단계마다 [문구 → (enter) → 1초 → 연출] 이고, 연출이 끝나고 그 문구가 최소 간격(CAPTION_GAP_MIN_MS)만큼 보인 뒤 AUTO_GAP_MS 쉬고 다음 구성 단계로.
+  //  첫 구성 단계의 문구·enter·1초 선행은 엔진이 처리하므로 합친 단계는 첫 단계의 text/seq/enter를 그대로 가짐. 합친 단계는 길어서 엔진의 안전 시간(20초)을 구성 수만큼 늘림(failsafe).
+  //  모든 지연이 wait()라 빨리 돌리기(seek)·건너뛰기에서도 그대로 동작.
+  function chainSteps(list) {
+    const first = list[0];
+    const capMsOf = function (s) {
+      const base = s.seq ? Math.max(MIN_STEP_MS, (s.text.split('\n').length - 1) * LINE_MS + 700) : MIN_STEP_MS;
+      return s.text ? Math.max(base, CAPTION_GAP_MIN_MS - AUTO_GAP_MS) : base;
+    };
+    const guarded = function (s) {
+      try { return Promise.resolve(s.run()).catch(function (e) { console.error('[combo-lecture] 묶음 연출 오류', e); }); }
+      catch (e) { console.error('[combo-lecture] 묶음 연출 오류', e); return Promise.resolve(); }
+    };
+    return {
+      text: first.text, seq: first.seq, enter: first.enter, failsafe: STEP_FAILSAFE_MS * list.length,
+      run: function () {
+        let p = Promise.all([guarded(first), wait(Math.max(0, capMsOf(first) - CAPTION_LEAD_MS)), wait(first.ms || 0)]);   // ms: 소리 꼬리까지(연출 시작 기준)
+        list.slice(1).forEach(function (s) {
+          p = p.then(function () { return wait(AUTO_GAP_MS); })
+            .then(function () {
+              clearDelays();
+              showCaption(s.text, s.seq);
+              if (s.enter) { try { s.enter(); } catch (e) { console.error('[combo-lecture] 묶음 enter 오류', e); } }
+              return wait(CAPTION_LEAD_MS);
+            })
+            .then(function () { return Promise.all([guarded(s), wait(Math.max(0, capMsOf(s) - CAPTION_LEAD_MS)), wait(s.ms || 0)]); });
+        });
+        return p;
+      },
+    };
   }
   function romanHtml(r) {   // 'VIIdim' → 숫자 부분은 크게(VII), 품질은 작게(dim)
     const m = /^([IV]+)(.*)$/.exec(r);
@@ -77,7 +115,7 @@
   const AUTO_GAP_MS = 400;      // 묶음 안에서 앞 단계가 끝난 뒤 다음 단계가 자동으로 시작되기까지의 간격
   const CAPTION_LEAD_MS = 1000; // 문구가 뜬 뒤 연출·소리가 시작되기까지(문구 페이드 0.5초 + 읽는 시간 0.5초)
   const MIN_STEP_MS = 2000;     // 단계가 시작된 뒤 최소 이만큼은 지나야 "다음" 활성화 — 연출이 짧은 단계도 읽을 시간 확보
-  const CAPTION_GAP_MIN_MS = 3000; // 문구가 뜬 뒤 같은 묶음의 다음 문구가 뜨기까지 최소 간격(문구가 있는 단계에만) — 이보다 짧게 이어지지 않음. 새 강의·새 단계에도 자동 적용, 문구가 너무 빠르면 이 값만 키울 것. 묶음 끝의 "다음" 활성화도 이 시간 뒤
+  const CAPTION_GAP_MIN_MS = 4000; // (2026-10-30 3초 → 4초, 전 챕터) 문구가 뜬 뒤 같은 묶음의 다음 문구가 뜨기까지 최소 간격(문구가 있는 단계에만) — 이보다 짧게 이어지지 않음. 새 강의·새 단계에도 자동 적용, 문구가 너무 빠르면 이 값만 키울 것. 묶음 끝의 "다음" 활성화도 이 시간 뒤
   const STEP_FAILSAFE_MS = 20000; // 연출이 어떤 이유로 안 끝나도(샘플 로딩 실패 등) 이 시간 뒤엔 "다음"이 켜짐 — 영영 안 켜지는 일 방지(가장 긴 동요 단계도 약 13초)
   const READY_TIMEOUT_MS = 3000;  // 소리 샘플 준비를 기다리는 최대 시간 — 넘으면 소리 없이라도 진행
   const LEC_SLIDE_MS = 340;      // 본문 슬라이드(0.32s, CSS .combo-v2-lec-body) + 여유 — 닫힌 뒤 내용 초기화 시점
@@ -90,7 +128,7 @@
 
   // ── 상태 ──
   // gen: 묶음이 바뀔 때마다 올라가는 번호 — 이전 묶음에서 늦게 도착한 콜백이 "다음"을 켜지 못하게 막음 / ready: 지금 묶음이 끝나서 "다음"을 눌러도 되는 상태 / watch: ready가 아닐 때 버튼을 강제로 꺼 두는 감시 타이머
-  const L = { open: false, ch: 0, step: -1, group: -1, gen: 0, ready: false, watch: null, tok: 0, timers: [], pend: new Map(), rewatch: false, skipping: false, draining: false, vnow: 0, vid: 0, anims: [], sounded: false, pianoUsed: false, trimmed: false, resetTimer: null };
+  const L = { open: false, ch: 0, step: -1, group: -1, gen: 0, ready: false, watch: null, tok: 0, timers: [], pend: new Map(), rewatch: false, skipping: false, draining: false, vnow: 0, vid: 0, anims: [], sounded: false, pianoUsed: false, trimmed: false, resetTimer: null, heard: -1, seeking: false, pbarJump: false, autoNext: false };   // heard: 진행 바 — 이 챕터에서 끝까지 들은 마지막 단계 / seeking: 진행 바로 다른 단계로 가는 중(앞 단계를 빨리 돌리는 동안)
 
   // 동요에서 줄였던 기타 출력을 되돌림 — 소리가 짧은 페이드로 끊긴 뒤에(그 사이 갑자기 커지지 않게). 하드컷(panic)은 스스로 되돌림
   function releaseTrim(hard) {
@@ -102,7 +140,12 @@
 
   function $(id) { return document.getElementById(id); }
   // 강의 중에는 페이지 탑바의 피크 개수를 숨김(강의는 피크를 쓰지 않음) — CSS .combo-topbar.is-lec
-  function setTopbarLec(on) { const t = document.querySelector('.combo-topbar'); if (t) t.classList.toggle('is-lec', on); }
+  function setTopbarLec(on) {
+    const t = document.querySelector('.combo-topbar');
+    if (t) t.classList.toggle('is-lec', on);
+    const dev = $('combo-v2-devbar');   // 개발 빌드 도구 줄(왼쪽 아래 고정)이 하단 진행 바를 가리지 않게 강의 중엔 숨김 — 강의는 선택 화면에서만 열려서 닫을 때 다시 보이면 됨
+    if (dev) dev.hidden = on;
+  }
   const NEVER = function () { return new Promise(function () {}); };   // 정리된 뒤에는 이어지지 않는 약속
 
   // 타이머 — 세대 번호가 바뀌었으면 실행하지 않음
@@ -269,13 +312,22 @@
 
   // ── 챕터 1 단계 ──
   // 각 단계의 핵심(CLAUDE.md 0-5) — 그 순간 눈과 귀가 가야 할 곳:
-  //  1 메이저 스케일의 7음이 "순서대로" 놓인다(울리는 음만 파랑)      2 라 = A, 같은 7음의 이름                 3 쌓이는 줄(새 줄만 파랑, 앞 줄은 옅게)
-  //  4 세로 3음 = 코드 하나(다이어토닉 코드)                         5 코드 이름(음은 줄어들고 옅어짐 — 이제 핵심이 아님)   6 코드마다 번호(이름 아래)
-  //  7 번호의 정식 표기(로마숫자)와 읽는 법                          8 이름 ↔ 번호 ↔ 소리(울리는 열만 파랑)    9 이 7개 세트가 뼈대(음은 거의 사라짐)
-  // 10 노래에서 쓰이는 코드(위 7개에서 파랑)                         11 key가 바뀌어도 번호는 그대로, 코드명만 바뀜   12 이 챕터에서 할 훈련 안내   13 마무리(공통)
+  // (2026-10-30 보완: 처음 들어온 유저가 이탈하지 않도록 음이름·C key·D key 4도 찾기를 추가 — 낱개 단계 27개를 16칸으로 묶음. 칸 = 아래 STEPS_CH1)
+  //  P1 음이름과 스케일(도수의 출발점)
+  //   ① 메이저 스케일의 7음이 "순서대로" 놓인다(울리는 음만 파랑)
+  //   ② 라 = A(그 음만 파랑으로 바뀜) → 나머지도 음이름 → 음이름은 A~G 7개뿐(A부터 훑음) → 도 = C
+  //   ③ C에서 시작하는 메이저 스케일로 만든 곡 = C key → 시작음 C가 1도 → 다음 음부터 2도, 3도(번호는 "시작음에서 센다")
+  //  P2 코드 쌓기와 도수
+  //   ④ 쌓이는 줄(새 줄만 파랑, 앞 줄·번호는 옅게)  ⑤ 세로 3음 = 코드 하나(다이어토닉 코드)  ⑥ 코드 이름(음은 줄어들고 옅어짐 — 이제 핵심이 아님)
+  //   ⑦ 코드 번호 = 시작하는 음의 번호(번호가 돌아오고 번호·시작음이 함께 지나감)  ⑧ 로마숫자 표기와 읽는 법 → 어떤 key더라도 이 숫자는 변하지 않음(이름은 옅게, 번호만 파랑)
+  //  P3 소리와 노래  ⑨ 이름 ↔ 번호 ↔ 소리(울리는 열만 파랑)  ⑩ 이 7개 세트가 뼈대(음은 거의 사라짐)  ⑪ 노래에서 쓰이는 코드(위 7개에서 파랑)
+  //  P4 key가 바뀌면
+  //   ⑫ (버퍼 문구 "이번엔 다른 key에서는 어떻게 적용하는지 알아볼게요!"로 가사가 걷힘) → D 메이저 스케일로 만든 곡 = D key, D가 1도(코드명만 돌아서 바뀌고 번호는 그대로)  ⑬ D key의 4도 코드는? (4열만 남기고 이름은 ?)
+  //   ⑭ 1도 D부터 네 칸을 센다(세는 음 줄이 원래 크기로, 센 음은 파랑으로 쌓임 + 소리)  ⑮ 4도 = G(코드 소리), C key에서는 F — 번호는 같고 이름만 다름
+  //   ⑯ 훈련 안내 + 이 챕터의 목표(도수와 친숙해지기) + 마무리(공통)
   // 위에서 아래 순서 = 중요한 순서: 코드명(맨 위) → 번호 → 줄어든 음.
   // run()은 연출이 모두 끝나면 풀리는 약속을 돌려준다(그때 +0.1초에 "다음" 활성화).
-  const STEPS_CH1 = [
+  const STEPS_CH1_RAW = [
     // 1. 도입 문구 → 두 번째 문구("메이저 스케일이 있어요")와 함께 7음이 나타남 → 음 순차 재생(C3부터, 울리는 음만 파랑, 마지막에 한 옥타브 위 도를 한 번 더)
     { text: '1장에서는 다이어토닉 코드에 대해 배워요', run: function () {
       const syl = ['도', '레', '미', '파', '솔', '라', '시'];
@@ -301,17 +353,60 @@
       }, PLAY_MS);
       return wait(PLAY_MS + LEAD_MS + 7 * STEP + 900 + FADE_MS);
     } },
-    // 2. 음이름 전환 — 같은 자리에서 교체
-    { text: em('라') + '는 음이름으로 A예요\n음이름으로 바꿔봅시다', run: function () {
+    // 2-a. 라 = A — 6열 '라'만 파랑으로 켜져 같은 자리에서 A로 바뀜(나머지 6음은 도레미 그대로)
+    { text: em('라') + '는 음이름으로 ' + em('A') + '예요', run: function () {
       grid().classList.remove('is-quick');
-      return Promise.all(rowOf(1).map(function (el, i) {
-        return swap(el, function () { el.textContent = ROWS[1][i]; }, i * 50);
-      }));
+      const el = rowOf(1)[5];
+      el.classList.add('is-focus');
+      return wait(600).then(function () { return swap(el, function () { el.textContent = ROWS[1][5]; }); });
+    } },
+    // 2-b. 나머지 6음도 음이름으로 — 왼쪽부터 같은 자리에서 교체
+    { text: '나머지 음도 음이름으로\n바꿔 볼게요', run: function () {
+      const els = rowOf(1);
+      return Promise.all(els.map(function (el, i) {
+        return i === 5 ? Promise.resolve() : swap(el, function () { el.textContent = ROWS[1][i]; }, (i < 5 ? i : i - 1) * 60);
+      })).then(function () { els[5].classList.remove('is-focus'); });
+    } },
+    // 2-c. 음이름은 A~G 7개뿐 — A(6열)에서 시작해 B(7열) → C(1열) … G(5열) 순으로 파랑이 한 번 훑고 지나감
+    { text: '음이름은 ' + em('A부터 G까지 7개') + '뿐이에요', run: function () {
+      const els = rowOf(1), order = [5, 6, 0, 1, 2, 3, 4], SW = 350;
+      order.forEach(function (c, k) {
+        later(function () { if (k > 0) els[order[k - 1]].classList.remove('is-focus'); els[c].classList.add('is-focus'); }, k * SW);
+      });
+      later(function () { els[order[6]].classList.remove('is-focus'); }, 7 * SW);
+      return wait(7 * SW + FADE_MS);
+    } },
+    // 2-d. 도 = C — 1열 C만 파랑으로 남김(다음 단계 "C에서 시작하는 스케일"로 이어짐)
+    { text: '그래서 ' + em('도') + '는 ' + em('C') + '예요', run: function () {
+      rowOf(1)[0].classList.add('is-focus');
+      return wait(800);
+    } },
+    // 3-a. C key — 스케일을 왼쪽부터 한 번 훑고 시작음 C에 파랑이 남음(소리 없음)
+    { text: em('C') + '에서 시작하는 메이저 스케일로\n만든 곡을 ' + em('C key') + '라고 해요', run: function () {
+      const els = rowOf(1), SW = 110;
+      els.forEach(function (el, i) {
+        later(function () { if (i > 0) els[i - 1].classList.remove('is-focus'); el.classList.add('is-focus'); }, i * SW);
+      });
+      later(function () { els[6].classList.remove('is-focus'); els[0].classList.add('is-focus'); }, 7 * SW);
+      return wait(7 * SW + FADE_MS);
+    } },
+    // 3-b. 시작음 C = 1도 — 1열 위에 번호 1이 파랑으로 나타남
+    { text: '시작음 ' + em('C') + '가 ' + em('1도') + '예요', run: function () {
+      const n0 = nums()[0];
+      n0.textContent = '1';
+      return fx([n0], ['is-in', 'is-focus'], true);
+    } },
+    // 3-c. 다음 음부터 2도, 3도… — 나머지 번호가 차례로 나타나고 1열 파랑은 꺼짐. 이 번호가 뒤의 코드 번호가 됨(코드를 쌓는 동안은 옅어짐)
+    { text: '그다음 음부터\n2도, 3도…로 세어요', run: function () {
+      const ns = nums();
+      ns.forEach(function (el, i) { el.textContent = String(i + 1); });
+      return fx(ns.slice(1), 'is-in', true, 90).then(function () { return fx([ns[0], rowOf(1)[0]], 'is-focus', false); });
     } },
     // 3. 한 칸 건너뛰어 두 줄 쌓기 — 새로 쌓이는 줄만 파랑, 앞 줄은 옅게. 첫 묶음은 소리로도 C → +E → +G가 쌓임
     { text: '코드는 음들을 한 칸씩 건너뛰어서 쌓아요', run: function () {
       const t0 = audioT0(), STAG = 70, ROW_MS = 6 * STAG + FADE_MS, PAUSE = 300;
       const r1 = rowOf(1), r2 = rowOf(2), r3 = rowOf(3);
+      fx(nums(), 'is-dim', true);   // 앞 단계의 도수 번호 1~7은 쌓는 동안 옅게(쌓이는 줄이 주인공) — 7단계에서 돌아옴
       r2.forEach(function (el, i) { el.textContent = ROWS[2][i]; });
       r3.forEach(function (el, i) { el.textContent = ROWS[3][i]; });
       strum([48, 52], t0, 1.2, 0.6);
@@ -321,7 +416,7 @@
       return wait(LEAD_MS + 2 * ROW_MS + PAUSE);
     } },
     // 4. 세로 3음 = 코드 하나 — 세 줄이 같은 진하기로 돌아오고, 왼쪽부터 한 열씩 파랑이 지나감
-    { text: '이렇게 메이저 스케일에서 만든 코드를 ' + em('다이어토닉 코드') + '라고 해요', run: function () {
+    { text: '이렇게 메이저 스케일에서 만든 코드를\n' + em('다이어토닉 코드') + '라고 해요', run: function () {
       fx(allNotes(), ['is-dim', 'is-focus'], false);
       const cs = cols();
       cs.forEach(function (c, i) {
@@ -340,17 +435,30 @@
       fx(allNotes(), 'is-dim', true);
       return wait(SPREAD_MS).then(function () { return fx(nm, 'is-in', true, 60); });   // 열이 다 벌어진 뒤 이름이 차례로
     } },
-    // 6. 숫자 1~7 — 코드명 바로 아래 비워 둔 자리에 나타남
-    { text: '코드의 순서는 숫자를 붙여서 읽을 수 있어요', run: function () {
-      const ns = nums();
-      ns.forEach(function (el, i) { el.textContent = String(i + 1); });
-      return fx(ns, 'is-in', true, 60);
+    // 7. 코드 번호 = 시작하는 음의 번호 — 옅어졌던 번호 1~7이 돌아오고, 왼쪽부터 번호와 그 열의 시작음(첫 줄)이 함께 파랑으로 지나감
+    { text: '코드의 번호는\n시작하는 음의 번호를 따라가요', run: function () {
+      const ns = nums(), r1 = rowOf(1), SW = 300;
+      fx(ns, 'is-dim', false);
+      ns.forEach(function (el, i) {
+        later(function () { el.classList.add('is-focus'); r1[i].classList.add('is-focus'); }, FADE_MS + i * SW);
+        later(function () { el.classList.remove('is-focus'); r1[i].classList.remove('is-focus'); }, FADE_MS + i * SW + 450);
+      });
+      return wait(FADE_MS + 6 * SW + 450 + FADE_MS);
     } },
-    // 7. 로마자 — 같은 자리에서 교체
-    { text: '보통 로마숫자로 표시해요\n읽을 때는 ' + em('1도 메이저, 2도 마이너') + '처럼 읽어요', run: function () {
+    // 8-a. 로마자 — 같은 자리에서 교체
+    { text: '코드의 순서는 로마숫자로 표시해요\n읽을 때는 ' + em('1도 메이저, 2도 마이너') + '처럼 읽어요', run: function () {
       return Promise.all(nums().map(function (el, i) {
         return swap(el, function () { el.innerHTML = romanHtml(ROMANS[i]); }, i * 60);
       }));
+    } },
+    // 8-b. 어떤 key더라도 이 숫자는 변하지 않음 — 코드명은 잠시 옅게, 로마숫자만 파랑(이후 D key에서 이름만 바뀌는 것의 복선)
+    { text: '어떤 key더라도\n이 숫자는 변하지 않아요', run: function () {
+      const ns = nums(), nm = names();
+      fx(nm, 'is-dim', true);
+      return fx(ns, 'is-focus', true).then(function () { return wait(1200); }).then(function () {
+        fx(ns, 'is-focus', false);
+        return fx(nm, 'is-dim', false);
+      });
     } },
     // 8. 7코드 차례로 재생 + 마지막에 I을 한 번 더(돌아와서 끝나는 안정감) — 울리는 열의 코드명·번호만 파랑
     { text: '7개의 다이어토닉 코드를 들어봅시다!', run: function () {
@@ -398,25 +506,85 @@
         return wait(end);
       });
     } },
-    // 11. D key 교체 — 코드명만 왼쪽부터 하나씩 제자리에서 돌며 바뀌고 번호는 그대로 (소리 없음). 가사는 사라짐
-    { text: '노래의 key가 바뀌어도 번호는 바뀌지 않아요', run: function () {
+    // 12-0. 버퍼 — 노래 장면(가사)이 걷히며 key가 바뀌는 구간으로 넘어간다는 예고(연출은 가사 걷기만, 바로 D key로 가지 않게 숨 돌리는 문구)
+    { text: '이번엔 다른 key에서는\n어떻게 적용하는지 알아볼게요!', run: function () {
       $('lec-lyrics').classList.remove('is-in');
+      return wait(FADE_MS);
+    } },
+    // 12-a. D key 교체 — 코드명만 왼쪽부터 하나씩 제자리에서 돌며 바뀌고 번호는 그대로 (소리 없음). 가사는 사라지고, 거의 안 보이는 음 세 줄도 D key로 바꿔 둠
+    { text: em('D') + '에서 시작하는 메이저 스케일로\n바꿔 볼게요', run: function () {
+      $('lec-lyrics').classList.remove('is-in');
+      [1, 2, 3].forEach(function (r) { rowOf(r).forEach(function (el, i) { el.textContent = D_ROWS[r][i]; }); });
       return Promise.all(names().map(function (el, i) {
         return spin(el, function () { el.textContent = D_NAMES[i]; }, i * 100);   // 왼쪽부터 하나씩 차례로 돌며 바뀜
       }).concat([wait(FADE_MS)]));
     } },
-    // 12. 마무리 — 안내 문구만, 버튼은 "완료"
-    { text: '1장에서는 다양한 key에서 다이어토닉 코드를 찾을 수 있는 훈련을 해 볼 거예요!', run: function () { return Promise.resolve(); } },
-    endingStep(1),   // 13. 마무리 — 모든 챕터 강의가 같은 문구를 씀(챕터 번호만 다름), 버튼은 "완료"
+    // 12-b. D가 1도 — 1열 코드명·번호(I)만 잠깐 파랑
+    { text: 'D 메이저 스케일로 만든 곡은 ' + em('D key') + '\n이제 D가 ' + em('1도') + '가 돼요', run: function () {
+      const a = [names()[0], nums()[0]];
+      fx(a, 'is-focus', true);
+      return wait(1200).then(function () { return fx(a, 'is-focus', false); });
+    } },
+    // 13. 4도 코드는? — 4열(번호 IV)만 남기고 나머지는 옅게, 4열 코드명은 ?로 가림
+    { text: '그러면 D key의\n' + em('4도 코드') + '는 뭘까요?', run: function () {
+      const ns = nums(), nm = names(), rest = ns.concat(nm).filter(function (el) { return el !== ns[3] && el !== nm[3]; });
+      fx(rest, 'is-dim', true);
+      ns[3].classList.add('is-focus');
+      nm[3].classList.add('is-focus');
+      return Promise.all([swap(nm[3], function () { nm[3].textContent = '?'; }), wait(FADE_MS)]);
+    } },
+    // 14-a. 세어 볼 줄 준비 — 음 덩어리를 원래 크기로 키워(.is-count, 자리는 이미 잡혀 있어 위치는 안 움직임) D key 스케일(첫 줄)만 또렷하게
+    { text: '1도 ' + em('D') + '부터\n네 칸을 세어 봐요', run: function () {
+      grid().classList.add('is-count');
+      fx(rowOf(2).concat(rowOf(3)), 'is-in', false);
+      return fx(rowOf(1), ['is-dim', 'is-faint'], false);
+    } },
+    // 14-b. D, E, F#, G — 소리와 함께 한 음씩 파랑이 쌓이고, 네 번째 G를 길게 울림
+    { text: em('D, E, F#, G') + '\n네 번째 음이 ' + em('G') + '예요', run: function () {
+      const r1 = rowOf(1), STEP = 500, t0 = audioT0(), midis = [50, 52, 54, 55];
+      midis.forEach(function (m, k) {
+        note(m, t0 + k * STEP / 1000, k === 3 ? 1.2 : STEP / 1000, k === 3 ? 0.8 : 0.18);
+        later(function () { r1[k].classList.add('is-focus'); }, LEAD_MS + k * STEP);
+      });
+      return wait(LEAD_MS + 3 * STEP + 1200);
+    } },
+    // 15-a. 4도 = G — 세던 줄은 다시 거의 안 보이게, 이름이 ?에서 G로 바뀌고 G 코드가 울림
+    { text: 'D key의 4도 코드는\n' + em('G') + '예요', run: function () {
+      const ns = nums(), nm = names(), rest = ns.concat(nm).filter(function (el) { return el !== ns[3] && el !== nm[3]; });
+      grid().classList.remove('is-count');
+      fx(rowOf(1), 'is-focus', false);
+      fx(rowOf(1), ['is-dim', 'is-faint'], true);
+      fx(rest, 'is-dim', false);
+      strum(fretsToMidis(VOICINGS.G), audioT0(), 1.6, 0.8);
+      return swap(nm[3], function () { nm[3].textContent = D_NAMES[3]; }).then(function () { return wait(1200); });
+    } },
+    // 15-b. C key에서는 F — 같은 자리(번호 IV)에서 이름만 F로 바뀌었다가 G로 돌아옴
+    { text: 'C key에서는 ' + em('F') + '였죠?\n번호는 같고 이름만 달라요', run: function () {
+      const nm = names()[3];
+      return swap(nm, function () { nm.textContent = C_NAMES[3]; }).then(function () { return wait(1200); })
+        .then(function () { return swap(nm, function () { nm.textContent = D_NAMES[3]; }); })
+        .then(function () { nm.classList.remove('is-focus'); nums()[3].classList.remove('is-focus'); });
+    } },
+    // 16. 훈련 안내 → 이 챕터의 목표 → 마무리
+    { text: '1장에서는 다양한 key에서\n도수에 맞는 코드를 찾는 훈련을 해요', run: function () { return Promise.resolve(); } },
+    { text: '도수와 ' + em('친숙해지는 것') + '이\n1장의 목표예요', run: function () { return Promise.resolve(); } },
+    endingStep(1),   // 마무리 — 모든 챕터 강의가 같은 문구를 씀(챕터 번호만 다름), 버튼은 "완료"
   ];
-  // 단계는 12개로 나누되, "다음" 버튼은 묶음(그룹)마다 한 번만 켜진다. 묶음 안의 단계는 앞 단계가 끝나면 버튼을 누르지 않아도 자동으로 이어짐.
-  // 그룹 = 단계 번호(0부터) 목록: [1] / [2~4] / [5~8] / [9~10] / [11] / [12] / [13]
-  const GROUPS_CH1 = [[0], [1, 2, 3], [4, 5, 6, 7], [8, 9], [10], [11], [12]];
-  // 묶음의 마지막 단계는 소리의 꼬리(마지막 음·코드의 울림)까지 끝난 뒤에야 "다음"이 켜지게 하는 최소 시간(ms, 단계 시작 기준).
-  // 연출 코드가 오류로 일찍 끝나더라도 그 전에는 켜지지 않음. 소리가 있는 단계만 지정: 1단계(문구 2개 + 7음이 보인 뒤 재생, 높은 도 꼬리까지 약 9.4초), 8단계(마지막 C 코드 꼬리까지 약 10초), 10단계(동요 마지막 음 꼬리까지 약 13.5초)
-  STEPS_CH1[0].ms = 9000 + (CAPTION_GAP_MIN_MS - CAPTION_LEAD_MS - 1200);    // 문구 2개(둘째 문구는 문구 사이 최소 간격 뒤, 원래 1.2초 뒤였음) + 7음 등장 + 음 8개 재생(420ms 간격) + 높은 도 꼬리
-  STEPS_CH1[7].ms = 8300;    // 코드 7개 + I 한 번 더(0.75초 간격) + 마지막 C 꼬리
-  STEPS_CH1[9].ms = 14500;   // 동요(80 BPM 약 12초) + 마지막 음 꼬리
+  // 낱개 단계 28개를 진행 바 칸(chainSteps) 16개로 묶음: [0] / [1~4] / [5~7] / [8] / [9] / [10] / [11] / [12·13] / [14] / [15] / [16] / [17~19] / [20] / [21·22] / [23·24] / [25~27]
+  const R1 = STEPS_CH1_RAW;
+  const STEPS_CH1 = [R1[0], chainSteps([R1[1], R1[2], R1[3], R1[4]]), chainSteps([R1[5], R1[6], R1[7]]), R1[8], R1[9], R1[10], R1[11], chainSteps([R1[12], R1[13]]),
+    R1[14], R1[15], R1[16], chainSteps([R1[17], R1[18], R1[19]]), R1[20], chainSteps([R1[21], R1[22]]), chainSteps([R1[23], R1[24]]), chainSteps([R1[25], R1[26], R1[27]])];
+  // 그룹 = 진행 바의 페이즈(큰 흐름, 챕터당 3~4개) = 칸 번호(0부터) 목록:
+  //  1 음이름과 스케일 [0~2]  /  2 코드 쌓기와 도수 [3~7]  /  3 소리와 노래 [8~10]  /  4 key가 바뀌면 + 훈련 안내·마무리 [11~15]
+  const GROUPS_CH1 = [[0, 1, 2], [3, 4, 5, 6, 7], [8, 9, 10], [11, 12, 13, 14, 15]];
+  // 소리의 꼬리(마지막 음·코드의 울림)까지 끝난 뒤에야 "다음"이 켜지게 하는 최소 시간(ms, 단계 시작 기준). 소리가 있는 낱개 단계만 지정. 묶음 안 단계의 ms는 chainSteps가 처리
+  R1[0].ms = 9000 + (CAPTION_GAP_MIN_MS - CAPTION_LEAD_MS - 1200);    // 문구 2개(둘째 문구는 문구 사이 최소 간격 뒤, 원래 1.2초 뒤였음) + 7음 등장 + 음 8개 재생(420ms 간격) + 높은 도 꼬리
+  R1[14].ms = 8300;    // 코드 7개 + I 한 번 더(0.75초 간격) + 마지막 C 꼬리
+  R1[16].ms = 14500;   // 동요(80 BPM 약 12초) + 마지막 음 꼬리
+  R1[22].ms = 3000;    // D E F# 짧게 + 마지막 G를 길게(약 2.9초)
+  R1[23].ms = 2600;    // G 코드 꼬리(약 2.5초)
+  // 진행 바 칸 길이(ms) — 칸마다 "칸 시작 → 칸이 끝나 멈춤"(모든 칸이 멈춤 지점, 시뮬레이션 실측). 바의 칸 비율과 게이지가 차는 속도에 씀. 단계 연출을 바꾸면 다시 잴 것
+  const DURS_CH1 = [11800, 15850, 11600, 3600, 3600, 3600, 4050, 7600, 9300, 3600, 15500, 11600, 3600, 8000, 7600, 11600];   // 시뮬레이션 실측(합 132.5초)
 
   // ── 챕터 2 단계 (코드의 기능: 7th 확장 → 기능 분류 → 대리코드 → 작은별 리하모니) ──
   // 각 단계의 핵심(CLAUDE.md 0-5) — 최종 목적: 7th 코드 이름·도수, 어느 코드가 어느 기능인지(해결/예비/긴장), 같은 기능끼리 바꿔 쓴다는 것을 외우고 쓰기
@@ -497,9 +665,11 @@
     });
     return wait(MOVE);
   }
-  // 위 코드 줄의 글자를 복사해 분류판 칸으로 날려 보냄(원본은 그대로). 복사본은 원본과 같은 색으로 파랑 강조 없이 이동하고, 칸은 도착 직전에 나타나 교차되며 복사본이 사라짐(칸은 기능 색)
+  // 위 코드 줄의 글자를 복사해 분류판 칸으로 날려 보냄(원본은 그대로). 복사본은 날아가는 동안 글자색이 도착할 칸의 기능 색으로 서서히 바뀌고(파랑 강조 없음), 도착하면 끝 자리에 그대로 둔 채
+  // 그 바로 아래에서 칸이 나타나며, 칸이 완전히 나타난 뒤에 복사본을 치움 → 같은 글자·같은 색·같은 자리라 바뀌는 순간이 안 보임.
+  // (예전 깜빡임: ① 복사본이 칸보다 먼저 사라져 칸이 반투명인 순간이 비쳤고 ② 글자색이 검정→기능 색으로 튀었고 ③ 애니메이션이 끝나면 fill이 없어 복사본이 출발 자리·불투명으로 되돌아가 50ms쯤 깜빡임)
   function flyCopy(src, cell, text) {
-    const FLY = 550, a = $('lec2-a'), ar = a.getBoundingClientRect(), s = src.getBoundingClientRect(), t = cell.getBoundingClientRect();
+    const FLY = 600, a = $('lec2-a'), ar = a.getBoundingClientRect(), s = src.getBoundingClientRect(), t = cell.getBoundingClientRect();
     const sx = s.left + s.width / 2, sy = s.top + s.height / 2, dx = t.left + t.width / 2 - sx, dy = t.top + t.height / 2 - sy;
     const el = document.createElement('span');
     el.className = 'lec2-fly';
@@ -507,10 +677,10 @@
     el.style.left = (sx - ar.left) + 'px';
     el.style.top = (sy - ar.top) + 'px';
     a.appendChild(el);
-    const base = 'translate(-50%, -50%) ';
-    anim(el, [{ transform: base + 'translate(0, 0)', opacity: 1, easing: EASE_INOUT }, { transform: base + 'translate(' + dx + 'px, ' + dy + 'px)', opacity: 1, offset: 0.85 }, { transform: base + 'translate(' + dx + 'px, ' + dy + 'px)', opacity: 0 }], { duration: FLY / 0.85 });
-    later(function () { cell.classList.add('is-in'); }, FLY * 0.8);
-    later(function () { el.remove(); }, FLY / 0.85 + 50);
+    const base = 'translate(-50%, -50%) ', from = getComputedStyle(el).color, to = getComputedStyle(cell).color;
+    anim(el, [{ transform: base + 'translate(0, 0)', color: from }, { transform: base + 'translate(' + dx + 'px, ' + dy + 'px)', color: to }], { duration: FLY, easing: EASE_INOUT, fill: 'forwards' });
+    later(function () { cell.classList.add('is-in'); }, FLY);
+    later(function () { el.remove(); }, FLY + FADE_MS + 50);
   }
   // 작은별 새 진행에서 지금 울리는 칸만 파랑(i < 0이면 해제)
   function hotSong(i) {
@@ -600,9 +770,9 @@
     });
   }
   // 동요 멜로디(피아노) + 가사 강조 — 작은별 새 진행 재생용
-  function playMelody(ly, t0) {
+  function playMelody(ly, t0, melody) {   // melody: 멜로디를 바꾼 편곡(8장 마이너) — 없으면 원곡
     const BEAT_MS = SONG_BEAT * 1000, syl = Array.prototype.slice.call(ly.querySelectorAll('.lec-syl'));
-    SONG_MELODY.forEach(function (m, i) {
+    (melody || SONG_MELODY).forEach(function (m, i) {
       piano(m[0], t0 + m[1] * SONG_BEAT, m[2] * SONG_BEAT * 0.95);
       later(function () {
         syl.forEach(function (el, j) { el.classList.toggle('is-on', j === i); el.classList.toggle('is-sung', j < i); });
@@ -697,7 +867,7 @@
         .then(function () { return wait(300); }).then(function () { return fx([r1[2], r1[3], r2[1], r2[2]], 'is-focus', true); });   // 파랑: Em의 G·B / G의 G·B
     } },
     // 10. 작은별 — 위층(분류판)이 사라지고 원곡 코드 8칸이 나타난 뒤 아래에 기능 라벨(파랑)이 붙음
-    { text: '노래는 ' + em('긴장과 해결') + '의 반복으로 이루어져요\n' + em('예비') + ' 코드는 중간 역할을 해요', run: function () {
+    { enter: function () { $('lec2-a').classList.remove('is-on'); }, text: '노래는 ' + em('긴장과 해결') + '의 반복으로 이루어져요\n' + em('예비') + ' 코드는 중간 역할을 해요', run: function () {
       $('lec2-a').classList.remove('is-on');
       $('lec2-b').classList.add('is-on');
       return wait(FADE_MS).then(function () { return fx(q2('#lec2-orig .lec2-sname'), 'is-in', true, 60); })
@@ -736,8 +906,8 @@
     { text: '2장에서는 코드를 기능별로 나눠 보고\n직접 바꿔 보는 훈련을 할 거예요', run: function () { return Promise.resolve(); } },
     endingStep(2),   // 14. 마무리(공통)
   ];
-  // "다음" 묶음: [1] / [2~4] / [5~6] / [7~9] / [10] / [11~12] / [13] / [14]
-  const GROUPS_CH2 = [[0], [1, 2, 3], [4, 5], [6, 7, 8], [9], [10, 11], [12], [13]];
+  // 진행 바 페이즈(큰 흐름 3개): 1 7th 코드 확장 [1~4] / 2 코드의 기능 [5~9] / 3 작은별 리하모니·안내·마무리 [10~14]
+  const GROUPS_CH2 = [[0, 1, 2, 3], [4, 5, 6, 7, 8], [9, 10, 11, 12, 13]];
   STEPS_CH2[3].ms = 8300;     // 7th 코드 7개 + I 한 번 더(0.75초 간격) + 마지막 C 꼬리
   STEPS_CH2[11].ms = 14500;   // 동요(80 BPM 약 12초) + 마지막 음 꼬리
   // ── 챕터 3 단계 ── 꾸밈코드(sus2·sus4·add9) + 전위코드·패싱코드
@@ -866,7 +1036,7 @@
     later(function () { hotSlots(slots, -1); }, LEAD_MS + chords.length * slot + 300);
     return wait(LEAD_MS + chords.length * slot + 300 + FADE_MS);
   }
-  const STEPS_CH3 = [
+  const STEPS_CH3_RAW = [
     // 1. 도입 — 다이어토닉 코드 7개 이름이 차례로 나타남(도수 없음)
     { text: '코드를 좀 더 세련되게 꾸미는 방법이 있어요', run: function () {
       const nm = names();
@@ -1062,7 +1232,7 @@
       return wait(FADE_MS).then(function () { return fx(q2('.lec3-cr'), 'is-in', true, 500); }).then(function () { return wait(800); });
     } },
     // 13. 작은별 — 전위코드가 든 새 진행(C Em F C/E | Dm Am G/B C)이 기능 색으로 나타나고 멜로디(피아노) + 코드(기타) 재생, 울리는 칸만 진하게 + 가사
-    { text: '작은별의 진행을 전위코드를 사용해서\n리하모니 해볼게요!', run: function () {
+    { enter: function () { $('lec3-d').classList.remove('is-on'); }, text: '작은별의 진행을 전위코드를 사용해서\n리하모니 해볼게요!', run: function () {
       const tok = L.tok, ly = $('lec-lyrics'), nn = q2('#lec3-new .lec2-sname'), sl = q2('#lec3-new .lec2-slot');
       ly.innerHTML = songLyricsHtml();
       layoutScore($('lec3-new'));
@@ -1102,9 +1272,14 @@
     { text: '3장에서는 코드를 ' + em('세련되게') + ' 꾸미고,\n' + em('전위코드') + '를 익히는 훈련을 해봅시다!', run: function () { return Promise.resolve(); } },
     endingStep(3),   // 15. 마무리(공통)
   ];
-  // "다음" 묶음: [1~2] / [3~5] / [6~8 도수별 꾸밈코드] / [9~10 해결 + 꾸밈코드 진행] / [11~12 전위코드 안내 + 1전위] / [13~14] / [15~16] / [17] / [18] / [19]
-  const GROUPS_CH3 = [[0, 1], [2, 3, 4, 5], [6], [7, 8, 9], [10, 11], [12, 13], [14, 15], [16], [17, 18], [19]];
-  STEPS_CH3[16].ms = 14500;   // 동요(80 BPM 약 12초) + 마지막 음 꼬리
+  STEPS_CH3_RAW[16].ms = 14500;   // 동요(80 BPM 약 12초) + 마지막 음 꼬리
+  // 낱개 단계 20개를 진행 바 칸(chainSteps) 13개로 묶음(2026-10-30 사용자 지정): [0·1] / [2·3] / [4·5] / [6~8] / [9] | [10·11] / [12] / [13] / [14] / [15] | [16] / [17·18] / [19]
+  const R3 = STEPS_CH3_RAW;
+  const STEPS_CH3 = [chainSteps([R3[0], R3[1]]), chainSteps([R3[2], R3[3]]), chainSteps([R3[4], R3[5]]), chainSteps([R3[6], R3[7], R3[8]]), R3[9],
+    chainSteps([R3[10], R3[11]]), R3[12], R3[13], R3[14], R3[15],
+    R3[16], chainSteps([R3[17], R3[18]]), R3[19]];
+  // 진행 바 페이즈(큰 흐름 3개): 1 꾸밈코드 sus·add9 [0~4] / 2 전위코드 [5~9] / 3 작은별 리하모니·정리·마무리 [10~12]
+  const GROUPS_CH3 = [[0, 1, 2, 3, 4], [5, 6, 7, 8, 9], [10, 11, 12]];
   // ── 챕터 4 단계 ── 도미넌트(긴장음 F·B → 해결음 E·C) + 세컨더리 도미넌트(논-다이어토닉)
   // 각 단계의 핵심(CLAUDE.md 0-5) — 최종 목적: "타겟 코드의 5도(7th) = 그 코드의 세컨더리 도미넌트"를 빨리 찾고 V7/타겟도수 표기를 읽는 것. 강조는 문구에서 괄호로 지정한 말만(남발 금지)
   //  1 C→C 스케일 레가토(강조 없이) 뒤 긴장음 F·B(코랄)            2 F→E, B→C로 가려는 힘(해결음 E·C는 파랑)
@@ -1172,6 +1347,7 @@
       '<div class="lec3-l" id="lec4-z"><div class="lec4-zz">' + fin + '</div></div>';
   }
   // 층 하나만 보이게(id가 null이면 전부 끔) — 투명도 전환이라 한 번에 바꿔도 교차 페이드
+  function clearScene() { layer4(null); }   // 칸이 시작될 때(enter, 문구와 동시에) 직전 장면을 곧바로 치움 — 새 장면은 그 뒤 연출(문구 선행 1초 뒤)에서 나타남. 장면이 이어지는 칸에는 쓰지 않음
   function layer4(id) { q2('.lec3-l').forEach(function (el) { el.classList.toggle('is-on', el.id === id); }); }
   // 진행을 재생 — seq: [[코드, [켤 칸 번호들]], …]. 앞에서부터 칸 수만큼(slot ms씩) 울리고, 울리는 칸만 진하게(나머지는 옅게). 마지막 코드는 길게
   function playSeq(slots, seq, slot) {
@@ -1189,7 +1365,7 @@
   // 작은별 — 멜로디(피아노) + 코드(기타). 울리는 칸만 진하게 + 가사
   function playSong4(chords) { return playSongScore(chords, '#lec4-new .lec2-slot', v4); }   // 칸 하나(2박)에 코드 둘(5번 칸의 CM7 · Am7)이면 1박씩
   const textOnly = function () { return Promise.resolve(); };   // 문구만 있는 단계(앞 장면 그대로)
-  const STEPS_CH4 = [
+  const STEPS_CH4_RAW = [
     // 1. 긴장음 — C부터 높은 C까지 8음이 빠르게 레가토로 울리며(서스테인 없이, 1장 스케일과 같은 방식) 7음(C~B)이 울리는 순간 나타남(강조색 없음, 높은 도는 소리만). 끝난 뒤 F·B만 코랄(나머지 음은 옅게)
     { text: '다이어토닉에는 긴장을 만드는 음이 2개 있어요\n바로 ' + emT('F') + ' 음과 ' + emT('B') + ' 음이에요', run: function () {
       const sc = q2('#lec4-sc .lec-note'), t0 = audioT0(), W = FADE_MS, STEP = 220;
@@ -1251,8 +1427,6 @@
       later(function () { fx([b.name], 'is-focus', false); }, LEAD_MS + B + 1800);
       return wait(LEAD_MS + B + 2100);
     } },
-    // 6. 그래서 G7 → CM7 진행이 자주 나옴 — 문구만(앞 장면 그대로)
-    { text: '그래서 다이어토닉에서는\n' + em('G7 → CM7') + ' 진행이 자주 나와요', run: textOnly },
     // 7. Cm7로도 해결 — 오른쪽 CM7에서 3음(E)·7음(B)이 반음씩 내려가(굴러 바뀜) Cm7이 됨. 파랑은 C·Eb만(CM7의 C·E에서 이어짐, Bb·이름·문구는 강조 없음). 이유는 뒤에서 설명한다고 문구로 예고. 소리는 바뀐 뒤 G7 → Cm7
     { text: 'G7은 Cm7 코드로도 해결할 수 있어요\n왜 그런지는 나중에 알려줄게요', run: function () {
       const a = w3('lec4-wa'), b = w3('lec4-wb'), t0 = audioT0(), A = 500, S1 = A + SETTLE_MS + 700, S2 = S1 + 1600;
@@ -1276,7 +1450,7 @@
       return wait(1100).then(function () { return fx(q2('#lec4-dom'), 'is-in', true); }).then(function () { return wait(1800); });
     } },
     // 10. 다이어토닉 7th 코드 7개 — 위 4개 + 아래 3개(챕터 2의 7th 코드 줄과 같은 배치), 강조 없이
-    { text: '다이어토닉 코드를 볼게요!', run: function () {
+    { enter: clearScene, text: '다이어토닉 코드를 볼게요!', run: function () {
       layer4('lec4-h');
       return wait(FADE_MS).then(function () { return fx(q2('.lec4-fn'), 'is-in', true, 60); }).then(function () { return wait(800); });
     } },
@@ -1330,7 +1504,7 @@
       return fx(q2('#lec4-pg .lec2-slab').slice(2, 3), ['is-in', 'is-focus'], true).then(function () { return wait(1600); });
     } },
     // 22. E7의 구성음 — E G# B D, G#만 파랑. 소리는 연출이 끝난 뒤
-    { text: '그런데 E7의 구성음에는 ' + em('G#') + ' 음이 있는데\n' + em('G#') + ' 음은 다이어토닉에 없는 음이에요', run: function () {
+    { enter: clearScene, text: 'E7의 구성음에는 ' + em('G#') + ' 음이 있는데\n' + em('G#') + ' 음은 다이어토닉에 없는 음이에요', run: function () {
       const a = w3('lec4-we'), t0 = audioT0(), S = 2800;
       layer4('lec4-g');
       strum(fretsToMidis(v4('E7')), t0 + S / 1000, 1.8, 0.9);
@@ -1368,7 +1542,7 @@
       return wait(LEAD_MS + B + 900 + 2500);
     } },
     // 28. 작은별 원곡 — 2줄×4칸 + 가사, 멜로디(피아노) + 코드(기타)
-    { text: '이번엔 작은별의 코드를 다르게 써볼게요', run: function () {
+    { enter: clearScene, text: '이번엔 작은별의 코드를 다르게 써볼게요', run: function () {
       const nn = q2('#lec4-new .lec2-sname'), ly = $('lec-lyrics');
       ly.innerHTML = songLyricsHtml();
       layoutScore($('lec4-new'));
@@ -1413,8 +1587,15 @@
     // 34. 마무리(공통) — 완료 버튼은 마지막 묶음이라 "완료"
     Object.assign(endingStep(4), { seq: true }),   // 공통 마무리 문구("수고하셨습니다! …") — 한 줄씩 차례로
   ];
-  // "다음" 묶음: [1~2 긴장음] / [3~4 G7·CM7] / [5~7 어울림·Cm7] / [8~9 지배·도미넌트] / [10~13 7th 코드·도미넌트 붙이기] / [14~16 비유·프라이머리·세컨더리] / [17~18 진행] / [19~21 세련됨·타겟] / [22~24 G#·논-다이어토닉] / [25~27 정리·표기] / [28~29 작은별 원곡·한마디] / [30~32 리하모니·소감] / [33~37 연습·훈련] / [38]
-  const GROUPS_CH4 = [[0, 1], [2, 3], [4, 5, 6], [7, 8], [9, 10, 11, 12], [13, 14, 15], [16, 17], [18, 19, 20], [21, 22, 23], [24, 25, 26], [27, 28], [29, 30, 31], [32, 33, 34, 35, 36], [37]];
+  // 낱개 단계 37개(원래 38개 중 "그래서 다이어토닉에서는 G7 → CM7 진행이 자주 나와요" 삭제)를 진행 바 칸(chainSteps) 24개로 묶음(2026-10-30 사용자 지정):
+  //  P1 [0] [1] [2] [3] [4] [5] [6] [7] / P2 [8~10] [11·12] [13·14] [15] [16·17] [18·19] / P3 [20] [21·22] [23] [24] [25] / P4 [26·27] [28·29] [30·31] [32~34] [35·36]
+  const R4 = STEPS_CH4_RAW;
+  const STEPS_CH4 = [R4[0], R4[1], R4[2], R4[3], R4[4], R4[5], R4[6], R4[7],
+    chainSteps([R4[8], R4[9], R4[10]]), chainSteps([R4[11], R4[12]]), chainSteps([R4[13], R4[14]]), R4[15], chainSteps([R4[16], R4[17]]), chainSteps([R4[18], R4[19]]),
+    R4[20], chainSteps([R4[21], R4[22]]), R4[23], R4[24], R4[25],
+    chainSteps([R4[26], R4[27]]), chainSteps([R4[28], R4[29]]), chainSteps([R4[30], R4[31]]), chainSteps([R4[32], R4[33], R4[34]]), chainSteps([R4[35], R4[36]])];
+  // 진행 바 페이즈(큰 흐름 4개): 1 긴장음과 도미넌트 [0~7] / 2 세컨더리 도미넌트·타겟 [8~13] / 3 논-다이어토닉·표기 [14~18] / 4 작은별 리하모니·안내·마무리 [19~23]
+  const GROUPS_CH4 = [[0, 1, 2, 3, 4, 5, 6, 7], [8, 9, 10, 11, 12, 13], [14, 15, 16, 17, 18], [19, 20, 21, 22, 23]];
   // ── 챕터 5 단계 ── 2-5-1 + 릴레이티드 투-마이너(Rel.IIm)
   // 각 단계의 핵심(CLAUDE.md 0-5) — 최종 목적: "세컨더리 도미넌트 앞에 그 타겟의 2도 마이너(메이저 타겟은 m7, 마이너 타겟은 m7(b5))를 둔다"와 Rel.II → V7/타겟도수 표기. 강조색은 소리가 나는 것·문구에서 지정한 것만.
   //  1 예비·긴장·해결(2장 복습)  2 그 순서로 이어지는 유명한 진행(소리)  3 2-5-1 = 2도·5도·1도(도수)  4 G7 → CM7(5 → 1)만 남김  5 세컨더리에도 가능할까?(문구)
@@ -1488,7 +1669,7 @@
   }
   // 작은별 — 멜로디(피아노) + 코드(기타). 칸 하나(2박)에 코드 둘이면 1박씩. 울리는 칸만 진하게 + 가사. sel: 칸 선택자 / vf: 코드 → 보이싱(5장 v5, 6장 v6)
   function playSong5(chords) { return playSongScore(chords, '#lec5-new .lec2-slot', v5); }
-  function playSongScore(chords, sel, vf, noTail) {   // noTail: 칸마다 덧붙는 코드까지 이미 넣어 둔 진행(7장) / vf.midis가 있으면 vf(이름)→프렛 대신 vf.midis()가 코드 순서대로 MIDI를 돌려줌(7장 라이브러리 운지)
+  function playSongScore(chords, sel, vf, noTail, melody) {   // noTail: 칸마다 덧붙는 코드까지 이미 넣어 둔 진행(7장) / vf.midis가 있으면 vf(이름)→프렛 대신 vf.midis()가 코드 순서대로 MIDI를 돌려줌(7장 라이브러리 운지) / melody: 멜로디를 바꾼 편곡(8장)
     if (!noTail) chords = withTail(chords);   // 기반 진행의 5번 칸 Am7까지 포함
     const midisOf = vf.midis || function (n) { return fretsToMidis(vf(n)); };
     const tok = L.tok, ly = $('lec-lyrics'), sl = q2(sel);
@@ -1503,7 +1684,7 @@
         cs.forEach(function (n, k) { strum(midisOf(n), t0 + (s * 2 + k * len) * SONG_BEAT, len * SONG_BEAT * 0.95, 0.6, 'weak'); });
         later(function () { hotSlots(sl, s); }, LEAD_MS + s * 2 * BEAT_MS);
       });
-      const syl = playMelody(ly, t0), end = LEAD_MS + SONG_BEATS * BEAT_MS;
+      const syl = playMelody(ly, t0, melody), end = LEAD_MS + SONG_BEATS * BEAT_MS;
       later(function () {
         hotSlots(sl, -1);
         syl.forEach(function (el) { el.classList.remove('is-on'); el.classList.add('is-sung'); });
@@ -1511,22 +1692,19 @@
       return wait(end);
     });
   }
-  const STEPS_CH5 = [
+  const STEPS_CH5_RAW = [
     // 1. 예비 → 긴장 → 해결 — Dm7 G7 CM7이 차례로 나타난 뒤 아래에 기능 라벨(2장의 기능 색)
     { text: '2장에서 예비, 긴장, 해결에 대해 배웠었죠!', run: function () {
       layer4('lec5-f');
       return wait(FADE_MS).then(function () { return fx(q2('#lec5-fg .lec2-sname'), 'is-in', true, 120); }).then(function () { return wait(300); })
         .then(function () { return fx(q2('#lec5-fg .lec2-slab'), 'is-in', true, 150); }).then(function () { return wait(900); });
     } },
-    // 2. 그 순서로 이어지는 유명한 진행 — 코드 사이에 화살표가 나타난 뒤 Dm7 → G7 → CM7 재생
-    { text: '이 순서대로 진행되는 아주 유명한 진행이 있어요', run: function () {
+    // 2. 그 순서로 이어지는 유명한 진행 = 2-5-1 — 코드 사이에 화살표가 나타난 뒤 Dm7 → G7 → CM7 재생, 끝나면 이름 아래에 도수(IIm7 V7 IM7)가 차례로 (2026-10-30 "유명한 진행"과 "바로 이 진행이에요"가 겹쳐 한 칸으로 합침)
+    { text: '이 순서대로 진행되는 아주 유명한 진행이에요\n2-5-1 진행은 아주 많이 사용되는 진행이에요', run: function () {
       const sl = q2('#lec5-fg .lec2-slot');
       return fx(q2('#lec5-fg .lec5-fa'), 'is-in', true, 200).then(function () { return wait(400); })
-        .then(function () { return playSeq(sl, [['Dm7', [0]], ['G7', [1]], ['CM7', [2]]], 1000); });
-    } },
-    // 3. 2-5-1 — 이름 아래에 도수(IIm7 V7 IM7)가 차례로
-    { text: '바로 이 진행이에요!\n2-5-1 진행은 아주 많이 사용되는 진행이에요', run: function () {
-      return fx(q2('#lec5-fg .lec-num'), 'is-in', true, 150).then(function () { return wait(1500); });
+        .then(function () { return playSeq(sl, [['Dm7', [0]], ['G7', [1]], ['CM7', [2]]], 1000); })
+        .then(function () { return fx(q2('#lec5-fg .lec-num'), 'is-in', true, 150); }).then(function () { return wait(1500); });
     } },
     // 4. G7 → CM7 — 예비(Dm7)와 그 화살표는 옅어지고 5도 → 1도 한 쌍만 남음
     { text: 'G7 → CM7처럼 5도가 1도로 가는 진행이 있다면', run: function () {
@@ -1555,7 +1733,7 @@
       return wait(FADE_MS + 1000);
     } },
     // 9. 마이너 타겟 → m7(b5) — 마이너 타겟(Dm7·Em7·Am7) 줄만 진하게
-    { text: '마이너일 때는 m7(b5)를 써요', run: function () {
+    { text: '마이너일 때는 ' + nm5('m7(b5)') + '를 써요', run: function () {   // 괄호 표기는 항상 위첨자(nm5)
       quietRows(REL5_MAJ);
       return wait(FADE_MS + 1000);
     } },
@@ -1610,14 +1788,9 @@
       return wait(LEAD_MS + C + 900 + 2500);
     } },
     // 16. 고려할 점 — 표로 돌아옴(Rel. IIm 이름표 그대로)
-    { text: '쓸 때 고려할 점도 몇 가지 있어요', run: function () {
+    { enter: clearScene, text: '쓸 때 고려할 점이 몇 가지 있어요', run: function () {
       layer4('lec5-t');
       return wait(FADE_MS + 800);
-    } },
-    // 17. 3도 타겟 — Em7 줄만 진하게
-    { text: '3도를 타겟으로 하는 진행은\n특유의 애매함 때문에 많이 쓰이지 않아요', run: function () {
-      quietRows([0, 2, 3, 4]);
-      return wait(FADE_MS + 1200);
     } },
     // 18. 변형 과다 — 표를 다시 전부 진하게, 문구만
     { text: '또 Rel.IIm도 ' + em('논-다이어토닉') + '이 많은데\n세컨더리 도미넌트까지 쓰게 되니\n곡이 너무 ' + em('변형') + '될 수 있어요', run: function () {
@@ -1634,14 +1807,13 @@
     // 20. 공식 아님 — 문구만
     { text: '하지만 이것도 정해진 공식은 아니라서\n곡에 어울린다면 자유롭게 써도 돼요', run: textOnly },
     // 21. 작은별 — 챕터 4에서 만든 진행(C C7 FM7 A7 | Dm7 CM7 E7 Am7) + 가사, 멜로디(피아노) + 코드(기타)
-    { text: '이번에도 작은별에 적용해볼게요!\n챕터4에서 만든 진행이에요', run: function () {
+    { enter: clearScene, text: '이번에도 작은별에 적용해볼게요!\n챕터4에서 만든 진행이에요', run: function () {
       const nn = q2('#lec5-new .lec2-sname:not(.lec5-rel)'), ly = $('lec-lyrics');
       ly.innerHTML = songLyricsHtml();
       layoutScore($('lec5-new'));
       layer4('lec5-s');
       return wait(FADE_MS).then(function () { return fx(nn, 'is-in', true, 70); })
-        .then(function () { ly.classList.add('is-in'); return wait(FADE_MS); })
-        .then(function () { return playSong5(['C', 'C7', 'FM7', 'A7', 'Dm7', 'CM7', 'E7', 'Am7']); });
+        .then(function () { ly.classList.add('is-in'); return wait(FADE_MS); });   // 소리 없음 — 이 진행은 보여 주기만 하고, 재생은 다음 칸(Rel.IIm을 넣은 진행) 한 번만(2026-10-30 사용자 지정)
     } },
     // 22. Rel.IIm을 넣은 진행 — C7·E7 칸이 쪼개지며 Gm7·Bm7(b5)가 파랑으로 열린 뒤 다시 재생
     { text: '여기에 ' + em('Rel.IIm') + '을 넣어서\n업그레이드 해볼게요!', run: function () {
@@ -1667,9 +1839,15 @@
     // 28. 마무리(공통) — 완료 버튼은 마지막 묶음이라 "완료"
     Object.assign(endingStep(5), { seq: true }),
   ];
-  // "다음" 묶음: [1~3 2-5-1] / [4~5 질문] / [6~7 Rel.IIm 표] / [8~10 m7·m7(b5)·바꿔 쓰기] / [11~12 이름] / [13~15 표기] / [16~18 고려사항] / [19~20 쪼개기] / [21 작은별] / [22~23 리하모니·소감] / [24~27 체득·활용] / [28]
-  const GROUPS_CH5 = [[0, 1, 2], [3, 4], [5, 6], [7, 8, 9], [10, 11], [12, 13, 14], [15, 16, 17], [18, 19], [20], [21, 22], [23, 24, 25, 26], [27]];
-  STEPS_CH5[20].ms = 14500;   // 동요(80 BPM 약 12초) + 마지막 음 꼬리
+  // 낱개 단계 26개(원래 28개 중 "3도 타겟은 드물다" 삭제, "2-5-1" 두 칸 합침)를 진행 바 칸(chainSteps) 15개로 묶음(2026-10-30 사용자 지정):
+  //  P1 [0] [1] [2·3] [4·5] / P2 [6·7] [8~10] [11·12] [13] / P3 [14·15·16] [17] / P4 [18] [19] [20] [21·22] [23~25]
+  const R5 = STEPS_CH5_RAW;
+  const STEPS_CH5 = [R5[0], R5[1], chainSteps([R5[2], R5[3]]), chainSteps([R5[4], R5[5]]),
+    chainSteps([R5[6], R5[7]]), chainSteps([R5[8], R5[9], R5[10]]), chainSteps([R5[11], R5[12]]), R5[13],
+    chainSteps([R5[14], R5[15], R5[16]]), R5[17],
+    R5[18], R5[19], R5[20], chainSteps([R5[21], R5[22]]), chainSteps([R5[23], R5[24], R5[25]])];
+  // 진행 바 페이즈(큰 흐름 3개, 2026-10-30 "쓸 때 고려할 점"을 2페이즈 뒤로 통합): 1 2-5-1과 Rel.IIm 생성 [0~3] / 2 m7·m7(b5) 규칙·이름·표기·쓸 때 고려할 점 [4~9] / 3 작은별 리하모니·활용·마무리 [10~14]
+  const GROUPS_CH5 = [[0, 1, 2, 3], [4, 5, 6, 7, 8, 9], [10, 11, 12, 13, 14]];
   // ── 챕터 6 단계 ── 도미넌트의 대리코드: 1전위 → Bdim·Bdim7·Bm7(b5) → 대체 코드 표 → 트라이톤 대리 도미넌트(Db7) → 작은별 → 총정리 표
   // 각 단계의 핵심(CLAUDE.md 0-5) — 최종 목적: 도미넌트(프라이머리 G7 + 세컨더리 5개)를 1전위·dim7·m7(b5)·트라이톤 대리 도미넌트(서브파이브)로 바꿔 쓰는 것. 강조는 문구에서 괄호로 지정한 말만(번호는 사용자 흐름의 번호, 15번은 14번에 합침)
   //  1 도미넌트에도 대리코드가 있다(2-5-1 소리)   2 1전위 = 구성음이 같음(/B만 파랑)   3 근음 D→B→C가 부드럽게 이어짐(B 주목)   4 세컨더리에도 전위코드(등장만, 소리 없음)   5 E7/G#(소리)
@@ -1792,7 +1970,7 @@
   function playSong6(chords) { return playSongScore(chords, '#lc6-new .lec2-slot', v6); }
   // 작은별에서 한 칸만 진하게(나머지는 옅게) — 사용된 곳을 하나씩 짚을 때
   function pickSlot(i) { hotSlots(q2('#lc6-new .lec2-slot'), i); return wait(900); }
-  const STEPS_CH6 = [
+  const STEPS_CH6_RAW = [
     // 1. 도미넌트에도 대리코드 — Dm7 G7 CM7이 나타나 재생
     { text: 'G7 같은 도미넌트에도\n바꿔 쓸 수 있는 코드가 있어요', run: function () {
       layer4('lc6-a');
@@ -1895,7 +2073,7 @@
         .then(function () { return showRow(4); }).then(function () { return wait(1200); });
     } },
     // 16. 화제 전환 — 표가 사라지고 문구만(페이즈 2: 트라이톤 대리 도미넌트)
-    { text: '그런데 완전히 새로운 대리코드도 있어요',
+    { text: '완전히 새로운 대리코드도 있어요',
       enter: function () { layer4(null); },   // 문구가 뜰 때 곧바로 앞 장면(표)을 지움
       run: function () { return wait(FADE_MS + 1200); } },
     // 17. G7의 핵심 — G B D F 중 B·F만 코랄, 두 음을 잇는 세로 괄호와 "트라이톤" 이름표(강조색 없음). 소리는 연출이 끝난 뒤 B·F 두 음만(G7 코드 전체가 아님)
@@ -1983,7 +2161,7 @@
       }).then(function () { return wait(1500); });
     } },
     // 26. 작은별 — 5장 결과(Rel.IIm이 열린 진행) + 가사, 멜로디(피아노) + 코드(기타) 재생
-    { text: '이번에도 작은별에 적용해볼게요!\n5장에서 만든 진행이에요', run: function () {
+    { enter: clearScene, text: '이번에도 작은별에 적용해볼게요!\n5장에서 만든 진행이에요', run: function () {
       const nn = q2('#lc6-new .lec2-sname:not(.lc6-aft)'), ly = $('lec-lyrics');
       ly.innerHTML = songLyricsHtml();
       layoutScore($('lc6-new'));
@@ -2029,15 +2207,21 @@
     // 35. 마무리(공통) — 완료 버튼은 마지막 묶음이라 "완료"
     Object.assign(endingStep(6), { seq: true }),
   ];
-  // "다음" 묶음: [1~3 2-5-1·1전위] / [4~5 세컨더리 1전위] / [6~9 Bdim] / [10 7음 선택] / [11~13 dim7·m7(b5) 요령] / [14 표] / [16~17 트라이톤] / [18~19 Db7] / [20~22 요령·반음] / [23~25 명칭·표기] / [총정리 표] / [26~27 작은별] / [28~31 사용된 곳] / [32~34 총정리·마무리 멘트] / [35]
-  const GROUPS_CH6 = [[0, 1, 2], [3, 4], [5, 6, 7, 8], [9], [10, 11, 12], [13], [14, 15], [16, 17], [18, 19, 20, 21], [22, 23, 24], [25], [26, 27], [28, 29, 30, 31], [32, 33, 34], [35]];
-  STEPS_CH6[2].ms = 5000;    // 마지막 묶음 단계의 소리 꼬리까지(단계 시작 기준) — 아래는 모두 소리가 있는 단계
-  STEPS_CH6[4].ms = 4800;
-  STEPS_CH6[8].ms = 5500;
-  STEPS_CH6[9].ms = 7800;
-  STEPS_CH6[12].ms = 6000;
-  STEPS_CH6[15].ms = 5800;
-  STEPS_CH6[27].ms = 14500;  // 동요(80 BPM 약 12초) + 마지막 음 꼬리
+  // 진행 바 페이즈(큰 흐름 3개): 1 도미넌트의 전위코드·Bdim·dim7/m7(b5) 대체 코드 [1~14] / 2 트라이톤 대리 도미넌트 [15~26] / 3 작은별 리하모니·총정리·마무리 [27~36]
+  // 낱개 단계 36개를 진행 바 칸(chainSteps) 23개로 묶음(2026-10-30 사용자 지정):
+  //  P1 [0~2] [3·4] [5·6] [7·8] [9] [10·11] [12] [13] / P2 [14·15] [16·17] [18~20] [21] [22·23] [24] [25] / P3 [26] [27] [28] [29] [30] [31] [32~34] [35]
+  const R6 = STEPS_CH6_RAW;
+  const STEPS_CH6 = [chainSteps([R6[0], R6[1], R6[2]]), chainSteps([R6[3], R6[4]]), chainSteps([R6[5], R6[6]]), chainSteps([R6[7], R6[8]]), R6[9], chainSteps([R6[10], R6[11]]), R6[12], R6[13],
+    chainSteps([R6[14], R6[15]]), chainSteps([R6[16], R6[17]]), chainSteps([R6[18], R6[19], R6[20]]), R6[21], chainSteps([R6[22], R6[23]]), R6[24], R6[25],
+    R6[26], R6[27], R6[28], R6[29], R6[30], R6[31], chainSteps([R6[32], R6[33], R6[34]]), R6[35]];
+  const GROUPS_CH6 = [[0, 1, 2, 3, 4, 5, 6, 7], [8, 9, 10, 11, 12, 13, 14], [15, 16, 17, 18, 19, 20, 21, 22]];
+  STEPS_CH6_RAW[2].ms = 5000;    // 마지막 묶음 단계의 소리 꼬리까지(단계 시작 기준) — 아래는 모두 소리가 있는 단계
+  STEPS_CH6_RAW[4].ms = 4800;
+  STEPS_CH6_RAW[8].ms = 5500;
+  STEPS_CH6_RAW[9].ms = 7800;
+  STEPS_CH6_RAW[12].ms = 6000;
+  STEPS_CH6_RAW[15].ms = 5800;
+  STEPS_CH6_RAW[27].ms = 14500;  // 동요(80 BPM 약 12초) + 마지막 음 꼬리
   // ═══════════════ 챕터 7 (텐션코드) ═══════════════
   // 흐름: [코드 구성 원리 — 3음·5음·7음 → 조합 → 자주 쓰는 5종 → 텐션 9·11·13] [다이어토닉 텐션 — CM7 → 나머지 코드 → G7(얼터드·sus4) → m7(b5) → 표] [세컨더리] [대리 도미넌트] [작은별] [총정리 표 3장 · 마무리]
   // 정석 텐션은 기본 진하기, 변형(덜 쓰는 내추럴·얼터드·대리 도미넌트의 9·13)은 옅게(.is-var) — 총정리 표는 정석 / 변형 두 칸으로 나눔
@@ -2069,6 +2253,18 @@
     if (m.length) strum(m, audioT0(), dur, rel == null ? 0.8 : rel);
     return wait(Math.round(dur * 1000) + 300);
   }
+  // 대리 도미넌트 Db7 텐션 → CM7 해결의 지정 운지(줄 6→1, -1 = 안 침) — 라이브러리 자동 선택(libSeq)을 거치지 않음. 구성음 계산으로 검증:
+  //  Db7(#11) Db G B F / Db7(9) Db F B Eb / Db7(13) Db B F Bb / CM7(5번줄 근음) C G B E / CM7(6번줄 근음) C E G B
+  const DB7_FIX = { '#11': [-1, 4, 5, 4, 6, -1], '9': [-1, 4, 3, 4, 4, -1], '13': [-1, 4, -1, 4, 6, 6] };
+  const CM7_FIX = { '#11': [-1, 3, 5, 4, 5, -1], '9': [-1, 3, 5, 4, 5, -1], '13': [8, -1, -1, 9, 8, 7] };
+  function playFixed(frets, slot) {   // 지정 운지를 한 개씩(slot ms) 재생, 마지막은 길게 — playLib와 같은 박자
+    const t0 = audioT0();
+    frets.forEach(function (f, k) {
+      const last = k === frets.length - 1;
+      strum(fretsToMidis(f), t0 + k * slot / 1000, last ? 1.5 : slot / 1000 * 0.9, last ? 0.8 : 0.4);
+    });
+    return wait(LEAD_MS + frets.length * slot + 300 + FADE_MS);
+  }
   function hotOf(els) { return function (k) { els.forEach(function (el, j) { el.classList.toggle('is-focus', j === k); }); }; }   // 울리는 것만 파랑
   function w7(id) { const w = w3(id); w.degs = q2('#' + id + ' .lc7-dg'); return w; }
   function nameTo(w, root, tail) { return swap(w.name, function () { w.name.innerHTML = tail ? sfx6(root, tail) : root; }, 150); }
@@ -2086,29 +2282,38 @@
   }
   const MX7 = [['CM7', 'C7', 'C6'], ['CmM7', 'Cm7', 'Cm6'], ['CM7(#5)', 'Caug7', ''], ['', 'Cm7(b5)', 'Cdim7']];   // 3화음 4종 × 7음 3종 중 쓰이는 10가지 — dim에는 M7 조합 없음, aug에는 6(bb7) 조합 없음(빈 칸으로 열을 맞춤)
   const FIVE7 = ['CM7', 'C7', 'Cm7', 'Cm7(b5)', 'Cdim7'];   // 그중 자주 쓰는 5종(소리 내는 순서)
-  // 다이어토닉 텐션 표(가로 배치: 한 열 = 코드 하나, 그 아래 텐션 코드가 위에서 아래로) — n 코드 / s 정석 텐션 / v 변형 텐션(내추럴 중 덜 쓰는 것 = 퀴즈 도전 레벨) / ls·lv = 나중 단계(27번)에서 더해지는 정석·변형(G7의 sus4(9)와 얼터드) / late = 열 전체가 나중에 더해짐
+  // 텐션 표 — 한 열 = 코드 하나, 그 아래에 쓸 수 있는 텐션 '음'을 숫자(9·11·13)별 줄에 모음(줄 안은 낮은 음부터: b → 그대로 → #). 글자 색: 내추럴 텐션 = 파랑, 얼터드 텐션 = 코랄 레드
+  //  내추럴/얼터드는 계산: 텐션 음이 C key 다이어토닉(도레미파솔라시)에 속하면 내추럴, 아니면 얼터드(코드 근음 + 텐션 간격). G7의 11은 G7sus4(9)(sus4로 우회해 쓰는 11)를 같은 것으로 봄. 7도(Bm7(b5))는 텐션을 잘 쓰지 않아 표에서 뺌 → 6열
+  const PC7 = { C: 0, D: 2, E: 4, F: 5, G: 7, A: 9, B: 11, Db: 1, Eb: 3, Gb: 6, Ab: 8, Bb: 10 }, TEN7 = { b9: 1, '9': 2, '#9': 3, '11': 5, '#11': 6, b13: 8, '13': 9 }, DIA7 = [0, 2, 4, 5, 7, 9, 11];
+  function isNat7(name, t) { return DIA7.indexOf((PC7[/^[A-G][b#]?/.exec(name)[0]] + TEN7[t]) % 12) >= 0; }
   const TB7_DIA = [
-    { n: 'CM7', s: ['9'], v: ['13'] }, { n: 'Dm7', s: ['9', '11'], v: [] }, { n: 'Em7', s: ['11'], v: [] }, { n: 'FM7', s: ['9'], v: ['#11', '13'] },
-    { n: 'G7', s: ['9', '13'], v: [], ls: ['sus4(9)'], lv: ['b9', '#9', '#11', 'b13'] }, { n: 'Am7', s: ['9'], v: ['11'] }, { n: 'Bm7(b5)', s: [], v: [], late: true },
+    { n: 'CM7', t: ['9', '13'] }, { n: 'Dm7', t: ['9', '11'] }, { n: 'Em7', t: ['11'] }, { n: 'FM7', t: ['9', '#11', '13'] },
+    { n: 'G7', t: ['b9', '9', '#9', '11', '#11', 'b13', '13'] }, { n: 'Am7', t: ['9', '11'] },
   ];
   const TB7_SEC = [['A7', 'Dm7', ['b9', 'b13']], ['B7', 'Em7', ['b9', 'b13']], ['C7', 'FM7', ['9', '13']], ['D7', 'G7', ['9', '13']], ['E7', 'Am7', ['b9', 'b13']]];   // [세컨더리, 타겟, 텐션] — 메이저 타겟 9·13 / 마이너 타겟 b9·b13
-  const TB7_SUB = [['G7', 'Db7'], ['A7', 'Eb7'], ['B7', 'F7'], ['C7', 'Gb7'], ['D7', 'Ab7'], ['E7', 'Bb7']];   // [도미넌트, 그 대리 도미넌트] — 정석 #11 / 변형 9·13
-  const SONG7 = {   // 작은별 — s0 = 6장 결과 / s1 = 텐션을 멜로디에 맞춰 넣음 / s2 = 멜로디를 고려하지 않고 넣음. 칸 하나에 코드 둘이면 [앞, 뒤](5번 칸의 뒤쪽은 기반 진행의 Am7)
-    s0: ['C', 'Em7(b5)', 'FM7', 'A7/C#', ['Dm7', 'Bdim7'], ['CM7', 'Am7'], ['Bm7(b5)', 'Bb7'], 'Am7'],
-    s1: ['C', 'Edim7', 'FM7(9)', 'A7(b13)', ['Dm7(9)', 'Bdim7'], ['CM7', 'Am7(11)'], ['Bm7(b5)', 'Bb7(#11)'], 'Am7(9)'],
-    s2: ['CM7(9)', 'Edim7', 'FM7(#11)', 'A7(13)', ['Dm7(11)', 'Bdim7'], ['CM7', 'Am7(9)'], ['Bm7(b5)', 'Bb7(9)'], 'Am7(9)'],
+  const TB7_SUB = [['G7', 'Db7'], ['A7', 'Eb7'], ['B7', 'F7'], ['C7', 'Gb7'], ['D7', 'Ab7'], ['E7', 'Bb7']];   // [도미넌트, 그 대리 도미넌트] — 표에는 텐션 9·#11·13을 올림(내추럴/얼터드는 계산)
+  const SONG7 = {   // 작은별 — 6장 결과와 별개로 새로 만든 독립 진행(처음부터 텐션이 붙음). 칸 하나(2박)에 코드 둘이면 [앞, 뒤](1박씩)
+    //  s1 = 텐션을 멜로디에 맞춰 넣음(지정 운지 SONG7_FIX로 재생) / s2 = 멜로디를 고려하지 않고 넣음 — ⚠ s2는 임시안(사용자 확정 필요), 라이브러리 운지로 재생
+    s1: ['CM7', 'CM7(9)', 'FM7(9)', 'A7(b13)', 'Dm7(11)', 'CM7(9)', ['Bm7(b5)', 'Bb7(#11)'], 'Am7(11)'],
+    s2: ['CM7(9)', 'CM7(13)', 'FM7(#11)', 'A7(13)', 'Dm7(9)', 'CM7(13)', ['Bm7(b5)', 'Bb7(9)'], 'Am7(9)'],
+  };
+  // s1의 지정 운지(줄 6→1, -1 = 안 침). 구성음 계산으로 검증: CM7 C G B E / CM7(9) C E B D / FM7(9) F C E G(3음 생략) / A7(b13) A G C# F / Bm7(b5) B F A D / Bb7(#11) Bb E Ab D / Am7(11) A G C D
+  const SONG7_FIX = {
+    'CM7': [-1, 3, 5, 4, 5, -1], 'CM7(9)': [-1, 3, 2, 4, 3, -1], 'FM7(9)': [-1, -1, 3, 5, 5, 3], 'A7(b13)': [5, -1, 5, 6, 6, -1],
+    'Bm7(b5)': [-1, 2, 3, 2, 3, -1], 'Bb7(#11)': [-1, 1, 2, 1, 3, -1], 'Am7(11)': [5, -1, 5, 5, 3, -1],
   };
   function flat7(k) { return SONG7[k].reduce(function (a, c) { return a.concat(c); }, []); }
-  function playSong7(k) { return playSongScore(SONG7[k], '#lc7-new .lec2-slot', libVf(flat7(k)), true); }
-  // 악보 코드를 from 진행에서 to 진행으로 — 바뀐 곳만 파랑(텐션이 붙은 곳은 붙은 꼬리만, 퀄리티가 바뀐 곳은 이름 전체), 글자 폭이 달라지면 다른 코드가 미끄러져 자리를 잡음
+  function fixVf(names) { let k = 0; const f = function () { return []; }; f.midis = function () { const n = names[k++]; return SONG7_FIX[n] ? fretsToMidis(SONG7_FIX[n]) : libSeq([n])[0]; }; return f; }   // playSongScore용 — 지정 운지를 코드가 불리는 순서대로(지정 운지가 없는 코드 = Dm7(11)은 라이브러리 운지)
+  function playSong7(k) { return playSongScore(SONG7[k], '#lc7-new .lec2-slot', k === 's1' ? fixVf(flat7(k)) : libVf(flat7(k)), true); }
+  // 악보 코드를 from 진행에서 to 진행으로 — 바뀐 곳만 파랑(텐션이 붙은 곳은 새로 붙은 부분만, 퀄리티가 바뀐 곳은 이름 전체), 글자 폭이 달라지면 다른 코드가 미끄러져 자리를 잡음
   function applySong7(from, to) {
     const els = q2('#lc7-new .lec2-sname'), a = flat7(from), b = flat7(to), sc = $('lc7-new'), ch = [];
     els.forEach(function (el, i) { el.classList.remove('is-focus'); el.innerHTML = nm5(a[i]); });   // 앞 단계의 파랑을 지움
     b.forEach(function (n, i) { if (n !== a[i]) ch.push(i); });
     return Promise.all(ch.map(function (i, k) {
-      const m = /^(.*?)(\([^)]*\))$/.exec(b[i]), tens = m && !/\(b5\)$/.test(b[i]);
+      const base = a[i].replace(/\/.*$/, '').replace(/\((?!b5\))[^)]*\)$/, ''), tens = b[i].indexOf(base) === 0 && b[i].length > base.length;   // 앞 코드에서 베이스·텐션을 뗀 몸통이 그대로면 덧붙은 부분만 파랑(C → CM7(9)는 M7(9)까지), 아니면(퀄리티가 바뀜) 이름 전체
       return swap(els[i], function () {
-        reflowScore(sc, function () { if (tens) els[i].innerHTML = sfx6(m[1], m[2]); else { els[i].innerHTML = nm5(b[i]); els[i].classList.add('is-focus'); } });
+        reflowScore(sc, function () { if (tens) els[i].innerHTML = sfx6(base, b[i].slice(base.length)); else { els[i].innerHTML = nm5(b[i]); els[i].classList.add('is-focus'); } });
       }, k * 150);
     }));
   }
@@ -2127,54 +2332,54 @@
     const scale = [['C', '1'], ['D', '2'], ['E', '3'], ['F', '4'], ['G', '5'], ['A', '6'], ['B', '7']];
     const rowN = row('lc7-r', scale.map(function (c, i) { return cell('lc7-c' + i, c[0], c[1], i % 2 ? 'is-blank' : ''); }).join('') + '<i class="lc7-sp lc6-off" id="lc7-sp"></i>');
     const rowG = row('lc7-gr', [['G', '1'], ['B', '3'], ['D', '5'], ['F', '7']].map(function (c) { return cell(null, c[0], c[1]); }).join('') + '<i class="lc7-sp"></i>' +
-      [['A', '9'], ['C', '11'], ['E', '13']].map(function (c) { return cell(null, c[0], c[1]); }).join(''));
-    const rowA = row('lc7-ga', [['Ab', 'b9'], ['A#', '#9'], ['C#', '#11'], ['Eb', 'b13']].map(function (c) { return cell(null, c[0], c[1], 'is-var'); }).join(''));
+      [['A', '9'], ['C', '11'], ['E', '13']].map(function (c) { return cell(null, c[0], c[1], c[0] === 'C' ? 'lc6-off' : ''); }).join(''));   // 11(C)은 sus4 단계(칸 4)에서 처음 나타남 — 그 전엔 자리도 차지하지 않아 9(A)·13(E)만 보임
+    const rowA = row('lc7-ga', [['Ab', 'b9'], ['A#', '#9'], ['C#', '#11'], ['Eb', 'b13']].map(function (c) { return cell(null, c[0], c[1]); }).join(''));   // 얼터드 텐션도 흐리지 않음
     const rowB = row('lc7-br', [['B', '1'], ['D', '3'], ['F', '5'], ['A', '7']].map(function (c) { return cell(null, c[0], c[1]); }).join('') + '<i class="lc7-sp"></i>' +
       [['C', '9'], ['E', '11'], ['G', '13']].map(function (c) { return cell(null, c[0], c[1]); }).join(''));
-    // 표(가로 배치) — 한 열(data-c) = 코드 하나(맨 위) + 그 아래 텐션 코드. 정석은 진하게, 변형(.is-var)은 옅게. 열은 왼쪽에서 오른쪽으로 한 열씩 나타남. 아직 나올 때가 안 된 열·칸(G7의 sus4(9)·얼터드, Bm7(b5) 열)은 자리도 차지하지 않음(lc6-off)
-    const tcell = function (c, html, cls) { return '<span class="lc7-it lc7-tc' + (cls ? ' ' + cls : '') + '" data-c="' + c + '">' + html + '</span>'; };
-    const tn = function (name, t) { return nm5(t === 'sus4(9)' ? name + 'sus4(9)' : name + '(' + t + ')'); };   // 텐션 코드 이름(괄호는 위첨자)
-    const colOf = function (c, cells, off) { return '<div class="lc7-cl' + (off ? ' lc6-off' : '') + '" data-c="' + c + '">' + cells + '</div>'; };
-    const t1 = TB7_DIA.map(function (r, c) {
-      return colOf(c, tcell(c, nm5(r.n), 'lc7-hd') +
-        r.s.map(function (t) { return tcell(c, tn(r.n, t)); }).join('') + (r.ls || []).map(function (t) { return tcell(c, tn(r.n, t), 'lc6-off'); }).join('') +
-        r.v.map(function (t) { return tcell(c, tn(r.n, t), 'is-var'); }).join('') + (r.lv || []).map(function (t) { return tcell(c, tn(r.n, t), 'is-var lc6-off'); }).join('') +
-        (r.late ? tcell(c, '—', 'is-var') : ''), r.late);
-    }).join('');
-    const t2 = TB7_SEC.map(function (r, c) {
-      return colOf(c, tcell(c, r[0], 'lc7-hd') + tcell(c, '→ ' + r[1], 'lc7-sl') + r[2].map(function (t) { return tcell(c, tn(r[0], t)); }).join(''));
-    }).join('');
-    const t3 = TB7_SUB.map(function (r, c) {
-      return colOf(c, tcell(c, r[1], 'lc7-hd') + tcell(c, r[0] + ' 대리', 'lc7-sl') + tcell(c, tn(r[1], '#11')) + ['9', '13'].map(function (t) { return tcell(c, tn(r[1], t), 'is-var'); }).join(''));
-    }).join('');
-    const legend = '<span>정석</span><span class="lc7-lv">변형</span>';
-    const tbl = function (id, body, lg) {
-      return '<div class="lec3-l" id="' + id + '"><div class="lc7-tw"><div class="lc7-sc"><div class="lc7-tbl">' + body + '</div></div>' + (lg ? '<div class="lc7-it lc7-lg" id="' + id + '-lg">' + lg + '</div>' : '') + '</div></div>';
+    // 표 — 한 열(data-c) = 코드 하나(맨 위) + 그 아래 텐션 음(코드 이름이 아니라 9·b9·#11 같은 음). 숫자(9·11·13)별 줄은 코드가 달라도 같은 높이에 정렬(CSS grid). 내추럴 텐션은 파랑(.is-nat), 얼터드 텐션은 코랄 레드(.is-alt). 열은 왼쪽에서 오른쪽으로 한 열씩 나타남
+    const at = function (c, row) { return ' style="grid-column:' + (c + 1) + ';grid-row:' + row + '"'; };
+    const tk = function (c, t, root) { return '<span class="lc7-it lc7-tc ' + (isNat7(root, t) ? 'is-nat' : 'is-alt') + '" data-c="' + c + '">' + t + '</span>'; };   // 텐션 음 하나
+    const gc = function (c, row, root, toks) { return toks.length ? '<div class="lc7-tg"' + at(c, row) + '>' + toks.map(function (t) { return tk(c, t, root); }).join('') + '</div>' : ''; };   // 한 줄(같은 숫자의 텐션을 가로로)
+    const hd = function (c, html, cls, row) { return '<span class="lc7-it lc7-tc ' + cls + '" data-c="' + c + '"' + at(c, row) + '>' + html + '</span>'; };   // 열 머리글·보조 글자(칸 하나)
+    const colOf = function (c, cells) { return '<div class="lc7-cl" data-c="' + c + '">' + cells + '</div>'; };   // CSS display: contents — 묶음 표시용
+    const numOf = function (t) { return t.replace(/[b#]/, ''); };
+    const mk = function (cols) {   // cols: [{head, root, toks}] → 열 마크업. 표 안에서 실제로 쓰이는 숫자(9·11·13)만 줄로 만듦
+      const nums = ['9', '11', '13'].filter(function (n) { return cols.some(function (c) { return c.toks.some(function (t) { return numOf(t) === n; }); }); });
+      const base = 2;   // 1줄 = 코드 이름, 2줄부터 숫자별 줄
+      return cols.map(function (c, i) {
+        let h = hd(i, c.head, 'lc7-hd', 1);
+        nums.forEach(function (n, k) { h += gc(i, base + k, c.root, c.toks.filter(function (t) { return numOf(t) === n; }).sort(function (a, b) { return TEN7[a] - TEN7[b]; })); });
+        return colOf(i, h);
+      }).join('');
     };
-    const song = scoreHtml('lc7-new', function (i, b) {   // 6장 결과(s0)로 시작 — 쪼개진 칸·덧붙는 코드가 이미 열려 있음
-      const at = ' data-b="' + b + '"', nm = function (k) { return '<span class="lec2-sname">' + nm5(flat7('s0')[k]) + '</span>'; };
-      const f = [0, 1, 2, 3, 4, 6, 8, 10];   // 칸 번호 → flat7('s0')에서 그 칸 첫 코드의 번호
-      const s = f[i], two = Array.isArray(SONG7.s0[i]);
-      if (i === 4) return '<div class="lec2-slot lc6-sl is-open"' + at + '>' + nm(s) + '<span class="lec2-sname lc6-aft">' + nm5(flat7('s0')[s + 1]) + '</span></div>';
-      if (i === 5) return '<div class="lec2-slot lc6-sl is-open"' + at + '>' + nm(s) + '<span class="lec2-sname lc6-tail">' + nm5(flat7('s0')[s + 1]) + '</span></div>';
-      if (i === 6) return '<div class="lec2-slot lec5-sl is-open"' + at + '><span class="lec2-sname lec5-rel">' + nm5(flat7('s0')[s]) + '</span>' + '<span class="lec2-sname">' + nm5(flat7('s0')[s + 1]) + '</span></div>';
-      return two ? '' : '<div class="lec2-slot"' + at + '>' + nm(s) + '</div>';
+    const t1 = mk(TB7_DIA.map(function (r) { return { head: nm5(r.n), root: r.n, toks: r.t }; }));
+    const t2 = mk(TB7_SEC.map(function (r) { return { head: r[0], root: r[0], toks: r[2] }; }));
+    const t3 = mk(TB7_SUB.map(function (r) { return { head: r[1], root: r[1], toks: ['9', '#11', '13'] }; }));
+    const legend = '<span class="is-nat">내추럴</span><span class="is-alt">얼터드</span>';   // 글자 색의 뜻
+    const tbl = function (id, n, body, lg) {   // n = 열 수
+      return '<div class="lec3-l" id="' + id + '"><div class="lc7-tw"><div class="lc7-sc"><div class="lc7-tbl" style="grid-template-columns: repeat(' + n + ', auto)">' + body + '</div></div>' + (lg ? '<div class="lc7-it lc7-lg" id="' + id + '-lg">' + lg + '</div>' : '') + '</div></div>';
+    };
+    const song = scoreHtml('lc7-new', function (i, b) {   // 처음부터 텐션이 붙은 진행(s1) — 6장 진행이 아님. 칸 6은 코드 둘(1박씩)
+      const at = ' data-b="' + b + '"', c = SONG7.s1[i];
+      if (Array.isArray(c)) return '<div class="lec2-slot lec5-sl is-open"' + at + '><span class="lec2-sname lec5-rel">' + nm5(c[0]) + '</span><span class="lec2-sname">' + nm5(c[1]) + '</span></div>';
+      return '<div class="lec2-slot"' + at + '><span class="lec2-sname">' + nm5(c) + '</span></div>';
     });
     stage.innerHTML =
       '<div class="lec3-l" id="lc7-a"><div class="lec3-demo">' + widget('lc7-wa', 'C', ['C', 'E', 'G', 'B'], ['1', '3', '5', '7']) + '</div></div>' +
       '<div class="lec3-l" id="lc7-g"><div class="lc7-mx">' + mx + '</div></div>' +
       '<div class="lec3-l" id="lc7-n">' + rowN + '<div class="lc7-nms" id="lc7-nms">' + it('CM7') + it(sfx6('CM7', '(9)')) + it(sfx6('CM7', '(13)')) + '</div></div>' +
-      tbl('lc7-s1', t1, legend) +
-      '<div class="lec3-l" id="lc7-d"><span class="lc7-it lc7-gn" id="lc7-gn">G7</span>' + rowG + rowA + '</div>' +
+      tbl('lc7-s1', TB7_DIA.length, t1, legend) +
+      '<div class="lec3-l" id="lc7-d"><span class="lc7-it lc7-gn" id="lc7-gn">G7</span>' + rowG + '<div class="lc7-alt">' + rowA + it('', 'lc7-bkl', ' id="lc7-bkl"') + it('얼터드 텐션', 'lc7-bkt', ' id="lc7-bkt"') + '</div></div>' +   // 얼터드 4개를 아래에서 꺾쇠(lc7-bkl)로 묶고 이름 표시
       '<div class="lec3-l" id="lc7-b"><span class="lc7-it lc7-gn" id="lc7-bn">' + nm5('Bm7(b5)') + '</span>' + rowB + '</div>' +
       '<div class="lec3-l" id="lc7-sd">' + TB7_SEC.map(function (r) { return it(r[0]); }).join('') + '</div>' +
       '<div class="lec3-l" id="lc7-p3"><div class="lc7-pr">' + it('C7', '', ' id="lc7-pa"') + it('→', 'lc7-ar', ' id="lc7-par"') + it('FM7', '', ' id="lc7-pb"') + '</div><div class="lc7-ch" id="lc7-chips">' + it('9') + it('13') + '</div></div>' +
-      '<div class="lec3-l" id="lc7-sb">' + it('Db7', '', ' id="lc7-sbn"') + '</div>' +
+      '<div class="lec3-l" id="lc7-sb"><div class="lc7-pr">' + it('Db7', '', ' id="lc7-sbn"') + it('→', 'lc7-ar lc6-off', ' id="lc7-sba"') + it('CM7', 'lc6-off', ' id="lc7-sbc"') + '</div></div>' +   // → C는 #11 단계에서 나타남(그 전엔 자리를 차지하지 않아 Db7이 가운데에 보임)
       '<div class="lec3-l" id="lc7-cmp"><div class="lec3-demo">' + widget('lc7-wg', 'G7', ['G', 'B', 'D', 'F'], null, 'transform: translateX(-' + GAP4 + 'px)') + widget('lc7-wh', nm5('Db7(#11)'), ['Db', 'F', 'Ab', 'B', 'G'], null, 'transform: translateX(' + GAP4 + 'px)') + '</div></div>' +
       '<div class="lec3-l lec3-e" id="lc7-s">' + song + '</div>' +
-      tbl('lc7-s2', t2, '') + tbl('lc7-s3', t3, legend);
+      tbl('lc7-s2', TB7_SEC.length, t2, legend) + tbl('lc7-s3', TB7_SUB.length, t3, legend);
   }
-  const STEPS_CH7 = [
+  // 아래 번호(0~46)는 낱개 단계 — 실제 재생 단계는 이 목록 뒤의 STEPS_CH7이 진행 바 칸 기준으로 묶어서 만든다(17번째 단계는 중복이라 뺌)
+  const STEPS_CH7_RAW = [
     // 0. 도입 — 문구만
     { text: '7장에선 코드를 더 세련되게 꾸며 주는\n' + em('텐션') + '에 대해 배워볼게요!', run: textOnly },
     // 1. 코드 구성 — C(C E G)가 나타남, 음 옆에 1·3·5
@@ -2223,7 +2428,7 @@
       rollNote(w.rows[1], 'E', 1, false); rollNote(w.degs[1], '3', 1, false);
       rollNote(w.rows[2], 'G', 1, false); rollNote(w.degs[2], '5', 1, false);
       return nameTo(w, 'C', '').then(function () { return wait(SETTLE_MS); })
-        .then(function () { return Promise.all([fx([w.rows[3]], 'is-in', true), fx([w.degs[3]], 'is-in', true)]); })
+        .then(function () { return fx([w.rows[3], w.degs[3]], ['is-in', 'is-focus'], true); })   // 이 단계의 주인공인 7음은 처음부터 파랑(3음·5음 단계와 같게)
         .then(function () { return nameTo(w, 'C', 'M7'); }).then(function () { return wait(SETTLE_MS); }).then(function () { return hit('CM7', 1.1); })
         .then(function () { rollNote(w.rows[3], 'Bb', -1, true); rollNote(w.degs[3], 'b7', -1, true); return nameTo(w, 'C', '7'); })
         .then(function () { return wait(SETTLE_MS); }).then(function () { return hit('C7', 1.1); })
@@ -2231,7 +2436,7 @@
         .then(function () { return wait(SETTLE_MS); }).then(function () { return hit('C6', 1.4); });
     } },
     // 7. 조합 — 3화음 4종 × 7음 3종 중 쓰이는 10개 코드 이름이 차례로(dim의 M7·aug의 6은 없음)
-    { text: '이 음들을 조합하면\n만들어지는 코드가 아주 많아지죠!', run: function () {
+    { enter: clearScene, text: '이 음들을 조합하면\n만들어지는 코드가 아주 많아지죠!', run: function () {
       layer4('lc7-g');
       return wait(FADE_MS).then(function () { return fx(q2('#lc7-g .lc7-it'), 'is-in', true, 70); }).then(function () { return wait(1500); });
     } },
@@ -2242,12 +2447,12 @@
         .then(function () { return playLib(FIVE7, 1000, hotOf(five)); });
     } },
     // 9. 빈 음 — CM7의 C E G B와 그 사이 2·4·6번째 자리(번호만 보임)
-    { text: '그런데 이 코드들의 구성음 사이에는\n2, 4, 6번째 음이 비어 있어요', run: function () {
+    { enter: clearScene, text: '이 코드들의 구성음 사이에는\n2, 4, 6번째 음이 비어 있어요', run: function () {
       layer4('lc7-n');
       return wait(FADE_MS).then(function () { return fx(cellsN(), 'is-in', true, 90); }).then(function () { return wait(1200); });
     } },
     // 10. 텐션 — 빈 자리에 D F A가 나타나고 → 오른쪽 한 옥타브 위 자리로 이동하며 번호 2·4·6이 9·11·13으로(파랑)
-    { text: '이걸 한 옥타브 올려서\n9, 11, 13으로 표시하고\n이 음들을 ' + em('내추럴 텐션') + '이라고 해요!', run: function () {
+    { text: '이걸 한 옥타브 올려서\n9, 11, 13으로 표시하고\n이 음들을 ' + em('텐션') + '이라고 해요!', run: function () {
       const cs = cellsN(), gap = [1, 3, 5].map(function (i) { return cs[i]; });
       return fx(gap, 'is-blank', false, 150).then(function () { return wait(900); }).then(function () {
         const rw = $('lc7-r'), sp = $('lc7-sp');
@@ -2291,31 +2496,32 @@
       const cs = cellsN(), nms = q2('#lc7-nms .lc7-it');
       return fx([cs[5], nms[2]], 'is-var', true).then(function () { return wait(1800); });
     } },
-    // 16. 나머지 코드 — 가로 표(열 = 코드, 아래로 텐션 코드, 정석 / 변형)에 CM7 Dm7 Em7 FM7 G7 Am7 열이 왼쪽에서 오른쪽으로. G7은 내추럴 9·13만(sus4(9)·얼터드는 27번에서 더해짐), Bm7(b5) 열도 27번에 생김(그 전엔 자리도 차지하지 않음)
-    { text: '이제 나머지 텐션들도 정리해볼게요!', run: function () {
-      layer4('lc7-s1');
-      fit7('lc7-s1');
-      return wait(FADE_MS).then(function () { return showCols7('lc7-s1', [0, 1, 2, 3, 4, 5]); }).then(function () { return fx([$('lc7-s1-lg')], 'is-in', true); }).then(function () { return wait(2200); });
-    } },
-    // 17. 도미넌트 — G7의 G B D F | A C E, 11(C)은 불협(코랄)
-    { text: '5도 도미넌트 코드는\n쓸 수 있는 텐션이 아주 많아요!', run: function () {
+    // 16. (삭제 — "이제 나머지 텐션들도 정리해볼게요!" 6열 표 미리보기. 27번에서 표를 한 번에 보여 주므로 중복)
+    // 17. 도미넌트 — G7의 G B D F | A E (9·13). 11(C)은 여기선 표시하지 않음(sus4 단계에서 처음 나타남)
+    { enter: clearScene, text: '5도 도미넌트 코드는\n쓸 수 있는 텐션이 아주 많아요!', run: function () {
       const cs = q2('#lc7-gr .lc7-c');
       layer4('lc7-d');
       return wait(FADE_MS).then(function () { return fx([$('lc7-gn')], 'is-in', true); })
-        .then(function () { return fx(cs.slice(0, 4), 'is-in', true, 100); }).then(function () { return fx(cs.slice(4), 'is-in', true, 150); })
-        .then(function () { return wait(400); }).then(function () { return fx([cs[5]], 'is-tense', true); }).then(function () { return wait(1200); });
+        .then(function () { return fx(cs.slice(0, 4), 'is-in', true, 100); }).then(function () { return fx([cs[4], cs[6]], 'is-in', true, 150); })
+        .then(function () { return wait(1200); });
     } },
-    // 18. 얼터드 — 아래에 b9 #9 #11 b13이 변형 스타일로
+    // 18. 얼터드 — 아래에 b9 #9 #11 b13이 같은 진하기로 나타난 뒤, 꺾쇠로 묶고 "얼터드 텐션" 표시
     { text: 'b9, #9, #11, b13을 더 쓸 수 있고\n이를 ' + em('얼터드 텐션') + '이라 해요', run: function () {
-      return fx(q2('#lc7-ga .lc7-c'), 'is-in', true, 150).then(function () { return wait(1500); });
+      return fx(q2('#lc7-ga .lc7-c'), 'is-in', true, 150).then(function () { return wait(700); })
+        .then(function () { return fx([$('lc7-bkl'), $('lc7-bkt')], 'is-in', true, 200); }).then(function () { return wait(1500); });
     } },
     // 19. 생략 — 문구만
     { text: '왜 그런지는 고급 화성학의 내용이라\n지금은 설명을 생략할게요!', run: textOnly },
     // 20. sus4 — 11(C)이 사라지고 3음(B)이 C로 굴러 바뀜(sus4), 이름 G7 → G7sus4 → G7sus4, G7 재생
     { text: 'G7에 11텐션을 더하면 원래는 불협이지만\n' + em('G7sus4') + '로 우회해서 쓸 수 있어요!', run: function () {
       const cs = q2('#lc7-gr .lc7-c'), nm = $('lc7-gn');
-      return fx([cs[5]], 'is-in', false).then(function () {
-        slideIn(q2('#lc7-gr .lc7-c:not(.lc6-off)').filter(function (c) { return c !== cs[5]; }), function () { cs[5].classList.add('lc6-off'); });
+      // 11(C)을 처음 보여 줌 — 9(A)와 13(E) 사이에 끼며 코랄(불협), 나머지는 옆으로 미끄러져 자리를 열어 줌. 읽을 시간 뒤에 사라지며 sus4로
+      slideIn(cs.filter(function (c) { return c !== cs[5]; }), function () { cs[5].classList.remove('lc6-off'); });
+      return fx([cs[5]], ['is-in', 'is-tense'], true).then(function () { return wait(1200); }).then(function () {
+        fx(q2('#lc7-ga .lc7-c').concat([$('lc7-bkl'), $('lc7-bkt'), cs[4], cs[6]]), 'is-faint', true);   // G7sus4 구성음(G C D F)만 남기고 9·13·얼터드(와 꺾쇠)는 옅게 — 9(A)는 다음 단계에서 다시 진해짐
+        return fx([cs[5]], 'is-in', false);
+      }).then(function () {
+        slideIn(q2('#lc7-gr .lc7-c:not(.lc6-off)').filter(function (c) { return c !== cs[5]; }), function () { cs[5].classList.add('lc6-off'); cs[5].classList.remove('is-tense'); });
         rollNote(cs[1].querySelector('.lc7-l'), 'C', 1, true); rollNote(cs[1].querySelector('.lc7-d'), '4', 1, true);
         return swap(nm, function () { nm.innerHTML = sfx6('G7', 'sus4'); });
       }).then(function () { return wait(SETTLE_MS); }).then(function () { return playLib(['G7sus4', 'G7'], 1300); });
@@ -2324,38 +2530,32 @@
     { text: 'G7sus4에는\n9텐션까지 붙일 수 있어요', run: function () {
       const cs = q2('#lc7-gr .lc7-c'), nm = $('lc7-gn');
       cs[4].classList.add('is-focus');
+      fx([cs[4]], 'is-faint', false);
       return swap(nm, function () { nm.innerHTML = sfx6('G7sus4', '(9)'); }).then(function () { return wait(SETTLE_MS); }).then(function () { return hit('G7sus4(9)', 2.2); });
     } },
     // 22~23. 이름이 길다 / 많이 쓰이는 코드 — 문구만
-    { text: 'G7sus4(9)는 이름이 길어서\n어려워 보이지만', run: textOnly },
+    { text: nm5('G7sus4(9)') + '는 이름이 길어서\n어려워 보이지만', run: textOnly },   // 괄호 텐션은 항상 위첨자(nm5)
     { text: '대중음악에서\n아주 많이 사용되는 코드예요!', run: textOnly },
     // 24. 분수코드 — 이름이 F/G로 바뀜(파랑) + 재생
-    { text: '사실 이렇게 쓰기보다는 분수코드를 이용해서\nF/G로 표기하는 경우가 많아요!', run: function () {
+    { text: '사실 이렇게 쓰기보다는\n' + em('분수코드') + '를 이용해서\nF/G로 표기하는 경우가 많아요!', run: function () {   // 첫 줄이 약 340px라 328px 캡션에서 접힘 → 3줄로 나누고 키워드 강조
       const nm = $('lc7-gn');
       return swap(nm, function () { nm.innerHTML = 'F/G'; nm.classList.add('is-focus'); }).then(function () { return wait(SETTLE_MS); }).then(function () { return hit('F/G', 2.2); });
     } },
     // 25. m7(b5) — B D F A, 텐션 자리(C E G)는 거의 안 보이게
-    { text: em(nm5('m7(b5)')) + '는 그 자체로 불안정해서\n텐션을 잘 쓰지 않아요', run: function () {
+    { enter: clearScene, text: em(nm5('m7(b5)')) + '는 그 자체로 불안정해서\n텐션을 잘 쓰지 않아요', run: function () {
       const cs = q2('#lc7-br .lc7-c');
       layer4('lc7-b');
       return wait(FADE_MS).then(function () { return fx([$('lc7-bn')], 'is-in', true); }).then(function () { return fx(cs.slice(0, 4), 'is-in', true, 100); })
         .then(function () { return fx(cs.slice(4), ['is-in', 'is-faint'], true, 150); }).then(function () { return wait(1500); });
     } },
-    // 26. 총정리 예고 — 문구만
-    { text: '다이어토닉 코드에서 쓸 수 있는\n텐션을 정리해 볼게요!', run: textOnly },
-    // 27. (문구 없음) 표 — G7 열에 sus4(9)·얼터드 칸이 더해지고 Bm7(b5) 열이 생기며, 기존 열이 미끄러져 새 균형 자리를 잡음
+    // 26. 총정리 예고 — 칸이 시작되면 문구와 동시에 앞 장면(m7(b5) 설명)을 바로 치움(enter) → 문구만 남은 채 정리 시작, 다음 구성 단계에서 표
+    { text: '다이어토닉 코드에서 쓸 수 있는\n텐션을 정리해 볼게요!', enter: function () { layer4(null); }, run: textOnly },
+    // 27. (문구 없음) 표 — 다이어토닉 코드의 텐션 표(열 6개: CM7 Dm7 Em7 FM7 G7 Am7, 7도는 뺌)를 쓸 수 있는 텐션 '음'으로 정리해 열이 왼쪽에서 오른쪽으로 한 번에 나타남.
+    //     같은 숫자(9·11·13) 줄이 코드가 달라도 같은 높이에 정렬됨. 예전 16번의 6열 미리보기·칸이 더해지며 미끄러지던 연출은 없앰
     { text: '', run: function () {
       layer4('lc7-s1');
       fit7('lc7-s1');
-      const g7 = q2('#lc7-s1 .lc7-cl[data-c="4"] .lc7-tc.lc6-off'), shown = colCells('lc7-s1', [0, 1, 2, 3, 4, 5]).filter(function (el) { return !el.classList.contains('lc6-off'); }).concat([$('lc7-s1-lg')]);
-      return wait(FADE_MS).then(function () {
-        slideIn(shown, function () {
-          g7.forEach(function (el) { el.classList.remove('lc6-off'); });
-          q2('#lc7-s1 .lc7-cl.lc6-off').forEach(function (el) { el.classList.remove('lc6-off'); });
-          fit7('lc7-s1');
-        });
-        return fx(g7, 'is-in', true, 80);
-      }).then(function () { return wait(300); }).then(function () { return showCols7('lc7-s1', [6]); }).then(function () { return wait(2200); });
+      return wait(FADE_MS).then(function () { return showCols7('lc7-s1', [0, 1, 2, 3, 4, 5]); }).then(function () { return fx([$('lc7-s1-lg')], 'is-in', true); }).then(function () { return wait(2200); });
     } },
     // 28. 세컨더리 — 앞 장면을 치우고 A7 B7 C7 D7 E7이 나타남
     { text: '세컨더리 도미넌트에도\n텐션을 쓸 수 있어요',
@@ -2364,7 +2564,7 @@
     // 29. 기준 — 문구만
     { text: '타겟이 메이저인지 마이너인지에 따라\n어울리는 텐션이 달라요', run: textOnly },
     // 30. 메이저 타겟 — C7 → FM7, 텐션 9·13이 정석 스타일로, C7(9) → FM7 / C7(13) → FM7 재생
-    { text: '메이저일 때는 9, 13 같은\n' + em('내추럴 텐션') + '이 잘 어울려요', run: function () {
+    { enter: clearScene, text: '메이저일 때는 9, 13 같은\n' + em('내추럴 텐션') + '이 잘 어울려요', run: function () {
       const pa = $('lc7-pa'), pb = $('lc7-pb'), ar = $('lc7-par'), chips = q2('#lc7-chips .lc7-it');
       layer4('lc7-p3');
       return wait(FADE_MS).then(function () { return fx([pa, ar, pb], 'is-in', true, 150); }).then(function () { return wait(500); })
@@ -2391,10 +2591,12 @@
     { text: '대리 도미넌트도 마찬가지로\n텐션을 쓸 수 있어요!',
       enter: function () { layer4(null); },
       run: function () { return wait(FADE_MS).then(function () { layer4('lc7-sb'); return wait(FADE_MS); }).then(function () { return fx([$('lc7-sbn')], 'is-in', true); }).then(function () { return wait(900); }); } },
-    // 33. #11 — Db7 → Db7(#11) + 재생
+    // 33. #11 — Db7 → Db7(#11), 이어서 → CM7이 나타나며(Db7(#11)이 왼쪽으로 미끄러져 균형을 잡음) 지정 운지 Db7(#11) → CM7 재생
     { text: '대중음악에선 거의 정해진 공식처럼\n대부분 #11 텐션을 사용해요', run: function () {
-      const nm = $('lc7-sbn');
-      return swap(nm, function () { nm.innerHTML = sfx6('Db7', '(#11)'); }).then(function () { return wait(SETTLE_MS); }).then(function () { return hit('Db7(#11)', 2.2); });
+      const nm = $('lc7-sbn'), ar = $('lc7-sba'), c = $('lc7-sbc');
+      return swap(nm, function () { nm.innerHTML = sfx6('Db7', '(#11)'); }).then(function () { return wait(SETTLE_MS); })
+        .then(function () { slideIn([nm], function () { ar.classList.remove('lc6-off'); c.classList.remove('lc6-off'); }); return fx([ar, c], 'is-in', true, 150); })
+        .then(function () { return wait(500); }).then(function () { return playFixed([DB7_FIX['#11'], CM7_FIX['#11']], 1300); });
     } },
     // 34. #11의 정체 — G7과 Db7(#11)을 나란히(구성음 비교), 둘의 G만 파랑. 소리 없음
     { text: '#11은 항상 원래 도미넌트\n코드의 근음이기 때문이에요', run: function () {
@@ -2403,27 +2605,34 @@
       return wait(FADE_MS).then(function () { return fx([a.name, b.name], 'is-in', true); }).then(function () { return Promise.all([fx(a.rows, 'is-in', true, 100), fx(b.rows, 'is-in', true, 100)]); })
         .then(function () { return wait(400); }).then(function () { return fx([a.rows[0], b.rows[4]], 'is-focus', true, 250); }).then(function () { return wait(1800); });
     } },
-    // 35. 9 — Db7(9)가 변형 스타일로 + 재생
-    { text: '9, 13 텐션도 쓸 수 있어요!', run: function () {
-      const nm = $('lc7-sbn');
-      layer4('lc7-sb');
-      nm.classList.add('is-var');
-      return wait(FADE_MS).then(function () { return swap(nm, function () { nm.innerHTML = sfx6('Db7', '(9)'); }); }).then(function () { return wait(SETTLE_MS); }).then(function () { return hit('Db7(9)', 2); });
+    // 35. 9 — 세컨더리 때의 한 쌍 층(p3: 이름 → 해결 코드 + 텐션 9·13)을 다시 써서 Db7 → CM7. 층이 나타나기 전에 앞(마이너 타겟) 내용을 비우고 Db7 → C로 바꿔 둠(안 그러면 층 페이드 동안 앞 코드가 잔상으로 보임)
+    //     텐션 9가 파랑이 되며 지정 운지 Db7(9) → CM7 재생(대리 도미넌트도 CM7로 해결됨을 보여 줌). 흐림 처리 없음
+    { enter: clearScene, text: '9, 13 텐션도 쓸 수 있어요!', run: function () {
+      const pa = $('lc7-pa'), pb = $('lc7-pb'), ar = $('lc7-par'), chips = q2('#lc7-chips .lc7-it');
+      hideNow([pa, ar, pb].concat(chips));
+      pa.innerHTML = 'Db7'; pb.innerHTML = 'CM7'; chips[0].textContent = '9'; chips[1].textContent = '13';
+      chips.forEach(function (c) { c.classList.remove('is-focus'); });
+      layer4('lc7-p3');
+      return wait(FADE_MS).then(function () { return fx([pa, ar, pb], 'is-in', true, 150); }).then(function () { return wait(500); })
+        .then(function () { return fx(chips, 'is-in', true, 150); }).then(function () { return wait(700); })
+        .then(function () { chips[0].classList.add('is-focus'); return swap(pa, function () { pa.innerHTML = sfx6('Db7', '(9)'); }); })
+        .then(function () { return wait(SETTLE_MS); }).then(function () { return playFixed([DB7_FIX['9'], CM7_FIX['9']], 1300); });
     } },
-    // 36. 13 — Db7(13) + 재생
+    // 36. 13 — 지정 운지 Db7(13) → CM7 재생
     { text: '굉장히 신비롭고 재즈스러운\n사운드를 내요!', run: function () {
-      const nm = $('lc7-sbn');
-      return swap(nm, function () { nm.innerHTML = sfx6('Db7', '(13)'); }).then(function () { return wait(SETTLE_MS); }).then(function () { return hit('Db7(13)', 2); });
+      const pa = $('lc7-pa'), chips = q2('#lc7-chips .lc7-it');
+      chips[0].classList.remove('is-focus'); chips[1].classList.add('is-focus');
+      return swap(pa, function () { pa.innerHTML = sfx6('Db7', '(13)'); })
+        .then(function () { return wait(SETTLE_MS); }).then(function () { return playFixed([DB7_FIX['13'], CM7_FIX['13']], 1300); });
     } },
-    // 37. 작은별 — 6장 결과 악보가 나타나고 텐션이 붙음(바뀐 곳만 파랑) → 재생(1차: 멜로디와 충돌 없이)
-    { text: '6장에서 만든 작은별에\n텐션까지 넣어 볼게요!', run: function () {
+    // 37. 작은별 — 처음부터 텐션이 붙은 새 진행(6장 진행이 아님)의 악보가 나타남 → 지정 운지로 재생(1차: 멜로디와 충돌 없이). 문구는 임시(사용자 확정 필요)
+    { enter: clearScene, text: '작은별에 텐션을 넣어서\n코드진행을 만들어 봤어요!', run: function () {
       const ly = $('lec-lyrics'), nn = q2('#lc7-new .lec2-sname');
       ly.innerHTML = songLyricsHtml();
       layoutScore($('lc7-new'));
       layer4('lc7-s');
       return wait(FADE_MS).then(function () { return fx(nn, 'is-in', true, 60); })
         .then(function () { ly.classList.add('is-in'); return wait(FADE_MS + 600); })
-        .then(function () { return applySong7('s0', 's1'); }).then(function () { return wait(SETTLE_MS); })
         .then(function () { return playSong7('s1'); });
     } },
     // 38. 멜로디 주의 — 문구만
@@ -2438,37 +2647,549 @@
     { text: '괜찮게 들렸나요?\n텐션을 받아들이는 건 자유지만\n충분히 고민한 뒤에 쓰는 게 좋아요!', run: textOnly },
     // 41. 총정리 도입 — 문구만
     { text: '지금까지 배운 텐션을\n총정리해 볼게요!', run: textOnly },
-    // 42~44. 총정리 표 3장(다이어토닉 / 세컨더리 / 대리 도미넌트) — 각각 열이 왼쪽에서 오른쪽으로
-    { text: '', run: function () {
-      const all = colCells('lc7-s1', [0, 1, 2, 3, 4, 5, 6]);
+    // 42~44. 총정리 표 3장(다이어토닉 / 세컨더리 / 대리 도미넌트) — 문구로 표 이름만 띄움, 각각 열이 왼쪽에서 오른쪽으로(세컨더리의 타겟 코드·대리 도미넌트의 원래 도미넌트 표시는 뺌)
+    { enter: clearScene, text: '다이어토닉 코드', run: function () {
+      const all = colCells('lc7-s1', [0, 1, 2, 3, 4, 5]);
+      hideNow(all.concat([$('lc7-s1-lg')]));   // 층이 나타나기 전에 비움 — 27번에 채운 표가 층 페이드 동안 보였다가 사라지지 않게
       layer4('lc7-s1');
       fit7('lc7-s1');
-      return wait(FADE_MS).then(function () { hideNow(all.concat([$('lc7-s1-lg')])); return showCols7('lc7-s1', [0, 1, 2, 3, 4, 5, 6]); }).then(function () { return fx([$('lc7-s1-lg')], 'is-in', true); }).then(function () { return wait(2500); });
+      return wait(FADE_MS).then(function () { return showCols7('lc7-s1', [0, 1, 2, 3, 4, 5]); }).then(function () { return fx([$('lc7-s1-lg')], 'is-in', true); }).then(function () { return wait(2500); });
     } },
-    { text: '', run: function () {
+    { enter: clearScene, text: '세컨더리 도미넌트', run: function () {
       layer4('lc7-s2');
       fit7('lc7-s2');
-      return wait(FADE_MS).then(function () { return showCols7('lc7-s2', [0, 1, 2, 3, 4]); }).then(function () { return wait(2500); });
+      return wait(FADE_MS).then(function () { return showCols7('lc7-s2', [0, 1, 2, 3, 4]); }).then(function () { return fx([$('lc7-s2-lg')], 'is-in', true); }).then(function () { return wait(2500); });
     } },
-    { text: '', run: function () {
+    { enter: clearScene, text: '대리 도미넌트', run: function () {
       layer4('lc7-s3');
       fit7('lc7-s3');
       return wait(FADE_MS).then(function () { return showCols7('lc7-s3', [0, 1, 2, 3, 4, 5]); }).then(function () { return fx([$('lc7-s3-lg')], 'is-in', true); }).then(function () { return wait(2500); });
     } },
     // 45~46. 마무리 멘트(초안) + 마무리(공통)
-    { text: '텐션은 코드를 풍성하게 해 주지만\n늘 멜로디와 어울리는지 들어보고 써요', seq: true, run: textOnly },
+    { text: '텐션은 코드를 풍성하게 해 주지만\n늘 멜로디와 어울리는지\n들어보고 쓰는 게 좋아요', seq: true, run: textOnly },
     Object.assign(endingStep(7), { seq: true }),
   ];
-  // "다음" 묶음: [0~1 도입] / [2~5 3음·5음] / [6~8 7음·조합·5종] / [9~10 텐션 정의] / [11~15 CM7] / [16 나머지 코드] / [17~19 G7 얼터드] / [20~24 sus4] / [25~27 m7(b5)·표] / [28~29 세컨더리] / [30 메이저] / [31 마이너] / [32~34 대리 도미넌트 #11] / [35~36 9·13] / [37 작은별] / [38~40 멜로디·소감] / [41~44 총정리] / [45~46 마무리]
-  const GROUPS_CH7 = [[0, 1], [2, 3, 4, 5], [6, 7, 8], [9, 10], [11, 12, 13, 14, 15], [16], [17, 18, 19], [20, 21, 22, 23, 24], [25, 26, 27], [28, 29], [30], [31], [32, 33, 34], [35, 36], [37], [38, 39, 40], [41, 42, 43, 44], [45, 46]];
-  STEPS_CH7[5].ms = 7000;    // 마지막 묶음 단계의 소리 꼬리까지(단계 시작 기준) — 소리가 있는 묶음 끝 단계
-  STEPS_CH7[8].ms = 8000;
-  STEPS_CH7[24].ms = 4000;
-  STEPS_CH7[30].ms = 13000;
-  STEPS_CH7[31].ms = 13000;
-  STEPS_CH7[36].ms = 4000;
-  STEPS_CH7[37].ms = 18000;  // 동요(80 BPM 약 12초) + 바뀌는 연출 + 마지막 음 꼬리
-  const LECTURES = { 1: { steps: STEPS_CH1, groups: GROUPS_CH1 }, 2: { steps: STEPS_CH2, groups: GROUPS_CH2 }, 3: { steps: STEPS_CH3, groups: GROUPS_CH3 }, 4: { steps: STEPS_CH4, groups: GROUPS_CH4 }, 5: { steps: STEPS_CH5, groups: GROUPS_CH5 }, 6: { steps: STEPS_CH6, groups: GROUPS_CH6 }, 7: { steps: STEPS_CH7, groups: GROUPS_CH7 } };
+  STEPS_CH7_RAW[5].ms = 7000;    // 마지막 묶음 단계의 소리 꼬리까지(단계 시작 기준) — 소리가 있는 묶음 끝 단계
+  STEPS_CH7_RAW[8].ms = 8000;
+  STEPS_CH7_RAW[23].ms = 4000;   // (분수코드 단계 — 묶음의 마지막 구성이라 chainSteps가 소리 꼬리까지 기다림)
+  STEPS_CH7_RAW[29].ms = 13000;
+  STEPS_CH7_RAW[30].ms = 13000;
+  STEPS_CH7_RAW[36].ms = 14500;  // 동요(80 BPM 약 12초) + 마지막 음 꼬리
+  // 진행 바 칸 기준으로 낱개 단계를 묶음(chainSteps — 지우지 않고 문구가 차례로 바뀜): 위 목록 번호(0부터) 0·1 / 7·8 / 9·10 / 11~15 / 16~18 / 19~23 / 25·26 / 27·28 / 31~33 / 34·35 / 37~39가 각각 한 칸(나머지는 그대로). 총 26칸
+  const STEPS_CH7 = [].concat(
+    [chainSteps([STEPS_CH7_RAW[0], STEPS_CH7_RAW[1]])],
+    STEPS_CH7_RAW.slice(2, 7),
+    [chainSteps([STEPS_CH7_RAW[7], STEPS_CH7_RAW[8]]),
+      chainSteps([STEPS_CH7_RAW[9], STEPS_CH7_RAW[10]]),
+      chainSteps(STEPS_CH7_RAW.slice(11, 16)),
+      chainSteps(STEPS_CH7_RAW.slice(16, 19)),
+      chainSteps(STEPS_CH7_RAW.slice(19, 24)),
+      STEPS_CH7_RAW[24],
+      chainSteps([STEPS_CH7_RAW[25], STEPS_CH7_RAW[26]]),
+      chainSteps([STEPS_CH7_RAW[27], STEPS_CH7_RAW[28]]),
+      STEPS_CH7_RAW[29],
+      STEPS_CH7_RAW[30],
+      chainSteps([STEPS_CH7_RAW[31], STEPS_CH7_RAW[32], STEPS_CH7_RAW[33]]),
+      chainSteps([STEPS_CH7_RAW[34], STEPS_CH7_RAW[35]])],
+    [STEPS_CH7_RAW[36], chainSteps([STEPS_CH7_RAW[37], STEPS_CH7_RAW[38], STEPS_CH7_RAW[39]])],
+    STEPS_CH7_RAW.slice(40)
+  );
+  // 진행 바 페이즈(큰 흐름 4개): 1 코드 구성 복습 [0~6] / 2 텐션 소개와 다이어토닉·도미넌트의 텐션 [7~12] / 3 세컨더리·대리 도미넌트의 텐션 [13~17] / 4 작은별 적용·총정리·마무리 [18~25]
+  const GROUPS_CH7 = [[0, 1, 2, 3, 4, 5, 6], [7, 8, 9, 10, 11, 12], [13, 14, 15, 16, 17], [18, 19, 20, 21, 22, 23, 24, 25]];
+  // 진행 바 칸 길이(ms) 2~6장 — 1장(DURS_CH1)과 같은 방식으로 시뮬레이션 실측(docs/chord-combo-lecture-style.md §11). 단계 연출이나 페이즈 구분(GROUPS)을 바꾸면 다시 잴 것
+  const DURS_CH2 = [3600, 4150, 4500, 9300, 3600, 6050, 3600, 3600, 3700, 3600, 3600, 15500, 3600, 3600];
+  const DURS_CH3 = [9950, 16200, 10350, 21000, 8150, 11350, 15100, 14000, 3700, 3600, 15500, 8400, 3600];   // 13칸(낱개 20단계를 묶음), 시뮬레이션 실측 합 140.9초
+  const DURS_CH4 = [6000, 6950, 6000, 5600, 5650, 6850, 3600, 4300, 11600, 7600, 8400, 7750, 11000, 9250, 6000, 7600, 5800, 3900, 8250, 19050, 18700, 8900, 12600, 7600];   // 24칸(낱개 37단계를 묶음), 시뮬레이션 실측 합 199.0초
+  const DURS_CH5 = [3950, 8150, 7600, 9600, 7600, 18300, 8300, 9950, 12650, 3600, 3600, 14600, 3600, 9050, 11600];   // 15칸(삭제 1·합침 후 묶음), 시뮬레이션 실측 합 132.2초
+  const DURS_CH6 = [17150, 10000, 8650, 10550, 8950, 10400, 8250, 9600, 10800, 11400, 15950, 3600, 7600, 5000, 3800, 15150, 15500, 3600, 3600, 3600, 3600, 11600, 3600];   // 23칸(낱개 36단계를 묶음), 시뮬레이션 실측 합 202.0초
+  const DURS_CH7 = [7600, 7900, 3600, 5300, 8000, 10700, 13500, 8200, 23750, 13300, 25950, 4700, 9200, 7700, 14000, 14000, 16500, 14450, 15550, 23350, 3600, 5500, 5300, 5500, 3600, 3600];
+  // ── 챕터 8 (마이너 다이어토닉) ──
+  // 기준은 Cm key. 흐름: [C 마이너 스케일 → 4음 쌓기 → 메이저와 이름·도수 비교 → b 도수 → 나란한 조(Am) → 순서대로 듣기] [5도(Gm7)가 약함 → 하모닉 마이너 → 하모닉 7th 나열 → G7만 차용 → 실전 7코드] [작은별 마이너 편곡]
+  // 각 단계의 핵심(CLAUDE.md 0-5):
+  //  0 예고(다이어토닉은 하나가 아님)   1 마이너 스케일 7음(울리는 음만 파랑)   2 쌓는 방법은 같다(새 줄만 파랑)   3 메이저 vs 마이너의 이름·도수(두 열 비교)   4 b이 붙는 도수 3개(bIII·bVI·bVII의 b만 파랑)
+  //  5 시작이 C면 b이 붙는다(Eb·Ab·Bb 파랑)   6 A로 시작하면 b이 사라진다   7 메이저 코드 7개가 그대로이고 순서(도수)만 돈다   8 나란한 조(용어)   9 마이너 다이어토닉 7개 소리
+  // 10 5도 Gm7이 약하다(소리)   11 7번째 음 Bb→B = 하모닉 마이너(바뀐 음 하나)   12 하모닉 마이너의 7th(바뀐 4개만 파랑)   13 5도 G7만 남김   14 실전 7코드(G7이 새로 들어감)
+  // 15 예고   16 마이너 작은별(악보+소리)   17 소감   18 훈련 목표   19 마무리(공통)
+  const rot8 = function (a, k) { return a.slice(k).concat(a.slice(0, k)); };
+  const MS8 = ['C', 'D', 'Eb', 'F', 'G', 'Ab', 'Bb'];   // C 마이너(내추럴 마이너) 스케일
+  const AM8 = ['A', 'B', 'C', 'D', 'E', 'F', 'G'];      // A로 시작하면 b이 없는 같은 음들
+  const ROW8 = [0, 2, 4, 6].map(function (k) { return rot8(MS8, k); });   // 한 칸씩 건너뛰어 쌓은 4줄
+  const MIN8_MIDI = [48, 50, 51, 53, 55, 56, 58, 60], HAR8_MIDI = [48, 50, 51, 53, 55, 56, 59, 60];   // C3부터 한 옥타브: 내추럴 마이너 / 하모닉 마이너(7음 Bb→B)
+  const MAJ8 = [['CM7', 'IM7'], ['Dm7', 'IIm7'], ['Em7', 'IIIm7'], ['FM7', 'IVM7'], ['G7', 'V7'], ['Am7', 'VIm7'], ['Bm7(b5)', 'VIIm7(b5)']];   // [이름, 도수] — 메이저 다이어토닉(2장)
+  const NAT8 = [['Cm7', 'Im7'], ['Dm7(b5)', 'IIm7(b5)'], ['EbM7', 'bIIIM7'], ['Fm7', 'IVm7'], ['Gm7', 'Vm7'], ['AbM7', 'bVIM7'], ['Bb7', 'bVII7']];   // Cm key
+  const HAR8 = [['CmM7', 'ImM7'], ['Dm7(b5)', 'IIm7(b5)'], ['EbM7(#5)', 'bIIIM7(#5)'], ['Fm7', 'IVm7'], ['G7', 'V7'], ['AbM7', 'bVIM7'], ['Bdim7', 'VIIdim7']];   // C 하모닉 마이너의 7th — 바뀐 곳은 1·3·5·7도
+  const AMK8 = [['Am7', 'Im7'], ['Bm7(b5)', 'IIm7(b5)'], ['CM7', 'bIIIM7'], ['Dm7', 'IVm7'], ['Em7', 'Vm7'], ['FM7', 'bVIM7'], ['G7', 'bVII7']];   // Am key — 메이저 코드 7개를 Am7부터 센 것
+  // 지정 운지(줄 6→1, -1 = 안 침). 구성음 계산으로 검증: Cm7 C G Bb Eb G / Gm7 G F Bb D G / Fm7 F C Eb Ab / Dm7(b5) D Ab C F / AbM7 Ab G C Eb / G7 G F B D / EbM7 Eb G Bb D G / Bb7 Bb F Ab D F
+  const VOICINGS8 = {
+    Cm7: [-1, 3, 5, 3, 4, 3], Gm7: [3, -1, 3, 3, 3, 3], Fm7: [-1, -1, 3, 5, 4, 4], 'Dm7(b5)': [-1, 5, 6, 5, 6, -1], AbM7: [4, -1, 5, 5, 4, -1], G7: [3, -1, 3, 4, 3, -1],
+    EbM7: [-1, 6, 5, 3, 3, 3], Bb7: [-1, 1, 3, 1, 3, 1],   // EbM7·Bb7은 제안값(사용자 승인)
+  };
+  function v8(c) { return VOICINGS8[c]; }
+  const SONG8 = ['Cm7', 'Gm7', 'Fm7', 'Cm7', 'Dm7(b5)', 'AbM7', 'G7', 'Cm7'];
+  const MELODY8 = SONG_MELODY.map(function (m) { return m[0] === 69 ? [68, m[1], m[2]] : m[0] === 64 ? [63, m[1], m[2]] : m; });   // 마이너 편곡 — 멜로디의 라(A)·미(E)를 라b(Ab)·미b(Eb)로(원곡 그대로면 Fm7·AbM7과 부딪힘)
+  function rom8(r) {   // 'bIIIM7(#5)' → b(파랑 후보) + 숫자 크게(III) + 품질 작게(M7, 괄호는 위첨자)
+    const m = /^(b?)([IV]+)(.*)$/.exec(r);
+    return (m[1] ? '<i class="lc8-bb">b</i>' : '') + m[2] + (m[3] ? '<span class="lec-rq">' + _ccFormatB5(m[3]) + '</span>' : '');
+  }
+  function cells8(id) { return { nm: q2('#' + id + ' .lc8-nm'), rm: q2('#' + id + ' .lc8-rm') }; }   // 7코드 목록의 이름·도수
+  function hotCells8(c) { return function (k) { c.nm.forEach(function (el, j) { const on = k >= 0 && j === k % 7; el.classList.toggle('is-focus', on); c.rm[j].classList.toggle('is-focus', on); }); }; }   // 울리는 코드의 이름·도수만 파랑(8번째 코드 = 처음으로 돌아온 1도)
+  function playV8(names, slot, hot) {   // 지정 운지를 한 개씩(slot ms) 재생, 마지막은 길게 — 울리는 것만 hot(k)로 강조
+    const t0 = audioT0();
+    names.forEach(function (n, k) {
+      const last = k === names.length - 1;
+      strum(fretsToMidis(VOICINGS8[n]), t0 + k * slot / 1000, last ? 1.5 : slot / 1000 * 0.9, last ? 0.8 : 0.4);
+      if (hot) later(function () { hot(k); }, LEAD_MS + k * slot);
+    });
+    if (hot) later(function () { hot(-1); }, LEAD_MS + names.length * slot + 300);
+    return wait(LEAD_MS + names.length * slot + 300 + FADE_MS);
+  }
+  // 나란한 조 장면 — C 메이저 7코드(4+3 가로)의 코드 이름이 칸에서 칸으로 미끄러져 Am7이 첫 칸(1도)으로 오고, 도수 글자가 새로 바뀜(도수 자리는 그대로, 이름만 FLIP). 이름표도 C 메이저 → A 마이너
+  function reorderKey8(c, lb) {
+    const cells = q2('#lc8-k .lc8-nc'), nms = c.nm.slice();
+    const pos = function (el) { const r = el.getBoundingClientRect(); return { x: r.left, y: r.top }; };
+    const before = nms.map(pos);
+    cells.forEach(function (cell, r) { cell.insertBefore(nms[(r + 5) % 7], c.rm[r]); });   // 칸 r에는 메이저 순서의 (r+5)번째 코드(Am7 = 5번)가 들어옴
+    nms.forEach(function (el, i) {
+      const a = pos(el), dx = before[i].x - a.x, dy = before[i].y - a.y;
+      if (Math.abs(dx) > 0.5 || Math.abs(dy) > 0.5) anim(el, [{ transform: 'translate(' + dx + 'px, ' + dy + 'px)' }, { transform: 'translate(0, 0)' }], { duration: 600, easing: EASE_INOUT });
+    });
+    return Promise.all(c.rm.map(function (el, r) { return swap(el, function () { el.innerHTML = rom8(AMK8[r][1]); }, r * 60); }).concat([swap(lb, function () { lb.textContent = 'A 마이너'; })])).then(function () { return wait(600); });
+  }
+  function buildStage8() {
+    const stage = $('combo-v2-lec-stage');
+    stage.classList.add('is-ch2', 'is-ch8');
+    let colHtml = '';
+    for (let i = 0; i < 7; i++) {
+      colHtml += '<div class="lec-col"><div class="lec-stack">' + [1, 2, 3, 4].map(function (r) { return '<span class="lec-note" data-row="' + r + '">&nbsp;</span>'; }).join('') + '</div></div>';
+    }
+    const cell = function (letter, deg) { return '<span class="lc7-it lc7-c"><b class="lc7-l">' + letter + '</b>' + (deg ? '<i class="lc7-d">' + deg + '</i>' : '') + '</span>'; };
+    const scaleRow = function (id, withDeg) { return '<div class="lc7-row" id="' + id + '">' + MS8.map(function (l, i) { return cell(l, withDeg ? i + 1 : ''); }).join('') + '</div>'; };   // withDeg: 음이름 아래 번호(1~7) — 페이즈 1의 시작음 비교 칸(lc8-ra)은 음이름만
+    const list = function (id, rows, label) {   // label: 목록 위 작은 이름표(메이저 → 마이너로 바뀜)
+      return '<div class="lec3-l" id="' + id + '">' + (label ? '<div class="lc8-tl"><span class="lc7-it" id="' + id + '-lb">' + label + '</span></div>' : '') + '<div class="lc8-nl">' + rows.map(function (r) {
+        return '<div class="lc8-nc"><span class="lc7-it lc8-nm">' + nm5(r[0]) + '</span><span class="lc7-it lc8-rm">' + rom8(r[1]) + '</span></div>';
+      }).join('') + '</div></div>';
+    };
+    const pc = function (nameId, nameHtml, roman) { return '<div class="lc8-pc"><span class="lc7-it" id="' + nameId + '">' + nameHtml + '</span><span class="lc7-it lc8-pl">' + rom8(roman) + '</span></div>'; };
+    const song = scoreHtml('lc8-new', function (i, b) { return '<div class="lec2-slot" data-b="' + b + '"><span class="lec2-sname">' + nm5(SONG8[i]) + '</span></div>'; });
+    stage.innerHTML =
+      '<div class="lec3-l" id="lc8-a"><div class="lec-grid" id="lec-grid">' + colHtml + '</div></div>' +
+      list('lc8-t', MAJ8, '메이저') + list('lc8-k', MAJ8, 'C 메이저') +
+      '<div class="lec3-l lc8-top" id="lc8-sa">' + scaleRow('lc8-ra') + '</div>' +
+      '<div class="lec3-l lc8-top" id="lc8-sb">' + scaleRow('lc8-rb', true) + '</div>' +
+      list('lc8-n', NAT8) + list('lc8-h', HAR8) +
+      '<div class="lec3-l lc8-top" id="lc8-p"><div class="lc8-pr">' + pc('lc8-pa', 'Gm7', 'Vm7') + '<span class="lc7-it lc7-ar" id="lc8-par">→</span>' + pc('lc8-pb', 'Cm7', 'Im7') + '</div></div>' +
+      '<div class="lec3-l lec3-e" id="lc8-song">' + song + '</div>';
+  }
+  // 아래 번호(0~20)는 낱개 단계 — 실제 재생 단계는 이 목록 뒤의 STEPS_CH8이 진행 바 칸 기준으로 묶어서 만든다(총 13칸)
+  const STEPS_CH8_RAW = [
+    // 0. 예고 — 문구만
+    { text: '다이어토닉 코드는\n1가지만 있는 게 아니에요', run: textOnly },
+    // 1. 마이너 스케일 — C D Eb F G Ab Bb 7음이 나타나고 1장과 같은 방식으로 순서대로 재생(울리는 음만 파랑, 높은 도까지)
+    { text: em('마이너 스케일') + '로도\n다이어토닉 코드를 만들 수 있어요', run: function () {
+      const STEP = 420, els = rowOf(1);
+      els.forEach(function (el, i) { el.textContent = ROW8[0][i]; });
+      layer4('lc8-a');
+      grid().classList.add('is-quick');
+      return wait(FADE_MS).then(function () { return fx(els, 'is-in', true); }).then(function () { return wait(500); }).then(function () {
+        const t0 = audioT0();
+        els.forEach(function (el, i) {
+          note(MIN8_MIDI[i], t0 + i * STEP / 1000, STEP / 1000, 0.18);
+          later(function () { if (i > 0) els[i - 1].classList.remove('is-focus'); el.classList.add('is-focus'); }, LEAD_MS + i * STEP);
+        });
+        note(MIN8_MIDI[7], t0 + 7 * STEP / 1000, 1.2, 0.8);
+        later(function () { els[6].classList.remove('is-focus'); els[0].classList.add('is-focus'); }, LEAD_MS + 7 * STEP);
+        later(function () { els[0].classList.remove('is-focus'); }, LEAD_MS + 7 * STEP + 900);
+        return wait(LEAD_MS + 7 * STEP + 900 + FADE_MS);
+      });
+    } },
+    // 2. 쌓기 — 한 칸 건너뛴 줄이 하나씩 쌓임(새 줄만 파랑, 앞 줄은 옅게). 소리도 C Eb → Cm → Cm7
+    { text: '방법은 똑같이 한 칸씩 건너뛰어서\n음 4개를 쌓아요!', run: function () {
+      const t0 = audioT0(), STAG = 70, ROW_MS = 6 * STAG + FADE_MS, PAUSE = 300, STEP2 = ROW_MS + PAUSE;
+      const r = [1, 2, 3, 4].map(function (n) { return rowOf(n); });
+      grid().classList.remove('is-quick');
+      [1, 2, 3].forEach(function (n) { r[n].forEach(function (el, i) { el.textContent = ROW8[n][i]; }); });
+      strum([48, 51], t0, 1.2, 0.6);
+      strum([48, 51, 55], t0 + STEP2 / 1000, 1.2, 0.6);
+      strum(fretsToMidis(VOICINGS8.Cm7), t0 + 2 * STEP2 / 1000, 1.7, 0.8);
+      later(function () { fx(r[0], 'is-dim', true); fx(r[1], ['is-in', 'is-focus'], true, STAG); }, LEAD_MS);
+      later(function () { fx(r[1], 'is-focus', false); fx(r[1], 'is-dim', true); fx(r[2], ['is-in', 'is-focus'], true, STAG); }, LEAD_MS + STEP2);
+      later(function () { fx(r[2], 'is-focus', false); fx(r[2], 'is-dim', true); fx(r[3], ['is-in', 'is-focus'], true, STAG); }, LEAD_MS + 2 * STEP2);
+      return wait(LEAD_MS + 3 * ROW_MS + 2 * PAUSE);
+    } },
+    // 3. 이름·도수 비교 — 메이저 7코드(이름 위·도수 아래, 가로 4+3)가 나타난 뒤 제자리에서 마이너 코드·도수로 차례로 바뀜(이름표도 메이저 → 마이너)
+    { enter: clearScene, text: '각 코드의 이름과 도수를\n비교해보세요!', run: function () {
+      const c = cells8('lc8-t'), lb = $('lc8-t-lb');
+      layer4('lc8-t');
+      return wait(FADE_MS).then(function () { return fx([lb].concat(c.nm), 'is-in', true, 70); }).then(function () { return fx(c.rm, 'is-in', true, 70); }).then(function () { return wait(1200); })
+        .then(function () {
+          return Promise.all(c.nm.map(function (el, i) { return swap(el, function () { el.innerHTML = nm5(NAT8[i][0]); }, i * 70); })
+            .concat(c.rm.map(function (el, i) { return swap(el, function () { el.innerHTML = rom8(NAT8[i][1]); }, i * 70); }), [swap(lb, function () { lb.textContent = '마이너'; })]));
+        }).then(function () { return wait(1200); });
+    } },
+    // 4. b 도수 — 마이너 열의 bIII·bVI·bVII에서 b만 파랑
+    { text: '3도 6도 7도에 b이 붙었네요!', run: function () {
+      $('lc8-t').classList.add('lc8-bon');
+      return wait(1500);
+    } },
+    // 5. 시작이 C — Cm 스케일 7음, b이 붙는 Eb·Ab·Bb가 파랑
+    { enter: clearScene, text: '시작이 C일 때\n음이름에는 b이 붙게 되지만', run: function () {
+      const cs = q2('#lc8-ra .lc7-c'), ls = q2('#lc8-ra .lc7-l');
+      layer4('lc8-sa');
+      return wait(FADE_MS).then(function () { return fx(cs, 'is-in', true, 70); }).then(function () { [2, 5, 6].forEach(function (i) { ls[i].classList.add('is-focus'); }); return wait(1200); });
+    } },
+    // 6. 시작음을 A로 — 같은 칸에서 음이름이 A B C D E F G로 바뀌며 b이 사라짐
+    { text: '시작음을 A로 시작하게 되면', run: function () {
+      const ls = q2('#lc8-ra .lc7-l');
+      ls.forEach(function (l) { l.classList.remove('is-focus'); });
+      return Promise.all(ls.map(function (l, i) { return swap(l, function () { l.textContent = AM8[i]; }, i * 60); })).then(function () { return wait(900); });
+    } },
+    // 7. 구성이 같다 — C 메이저 7코드(4+3 가로)가 나타난 뒤 코드 이름이 칸에서 칸으로 돌아 Am7이 첫 칸으로 오고 도수가 새로 매겨짐(코드는 그대로)
+    { enter: clearScene, text: 'C메이저 다이어토닉 코드랑\n구성이 완전히 같아지는 성질이 있어요!', run: function () {
+      const c = cells8('lc8-k'), lb = $('lc8-k-lb');
+      layer4('lc8-k');
+      return wait(FADE_MS).then(function () { return fx([lb].concat(c.nm), 'is-in', true, 70); }).then(function () { return fx(c.rm, 'is-in', true, 70); }).then(function () { return wait(1200); })
+        .then(function () { return reorderKey8(c, lb); }).then(function () { return wait(900); });
+    } },
+    // 8. 나란한 조 — 문구만(앞 장면 그대로), 영어 라벨은 마지막 줄에
+    { text: 'C메이저 키와 A마이너 키의\n구성음이 동일해서\n두 관계를 ' + em(an('나란한 조', 'Relative Key')) + '라고 해요', run: textOnly },
+    // 9. Cm key로 돌아와 마이너 다이어토닉 7개를 순서대로 재생 + 1도 한 번 더(울리는 코드의 이름·도수만 파랑)
+    { enter: clearScene, text: '마이너 다이어토닉 코드를\n순서대로 들어봅시다!', run: function () {
+      const c = cells8('lc8-n');
+      layer4('lc8-n');
+      return wait(FADE_MS).then(function () { return fx(c.nm, 'is-in', true, 70); }).then(function () { return fx(c.rm, 'is-in', true, 70); }).then(function () { return wait(500); })
+        .then(function () { return playV8(NAT8.map(function (r) { return r[0]; }).concat(['Cm7']), 750, hotCells8(c)); });
+    } },
+    // 10. 5도가 약하다 — Gm7 → Cm7 재생(코드 이름에는 강조 없음, 울리는 코드만 파랑)
+    { enter: clearScene, text: '마이너 다이어토닉의\n5도는 ' + em('m7') + '이라서\n1도로 돌아가려는 힘이 약해요', run: function () {
+      const pa = $('lc8-pa'), pb = $('lc8-pb'), ar = $('lc8-par'), ls = q2('#lc8-p .lc8-pl');
+      layer4('lc8-p');
+      return wait(FADE_MS).then(function () { return fx([pa, ls[0]], 'is-in', true, 100); }).then(function () { return wait(500); })
+        .then(function () { return fx([ar, pb, ls[1]], 'is-in', true, 150); }).then(function () { return wait(500); })
+        .then(function () { return playV8(['Gm7', 'Cm7'], 1300, hotOf([pa, pb])); });
+    } },
+    // 11. 하모닉 마이너 — Cm 스케일의 7음 Bb이 B로 굴러 바뀜(파랑) → 하모닉 마이너 스케일 재생
+    { enter: clearScene, text: '그래서 7번째 음을 반음 올린\n' + em('하모닉 마이너 스케일') + '이 만들어졌어요', run: function () {
+      const cs = q2('#lc8-rb .lc7-c'), ls = q2('#lc8-rb .lc7-l'), STEP = 420;
+      layer4('lc8-sb');
+      return wait(FADE_MS).then(function () { return fx(cs, 'is-in', true, 70); }).then(function () { return wait(900); })
+        .then(function () { rollNote(ls[6], 'B', 1, true); return wait(SETTLE_MS); })
+        .then(function () {
+          const t0 = audioT0();
+          HAR8_MIDI.forEach(function (m, i) { note(m, t0 + i * STEP / 1000, i === 7 ? 1.2 : STEP / 1000, i === 7 ? 0.8 : 0.18); });
+          ls.forEach(function (l, i) {
+            later(function () { ls.forEach(function (x, j) { if (j !== i) x.classList.remove('is-focus'); }); l.classList.add('is-focus'); }, LEAD_MS + i * STEP);
+          });
+          later(function () { ls[6].classList.remove('is-focus'); ls[0].classList.add('is-focus'); }, LEAD_MS + 7 * STEP);   // 마지막 높은 도도 처음 도 칸에서 강조(1장 스케일과 같음) → 사라짐
+          later(function () { ls[0].classList.remove('is-focus'); }, LEAD_MS + 7 * STEP + 900);
+          return wait(LEAD_MS + 7 * STEP + 1200 + FADE_MS);
+        });
+    } },
+    // 12. 하모닉 마이너의 다이어토닉 7th 나열 — 7개가 나타난 뒤 바뀐 4개(1·3·5·7도)만 파랑, 나머지는 옅게. 소리 없음
+    { enter: clearScene, text: '하모닉 마이너도\n다이어토닉 코드가 있어요', run: function () {
+      const c = cells8('lc8-h');
+      layer4('lc8-h');
+      return wait(FADE_MS).then(function () { return fx(c.nm, 'is-in', true, 90); }).then(function () { return fx(c.rm, 'is-in', true, 90); }).then(function () { return wait(900); })
+        .then(function () {
+          [1, 3, 5].forEach(function (i) { c.nm[i].classList.add('is-quiet'); c.rm[i].classList.add('is-quiet'); });
+          [0, 2, 4, 6].forEach(function (i) { c.nm[i].classList.add('is-focus'); c.rm[i].classList.add('is-focus'); });
+          return wait(1500);
+        });
+    } },
+    // 13. G7만 — 나머지는 사라지고 G7(V7)만 남음
+    { text: '여기서 5도음 G7만 차용해서', run: function () {
+      const c = cells8('lc8-h'), others = c.nm.concat(c.rm).filter(function (el, k) { return k % 7 !== 4; });
+      return fx(others, 'is-in', false).then(function () { return wait(1200); });
+    } },
+    // 14. 실전 7코드 — 앞 칸(13)의 장면 그대로: G7만 남은 자리에 나머지 6개(Cm7 Dm7(b5) EbM7 Fm7 AbM7 Bb7)가 나타남(보이지 않는 사이에 하모닉 마이너 코드를 마이너 다이어토닉 코드로 바꿔 둠) → 순서대로 재생
+    { text: '마이너 다이어토닉을 다음과 같이\n사용하는 경우가 제일 많아요!', run: function () {
+      const c = cells8('lc8-h'), rest = [0, 1, 2, 3, 5, 6];
+      rest.forEach(function (i) {
+        c.nm[i].innerHTML = nm5(NAT8[i][0]); c.rm[i].innerHTML = rom8(NAT8[i][1]);
+        [c.nm[i], c.rm[i]].forEach(function (el) { el.classList.remove('is-quiet', 'is-focus'); });
+      });
+      return fx(rest.map(function (i) { return c.nm[i]; }), 'is-in', true, 70).then(function () { return fx(rest.map(function (i) { return c.rm[i]; }), 'is-in', true, 70); }).then(function () { return wait(600); })
+        .then(function () { return playV8(['Cm7', 'Dm7(b5)', 'EbM7', 'Fm7', 'G7', 'AbM7', 'Bb7', 'Cm7'], 750, hotCells8(c)); });
+    } },
+    // 15. 예고 — 앞 장면을 치우고 문구만
+    { enter: clearScene, text: '이번에는 작은별을\n마이너로 편곡해 볼게요!', run: textOnly },
+    // 16. 마이너 작은별 — 악보(Cm7 Gm7 Fm7 Cm7 | Dm7(b5) AbM7 G7 Cm7)가 나타나고 지정 운지 + 마이너 멜로디로 재생. 문구 없음(장면이 본체)
+    { text: '', run: function () {
+      const ly = $('lec-lyrics'), nn = q2('#lc8-new .lec2-sname');
+      ly.innerHTML = songLyricsHtml();
+      layoutScore($('lc8-new'));
+      layer4('lc8-song');
+      return wait(FADE_MS).then(function () { return fx(nn, 'is-in', true, 60); })
+        .then(function () { ly.classList.add('is-in'); return wait(FADE_MS + 600); })
+        .then(function () { return playSongScore(SONG8, '#lc8-new .lec2-slot', v8, true, MELODY8); });
+    } },
+    // 17. 소감 — 문구만
+    { text: '단조 음악의 특유의 감수성이\n잘 표현되는 것 같네요!', run: textOnly },
+    // 18. 훈련 목표 첫 문구 — 문구만
+    { text: '8장에서는 다양한 key의\n마이너 다이어토닉에 익숙해지고', run: textOnly },
+    // 19. 훈련 목표 둘째 문구 — 문구만
+    { text: '생소한 도수에도 익숙해지는 것이 목표예요!', run: textOnly },
+    // 20. 마무리(공통)
+    Object.assign(endingStep(8), { seq: true }),
+  ];
+  STEPS_CH8_RAW[16].ms = 14500;   // 동요(80 BPM 약 12초) + 마지막 음 꼬리
+  // 진행 바 칸 기준으로 낱개 단계를 묶음(chainSteps — 지우지 않고 문구가 차례로 바뀜): 위 목록 번호 0·1 / 3·4 / 5·6·7 / 13·14 / 17~20이 각각 한 칸(나머지는 그대로). 총 13칸
+  const R8 = STEPS_CH8_RAW;
+  const STEPS_CH8 = [chainSteps([R8[0], R8[1]]), R8[2], chainSteps([R8[3], R8[4]]), chainSteps([R8[5], R8[6], R8[7]]), R8[8], R8[9],
+    R8[10], R8[11], R8[12], chainSteps([R8[13], R8[14]]),
+    R8[15], R8[16], chainSteps([R8[17], R8[18], R8[19], R8[20]])];
+  // 진행 바 페이즈(큰 흐름 3개): 1 마이너 다이어토닉 [0~5] / 2 하모닉 마이너 파생 — 5도 도미넌트 7 [6~9] / 3 작은별 마이너 편곡 + 마무리 [10~12]
+  const GROUPS_CH8 = [[0, 1, 2, 3, 4, 5], [6, 7, 8, 9], [10, 11, 12]];
+  const DURS_CH8 = [10800, 4300, 10350, 14600, 3600, 10550, 7150, 8650, 5700, 14050, 3600, 15500, 15600];   // 시뮬레이션 실측(합 124.45초)
+  // ── 챕터 9 (모달 인터체인지) ──
+  // 기준은 C key. 흐름: [예고 → 나란한 조(구성음 같음) vs 같은 으뜸음조(시작음 같음) → C 마이너 코드 빌리기 = 모달 인터체인지] [빌려오는 5종·Fm6 → 모드 → 다른 모드 3종 → 9종의 기능] [작은별 → 소감 → 총정리·목표]
+  // 각 단계의 핵심(CLAUDE.md 0-5):
+  //  0·1 코드를 쓰는 또 다른 방법이 있다(예고)   2~5 나란한 조(음이 같음)와 같은 으뜸음조(시작음이 같음)의 구분 — C 메이저 ↔ C 마이너에서 Eb·Ab·Bb만 다르다   6·7 마이너 코드를 잠깐 빌려 쓴다(Fm7·Bb7만 파랑) + 용어
+  //  8~12 C 마이너에서 빌리는 5종과 도수(Cm7·Gm7은 옅게), Fm7은 F·FM7 뒤에 자주 오고 Fm6가 특히 중요   13·14 모드(음이름만, 가볍게)   15·16 다른 모드에서 빌리는 3종(소리와 도수)
+  //  17~21 9종의 기능(분류판) — 딱 나눌 수 없고 경험이 필요, 남발 주의   22 작은별 원곡   23 모달 편곡(바뀐 칸만 파랑)   24~27 소감·주변에서 찾아보기   28~31 9종 이름·도수 총정리 + 훈련 목표 + 마무리
+  const OTHER9 = [['DbM7', 'bIIM7'], ['F#m7(b5)', '#IVm7(b5)'], ['BbM7', 'bVIIM7']];   // 다른 모드에서 빌리는 3종
+  const MINOR9 = [1, 2, 3, 5, 6];   // C 마이너 다이어토닉에서 주로 빌리는 5종의 칸 번호(Dm7(b5) EbM7 Fm7 AbM7 Bb7) — Cm7(1도)·Gm7(5도)은 옅게
+  const MAJ9 = MAJ8.map(function (r) { return r[0]; }), MIN9 = NAT8.map(function (r) { return r[0]; });
+  const CMAJ9 = ['C', 'D', 'E', 'F', 'G', 'A', 'B'], AMIN9 = ['A', 'B', 'C', 'D', 'E', 'F', 'G'];
+  const MODES9 = [CMAJ9, ['C', 'D', 'Eb', 'F', 'G', 'A', 'Bb'], ['C', 'Db', 'Eb', 'F', 'G', 'Ab', 'Bb'], ['C', 'D', 'E', 'F#', 'G', 'A', 'B'], ['C', 'D', 'E', 'F', 'G', 'A', 'Bb'], MS8, ['C', 'Db', 'Eb', 'F', 'Gb', 'Ab', 'Bb']];   // 이오니안 ~ 로크리안(C 근음)
+  const SUM9 = [['DbM7', 'bIIM7'], ['Dm7(b5)', 'IIm7(b5)'], ['EbM7', 'bIIIM7'], ['Fm7', 'IVm7'], ['Fm6', 'IVm6'], ['F#m7(b5)', '#IVm7(b5)'], ['AbM7', 'bVIM7'], ['Bb7', 'bVII7'], ['BbM7', 'bVIIM7']];   // 총정리 — 도수 순서
+  const FUNCS9 = [   // 분류판 — 소제목 자리에 같은 기능의 다이어토닉 코드(작게), 칸에는 모달 코드 9종. F#m7(b5)는 해결 자리(I)에서 쓰여 해결(사용자 지적, 2026-10-30 — plan §7-8은 예비로 적혀 있음)
+    { head: '해결', sub: ['CM7', 'Em7', 'Am7'], chords: ['EbM7', 'F#m7(b5)'] },
+    { head: '예비', sub: ['FM7', 'Dm7'], chords: ['Fm7', 'Fm6', 'AbM7', 'Dm7(b5)', 'DbM7'] },
+    { head: '긴장', sub: ['G7', 'Bm7(b5)'], chords: ['Bb7', 'BbM7'] },
+  ];
+  // 지정 운지 — 2장 7th(CM7 Dm7 FM7 G7)·3장 1전위·8장(EbM7 Fm7 Dm7(b5) Bb7 …) 그대로 + 새 5개(C/G 포함). 구성음 계산으로 검증: DbM7 Db F Ab C F / Fm6 F C D Ab(8장 Fm7과 같은 자리, B줄만 Eb→D) / F#m7(b5) F# E A C / BbM7 Bb F A D F
+  const VOICINGS9 = Object.assign({}, VOICINGS, VOICINGS3, VOICINGS7, VOICINGS8, { DbM7: [-1, 4, 3, 1, 1, 1], Fm6: [-1, -1, 3, 5, 3, 4], 'F#m7(b5)': [2, -1, 2, 2, 1, -1], BbM7: [-1, 1, 3, 2, 3, 1],
+    // 작은별 편곡 진행의 사용자 지정 운지(2026-10-30, 구성음 계산으로 검증 — 9장 안에서는 어느 장면이든 같은 코드는 같은 운지): EbM7 Eb Bb D G / FM7 F C E A / C/G G E G C E(5번 줄 안 침) / Fm6 F F Ab D(5음 C 없음) / Bb7 Bb F Ab D / DbM7 Db Ab C F / CM7 C G B E
+    EbM7: [-1, -1, 1, 3, 3, 3], FM7: [-1, -1, 3, 5, 5, 5], 'C/G': [3, -1, 2, 0, 1, 0], Fm6: [1, -1, 3, 1, 3, -1], Bb7: [-1, 1, 3, 1, 3, -1], DbM7: [-1, 4, 6, 5, 6, -1], CM7: [-1, 3, 5, 4, 5, -1] });
+  function v9(c) { return VOICINGS9[c]; }
+  // 작은별 — 원곡(3장 1전위 C/E 포함)에서 모달 코드로(사용자 지정, 2026-10-30): C - EbM7 - | FM7 - EbM7 - | AbM7 - C/G - | Fm6 Bb7 DbM7 CM7 (DbM7에 페르마타)
+  //  2번 C/E→EbM7 / 3번 F→FM7(다이어토닉, 파랑 아님) / 4번 C→EbM7 / 5번 F→AbM7 / 6번 C→C/G(2전위, 파랑 아님) / 7번 G→Fm6 + Bb7(1박씩) / 8번 C→DbM7 + CM7(CM7 파랑 아님)
+  //  4마디의 멜로디: 비(D)는 Fm6의 6음, 치(D)는 Bb7의 3음이고 DbM7까지 길게 이어져 DbM7과 반음으로 부딪힘(사용자가 의도한 소리), 네(C)는 마지막 CM7에서
+  const SONG9_ORIG = ['C', 'C/E', 'F', 'C', 'F', 'C', 'G', 'C'];
+  const SONG9_NEW = ['C', 'EbM7', 'FM7', 'EbM7', 'AbM7', 'C/G', ['Fm6', 'Bb7'], ['DbM7', 'CM7']];
+  // 편곡 재생 — DbM7에 페르마타: 1박이던 DbM7을 3박으로 늘려 총 19박(원곡 16박). [코드, 시작 박, 박 수, 악보 칸 번호]. 멜로디는 '치'(D)를 13박부터 4박으로 길게 끌어 DbM7 동안 이어가고, 마지막 CM7(17박)에서 '네'(C)로 마무리
+  const SONG9_TL = [['C', 0, 2, 0], ['EbM7', 2, 2, 1], ['FM7', 4, 2, 2], ['EbM7', 6, 2, 3], ['AbM7', 8, 2, 4], ['C/G', 10, 2, 5], ['Fm6', 12, 1, 6], ['Bb7', 13, 1, 6], ['DbM7', 14, 3, 7], ['CM7', 17, 2, 7]];
+  const SONG9_BEATS = 19;
+  const MELODY9 = SONG_MELODY.slice(0, 12).concat([[62, 13, 4], [60, 17, 2]]);   // 앞 12음(~'비') + 치(D, 13박부터 4박) + 네(C, 17박부터 2박)
+  function playSong9() {   // playSongScore와 같은 흐름(기타 코드 + 피아노 멜로디 + 칸·가사 강조), 박자만 위 표를 따름
+    const tok = L.tok, ly = $('lec-lyrics'), sl = q2('#lc9-new .lec2-slot');
+    return withTimeout(GuitarAudio.pianoReady(), READY_TIMEOUT_MS).then(function () {
+      if (tok !== L.tok) return NEVER();
+      GuitarAudio.setOutputTrim(SONG_GUITAR_TRIM);
+      GuitarAudio.setPianoGain(SONG_PIANO_GAIN);
+      L.trimmed = true;
+      const t0 = audioT0(), BEAT_MS = SONG_BEAT * 1000;
+      SONG9_TL.forEach(function (c) {
+        strum(fretsToMidis(VOICINGS9[c[0]]), t0 + c[1] * SONG_BEAT, c[2] * SONG_BEAT * 0.95, 0.6, 'weak');
+        later(function () { hotSlots(sl, c[3]); }, LEAD_MS + c[1] * BEAT_MS);
+      });
+      const syl = playMelody(ly, t0, MELODY9), end = LEAD_MS + SONG9_BEATS * BEAT_MS;
+      later(function () {
+        hotSlots(sl, -1);
+        syl.forEach(function (el) { el.classList.remove('is-on'); el.classList.add('is-sung'); });
+      }, end);
+      return wait(end);
+    });
+  }
+  function rom9(r) {   // rom8 + #(#IVm7(b5)) — b만 파랑 후보 표시(.lc8-bb), #은 그대로
+    const m = /^([b#]?)([IV]+)(.*)$/.exec(r);
+    return (m[1] === 'b' ? '<i class="lc8-bb">b</i>' : m[1]) + m[2] + (m[3] ? '<span class="lec-rq">' + _ccFormatB5(m[3]) + '</span>' : '');
+  }
+  function playV9(names, slot, hot) {   // playV8과 같고 운지만 VOICINGS9
+    const t0 = audioT0();
+    names.forEach(function (n, k) {
+      const last = k === names.length - 1;
+      strum(fretsToMidis(VOICINGS9[n]), t0 + k * slot / 1000, last ? 1.5 : slot / 1000 * 0.9, last ? 0.8 : 0.4);
+      if (hot) later(function () { hot(k); }, LEAD_MS + k * slot);
+    });
+    if (hot) later(function () { hot(-1); }, LEAD_MS + names.length * slot + 300);
+    return wait(LEAD_MS + names.length * slot + 300 + FADE_MS);
+  }
+  function quiet9(groups) { return function (k) { groups.forEach(function (g, j) { g.forEach(function (el) { el.classList.toggle('is-quiet', k >= 0 && j !== k); }); }); }; }   // 울리는 묶음(이름 + 도수)만 진하게 — 파랑(빌린 코드)은 그대로 둠
+  function pcs9(id) { return q2('#' + id + ' .lc8-pc').map(function (p) { return [].slice.call(p.querySelectorAll('.lc7-it')); }); }   // 코드 묶음(이름 [+ 도수])
+  function buildStage9() {
+    const stage = $('combo-v2-lec-stage');
+    stage.classList.add('is-ch2', 'is-ch9');
+    const row = function (id, letters) { return '<div class="lc7-row" id="' + id + '">' + letters.map(function (l) { return '<span class="lc7-it lc7-c"><b class="lc7-l">' + l + '</b></span>'; }).join('') + '</div>'; };
+    const list = function (id, rows, label) {   // 8장 7코드 목록과 같은 마크업(이름 위·도수 아래, 가로)
+      return '<div class="lec3-l" id="' + id + '">' + (label ? '<div class="lc8-tl"><span class="lc7-it" id="' + id + '-lb">' + label + '</span></div>' : '') + '<div class="lc8-nl">' + rows.map(function (r) {
+        return '<div class="lc8-nc"><span class="lc7-it lc8-nm">' + nm5(r[0]) + '</span><span class="lc7-it lc8-rm">' + rom9(r[1]) + '</span></div>';
+      }).join('') + '</div></div>';
+    };
+    const pc = function (name, roman) { return '<div class="lc8-pc"><span class="lc7-it lc9-pn">' + nm5(name) + '</span>' + (roman ? '<span class="lc7-it lc8-pl">' + rom9(roman) + '</span>' : '') + '</div>'; };
+    const dl = function (id, names) { return '<div class="lc9-dr" id="' + id + '">' + names.map(function (n) { return '<span class="lc7-it">' + nm5(n) + '</span>'; }).join('') + '</div>'; };
+    const arrow = '<span class="lc7-it lc7-ar">→</span>';
+    const board = FUNCS9.map(function (f, i) {
+      return '<div class="lec2-fcol" data-f="' + i + '"><span class="lec2-fhead">' + f.head + '</span><span class="lec2-fsub">' + f.sub.map(nm5).join(' ') + '</span><div class="lec2-cells">' +
+        f.chords.map(function (c) { return '<span class="lec2-cell">' + nm5(c) + '</span>'; }).join('') + '</div></div>';
+    }).join('');
+    const fermata = '<svg class="lc9-fm" viewBox="0 0 20 11" width="20" height="11" aria-hidden="true"><path d="M1 10 A9 9 0 0 1 19 10" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/><circle cx="10" cy="8" r="1.6" fill="currentColor"/></svg>';
+    const song = scoreHtml('lc9-new', function (i, b) {   // 7·8번 칸은 코드 둘이 1박씩 들어가는 칸(6장 Bdim7과 같은 방식 — 열리기 전엔 접혀 있음). 8번 칸의 DbM7 위에 페르마타(편곡 단계에서 나타남)
+      const aft = i === 6 ? 'Bb7' : i === 7 ? 'CM7' : '';
+      return '<div class="lec2-slot' + (aft ? ' lc6-sl' : '') + '" data-b="' + b + '"><span class="lec2-sname">' + nm5(SONG9_ORIG[i]) + '</span>' + (aft ? '<span class="lec2-sname lc6-aft">' + nm5(aft) + '</span>' : '') + (i === 7 ? fermata : '') + '</div>';
+    });
+    stage.innerHTML =
+      '<div class="lec3-l" id="lc9-sc"><div class="lc9-sr"><span class="lc7-it lc9-sl" id="lc9-l1">C 메이저</span>' + row('lc9-r1', CMAJ9) + '</div><div class="lc9-sr"><span class="lc7-it lc9-sl" id="lc9-l2">A 마이너</span>' + row('lc9-r2', AMIN9) + '</div></div>' +
+      '<div class="lec3-l" id="lc9-bw"><div class="lc9-dl">' + dl('lc9-d1', MAJ9) + dl('lc9-d2', MIN9) + '</div><div class="lc8-pr lc9-bp">' + pc('CM7') + arrow + pc('Fm7') + arrow + pc('Bb7') + arrow + pc('CM7') + '</div></div>' +
+      list('lc9-n', NAT8, 'C 마이너') +
+      '<div class="lec3-l lc8-top" id="lc9-f"><div class="lc8-pr">' + pc('FM7', 'IVM7') + arrow + pc('Fm7', 'IVm7') + '</div></div>' +
+      '<div class="lec3-l lc8-top" id="lc9-md">' + row('lc9-mr', MODES9[0]) + '</div>' +
+      list('lc9-o', OTHER9) +
+      '<div class="lec3-l" id="lc9-b"><div class="lec2-board">' + board + '</div></div>' +
+      '<div class="lec3-l lec3-e" id="lc9-song">' + song + '</div>' +
+      list('lc9-s', SUM9);
+  }
+  // 아래 번호(0~31)는 낱개 단계 — 실제 재생 단계는 이 목록 뒤의 STEPS_CH9가 진행 바 칸 기준으로 묶어서 만든다(총 11칸)
+  const STEPS_CH9_RAW = [
+    // 0~1. 예고 — 문구만
+    { text: '세컨더리 도미넌트만으로도\n충분히 다채로운 코드진행을 만들 수 있지만', run: textOnly },
+    { text: '또 다른 방법으로\n코드진행을 꾸밀 수 있어요!', run: textOnly },
+    // 2. 나란한 조 — C 메이저 / A 마이너 스케일 음이름 두 줄(같은 음)
+    { enter: clearScene, text: '8장에서 배운 마이너 키를\n떠올려봅시다', run: function () {
+      layer4('lc9-sc');
+      return wait(FADE_MS).then(function () { return fx(q2('#lc9-sc .lc7-it'), 'is-in', true, 40); }).then(function () { return wait(600); });
+    } },
+    { text: 'C메이저와 A마이너는\n구성음이 같아서 나란한 조이지만', run: textOnly },
+    // 4. 같은 으뜸음조 — 아래 줄이 제자리에서 C 마이너로 바뀜(달라진 Eb·Ab·Bb만 파랑, 이름표도 C 마이너)
+    { text: 'C메이저와 C마이너를\n비교해볼 수도 있겠죠!', run: function () {
+      const ls = q2('#lc9-r2 .lc7-l'), lb = $('lc9-l2');
+      return Promise.all(ls.map(function (l, i) { return swap(l, function () { l.textContent = MS8[i]; l.classList.toggle('is-focus', [2, 5, 6].indexOf(i) >= 0); }, i * 60); })
+        .concat([swap(lb, function () { lb.textContent = 'C 마이너'; })])).then(function () { return wait(900); });
+    } },
+    { text: '이렇게 시작음이 같은 경우를\n' + em(an('같은 으뜸음조', 'Parallel Key')) + '라고 해요', run: textOnly },
+    // 6. 빌려오기 — 위에 메이저·마이너 다이어토닉 7코드(작게), 아래에 CM7 Fm7 Bb7 CM7(빌린 Fm7·Bb7 파랑) + 재생
+    { enter: clearScene, text: '그렇다면 C메이저 진행에\nC마이너의 코드를\n잠깐 ' + em('빌려') + '오면 어떨까요?', run: function () {
+      const d1 = q2('#lc9-d1 .lc7-it'), d2 = q2('#lc9-d2 .lc7-it'), p = pcs9('lc9-bw'), ar = q2('#lc9-bw .lc7-ar');
+      layer4('lc9-bw');
+      return wait(FADE_MS).then(function () { return fx(d1.concat(d2), 'is-in', true, 40); }).then(function () { return wait(300); })
+        .then(function () { return fx([].concat.apply([], p).concat(ar), 'is-in', true, 60); }).then(function () { return wait(400); })
+        .then(function () {
+          [p[1], p[2]].forEach(function (g) { g.forEach(function (el) { el.classList.add('is-focus'); }); });
+          [d2[3], d2[6]].forEach(function (el) { el.classList.add('is-focus'); });
+          return playV9(['CM7', 'Fm7', 'Bb7', 'CM7'], 1100, quiet9(p));
+        });
+    } },
+    { text: '이렇게 같은 으뜸음조에서\n코드를 잠깐 빌려 쓰는 것을\n' + em(an('모달 인터체인지', 'Modal Interchange')) + '라고 해요', run: textOnly },
+    // 8. 문구만(앞 장면을 치움)
+    { enter: clearScene, text: '모달 인터체인지 코드를\n좀 더 알아봅시다', run: textOnly },
+    // 9. 빌려오는 곳 — C 마이너 7코드 목록
+    { text: '가장 많이 빌려오는 곳은\nC마이너 다이어토닉 코드들이에요', run: function () {
+      const c = cells8('lc9-n'), lb = $('lc9-n-lb');
+      layer4('lc9-n');
+      return wait(FADE_MS).then(function () { return fx([lb].concat(c.nm), 'is-in', true, 70); }).then(function () { return fx(c.rm, 'is-in', true, 70); }).then(function () { return wait(900); });
+    } },
+    // 10. 주로 쓰는 5종 — Cm7·Gm7은 옅어지고 나머지 5종을 차례로 재생(울리는 코드만 파랑)
+    { text: '주로 많이 쓰이는 코드는\n이 5가지예요!', run: function () {
+      const c = cells8('lc9-n');
+      [0, 4].forEach(function (i) { c.nm[i].classList.add('is-quiet'); c.rm[i].classList.add('is-quiet'); });
+      return wait(900).then(function () {
+        return playV9(MINOR9.map(function (i) { return NAT8[i][0]; }), 900, function (k) {
+          MINOR9.forEach(function (i, j) { c.nm[i].classList.toggle('is-focus', j === k); c.rm[i].classList.toggle('is-focus', j === k); });
+        });
+      });
+    } },
+    // 11. Fm7은 F·FM7 다음에 자주 — FM7 → Fm7 (Fm7 파랑) 재생
+    { text: '그중에서 Fm7은\nF나 FM7 다음에 이어서\n자주 등장해요', run: function () {
+      const p = pcs9('lc9-f');
+      p[1].forEach(function (el) { el.classList.add('is-focus'); });
+      layer4('lc9-f');
+      return wait(FADE_MS).then(function () { return fx([].concat.apply([], p).concat(q2('#lc9-f .lc7-ar')), 'is-in', true, 80); }).then(function () { return wait(400); })
+        .then(function () { return playV9(['FM7', 'Fm7'], 1100, quiet9(p)); });
+    } },
+    // 12. Fm6 — Fm7이 굴러 Fm6으로(도수 IVm6, 파랑) → FM7 → Fm6 재생
+    { text: '특히 7음을 6음으로 바꾼\n' + em('Fm6') + '를 굉장히 많이 사용해요\n꼭 익혀두는 것을 추천해요!', run: function () {
+      const p = pcs9('lc9-f');
+      rollNote(p[1][0], 'Fm6', 1, true);
+      return swap(p[1][1], function () { p[1][1].innerHTML = rom9('IVm6'); p[1][1].classList.add('is-focus'); }).then(function () { return wait(SETTLE_MS); })
+        .then(function () { return playV9(['FM7', 'Fm6'], 1100, quiet9(p)); });
+    } },
+    // 13. 모드 — C 시작 7음이 이오니안 ~ 로크리안 7가지로 빠르게 바뀜(음이름만, 소리·강조 없음)
+    { enter: clearScene, text: 'C로 시작하는 스케일은\n메이저, 마이너 말고도 더 있어요', run: function () {
+      const cs = q2('#lc9-mr .lc7-c'), ls = q2('#lc9-mr .lc7-l');
+      layer4('lc9-md');
+      let p = wait(FADE_MS).then(function () { return fx(cs, 'is-in', true, 40); }).then(function () { return wait(500); });
+      MODES9.slice(1).forEach(function (m, k) {
+        p = p.then(function () {
+          return Promise.all(ls.map(function (l, i) { return m[i] !== MODES9[k][i] ? swap(l, function () { l.textContent = m[i]; }, i * 25) : Promise.resolve(); }));
+        }).then(function () { return wait(350); });
+      });
+      return p.then(function () { return wait(300); });
+    } },
+    { text: '이런 스케일들을 ' + em('모드(Mode)') + '라고 해요\n그래서 \'모달\' 인터체인지예요', run: textOnly },
+    // 15. 다른 모드 3종 — 이름·도수 목록이 나오고 차례로 재생(울리는 코드만 파랑)
+    { enter: clearScene, text: '다른 모드에서도 자주 빌려오는\n코드 3가지를 들어 볼게요', run: function () {
+      const c = cells8('lc9-o');
+      layer4('lc9-o');
+      return wait(FADE_MS).then(function () { return fx(c.nm, 'is-in', true, 90); }).then(function () { return fx(c.rm, 'is-in', true, 90); }).then(function () { return wait(500); })
+        .then(function () { return playV9(OTHER9.map(function (r) { return r[0]; }), 1100, hotCells8(c)); });
+    } },
+    { text: '자세한 내용은 ' + em('모드') + '를\n더 공부할 때 알 수 있을 거예요\n지금은 소리와 도수만 기억해봅시다!', run: textOnly },
+    // 17. 기능 분류판 — 머리글·소제목(같은 기능의 다이어토닉 코드)이 나온 뒤 모달 코드 9종이 열마다 차례로
+    { enter: clearScene, text: '이렇게 빌려온 코드도\n각각의 기능에 맞는 곳에 쓰면\n자연스럽게 사용할 수 있어요', run: function () {
+      layer4('lc9-b');
+      return wait(FADE_MS).then(function () { return Promise.all([fx(q2('#lc9-b .lec2-fhead'), 'is-in', true, 150), fx(q2('#lc9-b .lec2-fsub'), 'is-in', true, 150)]); })
+        .then(function () { return wait(300); })
+        .then(function () { return [0, 1, 2].reduce(function (pr, f) { return pr.then(function () { return fx(q2('#lc9-b .lec2-fcol[data-f="' + f + '"] .lec2-cell'), 'is-in', true, 90); }); }, Promise.resolve()); });
+    } },
+    // 18~21. 문구만(분류판 그대로)
+    { text: '하지만 명확하게 딱 나눌 수 있는\n부분은 아니에요', run: textOnly },
+    { text: '감각과 경험이 꽤 많이\n필요한 영역이에요', run: textOnly },
+    { text: em('빌려온') + ' 코드이기 때문에\n너무 남발하면\n곡의 진행이 애매해질 수 있어요', run: textOnly },
+    { text: '물론 이 점을 오히려 역이용해서\n노래를 만들 수도 있겠죠!', run: textOnly },
+    // 22. 작은별 원곡 — 악보(C C/E F C | F C G C)가 나타나고 원곡 코드 + 멜로디로 재생
+    { enter: clearScene, text: '이제 작은별 코드진행에\n모달 인터체인지를 입혀볼게요!', run: function () {
+      const nn = q2('#lc9-new .lec2-sname:not(.lc6-aft)'), ly = $('lec-lyrics');
+      ly.innerHTML = songLyricsHtml();
+      layoutScore($('lc9-new'));
+      layer4('lc9-song');
+      return wait(FADE_MS).then(function () { return fx(nn, 'is-in', true, 60); })
+        .then(function () { ly.classList.add('is-in'); return wait(FADE_MS + 600); })
+        .then(function () { return playSongScore(SONG9_ORIG, '#lc9-new .lec2-slot', v9, true); });
+    } },
+    // 23. 모달 인터체인지 편곡 — 바뀐 칸(EbM7·EbM7·AbM7·Fm6·Bb7·DbM7)만 파랑으로 바뀌고, 7·8번 칸은 코드 둘이 들어가도록 열린 뒤 DbM7 위에 페르마타가 나타남 → 재생(DbM7을 길게).
+    // FM7·C/G·CM7도 바뀌지만 다이어토닉이라 파랑 아님
+    { text: '여기에 모달 인터체인지를\n넣어서 편곡해 볼게요!', run: function () {
+      const nn = q2('#lc9-new .lec2-sname:not(.lc6-aft)'), ly = $('lec-lyrics'), sc = $('lc9-new'), sl = q2('#lc9-new .lec2-slot'), aft = [sl[6].querySelector('.lc6-aft'), sl[7].querySelector('.lc6-aft')], fm = sl[7].querySelector('.lc9-fm');
+      ly.querySelectorAll('.lec-syl').forEach(function (el) { el.classList.remove('is-on', 'is-sung'); });
+      const to = function (i, text, delay, focus) {
+        return swap(nn[i], function () { reflowScore(sc, function () { nn[i].innerHTML = nm5(text); if (focus) nn[i].classList.add('is-focus'); }); }, delay);
+      };
+      return Promise.all([to(1, 'EbM7', 0, true), to(2, 'FM7', 150, false), to(3, 'EbM7', 300, true), to(4, 'AbM7', 450, true), to(5, 'C/G', 600, false), to(6, 'Fm6', 750, true), to(7, 'DbM7', 900, true),
+        wait(1200).then(function () { reflowScore(sc, function () { sl[6].classList.add('is-open'); sl[7].classList.add('is-open'); }); aft[0].classList.add('is-focus'); return fx(aft, 'is-in', true); })])
+        .then(function () {
+          fm.style.left = (nn[7].offsetWidth / 2) + 'px';   // DbM7 이름의 가운데 위
+          return fx([fm], 'is-in', true);
+        }).then(function () { return wait(SETTLE_MS); })
+        .then(function () { return playSong9(); });
+    } },
+    // 24~27. 소감·주변에서 찾아보기 — 문구만(악보 그대로)
+    { text: '지금까지와는 완전히\n분위기가 달라져 버린 편곡이었죠?', run: textOnly },
+    { text: '개념을 이해하는 게\n결코 쉬운 일은 아니지만', run: textOnly },
+    { text: '몇몇 모달 인터체인지는\n우리 주변에서 이미\n널리 쓰이고 있어요!', run: textOnly },
+    { text: '어떤 곡에서 모달 인터체인지가\n쓰였는지 찾아보는 것도\n재미있을 거예요', run: textOnly },
+    // 28. 총정리 — 모달 코드 9종의 이름·도수(도수 순서, 3×3)
+    { enter: clearScene, text: '빌려온 코드 9가지를\n도수와 함께 정리했어요', run: function () {
+      const c = cells8('lc9-s');
+      layer4('lc9-s');
+      return wait(FADE_MS).then(function () { return fx(c.nm, 'is-in', true, 70); }).then(function () { return fx(c.rm, 'is-in', true, 70); }).then(function () { return wait(900); });
+    } },
+    // 29~30. 훈련 목표 — 문구만
+    { text: '9장에서는 이 모달 인터체인지\n코드를 직접 찾아보고', run: textOnly },
+    { text: '코드진행에 적용해보면서\n소리에 익숙해지는 것을\n목표로 해봐요!', run: textOnly },
+    // 31. 마무리(공통)
+    Object.assign(endingStep(9), { seq: true }),
+  ];
+  STEPS_CH9_RAW[22].ms = 14500;   // 동요(80 BPM 약 12초) + 마지막 음 꼬리
+  STEPS_CH9_RAW[23].ms = 18700;   // 바뀌는 연출(약 3.5초) + 동요 19박(페르마타 포함) + 마지막 음 꼬리
+  // 진행 바 칸 기준으로 낱개 단계를 묶음(chainSteps): 0·1 / 2~5 / 6·7 / 8~12 / 13·14 / 15·16 / 17~21 / 22 / 23 / 24~27 / 28~31이 각각 한 칸. 총 11칸
+  const R9 = STEPS_CH9_RAW;
+  const STEPS_CH9 = [chainSteps([R9[0], R9[1]]), chainSteps([R9[2], R9[3], R9[4], R9[5]]), chainSteps([R9[6], R9[7]]), chainSteps([R9[8], R9[9], R9[10], R9[11], R9[12]]),
+    chainSteps([R9[13], R9[14]]), chainSteps([R9[15], R9[16]]), chainSteps([R9[17], R9[18], R9[19], R9[20], R9[21]]), R9[22], R9[23],
+    chainSteps([R9[24], R9[25], R9[26], R9[27]]), chainSteps([R9[28], R9[29], R9[30], R9[31]])];
+  // 진행 바 페이즈(큰 흐름 3개): 1 빌려오기 [0~2] / 2 빌려오는 코드 [3~6] / 3 작은별 + 총정리 [7~10]
+  const GROUPS_CH9 = [[0, 1, 2], [3, 4, 5, 6], [7, 8, 9, 10]];
+  const DURS_CH9 = [7600,15600,13200,27500,11900,11350,21850,15500,19700,15600,16300];   // 시뮬레이션 실측(합 176.1초)
+  const LECTURES = { 1: { steps: STEPS_CH1, groups: GROUPS_CH1, durs: DURS_CH1 }, 2: { steps: STEPS_CH2, groups: GROUPS_CH2, durs: DURS_CH2 }, 3: { steps: STEPS_CH3, groups: GROUPS_CH3, durs: DURS_CH3 }, 4: { steps: STEPS_CH4, groups: GROUPS_CH4, durs: DURS_CH4 }, 5: { steps: STEPS_CH5, groups: GROUPS_CH5, durs: DURS_CH5 }, 6: { steps: STEPS_CH6, groups: GROUPS_CH6, durs: DURS_CH6 }, 7: { steps: STEPS_CH7, groups: GROUPS_CH7, durs: DURS_CH7 }, 8: { steps: STEPS_CH8, groups: GROUPS_CH8, durs: DURS_CH8 }, 9: { steps: STEPS_CH9, groups: GROUPS_CH9, durs: DURS_CH9 } };
 
   // ── 진행 ──
   // "다음" 버튼 상태는 활성/비활성 둘뿐이고, 그 기준은 L.ready 하나. aria-disabled도 같이 맞춰 CSS가 :hover·:focus와 상관없이 비활성 모양을 고정함
@@ -2478,6 +3199,7 @@
     btn.disabled = disabled;
     btn.setAttribute('aria-disabled', disabled ? 'true' : 'false');
     if (label) $('combo-v2-lec-next-label').textContent = label;
+    pbarNav();
   }
   // 묶음이 진행 중(ready가 아님)인 동안은 어떤 이유로든 버튼이 켜져 있으면 곧바로 다시 끔 — 켜는 길은 setNext(false) 하나뿐이어야 하므로 이 감시는 보험
   function startWatch() {
@@ -2498,65 +3220,296 @@
     void qEl.offsetWidth;
     qEl.classList.add('test-question--in');
   }
-  // 한 묶음 재생 — 묶음 안 단계를 차례로 자동 진행하고, 마지막 단계가 끝나야 "다음"(마지막 묶음은 "완료")이 켜짐.
+  // 한 묶음 재생 — (진행 바 챕터는 단계마다 멈춤: 단계가 끝나면 마커가 그 칸 끝에 멈추고 "다음"이 켜지며, 눌러야 다음 단계가 재생됨. 아래 설명은 옛 방식(진행 바 없는 챕터) 기준)
+  // 묶음 안 단계를 차례로 자동 진행하고, 마지막 단계가 끝나야 "다음"(마지막 묶음은 "완료")이 켜짐.
   // 각 단계는 캡션과 연출·소리를 동시에 시작(본체는 연출)하며, 다음 단계(또는 버튼 활성화)로 넘어가는 조건 3가지가 모두 맞아야 함:
   //  ① 연출이 실제로 끝남(run()이 돌려준 약속 — 실패하거나 20초 넘게 안 끝나면 포기하고 진행)  ② 단계 시작 후 최소 2초 경과  ③ 연출이 끝난 뒤 짧은 간격
   // 캡션 페이드(0.5s)는 ②보다 짧아서 따로 기다리지 않음(animationend에 의존하면 이벤트를 놓쳤을 때 영영 안 켜짐)
-  function goGroup(g) {
+  // k0: 묶음 안 몇 번째 단계부터(진행 바로 중간 단계에 들어올 때 — seek가 앞 단계 화면을 미리 만들어 둠). 없으면 처음부터
+  // cont: 같은 묶음(페이즈) 안에서 다음 단계로 이어갈 때 — 칸·게이지를 다시 그리지 않음(진행 바 챕터는 단계마다 멈추고 "다음"을 눌러야 이어짐)
+  function goGroup(g, k0, cont) {
     const tok = L.tok, lec = LECTURES[L.ch], ids = lec.groups[g];
     const gen = ++L.gen;   // 이 묶음의 번호 — 아래 모든 콜백이 확인함
+    L.autoNext = false;
     L.group = g;
     L.skipping = false;
     $('combo-v2-lec-stage').classList.remove('is-skip');
-    setNext(true, g === lec.groups.length - 1 ? '완료' : '다음');   // 묶음이 시작되면 무조건 비활성
+    if (L.phaseStart) $('combo-v2-lec-stage').classList.add('is-skip');   // 페이즈 첫 칸: 이 칸의 enter(앞 장면 치우기)가 서서히가 아니라 즉시 적용되게 — 복원한 장면이 서서히 나타나는 동안 옛 장면이 같이 사라지며 비치지 않음
+    setNext(true, !hasPbar() && g === lec.groups.length - 1 ? '완료' : '다음');   // 묶음이 시작되면 무조건 비활성(진행 바 챕터는 단계가 끝날 때 아래에서 라벨을 정함)
     startWatch();
+    if (hasPbar() && !cont) pbarBuild();
     (function playAt(k) {
       if (tok !== L.tok || gen !== L.gen) return;
       endSkip();   // 건너뛰기는 지금 단계 하나만 — 앞 단계의 남은 예약을 모두 실행한 뒤 해제, 다음 단계는 평소 속도로
       const i = ids[k];
       L.step = i;
+      if (hasPbar()) {   // 게이지는 이 칸의 끝까지 단계 길이(durs) 동안 일정 속도로 참. 묶음 안에서 이어지는 단계는 지금 위치에서 그대로 이어서(세로선에서 멈칫하지 않게),
+        const r = segRange(i);   // 묶음의 첫 단계·건너뛴 직후만 칸 시작으로 바로 맞춤
+        if (k === (k0 || 0) || L.pbarJump) { pbarSet(r[0], 0); L.pbarJump = false; }
+        pbarDivs(r[0]);
+        pbarSet(r[1], lec.durs[i]);
+        pbarNav();
+      }
       showCaption(lec.steps[i].text, lec.steps[i].seq);
       const capBase = lec.steps[i].seq ? Math.max(MIN_STEP_MS, (lec.steps[i].text.split('\n').length - 1) * LINE_MS + 700) : MIN_STEP_MS;   // 한 줄씩 뜨는 문구는 마지막 줄이 다 뜬 뒤에야 다음으로
       const capMs = lec.steps[i].text ? Math.max(capBase, CAPTION_GAP_MIN_MS - AUTO_GAP_MS) : capBase;   // 문구가 있는 단계는 다음 문구(자동 진행 간격 AUTO_GAP_MS 뒤)가 최소 CAPTION_GAP_MIN_MS 뒤에 뜨도록
       if (lec.steps[i].enter) { try { lec.steps[i].enter(); } catch (e) { console.error('[combo-lecture] step ' + (i + 1) + ' enter 오류', e); } }   // 문구와 동시에 하는 일(앞 장면 치우기) — 연출 run()은 문구 선행 시간(CAPTION_LEAD_MS) 뒤에 시작해서 그동안 앞 장면이 남아 보임
+      if (L.phaseStart) { L.phaseStart = false; void $('combo-v2-lec-stage').offsetWidth; $('combo-v2-lec-stage').classList.remove('is-skip'); }   // 즉시 적용된 enter 결과를 확정한 뒤 전환을 다시 켬
       // 연출이 오류로 중간에 끝나도 "다음"이 일찍 켜지지 않도록: 오류는 콘솔에 남기고(원인 추적용), 묶음의 마지막 단계는 위 ms(소리 꼬리 포함)도 지나야 함
       // 항상 문구가 먼저: 문구를 띄우고 CAPTION_LEAD_MS(페이드 + 읽는 시간)가 지난 뒤에 연출·소리를 시작 — 동시에 시작하면 눈이 문구와 연출 둘 다 못 따라감
       const run = wait(CAPTION_LEAD_MS).then(function () {
         try { return Promise.resolve(lec.steps[i].run()).catch(function (e) { console.error('[combo-lecture] step ' + (i + 1) + ' 연출 오류', e); }); }
         catch (e) { console.error('[combo-lecture] step ' + (i + 1) + ' 연출 오류', e); }
       });
-      const floor = k === ids.length - 1 ? (lec.steps[i].ms || 0) + CAPTION_LEAD_MS : 0;   // ms는 연출 시작 기준이라 문구 선행 시간만큼 더함
-      Promise.all([Promise.race([run, failsafe(STEP_FAILSAFE_MS)]), wait(capMs), wait(floor)]).then(function () {
+      const floor = (hasPbar() || k === ids.length - 1) ? (lec.steps[i].ms || 0) + CAPTION_LEAD_MS : 0;   // ms는 연출 시작 기준이라 문구 선행 시간만큼 더함. 진행 바 챕터는 모든 단계가 멈춤 지점이라 단계마다 소리 꼬리까지 기다림
+      Promise.all([Promise.race([run, failsafe(lec.steps[i].failsafe || STEP_FAILSAFE_MS)]), wait(capMs), wait(floor)]).then(function () {   // chainSteps로 합친 단계는 구성 단계 수만큼 안전 시간을 늘림
         if (tok !== L.tok || gen !== L.gen || L.step !== i) return;
-        if (k < ids.length - 1) later(function () { clearDelays(); playAt(k + 1); }, AUTO_GAP_MS);   // 묶음 안: 자동으로 다음 단계
-        else later(function () { if (gen === L.gen) setNext(false); }, NEXT_BUFFER_MS);              // 묶음 끝: 버튼 활성화(이 묶음 번호일 때만)
+        if (hasPbar()) {   // 단계가 끝나면 마커를 이 칸의 끝(세로선)에 멈춤(예측 길이와 달라도 맞춤) + 끝까지 들은 단계로 기록
+          const end = segRange(i)[1];
+          pbarFreeze(); pbarSet(end, L.skipping ? 0 : 200); pbarDivs(end);   // > 로 건너뛰었으면 다른 이동처럼 한 번에, 평소엔 남은 틈만 짧게
+          if (i > L.heard) { L.heard = i; heardSave(L.ch, i); }
+          pbarNav();
+        }
+        if (!hasPbar() && k < ids.length - 1) later(function () { clearDelays(); playAt(k + 1); }, AUTO_GAP_MS);   // 옛 방식(진행 바 없는 챕터): 묶음 안은 자동으로 다음 단계
+        else later(function () { if (gen === L.gen) { endSkip(); setNext(false, g === lec.groups.length - 1 && k === ids.length - 1 ? '완료' : '다음'); if (L.autoNext) { L.autoNext = false; advance(); } } }, NEXT_BUFFER_MS);              // 멈춤 지점: 버튼 활성화(이 묶음 번호일 때만). 건너뛰기로 끝났으면 건너뛰기 상태도 여기서 풀어 둠
       });
-    })(0);
+    })(k0 || 0);
+  }
+
+  // ── 진행 바(LECTURES[n].durs가 있는 챕터만 — 지금은 1~7장. 섹션에 .is-pbar가 붙어 "다음" 버튼 대신 보임) ──
+  // 바 하나 = 지금 페이즈(묶음) 하나. 설명묶음(단계)마다 칸을 나누고, 칸 길이는 그 단계의 실제 길이(durs) 비율.
+  // 멈춤: 모든 단계가 멈춤 지점 — 단계가 끝나면 마커가 그 칸 끝(세로선)에 멈추고 다음 버튼이 켜진다. 눌러야 다음 단계가 재생됨(자동으로 이어지지 않음).
+  // 다음 버튼: 처음 듣는 단계는 끝나야 켜짐(안 들은 단계를 건너뛸 수 없음) / 이미 들은 단계로 돌아가면 재생 중에도 항상 켜짐 / 수강 완료한 강의는 처음부터 항상 켜짐.
+  //   다음 버튼 = "다음 단계를 재생"하는 트리거 하나(들었든 안 들었든 같음): 멈춘 상태에서 누르면 다음 단계(페이즈 끝이면 다음 페이즈, 마지막 단계면 완료), 들은 단계를 재생 중에 누르면 지금 단계를 즉시 끝내고 곧바로 다음 단계.
+  // 이동: 칸 터치 = 그 단계 처음부터 / 다음 = 위와 같음 / < = 칸이 끝나 마커가 멈춘 상태면 지금 칸을 처음부터 다시, 재생 중이면 이전 단계 처음부터(페이즈 첫 단계면 이전 페이즈를 다 들은 상태 — 마커 끝, 다음 대기).
+  // 처음 듣는 강의는 끝까지 들은 단계(heard)의 바로 다음까지만 갈 수 있고, 수강 완료한 강의(rewatch)는 어디든.
+  // heard는 이 기기에만 저장(localStorage) — 지워져도 복구하지 않음(수강 완료 여부만 진행도 객체 _lec에 기록). 다시 열면 늘 처음부터 재생
+  const HEARD_KEY = 'comboV2LecHeard';
+  function heardLoad(n) {
+    try { const o = JSON.parse(localStorage.getItem(HEARD_KEY) || '{}'); return typeof o[n] === 'number' ? o[n] : -1; } catch (e) { return -1; }
+  }
+  function heardSave(n, i) {
+    try { const o = JSON.parse(localStorage.getItem(HEARD_KEY) || '{}'); if (!(o[n] >= i)) { o[n] = i; localStorage.setItem(HEARD_KEY, JSON.stringify(o)); } } catch (e) {}
+  }
+  function hasPbar() { return !!(LECTURES[L.ch] && LECTURES[L.ch].durs); }
+  function canReach(i) { return L.rewatch || i <= L.heard + 1; }
+  // 지금 페이즈 안에서 단계 i 칸의 [시작, 끝] 비율(0~1)
+  function segRange(i) {
+    const lec = LECTURES[L.ch], ids = lec.groups[L.group];
+    let tot = 0, a = 0;
+    ids.forEach(function (s) { tot += lec.durs[s]; if (s < i) a += lec.durs[s]; });
+    return [a / tot, (a + lec.durs[i]) / tot];
+  }
+  // 게이지·마커를 비율 f까지 — ms 동안 일정 속도로, 0이면 즉시. 둘 다 transform만 바꿈(GPU 합성 — 레이아웃 계산 없음, CSS .lec-pbar-fill/.lec-pbar-rail)
+  function pbarSet(f, ms) {
+    const fill = $('lec-pbar-fill'), rail = $('lec-pbar-rail'), tr = ms ? 'transform ' + ms + 'ms linear' : 'none';
+    fill.style.transition = tr;
+    rail.style.transition = tr;
+    fill.style.transform = 'scaleX(' + f + ')';
+    rail.style.transform = 'translateX(' + (f * 100) + '%)';
+    if (!ms) void fill.offsetWidth;   // 즉시 이동을 확정해 둬야 바로 뒤의 채움 전환이 여기서부터 시작됨
+  }
+  // 게이지·마커를 지금 보이는 위치에 고정 — 이미 100%로 차는 중에 "0.2초 안에 100%"로 다시 지정하면 목표값이 같아서 브라우저가 진행 중인 느린 전환을 그대로 이어감
+  // (>로 마지막 단계를 끝냈는데 게이지만 천천히 차던 버그). 먼저 지금 위치로 고정한 뒤 다시 채워야 새 속도가 적용됨
+  function pbarFreeze() {
+    const fill = $('lec-pbar-fill'), tw = $('lec-pbar-track').getBoundingClientRect().width;
+    pbarSet(tw ? fill.getBoundingClientRect().width / tw : 0, 0);
+  }
+  // 지금 페이즈의 칸(경계 세로선 + 터치 영역)을 새로 그림
+  function pbarBuild() {
+    const ids = LECTURES[L.ch].groups[L.group];
+    let html = '';
+    ids.forEach(function (s, k) {
+      const r = segRange(s);
+      if (k > 0) html += '<span class="lec-pbar-div" data-f="' + r[0] + '" style="left:' + (r[0] * 100) + '%"></span>';
+      html += '<button type="button" class="lec-pbar-seg" data-step="' + s + '" aria-label="' + (s + 1) + '번째 설명부터" style="left:' + (r[0] * 100) + '%;width:' + ((r[1] - r[0]) * 100) + '%"></button>';
+    });
+    $('lec-pbar-segs').innerHTML = html;
+    pbarSet(0, 0);
+  }
+  // 경계 세로선 색 — 게이지가 f까지 찼으면 그 안쪽 선은 흰색(.is-on), 아직 안 찬 선은 진한 회색
+  function pbarDivs(f) {
+    document.querySelectorAll('#lec-pbar-segs .lec-pbar-div').forEach(function (d) { d.classList.toggle('is-on', +d.dataset.f <= f + 1e-9); });
+  }
+  // 화살표 활성 — <: 맨 첫 단계가 아니면 / >: 페이즈가 끝났거나(다음 페이즈·완료), 지금 단계를 끝내도 되는 경우(수강 완료 또는 이미 끝까지 들은 단계)
+  function isLastCell() { const gs = LECTURES[L.ch].groups; return L.group === gs.length - 1 && L.step === gs[L.group][gs[L.group].length - 1]; }   // 마지막 페이즈의 마지막 칸
+  function pbarNav() {
+    if (!hasPbar()) return;
+    const busy = !L.open || L.seeking || L.group < 0;
+    $('lec-pbar-prev').disabled = busy || (L.step <= 0 && !L.ready);   // 첫 칸은 재생 중엔 갈 곳이 없지만, 끝나 멈춘 뒤엔 "처음부터 다시"가 됨
+    $('lec-pbar-next').disabled = busy || !(L.ready || L.rewatch || L.step <= L.heard);
+    // 마지막 페이즈의 마지막 칸이 끝나 멈춘 상태면 버튼이 "완료"(누르면 수강 완료) — 그 외엔 "다음"
+    $('lec-pbar-next').textContent = !busy && L.ready && isLastCell() ? '완료' : '다음';
+  }
+  // 실행 중인 것만 즉시 중단(강의는 열린 채) — 타이머·애니메이션 취소, 소리 하드컷. 세대 번호를 올려 늦게 도착하는 콜백을 막음
+  function halt() {
+    L.tok++;
+    L.gen++;
+    L.phaseStart = false;
+    L.ready = false;
+    L.autoNext = false;
+    L.timers.forEach(clearTimeout);
+    L.timers = [];
+    L.pend.clear();
+    L.skipping = false;
+    L.anims.forEach(function (a) { try { a.cancel(); } catch (e) {} });
+    L.anims = [];
+    if (typeof GuitarAudio !== 'undefined') {
+      if (L.sounded) GuitarAudio.panic();
+      if (L.pianoUsed) GuitarAudio.resetPiano();
+    }
+    releaseTrim(true);
+    L.sounded = false;
+    L.pianoUsed = false;
+  }
+  // 단계 target의 처음으로 이동 — 무대를 새로 만들고, 앞 단계들은 건너뛰기 방식(기다림 없음·애니메이션 길이 0·소리 없음)으로 순식간에 실행해
+  // target 직전의 화면을 만든 뒤, target부터 평소처럼 재생. 앞 단계는 모두 마이크로태스크로 끝나서 중간 화면이 그려지지 않음.
+  // done: target(페이즈의 마지막 단계)까지 빨리 돌려 그 페이즈를 다 들은 상태로 멈춤 — 게이지 100%, > 를 기다림(이전 페이즈로 돌아갈 때)
+  async function seek(target, done, fresh) {
+    if (!L.open || L.seeking || !canReach(target)) return;
+    const lec = LECTURES[L.ch], stage = $('combo-v2-lec-stage');
+    let g = 0, k = 0;
+    lec.groups.forEach(function (ids, gi) { const j = ids.indexOf(target); if (j >= 0) { g = gi; k = j; } });
+    if (!fresh) phaseFadeCancel();   // fresh(페이즈를 넘어가는 중)면 무대를 숨긴 채 다시 만들고 아래에서 서서히 나타냄
+    halt();
+    const tok = L.tok;
+    L.seeking = true;
+    pbarNav();
+    stage.innerHTML = '';
+    stage.classList.remove('is-ch2', 'is-ch3', 'is-ch4', 'is-ch5', 'is-ch6', 'is-ch7', 'is-ch8', 'is-ch9');
+    buildFor(L.ch);
+    L.skipping = true;
+    L.vnow = Date.now();
+    stage.classList.add('is-skip');
+    for (let i = 0; i < target + (done ? 1 : 0) && tok === L.tok; i++) {
+      L.step = i;
+      const st = lec.steps[i];
+      if (done && i === target) showCaption(st.text, st.seq);   // 멈춰 있을 화면의 문구(연출 중 문구를 바꾸는 단계면 아래 run이 덮어씀)
+      if (st.enter) { try { st.enter(); } catch (e) { console.error('[combo-lecture] step ' + (i + 1) + ' enter 오류', e); } }
+      let p;
+      try { p = Promise.resolve(st.run()); } catch (e) { p = Promise.resolve(); console.error('[combo-lecture] step ' + (i + 1) + ' 연출 오류', e); }
+      await Promise.race([p.catch(function (e) { console.error('[combo-lecture] step ' + (i + 1) + ' 연출 오류', e); }), failsafe(st.failsafe || STEP_FAILSAFE_MS)]);
+    }
+    L.seeking = false;
+    if (tok !== L.tok) return;   // 빨리 돌리는 사이 닫힘·다른 이동
+    endSkip();
+    clearDelays();
+    if (fresh) {
+      if (lec.steps[target] && lec.steps[target].enter) L.phaseStart = true;   // 첫 칸이 앞 장면을 치우는 칸이면 복원한 장면은 즉시 사라짐(위 goGroup) — 만들어 올릴 것이 없음
+      else phaseBuild(stage);                                                   // 아니면 복원한 장면을 요소마다 차례로 새로 만들어 올림
+      phaseFadeIn();
+    }
+    if (!done) { goGroup(g, k); return; }
+    L.group = g;
+    L.step = target;
+    pbarBuild();
+    pbarSet(1, 0);
+    pbarDivs(1);
+    setNext(false, g === lec.groups.length - 1 ? '완료' : '다음');   // 페이즈 끝 상태 — > 로 다음 페이즈
+  }
+  // 묶음이 끝난 뒤 다음 묶음으로("다음" 버튼·진행 바 > 공용). 마지막 묶음이면 완료
+  function advance() {
+    setNext(true);   // 누르는 즉시 비활성 — 다음 묶음이 끝날 때까지 다시 켜질 수 없음
+    const lec = LECTURES[L.ch], ids = lec.groups[L.group], k = ids.indexOf(L.step), lastStep = k < 0 || k >= ids.length - 1;
+    if (lastStep && L.group >= lec.groups.length - 1) { finish(); return; }   // 마지막 페이즈의 마지막 단계에서 → 완료
+    // 울리던 소리(기타 울림·피아노)는 짧은 페이드로 끊고 진행 — 스케일 튜토리얼 advanceTutorialStep과 같음
+    if (L.sounded) GuitarAudio.stop();
+    if (L.pianoUsed) GuitarAudio.fadeOutPiano();
+    releaseTrim(false);
+    L.timers.forEach(clearTimeout);
+    L.timers = [];
+    L.pend.clear();
+    clearDelays();
+    hot(-1);
+    if (hasPbar() && !lastStep) goGroup(L.group, k + 1, true);   // 진행 바 챕터: 같은 페이즈의 다음 단계(단계마다 멈추므로 "다음"을 눌러야 이어짐)
+    else if (hasPbar()) crossPhase(lec.groups[L.group + 1][0]);   // 페이즈를 넘어감 — 백지에서 새로 시작(아래 규칙)
+    else goGroup(L.group + 1);
+  }
+  // 전역 규칙 — 페이즈를 넘어갈 때는 반드시 직전 페이즈의 화면·문구 없이 백지에서 시작한다. 앞 페이즈의 장면을 그대로 쓰는 단계라도 이어 붙이지 않고 새로 생성한다.
+  //  페이즈가 끝나 멈춘 동안은 화면을 그대로 두고, "다음"을 누르는 순간 애니메이션 없이 즉시 무대와 문구를 모두 비워 완전히 빈 화면을 PHASE_BLANK_MS 동안 보여 준 뒤
+  //  → 무대 DOM을 새로 만들어 앞 단계를 빨리 돌려 이 페이즈의 시작 장면을 복원(seek와 같은 방법 — 타이머·클래스·인라인 스타일 등 직전 연출의 찌꺼기가 남지 않음)하고 첫 문구·연출을 시작.
+  //  복원한 장면은 문구가 뜨는 것과 같이(FADE_MS) 서서히 나타남 — 앞 페이즈에서 이어 쓰는 요소가 갑자기 튀어나오지 않게(사용자 지적). 페이즈 안에서 칸을 넘길 때는 해당 없음.
+  const PHASE_BLANK_MS = 200;
+  function phaseFadeCancel() {
+    if (L.phaseFade) { try { L.phaseFade.cancel(); } catch (e) {} L.phaseFade = null; }
+  }
+  function phaseFadeIn() {   // 숨겨 둔 무대를 서서히 나타냄 — 새 애니메이션(투명→불투명)을 먼저 만든 뒤 숨김 유지용 애니메이션을 걷어 번쩍임 없음
+    const a = $('combo-v2-lec-stage').animate([{ opacity: 0 }, { opacity: 1 }], { duration: FADE_MS, easing: EASE_OUT });
+    phaseFadeCancel();
+    L.phaseFade = a;
+    a.onfinish = function () { if (L.phaseFade === a) L.phaseFade = null; };
+  }
+  // 복원한 장면을 "새로 만들어 올림" — 보이는 요소(.is-in 요소, 켜진 층 .is-on)를 전환 없이 먼저 모두 끈 뒤, 문서 순서(왼쪽 열부터·위에서 아래로)대로 하나씩 차례로 켬.
+  // 클래스는 같은 순간에 모두 원래대로 돌려놓고 켜지는 시점만 transition-delay로 늦춤(fx와 같은 방식) → 빨리 돌리기·건너뛰기에서 화면 상태가 그대로이고, 문구(0.5초 페이드)와 같이
+  // 올라와 첫 연출(문구 1초 뒤)이 시작되기 전에 끝남: 요소 사이 간격은 총 PHASE_BUILD_MS 안에 들어가게 줄임
+  const PHASE_BUILD_MS = 400;
+  function phaseBuild(stage) {
+    const items = [];
+    Array.prototype.forEach.call(stage.querySelectorAll('*'), function (el) {
+      ['is-in', 'is-on'].forEach(function (c) { if (el.classList.contains(c)) items.push([el, c]); });
+    });
+    if (!items.length) return;
+    stage.classList.add('is-skip');                                   // 끄는 것은 전환 없이 즉시
+    items.forEach(function (it) { it[0].classList.remove(it[1]); });
+    void stage.offsetWidth;                                           // 꺼진 상태를 확정해야 아래에서 켤 때 0부터 올라옴
+    stage.classList.remove('is-skip');
+    const step = items.length > 1 ? Math.min(45, Math.floor(PHASE_BUILD_MS / (items.length - 1))) : 0;
+    items.forEach(function (it, i) {
+      it[0].style.transitionDelay = (i * step) + 'ms';
+      it[0].classList.add(it[1]);
+    });
+    later(function () { clearDelays(); }, (items.length - 1) * step + FADE_MS + 30);
+  }
+  function crossPhase(target) {
+    const qEl = $('combo-v2-lec-text');
+    L.seeking = true;   // 빈 화면 동안 진행 바 잠금(곧바로 seek가 이어받음) — 닫히면 close()가 풀어 줌
+    qEl.classList.remove('test-question--in');
+    qEl.textContent = '';
+    $('combo-v2-lec-stage').innerHTML = '';
+    phaseFadeCancel();
+    L.phaseFade = $('combo-v2-lec-stage').animate([{ opacity: 0 }, { opacity: 0 }], { duration: 1000000, fill: 'forwards' });   // 복원하는 동안 숨김 유지(복원은 한 프레임 안에 끝나지만 중간 모습이 비치지 않게)
+    LECTURES[L.ch].groups.forEach(function (ids, gi) { if (ids.indexOf(target) >= 0) L.group = gi; });   // 진행 바도 백지 — 새 페이즈의 칸·게이지 0%로 즉시(이전 페이즈의 100%가 남지 않게)
+    pbarBuild();
+    pbarDivs(0);
+    pbarNav();
+    later(function () {
+      L.seeking = false;
+      seek(target, false, true);
+    }, PHASE_BLANK_MS);
   }
 
   // 화면 초기화(닫힌 뒤) — 다음에 열면 1단계부터
   function resetView() {
     $('combo-v2-lec-stage').innerHTML = '';
-    $('combo-v2-lec-stage').classList.remove('is-ch2', 'is-ch3', 'is-ch4', 'is-ch5', 'is-ch6', 'is-ch7', 'is-skip');
+    $('combo-v2-lec-stage').classList.remove('is-ch2', 'is-ch3', 'is-ch4', 'is-ch5', 'is-ch6', 'is-ch7', 'is-ch8', 'is-ch9', 'is-skip');
     const qEl = $('combo-v2-lec-text');
     qEl.textContent = '';
     qEl.classList.remove('test-question--in');
     setNext(true, '다음');
+    $('lec-pbar-segs').innerHTML = '';
+    pbarSet(0, 0);
+    $('lec-pbar-prev').disabled = true;
+    $('lec-pbar-next').disabled = true;
+    $('lec-pbar-next').textContent = '다음';
   }
   // 닫기 — 멱등. hard: 이탈(소리 즉시 절단) / 아니면 정상 종료(마지막 소리는 짧은 페이드)
   function close(hard) {
     L.tok++;
     L.gen++;
+    L.phaseStart = false;
     L.ready = false;
+    L.autoNext = false;
     clearInterval(L.watch);
     L.watch = null;
     L.timers.forEach(clearTimeout);
     L.timers = [];
     L.pend.clear();
     L.skipping = false;
+    L.seeking = false;   // 빨리 돌리던 중 닫히면 그 루프는 영영 안 끝나므로(예약·안전 타이머가 지워짐) 여기서 풀어 둠 — 안 풀면 다음에 열 때 진행 바가 계속 막힘
     L.rewatch = false;
     L.anims.forEach(function (a) { try { a.cancel(); } catch (e) {} });
     L.anims = [];
+    phaseFadeCancel();
     if (typeof GuitarAudio !== 'undefined') {
       if (hard) {
         if (L.sounded) GuitarAudio.panic();
@@ -2597,6 +3550,7 @@
     a.push(n);
     prog._lec = a.sort(function (x, y) { return x - y; });
     _comboV2ProgSave(prog);
+    try { _comboV2SyncPush({ t: 'q', k: 'lecture', ch: n }); } catch (e) {}   // 퀘스트 달성 보고(소급 없음 — 처음 끝까지 본 이 순간만)
     _comboV2RenderProgress();   // 강의를 마친 챕터의 첫 레벨이 열림
     return true;
   }
@@ -2624,6 +3578,10 @@
     return true;
   }
 
+  function buildFor(n) {
+    if (n === 9) buildStage9(); else if (n === 8) buildStage8(); else if (n === 7) buildStage7(); else if (n === 6) buildStage6(); else if (n === 5) buildStage5(); else if (n === 4) buildStage4(); else if (n === 3) buildStage3(); else if (n === 2) buildStage2(); else buildStage();
+  }
+
   async function open(n) {
     if (L.open || !LECTURES[n]) return;
     close(true);   // 혹시 남은 상태가 있으면 정리하고 시작
@@ -2638,7 +3596,9 @@
     sec.style.setProperty('--lec-fade', FADE_MS + 'ms');
     sec.style.setProperty('--lec-spread', SPREAD_MS + 'ms');
     sec.style.setProperty('--ch-accent', COMBO_V2_CH_COLORS[n - 1]);
-    if (n === 7) buildStage7(); else if (n === 6) buildStage6(); else if (n === 5) buildStage5(); else if (n === 4) buildStage4(); else if (n === 3) buildStage3(); else if (n === 2) buildStage2(); else buildStage();
+    sec.classList.toggle('is-pbar', hasPbar());
+    L.heard = hasPbar() ? heardLoad(n) : -1;
+    buildFor(n);
     sec.classList.add('is-open');   // 본문이 아래에서 올라옴
     try {
       if (GuitarAudio.resume) await withTimeout(GuitarAudio.resume(), READY_TIMEOUT_MS);
@@ -2650,11 +3610,12 @@
     later(function () { goGroup(0); }, OPEN_DELAY_MS);
   }
 
-  // 이미 수강 완료한 강의에서 화면을 터치하면 지금 단계의 남은 연출을 바로 끝냄 — 예약된 콜백은 원래 시각 순서대로 기다림 없이 실행,
+  // 이미 수강 완료한 강의에서 화면을 터치하면(진행 바 챕터는 > 화살표 — 이미 끝까지 들은 단계도 허용) 지금 단계의 남은 연출을 바로 끝냄 — 예약된 콜백은 원래 시각 순서대로 기다림 없이 실행,
   // 새로 만드는 애니메이션은 길이 0·CSS 전환은 끔(.is-skip), 소리는 하드컷. 이 단계가 끝나면 다음 단계는 평소 속도(playAt이 해제). 묶음의 마지막 단계면 "다음"이 켜짐
   function skipGroup() {
-    if (!L.open || !L.rewatch || L.skipping || L.ready || L.group < 0) return;
+    if (!L.open || !(L.rewatch || L.step <= L.heard) || L.skipping || L.ready || L.group < 0 || L.seeking) return false;
     L.skipping = true;
+    L.pbarJump = true;   // 진행 바: 다음 단계는 칸 시작으로 바로 맞춤(이어서 차면 건너뛴 몫까지 천천히 채우게 됨)
     L.vnow = Date.now();
     $('combo-v2-lec-stage').classList.add('is-skip');
     // 소리는 하드컷 — 연출이 시작될 때 이미 뒤의 소리까지 예약해 두므로 페이드(stop)로는 예약된 소리가 남음
@@ -2673,6 +3634,7 @@
       fireFinish(a, L.tok);
     });
     drainSkip();
+    return true;
   }
   // 예약 목록(pend)에서 가장 이른 것부터 하나씩 실행하고, 그 결과로 이어지는 약속(then)이 새 예약을 만들 시간을 준 뒤 다음으로 — 새 예약도 가상 시각에 끼어들어
   // 원래 연출 시각 순서가 그대로 지켜짐(한꺼번에 0ms로 밀어 넣으면 나중에 생긴 예약이 먼저 예약된 것 뒤로 밀려 순서가 뒤바뀜)
@@ -2689,6 +3651,8 @@
     }
     L.skipping = false;
     $('combo-v2-lec-stage').classList.remove('is-skip');
+    // 동요 단계가 시작되기 전에 건너뛰면(또는 seek로 빨리 돌리면) 소리 없이 기타 출력만 줄여 둔 채 끝남 — 하드컷(panic)이 없어 스스로 안 돌아오므로 직접 되돌림
+    if (L.trimmed) { L.trimmed = false; if (typeof GuitarAudio !== 'undefined') GuitarAudio.setOutputTrim(1); }
   }
   async function drainSkip() {
     if (L.draining) return;
@@ -2699,7 +3663,7 @@
       await null;   // later()가 부른 경우 호출한 쪽 코드가 끝난 뒤에 시작
       for (let guard = 0; guard < 20000 && L.skipping && tok === L.tok; guard++) {
         let r = nextRec();
-        if (!r) { await flush(); r = nextRec(); if (!r) break; }
+        if (!r) { await flush(); if (!L.skipping || tok !== L.tok) break; r = nextRec(); if (!r) break; }   // 기다리는 사이 빨리 돌리기가 끝났으면(seek가 endSkip 후 새 칸을 시작) 그 새 예약(문구 선행 1초 등)을 지금 실행하면 안 됨
         L.pend.delete(r.id);
         L.vnow = Math.max(L.vnow, r.at);
         try { r.fn(); } catch (e) { console.error('[combo-lecture] skip 오류', e); }
@@ -2712,27 +3676,39 @@
   // ── 이벤트 ──
   $('combo-v2-lecture')?.addEventListener('click', function (e) {
     if (e.target.closest && e.target.closest('button')) return;   // 버튼(다음·닫기)은 제외
+    if (hasPbar()) return;   // 진행 바 챕터는 화면 터치 건너뛰기 없음(진행 바로 이동)
     skipGroup();
   });
   $('combo-v2-lec-next')?.addEventListener('click', function () {
     const btn = $('combo-v2-lec-next');
     if (!L.open || !L.ready || btn.disabled) return;   // 묶음이 끝나 ready일 때만 눌림(버튼이 어떤 이유로 켜져 있어도 ready가 아니면 무시)
-    setNext(true);   // 누르는 즉시 비활성 — 다음 묶음이 끝날 때까지 다시 켜질 수 없음
     btn.blur();      // 포커스가 남아 버튼 모양이 활성처럼 보이는 것 방지
-    const lec = LECTURES[L.ch];
-    if (L.group >= lec.groups.length - 1) { finish(); return; }
-    // 울리던 소리(기타 울림·피아노)는 짧은 페이드로 끊고 진행 — 스케일 튜토리얼 advanceTutorialStep과 같음
-    if (L.sounded) GuitarAudio.stop();
-    if (L.pianoUsed) GuitarAudio.fadeOutPiano();
-    releaseTrim(false);
-    L.timers.forEach(clearTimeout);
-    L.timers = [];
-    L.pend.clear();
-    clearDelays();
-    hot(-1);
-    goGroup(L.group + 1);
+    advance();
+  });
+  // 진행 바 — 이전·다음 버튼과 칸 터치. 막힌 이동(아직 안 들은 단계 등)은 아무 일도 하지 않음. 이전·다음은 실제로 이동할 때 앱 공용 팝사운드(pop.mp3 — 주요 버튼 효과음과 같음)
+  // 강의 소리(GuitarAudio)와 별개 경로(WebAudio _playSfx)라 이동 직후의 하드컷(panic)에 안 끊김
+  function pbarPop() { try { if (typeof _playSfx === 'function') _playSfx('pop.mp3'); } catch (e) {} }
+  $('lec-pbar-prev')?.addEventListener('click', function () {
+    if (!hasPbar() || !L.open || L.seeking || L.group < 0 || (L.step <= 0 && !L.ready)) return;
+    pbarPop();
+    if (L.ready) { seek(L.step); return; }   // 칸이 끝나 마커가 멈춘 상태 → 이전 칸이 아니라 지금 칸을 처음부터 다시
+    const gs = LECTURES[L.ch].groups;
+    if (L.step === gs[L.group][0]) { const pg = gs[L.group - 1]; seek(pg[pg.length - 1], true); }   // 페이즈 첫 단계 → 이전 페이즈를 다 들은 상태(게이지 100%)로
+    else seek(L.step - 1);                                                                          // 페이즈 안 → 이전 단계 처음부터
+  });
+  $('lec-pbar-next')?.addEventListener('click', function () {
+    if (!hasPbar() || !L.open || L.seeking || L.group < 0) return;
+    pbarPop();
+    // 다음 버튼 = "다음 단계를 재생"하는 트리거 하나(들었든 안 들었든 같음). 멈춘 상태면 바로 다음 단계, 아직 재생 중인 단계(들은 단계·수강 완료)면 지금 단계를 즉시 끝내고 곧바로 다음 단계
+    if (L.ready) advance();
+    else { L.autoNext = !isLastCell(); if (!skipGroup()) L.autoNext = false; }   // 즉시 끝난 뒤 멈추지 않고 이어감(단계 끝 처리에서 autoNext를 보고 advance). 마지막 칸은 바로 완료하지 않고 끝난 채 멈춰 버튼이 "완료"로 바뀜
+  });
+  $('lec-pbar-segs')?.addEventListener('click', function (e) {
+    const b = e.target.closest && e.target.closest('.lec-pbar-seg');
+    if (b && hasPbar()) seek(+b.dataset.step);
   });
   // 시작 페이지는 강의 본문이 아래에서 다 올라온 뒤에 걷음 — 바로 걷으면 슬라이드 동안 뒤의 목록 화면이 잠깐 비침
+  $('combo-v2-welcome-close')?.addEventListener('click', closeWelcome);   // 탑바 X — 시작 페이지만 닫고 목록으로(뒤로가기와 같은 동작)
   $('combo-v2-welcome-go')?.addEventListener('click', function () {
     open(1);
     setTimeout(closeWelcome, LEC_SLIDE_MS);

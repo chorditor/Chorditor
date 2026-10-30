@@ -6,14 +6,14 @@
 // ── 온보딩 관문 통과 → home.html(또는 보류된 푸시 딥링크)로 이동 ──
 // 여기서 세션 생존 마커를 세워야 이후 웜 진입이 온보딩을 건너뛴다.
 // 목적지가 home.html일 때만(푸시 딥링크가 있으면 그쪽이 우선) 오늘 데일리미션 게이트를
-// 아직 안 지났으면 daily-mission.html로 먼저 보냄 — dmGateLater()가 통과 시각을 기록.
+// 아직 안 지났으면 오늘의 미션·출석 통합 페이지(attendance.html)로 먼저 보냄 — 그 페이지가 열릴 때 통과 시각을 기록.
 function goToHome() {
   _markSessionAlive();
   const target = _consumePushTarget() || 'home.html';
   if (target === 'home.html') {
     const today = new Date().toISOString().slice(0, 10);
     if (localStorage.getItem('chorditor_dm_cleared_date') !== today) {
-      window.location.replace('daily-mission.html');
+      window.location.replace('attendance.html?from=launch');
       return;
     }
   }

@@ -6,7 +6,7 @@
   <script src="i18n.js"></script>
   <meta name="color-scheme" content="light dark" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
-  <title>Chorditor - 출석체크</title>
+  <title>Chorditor - 오늘의 미션</title>
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css" />
   <link rel="stylesheet" href="style.css" />
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
@@ -16,43 +16,43 @@
   <!-- 페이지 커버: 초기화 완료 전 화면 가림 -->
   <div id="page-cover"></div>
 
+  <!-- 일일 미션 + 출석 통합 페이지 (2026-10-31): 매일 첫 접속 때 뜨던 데일리미션 게이트를 대체. 뼈대는 style-guide.md §11 -->
   <div class="app-shell" id="attendance-page">
 
-    <!-- ── 뒤로가기 전용 ── -->
+    <!-- ── 뒤로가기/닫기 전용 (첫 접속 진입이면 JS가 아이콘을 X로 교체) ── -->
     <header class="cd-topbar">
-      <button id="back-btn" class="icon-btn" onpointerup="closeAttendancePage()">
-        <i data-lucide="chevron-left"></i>
+      <button id="back-btn" class="icon-btn" onpointerup="closeAttendancePage()" aria-label="닫기">
+        <i data-lucide="chevron-left" id="dm-back-icon"></i>
       </button>
     </header>
 
-    <!-- ── 메인 (style-guide.md §11 cd-main) ── -->
-    <main class="cd-main cd-main--stage" id="main-content">
+    <main class="cd-main" id="main-content">
 
-      <div class="attendance-scroll">
-        <div class="attendance-scroll-inner">
-          <span class="attendance-title">출석체크</span>
-          <div class="attendance-desc-block">
-            <p class="attendance-desc">매일의 <span class="dm-gate-desc-accent">훈련 루틴</span>을 완료해서 <span class="dm-gate-desc-accent">출석</span>해요</p>
-            <p class="attendance-desc">꾸준히 연습해서 실력을 키워봐요!</p>
+      <header class="cd-head">
+        <div class="cd-title"><img src="image/calender.png" class="dm-title-icon" alt="">오늘의 미션</div>
+        <p class="dm-desc">4개 중 <span class="dm-desc-accent">2개</span>를 완료하면 <span class="dm-desc-accent">출석</span>해요!</p>
+      </header>
+
+      <section class="cd-body">
+        <!-- 미션 4개 — JS가 채움 -->
+        <ul class="dm-missions" id="dm-missions"></ul>
+
+        <!-- 출석 진행바 + 보충출석 -->
+        <section class="dm-att">
+          <div class="dm-att-head">
+            <h2 class="dm-att-title" id="attendance-month"></h2>
           </div>
-          <div class="attendance-cta-row">
-            <button class="attendance-cta-link" id="attendance-cta-btn" onclick="attendanceCtaClick()">
-              <span id="attendance-cta-label">오늘의 훈련 루틴 하러가기</span> <i data-lucide="chevron-right" class="attendance-cta-link-icon"></i>
+          <div class="attend-cal-grid dm-cal" id="attendance-cal-grid"></div>
+          <p class="dm-att-status" id="attendance-status"></p>
+          <div class="dm-makeup-row">
+            <button class="cd-btn cd-btn--brand cd-btn--auto-width" id="attendance-makeup-btn" onclick="attendanceMakeupClick()">
+              <span id="attendance-makeup-label">보충출석</span>
+              <span class="dm-makeup-count" id="attendance-makeup-count">3</span>
             </button>
           </div>
-          <img src="image/calender.png" class="attendance-cal-icon" alt="">
-          <div class="attendance-main">
-            <span class="attendance-month" id="attendance-month"></span>
-            <div class="attend-cal-grid" id="attendance-cal-grid"></div>
-            <span class="attendance-status" id="attendance-status"></span>
-            <div class="attendance-makeup-row">
-              <button class="attendance-makeup-btn" id="attendance-makeup-btn" onclick="attendanceMakeupClick()">
-                보충출석 <span class="attendance-makeup-count" id="attendance-makeup-count">3</span>
-              </button>
-            </div>
-          </div>
-        </div>
-      </div>
+          <p class="dm-att-hint" id="dm-att-hint"></p>
+        </section>
+      </section>
 
     </main>
   </div>

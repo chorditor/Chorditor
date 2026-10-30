@@ -107,6 +107,7 @@ async function _stopPlay(options = {}) {
   if (_playStartMs) {
     const _elapsedSec = (Date.now() - _playStartMs) / 1000;
     if (typeof recordTrainingTime === 'function') recordTrainingTime(_elapsedSec);
+    if (typeof dailyMissionAddPlay === 'function') dailyMissionAddPlay(_elapsedSec);   // 일일 미션: 코드반주 재생 5분 누적
     if (_elapsedSec >= 10 && !_attendanceCountedThisVisit && typeof recordTrainingAttendance === 'function') {
       _attendanceCountedThisVisit = true;
       recordTrainingAttendance();
@@ -789,8 +790,8 @@ const _ROLE_NAMES = ['far-left', 'prev', 'current', 'next'];
 //   2. 같은 줄 이동 우선 — 줄 변경 시 CROSS_PENALTY 가산
 //   3. 동률이면 더 낮은 프렛 보이싱 우선
 //   4. 결과를 _stepCache에 고정 → 재생 반복 중 변경 없음
-// 캐러셀 표시용 묶음: 같은 코드가 연속이면 카드 1장으로 렌더링(재생은 원래 스텝 단위로 계속 진행 — 카드는 코드가 실제로 바뀔 때만 넘어감)
-//   _dispFirst[d] = d번째 카드의 첫 스텝 / _dispIdx[스텝] = 그 스텝이 속한 카드 / _dispCount = 카드 수
+// 캐러셀 표시용 카드: 스텝마다 1장(같은 코드가 연속이어도 따로 표시, 같은 보이싱 재사용)
+//   _dispFirst[d] = d번째 카드의 스텝 / _dispIdx[스텝] = 그 스텝의 카드 / _dispCount = 카드 수
 let _dispFirst = [0], _dispIdx = [0], _dispCount = 1;
 function _buildStepCache() {
   _buildVoicingCache();
@@ -799,11 +800,9 @@ function _buildStepCache() {
   for (let i = 0; i < n; i++) {
     if (i > 0 && _stepCache[i].chordName === _stepCache[i - 1].chordName) {
       _stepCache[i] = { voicing: _stepCache[i - 1].voicing, chordName: _stepCache[i].chordName };   // 같은 코드는 같은 보이싱
-      _dispIdx[i] = _dispFirst.length - 1;
-    } else {
-      _dispIdx[i] = _dispFirst.length;
-      _dispFirst.push(i);
     }
+    _dispIdx[i] = _dispFirst.length;   // 같은 코드가 연속이어도 카드는 스텝마다 1장(2026-10-30: %도 코드로 표시)
+    _dispFirst.push(i);
   }
   _dispCount = Math.max(1, _dispFirst.length);
 }

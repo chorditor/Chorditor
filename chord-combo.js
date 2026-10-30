@@ -618,18 +618,10 @@ function comboNextQuestion() {
   updateComboQuizProgress(_comboQuestionIndex);
 }
 
-// ── 10문제 완료 기록: 행동형 XP(정답 무관) + 장별 완료/퍼펙트 카운터(퀘스트용) ──
+// ── 10문제 완료 기록: 행동형 XP(정답 무관) ──
 function _comboRecordSessionComplete() {
   _comboFlushTrainingTime(); // 완료까지 걸린 시간 적립
-  const s = JSON.parse(localStorage.getItem('training_stats') || '{}');
   const ch = _comboChapter;
-  const isPerfect = _comboCorrectCount === COMBO_QUESTIONS_PER_SESSION;
-  s['combo_completed' + ch] = (s['combo_completed' + ch] || 0) + 1;
-  if (isPerfect) {
-    s['combo_perfect' + ch] = (s['combo_perfect' + ch] || 0) + 1;
-  }
-  localStorage.setItem('training_stats', JSON.stringify(s));
-  if (typeof incrementComboComplete === 'function') incrementComboComplete(parseInt(ch, 10), isPerfect); // 서버 카운트 동기화(fire-and-forget)
   if (typeof addXp === 'function') addXp(BEHAVE_XP.combo); // 행동형 XP: 리하모니 화성학 완료 (사일런트, 정답 무관)
   if (typeof analytics !== 'undefined') {
     analytics.track('combo_training_completed', {
@@ -2165,6 +2157,7 @@ function _comboV2Finish() {
   document.getElementById('combo-v2-clear-level').textContent = lv ? lv.num + ' · ' + lv.name : '';
   document.getElementById('combo-v2-clear-praise').textContent = reviewed ? '틀린 문제도 끝까지 풀어냈어요. 정말 잘했어요!' : '한 문제도 안 틀렸어요. 완벽해요!';
   const cleared = comboV2RecordClear(lv && lv.num);   // 완료 1회 기록 → 도넛 호 +1, 마지막 호면 레벨 클리어(다음 레벨 해금)
+  if (lv && typeof dailyMissionReport === 'function') dailyMissionReport('combo', lv.num);   // 일일 미션: 리하모니 화성학 레벨 완료
   document.getElementById('combo-v2-clear-title').textContent = cleared ? '레벨 클리어!' : '완주!';   // 평소는 "완주!", 호를 다 채운 판만 "레벨 클리어!"
   document.getElementById('combo-v2-clear-refund').hidden = getPlan() === 'pro';   // 환급 안내 — 클리어는 전부 맞힌 상태라 환급 총합(문제 수 ÷ 5)을 그대로 알림. Pro는 피크가 없어 생략
   document.getElementById('combo-v2-clear-refund-n').textContent = s.n / COMBO_V2_REFUND_EVERY;
@@ -4260,7 +4253,7 @@ function _comboV2KeyPassed(c, prog) {
 function _comboV2ChapterOpen(n, prog) {
   return n === 1 || (n >= 2 && n <= 9 && _comboV2KeyPassed(n - 1, prog));
 }
-const COMBO_V2_LECTURE_READY = [1, 2, 3, 4, 5, 6, 7];   // 미니강의가 만들어진 챕터 — 새 강의를 만들면 여기에 추가(없는 챕터는 임시로 수강 완료로 간주해 레벨이 막히지 않게 함)
+const COMBO_V2_LECTURE_READY = [1, 2, 3, 4, 5, 6, 7, 8, 9];   // 미니강의가 만들어진 챕터 — 새 강의를 만들면 여기에 추가(없는 챕터는 임시로 수강 완료로 간주해 레벨이 막히지 않게 함)
 function _comboV2LectureDone(n, prog) {
   if (COMBO_V2_LECTURE_READY.indexOf(n) < 0) return true;
   if (Array.isArray(prog._lec) && prog._lec.indexOf(n) >= 0) return true;
@@ -4370,7 +4363,13 @@ function comboV2RecordClear(lv) {
   _comboV2PendingFill = prog[lv] > before ? { lv: lv, arc: prog[lv] - 1 } : null;   // 클리어 횟수 초과 기록은 채울 호가 없음
   if (prog[lv] > before) _comboV2SyncPush({ t: 'lv', lv: lv });   // 서버에도 완료 1회 기록(실패하면 대기열에 남아 다시 보냄)
   _comboV2RenderProgress();
-  return before < _comboV2ClearAt(lv) && prog[lv] >= _comboV2ClearAt(lv);
+  const cleared = before < _comboV2ClearAt(lv) && prog[lv] >= _comboV2ClearAt(lv);
+  if (cleared) {   // 퀘스트 달성 보고(소급 없음 — 클리어하는 이 순간만). 반복 퀘스트용 클리어 1회 + 종합(키) 레벨이면 1회성 퀘스트용 종합 클리어
+    _comboV2SyncPush({ t: 'q', k: 'clear' });
+    const c = parseInt(lv, 10);
+    if (parseInt(lv.split('-')[1], 10) === COMBO_V2_REQ[c]) _comboV2SyncPush({ t: 'q', k: 'key', ch: c });
+  }
+  return cleared;
 }
 
 // 클리어 후 선택 화면으로 돌아왔을 때 새로 채워진 도넛 호가 그려지는 연출(easeOutQuart 600ms) + 끝난 직후 도넛(레벨 번호 포함)이 살짝 커졌다 작아짐.
@@ -4579,11 +4578,12 @@ async function _comboV2SyncFlush() {
       const q = _comboV2SyncQLoad();
       if (!q.length) break;
       const op = q[0];
-      const r = op.t === 'skip' ? await _peakRpc('record_combo_skip', { p_chapter: op.ch }) : await _peakRpc('record_combo_level', { p_level: op.lv });
+      const r = op.t === 'q' ? await _peakRpc('report_combo_quest_event', { p_kind: op.k, p_chapter: op.ch || null })   // 퀘스트 달성 보고(shared.js 퀘스트, supabase/combo_quest.sql)
+        : op.t === 'skip' ? await _peakRpc('record_combo_skip', { p_chapter: op.ch }) : await _peakRpc('record_combo_level', { p_level: op.lv });
       if (!r || !r.ok) break;   // 실패 — 대기열 유지(다음 접속·다음 기록 때 재시도)
       q.shift();
       _comboV2SyncQSave(q);
-      _comboV2MergeServer(op.t === 'skip' ? { skips: r.skips } : { levels: { [op.lv]: r.done } });
+      if (op.t !== 'q') _comboV2MergeServer(op.t === 'skip' ? { skips: r.skips } : { levels: { [op.lv]: r.done } });
     }
   } finally {
     _comboV2Syncing = false;

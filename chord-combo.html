@@ -35,16 +35,36 @@
       </div>
       <div class="test-btn-row combo-v2-lec-actions">
         <button type="button" class="test-submit-btn cd-btn cd-btn--brand combo-v2-lec-next" id="combo-v2-lec-next" disabled><span id="combo-v2-lec-next-label">다음</span></button>
+        <!-- 진행 바(이 바를 쓰는 챕터는 섹션에 .is-pbar, "다음" 버튼 대신): 현재 위치 마커 → 지금 페이즈(묶음)의 게이지(설명묶음마다 세로선, 칸 길이 = 실제 시간 비율) → 아래 왼쪽 이전 / 오른쪽 다음 -->
+        <div class="lec-pbar" id="lec-pbar">
+          <div class="lec-pbar-bar" id="lec-pbar-bar">
+            <span class="lec-pbar-rail" id="lec-pbar-rail"><span class="lec-pbar-mark"><svg viewBox="0 0 16 20"><path d="M3 1h10a2 2 0 0 1 2 2v9.2a2 2 0 0 1-.7 1.5L8 19l-6.3-5.3a2 2 0 0 1-.7-1.5V3a2 2 0 0 1 2-2z"/></svg></span></span>
+            <div class="lec-pbar-track" id="lec-pbar-track"><div class="lec-pbar-fill" id="lec-pbar-fill"></div></div>
+            <div class="lec-pbar-segs" id="lec-pbar-segs"></div>
+          </div>
+          <div class="lec-pbar-nav">
+            <button type="button" class="cd-btn cd-btn--gray lec-pbar-btn" id="lec-pbar-prev" disabled>이전</button>
+            <button type="button" class="cd-btn cd-btn--blue lec-pbar-btn" id="lec-pbar-next" disabled>다음</button>
+          </div>
+        </div>
       </div>
     </main>
   </section>
 
   <!-- 첫 접속 시작 페이지 — 처음 이 훈련에 들어온 유저에게 한 번만 띄우고, 버튼으로 챕터 1 미니강의에 바로 들어감(건너뛰기 테스트 안내 페이지와 같은 골격) -->
   <section id="combo-v2-welcome" class="combo-v2-skip-page combo-v2-welcome" hidden>
+    <!-- 탑바: 이 페이지가 화면 전체(탑바 포함)를 덮으므로 닫기(X) 버튼을 직접 둠 — 누르면 페이지만 닫고 목록으로(이미 기록돼서 다시 안 뜸). 표준 탑바 뒤로가기 = .icon-btn.cd-topbar-back -->
+    <header class="cd-topbar combo-v2-welcome-topbar">
+      <button type="button" class="icon-btn cd-topbar-back" id="combo-v2-welcome-close" aria-label="닫기"><i data-lucide="x"></i></button>
+    </header>
     <div class="combo-v2-skip-main">
       <div class="combo-v2-welcome-body">
-        <div class="combo-v2-skip-text">리하모니 화성학에<br>오신 걸 환영해요!</div>
-        <div class="combo-v2-welcome-sub">먼저 1장 미니강의로 시작해요</div>
+        <div class="combo-v2-skip-text">리하모니 화성학에<br>오신 것을 환영해요!</div>
+        <div class="combo-v2-welcome-list">
+          <div class="combo-v2-welcome-lead">이 훈련을 완수하면 이런 게 가능해져요!</div>
+          <div class="combo-v2-welcome-sub">처음 듣는 노래의 코드도 빨리 딸 수 있어요</div>
+          <div class="combo-v2-welcome-sub">수준 높은 편곡, 작곡을 할 수 있어요</div>
+        </div>
       </div>
     </div>
     <div class="combo-v2-skip-actions">
@@ -54,13 +74,17 @@
 
   <div class="app-shell">
 
-    <!-- ── 탑바: 닫기 + 퀴즈 진행 막대(중앙) + 피크 개수(리하모니 화성학 전용 — 피크상자 없이 피크 개수만) (style-guide.md §11 cd-topbar) ── -->
+    <!-- ── 탑바: 닫기 + 퀴즈 진행 막대(중앙) + 피크바 — 레벨 선택 화면은 피크상자 + 피크 개수, 문제 화면(진행 막대가 있을 때)은 피크 개수만(CSS), 미니강의 중엔 전부 숨김 (style-guide.md §11 cd-topbar) ── -->
     <header class="cd-topbar combo-topbar">
       <button id="back-btn" class="icon-btn" onpointerup="handleComboBack()">
         <i data-lucide="x"></i>
       </button>
       <div id="combo-quiz-progress" class="quiz-topbar-center combo-quiz-dots" style="display:none"></div>
       <div class="topbar-currency" id="topbar-currency" style="margin-left:auto;">
+        <div class="currency-item currency-item--clickable currency-item--peakbox" onclick="openPeakboxModal()">
+          <span class="currency-count" id="currency-peakbox-count">0</span>
+          <div class="currency-icon-box"><img src="image/gift.png" alt=""></div>
+        </div>
         <div class="currency-item currency-item--clickable" onclick="openPeakTimerPopup(event)">
           <span class="currency-count" id="currency-peak-count">30/30</span>
           <div class="currency-icon-box"><img src="image/peak.svg" alt=""></div>

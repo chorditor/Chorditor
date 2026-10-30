@@ -5248,6 +5248,7 @@ function _recordScaleSubmit() {
   stats.today_sessions  = (stats.today_sessions  || 0) + 1;
   stats.total_completed = (stats.total_completed || 0) + 1;
   stats.scale_completed = (stats.scale_completed || 0) + 1; // 스케일 누적완료 퀘스트 카운터
+  if (typeof dailyMissionReport === 'function' && _scaleLevel > 0) dailyMissionReport('scale', _scaleLevel);   // 일일 미션: 스케일 세션 완료
 
   // 레벨 첫완료 퀘스트: 이 레벨 clear 기록(로컬 폴백) + 서버
   if (_scaleLevel > 0) {

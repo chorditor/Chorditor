@@ -1,8 +1,22 @@
 // ═══════════════════════════════════════════════════════════════
-// attendance.js — 출석체크 페이지
+// attendance.js — 오늘의 미션 + 출석 통합 페이지 (2026-10-31)
+//   미션 진행·완료 판정·출석 도장은 shared.js 일일 미션 블록(dmLoad / dailyMissionReport / dmEnsureAttended).
+//   이 페이지는 보여주고 훈련 페이지로 보내기만 한다 — 도장은 미션 2개 완료 시점에 이미 찍혀 있고, 여기선 그 연출을 보여준다.
 // ═══════════════════════════════════════════════════════════════
 
-// ── 출석체크 닫기 (홈으로 복귀) ──────────────────────────────
+// ── 오늘의 미션 4개 (화면 순서) ─────────────────────────────────
+// page = 해당 훈련의 레벨 선택 화면. tone = 카드 배경 파스텔(style.css .dm-mission--*, 코드맞추기 파랑·스케일 빨강·리하모니 보라 — 옛 게이트 카드 색 순서와 동일)
+const DM_MISSION_LIST = [
+  { id: 'quiz',  name: '코드맞추기',      page: 'chord-name-quiz.html', tone: 'blue'   },
+  { id: 'scale', name: '스케일 훈련',     page: 'scale-training.html',  tone: 'red'    },
+  { id: 'combo', name: '리하모니 화성학', page: 'chord-combo.html',     tone: 'purple' },
+  { id: 'play',  name: '코드반주 훈련',   page: 'chordplay.html',       tone: 'green'  },
+];
+
+// 첫 접속(onboarding.js goToHome)으로 열렸는가 — 닫기가 X, 오늘 이미 출석했으면 건너뜀
+const _attFromLaunch = new URLSearchParams(location.search).get('from') === 'launch';
+
+// ── 닫기 (홈으로 복귀) ────────────────────────────────────────
 function closeAttendancePage() {
   _playTap();
   const shell = document.querySelector('.app-shell');
@@ -14,41 +28,75 @@ function closeAttendancePage() {
   }
 }
 
-// ── 상단 CTA (오늘의 훈련 루틴 / 오늘 훈련 결과보기) ─────────────
-// mission-session.js _msTodayKey()와 동일 형식(로컬 자정 기준, KST 아님 — 기존 그대로 맞춤).
-function _attTodayKey() {
-  const d = new Date();
-  return `${d.getFullYear()}-${d.getMonth() + 1}-${d.getDate()}`;
-}
-function _attHasTodayMissionResult() {
-  try {
-    const s = JSON.parse(localStorage.getItem('ms_today_result') || 'null');
-    return !!(s && s.date === _attTodayKey() && s.records);
-  } catch (_) { return false; }
-}
-function renderAttendanceCta() {
-  const label = document.getElementById('attendance-cta-label');
-  if (!label) return;
-  label.textContent = _attHasTodayMissionResult() ? '오늘 훈련 결과보기' : '오늘의 훈련 루틴 하러가기';
-}
-// 완료 전엔 게이트로, 완료 후엔 결과화면으로 직행(?view=result — daily-mission.html의
-// "이미 봤으면 home으로" 게이트를 우회, 유저가 명시적으로 누른 거니 다시 보여준다).
-function attendanceCtaClick() {
-  _playTap();
-  location.href = _attHasTodayMissionResult() ? 'mission-session.html?view=result' : 'daily-mission.html';
+// ── 미션 목록 ─────────────────────────────────────────────────
+function _dmFmtSec(sec) {
+  const m = Math.floor(sec / 60), s = Math.floor(sec % 60);
+  return m + ':' + (s < 10 ? '0' : '') + s;
 }
 
-// ── 도장 달력 렌더 (실제 DB값 — shared.js loadAttendanceState()/_attState 기준) ──
-// 오늘 이미 도장을 찍었으면(doneToday) 마지막 찍은 칸(_attState.day)이 곧 "오늘" 칸이고,
-// 아직이면 다음에 찍을 칸(_attState.day + 1)이 "오늘" 칸 — 도장 자체는 여기서 찍지 않는다
-// (진행은 데일리미션 완료 시 advanceAttendance()가 찍음, 이 페이지는 조회 전용).
+// 훈련별 조건 문구 — 시작 레벨이 1이면 "아무 레벨"
+function _dmCondText(id, state) {
+  if (id === 'play') return '주법 재생 5분 · ' + _dmFmtSec(Math.min(state.play || 0, DM_PLAY_GOAL_SEC)) + ' / ' + _dmFmtSec(DM_PLAY_GOAL_SEC);
+  const min = dmMinLevel(id);
+  if (min <= 1) return '아무 레벨 1회';
+  return id === 'combo' ? min + '-1 이상 레벨 중 1회' : '레벨 ' + min + ' 이상 중 1회';
+}
+
+function renderMissions() {
+  const list = document.getElementById('dm-missions');
+  if (!list) return;
+  const s = dmLoad();
+  list.innerHTML = DM_MISSION_LIST.map(m => {
+    const done = !!s.done[m.id];
+    const bar = m.id === 'play'
+      ? '<span class="dm-mission-bar"><span style="width:' + (done ? 100 : Math.min(100, Math.round((s.play || 0) / DM_PLAY_GOAL_SEC * 100))) + '%"></span></span>'
+      : '';
+    const tail = done
+      ? '<span class="dm-mission-done"><i data-lucide="circle-check"></i>완료</span>'
+      : '<button type="button" class="dm-mission-go" onclick="dmGo(\'' + m.id + '\')">바로가기<i data-lucide="chevron-right"></i></button>';
+    return '<li class="dm-mission dm-mission--' + m.tone + '">' +
+        '<div class="dm-mission-info">' +
+          '<span class="dm-mission-name">' + m.name + '</span>' +
+          '<span class="dm-mission-cond">' + _dmCondText(m.id, s) + '</span>' +
+          bar +
+        '</div>' +
+        tail +
+      '</li>';
+  }).join('');
+  if (typeof lucide !== 'undefined') lucide.createIcons();
+}
+
+function dmGo(id) {
+  const m = DM_MISSION_LIST.find(x => x.id === id);
+  if (!m) return;
+  _playTap();
+  location.href = m.page;
+}
+
+// ── 출석 달력 (실제 DB값 — shared.js loadAttendanceState()/_attState 기준) ──
+// 도장은 미션 2개를 끝낸 시점에 shared.js dmEnsureAttended()가 이미 찍었다. 그 연출(stamp)이 아직 안 보여졌으면
+// 도장 직전 상태로 그려 두고 _dmPlayStamp()가 그 칸에 도장을 내려찍는다. 그 외에는 조회 전용.
 let _attDoneToday = false;
+let _attInfo = null;   // loadAttendanceState() 결과(보충출석 안내 문구용)
 
 function renderAttendanceStatus() {
   const el = document.getElementById('attendance-status');
   if (!el) return;
-  el.textContent = _attDoneToday ? '오늘은 출석을 완료했어요' : '아직 오늘 출석을 못했어요';
-  el.classList.toggle('attendance-status--done', _attDoneToday);
+  const n = dmDoneCount(dmLoad());
+  el.textContent = _attDoneToday ? '오늘은 출석을 완료했어요'
+    : (n >= 1 ? (DM_REQUIRED - n) + '개만 더 완료하면 출석해요' : '아직 오늘 출석을 못했어요');
+  el.classList.toggle('dm-att-status--done', _attDoneToday);
+
+  const hint = document.getElementById('dm-att-hint');
+  if (hint) {
+    let t = '';
+    if (_attInfo && !_attInfo.full) {
+      if (_attInfo.makeup_left > 0) t = '이번 달 아무 때나 ' + _attInfo.makeup_left + '회 더 보충출석할 수 있어요';
+      else if (_attInfo.canMakeupAd) t = '보충출석 3회를 다 썼어요. 광고를 보면 1칸씩 더 채울 수 있어요';
+      else t = '이번 달 보충출석을 모두 썼어요';
+    }
+    hint.textContent = t;
+  }
 }
 
 function renderAttendanceMonth() {
@@ -58,17 +106,18 @@ function renderAttendanceMonth() {
   el.textContent = kstMonth + '월 출석';
 }
 
-// 2026-09-01 개편(월 리셋+25 캡): 보충출석은 갭 상태에서만 뜨는 버튼이 아니라 항상
-// 보이는 버튼 — 정규출석 안 한 날에 유저가 원할 때 씀. _attCanMakeup은 loadAttendanceState()가
-// 계산(정규출석 이미 함/보충 이미 씀/이번 달 다 채움/보충권 소진 중 하나라도 걸리면 false).
-let _attCanMakeup = false;
-
+// 보충출석(2026-10-31 개편): 항상 보이는 버튼. 일일 제한 없이 그 달 아무 때나 3회(정규출석을 한 날도 가능).
+// 3회를 다 쓰면 버튼이 "광고 보고 보충출석"으로 바뀌어 광고를 끝까지 보면 1칸씩 채움. Pro는 광고가 없어 3회까지만.
+// 상태는 loadAttendanceState()의 canMakeup / canMakeupAd — _attInfo에 담김.
 function renderAttendanceMakeup() {
   const btn = document.getElementById('attendance-makeup-btn');
+  const labelEl = document.getElementById('attendance-makeup-label');
   const countEl = document.getElementById('attendance-makeup-count');
-  if (!btn) return;
-  btn.disabled = !_attCanMakeup;
-  if (countEl) countEl.textContent = _attState.makeup_left;
+  if (!btn || !_attInfo) return;
+  const byAd = _attInfo.makeup_left <= 0 && _attInfo.canMakeupAd;
+  btn.disabled = !(_attInfo.canMakeup || byAd);
+  if (labelEl) labelEl.textContent = byAd ? '광고 보고 보충출석' : '보충출석';
+  if (countEl) { countEl.hidden = byAd; countEl.textContent = _attInfo.makeup_left; }
 }
 
 function showAttendanceFullModal() {
@@ -101,33 +150,52 @@ function _attAnimateStamp(day) {
   });
 }
 
-// 보충출석 클릭 → shared.js makeupAttendance() 실행 후 그 자리에서 도장 연출, 재렌더.
-// 마일스톤(피크상자) 획득 팝업은 shared.js makeupAttendance()가 자체 딜레이로 이미 띄워준다.
+// 보여주지 않은 도장 연출(미션 완료 직후 훈련 페이지에서 돌아온 경우) — 한 번만
+function _dmPendingStamp() {
+  const st = dmLoad().stamp;
+  return st && !st.seen ? st : null;
+}
+async function _dmPlayStamp(p) {
+  const s = dmLoad();
+  if (s.stamp) { s.stamp.seen = true; dmSave(s); }   // 연출 도중 나가도 다시 재생하지 않음
+  if (p.advanced) await _attAnimateStamp(p.day);
+  _attDoneToday = true;
+  const state = await loadAttendanceState();
+  _attInfo = state;
+  renderAttendanceStatus();
+  renderAttendanceMakeup();
+  if (p.advanced && p.reward > 0) showPeakboxRewardModal(p.reward, undefined, { source: 'attendance_milestone' });   // 5일 배수 피크상자 획득 연출(지급은 advanceAttendance가 이미 함)
+}
+
+// 보충출석 클릭 → 남은 횟수가 있으면 shared.js makeupAttendance(), 3회를 다 썼으면 광고 시청 후 makeupAttendanceByAd().
+// 성공하면 그 자리에서 도장 연출 → 재렌더. 마일스톤(피크상자) 획득 팝업은 shared.js makeupAttendance()가 자체 딜레이로 이미 띄워준다.
 // 정규출석과 별개 트랙이라(같은 날 정규출석 여부는 안 건드림) 성공해도 _attDoneToday는 안 바꾼다.
 async function attendanceMakeupClick() {
   const btn = document.getElementById('attendance-makeup-btn');
   if (btn) btn.disabled = true;
-  const res = await makeupAttendance();
+  const res = (_attInfo && _attInfo.makeup_left > 0) ? await makeupAttendance(false) : await makeupAttendanceByAd();
   if (!res || !res.ok) {
     if (res && res.reason === 'full') showAttendanceFullModal();
-    renderAttendanceMakeup(); // 실패해도 btn.disabled는 _attCanMakeup 기준으로 다시 계산
+    else if (res && res.reason === 'ad_not_rewarded' && typeof showTextToast === 'function') showTextToast('광고를 끝까지 봐야 채워져요');
+    else if (res && res.reason === 'network' && typeof showTextToast === 'function') showTextToast('보충출석에 실패했어요. 다시 시도해주세요.');
+    renderAttendanceMakeup(); // 실패해도 버튼 상태는 _attInfo 기준으로 다시 계산
     return;
   }
 
   _playConfirmSfx();
   await _attAnimateStamp(res.day);
   const state = await loadAttendanceState(); // canMakeup 등 최신 상태 재조회
+  _attInfo = state;
   _attDoneToday = state.doneToday;
-  _attCanMakeup = state.canMakeup;
   renderAttendanceStatus();
   renderAttendanceMakeup();
 }
 
-function renderAttendanceCalendar() {
+// stamped = 화면에 도장이 찍힌 상태로 보일 칸 수(연출 전이면 오늘 도장 직전까지)
+function renderAttendanceCalendar(stamped) {
   const grid = document.getElementById('attendance-cal-grid');
   if (!grid) return;
 
-  const stamped = _attState.day;
   const today = _attDoneToday ? stamped : Math.min(stamped + 1, ATTENDANCE_TOTAL_DAYS); // 오늘 칸
   const boxSvg = '<img src="image/gift.png" class="acc-box-icon" alt="">';
 
@@ -159,26 +227,6 @@ function renderAttendanceCalendar() {
   initGridMouseDrag(grid);
 }
 
-// 상단 그라데이션이 .attendance-cta-row 지점에서 정확히 끝나도록 실측 offsetTop을 CSS 변수로 전달
-function positionAttendanceGradient() {
-  const scroll = document.querySelector('.attendance-scroll');
-  const cta = document.querySelector('.attendance-cta-row');
-  if (!scroll || !cta) return;
-  scroll.style.setProperty('--attendance-gradient-end', cta.offsetTop + 'px');
-}
-
-// .attendance-cta-row 하단 ~ .attendance-month 상단, 실측 offsetTop 기준 정중앙에 아이콘 배치
-function positionAttendanceCalIcon() {
-  const icon = document.querySelector('.attendance-cal-icon');
-  const cta = document.querySelector('.attendance-cta-row');
-  const month = document.getElementById('attendance-month');
-  if (!icon || !cta || !month) return;
-  const ctaBottom = cta.offsetTop + cta.offsetHeight;
-  const monthTop = month.offsetTop;
-  const mid = (ctaBottom + monthTop) / 2;
-  icon.style.top = (mid - icon.offsetHeight / 2) + 'px';
-}
-
 // 데스크탑 마우스 드래그로도 가로스크롤 가능하게 (터치는 overflow-x:auto가 기본 처리)
 function initGridMouseDrag(grid) {
   if (grid._dragInit) return;
@@ -207,7 +255,30 @@ document.addEventListener('DOMContentLoaded', async () => {
   const shell = document.querySelector('.app-shell');
   if (shell) shell.classList.add('project-enter');
 
+  if (_attFromLaunch) {
+    // 첫 접속: 닫기는 X. 오늘 이 페이지를 한 번 보여줬다고 기록(onboarding.js goToHome 판정용 — 날짜 형식 그대로)
+    document.getElementById('dm-back-icon')?.setAttribute('data-lucide', 'x');
+    try { localStorage.setItem('chorditor_dm_cleared_date', new Date().toISOString().slice(0, 10)); } catch (_) {}
+  }
   lucide.createIcons();
+
+  await dmSyncPersona();      // 티어(시작 레벨)가 페르소나로 정해지므로 가장 먼저 — 새 기기·승급 직후 낡은 로컬 값 방지
+  await dmEnsureAttended();   // 미션을 이미 끝냈는데 도장이 안 찍혔다면(보고 도중 앱이 꺼진 경우 등) 여기서 찍음
+  const state = await loadAttendanceState();
+  const pending = _dmPendingStamp();
+
+  // 첫 접속인데 오늘 출석을 이미 마쳤다면(연출도 이미 봤다면) 이 페이지를 건너뜀
+  if (_attFromLaunch && state.doneToday && !pending) { location.replace('home.html'); return; }
+
+  _attInfo = state;
+  _attDoneToday = pending ? false : state.doneToday;   // 연출 전엔 아직 출석 전으로 보여줌
+  const stampedShown = pending ? pending.day - (pending.advanced ? 1 : 0) : state.day;
+
+  renderMissions();
+  renderAttendanceMonth();
+  renderAttendanceCalendar(stampedShown);
+  renderAttendanceStatus();
+  renderAttendanceMakeup();
 
   const cover = document.getElementById('page-cover');
   if (cover) {
@@ -217,27 +288,5 @@ document.addEventListener('DOMContentLoaded', async () => {
     });
   }
 
-  renderAttendanceMonth();
-  renderAttendanceCta();
-  positionAttendanceCalIcon();
-  positionAttendanceGradient();
-
-  const state = await loadAttendanceState();
-  _attDoneToday = state.doneToday;
-  _attCanMakeup = state.canMakeup;
-  renderAttendanceCalendar();
-  renderAttendanceStatus();
-  renderAttendanceMakeup();
-  // 달력이 실제 도장 수로 새로 그려지면서 폭이 바뀔 수 있어 위치 재계산
-  positionAttendanceCalIcon();
-  positionAttendanceGradient();
-
-  let _resizeTimer = null;
-  window.addEventListener('resize', () => {
-    clearTimeout(_resizeTimer);
-    _resizeTimer = setTimeout(() => {
-      positionAttendanceCalIcon();
-      positionAttendanceGradient();
-    }, 150);
-  });
+  if (pending) setTimeout(() => { _dmPlayStamp(pending); }, 600);   // 페이지가 보인 뒤 도장 연출
 });

@@ -1939,6 +1939,7 @@ function advanceQuestion() {
 // ── 세션 stats 저장 ──────────────────────────────────────────
 function saveSessionStats() {
   const levelId = _currentLevel;
+  if (typeof dailyMissionReport === 'function') dailyMissionReport('quiz', levelId);   // 일일 미션: 코드맞추기 세션 완료
   const key     = `quiz_stats_level${levelId}`;
   const all     = loadLevelStats(levelId);
   const stats   = all[_currentMode];

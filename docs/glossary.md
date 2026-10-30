@@ -34,9 +34,8 @@
 | 노트 | Songs | 曲 | Canciones | "노트"는 음표와 혼동되므로 Songs. 새 노트→New Song, 노트에 저장→Save to Songs |
 | 튜너 / 메트로놈 | Tuner / Metronome | チューナー / メトロノーム | Afinador / Metrónomo | |
 | 나의 기타 여정 | Guitar Roadmap | ギターロードマップ | Mi Camino con la Guitarra | 영어·일본어는 커리큘럼 성격에 맞춰 Roadmap(짧고 뜻이 분명). 스페인어는 그 언어 작업 때 다시 볼 것 |
-| 오늘의 미션 | Daily Mission | デイリーミッション | Reto Diario | 스페인어는 misión/reto/desafío가 비슷해서 Daily=Reto, Quests=Misiones, Ear=Desafío로 분리 |
+| 오늘의 미션 | Daily Mission | デイリーミッション | Reto Diario | 스페인어는 misión/reto/desafío가 비슷해서 Daily=Reto, Quests=Misiones, Ear=Desafío로 분리. 2026-10-31 "출석체크"를 이 용어로 통합(홈 라벨·출석 페이지 모두 오늘의 미션, 출석은 미션 2개 완료로 찍힘) |
 | 훈련 루틴 | Daily Routine | 毎日の練習ルーティン | Rutina Diaria | |
-| 출석체크 | Daily Check-in | 出席チェック | Check-in Diario | 일본어 캐주얼 톤 대안: ログボ. 스페인어 대안: Asistencia Diaria(학교 출석 느낌) |
 | 퀘스트 / 경험치 | Quests / XP | クエスト / 経験値 | Misiones / XP | |
 | 초대코드 | Invite Code | 招待コード | Código de Invitación | |
 

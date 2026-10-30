@@ -478,7 +478,7 @@
 * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; user-select: none; -webkit-user-select: none; }
 
 /* ?�이지 ?�환 �???배경 ?�리�?방�? — body?� ??? --bg ?�용(?�이 미묘???�르�?top-bar/컨텐�?경계 ?�선?�로 비침) */
-html { background: var(--bg); }
+html { background: var(--bg); touch-action: manipulation; }   /* 더블탭 확대 전역 차단(보류 상태 — 화면 확대 요구가 있으면 이 선언과 shared.js _doubleTapZoomReset을 같이 걷는다). 스크롤·핀치 확대는 그대로. 안쪽 요소의 touch-action(pan-x 등)은 이 값과 교집합으로 계산돼 영향 없음 */
 
 body {
   background: var(--bg);
@@ -784,14 +784,15 @@ button, input, select, textarea {
   color: var(--text-primary);
 }
 
+/* 피크바 — 뒤쪽 카드(흰 알약 배경·그림자)는 2026-10-30 전역 제거. 좌우 패딩도 0: 카드 안쪽 여백이 없어졌으니 내용(숫자·아이콘)이 그리드 끝선에 바로 닿게 */
 .topbar-currency {
   display: flex;
   align-items: center;
   gap: 10px;
-  background: #fff;
+  background: none;
   border-radius: 999px;
-  padding: 0 10px;
-  box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+  padding: 0;
+  box-shadow: none;
 }
 
 
@@ -3477,7 +3478,7 @@ canvas {
 }
 
 .project-title-bar .project-name-input {
-  font-size: 20px;
+  font-size: 16px;   /* 1~2단계(모바일·태블릿, ~768px) — 우측 버튼 그룹 때문에 제목 자리가 좁아 20px면 많이 잘림 */
   font-weight: 700;
   width: 100%;
   height: 100%;
@@ -3488,6 +3489,10 @@ canvas {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+/* 3단계 이상(큰 태블릿~데스크탑, 769px~)은 20px */
+@media (min-width: 769px) {
+  .project-title-bar .project-name-input { font-size: 20px; }
 }
 
 /* 타이틀바 우측 버튼 그룹 (삭제·공유·완료/편집 — row1-right에서 이동) */
@@ -5492,12 +5497,19 @@ canvas {
   opacity: 0;
   pointer-events: none;
   transform: translateX(10px);
-  transition: opacity 0.2s ease, transform 0.25s cubic-bezier(0.34, 1.56, 0.64, 1);
+  /* 숨겨져 있을 땐 자리를 차지하지 않음 — opacity만 0이면 버튼 3~4개 폭(약 100~140px)이 이름 자리를 먹어 노트 이름이 일찍 잘렸다.
+     폭 0 + 항목 gap(8px) 하나 상쇄(-8px) → 이름과 케밥 사이는 gap 한 번만 남음. 열리면 폭이 펼쳐지며 이름이 줄어듦 */
+  max-width: 0;
+  margin-left: calc(var(--space-2) * -1);
+  overflow: hidden;
+  transition: opacity 0.2s ease, transform 0.25s cubic-bezier(0.34, 1.56, 0.64, 1), max-width 0.25s ease, margin-left 0.25s ease;
 }
 .projects-item.show-actions .projects-item-actions {
   opacity: 1;
   pointer-events: auto;
   transform: translateX(0);
+  max-width: 160px;   /* 버튼 4개(스플릿 32px 기준 140px)가 다 들어가는 상한 */
+  margin-left: 0;
 }
 
 .projects-item-actions button {
@@ -6196,18 +6208,6 @@ canvas {
   animation-delay: 1.25s;
 }
 
-/* 데일리 미션 게이트 — 하단 버튼 2개(나중에/지금) 가로 배치, 폭 균등분배.
-   .ob-bottom-actions(flex-direction:column, 파일 뒤쪽에 정의)가 같은 특이도라 순서상 이겨버려서
-   두 클래스 조합 셀렉터로 특이도를 높임 */
-.ob-bottom-actions.dm-gate-btn-row {
-  flex-direction: row;
-  gap: 10px;
-}
-.dm-gate-btn-row .cd-btn {
-  flex: 1;
-  width: auto; /* 고정폭 토큰 대신 가로 2분할(행 폭에 맞춰 균등분배) */
-}
-
 /* Card List 컴포넌트 (docs/style-guide.md §13 예정) — 기본값은 아이콘 없이 텍스트만,
    .cd-cardlist-item--icon variant에서 아이콘 추가 */
 .cd-cardlist {
@@ -6258,193 +6258,193 @@ canvas {
 .cd-cardlist-item--blue.cd-cardlist-item--icon i   { color: #4F7CFF; }
 .cd-cardlist-item--purple.cd-cardlist-item--icon i { color: #7B52CC; }
 
-/* "오늘의 미션" 타이틀 — 폰트 계층을 §2 Headline 토큰으로 교체(고정 22px/800 대신).
-   .ob-title은 다른 온보딩 스텝과 공유하는 클래스라 #dm-gate 스코프로만 덮어씀 */
-#dm-gate .ob-title {
+/* ── 오늘의 미션 + 출석 통합 페이지 (attendance.html, 2026-10-31) ──────────────
+   뼈대 = §11(cd-topbar / cd-main / cd-head / cd-body). 폰트·여백은 토큰만.
+   글자 위계: 타이틀 24/700(.cd-title) > 안내문 18/600 = 섹션 제목 18/600 > 미션명 16/600 > 상태·버튼 14/600 > 조건·보조 13/400.
+   묶음(§5 마진 = 묶음 기준값 16px): 한 묶음 안은 16px 이하(4·8·12·16), 묶음 사이(헤드 ↔ 미션 24px, 미션 ↔ 출석 32px)는 마진보다 넓게. */
+#attendance-page { letter-spacing: var(--tracking-base); }
+#attendance-page .cd-body { min-height: auto; flex: 0 0 auto; }   /* 내용이 길면 cd-main이 스크롤(§11-3a) */
+
+/* 타이틀 왼쪽 달력 아이콘 — 아이콘 28px, 글자와 8px 간격(한 묶음) */
+#attendance-page .cd-title {
   display: flex;
   align-items: center;
-  gap: 10px;
-  font-size: var(--font-headline);
-  font-weight: var(--weight-bold);
+  gap: var(--space-2);
 }
-.ob-title-icon {
-  width: 1em;
-  height: 1em;
+.dm-title-icon {
+  width: var(--space-7);
+  height: var(--space-7);
   flex-shrink: 0;
   object-fit: contain;
 }
-/* 설명 텍스트 — §2 Body 토큰으로 교체(고정 20px/700 대신) */
-#dm-gate .ob-step8-desc {
-  font-size: var(--font-body);
-  font-weight: var(--font-body-bold);
-  line-height: var(--leading-normal); /* 150%, §2 기존 토큰 재사용 */
-}
-.dm-gate-desc-accent { color: var(--blue); }
 
-/* 카드리스트 위 짧은 안내 텍스트 */
-#dm-gate .ob-step8-icon-wrap {
-  flex-direction: column;
-  gap: 10px;
-}
-.dm-cardlist-label {
-  width: 100%;
-  font-size: var(--font-label-lg);
-  font-weight: var(--weight-regular);
-  color: var(--text-secondary);
-  animation: ob-rise-in 0.7s cubic-bezier(0.16, 1, 0.3, 1) both;
-  animation-delay: 0.25s;
-}
-
-/* 헤드라인/본문/카드리스트 순차 등장(기존 ob-rise-in 키프레임 재사용, line ~6009) —
-   하단 버튼 2개는 애니메이션 대상 아님 */
-#dm-gate .ob-title {
-  animation: ob-rise-in 0.7s cubic-bezier(0.16, 1, 0.3, 1) both;
-}
-#dm-gate .ob-step8-desc {
-  animation: ob-rise-in 0.7s cubic-bezier(0.16, 1, 0.3, 1) both;
-  animation-delay: 0.15s;
-}
-#dm-gate .cd-cardlist-item {
-  animation: ob-rise-in 0.7s cubic-bezier(0.16, 1, 0.3, 1) both;
-  animation-delay: 0.3s;
-}
-#dm-gate .cd-cardlist-item:nth-child(2) { animation-delay: 0.4s; }
-#dm-gate .cd-cardlist-item:nth-child(3) { animation-delay: 0.5s; }
-
-/* 데일리 미션 게이트 — 영역 폭을 그리드 시스템(docs/style-guide.md §5) 컬럼 꽉채움에 맞춤.
-   .ob-main은 다른 온보딩 스텝과 공유하는 클래스라 여기서 직접 못 건드리고 #dm-gate 스코프로 덮어씀.
-   좌우 padding만 --grid-margin으로 교체(고정 32px 대신) — 5단계(모바일~데스크탑)+Fold/Flip은
-   --grid-margin 토큰 자체가 이미 대응하므로 별도 분기 불필요. 데스크탑(1600px~)은
-   --grid-container-max(1440px 캡)로 중앙정렬. */
-#dm-gate .ob-main {
-  width: 100%;
-  max-width: var(--grid-container-max);
-  flex: 1; /* 기본 .ob-main과 동일(flex-grow로 남는 세로공간 채움) — min/max-height로 범위만 제한 */
-  min-height: 560px;
-  max-height: 850px; /* 모바일(360~480px) 기준 560~850px 범위 */
-  margin-inline: auto;
-  margin-block: auto; /* max-height 캡에 걸려 남는 세로공간을 위아래 균등분배(수직 중앙정렬).
-    justify-content:center 대신 auto margin을 쓰는 이유: 화면이 min-height보다 더 잘려서
-    넘칠 때 auto margin은 0으로 수렴해 콘텐츠 위쪽이 그대로 보임(스크롤로 아래 확인 가능) —
-    justify-content:center는 이 경우 위아래를 똑같이 밀어서 위쪽이 화면 밖으로 잘려버림 */
-  padding-left: var(--grid-margin);
-  padding-right: var(--grid-margin);
-  box-sizing: border-box;
-}
-/* 태블릿(481~768px) — 560~960px 범위 */
-@media (min-width: 481px) and (max-width: 768px) {
-  #dm-gate .ob-main {
-    min-height: 560px;
-    max-height: 960px;
-  }
-}
-/* 큰태블릿(769~1079px) — 600~1200px 범위 */
-@media (min-width: 769px) and (max-width: 1079px) {
-  #dm-gate .ob-main {
-    min-height: 600px;
-    max-height: 1200px;
-  }
-}
-/* 태블릿가로/랩탑(1080~1599px) — 최소 700px, 상한 없음(공간 부족할 이유가 없는 구간) */
-@media (min-width: 1080px) and (max-width: 1599px) {
-  #dm-gate .ob-main {
-    min-height: 700px;
-    max-height: none;
-  }
-}
-/* 데스크탑(1600px~) — min/max 제한 없이 순수 flex(부모 높이 그대로 채움) */
-@media (min-width: 1600px) {
-  #dm-gate .ob-main {
-    min-height: 0;
-    max-height: none;
-  }
-}
-/* .ob-overlay--step는 온보딩 페르소나선택 등 카드형 스텝 좁힘용(769px~ col2~7/col3~10) —
-   게이트는 컬럼 꽉채움이 목표라 이 좁힘을 무효화. 폭 제어는 위 #dm-gate .ob-main 한 곳에만 맡김 */
-#dm-gate.ob-overlay--step {
-  max-width: none !important;
-  margin-left: 0 !important;
-  margin-right: 0 !important;
-}
-/* .onboarding-overlay 자체에도 "폰프레임 400px 캡"(width>=481·height>=600, line ~15162 —
-   그리드와 무관한 독립 정책, 로그인/스텝 카드를 데스크탑에서도 폰 폭으로 고정하는 용도)이
-   걸려있어서 게이트도 그 캡을 그대로 물려받았음. 게이트는 그리드 컬럼 꽉채움이 목표라 무효화 */
-#dm-gate.onboarding-overlay {
-  max-width: none !important;
-  margin-inline: 0 !important;
-}
-/* 화면이 .ob-main min-height보다 잘려서 넘칠 때 항상 스크롤 가능하게. 기본 .onboarding-overlay는
-   touch-action:none(스와이프로 스텝 넘어가는 걸 막는 용도)이라 게이트에서는 풀어줘야 함 */
-#dm-gate {
-  touch-action: pan-y;
-  overflow-y: auto;
-  overflow-x: hidden;
-  /* attendance.html과 동일한 상단 그라데이션 — .ob-step8-icon-wrap(카드리스트 시작점)
-     지점에서 정확히 끝나도록 daily-mission.js가 --dm-gate-gradient-end를 실측해서 채움 */
-  background: linear-gradient(to bottom, rgba(58, 46, 36, 0.04), var(--bg) var(--dm-gate-gradient-end, 300px));
-}
-
-/* 출석체크 페이지 — training-scroll(범용 gap:32px 등 무관한 규칙 포함) 대신, #dm-gate와
-   동일한 역할의 전용 스크롤 컨테이너를 직접 정의. #dm-gate가 그랬듯 .attendance-scroll이
-   유일한 스크롤/flex 컨테이너이고, .attendance-main이 #dm-gate .ob-main과 동일하게
-   그 안의 "남는 세로공간을 차지하는 단일 클램프 블록" 역할을 함. 형제 요소(title/desc)는
-   gap 토큰 없이 개별 margin으로만 간격을 준다 — training-scroll의 gap이 여기 섞이면
-   min/max-height 클램프 계산이 전부 어긋남(2026-08-25 실수) */
-/* #attendance-page(ID)라 뒤에 오는 ".main-content > .top-bar{background:var(--bg)}"(line
-   ~17432)보다 특이도가 높아서 그대로 이김 — main-content 자체는 건드리지 않음 */
-#attendance-page .cd-topbar {
-  background: rgba(58, 46, 36, 0.04);
-}
-/* attendance-scroll 자체는 폭 제한 없이 main-content 전체를 채움(그라데이션이 좌우까지
-   자연스럽게 이어짐) — 그리드 폭 캡(--grid-container-max)은 안쪽 .attendance-scroll-inner로
-   옮김. main-content/top-bar 등 공용 클래스는 안 건드리고 이 페이지 소유 클래스 안에서 해결 */
-#attendance-page .attendance-scroll {
-  width: 100%;
-  flex: 1;
-  min-height: 0;
-  position: relative; /* .attendance-cal-icon 절대배치 기준점 */
-  /* 그라데이션 끝 지점(--attendance-gradient-end)은 attendance.js가 attendance-cta-row의
-     실측 offsetTop으로 채움 — 220px 같은 추측값 대신 실제 그 지점에서 정확히 끝남 */
-  background: linear-gradient(to bottom, rgba(58, 46, 36, 0.04), var(--bg) var(--attendance-gradient-end, 220px));
-  box-sizing: border-box;
-  overflow-y: auto;
-  overflow-x: hidden;
-  touch-action: pan-y;
-  display: flex;
-  flex-direction: column;
-  padding-top: 20px;
-  padding-bottom: calc(24px + env(safe-area-inset-bottom, 0px));
-}
-#attendance-page .attendance-scroll-inner {
-  width: 100%;
-  max-width: var(--grid-container-max);
-  margin-inline: auto;
-  box-sizing: border-box;   /* 좌우 인셋은 cd-main(--cd-inset)이 담당 — 여기서 또 주면 이중 인셋 */
-  display: flex;
-  flex-direction: column;
-  flex: 1;
-}
-/* min/max 클램프 없이 순수 flex — attendance-scroll에서 title+desc가 차지한 나머지를
-   정확히 그대로 채움(딱 맞춤). 넘칠 때만 attendance-scroll의 overflow-y:auto로 스크롤 */
-#attendance-page .attendance-main {
-  width: 100%;
-  flex: 1;
-  margin-top: 150px; /* .attendance-cal-icon(절대배치, 120px) 들어갈 자리 확보 */
-  /* min-height 지정 안 함(기본값 auto) — 콘텐츠(보충출석+카드)보다 작아지지 않게 해서
-     justify-content:center가 음수공간을 위아래로 밀어 겹치는 걸 방지. 남는 공간이
-     있을 때만 flex:1로 채우고 중앙정렬, 부족하면 attendance-scroll이 스크롤로 흡수 */
-  display: flex;
-  flex-direction: column;
-  justify-content: center;
-  box-sizing: border-box;
-}
-.attendance-title {
-  display: block;
-  width: 100%;
-  margin-bottom: 24px;
-  font-size: var(--font-headline);
-  font-weight: var(--weight-bold);
+.dm-desc {
+  margin: var(--space-2) 0 0;
+  font: var(--type-title);
   color: var(--text-primary);
+}
+.dm-desc-accent { color: var(--blue); }
+
+/* 미션 4개 — 훈련마다 연한 파스텔 카드(2026-10-31 사용자 지정). 카드 사이 8px = 한 묶음, 카드 안 12px */
+.dm-missions {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+.dm-mission {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-4);
+  border-radius: var(--cd-cardlist-radius);
+}
+.dm-mission--blue   { background: var(--pastel-blue); }
+.dm-mission--red    { background: var(--pastel-red); }
+.dm-mission--purple { background: var(--pastel-purple); }
+.dm-mission--green  { background: var(--pastel-green); }
+.dm-mission-info {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+.dm-mission-name {
+  font: var(--type-title-sm);
+  color: var(--text-primary);
+}
+.dm-mission-cond {
+  font: var(--type-body-sm);
+  color: var(--text-secondary);
+}
+.dm-mission-bar {
+  height: var(--space-1);
+  margin-top: var(--space-1);
+  border-radius: 999px;
+  background: var(--surface);   /* 파스텔 카드 위에서 흰 트랙 */
+  overflow: hidden;
+}
+.dm-mission-bar > span {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: var(--blue);
+}
+.dm-mission-go {
+  position: relative;
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  height: var(--space-8);
+  padding: 0;
+  border: none;
+  background: transparent;   /* 칩 없이 글자 + 화살표만 */
+  color: var(--text-primary);
+  font: var(--type-label-lg);
+  font-weight: var(--weight-semibold);
+  letter-spacing: var(--tracking-base);
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+.dm-mission-go::before { content: ""; position: absolute; inset: -6px -8px; }   /* 터치 영역 44px 확보 */
+.dm-mission-go svg { width: var(--space-4); height: var(--space-4); }
+.dm-mission-done {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  color: var(--blue);
+  font: var(--type-label-lg);
+  font-weight: var(--weight-semibold);
+}
+.dm-mission-done svg { width: var(--space-5); height: var(--space-5); }
+
+/* 출석 진행바 — 셀을 88px → 44px로 줄여 한 번에 보이는 칸을 3.5개 → 약 6.5개로 늘림(가로 스크롤, 오늘 칸 가운데) */
+.dm-att { margin-top: var(--space-8); }
+.dm-att-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+}
+.dm-att-title {
+  margin: 0;
+  font: var(--type-title);
+  color: var(--text-primary);
+}
+.dm-cal {
+  --acc-cell-size: 44px;
+  margin-top: var(--space-3);
+  touch-action: pan-x pan-y;   /* 달력 위에서 시작한 세로 스와이프도 페이지가 스크롤되게(기본 pan-x는 막음) */
+}
+.dm-cal .acc-cell { border-radius: var(--space-2); }
+.dm-cal .acc-cell--today:not(.acc-cell--done) { box-shadow: inset 0 0 0 2px var(--blue); }   /* 오늘 칸 표시는 도장이 찍히기 전까지만 — 찍힌 뒤엔 도장이 대신함 */
+.dm-cal .acc-day-num {
+  font: var(--type-label-lg);
+  font-weight: var(--weight-semibold);
+}
+.dm-cal .acc-box-icon {
+  width: 55%;
+  height: 55%;
+  margin-bottom: var(--space-2);
+}
+.dm-cal .acc-box-count {
+  bottom: var(--space-1);
+  font: var(--type-caption);
+  font-weight: var(--weight-bold);
+  line-height: 1;
+  -webkit-text-stroke: 1.5px #FCE4A0;
+}
+.dm-att-status {
+  margin: var(--space-4) 0 0;
+  text-align: center;
+  font: var(--type-label-lg);
+  font-weight: var(--weight-semibold);
+  color: var(--text-secondary);
+}
+.dm-att-status--done { color: var(--blue); }
+.dm-makeup-row {
+  display: flex;
+  justify-content: center;
+  margin-top: var(--space-3);
+}
+/* 보충출석 — 알약 모양. 글자와 숫자 배지를 flex로 가운데 맞춤(inline 기준선 정렬이면 배지가 글자보다 위/아래로 어긋남).
+   .cd-btn 기본 자간(+0.04em)은 마지막 글자 뒤에 여백이 붙어 글자가 왼쪽으로 쏠려 보여서 앱 공통 자간으로 맞춤 */
+#attendance-makeup-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+  padding-block: 0;
+  border-radius: 999px;
+  line-height: 1;
+  letter-spacing: var(--tracking-base);
+}
+.dm-makeup-count[hidden] { display: none; }
+.dm-makeup-count {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: var(--space-5);
+  height: var(--space-5);
+  padding-inline: var(--space-1);
+  box-sizing: border-box;
+  border-radius: 999px;
+  background: #fff;
+  color: var(--brand);
+  font: var(--type-label-sm);
+  font-weight: var(--weight-semibold);
+  line-height: 1;
+}
+.dm-att-hint {
+  min-height: calc(var(--font-body-sm) * var(--leading-normal));   /* 문구가 비어도 높이 유지 — 완료 전환 때 화면이 밀리지 않게 */
+  margin: var(--space-2) 0 0;
+  text-align: center;
+  font: var(--type-body-sm);
+  color: var(--text-secondary);
 }
 
 /* ── 미션 세션 공용 셸(mission-session.html) — attendance-page와 동일한
@@ -6756,7 +6756,7 @@ canvas {
   width: 100%;
 }
 /* ── 완료 결산 뷰(뼈대) ──────────────────────────────────────
-   하단 2버튼 가로 균등분할은 daily-mission.html의 .dm-gate-btn-row와 동일 로직 —
+   하단 2버튼 가로 균등분할 —
    .ms-bottom-actions는 기본이 버튼 1개 full-width라 조합 셀렉터로 특이도 높여서 덮음 */
 .ms-result {
   width: 100%;
@@ -7825,124 +7825,6 @@ canvas {
   width: 90%;
   height: 90%;
   transform: translateX(1.5%); /* 프렛보드가 좌측 프렛번호 여백을 포함해 그려져 광학중심이 좌측으로 치우침 — 보정 */
-}
-.attendance-cal-icon {
-  /* attendance-cta-row 하단 ~ attendance-main(.attendance-month) 상단의 실측 절대위치
-     중간에 JS로 배치(attendance.js: positionAttendanceCalIcon) — 마진 추측 아님 */
-  position: absolute;
-  left: 50%;
-  transform: translateX(-50%);
-  width: 120px;
-  height: 120px;
-  object-fit: contain;
-}
-.attendance-desc {
-  width: 100%;
-  margin: 0;
-  font-size: var(--font-body);
-  font-weight: var(--font-body-bold);
-  line-height: var(--leading-normal);
-  color: var(--text-primary);
-}
-.attendance-status {
-  display: block;
-  width: 100%;
-  margin-top: 16px;
-  text-align: center;
-  font-size: var(--font-label-lg);
-  font-weight: 600;
-  color: var(--text-secondary);
-}
-.attendance-status--done { color: var(--blue); }
-.attendance-makeup-row {
-  display: flex;
-  justify-content: center;
-  width: 100%;
-  margin-top: 12px;
-}
-.attendance-makeup-btn {
-  display: inline-flex;
-  align-items: center;
-  gap: 7px;
-  border: none;
-  border-radius: 999px;
-  background: var(--blue);
-  color: #fff;
-  font-family: 'Pretendard', 'Noto Sans JP', sans-serif;
-  font-size: 15px;
-  font-weight: 700;
-  padding: 10px 16px;
-  cursor: pointer;
-  -webkit-tap-highlight-color: transparent;
-}
-.attendance-makeup-count {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  min-width: 20px;
-  height: 20px;
-  padding: 0 5px;
-  box-sizing: border-box;
-  border-radius: 10px;
-  background: #fff;
-  color: var(--blue);
-  font-size: 12px;
-  font-weight: 800;
-  text-align: center;
-}
-.attendance-desc-block {
-  display: flex;
-  flex-direction: column;
-  width: 100%;
-}
-/* 본문(desc-block)과 날짜박스(attendance-main) 사이에서 버튼이 균등 간격으로 오도록
-   위아래 margin을 동일값으로 — desc-block/attendance-main 자체엔 margin을 안 준다 */
-.attendance-cta-row {
-  display: flex;
-  justify-content: flex-start;
-  width: 100%;
-  margin-block: 20px;
-}
-.attendance-cta-link {
-  display: inline-flex;
-  align-items: center;
-  gap: 2px;
-  border: none;
-  background: none;
-  padding: 4px 2px;
-  font-family: 'Pretendard', 'Noto Sans JP', sans-serif;
-  font-size: var(--font-body);
-  font-weight: 700;
-  color: var(--text-primary);
-  cursor: pointer;
-  -webkit-tap-highlight-color: transparent;
-}
-.attendance-cta-link-icon { width: 18px; height: 18px; }
-.attendance-month {
-  display: block;
-  width: 100%;
-  margin-bottom: 20px;
-  font-size: var(--font-title-lg);
-  font-weight: var(--weight-semibold);
-  color: var(--text-primary);
-  line-height: 1;
-  text-align: center;
-}
-
-/* 데일리 미션 게이트 — 가로회전 정의(2026-08-24 확정): width>=769px에서 height<500px이면
-   "세로로 긴 디바이스의 가로회전"으로 간주. 옛 폭 임계값(560px 등) 기반 낱개 스코프는 이
-   통일된 정의로 대체(게이트 스코프 한정 — 다른 페이지는 추후 순차 적용 예정).
-   콘텐츠를 억지로 늘리는 대신 자연스러운 높이로 쌓이도록 전환 */
-@media (min-width: 769px) and (max-height: 499px) {
-  #dm-gate .ob-main {
-    flex: none;
-    margin-block: 0;
-    padding-top: 20px;
-    padding-bottom: 20px;
-  }
-  #dm-gate .ob-step8-icon-wrap {
-    flex: none;
-  }
 }
 
 /* 기�? 경력 ?�택 목록 */
@@ -14249,7 +14131,7 @@ canvas {
   overflow-x: auto;
   overflow-y: hidden;
   -webkit-overflow-scrolling: touch;
-  touch-action: pan-x; /* 부모(.attendance-scroll)가 pan-y라 그대로 두면 가로드래그 안 먹음 */
+  touch-action: pan-x; /* 부모가 세로 스크롤 컨테이너라 그대로 두면 가로드래그 안 먹음(출석 페이지 .dm-cal은 pan-x pan-y로 덮음) */
   scroll-snap-type: x proximity;
   padding-bottom: 4px;
 }
@@ -22096,7 +21978,7 @@ body.tut-lock .tut-allow * {
 .cd-topbar #topbar-currency .currency-icon-box img[src$="gift.png"] { width: var(--cd-peak-img-square); height: var(--cd-peak-img-square); }
 .cd-topbar #topbar-currency .currency-icon-box img[src$="peak.svg"] { width: auto; height: var(--cd-peak-img-tall); }
 .cd-topbar #topbar-currency .currency-count { font-size: var(--cd-peak-font); }
-.cd-topbar #topbar-currency { padding-left: var(--cd-peak-pad-x); padding-right: var(--cd-peak-pad-x); }
+.cd-topbar #topbar-currency { padding-left: 0; padding-right: 0; }   /* 카드 제거(2026-10-30) — 안쪽 여백 없음. 아래 첫·마지막 항목의 padding+음수 margin은 배치는 그대로 두고 터치 영역만 바깥으로 넓힘 */
 .cd-topbar #topbar-currency .currency-item:first-child { padding-left: var(--cd-peak-pad-x); margin-left: calc(var(--cd-peak-pad-x) * -1); }
 .cd-topbar #topbar-currency .currency-item:last-child { padding-right: var(--cd-peak-pad-x); margin-right: calc(var(--cd-peak-pad-x) * -1); }
 
@@ -24661,6 +24543,7 @@ html[lang="en"] .combo-v2-sort-sub { display: none; }
   pointer-events: none;   /* 닫힌 동안 클릭 차단 */
 }
 .combo-v2-lec.is-open { pointer-events: auto; }
+.combo-topbar:has(.ms-progress-track) .currency-item--peakbox { display: none; }   /* 문제 화면(가운데에 진행 막대)에선 피크 개수만 — 레벨 선택 화면에서만 피크상자도 표시 */
 .combo-topbar.is-lec .topbar-currency { visibility: hidden; }   /* 미니강의 중엔 피크 개수 숨김(자리는 유지해 탑바가 안 움직임) */
 .combo-v2-lec-body {
   background: var(--bg);
@@ -24727,6 +24610,8 @@ html[lang="en"] .combo-v2-sort-sub { display: none; }
   transition: transform var(--lec-spread) cubic-bezier(0.65, 0, 0.35, 1);
 }
 .lec-grid.is-spread .lec-stack { transform: scale(0.67); }
+/* 1장 끝 "D key 4도 세기": 음 덩어리를 원래 크기로 되돌려 첫 줄(스케일)을 또렷하게. transform은 레이아웃 높이를 안 바꿔서(3줄 자리가 처음부터 잡혀 있음) 아래·위 요소는 안 움직임 */
+.lec-grid.is-spread.is-count .lec-stack { transform: scale(1); }
 .lec-note, .lec-num, .lec-name {
   white-space: nowrap;
   letter-spacing: var(--tracking-base);
@@ -24785,7 +24670,7 @@ html[lang="en"] .combo-v2-sort-sub { display: none; }
 .lec2-grid.is-two .lec-col:nth-child(7) { grid-column: 6 / span 2; grid-row: 2; }
 .lec2-grid.is-flat .lec-stack { display: none; }   /* 음 줄은 이미 사라진 뒤라 자리도 접음(두 줄 배치 뒤 한 줄로 돌아와도 접힌 채) */
 /* 분류판으로 복사되어 날아가는 코드 이름 — 위 코드 줄의 글자 위치에서 분류판 칸 위치로 이동(JS flyCopy). 칸의 글자와 같은 크기, 파랑 강조 없이 원본과 같은 진한 글자색 그대로 */
-.lec2-fly { position: absolute; z-index: 1; pointer-events: none; white-space: nowrap; letter-spacing: var(--tracking-base); font: var(--type-title-lg); color: var(--text-primary); }
+.lec2-fly { position: absolute; z-index: 1; pointer-events: none; white-space: nowrap; will-change: transform; letter-spacing: var(--tracking-base); font: var(--type-title-lg); color: var(--text-primary); }
 .lec-name.is-in.is-dim, .lec-num.is-in.is-dim { opacity: 0.3; }
 .lec-rq .cc-sup { font-size: var(--font-caption); }   /* 도수의 (b5) 위첨자 — 품질(12px)의 0.6배는 7px라 너무 작아 최소 크기(11px)로 */
 /* 기능 분류판 — 해결 / 예비 / 긴장 3열. 머리글(기능 이름)이 핵심이라 가장 크게, 소제목(토닉 등)은 작고 옅게, 코드는 20px */
@@ -25073,12 +24958,13 @@ html[lang="en"] .combo-v2-sort-sub { display: none; }
 .lc7-dg.is-focus { color: var(--blue); }
 /* g층 — 3화음 4종(줄) × 7음 3종(열). 열 폭을 고정해 줄마다 이름 길이가 달라도 세로로 맞음 */
 #lc7-g { padding-top: var(--space-4); display: flex; justify-content: center; }
-.lc7-mx { display: grid; grid-template-columns: repeat(3, calc(var(--space-12) + var(--space-6))); row-gap: var(--space-3); justify-items: center; }
-.lc7-mx .lc7-it { font: var(--type-body-bold); }
+.lc7-mx { display: grid; grid-template-columns: repeat(3, calc(var(--space-12) * 2)); row-gap: var(--space-4); justify-items: center; }   /* 열 96px × 3 = 288px(무대 328px 안), 줄 간격 16px */
+.lc7-mx .lc7-it { font: var(--type-title-lg); }   /* 7th 코드 정리 — 16px에서 20px로 키움 */
 /* n층·d층·b층 — 음 줄(칸 하나 = 음이름 + 아래 번호). 정석 그룹 · 간격 · 텐션 그룹. 이름 줄은 그 아래(n) 또는 위(d·b) */
 .lc7-row { display: flex; justify-content: center; align-items: flex-start; column-gap: var(--space-3); }
 .lc7-sp { flex: none; width: var(--space-4); }
 .lc7-c { display: flex; flex-direction: column; align-items: center; gap: var(--space-1); min-width: var(--space-6); }
+.lc7-c.lc6-off, .lc7-cl.lc6-off { display: none; }   /* .lc6-off(display:none)가 위쪽(파일 앞)에 있어 뒤에 나오는 .lc7-c·.lc7-cl의 display:flex에 밀려 안 먹었음 → 지운 칸(CM7의 F, G7sus4의 C)이 빈 자리로 남아 D·A 사이가 벌어짐. 특이도를 올려 확실히 숨김 */
 .lc7-l { font: var(--type-title-lg); height: calc(var(--font-title-lg) * 1.2); transition: opacity var(--lec-fade) cubic-bezier(0.33, 1, 0.68, 1), color 0.15s ease; }
 .lc7-c.is-blank .lc7-l { opacity: 0; }   /* 비어 있는 2·4·6번째 자리 — 번호만 보임 */
 .lc7-d { font: var(--type-label-sm); font-style: normal; color: var(--text-muted); height: calc(var(--font-label-sm) * 1.2); }
@@ -25088,7 +24974,9 @@ html[lang="en"] .combo-v2-sort-sub { display: none; }
 .lc7-nms .lc7-it { font: var(--type-title-lg); }
 #lc7-d, #lc7-b { padding-top: var(--space-4); display: flex; flex-direction: column; align-items: center; }
 .lc7-gn { font: var(--type-title-lg); height: calc(var(--font-title-lg) * 1.2); margin-bottom: var(--space-3); }
-#lc7-d .lc7-row + .lc7-row { margin-top: var(--space-4); }
+#lc7-d .lc7-alt { margin-top: var(--space-4); display: flex; flex-direction: column; align-items: stretch; }   /* 얼터드 4개 + 아래 꺾쇠·이름을 한 묶음으로(꺾쇠 폭 = 4개 줄 폭) */
+.lc7-bkl { display: block; height: var(--space-2); margin: var(--space-2) var(--space-2) 0; border: 2px solid var(--text-secondary); border-top: 0; }   /* 꺾쇠 ⎵ — 위가 열린 ㄷ자 */
+.lc7-bkt { text-align: center; margin-top: var(--space-1); font: var(--type-label-lg); color: var(--blue); }   /* "얼터드 텐션" — 문구의 강조(파랑)와 같음 */
 /* sd·p3·sb층 — 세컨더리 5개 / 타겟 쪽 한 쌍 + 텐션 / 대리 도미넌트 이름 */
 #lc7-sd { padding-top: var(--space-12); display: flex; justify-content: center; column-gap: var(--space-5); }
 #lc7-sd .lc7-it, .lc7-pr .lc7-it, #lc7-sb .lc7-it { font: var(--type-title-lg); }
@@ -25097,20 +24985,68 @@ html[lang="en"] .combo-v2-sort-sub { display: none; }
 .lc7-ch { margin-top: var(--space-6); display: flex; column-gap: var(--space-6); }
 .lc7-ch .lc7-it { font: var(--type-title); }
 #lc7-sb { padding-top: var(--space-12); display: flex; justify-content: center; }
-/* 표(s1·s2·s3) — 가로 배치: 한 열(.lc7-cl) = 코드 하나(.lc7-hd, 맨 위) + 그 아래 텐션 코드(정석은 진하게, 변형은 .is-var로 옅게), 열 안은 왼쪽 정렬. 열이 더 많아 무대 폭(328px)보다 넓으면 JS(fit7)가 .lc7-sc를 통째로 줄임(범례는 표 밖이라 안 줄어듦). 글자는 label-lg */
+/* 표(s1·s2·s3) — 한 열(.lc7-cl, display: contents) = 코드 하나(.lc7-hd, 맨 위) + 그 아래 쓸 수 있는 텐션 '음'. 같은 숫자(9·11·13) 줄(.lc7-tg)은 코드가 달라도 같은 높이에 맞춰짐(grid, 열 수는 마크업의 grid-template-columns).
+   글자 색: 내추럴 텐션(.is-nat) = 파랑, 얼터드 텐션(.is-alt) = 코랄 레드(7장의 긴장음 색과 같음). 열이 더 많아 무대 폭(328px)보다 넓으면 JS(fit7)가 .lc7-sc를 통째로 줄임(범례는 표 밖이라 안 줄어듦). 글자는 title(18px)·머리글 title-lg(20px) — 줄여도 14px 이상 */
 .lc7-tw { padding-top: var(--space-4); display: flex; flex-direction: column; align-items: center; }
 .lc7-sc { flex: none; transform-origin: top center; }
-.lc7-tbl { display: flex; justify-content: center; align-items: flex-start; column-gap: var(--space-3); }
-.lc7-cl { display: flex; flex-direction: column; align-items: flex-start; row-gap: var(--space-1); }
-.lc7-tc { font: var(--type-label-lg); font-weight: var(--weight-semibold); }
-.lc7-hd { font: var(--type-body-bold); margin-bottom: var(--space-1); }   /* 열 맨 위 코드 이름 */
-.lc7-sl { font: var(--type-label-sm); color: var(--text-muted); }   /* 세컨더리의 타겟·대리 도미넌트의 원래 도미넌트 */
-.lc7-lg { margin-top: var(--space-4); display: flex; column-gap: var(--space-4); font: var(--type-label-sm); }
-.lc7-lv { opacity: 0.5; }
+.lc7-tbl { display: grid; justify-content: center; align-items: start; column-gap: var(--space-3); row-gap: var(--space-2); }
+.lc7-cl { display: contents; }
+.lc7-tg { display: flex; flex-wrap: wrap; justify-content: center; column-gap: var(--space-2); max-width: calc(var(--space-12) + var(--space-6)); }   /* 한 칸 최대 72px — G7의 얼터드 4개는 두 줄(b9 #9 / #11 b13)로 접힘 */
+.lc7-tc.is-nat, .lc7-lg .is-nat { color: var(--blue); }   /* 내추럴 텐션 — C key 다이어토닉에 속하는 음 */
+.lc7-tc.is-alt, .lc7-lg .is-alt { color: var(--icon-coral); }   /* 얼터드 텐션 — 속하지 않는 음 */
+.lc7-tc { font: var(--type-title); }
+.lc7-hd { font: var(--type-title-lg); justify-self: center; margin-bottom: var(--space-1); }   /* 열 맨 위 코드 이름 */
+.lc7-lg { margin-top: var(--space-4); display: flex; column-gap: var(--space-4); font: var(--type-label-lg); }
+/* ── 챕터 8 강의 무대(.lc8-*) — 챕터 3~7의 층 방식(.lec3-l)·1장 격자(.lec-grid)·7장 표(.lc7-tw/.lc7-tbl)·스케일 칸(.lc7-row/.lc7-c)을 그대로 쓰고 층만 더함:
+   a 마이너 스케일 + 4줄 쌓기 / t 메이저 → 마이너 7코드 목록 / k 나란한 조(C 메이저 → A 마이너 7코드 목록) / sa·sb 스케일 칸 두 벌(b 사라짐 / 하모닉) / n·h 7코드 목록(이름 + 도수) / p Gm7 → Cm7 / song 작은별 악보 */
+#lc8-a .lec-grid { margin-inline: auto; }   /* 1장 격자는 flex 가운데 정렬 무대용이라 층 안에선 직접 가운데로 */
+.lc8-tl { padding-top: var(--space-4); display: flex; justify-content: center; }   /* t·k층 — 목록 위 이름표(메이저 → 마이너 / C 메이저 → A 마이너) */
+.lc8-tl .lc7-it { font: var(--type-label-lg); color: var(--text-secondary); }
+.lc8-bb { font-style: normal; transition: color 0.15s ease; }   /* 도수 앞 b — 4번 칸에서만 파랑 */
+.lc8-bon .lc8-bb { color: var(--blue); }
+.lc8-top { padding-top: var(--space-10); }
+/* n·h층 — 7코드 목록: 한 줄 4개 + 둘째 줄 3개(가운데), 칸 폭 80px. 칸 하나 = 코드 이름 아래 도수 */
+.lc8-nl { width: calc(var(--space-10) * 8); margin: var(--space-6) auto 0; display: flex; flex-wrap: wrap; justify-content: center; row-gap: var(--space-4); }
+.lc8-nc { width: calc(var(--space-10) * 2); display: flex; flex-direction: column; align-items: center; gap: var(--space-1); }
+.lc8-nm { font: var(--type-title); }
+.lc8-rm, .lc7-it.lc8-pl { font: var(--type-label-lg); font-weight: var(--weight-semibold); color: var(--text-secondary); }   /* 도수 — 코드 이름(title, 600)과 같은 두께. 숫자(I·V)가 400이고 품질(m7)만 .lec-rq의 700이라 둘이 달라 보였음 */
+.lc8-rm .lec-rq, .lc8-pl .lec-rq { font-weight: inherit; }   /* 도수 안의 숫자와 품질은 같은 두께 */
+/* p층 — Gm7 → Cm7 (이름 아래 도수). 화살표는 이름 줄에 맞춤 */
+.lc8-pr { display: flex; justify-content: center; align-items: flex-start; column-gap: var(--space-4); }
+.lc8-pr .lc7-it:not(.lc8-pl) { font: var(--type-title-lg); }
+.lc8-pc { display: flex; flex-direction: column; align-items: center; gap: var(--space-1); }
+/* ── 챕터 9 강의 무대(.lc9-*) — 8장 7코드 목록(.lc8-nl)·코드 묶음(.lc8-pr/.lc8-pc)·2장 분류판(.lec2-board)·악보를 그대로 쓰고 간격만 맞춤 */
+#lc9-sc { padding-top: var(--space-8); display: flex; flex-direction: column; align-items: center; row-gap: var(--space-8); }   /* sc층 — C 메이저 / A 마이너 음이름 두 줄(8장 스케일 칸 재사용) */
+.lc9-sr { display: flex; flex-direction: column; align-items: center; gap: var(--space-2); }
+.lc9-sl { font: var(--type-label-lg); color: var(--text-secondary); }
+#lc9-bw { padding-top: var(--space-4); }   /* bw층 — 위에 메이저·마이너 다이어토닉 7코드(작게), 아래에 빌려온 진행 */
+.lc9-dl { display: grid; row-gap: var(--space-2); }
+.lc9-dr { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); text-align: center; font: var(--type-label-sm); color: var(--text-muted); }
+.lc9-bp { margin-top: var(--space-8); column-gap: var(--space-3); }   /* CM7 → Fm7 → Bb7 → CM7 네 묶음이 360px 폭(328px)에 들어가게 16 → 12px */
+#lc9-song { padding-top: var(--space-4); }   /* 페르마타가 첫 줄이 아닌 둘째 줄 코드 위에 놓여도 위로 넘치지 않게 여유 */
+.lc9-fm { position: absolute; top: -16px; transform: translateX(-50%); color: var(--blue); opacity: 0; pointer-events: none; transition: opacity var(--lec-fade) cubic-bezier(0.33, 1, 0.68, 1); }   /* 페르마타 — 8번 칸 DbM7 이름 가운데 위(left는 JS), 길게 끄는 코드라 파랑 */
+.lc9-fm.is-in { opacity: 1; }
+#lc9-s .lc8-nl { width: calc(var(--space-10) * 6); margin-top: var(--space-4); }   /* 총정리 — 9종을 3×3으로(80px 칸 3개) */
+#lc9-b .lec2-board { top: var(--space-4); }   /* 위에 코드 줄이 없음 — 예비 열(모달 5개)이 220px 무대 안에 들어가게: 16 + 머리글 24 + 소제목 18 + 12 + 5칸 × 28 = 210px */
 /* 첫 접속 시작 페이지 — 뒤의 목록이 비치지 않게 애니메이션 없이 바로 덮음. 환영 문구(핵심)는 위쪽, 보충 한 줄은 그 아래 (style-guide §22) */
-#combo-v2-welcome { z-index: 910; animation: none; }
-.combo-v2-welcome-body { display: flex; flex-direction: column; align-items: center; gap: var(--space-3); }
-.combo-v2-welcome-sub { font: var(--type-body); letter-spacing: var(--tracking-base); color: var(--text-secondary); text-align: center; word-break: keep-all; }
+#combo-v2-welcome { z-index: 910; animation: none; padding-top: 0; }   /* 위 여백은 안쪽 탑바(.cd-topbar, 안전영역 포함)가 담당 */
+.combo-v2-welcome-topbar { margin-inline: calc(var(--cd-inset) * -1); }   /* 탑바는 뷰포트 전체 폭(§11-4 풀블리드) — 좌우 패딩은 .cd-topbar 자신의 --cd-inset */
+/* 환영 문구 구성 — 위에서 아래로 위계: 타이틀(24px/800) → 리드(16px/600) → 혜택 두 줄(14px/400). 간격은 "아래 요소 margin-top 한 곳"(§19-1):
+   타이틀↔리드 40px(마진 16px 초과 → 다른 묶음, §5) / 리드↔첫 혜택 32px / 혜택↔혜택 4px (2026-10-30 사용자 요청으로 32/12/8 → 40/24/12 → 40/32/4: 혜택 두 줄은 붙여서 한 목록으로, 리드와는 멀게). 행간은 타입 토큰 그대로(타이틀·리드 1.2, 혜택 1.5).
+   크기는 사용자 지정: 리드 16px(--font-title-sm)·혜택 14px(--font-body), 둘 다 모바일 기준 토큰(큰 화면에선 토큰대로 커짐). */
+.combo-v2-welcome-body { display: flex; flex-direction: column; align-items: center; }
+#combo-v2-welcome .combo-v2-skip-text { line-height: var(--leading-tight); }   /* 공용 안내 페이지 문구는 행간 1.5 — 두 줄 타이틀은 헤드라인 토큰(1.2)으로 */
+.combo-v2-welcome-list { margin-top: var(--space-10); display: flex; flex-direction: column; align-items: center; }
+.combo-v2-welcome-lead { font: var(--type-title-sm); letter-spacing: var(--tracking-base); color: var(--text-primary); text-align: center; word-break: keep-all; }
+.combo-v2-welcome-sub { margin-top: var(--space-1); font: var(--type-body); letter-spacing: var(--tracking-base); color: var(--text-primary); text-align: center; word-break: keep-all; }
+.combo-v2-welcome-lead + .combo-v2-welcome-sub { margin-top: var(--space-8); }
+/* 차례로 천천히 — 타이틀 먼저, 그다음 리드·혜택 두 줄이 1.2초 간격으로 투명도만으로 나타남(자리는 처음부터 잡혀 있어 위치가 안 움직임). 페이지가 뜰 때(hidden 해제) 시작 */
+@keyframes comboWelcomeIn { from { opacity: 0; } to { opacity: 1; } }
+#combo-v2-welcome .combo-v2-skip-text, .combo-v2-welcome-lead, .combo-v2-welcome-sub { opacity: 0; animation: comboWelcomeIn 1s cubic-bezier(0.33, 1, 0.68, 1) forwards; }
+#combo-v2-welcome .combo-v2-skip-text { animation-delay: 0.3s; }
+.combo-v2-welcome-lead { animation-delay: 1.9s; }
+.combo-v2-welcome-sub { animation-delay: 3.1s; }
+.combo-v2-welcome-sub + .combo-v2-welcome-sub { animation-delay: 4.3s; }
 /* "지금 해야 할 것" 암시 — 도넛 또는 미니강의 ▶ 버튼 바깥으로 그 모양 그대로(도넛은 호 3·5개 도넛 모양, ▶는 삼각형) 챕터 색 파동이 천천히 퍼졌다 사라지는 아주 약한 효과.
    JS(_comboV2UpdateHint)가 대상의 svg를 복제해 .combo-v2-hint-wave로 겹쳐 둠 → 모양·두께·호 간격이 대상과 항상 같음. 항상 반복, 열린 가장 높은 챕터의 풀 수 있는 가장 높은 레벨 하나에만 */
 .combo-v2-hint-wave {
@@ -25170,3 +25106,29 @@ html[lang="en"] .combo-v2-sort-sub { display: none; }
 #combo-v2-lec-next:disabled,
 #combo-v2-lec-next[aria-disabled="true"] { opacity: 0.35; transition: none; }
 #combo-v2-lec-next[aria-disabled="true"] { pointer-events: none; }
+/* 미니강의 진행 바 — "다음" 버튼 대신. 바를 쓰는 챕터만 섹션에 .is-pbar(JS)가 붙어 버튼을 숨기고 바를 보임.
+   위→아래: 현재 위치 마커(게이지 끝을 따라 이동하며 둥둥 뜸) → 4px 게이지(지금 페이즈 하나, 설명묶음 경계마다 세로선, 색은 브랜드 차콜) → 아래줄 왼쪽 "이전"(회색) / 오른쪽 "다음"(켜지면 파랑).
+   칸 길이·채움 속도·이동 가능 범위·클릭 팝사운드는 chord-combo-lecture.js(pbar*) */
+.lec-pbar { display: none; }
+.combo-v2-lec.is-pbar #combo-v2-lec-next { display: none; }
+.combo-v2-lec.is-pbar .lec-pbar { display: flex; flex-direction: column; width: 100%; }
+.lec-pbar-nav { display: flex; gap: var(--space-2); margin-top: var(--space-4); }   /* 게이지와 버튼 줄 16px = 같은 묶음. 이전·다음은 줄 폭을 반반(사이 8px) */
+.lec-pbar-nav .lec-pbar-btn { flex: 1 1 0; width: auto; min-width: 0; }   /* .cd-btn의 고정 폭 토큰을 풀고 반씩 */
+/* 이전·다음 버튼 — .cd-btn(gray/blue) 그대로. 호버 반투명(터치 뒤 남음)·전환은 "다음" 버튼과 같은 방식으로 정리: 켜질 때만 빠르게, 꺼질 때는 즉시 */
+.lec-pbar-btn, .lec-pbar-btn:hover, .lec-pbar-btn:focus, .lec-pbar-btn:focus-visible { opacity: 1; outline: none; -webkit-tap-highlight-color: transparent; transition: opacity 0.25s cubic-bezier(0.33, 1, 0.68, 1); }
+.lec-pbar-btn:disabled { opacity: 0.35; transition: none; }
+#lec-pbar-next:disabled { background: var(--gray-light); color: var(--text-primary); }   /* 다음은 갈 수 있을 때만 파랑, 못 가면 회색 */
+.lec-pbar-bar { position: relative; height: 4px; margin-top: var(--space-6); }   /* 위 24px = 마커 20px + 마커와 게이지 사이 4px */
+.lec-pbar-track { position: absolute; inset: 0; border-radius: 2px; background: var(--gray-light); overflow: hidden; }
+.lec-pbar-fill { width: 100%; height: 100%; background: var(--brand); transform: scaleX(0); transform-origin: 0 50%; will-change: transform; }   /* 채움은 폭이 아니라 scaleX로(GPU 합성만 — 레이아웃·페인트 없음, 메인 스레드가 바빠도 안 끊김) */
+.lec-pbar-segs { position: absolute; inset: 0; }
+.lec-pbar-div { position: absolute; top: 0; bottom: 0; width: 2px; margin-left: -1px; background: var(--text-muted); pointer-events: none; transition: background-color 0.2s; }   /* 설명묶음 경계 — 아직 안 찬 곳은 진하게(회색 게이지 위에서 보이게) */
+.lec-pbar-div.is-on { background: #fff; }   /* 게이지가 이 선까지 차면 흰색(브랜드 채움 위에서 보이게) — JS pbarDivs */
+.lec-pbar-seg { position: absolute; top: -20px; bottom: -20px; padding: 0; border: 0; background: none; -webkit-tap-highlight-color: transparent; }   /* 칸 터치 영역 — 게이지 4px 위아래로 넓혀 터치 44px */
+/* 마커 레일 — 게이지와 같은 폭의 투명한 줄을 게이지 왼쪽 바깥에 두고(오른쪽 끝 = 게이지 시작) translateX(채움 %)로 옮김(% = 레일 자신 폭 = 게이지 폭).
+   마커는 레일 오른쪽 끝에 붙어서 게이지 끝을 따라감. 레일이 왼쪽 바깥에서 들어오는 구조라 100%에서도 오른쪽으로 넘치지 않음(가로 스크롤 안 생김) */
+.lec-pbar-rail { position: absolute; right: 100%; bottom: 8px; width: 100%; height: 20px; pointer-events: none; transform: translateX(0); will-change: transform; }
+.lec-pbar-mark { position: absolute; right: -8px; bottom: 0; width: 16px; height: 20px; }   /* 뾰족한 끝이 레일 오른쪽 끝(= 게이지 끝)을 가리킴 */
+.lec-pbar-mark svg { display: block; width: 100%; height: 100%; fill: var(--brand); animation: lecPbarBob 1.6s ease-in-out infinite; }
+@keyframes lecPbarBob { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-2px); } }
+@media (prefers-reduced-motion: reduce) { .lec-pbar-mark svg { animation: none; } }

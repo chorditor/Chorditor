@@ -1880,15 +1880,13 @@ function renderProjectView(projectId) {
 
   const row1Right = document.createElement('div');
   row1Right.className = 'project-header-row1-right';
-  // 삭제(휴지통) 버튼은 항상 DOM에 두고, 보기모드에선 visibility만 숨김 → 편집/보기 전환 시 나머지 요소 위치 고정
+  // 삭제(휴지통) 버튼은 보기모드에선 자리까지 없앰(display:none) — visibility만 숨기면 안 보이는 버튼이 제목 자리를 34px 차지해 제목이 더 잘렸다.
+  // 우측 버튼 그룹이 오른쪽 정렬이라 삭제 버튼이 빠져도 저장·공유·편집 버튼 위치는 그대로(왼쪽 끝만 움직이고 제목이 그만큼 넓어짐)
   const deleteProjectBtn = document.createElement('button');
   deleteProjectBtn.className = 'project-icon-btn project-icon-btn--danger';
   deleteProjectBtn.innerHTML = '<i data-lucide="trash-2"></i>';
   deleteProjectBtn.onclick = () => openDeleteConfirm(projectId);
-  if (!isEditMode) {
-    deleteProjectBtn.style.visibility = 'hidden';
-    deleteProjectBtn.style.pointerEvents = 'none';
-  }
+  if (!isEditMode) deleteProjectBtn.style.display = 'none';
   // 되돌리기 버튼 (편집모드 전용). 클릭 시 line-text focusout → saveAllLines가
   // 먼저 동기 실행되어 미저장 타이핑이 스냅샷으로 확정된 뒤 undo 실행됨 (mousedown preventDefault 금지)
   const undoBtn = document.createElement('button');

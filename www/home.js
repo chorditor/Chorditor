@@ -1815,7 +1815,7 @@ function _consumeAfterNotices() {
 //   summary      (선택) 타이틀 바로 아래 요약 설명 한두 줄(<br> 가능). 없으면 영역 자체를 숨김
 //   sections     세로 스크롤로 훑는 섹션 목록. 섹션 하나 = 타이틀/설명/그래픽/추가정보 한 세트.
 //                [{ title: '데일리미션', desc: '매일 미션 깨고 보상 받아요.', image: 'image/xxx.png',
-//                   extra: '홈 → 출석체크에서 확인할 수 있어요.' }, ...]
+//                   extra: '홈 → 오늘의 미션에서 확인할 수 있어요.' }, ...]
 //                image(또는 mediaHtml) 없으면 그래픽 영역 자체를 생략.
 //                imageByLang: { en, ja, es } — 화면 캡처처럼 글자가 들어간 사진의 언어별 파일. 앱 언어에 해당 파일이 없으면 image(한국어)를 씀.
 //                shot: true — image가 앱 화면 스크린샷일 때(폭 100% + 테두리). mediaClass — mediaHtml 영역에 붙일 추가 클래스.
@@ -5607,7 +5607,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       };
       analytics.setScreen('home');
       analytics.track('screen_view', { view: 'home' }); // 홈 화면 진입 명시 기록
-      syncProjectsOnLogin().catch(() => {}); // 재설치 등 DB 백업 복구 + 로컬 전용 업로드
+      syncProjectsOnLogin().then(ok => { if (ok) seedSampleNoteIfEmpty(); }).catch(() => {}); // 재설치 등 DB 백업 복구 + 로컬 전용 업로드 → DB 복구까지 끝난 뒤에도 노트가 0개면 샘플 노트(한국어만, 계정당 1회)
       _consumePendingShareCode();
       loadProfileFromDB();
       _billingReady.then(async () => {
@@ -5645,7 +5645,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   };
   analytics.setScreen('home');
   analytics.track('screen_view', { view: 'home' }); // 홈 화면 진입 명시 기록
-  syncProjectsOnLogin().catch(() => {}); // 재설치 등 DB 백업 복구 + 로컬 전용 업로드
+  syncProjectsOnLogin().then(ok => { if (ok) seedSampleNoteIfEmpty(); }).catch(() => {}); // 재설치 등 DB 백업 복구 + 로컬 전용 업로드 → DB 복구까지 끝난 뒤에도 노트가 0개면 샘플 노트(한국어만, 계정당 1회)
   _consumePendingShareCode();
   setTimeout(() => checkAndShowNotice(), 1000);
 });

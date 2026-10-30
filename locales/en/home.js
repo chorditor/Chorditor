@@ -8,7 +8,7 @@
       '튜토리얼': 'Tutorial',
       '설정': 'Settings',
       '누구나 기타를 즐기는 세상, 코디터': 'Guitar for everyone. Chorditor',
-      '출석체크': 'Daily Check-in',
+      '오늘의 미션': 'Daily Mission',
       '퀘스트 보상': 'Quest rewards',
       '신규': 'New',
       '복잡하고 어려운 화성학을': 'Tricky music theory,',

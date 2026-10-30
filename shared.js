@@ -52,7 +52,7 @@ if (window.Capacitor?.getPlatform?.() === 'ios') {
 // ── 상수 ─────────────────────────────────────────────────────
 const SUPABASE_URL  ='https://jbvkygeksohlysyvaoab.supabase.co';
 const SUPABASE_ANON = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Impidmt5Z2Vrc29obHlzeXZhb2FiIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzYzOTk5NjgsImV4cCI6MjA5MTk3NTk2OH0.6RSgChy0Yq0H2TJpZPSoMKQ2V-OYfR0XzE1aJBBZkXI';
-const APP_VERSION   = '1.3.6.1_pre_dev';
+const APP_VERSION   = '1.3.6.1_pre';
 const SUPABASE_STORAGE_KEY = 'sb-jbvkygeksohlysyvaoab-auth-token';
 
 // 이용약관/개인정보처리방침 버전 — 광고식별자 수집 항목 추가(2026-09) 시 1로 올림.
@@ -372,6 +372,30 @@ document.addEventListener('focusout', () => {
   }, 0);
 });
 
+// ── 더블탭 확대 전역 보류 + 확대된 상태에서 더블탭하면 원래 크기로 ─────────
+// style.css의 html { touch-action: manipulation }로 더블탭 '확대'는 막아 둔 상태다(화면 확대 요구가 있어 폐지가 아니라 보류 — 걷을 땐 그 선언과 이 블록을 같이).
+// 그래도 핀치 등으로 이미 확대된 채 안 돌아오는 경우를 대비해, 확대된 상태에서의 더블탭은 배율을 1로 되돌린다.
+// 되돌리기는 위 _viewportAutoZoomGuard를 잠깐 걸었다 푸는 방식(풀 때 배율이 1로 리셋됨).
+(function _doubleTapZoomReset() {
+  const vv = window.visualViewport;
+  if (!vv) return;
+  let sx = 0, sy = 0, lastT = 0, lastX = 0, lastY = 0;
+  document.addEventListener('touchstart', e => {
+    if (e.touches.length === 1) { sx = e.touches[0].clientX; sy = e.touches[0].clientY; }
+  }, { passive: true });
+  document.addEventListener('touchend', e => {
+    if (e.touches.length || e.changedTouches.length !== 1) return;   // 핀치(손가락 둘) 끝은 제외
+    const t = e.changedTouches[0];
+    if (vv.scale <= 1.01 || Math.hypot(t.clientX - sx, t.clientY - sy) > 10) { lastT = 0; return; }   // 확대 상태가 아니거나 탭이 아니라 드래그
+    const now = Date.now();
+    if (now - lastT < 300 && Math.hypot(t.clientX - lastX, t.clientY - lastY) < 40) {
+      lastT = 0;
+      _viewportAutoZoomGuard(true);
+      setTimeout(() => { if (!_autoZoomsOnFocus(document.activeElement)) _viewportAutoZoomGuard(false); }, 60);
+    } else { lastT = now; lastX = t.clientX; lastY = t.clientY; }
+  }, { passive: true });
+})();
+
 // ── 튜토리얼 샌드박스 ─────────────────────────────────────────
 // 튜토리얼 중엔 실제 노트·DB를 건드리지 않고 임시 목록 위에서만 동작한다.
 //  · 무료 3개 한도에 안 걸림 (loadProjects().length가 0에서 시작)
@@ -571,16 +595,16 @@ async function syncProjectsOnLogin() {
   // 튜토리얼 샌드박스 중엔 절대 돌리면 안 됨 — loadProjects()가 시드를 반환해
   // 그걸 실제 DB(projects 테이블)에 업로드해버린다. 샌드박스가 끝난 뒤에도
   // 그 DB row가 남아 다음 로그인 때 로컬로 복구되어 영구 오염된다.
-  if (typeof isTutorialSandbox === 'function' && isTutorialSandbox()) return;
+  if (typeof isTutorialSandbox === 'function' && isTutorialSandbox()) return false;
   const session = _authSessionSync();
-  if (!session) return;
+  if (!session) return false;
   const headers = { apikey: SUPABASE_ANON, Authorization: 'Bearer ' + session.access_token };
   try {
     const res = await fetch(
       `${SUPABASE_URL}/rest/v1/projects?user_id=eq.${session.user.id}&select=project_id,content`,
       { headers }
     );
-    if (!res.ok) return;
+    if (!res.ok) return false;
     const rows = await res.json();
     const local = loadProjects();
     const dbIds = new Set(rows.map(r => r.project_id));
@@ -607,7 +631,117 @@ async function syncProjectsOnLogin() {
     const missingInDb = local.filter(p => !dbIds.has(p.id));
     const toUpload = missingInDb.concat(newerLocal);
     if (toUpload.length) await _syncProjectsToDB(toUpload, []);
-  } catch (e) { /* 무시 — 다음 로그인 때 재시도 */ }
+    return true;   // DB 조회·병합까지 끝남(호출부가 "DB에도 노트가 없다"를 판정할 수 있는 상태)
+  } catch (e) { return false; /* 무시 — 다음 로그인 때 재시도 */ }
+}
+
+// ── 샘플 노트 (2026-10-31) ────────────────────────────────────────
+// 빈 노트로 시작하면 첫 생성 부담이 커서, 노트가 하나도 없는 유저에게 샘플 노트 1개를 심는다(한국어만).
+// 조건: 한국어 앱 + 이 계정에서 아직 판정한 적 없음(서버 기록 기준) + (DB 복구까지 끝난 뒤에도) 노트가 0개 → 업데이트 후 첫 홈 진입 때 1회.
+// 판정은 계정당 1번만 — 노트가 있었든 없었든 플래그를 세워서, 나중에 노트를 다 지워도 다시 심지 않는다.
+// 일반 노트와 똑같이 저장돼 무료 3개 한도에 포함되고 삭제할 수 있다. 가사는 넣지 않고 자리표시('가사입력N')만 둔다(저작권).
+// 코드 객체는 코드 사전의 첫 보이싱(오픈 코드 / Bm만 바레)을 libEntryToChord와 같은 규칙으로 변환해 고정해 둔 스냅샷 —
+// 코드 카드 렌더 규칙(dots/openMute/barre/voicing/source)이 바뀌면 다시 뽑아야 한다.
+const SAMPLE_NOTE_KO = {
+  name: '샘플 - 너에게 난 나에게 넌',
+  bpm: 100,
+  chords: [
+  {"name":"G","root":"G","triad":"","seventh":"","func":"","tensions":[],"bass":"","dots":[{"s":0,"f":3,"n":0},{"s":4,"f":2,"n":0},{"s":5,"f":3,"n":0}],"openMute":["open","open","open","open","open","open"],"barre":{},"barreRange":null,"source":"static","fretNumber":2,"fingerNumMode":false,"accidental":"sharp","voicing":{"frets":[3,0,0,0,2,3],"openMute":[null,"open","open","open",null,null],"barre":{},"barreRange":null,"fretNumber":2,"source":"static","fingering":null}},
+  {"name":"D","root":"D","triad":"","seventh":"","func":"","tensions":[],"bass":"","dots":[{"s":0,"f":2,"n":0},{"s":1,"f":3,"n":0},{"s":2,"f":2,"n":0}],"openMute":["open","open","open","open","mute","mute"],"barre":{"0":true},"barreRange":null,"source":"static","fretNumber":2,"fingerNumMode":false,"accidental":"sharp","voicing":{"frets":[2,3,2,0,null,null],"openMute":[null,null,null,null,"mute","mute"],"barre":{"0":true},"barreRange":null,"fretNumber":2,"source":"static","fingering":null}},
+  {"name":"Em","root":"E","triad":"m","seventh":"","func":"","tensions":[],"bass":"","dots":[{"s":3,"f":2,"n":0},{"s":4,"f":2,"n":0}],"openMute":["open","open","open","open","open","open"],"barre":{"0":true},"barreRange":{"min":0,"max":5},"source":"static","fretNumber":2,"fingerNumMode":false,"accidental":"sharp","voicing":{"frets":[0,0,0,2,2,0],"openMute":[null,null,null,null,null,null],"barre":{"0":true},"barreRange":{"min":0,"max":5},"fretNumber":2,"source":"static","fingering":null}},
+  {"name":"Bm","root":"B","triad":"m","seventh":"","func":"","tensions":[],"bass":"","dots":[{"s":0,"f":1,"n":0},{"s":1,"f":2,"n":0},{"s":2,"f":3,"n":0},{"s":3,"f":3,"n":0},{"s":4,"f":1,"n":0}],"openMute":["open","open","open","open","open","mute"],"barre":{"1":true},"barreRange":{"min":0,"max":4},"source":"pattern","fretNumber":3,"fingerNumMode":false,"accidental":"sharp","voicing":{"frets":[2,3,4,4,2,null],"openMute":[null,null,null,null,null,"mute"],"barre":{"2":true},"barreRange":{"min":0,"max":4},"fretNumber":2,"source":"pattern","fingering":null}},
+  {"name":"C","root":"C","triad":"","seventh":"","func":"","tensions":[],"bass":"","dots":[{"s":1,"f":1,"n":0},{"s":3,"f":2,"n":0},{"s":4,"f":3,"n":0}],"openMute":["open","open","open","open","open","mute"],"barre":{},"barreRange":null,"source":"static","fretNumber":2,"fingerNumMode":false,"accidental":"sharp","voicing":{"frets":[0,1,0,2,3,null],"openMute":["open",null,"open",null,null,"mute"],"barre":{},"barreRange":null,"fretNumber":2,"source":"static","fingering":null}},
+  {"name":"Am","root":"A","triad":"m","seventh":"","func":"","tensions":[],"bass":"","dots":[{"s":1,"f":1,"n":0},{"s":2,"f":2,"n":0},{"s":3,"f":2,"n":0}],"openMute":["open","open","open","open","open","mute"],"barre":{"0":true},"barreRange":{"min":0,"max":4},"source":"static","fretNumber":2,"fingerNumMode":false,"accidental":"sharp","voicing":{"frets":[0,1,2,2,0,null],"openMute":[null,null,null,null,null,"mute"],"barre":{"0":true},"barreRange":{"min":0,"max":4},"fretNumber":2,"source":"static","fingering":null}},
+  ],
+  // 세로 표시 칸 = 8칸 배열 중 짝수 인덱스(0·2·4·6) → 한 줄에 코드 4개
+  lines: [
+    { text: '가사입력1', chords: ['G', 'D', 'Em', 'Bm'] },
+    { text: '가사입력2', chords: ['C', 'G', 'Am', 'D'] },
+  ],
+};
+function _sampleNoteFlagKey(userId) { return 'chorditor_sample_note_v1_' + userId; }
+
+function buildSampleNote() {
+  const byName = {};
+  SAMPLE_NOTE_KO.chords.forEach(c => { byName[c.name] = Object.assign({}, JSON.parse(JSON.stringify(c)), { id: genId() }); });
+  const arrangement = SAMPLE_NOTE_KO.lines.map(line => {
+    const slots = new Array(8).fill(null);
+    line.chords.forEach((name, i) => { slots[i * 2] = byName[name].id; });
+    return { id: genId(), text: line.text, slots };
+  });
+  const now = Date.now();
+  return {
+    id: genId(),
+    name: SAMPLE_NOTE_KO.name,
+    pinned: false, pinnedOrder: 0,
+    important: false, importantOrder: 0,
+    capo: 0,
+    bpm: SAMPLE_NOTE_KO.bpm,
+    createdAt: now,
+    updatedAt: now,
+    chords: Object.values(byName),
+    arrangement,
+  };
+}
+
+// 계정당 "딱 1번" 보장 — 기록을 서버(Supabase 계정의 user_metadata.sample_note_v1)에 남긴다.
+// 로컬 플래그만으로는 재설치·새 기기·앱 데이터 삭제 때 사라져서, 샘플을 지운 유저가 다시 받게 된다. user_metadata는 계정에 붙어 있어 SQL 없이도 기기와 무관하게 유지된다.
+//   · 서버 기록을 먼저 남기고(성공해야만) 그다음에 노트를 심는다 → 중간에 앱이 꺼져도 두 번 받는 일은 없다(최악의 경우 못 받을 뿐).
+//   · 서버 기록을 읽거나 쓰지 못하면(오프라인·토큰 만료) 심지 않고 다음 접속에 다시 시도한다.
+//   · 이미 노트가 있는 계정도 기록만 남긴다 → 나중에 노트를 다 지워도 샘플을 주지 않는다.
+const SAMPLE_META_KEY = 'sample_note_v1';
+let _sampleSeeding = false;
+async function _sampleMetaGet(session) {   // true / false / null(확인 못 함)
+  try {
+    const r = await fetch(`${SUPABASE_URL}/auth/v1/user`, { headers: { apikey: SUPABASE_ANON, Authorization: 'Bearer ' + session.access_token } });
+    if (!r.ok) return null;
+    const u = await r.json();
+    return !!(u && u.user_metadata && u.user_metadata[SAMPLE_META_KEY]);
+  } catch (e) { return null; }
+}
+async function _sampleMetaSet(session) {   // 성공 여부
+  try {
+    const r = await fetch(`${SUPABASE_URL}/auth/v1/user`, {
+      method: 'PUT',
+      headers: { apikey: SUPABASE_ANON, Authorization: 'Bearer ' + session.access_token, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ data: { [SAMPLE_META_KEY]: new Date().toISOString() } }),
+    });
+    return r.ok;
+  } catch (e) { return false; }
+}
+
+// syncProjectsOnLogin()이 성공한 뒤에만 호출(DB에 노트가 있는데 로컬만 비어 보이는 재설치·새 기기에서 잘못 심지 않도록).
+async function seedSampleNoteIfEmpty() {
+  if (_sampleSeeding) return false;
+  _sampleSeeding = true;
+  try {
+    if (typeof I18N === 'undefined' || I18N.lang !== 'ko') return false;
+    if (typeof isTutorialSandbox === 'function' && isTutorialSandbox()) return false;
+    const session = _authSessionSync();
+    if (!session) return false;
+    const key = _sampleNoteFlagKey(session.user.id);
+    if (localStorage.getItem(key)) return false;   // 이 기기에서 이미 판정함(빠른 경로)
+
+    if (loadProjects().length > 0) {               // 이미 노트가 있는 계정 — 서버에 기록만 남기고 끝
+      if (await _sampleMetaSet(session)) localStorage.setItem(key, '1');
+      return false;
+    }
+    const had = await _sampleMetaGet(session);
+    if (had === null) return false;                // 서버 기록을 확인하지 못함 → 다음 접속에
+    if (had) { localStorage.setItem(key, '1'); return false; }   // 다른 기기·이전 설치에서 이미 받음
+    if (!(await _sampleMetaSet(session))) return false;          // 기록 먼저(실패하면 심지 않음)
+    localStorage.setItem(key, '1');
+
+    const projects = loadProjects();               // 기록하는 동안 노트가 생겼을 수 있으니 한 번 더 확인
+    if (projects.length > 0) return false;
+    projects.push(buildSampleNote());
+    saveProjects(projects);
+    if (typeof renderSidebar === 'function') renderSidebar();
+    if (typeof populateProjectSelect === 'function') populateProjectSelect();
+    if (typeof analytics !== 'undefined') analytics.track('sample_note_seeded', {});
+    return true;
+  } catch (e) { return false; }
+  finally { _sampleSeeding = false; }
 }
 
 // ── 플랜 관리 ─────────────────────────────────────────────────
@@ -3228,18 +3362,18 @@ function _localAdvance() {
   return { advanced: true, day, makeup_left: mk, reward, full: day === ATTENDANCE_TOTAL_DAYS };
 }
 
-// SQL makeup_attendance_v2() 미러 — 정규출석 안 한 날에만, 하루 1회, 월 3회
-function _localMakeup() {
+// SQL makeup_attendance_v3() 미러 — 일일 제한 없이 그 달 아무 때나(정규출석을 한 날도 가능), 월 3회.
+// 3회를 다 쓰면 광고를 보고(byAd) 1칸씩 더 채움 — 광고로 채울 땐 남은 횟수를 깎지 않음(이미 0)
+function _localMakeup(byAd) {
   const today = _kstToday();
   const month = _kstMonth();
   const a = _localAttGet();
   let day = a.day, mk = a.makeup, amonth = a.month, mlast = a.makeupLast;
   if (amonth !== month) { day = 0; mk = ATTENDANCE_MAKEUP_MAX; amonth = month; mlast = null; }
-  if (a.last === today) return { ok: false, reason: 'already_regular', day, makeup_left: mk };
-  if (mlast === today) return { ok: false, reason: 'already_makeup', day, makeup_left: mk };
   if (day >= ATTENDANCE_TOTAL_DAYS) return { ok: false, reason: 'full', day, makeup_left: mk };
-  if (mk <= 0) return { ok: false, reason: 'no_left', day, makeup_left: 0 };
-  mk -= 1; day += 1;
+  if (mk <= 0 && !byAd) return { ok: false, reason: 'no_left', day, makeup_left: 0 };
+  if (mk > 0) mk -= 1;
+  day += 1;
   const reward = _attReward(day);
   _localAttSet(day, a.last, mk, amonth, today);
   if (reward > 0) { const l = _localPeakGet(); _localPeakSet(l.balance, l.peakbox_count + reward); }
@@ -3279,14 +3413,14 @@ async function advanceAttendance(onDone) {
 // 2026-09-01 v2 개편: 월 리셋(달 바뀜 무조건 0) + 25 캡 + 보충출석 하루1회(정규출석 안 한
 // 날에만) 규칙을 그대로 미러. att_month가 이번 달과 다르면(v2 첫 사용 포함) 화면엔 리셋된
 // 걸로 보여주되 DB/로컬은 여기서 안 건드림(조회 시점에 값을 바꾸면 안 되는 원칙 유지, 실제
-// 반영은 advance_attendance_v2()/makeup_attendance_v2()가 호출될 때만).
+// 반영은 advance_attendance_v2()/makeup_attendance_v3()가 호출될 때만).
 async function loadAttendanceState() {
   const { token, userId } = getStoredAuth();
-  let day, last, makeup, amonth, mlast;
+  let day, last, makeup, amonth;
   if (token && userId) {
     try {
       const resp = await fetch(
-        `${SUPABASE_URL}/rest/v1/subscriptions?user_id=eq.${userId}&select=att_day,att_last_date,att_makeup_left,att_month,att_makeup_last_date`,
+        `${SUPABASE_URL}/rest/v1/subscriptions?user_id=eq.${userId}&select=att_day,att_last_date,att_makeup_left,att_month`,
         { headers: { apikey: SUPABASE_ANON, Authorization: `Bearer ${token}` } }
       );
       if (resp.ok) {
@@ -3296,25 +3430,147 @@ async function loadAttendanceState() {
           last = rows[0].att_last_date || null;
           makeup = rows[0].att_makeup_left == null ? ATTENDANCE_MAKEUP_MAX : rows[0].att_makeup_left;
           amonth = rows[0].att_month == null ? null : rows[0].att_month;
-          mlast = rows[0].att_makeup_last_date || null;
         }
       }
     } catch (_) {}
   }
   if (day == null) {
     const a = _localAttGet();
-    day = a.day; last = a.last; makeup = a.makeup; amonth = a.month; mlast = a.makeupLast;
+    day = a.day; last = a.last; makeup = a.makeup; amonth = a.month;
   }
 
   const today = _kstToday();
-  if (amonth !== _kstMonth()) { day = 0; makeup = ATTENDANCE_MAKEUP_MAX; last = null; mlast = null; }
+  if (amonth !== _kstMonth()) { day = 0; makeup = ATTENDANCE_MAKEUP_MAX; last = null; }
 
-  const doneToday       = last === today;
-  const usedMakeupToday = mlast === today;
-  const isFull          = day >= ATTENDANCE_TOTAL_DAYS;
-  const canMakeup        = !doneToday && !usedMakeupToday && !isFull && makeup > 0;
+  const doneToday = last === today;
+  const isFull    = day >= ATTENDANCE_TOTAL_DAYS;
+  // 보충출석(2026-10-31): 일일 제한 없이 그 달 아무 때나 3회. 3회를 다 쓰면 광고를 보고 1칸씩(Pro는 광고가 없어 불가)
+  const canMakeup   = !isFull && makeup > 0;
+  const canMakeupAd = !isFull && makeup <= 0 && !isAdFreeUser();
   _attState = { day, makeup_left: makeup, full: isFull, loaded: true };
-  return { ..._attState, doneToday, usedMakeupToday, canMakeup };
+  return { ..._attState, doneToday, canMakeup, canMakeupAd };
+}
+
+// ── 일일 미션 (2026-10-31 개편) ───────────────────────────────
+// 페르소나별 랜덤 출제를 버리고, 오늘의 미션 4개 중 2개를 완료하면 출석 도장을 찍는다(attendance.html 한 페이지).
+//   코드맞추기 / 스케일 훈련 / 리하모니 화성학 : 페르소나(티어)별 시작 레벨 이상의 레벨 세션 1회 완료(정답 수 무관)
+//   코드반주 훈련                              : 페르소나 무관, 주법 재생 5분 누적(하루 KST 기준)
+// 완료 보고는 각 훈련 페이지가 호출한다: dailyMissionReport(kind, level) / dailyMissionAddPlay(sec).
+// 진행은 기기 로컬(계정별 키, 날짜가 바뀌면 자동 초기화). 출석 도장 자체는 서버(advanceAttendance)가 하루 1회로 보장.
+const DM_REQUIRED = 2;
+const DM_PLAY_GOAL_SEC = 300;
+// 티어 1~5 = PERSONA_STAGES 순서(언박싱·굳은살·악보의존·방구석·기타마스터). 값 = 그 훈련에서 미션으로 인정되는 시작 레벨(이상)
+//   quiz = 레벨 번호(챌린지 c1~c3는 항상 인정) / scale = 레벨 번호(25·26은 _scaleTierLvl 기준, 즉 2) / combo = 챕터 번호(N-1부터)
+const DM_TIER_MIN = { quiz: [1, 2, 5, 7, 8], scale: [1, 2, 3, 8, 14], combo: [1, 2, 4, 6, 9] };
+const DM_COMBO_KEY_LEVEL = { 1: 6, 2: 8, 3: 6, 4: 6, 5: 6, 6: 6, 7: 6, 8: 6, 9: 6 };   // chord-combo.js COMBO_V2_REQ(챕터별 종합 레벨)와 같아야 함
+const DM_COMBO_KEY_CLEAR_AT = 5;                                                       // chord-combo.js COMBO_V2_CLEAR_AT_KEY와 같아야 함
+
+function _dmUid() { const a = getStoredAuth(); return (a && a.userId) || 'anon'; }
+function _dmKey() { return 'dm2_state_' + _dmUid(); }
+function dmLoad() {
+  const today = _kstToday();
+  let o = null;
+  try { o = JSON.parse(localStorage.getItem(_dmKey())); } catch (_) {}
+  if (!o || o.date !== today) o = { date: today, done: {}, play: 0, attended: false, stamp: null };
+  return o;
+}
+function dmSave(o) { try { localStorage.setItem(_dmKey(), JSON.stringify(o)); } catch (_) {} }
+function dmDoneCount(s) { return ['quiz', 'scale', 'combo', 'play'].filter(function (k) { return s.done[k]; }).length; }
+function dmTier() { return Math.max(0, PERSONA_STAGES.indexOf(getUserPersona())); }   // 0~4
+
+// DB 페르소나(user_persona_profile — home.js loadProfileFromDB와 같은 소스) → 로컬 동기화.
+// 첫 접속은 홈보다 이 페이지가 먼저 열려서, 새 기기·재설치·다른 기기에서의 승급 직후엔 로컬 값(기본 unboxing)이 낡았을 수 있다.
+// setUserPersona()는 DB에 되쓰기하므로 쓰지 않고 로컬에만 반영. 비로그인·실패·3초 초과는 로컬 값 그대로.
+async function dmSyncPersona() {
+  const { token, userId } = getStoredAuth();
+  if (!token || !userId) return;
+  const ctl = new AbortController();
+  const timer = setTimeout(function () { ctl.abort(); }, 3000);
+  try {
+    const resp = await fetch(`${SUPABASE_URL}/rest/v1/user_persona_profile?user_id=eq.${userId}&select=persona`,
+      { headers: { apikey: SUPABASE_ANON, Authorization: `Bearer ${token}` }, signal: ctl.signal });
+    if (!resp.ok) return;
+    const rows = await resp.json();
+    const p = rows[0] && rows[0].persona;
+    if (p && PERSONA_STAGES.indexOf(p) !== -1 && p !== getUserPersona()) localStorage.setItem('user_persona', p);
+  } catch (_) {
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+// 리하모니 화성학에서 지금 열려 있는 가장 높은 챕터 — chord-combo.js _comboV2MaxChapter와 같은 규칙(저장된 진행도에서 계산)
+function _dmComboOpenChapter() {
+  let prog = {};
+  try { prog = JSON.parse(localStorage.getItem('chorditor_combo_progress_v1_' + _dmUid())) || {}; } catch (_) {}
+  let maxSkip = 0;
+  (Array.isArray(prog._skips) ? prog._skips : []).forEach(function (n) { if (n >= 2 && n <= 9 && n > maxSkip) maxSkip = n; });
+  if (typeof prog._skip === 'number' && prog._skip >= 2 && prog._skip <= 9 && prog._skip > maxSkip) maxSkip = prog._skip;
+  const keyPassed = function (c) {
+    if (maxSkip > 0 && c < maxSkip) return true;
+    for (let k = c; k <= 9; k++) if ((prog[k + '-' + DM_COMBO_KEY_LEVEL[k]] || 0) >= DM_COMBO_KEY_CLEAR_AT) return true;
+    return false;
+  };
+  for (let n = 9; n >= 2; n--) if (keyPassed(n - 1)) return n;
+  return 1;
+}
+// 티어 시작 챕터가 아직 안 열렸으면(순차 해금) 열린 최고 챕터로 낮춤 — 풀 수 없는 미션이 되지 않게
+function dmComboMinChapter() { return Math.min(DM_TIER_MIN.combo[dmTier()], _dmComboOpenChapter()); }
+// 화면에 보여줄 훈련별 시작 레벨
+function dmMinLevel(kind) { return kind === 'combo' ? dmComboMinChapter() : DM_TIER_MIN[kind][dmTier()]; }
+
+function dmLevelEligible(kind, level) {
+  if (kind === 'quiz') {
+    if (/^c\d/.test(String(level))) return true;
+    return Number(level) >= DM_TIER_MIN.quiz[dmTier()];
+  }
+  if (kind === 'scale') return _scaleTierLvl(Number(level)) >= DM_TIER_MIN.scale[dmTier()];
+  if (kind === 'combo') return parseInt(String(level), 10) >= dmComboMinChapter();
+  return false;
+}
+
+// 미션 2개 이상 완료 + 아직 오늘 도장 전이면 출석 도장을 찍는다(한 번만). 연출용 결과는 stamp에 남겨 attendance.html이 보여준다.
+async function dmEnsureAttended() {
+  const s = dmLoad();
+  if (s.attended || dmDoneCount(s) < DM_REQUIRED) return;
+  s.attended = true;
+  dmSave(s);
+  try {
+    const res = await advanceAttendance();
+    const t = dmLoad();
+    t.stamp = res ? { day: res.day, advanced: !!res.advanced, reward: res.reward || 0, seen: false } : null;
+    dmSave(t);
+    if (typeof analytics !== 'undefined') analytics.track('daily_mission_attended', { day: res && res.day, advanced: !!(res && res.advanced), persona: getUserPersona() });
+  } catch (_) {
+    const t = dmLoad(); t.attended = false; dmSave(t);   // 실패하면 다음 기회(다음 완료·페이지 진입)에 다시 시도
+  }
+}
+
+// 훈련 페이지가 레벨 세션을 끝냈을 때 호출 — 그 훈련 미션이 아직이고 조건 레벨이면 완료 처리
+async function dailyMissionReport(kind, level) {
+  try {
+    const s = dmLoad();
+    if (s.done[kind] || !dmLevelEligible(kind, level)) return;
+    s.done[kind] = true;
+    dmSave(s);
+    if (typeof analytics !== 'undefined') analytics.track('daily_mission_done', { kind: kind, level: String(level), persona: getUserPersona(), done_count: dmDoneCount(s) });
+    await dmEnsureAttended();
+  } catch (_) {}
+}
+
+// 코드반주 훈련: 재생이 멈출 때마다 재생한 초를 누적, 5분이 되면 완료
+async function dailyMissionAddPlay(sec) {
+  try {
+    if (!(sec > 0)) return;
+    const s = dmLoad();
+    s.play = (s.play || 0) + sec;
+    if (s.play >= DM_PLAY_GOAL_SEC && !s.done.play) {
+      s.done.play = true;
+      if (typeof analytics !== 'undefined') analytics.track('daily_mission_done', { kind: 'play', persona: getUserPersona(), done_count: dmDoneCount(s) });
+    }
+    dmSave(s);
+    await dmEnsureAttended();
+  } catch (_) {}
 }
 
 // 접속 시 출석 플로우 오케스트레이터 (home 진입에서 호출).
@@ -4206,144 +4462,90 @@ function _perfectCardsHtml(list) {
   }).join('');
 }
 
-// ── 퀘스트: 리하모니 화성학 장 첫 완료 (1~8, 순차, 1회성) ──────────────
-// 정답 수 무관 — 10문제 세션 1회만 완료하면 수령. 코드맞추기 레벨퀘스트와 동일 패턴.
-// 보상 1·2장→1, 3~5장→2, 6~8장→3. XP는 _quizLvlXp 재사용(동일 곡선).
-const COMBO_LVL_MAX = 8;
-function _comboLvlReward(ch) { return ch <= 2 ? 1 : (ch <= 5 ? 2 : 3); }
+// ── 퀘스트: 리하모니 화성학 (2026-10-30 개편) ──────────────────────────
+// 1회성(장 1~9마다): ① 미니강의 수강 완료 ② 종합(키) 레벨 클리어.  반복(장 무관): 레벨 클리어 5회마다.
+// 달성 보고는 chord-combo.js 의 동기화 대기열이 report_combo_quest_event 로 보냄(소급 없음). 서버 SQL = supabase/combo_quest.sql. 진행·수령은 로그인 상태에서만.
+// 보상 수량은 서버가 정함 — 아래 상자 수는 표시용이라 SQL(_combo_quest_reward)과 같아야 함. XP는 앱에서만 지급.
+//   수강: 상자 1·2장=1 / 3~5장=2 / 6~9장=3, XP 50/100/200 (코드맞추기 레벨 첫 완료와 동일)
+//   종합: 상자 1·2장=3 / 3~5장=5 / 6~9장=8, XP 200/350/600 (퍼펙트 반복 한 번 몫과 동일)
+//   반복: 레벨 클리어 5회마다 상자 5, XP 400
+const COMBO_QUEST_CHAPTERS = 9;
+const COMBO_QUEST_CLEAR_EVERY = 5;
 const COMBO_CHAPTER_NAMES = {
-  1: '패밀리코드', 2: '패밀리코드의 대리코드', 3: '세컨더리 도미넌트',
-  4: 'Rel. IIm-V-I', 5: '도미넌트의 대리코드', 6: '텐션코드 1',
-  7: '마이너 패밀리코드', 8: '모달 인터체인지',
+  1: '다이어토닉코드 이해하기', 2: '코드의 기능 이해하기', 3: '코드 꾸미기',
+  4: '세컨더리 도미넌트', 5: '릴레이티드 투-마이너', 6: '도미넌트의 대리코드',
+  7: '텐션코드', 8: '마이너 다이어토닉', 9: '모달 인터체인지',
 };
-
-// 세션 종료 시 서버 카운트(chord-combo.js 에서 호출, fire-and-forget). 폴백은 로컬 stat 사용.
-async function incrementComboComplete(chapter, perfect) {
-  await _peakRpc('increment_combo_complete', { p_chapter: chapter, p_perfect: !!perfect });
+function _comboQuestTier(ch) { return ch <= 2 ? 0 : (ch <= 5 ? 1 : 2); }
+function _comboQuestReward(kind, ch) {
+  if (kind === 'clear') return 5;
+  return (kind === 'lecture' ? [1, 2, 3] : [3, 5, 8])[_comboQuestTier(ch)];
+}
+function _comboQuestXp(kind, ch) {
+  if (kind === 'clear') return 400;
+  return (kind === 'lecture' ? [50, 100, 200] : [200, 350, 600])[_comboQuestTier(ch)];
 }
 
-function _localComboLvlDone(ch) {
-  const s = JSON.parse(localStorage.getItem('training_stats') || '{}');
-  return s['combo_completed' + ch] || 0;
-}
-function _localComboLvlClaimedGet() {
-  const s = JSON.parse(localStorage.getItem('training_stats') || '{}');
-  return s.combo_lvl_quest_claimed || 0;
-}
-function _localComboLvlClaimedSet(claimed) {
-  const s = JSON.parse(localStorage.getItem('training_stats') || '{}');
-  s.combo_lvl_quest_claimed = claimed;
-  localStorage.setItem('training_stats', JSON.stringify(s));
+async function loadComboQuests() {
+  const r = await _peakRpc('get_combo_quests');
+  if (r && r.ok) return r;
+  return { lec: {}, key: {}, clears: 0, clears_claimed: 0 };
 }
 
-async function loadComboLevelQuest() {
-  const r = await _peakRpc('get_combo_level_quest');
-  if (r) return { next_level: r.next_level, reward: r.reward, done: r.done };
-  const claimed = _localComboLvlClaimedGet();
-  const next = claimed + 1;
-  if (next > COMBO_LVL_MAX) return { next_level: 0, reward: 0, done: 0 };
-  return { next_level: next, reward: _comboLvlReward(next), done: _localComboLvlDone(next) };
-}
-
-async function claimComboLevelQuest() {
+async function claimComboQuest(kind, ch) {
   const _boxBefore = _peakState.peakbox_count || 0;
-  const _xpGain = _quizLvlXp((await loadComboLevelQuest()).next_level);
-  const r = await _peakRpc('claim_combo_level_quest');
-  if (r) {
-    if (!r.ok) return;
-    _peakState = { ..._peakState, peakbox_count: (_peakState.peakbox_count || 0) + r.reward, loaded: true };
-  } else {
-    const claimed = _localComboLvlClaimedGet();
-    const next = claimed + 1;
-    if (next > COMBO_LVL_MAX || _localComboLvlDone(next) < 1) return;
-    _localComboLvlClaimedSet(next);
-    const local = _localPeakGet();
-    const reward = _comboLvlReward(next);
-    _localPeakSet(local.balance, local.peakbox_count + reward);
-    _peakState = { ..._peakState, peakbox_count: (_peakState.peakbox_count || 0) + reward, loaded: true };
-  }
+  const r = await _peakRpc('claim_combo_quest', { p_kind: kind, p_chapter: kind === 'clear' ? null : ch });
+  if (!r || !r.ok) return;
+  _peakState = { ..._peakState, peakbox_count: (_peakState.peakbox_count || 0) + r.reward, loaded: true };
   renderPeakboxBadge();
   renderQuestList();
   showPeakboxRewardModal((_peakState.peakbox_count || 0) - _boxBefore); // 수령 → 상자 획득 표시
-  addXp(_xpGain); // 레벨 경험치
+  addXp(_comboQuestXp(kind, ch)); // 레벨 경험치
 }
 
-// ── 퀘스트: 리하모니 화성학 티어별 퍼펙트 (반복, 장 3개 그룹) ────────────
-// 장마다 독립 — 그 장 퍼펙트(10문제 전부 정답) 3회 누적마다 보상. 난이도 무관.
-// 보상은 장 범위(티어)로 결정: 1~2장→300XP+상자3 / 3~5장→500XP+상자5 / 6~8장→750XP+상자8.
-function _comboPerfectTierFor(ch) { return ch <= 2 ? { reward: 3, xp: 300 } : (ch <= 5 ? { reward: 5, xp: 500 } : { reward: 8, xp: 750 }); }
-function _localComboPerfectTotal(ch) {
-  const s = JSON.parse(localStorage.getItem('training_stats') || '{}');
-  return s['combo_perfect' + ch] || 0;
-}
-function _localComboPerfectClaimedGet() {
-  const s = JSON.parse(localStorage.getItem('training_stats') || '{}');
-  return s.combo_perfect_claimed || {};
-}
-function _localComboPerfectClaimedSet(obj) {
-  const s = JSON.parse(localStorage.getItem('training_stats') || '{}');
-  s.combo_perfect_claimed = obj;
-  localStorage.setItem('training_stats', JSON.stringify(s));
+function _comboQuestCardHtml(kind, ch, title, desc, canClaim, progText) {
+  const tail = canClaim
+    ? '<button class="quest-card-claim" onclick="_playConfirmSfx();claimComboQuest(\'' + kind + '\',' + (ch || 0) + ')">수령</button>'
+    : '<span class="quest-card-progress">' + progText + '</span>';
+  return '<div class="quest-card">' +
+      '<div class="quest-card-info">' +
+        '<span class="quest-card-title">' + title + '</span>' +
+        '<span class="quest-card-desc">' + desc + '</span>' +
+      '</div>' +
+      '<div class="quest-card-stats">' +
+        _questRewardHtml(_comboQuestReward(kind, ch), _comboQuestXp(kind, ch)) +
+        '<div class="quest-card-progress-col">' + tail + '</div>' +
+      '</div>' +
+    '</div>';
 }
 
-async function loadComboPerfectQuest() {
-  const r = await _peakRpc('get_combo_perfect_quest');
-  if (Array.isArray(r)) return r;
-  const claimed = _localComboPerfectClaimedGet();
-  const arr = [];
-  for (let ch = 1; ch <= COMBO_LVL_MAX; ch++) {
-    const total = _localComboPerfectTotal(ch);
-    const tier  = _comboPerfectTierFor(ch);
-    arr.push({ level: ch, perfect: total, earned: Math.floor(total / 3),
-      claimed: claimed[ch] || 0, reward: tier.reward, xp: tier.xp });
-  }
-  return arr;
-}
-
-async function claimComboPerfectQuest(ch) {
-  const _boxBefore = _peakState.peakbox_count || 0;
-  const tier     = _comboPerfectTierFor(ch);
-  const _xpGain  = tier.xp;
-  const r = await _peakRpc('claim_combo_perfect_quest', { p_chapter: ch });
-  if (r) {
-    if (!r.ok) return;
-    _peakState = { ..._peakState, peakbox_count: (_peakState.peakbox_count || 0) + r.reward, loaded: true };
-  } else {
-    const total = _localComboPerfectTotal(ch);
-    const claimedObj = _localComboPerfectClaimedGet();
-    const claimed = claimedObj[ch] || 0;
-    if (Math.floor(total / 3) <= claimed) return;
-    claimedObj[ch] = claimed + 1;
-    _localComboPerfectClaimedSet(claimedObj);
-    const local = _localPeakGet();
-    _localPeakSet(local.balance, local.peakbox_count + tier.reward);
-    _peakState = { ..._peakState, peakbox_count: (_peakState.peakbox_count || 0) + tier.reward, loaded: true };
-  }
-  renderPeakboxBadge();
-  renderQuestList();
-  showPeakboxRewardModal((_peakState.peakbox_count || 0) - _boxBefore); // 수령 → 상자 획득 표시
-  addXp(_xpGain); // 레벨 경험치
-}
-
-// 장별 퍼펙트 개별 카드(1~8장)
-function _comboPerfectCardsHtml(list) {
-  return list.map(q => {
-    const pending = q.earned - q.claimed;      // 수령 대기 횟수
-    const inCycle = q.perfect - q.claimed * 3;  // 현재 사이클 누적(0~2)
-    const tail = pending > 0
-      ? '<button class="quest-card-claim" onclick="_playConfirmSfx();claimComboPerfectQuest(' + q.level + ')">수령</button>'
-      : '<span class="quest-card-progress">' + Math.min(inCycle, 3) + ' / 3</span>';
-    return '<div class="quest-card">' +
-        '<div class="quest-card-info">' +
-          '<span class="quest-card-title">(반복) ' + (COMBO_CHAPTER_NAMES[q.level] || ('제' + q.level + '장')) + '</span>' +
-          '<span class="quest-card-desc">퍼펙트 정답 3회 마다</span>' +
-        '</div>' +
-        '<div class="quest-card-stats">' +
-          _questRewardHtml(q.reward, q.xp) +
-          '<div class="quest-card-progress-col">' + tail + '</div>' +
-        '</div>' +
-      '</div>';
-  }).join('');
+// 리하모니 화성학 퀘스트 카드. all = 목록 전체(수령 가능한 카드 + 종류별 다음 미달성 1개), claimable = 상단 "수령 가능" 목록용
+// 값 1 = 달성(수령 가능) / 2 = 수령 완료 / 없음 = 미달성. 수령 완료는 숨김.
+function _comboQuestCards(q) {
+  const all = [], claimable = [];
+  [['lecture', 'lec', '미니강의 수강 완료'], ['key', 'key', '종합 레벨 클리어']].forEach(function (k) {
+    const map = q[k[1]] || {};
+    let shownNext = false;
+    for (let ch = 1; ch <= COMBO_QUEST_CHAPTERS; ch++) {
+      const st = map[ch] | 0;
+      if (st >= 2) continue;
+      const title = ch + '장 ' + COMBO_CHAPTER_NAMES[ch];
+      if (st === 1) {
+        const html = _comboQuestCardHtml(k[0], ch, title, k[2], true, '');
+        all.push(html); claimable.push(html);
+      } else if (!shownNext) {
+        shownNext = true;
+        all.push(_comboQuestCardHtml(k[0], ch, title, k[2], false, '0 / 1'));
+      }
+    }
+  });
+  const clears = q.clears | 0, claimed = q.clears_claimed | 0;
+  const canClaim = Math.floor(clears / COMBO_QUEST_CLEAR_EVERY) > claimed;
+  const rHtml = _comboQuestCardHtml('clear', 0, '(반복) 리하모니 화성학', '레벨 클리어 ' + COMBO_QUEST_CLEAR_EVERY + '회 마다',
+    canClaim, Math.min(clears - claimed * COMBO_QUEST_CLEAR_EVERY, COMBO_QUEST_CLEAR_EVERY) + ' / ' + COMBO_QUEST_CLEAR_EVERY);
+  all.push(rHtml);
+  if (canClaim) claimable.push(rHtml);
+  return { all: all, claimable: claimable };
 }
 
 // 공통 퀘스트 카드 HTML. next_day=0(완료)이면 빈 문자열.
@@ -4730,11 +4932,11 @@ async function renderQuestList() {
   const top   = [];
 
   // 전 퀘스트 병렬 로드 — 직렬 await 16회(왕복 누적 지연) → 동시 발사
-  const [a, i, nc, ns, t, qz, ql, pf, cg, sc, sl, spf, pg, rq, cl, cpf, iv, sb] = await Promise.all([
+  const [a, i, nc, ns, t, qz, ql, pf, cg, sc, sl, spf, pg, rq, cq, iv, sb] = await Promise.all([
     loadAttendanceQuest(), loadImageQuest(), loadNoteQuest('create'), loadNoteQuest('share'),
     loadTimeQuest(), loadQuizQuest(), loadQuizLevelQuest(), loadPerfectQuest(),
     loadChallengeQuest(), loadScaleQuest(), loadScaleLevelQuest(), loadScalePerfectQuest(),
-    loadProgressionQuest(), loadRampQuest(), loadComboLevelQuest(), loadComboPerfectQuest(),
+    loadProgressionQuest(), loadRampQuest(), loadComboQuests(),
     loadInviteQuest(), loadScaleBonusQuest(),
   ]);
 
@@ -4834,17 +5036,9 @@ async function renderQuestList() {
   if (_isClaimable(rq.total, rq.next_day)) top.push(rqHtml);
 
   parts.push(_questDividerHtml('리하모니 화성학'));
-  const clDone = Math.min(cl.done, 1);
-  const clNextDay = cl.next_level ? 1 : 0;
-  const clHtml = _questCardHtml('리하모니 화성학',
-    (COMBO_CHAPTER_NAMES[cl.next_level] || ('제' + cl.next_level + '장')) + ' 첫 완료',
-    cl.reward, _quizLvlXp(cl.next_level), clDone, clNextDay, 'claimComboLevelQuest');
-  parts.push(clHtml);
-  if (_isClaimable(clDone, clNextDay)) top.push(clHtml);
-
-  parts.push(_comboPerfectCardsHtml(cpf));
-  const cpfClaimable = cpf.filter(q => q.earned > q.claimed);
-  cpfClaimable.forEach(q => top.push(_comboPerfectCardsHtml([q])));
+  const cqCards = _comboQuestCards(cq);
+  parts.push(cqCards.all.join(''));
+  cqCards.claimable.forEach(h => top.push(h));
 
   body.innerHTML = parts.join('');
   if (claimBody) claimBody.innerHTML = top.slice(0, 3).join(''); // 수령 가능 목록 최대 3개
@@ -4904,14 +5098,17 @@ function closeXpInfoModal() {
 // 보충출석 v2 — 정규출석 안 한 날에만, 하루 1회, 월 3회. 갭 판정 없음(2026-09-01 개편).
 // 실패 사유(res.reason: already_regular/already_makeup/full/no_left)는 호출부(attendance.js)가
 // 보고 UI 처리(예: full이면 "이번 달 다 채웠어요" 팝업) — 여기선 결과를 그대로 반환만 한다.
-async function makeupAttendance() {
-  const r = await _peakRpc('makeup_attendance_v2');
+// byAd = 3회를 다 쓴 뒤 광고를 보고 채우는 경우(남은 횟수는 그대로 0). 서버 SQL = makeup_attendance_v3
+async function makeupAttendance(byAd) {
+  const r = await _peakRpc('makeup_attendance_v3', { p_by_ad: !!byAd });
   let res;
   if (r) {
     res = r;
     if (r.ok && r.reward > 0) _peakState = { ..._peakState, peakbox_count: (_peakState.peakbox_count || 0) + r.reward, loaded: true };
+  } else if (getStoredAuth().token) {
+    return { ok: false, reason: 'network' };   // 로그인 상태에서 RPC가 실패하면 로컬에 몰래 찍지 않음(다음 서버 조회 때 사라지는 유령 도장 방지)
   } else {
-    res = _localMakeup();
+    res = _localMakeup(byAd);   // 비로그인/dev
   }
   if (!res || !res.ok) return res;
   _attState = { day: res.day, makeup_left: res.makeup_left, full: !!res.full, loaded: true };
@@ -4919,6 +5116,18 @@ async function makeupAttendance() {
   // 재렌더 UI는 호출부(attendance.html) 몫 — 모달 자동오픈 로직은 페이지 전환으로 대체되며 제거됨
   if (res.reward > 0) setTimeout(() => showPeakboxRewardModal(res.reward, undefined, { source: 'attendance_milestone' }), STAMP_ANIM_MS + 150);
   return res;
+}
+
+// 보충출석 3회를 다 쓴 뒤: 광고를 끝까지 보면 도장 1칸을 채움(광고 단위는 옛 데일리미션 2배 보상용 mission_reward 재사용).
+// 반환은 makeupAttendance와 같은 형태 — reason: 'ad_unavailable'(웹/광고 꺼짐) / 'ad_not_rewarded'(중간 이탈·실패)
+async function makeupAttendanceByAd() {
+  if (isAdFreeUser()) return { ok: false, reason: 'no_left' };
+  if (!MS_AD_ENABLED) return { ok: false, reason: 'ad_unavailable' };
+  if (!window.Capacitor?.Plugins?.AdMob) { _adUnavailableOnWeb(); return { ok: false, reason: 'ad_unavailable' }; }
+  if (typeof analytics !== 'undefined') analytics.track('attendance_makeup_ad_clicked', {});
+  const rewarded = await _showRewardedAd(AD_UNIT_IDS.mission_reward, 'makeup');
+  if (!rewarded) return { ok: false, reason: 'ad_not_rewarded' };
+  return makeupAttendance(true);
 }
 
 // 오늘 칸 도장 찍힘 애니메이션 완료 시각(ms) — style.css delay(0.4s)+duration(0.7s) 합
