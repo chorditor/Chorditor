@@ -3551,6 +3551,7 @@
     prog._lec = a.sort(function (x, y) { return x - y; });
     _comboV2ProgSave(prog);
     try { _comboV2SyncPush({ t: 'q', k: 'lecture', ch: n }); } catch (e) {}   // 퀘스트 달성 보고(소급 없음 — 처음 끝까지 본 이 순간만)
+    try { comboV2MetaSync(); } catch (e) {}   // 수강 완료를 계정에도 기록(앱을 지워도 이 챕터 강의를 다시 듣게 하지 않음)
     _comboV2RenderProgress();   // 강의를 마친 챕터의 첫 레벨이 열림
     return true;
   }
@@ -3567,9 +3568,19 @@
   function maybeShowWelcome() {
     const prog = _comboV2ProgLoad();
     if (prog._welcome || _comboV2LectureDone(1, prog)) return;
-    prog._welcome = 1;
-    _comboV2ProgSave(prog);
-    $('combo-v2-welcome').hidden = false;
+    // 서버 기록(레벨 진행도·수강 완료·환영 페이지를 본 적)을 확인한 뒤에 판단 — 이미 진행한 계정에서 환영 페이지가 잠깐 떴다 사라지거나, 재설치 후 또 뜨는 것을 막는다. 최대 2.5초만 기다림
+    const waits = [];
+    if (typeof _comboV2PullReady !== 'undefined' && _comboV2PullReady) waits.push(_comboV2PullReady);
+    if (typeof _comboV2MetaReady !== 'undefined' && _comboV2MetaReady) waits.push(_comboV2MetaReady);
+    const ready = waits.length ? Promise.race([Promise.all(waits.map(function (p) { return p.catch(function () {}); })), new Promise(function (r) { setTimeout(r, 2500); })]) : Promise.resolve();
+    ready.then(function () {
+      const p = _comboV2ProgLoad();
+      if (p._welcome || _comboV2LectureDone(1, p)) return;
+      p._welcome = 1;
+      _comboV2ProgSave(p);
+      try { comboV2MetaSync(); } catch (e) {}   // 본 적 있음을 계정에 기록 → 앱을 지워도 다시 안 뜸
+      $('combo-v2-welcome').hidden = false;
+    });
   }
   function closeWelcome() {
     const page = $('combo-v2-welcome');

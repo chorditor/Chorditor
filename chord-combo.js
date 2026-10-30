@@ -4595,6 +4595,61 @@ async function _comboV2SyncFlush() {
     _comboV2Syncing = false;
   }
 }
+// ── 계정에 붙는 부가 진행 표시: 수강 완료 챕터(_lec) · 환영 페이지를 본 적(_welcome) (2026-10-31) ──
+// 기기에만 두면 앱을 지우거나 기기를 바꿨을 때 "9장까지 깼는데 또 1장 강의·환영 페이지"가 된다. 계정 user_metadata(combo_lec: [챕터], combo_welcome: true)에 둔다 — SQL 불필요.
+// 읽기 = GET /auth/v1/user, 쓰기 = PUT /auth/v1/user(data 병합). 기기 값과 서버 값은 합집합으로 합치고, 한쪽에만 있는 값은 반대쪽으로 올린다(멱등).
+async function _comboV2MetaFetch(method, body) {
+  const call = function (tk) {
+    return fetch(SUPABASE_URL + '/auth/v1/user', {
+      method: method,
+      headers: Object.assign({ apikey: SUPABASE_ANON, Authorization: 'Bearer ' + tk }, body ? { 'Content-Type': 'application/json' } : {}),
+      body: body ? JSON.stringify(body) : undefined,
+    });
+  };
+  const raw = localStorage.getItem(SUPABASE_STORAGE_KEY);
+  const a = raw ? JSON.parse(raw) : null;
+  if (!a || !a.access_token) return null;
+  let r = await call(a.access_token);
+  if (r.status === 401 && typeof _peakRefreshToken === 'function') {   // 토큰 만료 → 리프레시 후 1회 재시도
+    const fresh = await _peakRefreshToken();
+    if (!fresh) return null;
+    r = await call(fresh);
+  }
+  return r.ok ? r : null;
+}
+let _comboV2MetaRunning = false, _comboV2MetaAgain = false;
+async function comboV2MetaSync() {
+  if (!_comboV2SyncAuthed()) return;
+  if (_comboV2MetaRunning) { _comboV2MetaAgain = true; return; }   // 실행 중에 새 기록이 생기면 끝난 뒤 한 번 더
+  _comboV2MetaRunning = true;
+  try {
+    do {
+      _comboV2MetaAgain = false;
+      const r = await _comboV2MetaFetch('GET');
+      if (!r) break;                                              // 서버 확인 실패 — 기기 값 그대로, 다음 접속·다음 기록 때 다시
+      const m = ((await r.json()) || {}).user_metadata || {};
+      const srvLec = Array.isArray(m.combo_lec) ? m.combo_lec.filter(function (n) { return n >= 1 && n <= 9; }) : [];
+      const srvWelcome = !!m.combo_welcome;
+      const p = _comboV2ProgLoad();
+      const mine = Array.isArray(p._lec) ? p._lec : [];
+      const lec = Array.from(new Set(mine.concat(srvLec))).sort(function (x, y) { return x - y; });
+      const welcome = !!(p._welcome || srvWelcome);
+      if (lec.length !== mine.length || (welcome && !p._welcome)) {   // 서버에만 있던 값을 기기로
+        p._lec = lec;
+        if (welcome) p._welcome = 1;
+        _comboV2ProgSave(p);
+        _comboV2RenderProgress();
+      }
+      if (lec.some(function (n) { return srvLec.indexOf(n) < 0; }) || (welcome && !srvWelcome)) {   // 기기에만 있던 값을 서버로
+        await _comboV2MetaFetch('PUT', { data: { combo_lec: lec, combo_welcome: welcome } });
+      }
+    } while (_comboV2MetaAgain);
+  } catch (_) {
+  } finally {
+    _comboV2MetaRunning = false;
+  }
+}
+
 // 접속 시: 대기열 비우기 → 서버 진행도 받아 병합 → (서버에 없는 로컬 진행분은 한 번 올림) → 다시 그림
 async function comboV2SyncPull() {
   if (!_comboV2SyncAuthed()) return;
@@ -4653,5 +4708,6 @@ function _comboV2PositionToLatest(onlyIfUntouched) {
 
 _comboV2RenderProgress();
 requestAnimationFrame(function () { requestAnimationFrame(function () { _comboV2PositionToLatest(false); }); });   // 레이아웃·폰트가 자리 잡은 뒤
-comboV2SyncPull();
+var _comboV2PullReady = comboV2SyncPull();       // 환영 페이지 판단이 서버 진행도를 기다릴 수 있게 약속을 보관(chord-combo-lecture.js maybeShowWelcome)
+var _comboV2MetaReady = comboV2MetaSync();       // 수강 완료·환영 페이지 표시를 서버와 합침
 _comboV2DevBar();

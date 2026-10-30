@@ -3565,6 +3565,24 @@ async function dmSyncServer() {
   } catch (_) { return false; }
 }
 
+// 관리자 전용 진단(attendance.html 제목 길게 누르기): sync_daily_mission을 직접 불러 서버가 뭐라고 답하는지 그대로 돌려준다.
+// _peakRpc는 실패를 조용히 삼켜서(null) 원인을 알 수 없어, 앱에서 콘솔 없이 확인하려고 둔 것. 일반 유저에게는 노출되지 않는다.
+async function dmDebugSync() {
+  try {
+    const raw = localStorage.getItem(SUPABASE_STORAGE_KEY);
+    const a = raw ? JSON.parse(raw) : null;
+    if (!a || !a.access_token) return '로그인 세션 없음(토큰 없음)';
+    const s = dmLoad();
+    const done = DM_KINDS.filter(function (k) { return s.done[k]; });
+    const r = await fetch(SUPABASE_URL + '/rest/v1/rpc/sync_daily_mission', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', apikey: SUPABASE_ANON, Authorization: 'Bearer ' + a.access_token },
+      body: JSON.stringify({ p_done: done, p_play_sec: Math.floor(s.play || 0) }),
+    });
+    return '기기 상태: ' + JSON.stringify({ date: s.date, done: done, play: s.play, attended: s.attended }) + ' / 서버 응답: ' + r.status + ' ' + (await r.text()).slice(0, 300);
+  } catch (e) { return '호출 실패: ' + (e && e.message); }
+}
+
 // 훈련 페이지가 레벨 세션을 끝냈을 때 호출 — 그 훈련 미션이 아직이고 조건 레벨이면 완료 처리
 async function dailyMissionReport(kind, level) {
   try {

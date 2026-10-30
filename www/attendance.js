@@ -262,6 +262,16 @@ document.addEventListener('DOMContentLoaded', async () => {
   }
   lucide.createIcons();
 
+  // 관리자 전용 진단: 제목을 1.5초 길게 누르면 서버 동기화 응답을 알림으로 보여줌(콘솔 없이 앱에서 확인용)
+  if (typeof _isAdminUser === 'function' && _isAdminUser()) {
+    const ttl = document.querySelector('#attendance-page .cd-title');
+    let pressTimer = null;
+    if (ttl) {
+      ttl.addEventListener('pointerdown', () => { pressTimer = setTimeout(async () => { alert(await dmDebugSync()); }, 1500); });
+      ['pointerup', 'pointerleave', 'pointercancel'].forEach(ev => ttl.addEventListener(ev, () => clearTimeout(pressTimer)));
+    }
+  }
+
   await dmSyncPersona();      // 티어(시작 레벨)가 페르소나로 정해지므로 가장 먼저 — 새 기기·승급 직후 낡은 로컬 값 방지
   await dmSyncServer();       // 서버의 오늘 진행도와 합침(재설치·다른 기기) — 합친 결과로 미션 2개면 여기서 도장도 찍음
   await dmEnsureAttended();   // 미션을 이미 끝냈는데 도장이 안 찍혔다면(보고 도중 앱이 꺼진 경우 등) 여기서 찍음
