@@ -2419,9 +2419,9 @@ function buildProjectLine(line, project, editMode, prevLine = null, isFirstLine 
     const badge = document.createElement('div');
     badge.className = 'row-meta-badge';
     const parts = [];
-    if (showBpm) parts.push(`♩=${getRowBpm(project, line)}`);
+    if (showBpm) parts.push(`<span class="row-meta-note">♩</span>=${getRowBpm(project, line)}`);   // ♩ 글리프만 크게(.row-meta-note) — 12px 글자 크기에선 음표가 너무 작아 보였다
     if (showCapo) parts.push(`${effCapo} Capo`);
-    badge.textContent = parts.join('  ');
+    badge.innerHTML = parts.join('  ');
     metaArea.appendChild(badge);
   }
 
@@ -3116,9 +3116,9 @@ function _refreshRowMeta(linesEl, project) {
       }
       if (badge) {
         const parts = [];
-        if (showBpm)  parts.push(`♩=${bpm}`);
+        if (showBpm)  parts.push(`<span class="row-meta-note">♩</span>=${bpm}`);
         if (showCapo) parts.push(`${capo} Capo`);
-        badge.textContent = parts.join('  ');
+        badge.innerHTML = parts.join('  ');
       }
     } else if (badge) {
       badge.remove();

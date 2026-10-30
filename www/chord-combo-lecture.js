@@ -3590,7 +3590,7 @@
     L.open = true;
     L.ch = n;
     setTopbarLec(true);
-    try { const pr = _comboV2ProgLoad(); L.rewatch = (Array.isArray(pr._lec) && pr._lec.indexOf(n) >= 0) || (typeof _comboV2DevUnlocked === 'function' && _comboV2DevUnlocked()); } catch (e) { L.rewatch = false; }   // 이미 끝까지 수강한 챕터만 터치로 건너뛸 수 있음(처음 보는 강의는 못 건너뜀)
+    try { const pr = _comboV2ProgLoad(); L.rewatch = _comboV2LectureDone(n, pr) || (typeof _comboV2DevUnlocked === 'function' && _comboV2DevUnlocked()); } catch (e) { L.rewatch = false; }   // 이미 끝까지 수강한 챕터만 터치로 건너뛸 수 있음(처음 보는 강의는 못 건너뜀)
     const tok = L.tok;
     const sec = $('combo-v2-lecture');
     sec.style.setProperty('--lec-fade', FADE_MS + 'ms');

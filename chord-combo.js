@@ -4257,6 +4257,12 @@ const COMBO_V2_LECTURE_READY = [1, 2, 3, 4, 5, 6, 7, 8, 9];   // 미니강의가
 function _comboV2LectureDone(n, prog) {
   if (COMBO_V2_LECTURE_READY.indexOf(n) < 0) return true;
   if (Array.isArray(prog._lec) && prog._lec.indexOf(n) >= 0) return true;
+  // 수강 완료(_lec)는 이 기기에만 있고 서버에 안 올라가서, 재설치·새 기기에선 레벨 진행도(서버)만 돌아오고 강의는 처음 본 것으로 남아 1-1이 잠기는 모순이 생겼다(2026-10-31).
+  // 레벨은 강의를 끝낸 챕터에서만 풀 수 있으니, 그 챕터(또는 더 높은 챕터)의 레벨을 푼 기록이 있으면 강의는 들은 것으로 본다.
+  for (const k in prog) {
+    if (k.charAt(0) === '_') continue;
+    if (parseInt(k, 10) >= n && (prog[k] | 0) > 0) return true;
+  }
   const sk = _comboV2Skips(prog);
   return sk.length > 0 && n < sk[sk.length - 1];   // 더 높은 챕터로 건너뛰는 테스트를 통과: 그 아래 챕터의 강의는 본 것으로 간주(언제든 다시 볼 수 있음)
 }
@@ -4597,7 +4603,24 @@ async function comboV2SyncPull() {
   const r = await _peakRpc('get_combo_progress');
   if (!r || !r.ok || !r.levels) return;
   const before = _comboV2MaxChapter(_comboV2ProgLoad());
-  const changed = _comboV2MergeServer(r);
+  let changed = _comboV2MergeServer(r);
+  // 수강 완료 챕터 복구 — 퀘스트 기록(combo_quest.sql)의 강의 수강 표시를 _lec에 합침(레벨을 안 풀고 강의만 본 경우도 복구). 실패하면 그냥 넘어감
+  try {
+    const q = await _peakRpc('get_combo_quests');
+    if (q && q.ok && q.lec) {
+      const p = _comboV2ProgLoad();
+      const a = Array.isArray(p._lec) ? p._lec.slice() : [];
+      Object.keys(q.lec).forEach(function (ch) {
+        const n = parseInt(ch, 10);
+        if ((q.lec[ch] | 0) >= 1 && n >= 1 && n <= 9 && a.indexOf(n) < 0) a.push(n);
+      });
+      if (a.length !== (Array.isArray(p._lec) ? p._lec.length : 0)) {
+        p._lec = a.sort(function (x, y) { return x - y; });
+        _comboV2ProgSave(p);
+        changed = true;
+      }
+    }
+  } catch (_) {}
   const local = _comboV2ProgLoad();
   const ops = [];   // 로컬에만 있는 진행분(기존 로컬 진행 / 오프라인 기록)을 서버에 올림
   Object.keys(local).forEach(function (lv) {

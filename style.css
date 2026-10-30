@@ -4347,6 +4347,12 @@ canvas {
   color: var(--text-primary);
   margin-bottom: 8px;
 }
+/* BPM 박자 표시의 음표(♩) — 글리프가 같은 크기 글자보다 훨씬 작아 보여서 크게. 줄 높이를 밀지 않게 line-height 0 + 기준선 아래로 살짝 내림 */
+.row-meta-note {
+  font-size: 1.6em;
+  line-height: 0;
+  vertical-align: -0.12em;
+}
 /* �?병합 무장 ?�태: ??�???Backspace ???�전 줄과 ?�쳐짐을 ?�리???�이�???*/
 /* ?�스?��? 바깥(좌측 ?�백)??배치 ???�스?�는 밀지 ?�음 */
 .line-merge-icon {

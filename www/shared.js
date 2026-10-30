@@ -3456,8 +3456,9 @@ async function loadAttendanceState() {
 //   코드맞추기 / 스케일 훈련 / 리하모니 화성학 : 페르소나(티어)별 시작 레벨 이상의 레벨 세션 1회 완료(정답 수 무관)
 //   코드반주 훈련                              : 페르소나 무관, 주법 재생 5분 누적(하루 KST 기준)
 // 완료 보고는 각 훈련 페이지가 호출한다: dailyMissionReport(kind, level) / dailyMissionAddPlay(sec).
-// 진행은 기기 로컬(계정별 키, 날짜가 바뀌면 자동 초기화). 출석 도장 자체는 서버(advanceAttendance)가 하루 1회로 보장.
+// 진행은 기기 로컬(계정별 키, 날짜가 바뀌면 자동 초기화)에 먼저 저장하고 서버(sync_daily_mission)와 맞춘다. 출석 도장 자체는 서버(advanceAttendance)가 하루 1회로 보장.
 const DM_REQUIRED = 2;
+const DM_KINDS = ['quiz', 'scale', 'combo', 'play'];
 const DM_PLAY_GOAL_SEC = 300;
 // 티어 1~5 = PERSONA_STAGES 순서(언박싱·굳은살·악보의존·방구석·기타마스터). 값 = 그 훈련에서 미션으로 인정되는 시작 레벨(이상)
 //   quiz = 레벨 번호(챌린지 c1~c3는 항상 인정) / scale = 레벨 번호(25·26은 _scaleTierLvl 기준, 즉 2) / combo = 챕터 번호(N-1부터)
@@ -3475,7 +3476,7 @@ function dmLoad() {
   return o;
 }
 function dmSave(o) { try { localStorage.setItem(_dmKey(), JSON.stringify(o)); } catch (_) {} }
-function dmDoneCount(s) { return ['quiz', 'scale', 'combo', 'play'].filter(function (k) { return s.done[k]; }).length; }
+function dmDoneCount(s) { return DM_KINDS.filter(function (k) { return s.done[k]; }).length; }
 function dmTier() { return Math.max(0, PERSONA_STAGES.indexOf(getUserPersona())); }   // 0~4
 
 // DB 페르소나(user_persona_profile — home.js loadProfileFromDB와 같은 소스) → 로컬 동기화.
@@ -3546,6 +3547,24 @@ async function dmEnsureAttended() {
   }
 }
 
+// 서버(sync_daily_mission — supabase/daily_mission.sql)와 맞춤: 기기 상태를 보내고(완료 목록은 합집합, 누적 초는 큰 값) 병합 결과를 기기에 반영.
+// 재설치·다른 기기에서도 오늘 진행도가 이어지게 한다. 비로그인·실패는 기기 값만으로 동작하고, 다음 호출 때 전체 상태를 다시 보내므로 놓친 것이 없다.
+async function dmSyncServer() {
+  try {
+    const s = dmLoad();
+    const done = DM_KINDS.filter(function (k) { return s.done[k]; });
+    const r = await _peakRpc('sync_daily_mission', { p_done: done, p_play_sec: Math.floor(s.play || 0) });
+    if (!r || !r.ok) return false;
+    const t = dmLoad();   // 응답을 기다리는 사이에 바뀌었을 수 있어 다시 읽어서 병합
+    (r.done || []).forEach(function (k) { if (DM_KINDS.indexOf(k) >= 0) t.done[k] = true; });
+    t.play = Math.max(t.play || 0, r.play_sec || 0);
+    if (t.play >= DM_PLAY_GOAL_SEC) t.done.play = true;
+    dmSave(t);
+    await dmEnsureAttended();   // 다른 기기에서 이미 2개를 끝냈다면 여기서 도장
+    return true;
+  } catch (_) { return false; }
+}
+
 // 훈련 페이지가 레벨 세션을 끝냈을 때 호출 — 그 훈련 미션이 아직이고 조건 레벨이면 완료 처리
 async function dailyMissionReport(kind, level) {
   try {
@@ -3554,6 +3573,7 @@ async function dailyMissionReport(kind, level) {
     s.done[kind] = true;
     dmSave(s);
     if (typeof analytics !== 'undefined') analytics.track('daily_mission_done', { kind: kind, level: String(level), persona: getUserPersona(), done_count: dmDoneCount(s) });
+    dmSyncServer();             // 서버에도 기록(기다리지 않음 — 도장은 아래 로컬 판정이 바로)
     await dmEnsureAttended();
   } catch (_) {}
 }
@@ -3569,6 +3589,7 @@ async function dailyMissionAddPlay(sec) {
       if (typeof analytics !== 'undefined') analytics.track('daily_mission_done', { kind: 'play', persona: getUserPersona(), done_count: dmDoneCount(s) });
     }
     dmSave(s);
+    dmSyncServer();             // 서버에도 누적 초 기록(기다리지 않음)
     await dmEnsureAttended();
   } catch (_) {}
 }

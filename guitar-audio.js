@@ -469,6 +469,8 @@ const GuitarAudio = (() => {
     if (_masterGain) { _masterGain.dispose(); _masterGain = null; }
     if (_outGain)  { _outGain.dispose();  _outGain = null; }
     if (_pianoSynth) { _pianoSynth.dispose(); _pianoSynth = null; }
+    if (_pianoMono)  { _pianoMono.dispose();  _pianoMono = null; }
+    if (_pianoMakeup) { _pianoMakeup.dispose(); _pianoMakeup = null; }
     if (_pianoGain)  { _pianoGain.dispose();  _pianoGain = null; }
     _init();
   }
@@ -478,6 +480,8 @@ const GuitarAudio = (() => {
   // 고급진 톤이라 반려, 순수 신스 합성은 가짜같다고 반려됨. FluidR3_GM은 범용 GM 사운드폰트라
   // Salamander보다 훨씬 평범한 "디지털 키보드" 톤(2026-09-30, 사용자 확정).
   let _pianoSynth   = null;
+  let _pianoMono    = null; // 샘플이 스테레오(좌우 차이가 큼 — 2026-10-31 실측)라 모노로 합쳐 양쪽 똑같이 들리게
+  let _pianoMakeup  = null; // 모노 합산으로 줄어드는 음량(약 3dB) 보정
   let _pianoGain    = null;
   let _pianoReady   = false;
   let _pianoPending = [];
@@ -486,6 +490,13 @@ const GuitarAudio = (() => {
     if (_pianoSynth || typeof Tone === 'undefined') return;
     const gen = ++_pianoGen;
     _pianoGain = new Tone.Gain(0.6).toDestination();
+    // 샘플러 → 모노 합산 → 음량 보정 → 출력 게인. Tone.Mono가 없는 구버전이면 기존처럼 바로 연결(폴백)
+    let _pianoOut = _pianoGain;
+    if (typeof Tone.Mono === 'function') {
+      _pianoMakeup = new Tone.Gain(1.4).connect(_pianoGain);
+      _pianoMono = new Tone.Mono().connect(_pianoMakeup);
+      _pianoOut = _pianoMono;
+    }
     _pianoSynth = new Tone.Sampler({
       // 이 사운드폰트는 흰건반(자연음)만 샘플로 제공함(2026-09-30 확인, #/b 샘플 전부 404) —
       // 자연음만 앵커로 주면 Sampler가 나머지(#/b)는 가장 가까운 샘플을 자동 피치시프트해서 재생.
@@ -501,7 +512,7 @@ const GuitarAudio = (() => {
         _pianoPending.forEach(fn => fn());
         _pianoPending = [];
       },
-    }).connect(_pianoGain);
+    }).connect(_pianoOut);
   }
   // midis: MIDI 배열(코드 구성음), duration: 초(triggerAttackRelease 지속시간)
   // time: 절대 오디오 시각(초, 미지정 시 지금) — 백킹 트랙처럼 미리 예약할 때 사용. velocity: 0~1(미지정 시 Tone 기본)
@@ -573,6 +584,8 @@ const GuitarAudio = (() => {
   function resetPiano() {
     _pianoGen++;
     if (_pianoSynth) { try { _pianoSynth.dispose(); } catch (e) {} _pianoSynth = null; }
+    if (_pianoMono)  { try { _pianoMono.dispose();  } catch (e) {} _pianoMono  = null; }
+    if (_pianoMakeup) { try { _pianoMakeup.dispose(); } catch (e) {} _pianoMakeup = null; }
     if (_pianoGain)  { try { _pianoGain.dispose();  } catch (e) {} _pianoGain  = null; }
     _pianoReady = false;
     _pianoPending = [];
