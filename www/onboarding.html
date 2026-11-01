@@ -11,7 +11,7 @@
   <link rel="stylesheet" href="style.css" />
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
 </head>
-<body>
+<body class="onboarding-page">
 
   <!-- ── 온보딩 오버레이 ── -->
   <div class="onboarding-overlay hidden" id="onboarding-overlay">
@@ -78,14 +78,7 @@
   <!-- ── 온보딩 Step 1: 페르소나 선택 ── -->
   <div class="onboarding-overlay ob-overlay--step hidden" id="ob-step1">
     <div class="ob-topbar">
-      <div class="ob-progress-dots">
-        <span class="ob-dot ob-dot--active"></span>
-        <span class="ob-dot"></span>
-        <span class="ob-dot"></span>
-        <span class="ob-dot"></span>
-        <span class="ob-dot"></span>
-        <span class="ob-dot"></span>
-      </div>
+      <div class="ob-progress-dots"></div>
     </div>
     <div class="ob-main">
       <h2 class="ob-title">나는 어떤<br>기타리스트인가요?</h2>
@@ -130,10 +123,6 @@
         <input type="checkbox" class="ob-consent-required" id="ob-age-checkbox" onchange="obOnConsentCheck()">
         <span class="ob-consent-check-label"><span class="ob-consent-check-tag">(필수)</span> 만 14세 이상입니다</span>
       </label>
-      <label class="ob-consent-check-row">
-        <input type="checkbox" id="ob-push-checkbox">
-        <span class="ob-consent-check-label"><span class="ob-consent-check-tag">(선택)</span> 앱 푸시 허용</span>
-      </label>
       <button class="onboarding-start-btn" id="ob-consent-btn" disabled onpointerdown="obConsentAgree()">동의하고 계속하기</button>
     </div>
   </div>
@@ -141,14 +130,7 @@
   <!-- ── 온보딩 Step 2: 기타 경력 ── -->
   <div class="onboarding-overlay ob-overlay--step hidden" id="ob-step2">
     <div class="ob-topbar">
-      <div class="ob-progress-dots">
-        <span class="ob-dot ob-dot--done"></span>
-        <span class="ob-dot ob-dot--active"></span>
-        <span class="ob-dot"></span>
-        <span class="ob-dot"></span>
-        <span class="ob-dot"></span>
-        <span class="ob-dot"></span>
-      </div>
+      <div class="ob-progress-dots"></div>
     </div>
     <div class="ob-main">
       <h2 class="ob-title">기타를 친 지<br>얼마나 됐나요?</h2>
@@ -162,20 +144,94 @@
     </div><!-- ob-main -->
   </div>
 
+  <!-- ── 온보딩: 앱 활용 목적 (1개 선택) ── -->
+  <div class="onboarding-overlay ob-overlay--step hidden" id="ob-step-purpose">
+    <div class="ob-topbar">
+      <div class="ob-progress-dots"></div>
+    </div>
+    <div class="ob-main">
+      <h2 class="ob-title">주로 앱을<br>어떻게 활용하고 싶으신가요?</h2>
+      <div class="ob-choice-list ob-choice-list--compact" data-group="purpose">
+        <button class="ob-choice-item" data-value="comping" onpointerdown="obSelectChoice(this,'purpose')">반주연습</button>
+        <button class="ob-choice-item" data-value="soloing" onpointerdown="obSelectChoice(this,'purpose')">솔로연주</button>
+        <button class="ob-choice-item" data-value="harmony" onpointerdown="obSelectChoice(this,'purpose')">화성학 이론 학습</button>
+        <button class="ob-choice-item" data-value="editor" onpointerdown="obSelectChoice(this,'purpose')">코드 이미지 에디터</button>
+        <button class="ob-choice-item" data-value="dictionary" onpointerdown="obSelectChoice(this,'purpose')">코드사전</button>
+        <button class="ob-choice-item" data-value="chord_sheet" onpointerdown="obSelectChoice(this,'purpose')">코드악보</button>
+        <button class="ob-choice-item" data-value="tools" onpointerdown="obSelectChoice(this,'purpose')">기타 도구 활용</button>
+      </div>
+      <button class="onboarding-start-btn ob-next-btn ob-next-btn--bottom" id="ob-step-purpose-next" disabled onpointerdown="obNext('ob-step-purpose')">다음</button>
+    </div><!-- ob-main -->
+  </div>
+
+  <!-- ── 온보딩: 1주일 학습 빈도 ── -->
+  <div class="onboarding-overlay ob-overlay--step hidden" id="ob-step-freq">
+    <div class="ob-topbar">
+      <div class="ob-progress-dots"></div>
+    </div>
+    <div class="ob-main">
+      <div class="ob-head">
+        <h2 class="ob-title">1주일에 대략 몇 일 정도<br>학습하실 계획이신가요?</h2>
+        <p class="ob-subtitle">접속 패턴에 맞춰서 알림을 보내드릴 때 활용돼요!</p>
+      </div>
+      <div class="ob-choice-list" data-group="weekly_freq">
+        <button class="ob-choice-item" data-value="lt1" onpointerdown="obSelectChoice(this,'weekly_freq')">1회 미만</button>
+        <button class="ob-choice-item" data-value="1to2" onpointerdown="obSelectChoice(this,'weekly_freq')">1~2회</button>
+        <button class="ob-choice-item" data-value="gte3" onpointerdown="obSelectChoice(this,'weekly_freq')">3회 이상</button>
+      </div>
+      <button class="onboarding-start-btn ob-next-btn ob-next-btn--bottom" id="ob-step-freq-next" disabled onpointerdown="obNext('ob-step-freq')">다음</button>
+    </div><!-- ob-main -->
+  </div>
+
+  <!-- ── 온보딩: 알림 안내 (푸시 선택 동의 — 학습 빈도 질문 뒤. 네이티브 앱에서만) ── -->
+  <div class="onboarding-overlay ob-overlay--step hidden" id="ob-step-push">
+    <div class="ob-topbar">
+      <div class="ob-progress-dots"></div>
+    </div>
+    <div class="ob-main">
+      <div class="ob-head">
+        <h2 class="ob-title">연습 알림을<br>보내드려도 될까요?</h2>
+        <p class="ob-subtitle">앞서 알려주신 학습 빈도에 맞춰 알림을 보내드려요.<br>선택 사항이라 받지 않아도 앱을 이용할 수 있어요.</p>
+      </div>
+      <div class="ob-push-icon-wrap">
+        <div class="ob-push-lottie" id="ob-push-lottie" hidden></div>
+        <svg class="ob-push-icon" id="ob-push-fallback" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/></svg>
+      </div>
+      <div class="ob-bottom-actions">
+        <button class="onboarding-start-btn ob-next-btn" onpointerdown="obPushAllow()">알림 받기</button>
+        <span class="ob-skip-link" onpointerdown="obNext('ob-step-push')">나중에 할게요</span>
+      </div>
+    </div><!-- ob-main -->
+  </div>
+
+  <!-- ── 온보딩: 유입경로 ── -->
+  <div class="onboarding-overlay ob-overlay--step hidden" id="ob-step-source">
+    <div class="ob-topbar">
+      <div class="ob-progress-dots"></div>
+    </div>
+    <div class="ob-main">
+      <h2 class="ob-title">코디터를 어떻게<br>알게 되셨나요?</h2>
+      <div class="ob-choice-list" data-group="source">
+        <button class="ob-choice-item" data-value="store" onpointerdown="obSelectChoice(this,'source')">스토어 탐색</button>
+        <button class="ob-choice-item" data-value="youtube" onpointerdown="obSelectChoice(this,'source')">유튜브</button>
+        <button class="ob-choice-item" data-value="instagram" onpointerdown="obSelectChoice(this,'source')">인스타그램</button>
+        <button class="ob-choice-item" data-value="search" onpointerdown="obSelectChoice(this,'source')">인터넷 검색</button>
+        <button class="ob-choice-item" data-value="referral" onpointerdown="obSelectChoice(this,'source')">지인 소개</button>
+      </div>
+      <button class="onboarding-start-btn ob-next-btn ob-next-btn--bottom" id="ob-step-source-next" disabled onpointerdown="obNext('ob-step-source')">다음</button>
+    </div><!-- ob-main -->
+  </div>
+
   <!-- ── 온보딩 Step 3: 성별 ── -->
   <div class="onboarding-overlay ob-overlay--step hidden" id="ob-step3">
     <div class="ob-topbar">
-      <div class="ob-progress-dots">
-        <span class="ob-dot ob-dot--done"></span>
-        <span class="ob-dot ob-dot--done"></span>
-        <span class="ob-dot ob-dot--active"></span>
-        <span class="ob-dot"></span>
-        <span class="ob-dot"></span>
-        <span class="ob-dot"></span>
-      </div>
+      <div class="ob-progress-dots"></div>
     </div>
     <div class="ob-main">
-      <h2 class="ob-title">성별을<br>알려주세요</h2>
+      <div class="ob-head">
+        <h2 class="ob-title">성별을<br>알려주세요</h2>
+        <p class="ob-subtitle">맞춤형 서비스를 위해 활용돼요!</p>
+      </div>
       <div class="ob-big-card-list ob-big-card-list--row" data-group="gender">
         <button class="ob-big-card" data-value="male" onpointerdown="obSelectChoice(this,'gender')">남</button>
         <button class="ob-big-card" data-value="female" onpointerdown="obSelectChoice(this,'gender')">여</button>
@@ -187,17 +243,13 @@
   <!-- ── 온보딩 Step 4: 태어난 년도 ── -->
   <div class="onboarding-overlay ob-overlay--step hidden" id="ob-step4">
     <div class="ob-topbar">
-      <div class="ob-progress-dots">
-        <span class="ob-dot ob-dot--done"></span>
-        <span class="ob-dot ob-dot--done"></span>
-        <span class="ob-dot ob-dot--done"></span>
-        <span class="ob-dot ob-dot--active"></span>
-        <span class="ob-dot"></span>
-        <span class="ob-dot"></span>
-      </div>
+      <div class="ob-progress-dots"></div>
     </div>
     <div class="ob-main">
-      <h2 class="ob-title">태어난 년도를<br>선택해주세요</h2>
+      <div class="ob-head">
+        <h2 class="ob-title">태어난 년도를<br>선택해주세요</h2>
+        <p class="ob-subtitle">맞춤형 서비스를 위해 활용돼요!</p>
+      </div>
       <div class="ob-year-picker">
         <div class="ob-year-highlight"></div>
         <div class="ob-year-scroll" id="ob-year-scroll"></div>
@@ -211,14 +263,7 @@
   <!-- ── 온보딩 Step 5: 닉네임 ── -->
   <div class="onboarding-overlay ob-overlay--step hidden" id="ob-step5">
     <div class="ob-topbar">
-      <div class="ob-progress-dots">
-        <span class="ob-dot ob-dot--done"></span>
-        <span class="ob-dot ob-dot--done"></span>
-        <span class="ob-dot ob-dot--done"></span>
-        <span class="ob-dot ob-dot--done"></span>
-        <span class="ob-dot ob-dot--active"></span>
-        <span class="ob-dot"></span>
-      </div>
+      <div class="ob-progress-dots"></div>
     </div>
     <div class="ob-main">
       <h2 class="ob-title">어떻게<br>불러드릴까요?</h2>
@@ -233,14 +278,7 @@
   <!-- ── 온보딩 Step 6: 초대코드 보유 여부 ── -->
   <div class="onboarding-overlay ob-overlay--step hidden" id="ob-step6">
     <div class="ob-topbar">
-      <div class="ob-progress-dots">
-        <span class="ob-dot ob-dot--done"></span>
-        <span class="ob-dot ob-dot--done"></span>
-        <span class="ob-dot ob-dot--done"></span>
-        <span class="ob-dot ob-dot--done"></span>
-        <span class="ob-dot ob-dot--done"></span>
-        <span class="ob-dot ob-dot--active"></span>
-      </div>
+      <div class="ob-progress-dots"></div>
     </div>
     <div class="ob-main">
       <h2 class="ob-title">초대코드가<br>있으신가요?</h2>
@@ -254,14 +292,7 @@
   <!-- ── 온보딩 Step 7: 초대코드 입력 ── -->
   <div class="onboarding-overlay ob-overlay--step hidden" id="ob-step7">
     <div class="ob-topbar">
-      <div class="ob-progress-dots">
-        <span class="ob-dot ob-dot--done"></span>
-        <span class="ob-dot ob-dot--done"></span>
-        <span class="ob-dot ob-dot--done"></span>
-        <span class="ob-dot ob-dot--done"></span>
-        <span class="ob-dot ob-dot--done"></span>
-        <span class="ob-dot ob-dot--active"></span>
-      </div>
+      <div class="ob-progress-dots"></div>
     </div>
     <div class="ob-main">
       <h2 class="ob-title">초대코드를<br>입력해주세요!</h2>
@@ -280,14 +311,7 @@
   <!-- ── 온보딩 Step 8: 초대코드 확인 완료 ── -->
   <div class="onboarding-overlay ob-overlay--step hidden" id="ob-step8">
     <div class="ob-topbar">
-      <div class="ob-progress-dots">
-        <span class="ob-dot ob-dot--done"></span>
-        <span class="ob-dot ob-dot--done"></span>
-        <span class="ob-dot ob-dot--done"></span>
-        <span class="ob-dot ob-dot--done"></span>
-        <span class="ob-dot ob-dot--done"></span>
-        <span class="ob-dot ob-dot--done"></span>
-      </div>
+      <div class="ob-progress-dots"></div>
     </div>
     <div class="ob-main">
       <div class="ob-step8-header">
@@ -301,6 +325,41 @@
     </div><!-- ob-main -->
   </div>
 
+  <!-- ── 온보딩 마지막 관문: 플랜 비교 (네이티브 앱에서만, 무료 유저에게만) ── -->
+  <div class="onboarding-overlay ob-overlay--step hidden" id="ob-step-plan">
+    <div class="ob-topbar"></div>
+    <div class="ob-main">
+      <h2 class="ob-title">코디터의 모든 기능을<br>제한없이 사용해봐요!</h2>
+      <div class="ob-plan-scroll">
+        <div class="ob-plan-compare">
+          <div class="ob-plan-col ob-plan-col--free">
+          <div class="ob-plan-cell"><span class="ob-plan-name">Free</span></div>
+          <div class="ob-plan-cell"><span>피크 하루 30개</span><i class="ob-plan-check"></i></div>
+          <div class="ob-plan-cell"><span>코드 이미지 기본화질</span><i class="ob-plan-check"></i></div>
+          <div class="ob-plan-cell"><span>노트 3개</span><i class="ob-plan-check"></i></div>
+          <div class="ob-plan-cell"><span>광고 후 추가기능</span><i class="ob-plan-check"></i></div>
+          <div class="ob-plan-cell"><i class="ob-plan-x"></i></div>
+          <div class="ob-plan-cell"><i class="ob-plan-x"></i></div>
+          </div>
+          <div class="ob-plan-col ob-plan-col--pro">
+          <div class="ob-plan-cell"><span class="ob-plan-name">Pro</span><span class="ob-plan-badge">추천</span></div>
+          <div class="ob-plan-cell"><span>피크 무제한</span><i class="ob-plan-check"></i></div>
+          <div class="ob-plan-cell"><span>코드 이미지 고화질</span><i class="ob-plan-check"></i></div>
+          <div class="ob-plan-cell"><span>노트 무제한</span><i class="ob-plan-check"></i></div>
+          <div class="ob-plan-cell"><span>광고 없이 추가기능</span><i class="ob-plan-check"></i></div>
+          <div class="ob-plan-cell"><span>노트 고급기능</span><i class="ob-plan-check"></i></div>
+          <div class="ob-plan-cell"><span>이미지 저장 고급기능</span><i class="ob-plan-check"></i></div>
+          </div>
+        </div>
+      </div>
+      <div class="ob-plan-bottom">
+        <button class="onboarding-start-btn ob-next-btn" onpointerdown="obPlanSubscribe()">구독하기</button>
+        <span class="ob-skip-link" onpointerdown="obPlanSkip()">지금은 안 할게요!</span>
+      </div>
+    </div><!-- ob-main -->
+  </div>
+
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/lottie-web/5.12.2/lottie.min.js"></script>
   <script src="analytics-sdk.js"></script>
   <script src="shared.js"></script>
   <script src="onboarding.js"></script>

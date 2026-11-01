@@ -2559,7 +2559,7 @@ function updateTopBar(view) {
   const currency = document.getElementById('topbar-currency');
   if (view === 'level-select') {
     backBtn.style.visibility = '';
-    backBtn.innerHTML = '<i data-lucide="x"></i>';
+    backBtn.innerHTML = '<i data-lucide="chevron-left"></i>';
     center.innerHTML  = '';
     if (currency) currency.style.display = '';
   } else if (view === 'mode-select') {
@@ -2570,7 +2570,7 @@ function updateTopBar(view) {
   } else {
     // 데일리미션 탑바와 동일 — 뒤로가기 계속 노출, 중앙은 진행바(.ms-progress-track/-fill)
     backBtn.style.visibility = '';
-    backBtn.innerHTML = '<i data-lucide="chevron-left"></i>';
+    backBtn.innerHTML = '<i data-lucide="x"></i>';
     center.innerHTML  = '<div class="ms-progress-track"><div class="ms-progress-fill" id="ms-progress-fill"></div></div>';
     if (currency) currency.style.display = 'none'; // 퀴즈 중 UI 단순화 — 수량 표기 숨김
   }

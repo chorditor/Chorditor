@@ -88,7 +88,7 @@ function _showInAppGuide() {
 }
 
 // ── 온보딩 정보수집 스텝 ──────────────────────────────────────
-let _obData = { persona: null, guitar_experience: null, gender: null, birth_year: null, nickname: null, has_invite: null, invite_code: null };
+let _obData = { persona: null, guitar_experience: null, purpose: null, weekly_freq: null, source: null, gender: null, birth_year: null, nickname: null, has_invite: null, invite_code: null };
 // 온보딩 진입 경로: 'signup'(신규 가입) | 'existing'(기존 유저·persona 미입력)
 // signup  → 마지막 닉네임 step 완료 후 바로 home
 // existing → 마지막 닉네임 step 완료 후 '시작하기' 화면 거쳐 home
@@ -132,8 +132,119 @@ function _showStep(toId, fromId) {
   }
 
   to.classList.remove('hidden');
+  if (toId === 'ob-step-push') _obBellPlay();
+  _obStepViewed(toId);
   to.classList.add('ob-step-entering');
   to.addEventListener('animationend', () => to.classList.remove('ob-step-entering'), { once: true });
+}
+
+// ── 설문 화면 순서 ──────────────────────────────────────────────
+// 화면을 더하거나 옮길 땐 여기만 고친다 — 진행 점과 '다음' 화면이 이 순서를 따른다.
+// (약관 시트는 유형 직후, 초대코드 입력·확인(step7·8)과 플랜 화면은 이 순서 밖의 분기·마무리 화면)
+const OB_FLOW = ['ob-step1', 'ob-step2', 'ob-step-purpose', 'ob-step-freq', 'ob-step-push', 'ob-step-source', 'ob-step3', 'ob-step4', 'ob-step5', 'ob-step6'];
+
+// 알림 안내·플랜 화면은 네이티브 앱에서만(웹은 푸시·인앱결제가 없음). 테스트 강제 진입(?ob=1)에서는 웹에서도 보인다
+function _obNativeSteps() {
+  return !!window.Capacitor?.isNativePlatform() || new URLSearchParams(location.search).get('ob') === '1';
+}
+function _obFlowNow() {
+  return OB_FLOW.filter(id => id !== 'ob-step-push' || _obNativeSteps());
+}
+
+// ── 온보딩 분석 이벤트(onboarding_*) ──────────────────────────────
+// 화면 이름은 DOM id가 아니라 안정적인 이름(순서를 바꿔도 분석이 안 깨지게). 성별·출생년도·닉네임·초대코드 값은 기록하지 않는다(체류시간만).
+// 테스트 강제 진입(?ob=1 — 흐름도 페이지 iframe 포함)에서는 기록하지 않는다
+const OB_STEP_NAME = { 'ob-step1': 'persona', 'ob-step2': 'experience', 'ob-step-purpose': 'purpose', 'ob-step-freq': 'weekly_freq', 'ob-step-push': 'push', 'ob-step-source': 'source', 'ob-step3': 'gender', 'ob-step4': 'birth_year', 'ob-step5': 'nickname', 'ob-step6': 'has_invite', 'ob-step7': 'invite_code', 'ob-step8': 'invite_confirmed', 'ob-step-plan': 'plan' };
+const _OB_TEST = new URLSearchParams(location.search).get('ob') === '1';
+let _obStepAt = 0;           // 지금 화면이 뜬 시각
+let _obFirstAt = 0;          // 첫 설문 화면이 뜬 시각(완료까지 걸린 시간 계산용)
+let _obInviteTries = 0;      // 초대코드 검증 시도 횟수
+let _obPlanResult = 'n/a';   // subscribed | skipped | n/a(플랜 화면이 안 떴음)
+
+function _obEntry() {
+  if (sessionStorage.getItem(PENDING_SHARE_CODE_KEY)) return 'share_link';
+  if (typeof _hasPushTarget === 'function' && _hasPushTarget()) return 'push';
+  return 'direct';
+}
+function _obLog(name, props) {
+  if (_OB_TEST) return;
+  analytics.track(name, Object.assign({ flow: _obFlow, entry: _obEntry() }, props));
+}
+function _obStepViewed(toId) {
+  const step = OB_STEP_NAME[toId];
+  if (!step) return;
+  _obStepAt = Date.now();
+  if (!_obFirstAt) _obFirstAt = _obStepAt;
+  const flow = _obFlowNow();
+  const idx = flow.indexOf(toId);
+  _obLog('onboarding_step_viewed', { step: step, step_index: idx >= 0 ? idx + 1 : null, step_total: flow.length });
+}
+function _obAnswered(step, answer) {
+  _obLog('onboarding_step_answered', { step: step, answer: answer == null ? null : answer, time_on_step_sec: Math.round((Date.now() - _obStepAt) / 1000) });
+}
+
+// ── 설문 답변 → 임시 패턴(처음 값) ──────────────────────────────
+// 답변은 고정이 아니라 출발점이다 — 이후 매달 배치(scripts/compute-persona-profile.js)가 행동 데이터로 다시 계산해서 실측 값이 나오면 이 값을 갱신한다.
+// skill_type(실제로 잘하는지)은 설문으로 정하지 않고 비워 둔다. 접속 유형은 빈도만 알고 깊이는 몰라서 헤비·몰입형은 설문으로 나오지 않는다
+const OB_PURPOSE_TO_PREF = { comping: 'comping', soloing: 'soloing', harmony: 'harmony', editor: 'toolkit', dictionary: 'toolkit', chord_sheet: 'toolkit', tools: 'toolkit' };
+const OB_FREQ_TO_ENGAGEMENT = { lt1: 'light_user', '1to2': 'light_user', gte3: 'habitual' };   // 1~2회: 중간값 1.5가 기준선(주 1.56회) 바로 아래라 라이트로
+function _obInitialPattern() {
+  return { pref_type: OB_PURPOSE_TO_PREF[_obData.purpose] || null, engagement_type: OB_FREQ_TO_ENGAGEMENT[_obData.weekly_freq] || null };
+}
+
+function _obDotsHtml(active, total) {
+  let html = '';
+  for (let i = 0; i < total; i++) html += '<span class="ob-dot' + (i < active ? ' ob-dot--done' : i === active ? ' ob-dot--active' : '') + '"></span>';
+  return html;
+}
+function _obRenderDots() {
+  const flow = _obFlowNow();
+  const put = (id, active) => {
+    const box = document.querySelector('#' + id + ' .ob-progress-dots');
+    if (box) box.innerHTML = _obDotsHtml(active, flow.length);
+  };
+  flow.forEach((id, i) => put(id, i));
+  put('ob-step7', flow.length - 1);   // 초대코드 입력 — 마지막 점이 켜진 채로
+  put('ob-step8', flow.length);       // 초대코드 확인 — 전부 지나간 상태
+}
+
+// 설문 순서상 다음 화면으로
+function _obGo(fromId) {
+  const flow = _obFlowNow();
+  const to = flow[flow.indexOf(fromId) + 1];
+  if (to) _showStep(to, fromId);
+}
+function obNext(fromId) {
+  const step = OB_STEP_NAME[fromId];
+  if (fromId === 'ob-step-push') _obLog('onboarding_push_prompt', { action: 'later', os_result: null });
+  else if (step === 'purpose' || step === 'weekly_freq' || step === 'source') _obAnswered(step, _obData[step]);
+  _obGo(fromId);
+}
+
+// 알림 안내 화면의 종 로티 — 화면이 보이기 시작할 때 한 번만 재생하고 그 뒤로는 멈춘 채로 둔다.
+// 로티는 0~56.5프레임에만 보이고(그 뒤 레이어가 끝남) 종이 43.5프레임에 제자리로 멈추므로 55프레임까지만 재생해 그 장면에 정지.
+// 로티 라이브러리나 파일을 못 불러오면 정지 SVG(#ob-push-fallback)가 그대로 보인다
+let _obBell = null;
+let _obBellDue = false;   // 재생 시점(1.3초 뒤)이 이미 지났는지 — 로티 파일이 그보다 늦게 오면 도착하자마자 재생
+function _obBellPlay() {
+  const box = document.getElementById('ob-push-lottie');
+  if (!box || typeof lottie === 'undefined') return;
+  if (!_obBell) {
+    _obBell = lottie.loadAnimation({ container: box, renderer: 'svg', loop: false, autoplay: false, path: 'image/bell.json' });
+    _obBell.addEventListener('DOMLoaded', () => {
+      box.hidden = false;
+      document.getElementById('ob-push-fallback')?.remove();
+      _obBell.goToAndStop(0, true);
+      if (_obBellDue) _obBell.playSegments([0, 55], true);
+    });
+  }
+  setTimeout(() => { _obBellDue = true; if (_obBell.isLoaded) _obBell.playSegments([0, 55], true); }, 1300);   // 아이콘이 떠오르는 연출(1.25s 지연 + 0.7s)이 시작될 즈음
+}
+
+// 알림 안내 화면: "알림 받기" → OS 권한 요청 후 다음으로
+function obPushAllow() {
+  _requestPushPermission().then(r => _obLog('onboarding_push_prompt', { action: 'allow_tapped', os_result: r }));
+  _obGo('ob-step-push');
 }
 
 // Step 1: 페르소나 선택
@@ -146,6 +257,8 @@ function obSelectPersona(el) {
 
 function obStep1Next() {
   if (!_obData.persona) return;
+  _obAnswered('persona', _obData.persona);
+  _obLog('onboarding_consent_viewed', { terms_version: CURRENT_TERMS_VERSION });
   document.getElementById('ob-consent-backdrop')?.classList.remove('hidden');
 }
 
@@ -156,9 +269,7 @@ function obOnConsentCheck() {
 }
 
 function obConsentAgree() {
-  // 푸시 알림 동의 시 권한 요청 (체크된 경우만)
-  const pushCheck = document.getElementById('ob-push-checkbox');
-  if (pushCheck && pushCheck.checked) _requestPushPermission();
+  _obLog('onboarding_consent_agreed', { terms_version: CURRENT_TERMS_VERSION, reconsent: _obReconsentOnly });
   const backdrop = document.getElementById('ob-consent-backdrop');
   backdrop?.classList.add('ob-consent-backdrop--closing');
   setTimeout(() => {
@@ -200,11 +311,12 @@ async function _saveReConsent() {
 async function _requestPushPermission() {
   try {
     const PN = window.Capacitor?.Plugins?.PushNotifications;
-    if (!PN) return;
+    if (!PN) return 'unavailable';
     let perm = await PN.checkPermissions();
     if (perm.receive !== 'granted') perm = await PN.requestPermissions();
     if (perm.receive === 'granted') await PN.register();
-  } catch (_) {}
+    return perm.receive;   // granted | denied | prompt …(분석용)
+  } catch (_) { return 'error'; }
 }
 
 // Step 2: 기타 경력 / Step 3: 성별·나이 공통 선택 처리
@@ -224,22 +336,31 @@ function obSelectChoice(el, field) {
     document.getElementById('ob-step2-next').disabled = false;
   } else if (field === 'gender') {
     document.getElementById('ob-step3-next').disabled = false;
+  } else if (field === 'purpose') {
+    document.getElementById('ob-step-purpose-next').disabled = false;
+  } else if (field === 'weekly_freq') {
+    document.getElementById('ob-step-freq-next').disabled = false;
+  } else if (field === 'source') {
+    document.getElementById('ob-step-source-next').disabled = false;
   }
 }
 
 function obStep2Next() {
   if (!_obData.guitar_experience) return;
-  _showStep('ob-step3', 'ob-step2');
+  _obAnswered('experience', _obData.guitar_experience);
+  _obGo('ob-step2');
 }
 
 function obStep3Next() {
   if (!_obData.gender) return;
+  _obAnswered('gender', null);   // 값은 기록하지 않음(개인정보)
   _showStep('ob-step4', 'ob-step3');
   _initYearPicker();
 }
 
 // Step 4: 년도 선택 → Step 5 이동
 function obStep4Next() {
+  _obAnswered('birth_year', null);   // 값은 기록하지 않음(개인정보)
   _showStep('ob-step5', 'ob-step4');
   // Google 이름 자동 채움
   try {
@@ -268,6 +389,7 @@ function obOnNicknameInput(input) {
 // Step 5: 닉네임 확정 → Step 6(초대코드 보유 여부) 이동
 function obStep5Next() {
   if (!_obData.nickname) return;
+  _obAnswered('nickname', null);   // 값은 기록하지 않음
   _showStep('ob-step6', 'ob-step5');
 }
 
@@ -276,6 +398,7 @@ function obStep6Choice(el, val) {
   document.querySelectorAll('#ob-step6 .ob-big-card').forEach(c => c.classList.remove('ob-big-card--selected'));
   el.classList.add('ob-big-card--selected');
   _obData.has_invite = val;
+  _obAnswered('has_invite', val);
   if (val === 'no') {
     _obFinishOnboarding();
   } else {
@@ -297,6 +420,8 @@ async function obStep7Complete() {
   if (btn) { btn.disabled = true; btn.textContent = '확인 중...'; }
   try {
     const r = await _checkInviteCode(_obData.invite_code);
+    _obInviteTries++;
+    _obLog('onboarding_invite_checked', { result: r.ok ? 'ok' : (r.reason || 'unknown'), attempt_no: _obInviteTries });   // 코드 값은 기록하지 않음
     if (r.ok) {
       _showStep('ob-step8', 'ob-step7');
     } else {
@@ -304,6 +429,8 @@ async function obStep7Complete() {
       if (btn) { btn.disabled = false; btn.textContent = '완료'; }
     }
   } catch (e) {
+    _obInviteTries++;
+    _obLog('onboarding_invite_checked', { result: 'network', attempt_no: _obInviteTries });
     _showInviteError(INVITE_ERROR_MESSAGES.network);
     if (btn) { btn.disabled = false; btn.textContent = '완료'; }
   }
@@ -311,6 +438,7 @@ async function obStep7Complete() {
 
 // Step 7: 넘어가기 — 실수로 진입했을 경우 코드 없이 바로 온보딩 종료
 function obStep7Skip() {
+  _obLog('onboarding_invite_skipped', {});
   _obData.invite_code = null;
   _obFinishOnboarding();
 }
@@ -386,15 +514,62 @@ async function _obFinishOnboarding() {
   // subscriptions row가 생긴 뒤에 지급해야 보상이 유실되지 않는다.
   if (_obData.invite_code) await _redeemInviteCode(_obData.invite_code);
   localStorage.setItem('onboarding_done', '1');
-  // 공유 링크로 들어온 경우엔 '시작하기' 탭 없이 바로 home(→ 공유 노트로 이동)
-  if (_obFlow === 'existing' && !sessionStorage.getItem(PENDING_SHARE_CODE_KEY)) {
-    // 기존 유저(persona 미입력) → '시작하기' 화면 거쳐 home
-    _showStartScreen();
-  } else {
-    // 신규 가입 (또는 공유 링크로 들어온 기존 유저) → 바로 home
-    goToHome();
+  // 고른 답과 그때 배정한 임시 패턴을 이벤트로 남긴다(BigQuery에 영구 보관 — 답변 내역은 이후 패턴이 갱신돼도 보존).
+  // 답변 3문항은 subscriptions 컬럼에도 저장된다(_saveOnboardingData). 성별·출생년도·닉네임은 이벤트에 담지 않음
+  if (_obData.purpose || _obData.weekly_freq || _obData.source) {
+    const ip = _obInitialPattern();
+    _obLog('onboarding_survey_completed', {
+      persona: _obData.persona, guitar_experience: _obData.guitar_experience,
+      purpose: _obData.purpose, weekly_freq: _obData.weekly_freq, source: _obData.source, has_invite: _obData.has_invite,
+      pref_type_initial: ip.pref_type, engagement_type_initial: ip.engagement_type,
+    });
   }
+  // 저장이 끝난 뒤에 플랜 화면을 거친다(플랜 화면에서 앱을 꺼도 설문 답변은 남음). 건너뛰거나 결제하면 아래 이동을 이어서 한다
+  _obShowPlan(function () {
+    _obLog('onboarding_completed', { duration_sec: Math.round((Date.now() - (_obFirstAt || Date.now())) / 1000), plan_result: _obPlanResult, used_invite: !!_obData.invite_code });
+    // 공유 링크로 들어온 경우엔 '시작하기' 탭 없이 바로 home(→ 공유 노트로 이동)
+    if (_obFlow === 'existing' && !sessionStorage.getItem(PENDING_SHARE_CODE_KEY)) {
+      // 기존 유저(persona 미입력) → '시작하기' 화면 거쳐 home
+      _showStartScreen();
+    } else {
+      // 신규 가입 (또는 공유 링크로 들어온 기존 유저) → 바로 home
+      goToHome();
+    }
+  });
 }
+
+// ── 플랜 화면 (온보딩 마지막 관문) ─────────────────────────────
+// 화면에는 Free/Pro 비교만 두고, "구독하기"를 누르면 앱 공용 요금제 시트(월간·연간 선택)를 연다.
+// "지금은 안 할게요!"로 넘기면 바로 이어서 홈으로. Pro이거나 웹이면 이 화면 없이 바로 이어간다
+let _obPlanNext = null;
+function _obShowPlan(next) {
+  if (getPlan() === 'pro' || !_obNativeSteps()) { next(); return; }
+  _obPlanNext = next;
+  _showStep('ob-step-plan');
+  setTimeout(() => {   // 플랜 화면이 올라온 뒤 아래 깔린 설문 화면 정리
+    document.querySelectorAll('.ob-overlay--step:not(#ob-step-plan)').forEach(el => el.classList.add('hidden'));
+  }, 300);
+}
+function obPlanSubscribe() {
+  _obLog('onboarding_plan_action', { action: 'subscribe_tapped' });
+  openPlanSheet('onboarding');
+  const title = document.querySelector('#plan-sheet .plan-sheet-title');
+  if (title) title.textContent = 'Pro 구독하기';   // 온보딩 전용 시트 제목(기능 소개를 뺀 연간·월간 선택 시트)
+}
+function obPlanSkip(result) {   // result: 'subscribed'(결제 성공으로 넘어감) / 없으면 "지금은 안 할게요!"
+  _obPlanResult = result === 'subscribed' ? 'subscribed' : 'skipped';
+  _obLog('onboarding_plan_action', { action: _obPlanResult });
+  const next = _obPlanNext;
+  _obPlanNext = null;
+  if (next) next();
+}
+// 결제가 성공하면 shared.js purchasePlan이 시트를 닫기만 한다 → 플랜 화면에서 Pro가 됐으면 이어서 진행
+const _closePlanSheetBase = closePlanSheet;
+closePlanSheet = function () {
+  _closePlanSheetBase();
+  if (_obPlanNext && getPlan() === 'pro') obPlanSkip('subscribed');
+  else if (_obPlanNext) _obLog('onboarding_plan_action', { action: 'sheet_closed' });
+};
 
 // 닉네임 완료 후 '시작하기' 화면 (기존 유저 경로)
 function _showStartScreen() {
@@ -451,6 +626,36 @@ function _initYearPicker() {
   enableMouseDragScroll(scroll); // 웹 브라우저 마우스 드래그 지원
 }
 
+// 설문으로 정한 임시 패턴을 프로필에 넣는다(신규 가입자만 — 기존 유저는 이미 행동 기록이 있어 실측 값을 덮으면 안 됨).
+// persona 저장과 별도 요청이라, 여기가 실패해도(예: 컬럼 제약) persona 저장·온보딩 완료에는 영향이 없다
+async function _saveInitialPattern(token, userId) {
+  if (_obFlow !== 'signup') return;
+  const p = _obInitialPattern();
+  if (!p.pref_type && !p.engagement_type) return;
+  const body = { user_id: userId };
+  if (p.pref_type) body.pref_type = p.pref_type;
+  if (p.engagement_type) body.engagement_type = p.engagement_type;
+  try {
+    const resp = await fetch(`${SUPABASE_URL}/rest/v1/user_persona_profile?on_conflict=user_id`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'apikey': SUPABASE_ANON,
+        'Authorization': `Bearer ${token}`,
+        'Prefer': 'resolution=merge-duplicates,return=minimal',
+      },
+      body: JSON.stringify(body),
+    });
+    if (!resp.ok) {
+      console.error('[Onboarding] 임시 패턴 저장 실패:', resp.status, await resp.text());
+      _obLog('onboarding_save_failed', { where: 'pattern', status: resp.status });
+    }
+  } catch (e) {
+    console.error('[Onboarding] 임시 패턴 저장 예외:', e);
+    _obLog('onboarding_save_failed', { where: 'pattern', status: null });
+  }
+}
+
 async function _saveOnboardingData() {
   try {
     const stored = localStorage.getItem(SUPABASE_STORAGE_KEY);
@@ -473,6 +678,9 @@ async function _saveOnboardingData() {
         gender:                   _obData.gender,
         birth_year:               _obData.birth_year,
         nickname:                 _obData.nickname,
+        ...(_obData.purpose     && { onboarding_purpose:     _obData.purpose }),       // 처음 답변 보존(supabase/onboarding_survey_columns.sql 먼저 적용할 것)
+        ...(_obData.weekly_freq && { onboarding_weekly_freq: _obData.weekly_freq }),
+        ...(_obData.source      && { onboarding_source:      _obData.source }),
         consent_agreed_at:        new Date().toISOString(),
         onboarding_completed_at:  new Date().toISOString(),
         terms_version:            CURRENT_TERMS_VERSION,
@@ -481,6 +689,7 @@ async function _saveOnboardingData() {
     if (!resp.ok) {
       const errBody = await resp.text();
       console.error('[Onboarding] subscriptions 저장 실패:', resp.status, errBody);
+      _obLog('onboarding_save_failed', { where: 'subscriptions', status: resp.status });
     }
     // persona는 subscriptions가 아니라 user_persona_profile이 유일한 소스(2026-08-31).
     // checkNeedsOnboarding이 바로 다음에 이 테이블을 재조회하므로 fire-and-forget 아닌 await 필수
@@ -498,10 +707,13 @@ async function _saveOnboardingData() {
       });
       if (!ppResp.ok) {
         console.error('[Onboarding] user_persona_profile 저장 실패:', ppResp.status, await ppResp.text());
+        _obLog('onboarding_save_failed', { where: 'persona', status: ppResp.status });
       }
     }
+    await _saveInitialPattern(token, userId);
   } catch(e) {
     console.error('[Onboarding] subscriptions 저장 예외:', e);
+    _obLog('onboarding_save_failed', { where: 'exception', status: null });
   }
 }
 
@@ -805,6 +1017,8 @@ async function tryAutoSignIn() {
 
 // ── 앱 초기화 ─────────────────────────────────────────────────
 document.addEventListener('DOMContentLoaded', async () => {
+  _obRenderDots();   // 설문 순서(OB_FLOW)에 맞춰 단계별 진행 점을 채움
+
   // ── 온보딩 스텝 강제 진입(테스트용): onboarding.html?ob=1 → DEV 빌드/기존 persona 무관하게 Step1부터 노출 ──
   const _forceOnboarding = new URLSearchParams(location.search).get('ob') === '1';
 

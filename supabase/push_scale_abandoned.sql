@@ -4,6 +4,10 @@
 --   같은 scale_key 로 scale_test_result 가 없으면 중단으로 판정.
 --   (scale_test_started 는 bi/forward 정보가 없어 scale_key 단위로만 판정 가능
 --    — 폼(bi)은 시작 버튼을 누른 뒤 셔플백에서 정해짐)
+--
+--   2026-11-02 발송 규칙(퀴즈 중단인지형과 동일): 중단 1건당 1회, 최근 7일 이내 중단만.
+--     · 마지막 scale_test_started 가 7일보다 오래됐으면 제외
+--     · 그 시작 이후에 이미 scale_abandoned 를 보낸 기록(push_send_log)이 있으면 제외
 -- ───────────────────────────────────────────────────────────
 
 create or replace function public.get_scale_abandoned_targets()
@@ -26,6 +30,15 @@ as $$
   left join subscriptions sub on sub.user_id = ls.user_id
   where pt.token is not null
     and pt.nudge_enabled = true
+    -- 최근 7일 이내에 시작한 중단만
+    and ls.created_at >= now() - interval '7 days'
+    -- 이 중단에 대해 이미 보냈으면 제외(중단 1건당 1회)
+    and not exists (
+      select 1 from push_send_log l
+      where l.user_id = ls.user_id
+        and l.push_type = 'scale_abandoned'
+        and l.sent_at > ls.created_at
+    )
     and not exists (
       select 1 from analytics_events r
       where r.user_id = ls.user_id

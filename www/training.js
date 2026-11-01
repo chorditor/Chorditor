@@ -87,8 +87,23 @@ function loadTrainingStats() {
 
 // flushTrainingStatsToDB → shared.js의 syncTrainingStatsToDB()로 통합됨
 
+// 훈련 카드 이름 — 마크업의 줄바꿈(<br>)은 두 줄이 필요할 때만 쓴다. 카드가 이름을 한 줄에 담을 만큼 넓으면 한 줄로(한국어만, CSS가 --one으로 처리)
+function _fitCardNames() {
+  document.querySelectorAll('.training-card-name').forEach(el => {
+    el.classList.add('training-card-name--one');
+    const card = el.closest('.training-card');
+    if (!card) return;
+    const cs = getComputedStyle(card);
+    const avail = card.clientWidth - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight);
+    if (el.scrollWidth > avail) el.classList.remove('training-card-name--one');
+  });
+}
+window.addEventListener('resize', _fitCardNames);
+if (document.fonts && document.fonts.ready) document.fonts.ready.then(_fitCardNames);
+
 // ── DOMContentLoaded ─────────────────────────────────────────
 document.addEventListener('DOMContentLoaded', () => {
+  _fitCardNames();
 
   // 슬라이드업 진입 애니메이션
   const shell = document.querySelector('.app-shell');

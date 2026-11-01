@@ -2,7 +2,7 @@
 // push-active : 5번(적극형) 주간 결산 푸시 전용 디스패처 (cron 호출, 매주 월요일 1회)
 //   push-dispatch(코드맞추기 넛지)와 별도 함수로 분리 — 발송 주기가 주 1회로 완전히 다름.
 //
-//   get_quiz_active_targets(): 5개 훈련(퀴즈/스케일/조합/진행/주법) 중 지난 7일간
+//   get_quiz_active_targets(): 4개 훈련(퀴즈/스케일/조합/코드반주) 중 지난 7일간
 //   "타 유저 대비 1.5배 이상" 활동한 훈련이 있는 유저를 대상으로, 배수가 가장 높은
 //   훈련 하나(top_training)를 골라 보고. least_training(이번 주 기록이 가장 적은 훈련)은
 //   추천형 문구에서 다른 훈련 유도용으로 사용.
@@ -139,9 +139,8 @@ async function fetchRandomMessage(category: string): Promise<{ id: number; title
 const TRAINING_NAME: Record<string, string> = {
   quiz: '코드 맞추기',
   scale: '스케일 훈련',
-  combo: '코드 조합 훈련',
-  progression: '코드 진행 리스트',
-  strum: '주법 리듬 훈련',
+  combo: '리하모니 화성학',
+  progression: '코드반주 훈련',
 };
 
 function deeplinkByTraining(training: string): { data: Record<string, string>; deeplink: string } {
@@ -210,9 +209,9 @@ const PUSH_LANGS = ['en', 'ja', 'es'] as const;
 type PushLang = typeof PUSH_LANGS[number];
 
 const TRAINING_NAME_I18N: Record<PushLang, Record<string, string>> = {
-  en: { quiz: 'Chord Quiz', scale: 'Scale Blocks', progression: 'Chord Loops', strum: 'Strumming Patterns', combo: 'Reharm Quiz' },
-  ja: { quiz: 'コードクイズ', scale: 'スケールブロック', progression: 'コード進行', strum: 'ストロークパターン', combo: 'リハモクイズ' },
-  es: { quiz: 'Quiz de Acordes', scale: 'Bloques de Escalas', progression: 'Progresiones', strum: 'Patrones de Rasgueo', combo: 'Quiz de Reharm' },
+  en: { quiz: 'Chord Quiz', scale: 'Scale Blocks', progression: 'Chord Accompaniment', combo: 'Reharm Quiz' },
+  ja: { quiz: 'コードクイズ', scale: 'スケールブロック', progression: 'コード伴奏', combo: 'リハモクイズ' },
+  es: { quiz: 'Quiz de Acordes', scale: 'Bloques de Escalas', progression: 'Acompañamiento de Acordes', combo: 'Quiz de Reharm' },
 };
 
 // 레벨·장 표기

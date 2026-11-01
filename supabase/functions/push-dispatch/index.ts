@@ -113,6 +113,11 @@ interface NudgeTarget {
   rec_training: string;           // 페르소나 추천 훈련
   rec_levels: string;             // 딥링크에 넘길 레벨값(콤마 다중값 가능)
   rec_difficulty: string | null;  // combo 전용 low/high
+  // 유형 연계(push_nudge_server.sql 2026-11-02). 옛 SQL 이 라이브면 없을 수 있어 optional.
+  persona?: string | null;
+  engagement_type?: string | null; // heavy_user / habitual / immersive / light_user / insufficient_data
+  pref_type?: string | null;       // comping / soloing / harmony / toolkit / unclassified
+  least_area?: string | null;      // 선호 패턴을 뺀 반주·솔로·화성 중 가장 덜 한 영역
 }
 
 interface QuizPatternTarget {
@@ -168,18 +173,29 @@ interface ScalePatternTarget {
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL')!;
 const SERVICE_ROLE = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
 
+// 일반 넛지 대상 조회. DB 캐시가 빈 첫 호출은 REST 시간 제한(8초)에 걸려 500 이 날 수 있고,
+// 직후 다시 부르면 0.5초 안에 끝남(2026-11-02 실측) → 실패하면 잠깐 쉬고 최대 3번까지 재시도.
 async function fetchNudgeTargets(): Promise<NudgeTarget[]> {
-  const resp = await fetch(`${SUPABASE_URL}/rest/v1/rpc/get_nudge_targets`, {
-    method: 'POST',
-    headers: {
-      'apikey': SERVICE_ROLE,
-      'Authorization': `Bearer ${SERVICE_ROLE}`,
-      'Content-Type': 'application/json',
-    },
-    body: '{}',
-  });
-  if (!resp.ok) throw new Error(`nudge targets error ${resp.status}: ${await resp.text()}`);
-  return await resp.json();
+  let lastErr = '';
+  for (let attempt = 1; attempt <= 3; attempt++) {
+    try {
+      const resp = await fetch(`${SUPABASE_URL}/rest/v1/rpc/get_nudge_targets`, {
+        method: 'POST',
+        headers: {
+          'apikey': SERVICE_ROLE,
+          'Authorization': `Bearer ${SERVICE_ROLE}`,
+          'Content-Type': 'application/json',
+        },
+        body: '{}',
+      });
+      if (resp.ok) return await resp.json();
+      lastErr = `${resp.status}: ${await resp.text()}`;
+    } catch (e) {
+      lastErr = String(e);
+    }
+    if (attempt < 3) await new Promise(r => setTimeout(r, 1500));
+  }
+  throw new Error(`nudge targets error ${lastErr}`);
 }
 
 async function fetchQuizPatternTargets(): Promise<QuizPatternTarget[]> {
@@ -315,7 +331,7 @@ function pickRandom<T>(arr: T[]): T { return arr[Math.floor(Math.random() * arr.
 //   목적지를 title 이외의 값(카테고리·랜덤 등)으로 정하면 타이틀과 실제 이동 화면이
 //   어긋나므로, 딥링크 생성은 반드시 이 함수 한 곳만 거칠 것.
 //   quizLevel = 코드맞추기 레벨(콘텐츠 난이도 매핑 기준), quizTarget = '코드 맞추기'일 때 이동할 레벨.
-//   보낼 수 없는 조합(예: 레벨9+ 주법)은 null 반환.
+//   보낼 수 없는 조합은 null 반환.
 function deeplinkByTitle(
   title: string,
   quizLevel: number,
@@ -329,16 +345,11 @@ function deeplinkByTitle(
     const scaleKey = resolveScaleKey(quizLevel);
     return { data: { scaleKey }, deeplink: `scale:${scaleKey}` };
   }
-  if (title === '코드 진행 리스트') {
+  if (title === '코드반주 훈련') {
     const progNo = resolveProgressionNo(quizLevel);
     return { data: { progNo }, deeplink: `progression:${progNo}` };
   }
-  if (title === '주법 리듬 훈련') {
-    const strumLv = resolveStrumLv(quizLevel);
-    if (strumLv === null) return null; // 레벨9+ 매핑 없음
-    return { data: { strumLv }, deeplink: `strum:${strumLv}` };
-  }
-  if (title === '코드 조합 훈련') {
+  if (title === '리하모니 화성학') {
     const comboChapter = resolveComboChapter(quizLevel);
     return { data: { comboChapter, comboDifficulty: 'low' }, deeplink: `combo:${comboChapter}` };
   }
@@ -348,9 +359,8 @@ function deeplinkByTitle(
 // title 별 후보 category (연동형). '코드 맞추기'는 유저 자격에 따라 동적으로 결정됨.
 const LINK_TITLE_CATEGORY: Record<string, string> = {
   '스케일 훈련':      'quiz_link_scale',
-  '코드 진행 리스트': 'quiz_link_progression',
-  '주법 리듬 훈련':   'quiz_link_strum',
-  '코드 조합 훈련':   'quiz_link_combo',
+  '코드반주 훈련':    'quiz_link_progression',
+  '리하모니 화성학':   'quiz_link_combo',
 };
 
 function resolveScaleKey(quizLevel: number): string {
@@ -364,9 +374,6 @@ function resolveScaleKey(quizLevel: number): string {
 function resolveProgressionNo(quizLevel: number): string {
   return quizLevel <= 4 ? '1' : quizLevel <= 8 ? '2' : '2,4';
 }
-function resolveStrumLv(quizLevel: number): string | null {
-  return quizLevel <= 2 ? '1' : quizLevel <= 5 ? '2' : quizLevel <= 8 ? '3,4,5' : null;
-}
 function resolveComboChapter(quizLevel: number): string {
   return quizLevel <= 5 ? pickRandom(['1', '2'])
     : quizLevel <= 8 ? pickRandom(['1', '2', '3', '4'])
@@ -374,12 +381,11 @@ function resolveComboChapter(quizLevel: number): string {
 }
 
 // ── 스케일 연동형(3번) 레벨(1~25) → 추천 콘텐츠 딥링크 매핑 ──────
-//   진행/주법은 문구에 레벨 언급이 없어 전체 범위로 고정(합의사항, 2026-07-31).
+//   코드반주(진행)는 문구에 레벨 언급이 없어 전체 범위로 고정(합의사항, 2026-07-31).
 const SCALE_LINK_TITLE_CATEGORY: Record<string, string> = {
   '코드 맞추기':      'scale_link_quiz',
-  '코드 진행 리스트': 'scale_link_progression',
-  '주법 리듬 훈련':   'scale_link_strum',
-  '코드 조합 훈련':   'scale_link_combo',
+  '코드반주 훈련':    'scale_link_progression',
+  '리하모니 화성학':   'scale_link_combo',
 };
 
 function resolveQuizFromScaleLevel(scaleLevel: number): string {
@@ -392,7 +398,7 @@ function resolveComboFromScaleLevel(scaleLevel: number): string {
     : scaleLevel <= 10 ? pickRandom(['1', '2', '3', '4'])
     : pickRandom(['3', '4', '5', '6', '7', '8']);
 }
-// 문구의 {레벨} 자리에 들어갈 표시값(퀴즈/조합만 레벨 언급, 진행/주법은 미사용)
+// 문구의 {레벨} 자리에 들어갈 표시값(퀴즈/조합만 레벨 언급, 코드반주(진행)는 미사용)
 function scaleLinkLevelText(chosenType: string, value: string): string {
   if (chosenType === 'quiz')  return value.startsWith('c') ? `${value} 챌린지` : `레벨${value}`;
   if (chosenType === 'combo') return `${value}장`;
@@ -400,7 +406,7 @@ function scaleLinkLevelText(chosenType: string, value: string): string {
 }
 
 // 스케일 연동형(3번) 전용 딥링크. quiz/combo 는 스케일 레벨 기준 버킷(위 두 함수),
-// 진행/주법은 레벨 무관 전체 추천(콤마 다중값, 클라이언트가 랜덤 선택).
+// 코드반주(진행)는 레벨 무관 전체 추천(콤마 다중값, 클라이언트가 랜덤 선택).
 function scaleLinkDeeplink(
   title: string, scaleLevel: number,
 ): { data: Record<string, string>; deeplink: string; levelText: string; levelType: string; levelValue: string } | null {
@@ -408,13 +414,10 @@ function scaleLinkDeeplink(
     const lv = resolveQuizFromScaleLevel(scaleLevel);
     return { data: { quizLevel: lv }, deeplink: `quiz:${lv}`, levelText: scaleLinkLevelText('quiz', lv), levelType: 'quiz', levelValue: lv };
   }
-  if (title === '코드 진행 리스트') {
+  if (title === '코드반주 훈련') {
     return { data: { progNo: '1,2,4' }, deeplink: 'progression:1,2,4', levelText: '', levelType: '', levelValue: '' };
   }
-  if (title === '주법 리듬 훈련') {
-    return { data: { strumLv: '1,2,3' }, deeplink: 'strum:1,2,3', levelText: '', levelType: '', levelValue: '' };
-  }
-  if (title === '코드 조합 훈련') {
+  if (title === '리하모니 화성학') {
     const chapter = resolveComboFromScaleLevel(scaleLevel);
     return {
       data: { comboChapter: chapter, comboDifficulty: 'low' },
@@ -558,9 +561,9 @@ const PUSH_LANGS = ['en', 'ja', 'es'] as const;
 type PushLang = typeof PUSH_LANGS[number];
 
 const TRAINING_NAME_I18N: Record<PushLang, Record<string, string>> = {
-  en: { quiz: 'Chord Quiz', scale: 'Scale Blocks', progression: 'Chord Loops', strum: 'Strumming Patterns', combo: 'Reharm Quiz' },
-  ja: { quiz: 'コードクイズ', scale: 'スケールブロック', progression: 'コード進行', strum: 'ストロークパターン', combo: 'リハモクイズ' },
-  es: { quiz: 'Quiz de Acordes', scale: 'Bloques de Escalas', progression: 'Progresiones', strum: 'Patrones de Rasgueo', combo: 'Quiz de Reharm' },
+  en: { quiz: 'Chord Quiz', scale: 'Scale Blocks', progression: 'Chord Accompaniment', combo: 'Reharm Quiz' },
+  ja: { quiz: 'コードクイズ', scale: 'スケールブロック', progression: 'コード伴奏', combo: 'リハモクイズ' },
+  es: { quiz: 'Quiz de Acordes', scale: 'Bloques de Escalas', progression: 'Acompañamiento de Acordes', combo: 'Quiz de Reharm' },
 };
 
 // 레벨·장 표기
@@ -656,9 +659,8 @@ function levelShortI18n(lang: PushLang, type: string, value: string, names: Reco
 const TRAINING_NAME: Record<string, string> = {
   quiz: '코드 맞추기',
   scale: '스케일 훈련',
-  progression: '코드 진행 리스트',
-  strum: '주법 리듬 훈련',
-  combo: '코드 조합 훈련',
+  progression: '코드반주 훈련',
+  combo: '리하모니 화성학',
 };
 
 // 스케일 훈련 레벨(1~25) → scale-level.html ?key= 슬러그 (scale-training.html data-key 와 동일)
@@ -676,7 +678,7 @@ const SCALE_LEVEL_BY_KEY: Record<string, number> = Object.fromEntries(
 );
 
 // 일반넛지 딥링크: 훈련 + 레벨범위(push_nudge_persona.levels) → FCM data.
-//   progression/strum/combo 는 콤마 다중값을 클라이언트가 직접 필터·랜덤 처리하므로 그대로 전달
+//   progression/combo 는 콤마 다중값을 클라이언트가 직접 필터·랜덤 처리하므로 그대로 전달
 //   (미구현 레벨이 섞여 있어도 클라이언트가 걸러냄 → 구현되면 자동 포함).
 //   quiz/scale 은 단일값만 받으므로 여기서 1개 선택. quiz 는 미구현 레벨 제외 필요.
 function nudgeDeeplink(
@@ -701,9 +703,6 @@ function nudgeDeeplink(
   if (training === 'progression') {
     return { data: { ...base, progNo: levels }, deeplink: `progression:${levels}` };
   }
-  if (training === 'strum') {
-    return { data: { ...base, strumLv: levels }, deeplink: `strum:${levels}` };
-  }
   if (training === 'combo') {
     return {
       data: { ...base, comboChapter: levels, comboDifficulty: difficulty || 'low' },
@@ -711,6 +710,79 @@ function nudgeDeeplink(
     };
   }
   return null;
+}
+
+// ── 일반넛지 유형 연계 추천 (2026-11-02) ──────────────────────────
+//   잘 쓰는 유저(heavy_user·habitual)는 선호 패턴 영역의 훈련을 추천한다.
+//     같은 레벨 70% / 한 단계 위 20% / 덜 하는 영역 10% (비율은 NUDGE_MIX 한 곳)
+//   · 레벨 = push_nudge_persona 의 페르소나 레벨 범위(실제로 자주 쓰는 레벨을 따로 집계하지는 않음)
+//   · 한 단계 위 = 다음 페르소나의 같은 훈련 범위. 최상위거나 해당 훈련 행이 없으면 같은 레벨로
+//   · 덜 하는 영역 = SQL 의 least_area. 해당 영역에 이 페르소나 행이 없으면 같은 레벨로
+//   잘 안 쓰는 유저, 툴킷·미분류 선호, 프로필 없는 유저는 null → 기존 repeat/persona 50:50 그대로.
+const NUDGE_ACTIVE_TYPES = ['heavy_user', 'habitual'];
+const NUDGE_MIX = { same: 0.7, up: 0.2 };   // 나머지(0.1)는 덜 하는 영역
+const PERSONA_TIERS = ['unboxing', 'beginner', 'sheet_reader', 'home_master'];
+const AREA_TRAININGS: Record<string, string[]> = {
+  comping: ['quiz', 'progression'],   // 반주: 코드 맞추기 · 코드반주
+  soloing: ['scale'],
+  harmony: ['combo'],
+};
+
+interface NudgePersonaRow {
+  persona: string; training: string; levels: string; difficulty: string | null; priority: number;
+}
+
+async function fetchNudgePersonaRows(): Promise<NudgePersonaRow[]> {
+  try {
+    const resp = await fetch(`${SUPABASE_URL}/rest/v1/push_nudge_persona?select=*&active=is.true`, {
+      headers: { 'apikey': SERVICE_ROLE, 'Authorization': `Bearer ${SERVICE_ROLE}` },
+    });
+    return resp.ok ? await resp.json() : [];
+  } catch (_) {
+    return [];
+  }
+}
+
+// priority 가중 랜덤(낮을수록 자주) — get_nudge_targets 의 `order by random() * priority` 와 같은 규칙
+function pickByPriority(rows: NudgePersonaRow[]): NudgePersonaRow {
+  let best = rows[0];
+  let bestScore = Infinity;
+  for (const r of rows) {
+    const score = Math.random() * r.priority;   // 행마다 한 번만 뽑아 비교
+    if (score < bestScore) { best = r; bestScore = score; }
+  }
+  return best;
+}
+
+function pickSegmentRec(
+  t: NudgeTarget, rows: NudgePersonaRow[],
+): { rec: { training: string; levels: string; difficulty: string | null }; bucket: 'same' | 'up' | 'other' } | null {
+  if (!t.persona || !t.engagement_type || !NUDGE_ACTIVE_TYPES.includes(t.engagement_type)) return null;
+  const prefTrainings = t.pref_type ? AREA_TRAININGS[t.pref_type] : undefined;
+  if (!prefTrainings) return null;   // 툴킷·미분류·값 없음
+  const rowsFor = (persona: string, trainings: string[]) =>
+    rows.filter(r => r.persona === persona && trainings.includes(r.training));
+
+  const same = rowsFor(t.persona, prefTrainings);
+  if (!same.length) return null;
+
+  let pool = same;
+  let bucket: 'same' | 'up' | 'other' = 'same';
+  const roll = Math.random();
+  if (roll >= NUDGE_MIX.same) {
+    if (roll < NUDGE_MIX.same + NUDGE_MIX.up) {
+      const i = PERSONA_TIERS.indexOf(t.persona);
+      const next = i >= 0 ? PERSONA_TIERS[i + 1] : undefined;
+      const up = next ? rowsFor(next, prefTrainings) : [];
+      if (up.length) { pool = up; bucket = 'up'; }
+    } else {
+      const otherTrainings = t.least_area ? AREA_TRAININGS[t.least_area] : undefined;
+      const other = otherTrainings ? rowsFor(t.persona, otherTrainings) : [];
+      if (other.length) { pool = other; bucket = 'other'; }
+    }
+  }
+  const pick = pickByPriority(pool);
+  return { rec: { training: pick.training, levels: pick.levels, difficulty: pick.difficulty }, bucket };
 }
 
 Deno.serve(async (_req) => {
@@ -891,7 +963,7 @@ Deno.serve(async (_req) => {
       if (scaleStat) { titles.push('스케일 훈련'); categories.push(scaleStat.category); }
       if (quizLink) {
         for (const [title, category] of Object.entries(LINK_TITLE_CATEGORY)) {
-          if (deeplinkByTitle(title, quizLevel!, null) === null) continue; // 레벨9+ 주법 등 제외
+          if (deeplinkByTitle(title, quizLevel!, null) === null) continue; // 보낼 수 없는 조합 제외
           titles.push(title);
           categories.push(category);
         }
@@ -990,23 +1062,45 @@ Deno.serve(async (_req) => {
     }
 
     // ── 3순위: 일반 넛지 발송 (성적형·중단인지형 받은 유저 제외) ──
-    //   repeat(마지막 훈련 한 번 더) / persona(페르소나 추천) 50:50.
+    //   잘 쓰는 유저(헤비·습관형)는 선호 패턴 추천(pickSegmentRec) — 같은 레벨/한 단계 위/덜 하는 영역.
+    //   그 외 유저는 repeat(마지막 훈련 한 번 더) / persona(페르소나 추천) 50:50.
     //   단, 훈련 기록이 전혀 없으면 repeat 이 성립하지 않으므로 persona 로 발송.
     const nudgeTargetsRaw = await fetchNudgeTargets();
     const nudgeTargets = nudgeTargetsRaw.filter(t =>
       !sentUsers.has(t.user_id) && (!testUserId || t.user_id === testUserId) && matchesTimeSlot(t.user_id));
     let nSent = 0, nFailed = 0, nSkipped = 0;
+    const segCount = { same: 0, up: 0, other: 0 };   // 유형 연계로 보낸 건수(버킷별)
+    const personaRows = nudgeTargets.length ? await fetchNudgePersonaRows() : [];
     for (const t of nudgeTargets) {
       const lang: PushLang = tokenLangs.get(t.token) ?? 'en';
+      // 잘 쓰는 유저는 선호 패턴 추천(seg), 그 외는 기존 repeat/persona 50:50
+      const seg = pickSegmentRec(t, personaRows);
       const kind: 'repeat' | 'persona' =
-        (t.last_training && Math.random() < 0.5) ? 'repeat' : 'persona';
+        (!seg && t.last_training && Math.random() < 0.5) ? 'repeat' : 'persona';
+      // 기존 페르소나 추천: SQL 의 rec_* 는 한 번의 호출 안에서 같은 페르소나 전원에게 똑같이 나오므로
+      // (2026-11-02 확인) 유저마다 push_nudge_persona 행에서 priority 가중 랜덤으로 다시 뽑는다.
+      // 행을 못 가져왔거나 페르소나 행이 없으면 SQL 값을 그대로 쓴다.
+      const ownRows = t.persona ? personaRows.filter(r => r.persona === t.persona) : [];
+      const legacyRec = ownRows.length
+        ? (() => { const p = pickByPriority(ownRows); return { training: p.training, levels: p.levels, difficulty: p.difficulty }; })()
+        : { training: t.rec_training, levels: t.rec_levels, difficulty: t.rec_difficulty };
+      const rec = seg ? seg.rec : legacyRec;
 
       // 목적지 훈련 → title. 다른 경로와 동일하게 title 이 곧 딥링크 대상.
-      const training = kind === 'repeat' ? t.last_training! : t.rec_training;
-      const dest = kind === 'repeat'
-        ? { data: { entry: 'nudge', trainingHome: training }, deeplink: `${training}:home` }
-        : nudgeDeeplink(t.rec_training, t.rec_levels, t.rec_difficulty, playableQuiz);
+      const trainingOf = (r: { training: string }) => (kind === 'repeat' ? t.last_training! : r.training);
+      let useRec = rec;
+      let dest = kind === 'repeat'
+        ? { data: { entry: 'nudge', trainingHome: trainingOf(rec) }, deeplink: `${trainingOf(rec)}:home` }
+        : nudgeDeeplink(rec.training, rec.levels, rec.difficulty, playableQuiz);
+      // 유형 연계 추천이 보낼 수 없는 조합이면(미구현 레벨 등) 기존 페르소나 추천으로 대체
+      if (!dest && seg) {
+        useRec = legacyRec;
+        dest = nudgeDeeplink(useRec.training, useRec.levels, useRec.difficulty, playableQuiz);
+      } else if (dest && seg) {
+        segCount[seg.bucket]++;
+      }
       if (!dest) { nSkipped++; continue; }
+      const training = trainingOf(useRec);
 
       const nudgeCategory = kind === 'repeat' ? 'nudge_repeat' : 'nudge_persona';
       const msg = await fetchRandomMessage(nudgeCategory);
@@ -1054,7 +1148,7 @@ Deno.serve(async (_req) => {
       quiz_link: { targets: quizLinkCount, sent: lSent, failed: lFailed, skipped: lSkipped },
       scale_pattern: { targets: scaleStatCount, sent: sqSent, failed: sqFailed, skipped: sqSkipped },
       scale_link: { targets: scaleLinkCount, sent: slSent, failed: slFailed, skipped: slSkipped },
-      nudge:   { targets: nudgeTargets.length,   sent: nSent, failed: nFailed, skipped: nSkipped },
+      nudge:   { targets: nudgeTargets.length,   sent: nSent, failed: nFailed, skipped: nSkipped, segment: segCount },
       pruned,
     }), { headers: { 'Content-Type': 'application/json' } });
   } catch (e) {

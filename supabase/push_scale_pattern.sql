@@ -61,6 +61,9 @@ as $$
   left join scale_level_names cur on cur.scale_key = j.scale_key
   left join scale_level_names nxt on nxt.level_id = cur.level_id + 1
   where j.category is not null
+    -- 다음 스케일이 없으면(마지막 레벨) 레벨업은 보낼 곳이 없음 → 제외 (퀴즈 성적형과 동일).
+    -- 안 걸러내면 문구의 {다음레벨명} 이 채워지지 않은 채로 나감(2026-11-02 확인).
+    and (j.category <> 'scale_level_up' or nxt.scale_key is not null)
     and pt.token is not null
     and pt.nudge_enabled = true;
 $$;

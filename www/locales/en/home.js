@@ -260,3 +260,86 @@
     ],
   });
 })();
+
+// ── 코드사전 페이지 보강 (2026-11-01 추가) ── 탭 제목·접근성 라벨·손가락 이름·미리보기·에디터로 편집
+I18N.add('en', {
+  exact: {
+    'Chorditor - 코드 사전': 'Chorditor - Chord Library',
+    '사전 패널 펼치기': 'Expand library panel',
+    '사전 패널 접기': 'Collapse library panel',
+    '검색': 'Search',
+    '코드 검색': 'Search chords',
+    '홈으로': 'Back to home',
+    '손가락 번호 안내': 'Finger number guide',
+    '엄지': 'Thumb',
+    '검지': 'Index',
+    '중지': 'Middle',
+    '약지': 'Ring',
+    '소지': 'Pinky',
+    '미리보기': 'Preview',
+    '에디터로 편집': 'Edit in Editor',
+  },
+});
+
+// ── 코드에디터 페이지 보강 (2026-11-01 추가) ── 탭 제목·접근성 라벨·추천 코드명·노트 편집 모드
+I18N.add('en', {
+  exact: {
+    'Chorditor - 코드 에디터': 'Chorditor - Chord Editor',
+    '프렛 번호 내리기': 'Lower fret number',
+    '프렛 번호 올리기': 'Raise fret number',
+    '사전에서 가져오기': 'Import from Library',
+    '추천 코드명': 'Suggested chord names',
+    '터치해서 적용': 'Tap to apply',
+    '코드명 커스텀': 'Custom chord name',
+    '이름을 직접 지정': 'Set the name yourself',
+    '베이스': 'Bass',
+    '지정할 손가락을 클릭 후, 상단에 점을 눌러 반영하세요.': 'Tap the finger to assign, then tap a dot above to apply it.',
+    '노트 편집 모드': 'Song edit mode',
+    '노트에 저장하기': 'Save to Songs',
+    '노트로 돌아가기': 'Back to Songs',
+  },
+});
+
+// ── 전체 점검 보강 (2026-11-01 추가) ── 출석·홈 퀘스트 카드·코드 진행 이름·코드 퀴즈 안내·나의 기타 여정·리하모니 잠금 라벨
+I18N.add('en', {
+  exact: {
+    '미니강의 잠김 · 건너뛰기 테스트': 'Mini-lesson locked · Skip test',
+    '알맞은 코드 이름을 고르세요': 'Pick the right chord name',
+    '아무 레벨 1회': 'Any level, once',
+    '바로가기': 'Go',
+    '목록 접기': 'Collapse list',
+    '노트 악보': 'Song sheet',
+    '새 노트를 생성하세요': 'Create a new Song',
+    '미니강의 수강 완료': 'Mini-lesson completed',
+    '종합 레벨 클리어': 'Clear the Review level',
+    'Chorditor - 나의 기타 여정': 'Chorditor - Guitar Roadmap',
+    '가이드': 'Guide',
+    '기타와 친해지기': 'Getting to Know the Guitar',
+    '4도 마이너 진행': 'IV Minor Progression',
+    '6도 세컨더리도미넌트 진행': 'VI Secondary Dominant Progression',
+    '2도 세컨더리도미넌트 진행': 'II Secondary Dominant Progression',
+    '4도 세컨더리도미넌트 거짓해결 진행': 'IV Secondary Dominant Deceptive Progression',
+    '4도 세컨더리도미넌트 진행': 'IV Secondary Dominant Progression',
+    'J-Pop 진행': 'J-Pop Progression',
+    '하향클리셰 진행': 'Descending Cliché Progression',
+    '캐논 진행': 'Canon Progression',
+    '믹솔리디안 모달인터체인지 진행': 'Mixolydian Modal Interchange Progression',
+    '마이너 모달인터체인지 엔딩 진행': 'Minor Modal Interchange Ending Progression',
+    '도리안 모달인터체인지 진행': 'Dorian Modal Interchange Progression',
+    '어쿠스틱 음악 진행': 'Acoustic Music Progression',
+    '6도 하향진행1': 'Descending VI Progression 1',
+    '6도 하향진행2': 'Descending VI Progression 2',
+  },
+  mixed: {
+    '4개 중 <span>2개를 완료하면 <span>출석해요!': 'Complete <1>2 of 4</1> to <2>check in</2>!',
+  },
+  patterns: [
+    [new RegExp('^주법 재생 5분 · (.+)$'), 'Strumming practice 5 min · {1}'],
+    [new RegExp('^이번 달 아무 때나 (\\d+)회 더 보충출석할 수 있어요$'), 'You can still make up {1} check-ins any time this month'],
+    [new RegExp('^레벨 클리어 (\\d+)회 마다$'), 'Every {1} level clears'],
+    [new RegExp('^(\\d+)장 (.+)$'), 'Ch. {1} {2}'],
+    [new RegExp('^챕터 (\\d+)$'), 'Chapter {1}'],
+    [new RegExp('^레벨 (\\d+) 이상 중 1회$'), 'Level {1} or higher, once'],
+    [new RegExp('^(\\d+-\\d+) 이상 레벨 중 1회$'), 'Level {1} or higher, once'],
+  ],
+});

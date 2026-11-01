@@ -367,7 +367,6 @@
   --font-headline: 28px;
   --font-display-sm: 32px;
   --font-display: 40px;
-  --font-card: 14px;
 }
 
 /* 폰트 두께 토큰 (docs/style-guide.md §2)
@@ -430,7 +429,6 @@
     --font-headline: 30px;
     --font-display-sm: 34px;
     --font-display: 44px;
-    --font-card: 18px;
   }
 }
 @media (min-width: 1080px) {
@@ -449,7 +447,6 @@
   :root {
     --font-body: 18px;
     --font-display: 48px;
-    --font-card: 20px;
   }
 }
 
@@ -478,6 +475,9 @@
 * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; user-select: none; -webkit-user-select: none; }
 
 /* ?�이지 ?�환 �???배경 ?�리�?방�? — body?� ??? --bg ?�용(?�이 미묘???�르�?top-bar/컨텐�?경계 ?�선?�로 비침) */
+/* 스크롤바는 앱 전체에서 보이지 않는다(스크롤 동작은 그대로). 요소별 숨김 규칙이 빠진 곳이 없도록 전역으로 한 번에 처리 */
+* { scrollbar-width: none; -ms-overflow-style: none; }
+*::-webkit-scrollbar { display: none; width: 0; height: 0; }
 html { background: var(--bg); touch-action: manipulation; }   /* 더블탭 확대 전역 차단(보류 상태 — 화면 확대 요구가 있으면 이 선언과 shared.js _doubleTapZoomReset을 같이 걷는다). 스크롤·핀치 확대는 그대로. 안쪽 요소의 touch-action(pan-x 등)은 이 값과 교집합으로 계산돼 영향 없음 */
 
 body {
@@ -6189,9 +6189,13 @@ canvas {
   flex: 1;
   width: 100%;
   display: flex;
+  flex-direction: column;
   align-items: center;
-  justify-content: center;
 }
+.ob-step8-icon-wrap::before,
+.ob-push-icon-wrap::before { content: ''; flex: 2; }   /* 남는 공간을 위 2 : 아래 3으로 나눠 가운데보다 약간 위에 둠(모바일 시선이 모이는 중앙·상단, style-guide §22) */
+.ob-step8-icon-wrap::after,
+.ob-push-icon-wrap::after { content: ''; flex: 3; }
 .ob-step8-icon {
   width: 96px;
   height: 96px;
@@ -7849,8 +7853,8 @@ canvas {
   border: 2px solid transparent;
   border-radius: 14px;
   font-family: 'Pretendard', 'Noto Sans JP', sans-serif;
-  font-size: 20px;
-  font-weight: 700;
+  font-size: var(--font-title-sm);
+  font-weight: 600;
   color: var(--text-primary);
   cursor: pointer;
   text-align: left;
@@ -7860,7 +7864,7 @@ canvas {
 .ob-choice-item--selected {
   background: #F0F0FF;
   border-color: var(--text-primary);
-  font-weight: 700;
+  font-weight: 600;
 }
 
 /* ?�별·?�이 ??카드 */
@@ -7970,6 +7974,10 @@ canvas {
 .ob-invite-input {
   padding: 8px;
   text-transform: uppercase;
+  border-bottom-width: 1px;   /* 밑줄 1px(닉네임 입력창은 2px 그대로) */
+  display: block;
+  max-width: 400px;           /* 넓은 화면에서도 400px까지만 길어지고 가운데에 둠 */
+  margin-inline: auto;
 }
 .ob-invite-input--error {
   border-bottom-color: var(--accent);
@@ -8214,6 +8222,172 @@ canvas {
   color: var(--text-muted);
   font-weight: 500;
 }
+
+/* ── 온보딩 설문 추가 화면(활용 목적·학습 빈도·알림 안내·유입경로) + 플랜 화면 ── */
+.ob-subtitle {
+  font-size: var(--font-body-sm);
+  line-height: 1.5;
+  color: var(--text-muted);
+  margin: -12px 0 20px;
+}
+.ob-head { width: 100%; }   /* 타이틀+부가설명을 한 덩어리로 — .ob-main이 space-between이라 따로 두면 서로 떨어짐 */
+.ob-choice-list--compact { gap: 8px; }
+.ob-choice-list--compact .ob-choice-item { padding: 12px 16px; }
+
+/* 진입 애니메이션: Step2와 같은 타이밍(타이틀 → 부가설명 → 보기가 차례로) */
+:is(#ob-step-purpose, #ob-step-freq, #ob-step-source) .ob-choice-item {
+  animation: ob-rise-in 0.7s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+:is(#ob-step-purpose, #ob-step-freq, #ob-step-push, #ob-step-source, #ob-step-plan) .ob-title {
+  animation: ob-rise-in 1.3s cubic-bezier(0.16, 1, 0.3, 1) both;
+  animation-delay: 0.5s;
+}
+:is(#ob-step3, #ob-step4, #ob-step-freq, #ob-step-push) .ob-subtitle {
+  animation: ob-rise-in 0.7s cubic-bezier(0.16, 1, 0.3, 1) both;
+  animation-delay: 1.1s;
+}
+:is(#ob-step-purpose, #ob-step-freq, #ob-step-source) .ob-choice-item:nth-child(1) { animation-delay: 1.25s; }
+:is(#ob-step-purpose, #ob-step-freq, #ob-step-source) .ob-choice-item:nth-child(2) { animation-delay: 1.33s; }
+:is(#ob-step-purpose, #ob-step-freq, #ob-step-source) .ob-choice-item:nth-child(3) { animation-delay: 1.41s; }
+:is(#ob-step-purpose, #ob-step-freq, #ob-step-source) .ob-choice-item:nth-child(4) { animation-delay: 1.49s; }
+:is(#ob-step-purpose, #ob-step-freq, #ob-step-source) .ob-choice-item:nth-child(5) { animation-delay: 1.57s; }
+:is(#ob-step-purpose, #ob-step-freq, #ob-step-source) .ob-choice-item:nth-child(6) { animation-delay: 1.65s; }
+:is(#ob-step-purpose, #ob-step-freq, #ob-step-source) .ob-choice-item:nth-child(7) { animation-delay: 1.73s; }
+
+/* 알림 안내 — Step8처럼 위(문구)·가운데(아이콘)·아래(버튼) */
+#ob-step-push .ob-main { justify-content: flex-start; }
+#ob-step-push .ob-subtitle { margin: -12px 0 0; }
+.ob-push-icon-wrap {
+  flex: 1;
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  color: var(--text-primary);
+  animation: ob-rise-in 0.7s cubic-bezier(0.16, 1, 0.3, 1) both;
+  animation-delay: 1.25s;
+}
+.ob-push-icon { width: 88px; height: 88px; }
+.ob-push-lottie { width: 160px; height: 160px; }
+#ob-step-push .ob-bottom-actions {
+  animation: ob-rise-in 0.7s cubic-bezier(0.16, 1, 0.3, 1) both;
+  animation-delay: 1.25s;
+}
+
+/* 플랜 화면 — 위(비교 카드, 길면 스크롤)·아래(구독하기 + 지금은 안 할게요) */
+#ob-step-plan .ob-main { justify-content: flex-start; }
+.ob-plan-scroll {
+  flex: 1;
+  min-height: 0;
+  width: calc(100% + 32px);   /* 스크롤 영역 안에서 카드 그림자가 잘리지 않게 안쪽 패딩을 두고 음수 마진으로 상쇄 */
+  box-sizing: border-box;
+  padding: 8px 16px 24px;
+  margin: -8px -16px -24px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  animation: ob-rise-in 0.7s cubic-bezier(0.16, 1, 0.3, 1) both;
+  animation-delay: 1.25s;
+}
+/* 플랜 비교 — 전체 카드 없이 Free는 흰 화면 위에 그대로, Pro 열만 테두리 카드. 구분선·아이콘 없음, 모든 글자는 한 줄 */
+.ob-plan-scroll::before { content: ''; flex: 2; }   /* 제목과 하단 버튼 사이 남는 공간을 위 2 : 아래 3으로 나눠 가운데보다 약간 위에 둠(모바일 시선이 모이는 중앙·상단, style-guide §22). 공간이 모자라면 위에서부터 스크롤 */
+.ob-plan-scroll::after { content: ''; flex: 3; }
+.ob-plan-compare {
+  letter-spacing: -0.02em;   /* 온보딩 제목(.ob-title)과 같은 -2% */
+  display: grid;
+  grid-template-columns: 1fr 1.2fr;
+  column-gap: 8px;
+  align-items: start;
+  width: 100%;
+  max-width: 380px;   /* 화면이 넓어져도 모바일(412px 폭의 내용 폭)처럼 모여 있게 — 넓어지는 건 두 열 사이 간격뿐 */
+  margin-inline: auto;   /* 가운데 정렬 */
+}
+@media (min-width: 481px) {
+  .ob-plan-compare {
+    max-width: none;
+    grid-template-columns: repeat(2, minmax(0, 300px));   /* 각 플랜 열은 300px까지만 커짐 */
+    column-gap: 24px;   /* 열은 더 안 커지고 간격만 벌어짐 */
+    justify-content: center;
+  }
+}
+.ob-plan-col { display: flex; flex-direction: column; }
+.ob-plan-col--free { padding: 12px 0; color: var(--text-secondary); }
+.ob-plan-col--pro {
+  padding: 12px;
+  color: var(--text-primary);
+  border-radius: var(--cd-card-radius);
+  box-shadow: inset 0 0 0 2px var(--blue);   /* 테두리 — 안쪽 링이라 줄 높이가 Free 열과 어긋나지 않음 */
+}
+.ob-plan-cell {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 40px;
+  font-size: var(--font-label-lg);
+  font-weight: 400;
+  white-space: nowrap;
+}
+.ob-plan-name { font-size: var(--font-title-sm); font-weight: 600; }
+.ob-plan-badge {
+  padding: 4px 8px;
+  border-radius: 999px;
+  background: var(--blue);
+  color: #fff;
+  font-size: var(--font-caption);
+  font-weight: 600;
+}
+.ob-plan-check { flex-shrink: 0; position: relative; width: 16px; height: 16px; margin-left: auto; }   /* 배경 없는 체크 — 칸 오른쪽 끝에 정렬 */
+.ob-plan-check::after {
+  content: '';
+  position: absolute;
+  left: 5px;
+  top: 1px;
+  width: 5px;
+  height: 10px;
+  border: solid currentColor;
+  border-width: 0 2px 2px 0;
+  transform: rotate(45deg);
+}
+.ob-plan-col--free .ob-plan-check { color: var(--text-muted); }
+.ob-plan-col--pro  .ob-plan-check { color: var(--blue); }
+.ob-plan-x { position: relative; width: 12px; height: 12px; }   /* Free에 없는 기능 표시(배경 없는 X) */
+.ob-plan-x::before,
+.ob-plan-x::after {
+  content: '';
+  position: absolute;
+  left: 50%;
+  top: 0;
+  width: 2px;
+  height: 12px;
+  border-radius: 1px;
+  background: var(--text-muted);
+  transform: translateX(-50%) rotate(45deg);
+}
+.ob-plan-x::after { transform: translateX(-50%) rotate(-45deg); }
+.ob-plan-bottom {
+  width: 100%;
+  max-width: 624px;   /* 넓은 화면에서 버튼이 화면 폭 전체로 늘어나지 않게 — 624 = 플랜 열 300 + 300 + 간격 24, 가운데 정렬 */
+  margin-inline: auto;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 16px;
+  padding-top: 12px;
+  animation: ob-rise-in 0.7s cubic-bezier(0.16, 1, 0.3, 1) both;
+  animation-delay: 1.25s;
+}
+
+/* 온보딩 중에는 앱 공용 요금제 시트가 온보딩 화면(9999~10000) 위에 떠야 한다 */
+body.onboarding-page .plan-sheet-overlay { z-index: 10010; }
+body.onboarding-page .plan-sheet { z-index: 10011; }
+
+/* 온보딩 전용 결제 시트 — 앱 공용 요금제 시트에서 기능 소개(상단 이미지·기능 목록·"플랜 정보" 라벨)를 빼고
+   연간·월간 선택과 결제만 남긴다(소개는 플랜 화면의 비교 카드가 대신함). 높이는 내용만큼, 태블릿에선 폭 상한 */
+body.onboarding-page .plan-sheet-hero,
+body.onboarding-page .plan-feature-box,
+body.onboarding-page .plan-cards > .hint { display: none; }
+body.onboarding-page .plan-sheet { height: auto; max-height: 90vh; max-width: 624px; }
+body.onboarding-page .plan-sheet-inner { gap: 16px; }
 
 /* ?�?� ?�내 모달 공통 ?�니메이???�?� */
 @keyframes notice-overlay-in {
@@ -12362,11 +12536,15 @@ canvas {
   align-self: flex-start;
 }
 .training-card-name {
-  font-size: var(--font-card);
+  font-size: var(--font-label-lg);
   font-weight: 700;
   line-height: 1.1;
   color: var(--text-primary);
 }
+
+/* 훈련 카드 이름 한 줄 처리 — JS(_fitCardNames)가 한 줄에 들어갈 때만 --one을 붙임. 한국어만(다른 언어는 <br> 앞뒤에 공백이 없어 이어 붙음) */
+html[lang="ko"] .training-card-name.training-card-name--one { white-space: nowrap; }
+html[lang="ko"] .training-card-name--one br { display: none; }
 
 /* main-content?�서 flex ?�용 */
 .training-scroll {
@@ -18651,12 +18829,12 @@ html:not([lang="ko"]) .test-note-grid {
 
 /* 훈련소 카드이름 — 태블릿 표준(820×1180)만 별도 축소, 하한(774)·상한(1032)은 위 24px 유지 */
 @media (min-width: 790px) and (max-width: 900px) and (min-height: 600px) and (max-aspect-ratio: 1/1) {
-  .training-card-name { font-size: 22px; letter-spacing: -0.02em; }
+  .training-card-name { letter-spacing: -0.02em; }
 }
 
 /* 훈련소 카드이름 — 태블릿 하한(774×1133) 전용 */
 @media (min-width: 761px) and (max-width: 789px) and (min-height: 600px) and (max-aspect-ratio: 1/1) {
-  .training-card-name { font-size: 20px; letter-spacing: -0.02em; }
+  .training-card-name { letter-spacing: -0.02em; }
 }
 /* Z Flip 분할(440×360, 멀티윈도우) — 360×440(모바일 브라우저 하한 스코프, --vhu:8px)에서
    이미 만들어둔 렌더 결과를 축만 바꿔서 그대로 옮긴다(회전 아니라 window 축소라 vw/vh
@@ -21867,12 +22045,14 @@ body.tut-lock .tut-allow * {
   position: relative;
   width: var(--cd-topbar-icon);
   height: var(--cd-topbar-icon);
+  margin-left: -4px;   /* 아이콘 획이 박스 안쪽으로 그려져 우측으로 치우쳐 보이는 것 보정 */
   color: var(--brand);   /* 탑바 뒤로가기/닫기 아이콘은 전 페이지 브랜드 컬러 */
 }
 .cd-topbar :is(#back-btn, .cd-topbar-back) svg {
   width: var(--cd-topbar-icon);
   height: var(--cd-topbar-icon);
 }
+.cd-topbar :is(#back-btn, .cd-topbar-back) svg.lucide-chevron-left { transform: translateX(-2px); }   /* '<'만 추가로 좌측 2px(X는 제외) */
 .cd-topbar :is(#back-btn, .cd-topbar-back)::before {
   content: "";
   position: absolute;
@@ -21984,6 +22164,7 @@ body.tut-lock .tut-allow * {
 .cd-topbar #topbar-currency .currency-icon-box img[src$="gift.png"] { width: var(--cd-peak-img-square); height: var(--cd-peak-img-square); }
 .cd-topbar #topbar-currency .currency-icon-box img[src$="peak.svg"] { width: auto; height: var(--cd-peak-img-tall); }
 .cd-topbar #topbar-currency .currency-count { font-size: var(--cd-peak-font); }
+.cd-topbar #topbar-currency { margin-right: 4px; }   /* 피크바 우측 끝 여백 4px */
 .cd-topbar #topbar-currency { padding-left: 0; padding-right: 0; }   /* 카드 제거(2026-10-30) — 안쪽 여백 없음. 아래 첫·마지막 항목의 padding+음수 margin은 배치는 그대로 두고 터치 영역만 바깥으로 넓힘 */
 .cd-topbar #topbar-currency .currency-item:first-child { padding-left: var(--cd-peak-pad-x); margin-left: calc(var(--cd-peak-pad-x) * -1); }
 .cd-topbar #topbar-currency .currency-item:last-child { padding-right: var(--cd-peak-pad-x); margin-right: calc(var(--cd-peak-pad-x) * -1); }

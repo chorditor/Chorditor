@@ -245,9 +245,9 @@ const PUSH_LANGS = ['en', 'ja', 'es'] as const;
 type PushLang = typeof PUSH_LANGS[number];
 
 const TRAINING_NAME_I18N: Record<PushLang, Record<string, string>> = {
-  en: { quiz: 'Chord Quiz', scale: 'Scale Blocks', progression: 'Chord Loops', strum: 'Strumming Patterns', combo: 'Reharm Quiz' },
-  ja: { quiz: 'コードクイズ', scale: 'スケールブロック', progression: 'コード進行', strum: 'ストロークパターン', combo: 'リハモクイズ' },
-  es: { quiz: 'Quiz de Acordes', scale: 'Bloques de Escalas', progression: 'Progresiones', strum: 'Patrones de Rasgueo', combo: 'Quiz de Reharm' },
+  en: { quiz: 'Chord Quiz', scale: 'Scale Blocks', progression: 'Chord Accompaniment', combo: 'Reharm Quiz' },
+  ja: { quiz: 'コードクイズ', scale: 'スケールブロック', progression: 'コード伴奏', combo: 'リハモクイズ' },
+  es: { quiz: 'Quiz de Acordes', scale: 'Bloques de Escalas', progression: 'Acompañamiento de Acordes', combo: 'Quiz de Reharm' },
 };
 
 // 레벨·장 표기

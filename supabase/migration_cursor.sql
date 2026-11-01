@@ -1,6 +1,10 @@
 -- ───────────────────────────────────────────────────────────
 -- migration_cursor.sql : BigQuery 이관 진행상태 + 30일 롤링 삭제
 --
+--   ⛔⛔ 폐기됨(2026-11-01) — 이 파일을 다시 실행하지 말 것. ⛔⛔
+--   아래 삭제 작업은 id 커서(무작위 UUID)로 "이관 완료"를 판정해서, 이관 안 된 행까지 지웠다(2026-08-28 ~ 09-25 소실).
+--   새 로직: supabase/migration_cursor_v2.sql(검증 컬럼) + supabase/migration_cleanup_v2.sql(삭제 재설정) + scripts/incremental-sync.js
+--
 --   테이블별로 "마지막으로 이관한 행의 id"만 기억 → 매일 증분이관 시
 --   처음부터 다시 안 긁고 그 이후 것만 가져감(cursor pagination).
 --   테이블 추가할 땐 여기 스키마 변경 없이 새 row(table_name)만 생기면 됨.

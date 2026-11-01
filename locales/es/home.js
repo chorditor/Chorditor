@@ -260,3 +260,86 @@
     ],
   });
 })();
+
+// ── 코드사전 페이지 보강 (2026-11-01 추가) ── 탭 제목·접근성 라벨·손가락 이름·미리보기·에디터로 편집
+I18N.add('es', {
+  exact: {
+    'Chorditor - 코드 사전': 'Chorditor - Diccionario de Acordes',
+    '사전 패널 펼치기': 'Expandir el panel del diccionario',
+    '사전 패널 접기': 'Contraer el panel del diccionario',
+    '검색': 'Buscar',
+    '코드 검색': 'Buscar acordes',
+    '홈으로': 'Ir al inicio',
+    '손가락 번호 안내': 'Guía de números de dedos',
+    '엄지': 'Pulgar',
+    '검지': 'Índice',
+    '중지': 'Corazón',
+    '약지': 'Anular',
+    '소지': 'Meñique',
+    '미리보기': 'Vista previa',
+    '에디터로 편집': 'Editar en el editor',
+  },
+});
+
+// ── 코드에디터 페이지 보강 (2026-11-01 추가) ── 탭 제목·접근성 라벨·추천 코드명·노트 편집 모드
+I18N.add('es', {
+  exact: {
+    'Chorditor - 코드 에디터': 'Chorditor - Editor de Acordes',
+    '프렛 번호 내리기': 'Bajar el número de traste',
+    '프렛 번호 올리기': 'Subir el número de traste',
+    '사전에서 가져오기': 'Importar del diccionario',
+    '추천 코드명': 'Nombres de acorde sugeridos',
+    '터치해서 적용': 'Toca para aplicar',
+    '코드명 커스텀': 'Nombre de acorde personalizado',
+    '이름을 직접 지정': 'Escribe el nombre tú mismo',
+    '베이스': 'Bajo',
+    '지정할 손가락을 클릭 후, 상단에 점을 눌러 반영하세요.': 'Toca el dedo que quieras asignar y luego un punto de arriba para aplicarlo.',
+    '노트 편집 모드': 'Modo de edición de canción',
+    '노트에 저장하기': 'Guardar en Canciones',
+    '노트로 돌아가기': 'Volver a Canciones',
+  },
+});
+
+// ── 전체 점검 보강 (2026-11-01 추가) ── 출석·홈 퀘스트 카드·코드 진행 이름·코드 퀴즈 안내·나의 기타 여정·리하모니 잠금 라벨
+I18N.add('es', {
+  exact: {
+    '미니강의 잠김 · 건너뛰기 테스트': 'Minilección bloqueada · Prueba para saltar',
+    '알맞은 코드 이름을 고르세요': 'Elige el nombre de acorde correcto',
+    '아무 레벨 1회': 'Cualquier nivel, 1 vez',
+    '바로가기': 'Ir',
+    '목록 접기': 'Contraer la lista',
+    '노트 악보': 'Partitura de la canción',
+    '새 노트를 생성하세요': 'Crea una canción nueva',
+    '미니강의 수강 완료': 'Minilección completada',
+    '종합 레벨 클리어': 'Superar el nivel de repaso',
+    'Chorditor - 나의 기타 여정': 'Chorditor - Mi Camino con la Guitarra',
+    '가이드': 'Guía',
+    '기타와 친해지기': 'Haz amistad con la guitarra',
+    '4도 마이너 진행': 'Progresión con IV menor',
+    '6도 세컨더리도미넌트 진행': 'Progresión con dominante secundario del VI',
+    '2도 세컨더리도미넌트 진행': 'Progresión con dominante secundario del II',
+    '4도 세컨더리도미넌트 거짓해결 진행': 'Progresión con dominante secundario del IV y resolución engañosa',
+    '4도 세컨더리도미넌트 진행': 'Progresión con dominante secundario del IV',
+    'J-Pop 진행': 'Progresión J-Pop',
+    '하향클리셰 진행': 'Progresión de cliché descendente',
+    '캐논 진행': 'Progresión Canon',
+    '믹솔리디안 모달인터체인지 진행': 'Progresión de intercambio modal mixolidio',
+    '마이너 모달인터체인지 엔딩 진행': 'Progresión final de intercambio modal menor',
+    '도리안 모달인터체인지 진행': 'Progresión de intercambio modal dorio',
+    '어쿠스틱 음악 진행': 'Progresión de música acústica',
+    '6도 하향진행1': 'Progresión descendente del VI (1)',
+    '6도 하향진행2': 'Progresión descendente del VI (2)',
+  },
+  mixed: {
+    '4개 중 <span>2개를 완료하면 <span>출석해요!': '¡Completa <1>2 de 4</1> para <2>registrar tu asistencia</2>!',
+  },
+  patterns: [
+    [new RegExp('^주법 재생 5분 · (.+)$'), 'Rasgueo 5 min · {1}'],
+    [new RegExp('^이번 달 아무 때나 (\\d+)회 더 보충출석할 수 있어요$'), 'Este mes puedes recuperar {1} asistencias más, cuando quieras'],
+    [new RegExp('^레벨 클리어 (\\d+)회 마다$'), 'Cada {1} niveles superados'],
+    [new RegExp('^(\\d+)장 (.+)$'), 'Cap. {1} {2}'],
+    [new RegExp('^챕터 (\\d+)$'), 'Capítulo {1}'],
+    [new RegExp('^레벨 (\\d+) 이상 중 1회$'), 'Nivel {1} o superior, 1 vez'],
+    [new RegExp('^(\\d+-\\d+) 이상 레벨 중 1회$'), 'Nivel {1} o superior, 1 vez'],
+  ],
+});

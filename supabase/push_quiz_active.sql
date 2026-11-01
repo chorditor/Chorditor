@@ -1,10 +1,11 @@
 -- ───────────────────────────────────────────────────────────
 -- push_quiz_active.sql : 5번(적극형) — 주간 결산 푸시 타겟팅.
---   5개 훈련(퀴즈/스케일/조합/진행/주법) 각각 독립적으로 지난 7일 활동량 집계 →
+--   4개 훈련(퀴즈/스케일/조합/코드반주) 각각 독립적으로 지난 7일 활동량 집계 →
+--   (2026-11-02 코드반주 통합: 진행·주법을 'progression' 하나로 센다. 새 앱 chordplay_play_started + 옛 앱 이벤트 둘 다)
 --   훈련별 IQR 이상치 분리 → 이상치는 전체(본인제외) 평균과, 일반유저는
 --   이상치 뺀 일반군(본인제외) 평균과 비교(옵션1, 2026-07-31 확정) →
 --   1.5배 이상인 훈련이 여러 개면 배수 가장 높은 훈련 1개만 선택.
---   추천용(least_training) = 5개 중 이번 주 기록이 가장 적은 훈련(소프트코딩, 동률시 이름순 고정).
+--   추천용(least_training) = 4개 중 이번 주 기록이 가장 적은 훈련(소프트코딩, 동률시 이름순 고정).
 --   발송 주기: 주 1회(월요일), 문구엔 배수(N배)만 노출하고 실제 횟수는 노출 안 함.
 -- ───────────────────────────────────────────────────────────
 
@@ -35,17 +36,13 @@ as $$
     union all
     select user_id, 'combo', count(*)
     from analytics_events
-    where event_name = 'combo_training_completed' and created_at >= now() - interval '7 days'
+    where event_name = 'reharmony_level_completed' and created_at >= now() - interval '7 days'
     group by user_id
     union all
     select user_id, 'progression', count(*)
     from analytics_events
-    where event_name = 'progression_detail_played' and created_at >= now() - interval '7 days'
-    group by user_id
-    union all
-    select user_id, 'strum', count(*)
-    from analytics_events
-    where event_name = 'strum_play_started' and created_at >= now() - interval '7 days'
+    where event_name in ('chordplay_play_started', 'progression_detail_played', 'strum_play_started')
+      and created_at >= now() - interval '7 days'
     group by user_id
   ),
   stats as (
@@ -93,7 +90,7 @@ as $$
   -- 추천용: 유저별 5개 훈련 중 기록이 가장 적은 훈련(미기록=0, 동률시 랜덤 — 이름순 고정 시 알파벳
   -- 순으로 combo가 항상 우선 뽑히는 편향 있었음, 2026-07-31 발견 후 수정)
   all_trainings as (
-    select unnest(array['combo', 'progression', 'quiz', 'scale', 'strum']) as training
+    select unnest(array['combo', 'progression', 'quiz', 'scale']) as training
   ),
   user_all as (
     select tp.user_id, t.training, coalesce(c.cnt, 0) as cnt

@@ -228,7 +228,15 @@ function _renderProgList() {
         <button class="prog-enter-btn"><i data-lucide="chevron-right"></i></button>
       </div>`;
 
-      card.addEventListener('pointerup', () => _enterChordplay(prog, _playTap()));
+      // 짧은 터치로만 진입 — 스크롤하려고 누른 채 있다 떼는 경우(길게 누름·손가락 이동)엔 들어가지 않음
+      let _down = null;
+      card.addEventListener('pointerdown', e => { _down = { t: Date.now(), x: e.clientX, y: e.clientY }; });
+      card.addEventListener('pointercancel', () => { _down = null; });
+      card.addEventListener('pointerup', e => {
+        const d = _down; _down = null;
+        if (!d || Date.now() - d.t > 300 || Math.hypot(e.clientX - d.x, e.clientY - d.y) > 10) return;
+        _enterChordplay(prog, _playTap());
+      });
       list.appendChild(card);
     }); // group.items.forEach
   }); // noGroups.forEach

@@ -176,8 +176,8 @@ async function attendanceMakeupClick() {
   const res = (_attInfo && _attInfo.makeup_left > 0) ? await makeupAttendance(false) : await makeupAttendanceByAd();
   if (!res || !res.ok) {
     if (res && res.reason === 'full') showAttendanceFullModal();
-    else if (res && res.reason === 'ad_not_rewarded' && typeof showTextToast === 'function') showTextToast('광고를 끝까지 봐야 채워져요');
-    else if (res && res.reason === 'network' && typeof showTextToast === 'function') showTextToast('보충출석에 실패했어요. 다시 시도해주세요.');
+    else if (res && res.reason === 'ad_not_rewarded') dmToast('광고를 끝까지 봐야 채워져요');
+    else if (res && res.reason === 'network') dmToast('보충출석에 실패했어요. 다시 시도해주세요.');
     renderAttendanceMakeup(); // 실패해도 버튼 상태는 _attInfo 기준으로 다시 계산
     return;
   }
@@ -248,6 +248,16 @@ function initGridMouseDrag(grid) {
   grid.addEventListener('pointerup', endDrag);
   grid.addEventListener('pointerleave', endDrag);
 }
+
+// 다른 화면(훈련 등)에 갔다가 뒤로가기로 돌아오면 iOS는 페이지를 캐시(bfcache)에서 그대로 되살려서 DOMContentLoaded가 다시 안 돈다 —
+// 그러면 미션 목록이 갔다 오기 전 상태 그대로라 방금 깬 미션이 "완료" 아닌 채로 보였다. 되살려진 경우엔 처음부터 다시 그린다.
+window.addEventListener('pageshow', (e) => { if (e.persisted) location.reload(); });
+// 앱을 백그라운드에서 다시 열었을 때도 미션 목록·상태 문구를 최신으로(도장 연출 중일 수 있어 목록과 문구만 갱신)
+document.addEventListener('visibilitychange', () => {
+  if (document.hidden || !document.getElementById('dm-missions')?.children.length) return;
+  renderMissions();
+  renderAttendanceStatus();
+});
 
 // ── DOMContentLoaded ─────────────────────────────────────────
 document.addEventListener('DOMContentLoaded', async () => {

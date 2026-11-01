@@ -1,0 +1,2 @@
+/* 기기 언어가 한국어일 때만 홈 화면 앱 이름을 "코디터"로 표시 (그 외 언어는 Info.plist의 Chorditor) */
+"CFBundleDisplayName" = "코디터";

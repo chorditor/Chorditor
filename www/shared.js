@@ -2679,7 +2679,7 @@ async function purchasePlan(planId, cycle) {
   //   모달을 되살리는 대신 그대로 삭제한다. → 구독하기 = 즉시 결제.
 
   cycle = cycle === 'yearly' ? 'yearly' : 'monthly';
-  analytics.track('plan_upgrade_started', { from_plan: getPlan(), to_plan: planId, cycle });
+  analytics.track('plan_upgrade_started', { from_plan: getPlan(), to_plan: planId, cycle, source: _planSheetSource });
 
   try {
     const stored = localStorage.getItem(SUPABASE_STORAGE_KEY);
@@ -2717,7 +2717,7 @@ async function purchasePlan(planId, cycle) {
     setPlan(newPlan);
     await updateSupabasePlan(newPlan);
 
-    analytics.track('plan_upgrade_completed', { to_plan: newPlan, cycle });
+    analytics.track('plan_upgrade_completed', { to_plan: newPlan, cycle, source: _planSheetSource });
 
     // 구독은 항상 바텀시트에서 시작한다(plan.html 삭제로 다른 경로 없음) — 시트만 닫으면 됨
     closePlanSheet();
@@ -2725,9 +2725,9 @@ async function purchasePlan(planId, cycle) {
     const msg = (e?.message || e?.code || '').toLowerCase();
     const isCancelled = msg.includes('cancel');
     if (isCancelled) {
-      analytics.track('plan_upgrade_cancelled', { to_plan: planId, cycle });
+      analytics.track('plan_upgrade_cancelled', { to_plan: planId, cycle, source: _planSheetSource });
     } else {
-      analytics.track('plan_upgrade_failed', { to_plan: planId, cycle, error: e?.message || 'unknown' });
+      analytics.track('plan_upgrade_failed', { to_plan: planId, cycle, error: e?.message || 'unknown', source: _planSheetSource });
       console.error('[Billing] purchasePlan 실패:', e);
       alert(e?.message || '결제 중 오류가 발생했습니다. 다시 시도해주세요.');
     }
@@ -2869,6 +2869,7 @@ async function _applyStorePrices() {
   }
 }
 
+let _planSheetSource = null;   // 요금제 시트를 연 위치(trigger_source) — 결제 이벤트(plan_upgrade_*)에 같이 남겨 어느 화면에서 결제로 이어졌는지 본다
 function openPlanSheet(triggerSource, extraProps) {
   // 노트 스플릿의 악보 iframe(embed=1) 안에서는 시트가 카드 크기에 갇힌다 → 부모(home.html)에 맡겨 화면 전체 기준으로 연다
   if (window.parent !== window && /[?&]embed=1/.test(location.search)) {
@@ -2877,6 +2878,7 @@ function openPlanSheet(triggerSource, extraProps) {
   const overlay = document.getElementById('plan-sheet-overlay');
   const sheet   = document.getElementById('plan-sheet');
   if (!sheet) return;
+  _planSheetSource = triggerSource || 'unknown';
   if (typeof analytics !== 'undefined') {
     analytics.track('paywall_viewed', { trigger_source: triggerSource || 'unknown', current_plan: getPlan(), ...(extraProps || {}) });
   }
@@ -3563,6 +3565,27 @@ async function dmSyncServer() {
     await dmEnsureAttended();   // 다른 기기에서 이미 2개를 끝냈다면 여기서 도장
     return true;
   } catch (_) { return false; }
+}
+
+// 짧은 안내 토스트 — 페이지마다 따로 정의된 showTextToast는 #text-toast 요소가 있는 홈·에디터·사전에서만 동작해서, 훈련 페이지·오늘의 미션 페이지에서는 아무것도 안 떴다.
+// 요소를 직접 만들어 쓰므로 어느 페이지에서나 동작(스타일은 공용 .text-toast).
+let _dmToastTimer = null;
+function dmToast(msg) {
+  try {
+    let el = document.getElementById('dm-toast');
+    if (!el) {
+      el = document.createElement('div');
+      el.id = 'dm-toast';
+      el.className = 'text-toast';
+      document.body.appendChild(el);
+    }
+    el.textContent = msg;
+    if (_dmToastTimer) clearTimeout(_dmToastTimer);
+    el.classList.remove('show');
+    void el.offsetWidth;
+    el.classList.add('show');
+    _dmToastTimer = setTimeout(function () { el.classList.remove('show'); }, 2600);
+  } catch (_) {}
 }
 
 // 관리자 전용 진단(attendance.html 제목 길게 누르기): sync_daily_mission을 직접 불러 서버가 뭐라고 답하는지 그대로 돌려준다.

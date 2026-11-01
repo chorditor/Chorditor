@@ -9,6 +9,8 @@
 --   그 결과 idle 7~179일 유저가 화~일에는 stage1 자격도 잃고 요일에도 막혀
 --   아무 푸시도 못 받는 사각지대가 생겨서 폐지.
 --   idle 1~2일은 넛지(get_nudge_targets)가 담당 → 넛지 2회 후 3일째부터 이 사다리로 인계.
+--   2026-11-02: 대상은 "한때 잘 쓰던 유저"(ever_active) 로 제한 — 원래 잘 안 쓰던 유저는 윈백을 받지 않는다.
+--   user_persona_profile 에 행이 없는 유저(데이터부족)도 제외된다.
 -- ───────────────────────────────────────────────────────────
 
 -- ── 발송 이력 (중복 발송 방지) ──────────────────────────────
@@ -76,8 +78,12 @@ begin
     (select elem #>> '{}' from jsonb_array_elements(w.body_pool) elem order by random() limit 1) as body
   from target t
   join public.push_winback w on w.stage = t.stage and w.active = true
+  join public.user_persona_profile upp on upp.user_id = t.user_id
   where t.stage > 0
     and t.winback_enabled = true     -- 설정 > 푸시알림 > 리마인드 OFF 시 제외
+    -- 한때 잘 쓰던 유저(heavy_user·habitual 이었던 적 있는 유저)만. 원래 잘 안 쓰던 유저는 윈백 안 받음.
+    -- ever_active 는 push_user_segment.sql 로 추가, 배치(compute-persona-profile.js)가 한 번 true 가 되면 유지.
+    and (upp.ever_active or upp.engagement_type in ('heavy_user', 'habitual'))
     -- 이번 유휴기간(마지막활동 이후) 동안 해당 단계 미발송
     and not exists (
       select 1 from public.push_winback_log l

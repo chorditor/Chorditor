@@ -88,17 +88,19 @@ function handleComboBack() {
   }
   if (_comboInQuiz) {
     showLeavePracticeModal(() => {
-      if (typeof analytics !== 'undefined') {
-        analytics.track('combo_training_abandoned', {
-          chapter: _comboChapter, difficulty: _comboDifficulty,
-          question_index: _comboQuestionIndex, correct: _comboCorrectCount,
-        });
-      }
       exitComboQuiz();
     });
     return;
   }
   closeChordCombo();
+}
+
+// 탑바 아이콘 — 레벨 선택은 '<'(순수 돌아가기), 문제 화면은 'X'(콘텐츠 소모 중 이탈). style-guide: X/< 선택 규칙
+function _comboSetBackIcon(inQuiz) {
+  const btn = document.getElementById('back-btn');
+  if (!btn) return;
+  btn.innerHTML = '<i data-lucide="' + (inQuiz ? 'x' : 'chevron-left') + '"></i>';
+  if (typeof lucide !== 'undefined') lucide.createIcons();
 }
 
 // ── 페이지 닫기 (훈련소로 복귀) ─────────────────────────────
@@ -124,7 +126,6 @@ async function comboStartTraining(e) {
   const activeCard = card.querySelector('.combo-difficulty-card.active');
   const difficulty = activeCard?.dataset.difficulty === 'high' ? 'high'
     : activeCard?.dataset.difficulty === 'mid' ? 'mid' : 'low';
-  if (typeof analytics !== 'undefined') analytics.track('combo_training_started', { chapter, difficulty });
   enterComboQuiz(difficulty, chapter);
 }
 
@@ -427,6 +428,7 @@ function enterComboQuiz(difficulty, chapter) {
   Object.keys(_comboVoicingCache).forEach(k => delete _comboVoicingCache[k]); // 장 전환 시 보이싱 캐시 초기화
 
   _comboInQuiz = true;
+  _comboSetBackIcon(true);
   _comboDifficulty    = difficulty || 'low';
   _comboChapter        = chapter || '1';
   _comboKeyIdx        = _comboChapter === '6' ? ch6PickRandomKey(_comboDifficulty) : pickRandomKey(_comboDifficulty);
@@ -484,6 +486,7 @@ function exitComboQuiz() {
   if (typeof GuitarAudio !== 'undefined' && GuitarAudio.stop) GuitarAudio.stop();
   _comboResetDragState();
   _comboInQuiz = false;
+  _comboSetBackIcon(false);
   document.getElementById('combo-view-quiz')?.classList.add('quiz-view--right');
   document.getElementById('combo-view-select')?.classList.remove('quiz-view--left');
   const prog = document.getElementById('combo-quiz-progress');
@@ -621,14 +624,7 @@ function comboNextQuestion() {
 // ── 10문제 완료 기록: 행동형 XP(정답 무관) ──
 function _comboRecordSessionComplete() {
   _comboFlushTrainingTime(); // 완료까지 걸린 시간 적립
-  const ch = _comboChapter;
   if (typeof addXp === 'function') addXp(BEHAVE_XP.combo); // 행동형 XP: 리하모니 화성학 완료 (사일런트, 정답 무관)
-  if (typeof analytics !== 'undefined') {
-    analytics.track('combo_training_completed', {
-      chapter: ch, difficulty: _comboDifficulty,
-      correct: _comboCorrectCount, total: COMBO_QUESTIONS_PER_SESSION,
-    });
-  }
 }
 
 // ── 10문제 완료 모달: 정답 수/문제 수 표시 + 돌아갈래요/다시할래요 ──
@@ -1266,7 +1262,7 @@ function initTutorialCarousel() {
 document.addEventListener('DOMContentLoaded', () => {
 
   var _pushEntry = null; try { _pushEntry = localStorage.getItem('_push_entry'); if (_pushEntry) localStorage.removeItem('_push_entry'); } catch(_) {}
-  if (typeof analytics !== 'undefined') analytics.track('combo_page_viewed', { from: _pushEntry ? 'push' : 'training', entry: _pushEntry || 'direct' });
+  _comboV2Log('reharmony_page_viewed', { entry: _pushEntry || 'direct' });
 
   // 슬라이드업 진입 애니메이션
   const shell = document.querySelector('.app-shell');
@@ -1350,12 +1346,39 @@ let _comboV2InQuiz = false;
 let _comboV2Level = null;   // 지금 하는 레벨 {num, name} — 클리어 화면 표시용
 let _comboV2Entering = false; // 소모 처리 중 연타로 이중 차감되는 것 방지
 
+// ── 분석 이벤트(reharmony_*) ──
+// 훈련패턴은 reharmony_level_completed의 accuracy_pct(본 문제 첫 시도 기준)만 쓰고, type_stats(유형별 {n, wrong})는 다른 분석용.
+function _comboV2Log(name, props) {
+  analytics.track(name, Object.assign({ plan: getPlan() }, props));
+}
+// 세션 진행 요약 — 본 문제(첫 시도)만 센다. 오답풀이 재도전은 반영하지 않음
+function _comboV2SessStat() {
+  const s = _comboV2Sess;
+  return { q_total: s.n, answered: s.answered, wrong_count: s.wrong.length, duration_sec: Math.round((Date.now() - s.t0) / 1000), type_stats: s.tstat };
+}
+// 이탈 — 완주·테스트 결과를 이미 기록한 세션(s.logged)은 건너뜀. 페이지 이탈(pagehide)·탑바 뒤로가기 확인 후 나가기에서 호출
+function _comboV2LogAbandon(via) {
+  const s = _comboV2Sess;
+  if (!_comboV2InQuiz || !s || !s.n || s.logged) return;
+  s.logged = true;
+  if (s.test) {
+    _comboV2Log('reharmony_skip_test_result', Object.assign({ to_chapter: s.test.to, passed: false, abandoned: true, via: via }, _comboV2SessStat()));
+    return;
+  }
+  const lv = _comboV2Level && _comboV2Level.num;
+  _comboV2Log('reharmony_level_abandoned', Object.assign({ level: lv, chapter: parseInt(lv, 10) || null, phase: s.phase, peak_cost: s.peakCost, via: via }, _comboV2SessStat()));
+}
+window.addEventListener('pagehide', function () { _comboV2LogAbandon('pagehide'); });
+
 async function _comboV2StartLevel(type, label) {
   if (_comboV2Entering) return;
   _comboV2Entering = true;
   try {
     if (!(await consumePeak(_comboV2PeakCost(type), 'chord_combo'))) return;
     comboV2EnterQuiz(type, label);
+    _comboV2Sess.peakCost = getPlan() === 'pro' ? 0 : _comboV2PeakCost(type);
+    const prog = _comboV2ProgLoad();
+    _comboV2Log('reharmony_level_started', { level: label.num, chapter: parseInt(label.num, 10) || null, q_total: _comboV2Sess.n, peak_cost: _comboV2Sess.peakCost, clear_count: prog[label.num] || 0 });
   } finally {
     _comboV2Entering = false;
   }
@@ -1365,6 +1388,7 @@ async function _comboV2StartLevel(type, label) {
 // 선택 뷰는 왼쪽으로·문제 화면은 오른쪽에서 슬라이드
 function comboV2EnterQuiz(type, label, opts) {   // opts.test = 건너뛰기 테스트 {to, level}
   _comboV2InQuiz = true;
+  _comboSetBackIcon(true);
   _comboV2TestMode = opts && opts.test ? opts.test : null;
   _comboV2Level = label || null;
   _comboV2CancelPendingFill();
@@ -1804,7 +1828,7 @@ function comboV2SetType(type) {
     const nSmall = Math.round(prog.length * (1 - COMBO_V2_CH5_BIG_RATE));
     prog.forEach(function (qi, n) { big[qi] = n >= nSmall; });
   }
-  _comboV2Sess = { n: n, test: _comboV2TestMode, phase: 'main', wrong: [], rvPos: 0, canRetry: false, idx: 0, correct: 0, used: [], prevId: null, prevKey: null, reverse: false, key: null, dia: null, kinds: kinds, themes: themes, sev: sev, big: big, cfg: cfg };
+  _comboV2Sess = { n: n, test: _comboV2TestMode, t0: Date.now(), answered: 0, tstat: {}, logged: false, peakCost: 0, phase: 'main', wrong: [], rvPos: 0, canRetry: false, idx: 0, correct: 0, used: [], prevId: null, prevKey: null, reverse: false, key: null, dia: null, kinds: kinds, themes: themes, sev: sev, big: big, cfg: cfg };
   comboV2SetProgress(0);
   _comboV2QShow(kinds[0]);
 }
@@ -1931,6 +1955,13 @@ function _comboV2Verdict(ok) {
   const review = s.phase === 'review';
   comboPlaySound(ok ? 'correct' : 'wrong');
   if (ok) _comboV2Correct(); else if (!review) s.wrong.push(s.idx);
+  if (!review) {   // 유형별 정답률 집계(본 문제 첫 시도만)
+    const k = s.kinds[s.idx];
+    const t = s.tstat[k] || (s.tstat[k] = { n: 0, wrong: 0 });
+    t.n++;
+    if (!ok) t.wrong++;
+    s.answered++;
+  }
   if (s.test) _comboV2HeartsUpdate(true);
   if (!review) comboV2SetProgress(s.idx + 1);   // 본 문제: 맞든 틀리든 한 칸 진행(틀리면 위에서 오답풀이 몫이 전체에 더해짐)
   else if (ok) comboV2SetProgress(s.n + s.rvPos + 1);   // 오답풀이: 그 문제를 맞혔을 때 한 칸(재도전 중엔 안 움직임)
@@ -2158,6 +2189,12 @@ function _comboV2Finish() {
   document.getElementById('combo-v2-clear-praise').textContent = reviewed ? '틀린 문제도 끝까지 풀어냈어요. 정말 잘했어요!' : '한 문제도 안 틀렸어요. 완벽해요!';
   const cleared = comboV2RecordClear(lv && lv.num);   // 완료 1회 기록 → 도넛 호 +1, 마지막 호면 레벨 클리어(다음 레벨 해금)
   if (lv && typeof dailyMissionReport === 'function') dailyMissionReport('combo', lv.num);   // 일일 미션: 리하모니 화성학 레벨 완료
+  s.logged = true;
+  _comboV2Log('reharmony_level_completed', Object.assign({
+    level: lv && lv.num, chapter: lv ? parseInt(lv.num, 10) || null : null,
+    accuracy_pct: Math.round((s.n - s.wrong.length) / s.n * 1000) / 10,   // 훈련패턴용: 본 문제 첫 시도 정답률
+    reviewed: reviewed, cleared: cleared, refund_peak: getPlan() === 'pro' ? 0 : s.n / COMBO_V2_REFUND_EVERY,
+  }, _comboV2SessStat()));
   document.getElementById('combo-v2-clear-title').textContent = cleared ? '레벨 클리어!' : '완주!';   // 평소는 "완주!", 호를 다 채운 판만 "레벨 클리어!"
   document.getElementById('combo-v2-clear-refund').hidden = getPlan() === 'pro';   // 환급 안내 — 클리어는 전부 맞힌 상태라 환급 총합(문제 수 ÷ 5)을 그대로 알림. Pro는 피크가 없어 생략
   document.getElementById('combo-v2-clear-refund-n').textContent = s.n / COMBO_V2_REFUND_EVERY;
@@ -4080,7 +4117,9 @@ window.addEventListener('resize', function () {   // 풀에 들어가는 개수�
 
 // 문제 화면 이탈 — 선택 뷰 v2로 복귀(런타임 정리: 진행 점 숨김. 오디오·타이머는 이 화면에 아직 없음)
 function comboV2ExitQuiz(keepOverlay) {   // keepOverlay: 클리어 확인으로 나갈 때 — 오버레이는 문제 화면과 함께 슬라이드로 빠지므로 여기서 안 지움
+  if (!keepOverlay) _comboV2LogAbandon('back');   // 완주·테스트 결과를 이미 기록했으면 건너뜀
   _comboV2InQuiz = false;
+  _comboSetBackIcon(false);
   flushPendingRefund('chord_combo');
   _comboV2DevBarSync();   // 나가기(X 확인·클리어 확인) — 쌓인 환급을 서버에 반영
   if (keepOverlay) _comboV2SeqStop(); else { _comboV2OverlayAbort(); _comboV2CancelPendingFill(); }
@@ -4312,7 +4351,7 @@ function _comboV2RenderProgress() {
   document.querySelectorAll('#combo-v2-body .combo-v2-chapter').forEach(function (ch) {
     const btn = ch.querySelector('.combo-v2-chapter-play');
     const label = ch.querySelector('.combo-v2-chapter-label');
-    const n = label ? parseInt(label.textContent, 10) : 0;
+    const n = label ? parseInt(label.textContent.replace(/\D/g, ''), 10) : 0;   // 번역("Ch. 1"·"第1章")된 글자에서도 숫자만 읽음
     if (!btn || !n) return;
     const open = _comboV2DevUnlocked() || _comboV2ChapterOpen(n, prog);   // 강의 수강 권한 — 없으면 자물쇠 + 건너뛰기 테스트 (권한이 있어도 강의를 보기 전엔 레벨이 잠겨 있음)
     const icon = open ? 'play' : 'lock';
@@ -4492,6 +4531,7 @@ document.getElementById('combo-v2-skip-start')?.addEventListener('click', functi
   if (!p) return;
   _playConfirmSfx();
   comboV2EnterQuiz(p.cfg, p.label, { test: p.test });   // 문제 화면이 슬라이드로 들어오는 동안 안내 페이지는 서서히 걷힘
+  _comboV2Log('reharmony_skip_test_started', { to_chapter: p.test.to, q_total: _comboV2Sess.n });
   _comboV2SkipPageClose(true);
 });
 document.getElementById('combo-v2-skip-cancel')?.addEventListener('click', function () {
@@ -4520,6 +4560,8 @@ function comboV2SkipPass(to) {
 function _comboV2TestEnd(pass) {
   const s = _comboV2Sess, t = s.test;
   _comboV2SoundStop();
+  s.logged = true;
+  _comboV2Log('reharmony_skip_test_result', Object.assign({ to_chapter: t.to, passed: pass, abandoned: false }, _comboV2SessStat()));
   if (pass) comboV2SkipPass(t.to);
   document.getElementById('combo-v2-clear-title').textContent = pass ? '건너뛰기 통과!' : '아쉽게 통과하지 못했어요';
   document.getElementById('combo-v2-clear-level').textContent = pass ? t.to + '장으로 건너뛰었어요' : (t.to - 1) + '장 종합 문제에서 오답이 3개가 됐어요';

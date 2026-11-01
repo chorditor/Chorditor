@@ -507,7 +507,7 @@
       });
     } },
     // 12-0. 버퍼 — 노래 장면(가사)이 걷히며 key가 바뀌는 구간으로 넘어간다는 예고(연출은 가사 걷기만, 바로 D key로 가지 않게 숨 돌리는 문구)
-    { text: '이번엔 다른 key에서는\n어떻게 적용하는지 알아볼게요!', run: function () {
+    { enter: function () { $('lec-lyrics').classList.remove('is-in'); }, text: '이번엔 다른 key에서는\n어떻게 적용하는지 알아볼게요!', run: function () {
       $('lec-lyrics').classList.remove('is-in');
       return wait(FADE_MS);
     } },
@@ -3533,7 +3533,8 @@
     L.resetTimer = setTimeout(resetView, LEC_SLIDE_MS);
   }
   // 이탈(X·뒤로가기 확인 후 / 앱 전환 / 페이지 이탈) — 소리·타이머·애니메이션 즉시 중단, 처음 상태로
-  function abort() {
+  function abort(via) {
+    if (L.open) _comboV2Log('reharmony_lecture_exited', { chapter: L.ch, rewatch: L.logRewatch, phase_index: L.group, phase_total: LECTURES[L.ch].groups.length, duration_sec: Math.round((Date.now() - L.t0) / 1000), via: via });
     if (L.open && typeof isLeavePracticeOpen === 'function' && isLeavePracticeOpen() && typeof hideLeavePracticeModal === 'function') hideLeavePracticeModal();
     close(true);
   }
@@ -3559,6 +3560,7 @@
   // 마지막 단계(공통 마무리)의 "완료" — 수강 완료를 기록하고 강의를 닫아 곧바로 레벨 목록으로(별도 안내 페이지 없음: 마무리 문구가 그 역할)
   function finish() {
     const n = L.ch;
+    _comboV2Log('reharmony_lecture_completed', { chapter: n, rewatch: L.logRewatch, duration_sec: Math.round((Date.now() - L.t0) / 1000) });
     recordWatched(n);
     close(false);
     backToList(n);
@@ -3580,6 +3582,7 @@
       _comboV2ProgSave(p);
       try { comboV2MetaSync(); } catch (e) {}   // 본 적 있음을 계정에 기록 → 앱을 지워도 다시 안 뜸
       $('combo-v2-welcome').hidden = false;
+      _comboV2Log('reharmony_welcome_viewed', {});
     });
   }
   function closeWelcome() {
@@ -3602,6 +3605,9 @@
     L.ch = n;
     setTopbarLec(true);
     try { const pr = _comboV2ProgLoad(); L.rewatch = _comboV2LectureDone(n, pr) || (typeof _comboV2DevUnlocked === 'function' && _comboV2DevUnlocked()); } catch (e) { L.rewatch = false; }   // 이미 끝까지 수강한 챕터만 터치로 건너뛸 수 있음(처음 보는 강의는 못 건너뜀)
+    L.t0 = Date.now();
+    L.logRewatch = L.rewatch;   // 분석용 — 열 때 이미 수강 완료한 챕터인지(close가 L.rewatch를 지우므로 따로 보관)
+    _comboV2Log('reharmony_lecture_started', { chapter: n, rewatch: L.rewatch });
     const tok = L.tok;
     const sec = $('combo-v2-lecture');
     sec.style.setProperty('--lec-fade', FADE_MS + 'ms');
@@ -3738,13 +3744,13 @@
     if (closeWelcome()) return true;   // 시작 페이지에서 뒤로가기: 페이지만 닫고 목록으로(이미 기록돼서 다시 안 뜸)
     if (L.open) {
       if (typeof isLeavePracticeOpen === 'function' && isLeavePracticeOpen()) return true;
-      showLeavePracticeModal(function () { abort(); }, { title: '미니강의를 그만두시겠어요?', desc: '지금 나가면 미니강의를<br>처음부터 다시 봐야 해요.' });
+      showLeavePracticeModal(function () { abort('back'); }, { title: '미니강의를 그만두시겠어요?', desc: '지금 나가면 미니강의를<br>처음부터 다시 봐야 해요.' });
       return true;
     }
     return false;
   };
-  window.addEventListener('pagehide', function () { abort(); });
-  document.addEventListener('visibilitychange', function () { if (document.hidden) abort(); });
+  window.addEventListener('pagehide', function () { abort('pagehide'); });
+  document.addEventListener('visibilitychange', function () { if (document.hidden) abort('background'); });
 
   maybeShowWelcome();
 })();
