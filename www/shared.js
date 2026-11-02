@@ -827,7 +827,10 @@ function _adUnavailableOnWeb() {
 }
 
 // 이 세션에서 쓸 isTesting 값 — 둘 중 하나라도 테스트모드거나 어드민 계정이면 전부 테스트로.
-function _adIsTesting() { return MS_AD_TESTING || PEAK_AD_TESTING || _isAdminUser(); }
+// 광고 테스트 계정 — 관리자 외에 테스트 광고만 받는 계정(관리자 디버그 권한은 없음).
+// 솔카IOS: iOS 앱이 스토어 출시 전이라 실제 광고 단위가 채워지지 않아 TestFlight 검증용으로 등록(2026-11-02).
+const AD_TEST_USER_IDS = ['1e747942-4e5a-436a-bbd8-3419330d0375'];
+function _adIsTesting() { return MS_AD_TESTING || PEAK_AD_TESTING || _isAdminUser() || AD_TEST_USER_IDS.includes(getStoredAuth().userId); }
 
 // ── 리워드 광고: 플러그인 표준 이벤트 기반 (2026-08-31 재작성) ──
 // 이전엔 showRewardVideoAd()의 Promise 하나로 로딩/재생/보상/닫힘을 전부 추측해서 처리했음.
