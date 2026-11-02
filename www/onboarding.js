@@ -820,6 +820,8 @@ let _forceSelectAccount = false; // switch 후 재로그인 시 구글 계정 �
 async function onboardingSwitchAccount() {
   // 실제 세션 해제: 앱 수동키만 지우면 web은 supabase-js 자체 세션(sb-*-auth-token),
   // android는 GoogleAuth 캐시가 남아 같은 계정으로 조용히 재로그인됨.
+  await _flushPendingProjects();
+  if (typeof Tutorial !== 'undefined') Tutorial.clearLocal();
   try {
     if (!window.Capacitor?.isNativePlatform()) {
       if (_supabase) await _supabase.auth.signOut();
@@ -832,6 +834,7 @@ async function onboardingSwitchAccount() {
     }
   } catch (_) {}
   localStorage.removeItem(SUPABASE_STORAGE_KEY);
+  _wipeAccountLocalData();   // 이전 계정 데이터가 다음 계정으로 넘어가지 않게(shared.js signOutWeb과 동일)
   setPlan('free');
   _authReady = false;
   _forceSelectAccount = true;

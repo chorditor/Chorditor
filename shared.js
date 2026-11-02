@@ -2417,9 +2417,42 @@ async function signInWithApple() {
   });
 }
 
+// 로그아웃 시 이전 계정의 데이터가 기기에 남지 않게 한다(노트·통계·퀘스트·출석·피크 등 전부).
+// 지울 키를 나열하지 않고 "남길 키"만 나열한다 — 나중에 추가되는 키도 기본으로 지워져서 새 계정으로 새지 않는다.
+// 남기는 것: 기기 설정(언어·효과음·알림 권한·푸시 토큰 캐시)과 분석용 익명 식별자·실험 배정(계정과 무관한 기기 단위).
+const _DEVICE_KEEP_KEYS = new Set([
+  'app_lang', 'sfx_volume', 'push_enabled', '_fcm_token',
+  'chorditor_anon_id', 'chorditor_session_id', 'chorditor_session_active', 'chorditor_session_appopen', 'chorditor_engaged_ms',
+  'np_perf_log', 'chorditor_dbg_chip_pos', 'chorditor_combo_dev_unlock',
+]);
+const _DEVICE_KEEP_PREFIX = ['chorditor_ab_', 'CapacitorStorage.'];
+function _wipeAccountLocalData() {
+  try {
+    const rm = [];
+    for (let i = 0; i < localStorage.length; i++) {
+      const k = localStorage.key(i);
+      if (!k || _DEVICE_KEEP_KEYS.has(k) || _DEVICE_KEEP_PREFIX.some(p => k.startsWith(p))) continue;
+      rm.push(k);
+    }
+    rm.forEach(k => localStorage.removeItem(k));
+  } catch (_) {}
+  try { sessionStorage.clear(); } catch (_) {}   // location.reload()로는 안 비워진다
+}
+
+// 서버에 못 올라간 노트(오프라인 등)가 있으면 지우기 전에 한 번 더 올린다(세션이 살아 있는 동안에만 가능). 최대 4초.
+async function _flushPendingProjects() {
+  try {
+    const pending = _projPendingGet();
+    if (!pending.size) return;
+    const list = loadProjects().filter(p => pending.has(p.id));
+    if (list.length) await Promise.race([_syncProjectsToDB(list, []), new Promise(r => setTimeout(r, 4000))]);
+  } catch (_) {}
+}
+
 async function signOutWeb() {
   analytics.track('sign_out', {});
   analytics.clearUserId();
+  await _flushPendingProjects();
   // 튜토리얼 로컬 미러(진행도·A/B 배정)는 user_id로 키잉되지 않는다 —
   // 안 지우면 같은 기기의 다음 계정이 그대로 물려받는다.
   if (typeof Tutorial !== 'undefined') Tutorial.clearLocal();
@@ -2439,12 +2472,14 @@ async function signOutWeb() {
       try { await window.Capacitor?.Plugins?.SocialLogin?.logout({ provider: 'google' }); } catch (_) {}
     }
     localStorage.removeItem(SUPABASE_STORAGE_KEY);
+    _wipeAccountLocalData();
     setPlan('free');
     if (typeof renderAuthUI === 'function') renderAuthUI(null);
     return;
   }
   if (!_supabase) return;
   await _supabase.auth.signOut();
+  _wipeAccountLocalData();
   setPlan('free');
   if (typeof renderAuthUI === 'function') renderAuthUI(null);
 }
