@@ -4039,7 +4039,7 @@ function confirmDeleteAccount() {
     btnText: '삭제',
     danger: true,
     onConfirm: async () => {
-      const r = await _peakRpc('delete_own_account');
+      const r = await _peakRpc('delete_own_account', {}, { voidOk: true });
       if (r === null) {
         if (typeof showTextToast === 'function') showTextToast('삭제에 실패했어요. 다시 시도해주세요.');
         return;

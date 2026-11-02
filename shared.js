@@ -1236,7 +1236,7 @@ async function _peakRefreshToken() {
   } catch (_) { return null; }
 }
 
-async function _peakRpc(fnName, body) {
+async function _peakRpc(fnName, body, opts) {
   const auth = _peakAuth();
   if (!auth) return null;
 
@@ -1272,6 +1272,11 @@ async function _peakRpc(fnName, body) {
       else return null;
     }
     if (!resp.ok) return null;
+    // void 반환 RPC(delete_own_account)는 성공해도 본문이 비어 있다 — json()이 던져 null(=실패)로 오판하던 버그
+    if (opts && opts.voidOk) {
+      const txt = await resp.text();
+      return txt ? JSON.parse(txt) : true;
+    }
     return await resp.json();
   } catch (_) { return null; }
 }
