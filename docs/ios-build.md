@@ -102,7 +102,22 @@
 4. 아티팩트 보존 1일.
 5. 빌드 로그에 환경변수를 출력하지 않는다.
 
-**전환 시점**: plist나 서명 파일이 필요해지는 순간(= 유료 계정 단계)부터는 공개 레포의 아티팩트·로그에 섞일 수 있으므로, 비공개 레포로 옮기거나 Secrets + 비공개 아티팩트 구조로 다시 설계한다. 이 시점에 이 절을 갱신한다.
+**전환 시점**: plist나 서명 파일이 필요해지는 순간(= 유료 계정 단계)부터는 공개 레포의 아티팩트·로그에 섞일 수 있으므로, 비공개 레포로 옮기거나 Secrets + 비공개 아티팩트 구조로 다시 설계한다. 이 시점에 이 절을 갱신한다. → **2026-11-02 전환함, 아래 §5-5.**
+
+### 5-5. 서명 빌드(TestFlight) — 공개 레포 + Secrets (2026-11-02 결정)
+
+유료 계정 가입 후 서명·TestFlight 업로드가 필요해져 §5-4의 "Secrets 0개" 조건을 아래로 바꿨다. 비공개 전환은 하지 않는다(공개 레포 맥 러너 무료·무제한 유지). 서명 없는 스모크 빌드(`ios-build.yml`)는 위 §5-4 조건 그대로 유지하고, 서명 빌드는 별도 워크플로 `ios-testflight.yml`로 분리한다.
+
+**등록한 Secrets (4개, 값은 어디에도 기록하지 않음)**: `ASC_KEY_ID`, `ASC_ISSUER_ID`, `ASC_KEY_P8`(App Store Connect API 키 `.p8` 내용), `GOOGLE_SERVICE_INFO_PLIST`(plist 내용).
+
+**지키는 조건**
+1. 트리거는 `workflow_dispatch`(수동)와 `ios-tf-*` 태그 푸시뿐. `pull_request`·`pull_request_target`·일반 push 트리거 금지. 레포 쓰기 권한은 소유자뿐.
+2. **서명된 `.ipa`를 아티팩트로 올리지 않는다.** 빌드 결과는 `exportArchive`의 `destination: upload`로 곧바로 TestFlight에 올린다.
+3. 비밀은 `env`로만 주입하고 `echo`·`set -x`로 출력하지 않는다. 키 파일(`~/private_keys`)과 `GoogleService-Info.plist`는 job 마지막(`if: always()`)에 지운다.
+4. 서명은 App Store Connect API 키 기반 자동 서명(`-allowProvisioningUpdates`). 인증서·프로파일 파일은 레포·Secrets에 저장하지 않는다.
+5. API 키 권한은 App Manager. 유출이 의심되면 App Store Connect에서 키를 **Revoke** 후 재발급하고 Secrets를 교체한다.
+
+**실행 방법**: `git tag ios-tf-N && git push origin ios-tf-N`(N은 새 번호). 또는 `main`에 이 워크플로가 올라간 뒤 `gh workflow run ios-testflight.yml`. 빌드 번호는 `github.run_number`로 자동 증가.
 
 ### 5-3. 별도 점검 필요 (이번 작업과 별개)
 

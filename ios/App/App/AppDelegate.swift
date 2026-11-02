@@ -1,6 +1,8 @@
 import UIKit
 import Capacitor
 import WebKit
+import FirebaseCore
+import FirebaseMessaging
 
 @UIApplicationMain
 class AppDelegate: UIResponder, UIApplicationDelegate {
@@ -10,13 +12,43 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
     // 백그라운드 → 복귀 때 레이아웃이 깨졌다 돌아오는 순간을 가리는 스냅샷 덮개 (docs/ios-build.md §11 #16)
     private var coverView: UIView?
 
+    // GoogleService-Info.plist 가 번들에 있을 때만 Firebase 를 켠다(없는 빌드에서 configure() 크래시 방지).
+    private var firebaseEnabled = false
+
     private var bridgeWebView: WKWebView? {
         return (window?.rootViewController as? CAPBridgeViewController)?.webView
     }
 
     func application(_ application: UIApplication, didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]?) -> Bool {
         // Override point for customization after application launch.
+        if Bundle.main.path(forResource: "GoogleService-Info", ofType: "plist") != nil {
+            FirebaseApp.configure()
+            firebaseEnabled = true
+        }
         return true
+    }
+
+    // 푸시 토큰: 서버(Edge Function)는 FCM 토큰으로 발송하므로, iOS 가 주는 APNs 토큰을 FCM 토큰으로 바꿔 플러그인에 넘긴다.
+    // 플러그인은 Data(=APNs)와 String(=FCM) 둘 다 'registration' 이벤트로 전달한다.
+    // Firebase 가 꺼진 빌드(plist 없음)는 기존처럼 APNs 토큰을 그대로 넘긴다.
+    func application(_ application: UIApplication, didRegisterForRemoteNotificationsWithDeviceToken deviceToken: Data) {
+        guard firebaseEnabled else {
+            NotificationCenter.default.post(name: .capacitorDidRegisterForRemoteNotifications, object: deviceToken)
+            return
+        }
+        Messaging.messaging().apnsToken = deviceToken
+        Messaging.messaging().token { token, error in
+            if let token = token {
+                NotificationCenter.default.post(name: .capacitorDidRegisterForRemoteNotifications, object: token)
+            } else {
+                NotificationCenter.default.post(name: .capacitorDidFailToRegisterForRemoteNotifications,
+                                                object: error ?? NSError(domain: "FCM", code: -1))
+            }
+        }
+    }
+
+    func application(_ application: UIApplication, didFailToRegisterForRemoteNotificationsWithError error: Error) {
+        NotificationCenter.default.post(name: .capacitorDidFailToRegisterForRemoteNotifications, object: error)
     }
 
     func applicationWillResignActive(_ application: UIApplication) {

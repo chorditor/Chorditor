@@ -807,7 +807,12 @@ const PEAK_AD_ENABLED = true; // 피크 완전소진 시 "광고 보고 충전�
 const PEAK_AD_TESTING = false;
 // ⚠ DEV ONLY — 광고가 안 뜨는 원인 파악용 alert. logcat 확인 불가능한 환경에서 임시로 심음.
 const AD_DEBUG_ALERTS = false;
-const AD_UNIT_IDS = {
+// 광고 단위 ID는 플랫폼별로 다르다(AdMob에서 iOS 앱·Android 앱이 따로 등록됨).
+const AD_UNIT_IDS = (window.Capacitor?.getPlatform?.() === 'ios') ? {
+  mission_reward:      'ca-app-pub-3016297895973220/7254671386', // 데일리미션 2배 보상 (iOS)
+  persona_promo_retry: 'ca-app-pub-3016297895973220/1633185754', // 승급시험 재도전 (iOS)
+  peak_recharge:       'ca-app-pub-3016297895973220/7063099698', // 피크 완전소진 충전 (iOS)
+} : {
   mission_reward:      'ca-app-pub-3016297895973220/6249417373', // 데일리미션 2배 보상
   persona_promo_retry: 'ca-app-pub-3016297895973220/8572328382', // 승급시험 재도전
   peak_recharge:       'ca-app-pub-3016297895973220/9420279694', // 피크 완전소진 충전
@@ -2457,8 +2462,19 @@ function _compareVersion(v1, v2) {
   return 0;
 }
 
+// 스토어 주소 — iOS는 App Store, 그 외(안드로이드·웹)는 Play 스토어.
+// iOS 주소는 앱이 App Store에 출시된 뒤부터 열린다(TestFlight 중에는 열리지 않음).
+// forReview: iOS 에서 리뷰 작성 화면으로 바로 가는 파라미터를 붙인다.
+const IOS_APP_STORE_ID = '6829600015';
+function _storeUrl(forReview) {
+  if (window.Capacitor?.getPlatform?.() === 'ios') {
+    return 'https://apps.apple.com/app/id' + IOS_APP_STORE_ID + (forReview ? '?action=write-review' : '');
+  }
+  return 'https://play.google.com/store/apps/details?id=com.chorditor.app';
+}
+
 function openPlayStore() {
-  const url = 'https://play.google.com/store/apps/details?id=com.chorditor.app';
+  const url = _storeUrl();
   if (window.Capacitor?.Plugins?.Browser) {
     window.Capacitor.Plugins.Browser.open({ url });
   } else {
@@ -2491,8 +2507,10 @@ function _ensureForceUpdateOverlay() {
 async function checkForceUpdate() {
   if (!window.Capacitor?.isNativePlatform()) return false;
   try {
+    // 최소 버전은 플랫폼별 — iOS 는 min_version_ios(행이 없으면 강제하지 않음), 그 외는 min_version.
+    const cfgKey = (window.Capacitor?.getPlatform?.() === 'ios') ? 'min_version_ios' : 'min_version';
     const res = await fetch(
-      `${SUPABASE_URL}/rest/v1/app_config?key=eq.min_version&select=value`,
+      `${SUPABASE_URL}/rest/v1/app_config?key=eq.${cfgKey}&select=value`,
       { headers: { 'apikey': SUPABASE_ANON, 'Authorization': `Bearer ${SUPABASE_ANON}` } }
     );
     if (!res.ok) return false;
@@ -2509,7 +2527,7 @@ async function checkForceUpdate() {
 
 // ── 앱 자체 공유(초대) ──────────────────────────────────────────
 async function shareApp() {
-  const url = 'https://play.google.com/store/apps/details?id=com.chorditor.app';
+  const url = _storeUrl();
   const text = I18N.t('Chorditor로 코드 진행을 만들고 연습해보세요!');
   const Share = window.Capacitor?.Plugins?.Share;
   try {
@@ -5694,7 +5712,7 @@ if (typeof window !== 'undefined') {
 // 조건 충족(qualify)과 노출(show) 분리. 조건은 훈련 흐름 중 채워지고,
 // 팝업은 안전한 경계(메인홈 복귀/다음 실행)에서만 reviewMaybeShow()로 노출.
 const REVIEW_KEY        = 'review_state';
-const REVIEW_STORE_URL  = 'https://play.google.com/store/apps/details?id=com.chorditor.app';
+const REVIEW_STORE_URL  = _storeUrl(true);
 const REVIEW_MATURITY_DAYS     = 2;     // 설치 후 최소 경과일
 const REVIEW_MATURITY_LAUNCHES = 3;     // 최소 앱 실행 횟수
 const REVIEW_COOLDOWN_DAYS      = 14;   // 노출 간 최소 간격
