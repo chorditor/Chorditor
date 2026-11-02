@@ -158,7 +158,14 @@ const GuitarAudio = (() => {
     }).connect(_cutFilter);
   }
 
+  // 오래 켜둔 뒤 컨텍스트가 suspended/interrupted로 멈춰 소리가 안 나던 문제 — 어떤 재생 경로든 재생 직전에 깨운다
+  function _ensureRunning() {
+    try { if (typeof Tone !== 'undefined' && Tone.getContext().state !== 'running') Tone.start(); } catch (e) {}
+  }
+
   function _run(fn) {
+    _ensureRunning();
+    if (typeof _sfxMarkPlayed === 'function') _sfxMarkPlayed();   // 공용 클릭음과 겹치지 않게
     if (_ready) fn();
     else _pending.push(fn);
   }
@@ -343,6 +350,7 @@ const GuitarAudio = (() => {
   // voiceKey: 줄 번호(같은 키의 이전 음을 끊음), midi: MIDI 번호, velocity: 0~1(기본 1)
   function tapNote(voiceKey, midi, velocity) {
     if (typeof Tone === 'undefined' || !_tapReady || !_tapBus) return;
+    if (typeof _sfxMarkPlayed === 'function') _sfxMarkPlayed();
     if (Tone.getContext().state !== 'running') { try { Tone.start(); } catch (e) {} } // 브라우저에서 오디오가 잠들어 있으면 깨움(앱은 해당 없음)
     if (_outGain) _outGain.gain.value = (typeof _getSfxMasterVolume === 'function') ? _getSfxMasterVolume() : 1; // 설정>사운드 마스터 볼륨
     const t = Tone.immediate();
@@ -392,6 +400,8 @@ const GuitarAudio = (() => {
   }
   document.addEventListener('visibilitychange', () => { if (!document.hidden) _wakeAudio(); });
   window.addEventListener('pageshow', _wakeAudio);
+  // 앱 전환 없이 오래 켜둔 경우엔 위 복귀 이벤트가 안 오므로, 터치할 때마다 멈춰 있으면 다시 깨운다
+  document.addEventListener('pointerdown', _ensureRunning, { capture: true, passive: true });
 
   // 즉시 전체 묵음 (잔향 없이 하드컷) — master gain 즉시 0 + 모든 보이스 release
   function panic() {

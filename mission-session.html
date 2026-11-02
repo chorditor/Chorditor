@@ -28,6 +28,8 @@
       </div>
       <!-- 승급시험 전용 — 평소엔 숨김(msPersonaPromoTimerStart가 켬), 진행도바 대신 남은시간 숫자 -->
       <span class="ms-progress-time" id="ms-progress-time" style="display:none"></span>
+      <!-- 승급시험 남은 기회(하트 3개) — 구간마다 새로 채워지고, 0개가 되면 시험이 즉시 실패 -->
+      <div class="combo-v2-hearts ms-promo-hearts" id="ms-promo-hearts" role="img" aria-label="남은 기회 3개" hidden><span class="combo-v2-heart"><svg viewBox="0 0 256 256" aria-hidden="true"><path d="M240,94c0,70-103.79,126.66-108.21,129a8,8,0,0,1-7.58,0C119.79,220.66,16,164,16,94A62.07,62.07,0,0,1,78,32c20.65,0,38.73,8.88,50,23.89C139.27,40.88,157.35,32,178,32A62.07,62.07,0,0,1,240,94Z"></path></svg></span><span class="combo-v2-heart"><svg viewBox="0 0 256 256" aria-hidden="true"><path d="M240,94c0,70-103.79,126.66-108.21,129a8,8,0,0,1-7.58,0C119.79,220.66,16,164,16,94A62.07,62.07,0,0,1,78,32c20.65,0,38.73,8.88,50,23.89C139.27,40.88,157.35,32,178,32A62.07,62.07,0,0,1,240,94Z"></path></svg></span><span class="combo-v2-heart"><svg viewBox="0 0 256 256" aria-hidden="true"><path d="M240,94c0,70-103.79,126.66-108.21,129a8,8,0,0,1-7.58,0C119.79,220.66,16,164,16,94A62.07,62.07,0,0,1,78,32c20.65,0,38.73,8.88,50,23.89C139.27,40.88,157.35,32,178,32A62.07,62.07,0,0,1,240,94Z"></path></svg></span></div>
     </header>
 
     <!-- ── 메인 (style-guide.md §11 cd-main) ── -->
@@ -58,6 +60,118 @@
       </div>
 
     </main>
+
+    <!-- ── 승급시험 리하모니 구간 — 리하모니 화성학의 최신 문제 화면(chord-combo.js 엔진)을 그대로 가져와 씀. 평소엔 숨김, msPersonaPromoComboStart가 켬 ── -->
+    <div class="combo-stage" id="ms-combo-stage" style="display:none">
+      <main id="combo-view-quiz-v2" class="cd-main quiz-view combo-v2-quiz">
+        <header class="cd-head">
+          <div class="combo-v2-q-titlerow">
+            <div class="combo-v2-q-title" id="combo-v2-q-title">같은 짝끼리 이어주세요</div>
+            <!-- 건너뛰기 테스트 전용 — 남은 기회(노란 하트 3개 — Phosphor heart-fill 모양, 오답마다 오른쪽부터 회색) -->
+            <div class="combo-v2-hearts" id="combo-v2-hearts" role="img" aria-label="남은 기회 3개" hidden><span class="combo-v2-heart"><svg viewBox="0 0 256 256" aria-hidden="true"><path d="M240,94c0,70-103.79,126.66-108.21,129a8,8,0,0,1-7.58,0C119.79,220.66,16,164,16,94A62.07,62.07,0,0,1,78,32c20.65,0,38.73,8.88,50,23.89C139.27,40.88,157.35,32,178,32A62.07,62.07,0,0,1,240,94Z"></path></svg></span><span class="combo-v2-heart"><svg viewBox="0 0 256 256" aria-hidden="true"><path d="M240,94c0,70-103.79,126.66-108.21,129a8,8,0,0,1-7.58,0C119.79,220.66,16,164,16,94A62.07,62.07,0,0,1,78,32c20.65,0,38.73,8.88,50,23.89C139.27,40.88,157.35,32,178,32A62.07,62.07,0,0,1,240,94Z"></path></svg></span><span class="combo-v2-heart"><svg viewBox="0 0 256 256" aria-hidden="true"><path d="M240,94c0,70-103.79,126.66-108.21,129a8,8,0,0,1-7.58,0C119.79,220.66,16,164,16,94A62.07,62.07,0,0,1,78,32c20.65,0,38.73,8.88,50,23.89C139.27,40.88,157.35,32,178,32A62.07,62.07,0,0,1,240,94Z"></path></svg></span></div>
+          </div>
+          <!-- 오답풀이 중에만 표시(JS가 hidden 토글) -->
+          <div class="combo-v2-review-badge" id="combo-v2-review-badge" hidden>오답풀기</div>
+          <!-- 부가설명 줄 — 유형에 따라 필요할 때만 표시(JS가 hidden 토글) -->
+          <div class="combo-v2-q-sub" id="combo-v2-q-sub" hidden></div>
+        </header>
+        <section class="cd-body" id="combo-v2-quiz-body">
+          <!-- 문제 영역 — 유형별 내용이 들어갈 자리(남는 높이를 전부 차지) -->
+          <div class="combo-v2-quiz-content" id="combo-v2-quiz-content">
+            <!-- 연결형 목업(C key): 왼쪽 = 코드 이름, 오른쪽 = 로마자 도수(로마숫자 크게 + 퀄리티 작게). 두 열은 서로 독립적으로 섞임 -->
+            <div class="combo-v2-type" data-type="pair">
+              <!-- 안내 카드 — 배치형·빈칸형과 같은 모양(스피커 없음). 문구는 JS가 그림 -->
+              <div class="combo-v2-info-card cd-card" id="combo-v2-pair-card"></div>
+            <div class="combo-v2-pairs">
+              <div class="combo-v2-pair-col" data-side="left">
+                <button class="combo-v2-pair-card cd-card" data-pair="I">C</button>
+                <button class="combo-v2-pair-card cd-card" data-pair="VIm">Am</button>
+                <button class="combo-v2-pair-card cd-card" data-pair="V">G</button>
+                <button class="combo-v2-pair-card cd-card" data-pair="IV">F</button>
+              </div>
+              <div class="combo-v2-pair-col" data-side="right">
+                <button class="combo-v2-pair-card cd-card" data-pair="VIm"><span class="combo-v2-deg-num">VI</span><span class="combo-v2-deg-q">m</span></button>
+                <button class="combo-v2-pair-card cd-card" data-pair="V"><span class="combo-v2-deg-num">V</span></button>
+                <button class="combo-v2-pair-card cd-card" data-pair="I"><span class="combo-v2-deg-num">I</span></button>
+                <button class="combo-v2-pair-card cd-card" data-pair="IV"><span class="combo-v2-deg-num">IV</span></button>
+              </div>
+            </div>
+            </div><!-- /pair -->
+
+            <!-- 배치형 목업(C key, 진행 I - IV - V - VIm): 위 = 밑줄 4개 + 아래 로마자 + 왼쪽 스피커 아이콘(소리는 아직 안 붙임), 아래 = 코드 풀(다이어토닉 7개, 최대 2줄) -->
+            <div class="combo-v2-type" data-type="place" hidden>
+              <!-- 설명 카드 — 타이틀 아래 남는 높이를 차지(코드 진행 재생·설명이 들어갈 자리, 내용은 아직 비어 있음) -->
+              <div class="combo-v2-info-card cd-card" id="combo-v2-place-card">
+                <button class="combo-v2-speaker" aria-label="코드 진행 듣기"><i data-lucide="volume-2"></i></button>
+              </div>
+              <div class="combo-v2-blanks-wrap">
+                <div class="combo-v2-blanks" id="combo-v2-blanks">
+                  <div class="combo-v2-blank" data-answer="C"><div class="combo-v2-blank-slot"></div><div class="combo-v2-blank-deg"><span class="rn">I</span></div></div>
+                  <div class="combo-v2-blank" data-answer="F"><div class="combo-v2-blank-slot"></div><div class="combo-v2-blank-deg"><span class="rn">IV</span></div></div>
+                  <div class="combo-v2-blank" data-answer="G"><div class="combo-v2-blank-slot"></div><div class="combo-v2-blank-deg"><span class="rn">V</span></div></div>
+                  <div class="combo-v2-blank" data-answer="Am"><div class="combo-v2-blank-slot"></div><div class="combo-v2-blank-deg"><span class="rn">VI</span><span class="rq">m</span></div></div>
+                </div>
+              </div>
+              <div class="combo-v2-pool" id="combo-v2-pool">
+                <button class="combo-v2-chip cd-card" data-chord="C">C</button>
+                <button class="combo-v2-chip cd-card" data-chord="Dm">Dm</button>
+                <button class="combo-v2-chip cd-card" data-chord="Em">Em</button>
+                <button class="combo-v2-chip cd-card" data-chord="F">F</button>
+                <button class="combo-v2-chip cd-card" data-chord="G">G</button>
+                <button class="combo-v2-chip cd-card" data-chord="Am">Am</button>
+                <button class="combo-v2-chip cd-card" data-chord="Bdim">Bdim</button>
+              </div>
+            </div><!-- /place -->
+
+            <!-- 교체형 목업(C key, 원래 진행 IV - V - I - VIm = F G C Am): 4칸 중 1칸만 칩(교체 대상), 나머지는 순수 텍스트. 아래 선택지 3개(정답 1 + 오답 2)를 탭하면 대상 칸이 바로 바뀜. 칸·선택지는 JS가 그림 -->
+            <div class="combo-v2-type" data-type="swap" hidden>
+              <div class="combo-v2-info-card cd-card" id="combo-v2-swap-card">
+                <button class="combo-v2-speaker" aria-label="코드 진행 듣기"><i data-lucide="volume-2"></i></button>
+              </div>
+              <div class="combo-v2-blanks-wrap">
+                <div class="combo-v2-blanks" id="combo-v2-swap-blanks"></div>
+              </div>
+              <div class="combo-v2-choices" id="combo-v2-swap-choices"></div>
+            </div><!-- /swap -->
+
+            <!-- 분류형 목업(C key, 2장): 위 = 3열 헤더(해결·예비·긴장 + 토닉·서브도미넌트·도미넌트 캡션 + 로마자 I·IV·V) + 열 레인, 아래 = 코드풀 한 줄(글자 길이만큼 생성, 넘치면 안 만듦). 레인·풀 칩은 JS가 그림 -->
+            <div class="combo-v2-type" data-type="sort" hidden>
+              <div class="combo-v2-sort-key" id="combo-v2-sort-key"></div>
+              <div class="combo-v2-sort" id="combo-v2-sort">
+                <div class="combo-v2-sort-col" data-col="0">
+                  <div class="combo-v2-sort-head">
+                    <div class="combo-v2-sort-name">해결</div>
+                    <div class="combo-v2-sort-sub">토닉</div>
+                    <div class="combo-v2-sort-deg"><span class="rn">I</span></div>
+                  </div>
+                  <div class="combo-v2-sort-lane"></div>
+                </div>
+                <div class="combo-v2-sort-col" data-col="1">
+                  <div class="combo-v2-sort-head">
+                    <div class="combo-v2-sort-name">예비</div>
+                    <div class="combo-v2-sort-sub">서브도미넌트</div>
+                    <div class="combo-v2-sort-deg"><span class="rn">IV</span></div>
+                  </div>
+                  <div class="combo-v2-sort-lane"></div>
+                </div>
+                <div class="combo-v2-sort-col" data-col="2">
+                  <div class="combo-v2-sort-head">
+                    <div class="combo-v2-sort-name">긴장</div>
+                    <div class="combo-v2-sort-sub">도미넌트</div>
+                    <div class="combo-v2-sort-deg"><span class="rn">V</span></div>
+                  </div>
+                  <div class="combo-v2-sort-lane"></div>
+                </div>
+              </div>
+              <div class="combo-v2-sort-hint" id="combo-v2-sort-hint">꾹 눌러서 드래그하세요!</div>
+              <div class="combo-v2-sort-pool" id="combo-v2-sort-pool"></div>
+            </div><!-- /sort -->
+          </div>
+          <!-- 하단 제출 버튼 전용 — 답을 다 채우기 전까지 비활성(목업) -->
+          <button class="cd-btn cd-btn--gray combo-v2-submit" id="combo-v2-submit" disabled>제출하기</button>
+        </section>
+      </main><!-- /combo-view-quiz-v2 -->
+    </div>
   </div>
 
   <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.js"></script>
@@ -71,13 +185,13 @@
   <script src="https://cdnjs.cloudflare.com/ajax/libs/tone/14.8.49/Tone.js"></script>
   <script src="guitar-audio.js"></script>
   <script src="scale-data.js"></script>
-  <script src="scale-block-preview.js"></script>
   <script src="progression-voicing-list.js"></script>
   <script src="progression-voicings.js"></script>
+  <script src="voicing-cycle.js"></script>
+  <script src="progression-data.js"></script>
   <script src="chord-combo-questions.js"></script>
-  <script src="mission-result-messages.js"></script>
-  <script src="mission-percentile.js"></script>
   <script src="mission-persona-pools.js"></script>
+  <script src="chord-combo.js"></script>
   <script src="mission-session.js"></script>
 </body>
 </html>

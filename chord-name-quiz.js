@@ -74,6 +74,27 @@ function drawLibEntry(canvas, entry) {
 }
 
 // 문제 출제 영역(캔버스/코드명) 탭 → 정답 보이싱 사운드 재생
+// 같은 보이싱+같은 크기는 한 번만 그리고 비트맵을 복사해 재사용(문제마다 선택지 4개를 처음부터 다시 그리지 않음).
+// WeakMap이라 문제 풀(_quizPool)이 바뀌어 항목이 버려지면 같이 해제된다. canvas 크기는 1회만 지정(draw가 다시 지정하는 이중 리셋 방지).
+const _entryBitmapCache = new WeakMap();   // entry -> { w, cv }
+function drawLibEntryCached(canvas, entry) {
+  const hit = _entryBitmapCache.get(entry);
+  const ww = canvas.width;
+  if (hit && hit.w === ww) {
+    canvas.width = hit.cv.width;
+    canvas.height = hit.cv.height;
+    canvas.getContext('2d').drawImage(hit.cv, 0, 0);
+    return;
+  }
+  drawLibEntry(canvas, entry);
+  try {
+    const cv = document.createElement('canvas');
+    cv.width = canvas.width; cv.height = canvas.height;
+    cv.getContext('2d').drawImage(canvas, 0, 0);
+    _entryBitmapCache.set(entry, { w: ww, cv });
+  } catch (e) {}
+}
+
 const _QUIZ_OPEN_MIDI = [64, 59, 55, 50, 45, 40]; // 1번줄→6번줄 개방현 MIDI
 async function _playQuizEntrySound(entry) {
   if (typeof GuitarAudio === 'undefined' || !entry) return;
@@ -86,6 +107,13 @@ async function _playQuizEntrySound(entry) {
   if (!midis.length) return;
   if (GuitarAudio.resume) { try { await GuitarAudio.resume(); } catch (e) {} }
   GuitarAudio.strumNotes(midis, 0.008);
+}
+
+// 문제 소리 정리 — 예약된 자동 재생 취소 + 울리는 소리 끊기(응답·결과·이탈 공용)
+function _quizStopEntrySound() {
+  clearTimeout(_quizAutoPlayTimer);
+  _quizAutoPlayTimer = null;
+  if (typeof GuitarAudio !== 'undefined' && GuitarAudio.stop) GuitarAudio.stop();
 }
 
 // 이름 표시 버전 (예습 모달용) — voicing-canvas.js 모듈로 드로잉
@@ -632,6 +660,18 @@ function _previewShowPane(mode) {
 function closePreviewModal() {
   _previewRenderToken++; // 백그라운드 드로잉 중단
   document.getElementById('preview-modal-overlay').classList.remove('preview-modal-overlay--show');
+  // 코드 수백 개 분량의 캔버스가 닫은 뒤에도 메모리에 남아 문제 화면이 버벅이고 캔버스가 안 그려지던 원인 —
+  // 닫힘 애니메이션이 끝난 뒤(다시 열리지 않았을 때만) 캔버스 크기를 0으로 만들어 메모리를 돌려주고 비움
+  const tok = _previewRenderToken;
+  setTimeout(() => {
+    if (tok !== _previewRenderToken) return;
+    const grid = document.getElementById('preview-modal-grid');
+    if (!grid) return;
+    grid.querySelectorAll('canvas').forEach(c => { c.width = 0; c.height = 0; });
+    grid.innerHTML = '';
+    _previewPanes = {};
+    _previewDrawCtx = null;
+  }, 500);
   window.Tutorial?.notify('preview:close');
 }
 
@@ -1482,6 +1522,7 @@ function generateDiagramChoices(correctItem, pool) {
 function selectDiagramChoice(selectedName, correctName) {
   if (_answered) return; // 중복 클릭 경쟁 방지
   _answered = true;
+  _quizStopEntrySound();   // 정답을 고르면 문제 소리는 바로 끊음
   clearQuestionTimer(); // 경과시간 카운트업 중단
   // 중복 탭 방지
   document.querySelectorAll('.ms-quiz-choice-card').forEach(el => {
@@ -1527,6 +1568,7 @@ let _newRecordSpeed     = null;  // 신기록 달성 시 기록값 (null이면 �
 let _quizTimerRAF       = null;  // 경과시간 카운트업 rAF ID(데일리미션 방식, 제한시간 없음)
 let _countdownTimers    = [];    // 카운트다운 setTimeout ID 목록
 let _answered           = false; // 현재 문제 응답 처리 여부 — 중복 클릭 경쟁 방지
+let _quizAutoPlayTimer  = null;  // 문제 출제 직후 정답 코드 소리 1회 자동 재생 예약
 let _abandonSent        = false; // quiz_abandoned 중복 발화 방지
 
 const TRAINING_STATS_KEY = 'training_stats';
@@ -1632,10 +1674,12 @@ function startQuestionTimer() {
   const el = document.getElementById('quiz-timer-text');
   if (!el) return;
   el.textContent = '0.0s';
+  let shown = '0.0s';
   const tick = () => {
     if (_answered) return;
     const sec = (Date.now() - _questionStartTime) / 1000;
-    el.textContent = sec.toFixed(1) + 's';
+    const txt = sec.toFixed(1) + 's';
+    if (txt !== shown) { shown = txt; el.textContent = txt; }   // 0.1초 단위가 바뀔 때만 DOM 갱신
     _quizTimerRAF = requestAnimationFrame(tick);
   };
   _quizTimerRAF = requestAnimationFrame(tick);
@@ -1724,6 +1768,7 @@ function initQuiz() {
   _showQuizLoading();
   requestAnimationFrame(() => requestAnimationFrame(() => {
     const pool      = buildLevelPool(_currentLevel);
+    _quizPool       = pool;   // 문제마다 풀을 다시 만들지 않고 이 세션 동안 재사용(넘어갈 때 버벅임 방지)
     const cfg       = LEVEL_CONFIGS.find(c => c.id === _currentLevel);
     const quizCount = cfg?.count ?? QUIZ_COUNT;
     // 셔플 후 이름 중복 제거 — 동일 코드명은 한 세션에 하나만 출제
@@ -1786,12 +1831,20 @@ function _fitChordNameDisplay(el) {
   el.style.fontSize = fs + 'px';
   // 레이아웃 확정 후 오버플로면 단계적 축소
   requestAnimationFrame(() => {
-    while (el.scrollWidth > el.clientWidth && fs > 8) {
+    const sw = el.scrollWidth, cw = el.clientWidth;
+    if (sw > cw && cw > 0) {   // 글자 폭은 크기에 비례 → 한 번에 맞는 크기를 계산(2px 단위 내림)
+      fs = Math.max(8, Math.floor(fs * cw / sw / 2) * 2);
+      el.style.fontSize = fs + 'px';
+    }
+    while (el.scrollWidth > el.clientWidth && fs > 8) {   // 비례가 안 맞는 드문 경우만 보정
       fs -= 2;
       el.style.fontSize = fs + 'px';
     }
   });
 }
+
+// 이 세션의 문제 풀(initQuiz가 채움) — 다이어그램 선택지 생성에 재사용
+let _quizPool = null;
 
 function renderQuestion() {
   _answered = false; // 새 문제 — 응답 가드 초기화
@@ -1818,17 +1871,24 @@ function renderQuestion() {
     canvasSlot.style.display  = '';
     nameDisplay.style.display = 'none';
 
-    const canvas = document.getElementById('quiz-canvas');
-    const wrap   = canvas.parentElement;
-    const cs     = getComputedStyle(wrap);
-    const W      = Math.round(wrap.clientWidth
-                     - parseFloat(cs.paddingLeft)
-                     - parseFloat(cs.paddingRight));
-    const H      = Math.round(W * VoicingCanvas.BASE_H / VoicingCanvas.BASE_W);
-    const dpr    = window.devicePixelRatio || 1;
-    canvas.width  = Math.round(W * dpr);
-    canvas.height = Math.round(H * dpr);
-    drawLibEntry(canvas, entry);
+    // 레이아웃이 아직 안 잡혀 폭이 0이면(전환 직후 등) 캔버스가 빈 채로 남으므로 다음 프레임에 다시 시도
+    const qIdx = _current;
+    const drawMain = (tries) => {
+      if (qIdx !== _current) return;   // 그 사이 다음 문제로 넘어갔으면 중단
+      const canvas = document.getElementById('quiz-canvas');
+      const wrap   = canvas.parentElement;
+      const cs     = getComputedStyle(wrap);
+      const W      = Math.round(wrap.clientWidth
+                       - parseFloat(cs.paddingLeft)
+                       - parseFloat(cs.paddingRight));
+      if (!(W > 0) && tries < 30) { requestAnimationFrame(() => drawMain(tries + 1)); return; }
+      const H      = Math.round(W * VoicingCanvas.BASE_H / VoicingCanvas.BASE_W);
+      const dpr    = window.devicePixelRatio || 1;
+      canvas.width  = Math.round(W * dpr);
+      canvas.height = Math.round(H * dpr);
+      drawLibEntryCached(canvas, entry);
+    };
+    drawMain(0);
 
     // 텍스트 4지선다
     const choices = generateChoices(name);
@@ -1849,7 +1909,7 @@ function renderQuestion() {
     _fitChordNameDisplay(nameDisplay);
 
     // 다이어그램 4지선다 — 같은 코드명은 오답에서 제외
-    const pool    = buildLevelPool(_currentLevel);
+    const pool    = _quizPool || buildLevelPool(_currentLevel);
     const choices = generateDiagramChoices({ name, entry }, pool);
 
     choices.forEach(item => {
@@ -1866,29 +1926,47 @@ function renderQuestion() {
     });
 
     // 레이아웃 확정 후 캔버스 드로잉 + 화면 맞춤
-    requestAnimationFrame(() => requestAnimationFrame(() => {
+    const qIdxD = _current;
+    const drawChoices = (tries) => {
+      if (qIdxD !== _current) return;
       const divs = container.querySelectorAll('.ms-quiz-choice-card');
+      const w0 = divs[0]?.querySelector('canvas')?.offsetWidth || 0;
+      if (!(w0 > 0) && tries < 30) { requestAnimationFrame(() => drawChoices(tries + 1)); return; }   // 폭 0이면 다음 프레임에 재시도
+      // 읽기(offsetWidth)를 먼저 전부 끝내고 쓰기(크기 지정)를 몰아서 — 카드마다 읽기/쓰기를 섞으면 레이아웃을 4번 다시 계산함
+      const dpr = window.devicePixelRatio || 1;
+      const cvs = choices.map((item, i) => divs[i].querySelector('canvas'));
+      const ws  = cvs.map(cv => cv.offsetWidth);
       choices.forEach((item, i) => {
-        const cv = divs[i].querySelector('canvas');
-        const dpr = window.devicePixelRatio || 1;
-        const w  = cv.offsetWidth;
+        const cv = cvs[i];
+        const w  = ws[i];
         const h  = Math.round(w * VoicingCanvas.BASE_H / VoicingCanvas.BASE_W);
         cv.style.width  = w + 'px';
         cv.style.height = h + 'px';
         cv.width  = Math.round(w * dpr);
         cv.height = Math.round(h * dpr);
-        drawLibEntry(cv, item.entry);
+        drawLibEntryCached(cv, item.entry);
       });
-    }));
+    };
+    requestAnimationFrame(() => requestAnimationFrame(() => drawChoices(0)));
   }
 
   _questionStartTime = Date.now();
   startQuestionTimer();
+
+  // 문제가 나오면 정답 코드 소리를 1회 자동 재생(더 듣고 싶으면 문제 카드를 터치). 그 사이 응답했거나 다음 문제로 넘어갔으면 재생하지 않음
+  clearTimeout(_quizAutoPlayTimer);
+  const _autoQ = _current;
+  _quizAutoPlayTimer = setTimeout(() => {
+    _quizAutoPlayTimer = null;
+    if (_answered || _autoQ !== _current) return;
+    _playQuizEntrySound(entry);
+  }, 180);
 }
 
 function selectChoice(selected, correct) {
   if (_answered) return; // 중복 클릭 경쟁 방지
   _answered = true;
+  _quizStopEntrySound();   // 정답을 고르면 문제 소리는 바로 끊음
   clearQuestionTimer(); // 경과시간 카운트업 중단
   // 중복 탭 방지
   document.querySelectorAll('.ms-quiz-choice-card').forEach(btn => {
@@ -2191,6 +2269,7 @@ function _quizGaugeHTML(score) {
 }
 
 function showResultView() {
+  _quizStopEntrySound();
   _abandonSent = true; // 완주 세션 — 이후 페이지 이탈을 abandon으로 잡지 않는다
   saveSessionStats();
 

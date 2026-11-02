@@ -1088,6 +1088,8 @@ async function flushPendingRefund(source) {
 const _sfxCache = {};
 let   _sfxCtx     = null;
 const _sfxBuffers = {};
+let _sfxPageAt = 0;   // 마지막으로 모달 열림음(page.mp3)이 난 시각
+let _sfxLastAt = 0;   // 마지막으로 효과음/악기 소리가 시작된 시각(performance.now) — 공용 상호작용 효과음의 중복 방지용
 function _getSfxCtx() {
   if (_sfxCtx) return _sfxCtx;
   const AC = window.AudioContext || window.webkitAudioContext;
@@ -1095,6 +1097,7 @@ function _getSfxCtx() {
   try { _sfxCtx = new AC(); } catch (e) { _sfxCtx = null; }
   return _sfxCtx;
 }
+document.addEventListener('pointerdown', () => { try { if (_sfxCtx && _sfxCtx.state !== 'running') _sfxCtx.resume(); } catch (e) {} }, { capture: true, passive: true });  // 오래 켜둔 뒤 효과음 무음 방지
 function _preloadSfx(src) {
   const ctx = _getSfxCtx();
   if (ctx && !_sfxBuffers[src] && !_sfxBuffers['_loading_' + src]) {
@@ -1120,13 +1123,15 @@ function _getSfxMasterVolume() {
   return raw * raw;
 }
 function _playSfx(src, vol) {
+  _sfxLastAt = performance.now();
+  if (src === 'page.mp3') _sfxPageAt = _sfxLastAt;
   const gain = ((vol == null) ? 1 : vol) * _getSfxMasterVolume();
   // 1순위: WebAudio — 안드로이드 포함 전 플랫폼에서 음량 조절이 실제로 먹는 유일한 경로
   const ctx = _getSfxCtx();
   const buf = _sfxBuffers[src];
   if (ctx && buf) {
     try {
-      if (ctx.state === 'suspended') ctx.resume();
+      if (ctx.state !== 'running') ctx.resume();   // suspended뿐 아니라 iOS interrupted도 깨움
       const s = ctx.createBufferSource();
       s.buffer = buf;
       const g = ctx.createGain();
@@ -1196,7 +1201,95 @@ function _playTap() { return Promise.resolve(); }
 
 // 주요 CTA 버튼(브랜드컬러 적용 버튼) 공용 클릭 효과음 — chord-name-quiz.js
 // level-action-btn--primary에서 쓰던 pop.mp3를 토큰화, 동일 CTA군 전체에 적용
-function _playConfirmSfx() { return _playSfx('pop.mp3'); }
+// 핸들러가 "pop 내고 모달 열기"를 하는 경우, 모달 열림음(page)이 나면 pop은 건너뛴다 — 한 틱(4ms) 미뤄서 판단
+function _playConfirmSfx() {
+  const t = performance.now();
+  setTimeout(() => { if (_sfxPageAt >= t - 5) return; _playSfx('pop.mp3'); }, 0);
+  return Promise.resolve();
+}
+
+// ═══ 상호작용 효과음 — 앱 전체 공용(이벤트 위임) ═══
+// 예전엔 화면마다 핸들러에 _playConfirmSfx()를 일일이 넣어서, 빠뜨린 화면은 무음이었다(_playTap은 1.3.0에서 꺼짐).
+// 이제 탭한 요소를 종류로 판별해 한 곳에서 낸다. 새 화면은 표준 컴포넌트(.cd-btn 등)를 쓰면 아무것도 안 해도 소리가 난다.
+//   pop    버튼·칩·토글·눌리는 카드·화면 이동(독 탭, 뒤로가기, 링크) 전부 — 기본값
+//   cancel 취소·닫기(.cd-btn--gray, 닫기 X, .test-back-btn …)
+//   page   모달·시트·오버레이가 열릴 때(탭 소리가 아니라 열림 감지로 자동 — 아래 MutationObserver)
+// 예외: 요소나 조상에 data-sfx="none"(자기 소리를 따로 내는 요소) 또는 "pop|cancel|page"(종류 지정).
+// 핸들러가 이미 효과음/악기 소리를 냈으면 겹치지 않게 건너뛴다(_sfxMarkPlayed). 스크롤·드래그(이동 10px↑, 0.6초↑)는 탭이 아니라 무시.
+function _sfxMarkPlayed() { _sfxLastAt = performance.now(); }
+const _SFX_TAPPABLE = 'button, a[href], [role="button"], [onclick], [onpointerup], .icon-btn, .cd-btn, .sel-btn, .cd-dockbar-item, .cd-cardlist-item, label';
+// 자기 소리가 따로 있거나 소리를 내면 안 되는 요소(퀴즈 보기 카드·문제 카드, 지판 음, 캔버스, 슬라이더)
+const _SFX_EXCLUDE = '[data-sfx="none"], .ms-quiz-choice-card, .ms-quiz-question-card, .fb-note, .fb-full-neck, .fb-viewport, canvas, input, select, textarea';
+function _sfxKind(el) {
+  const forced = el.closest('[data-sfx]');
+  if (forced) return forced.getAttribute('data-sfx');
+  if (el.closest(_SFX_EXCLUDE)) return 'none';
+  if (el.closest('.cd-btn--brand, .cd-btn--blue, .cd-btn--red, .cd-btn--peak')) return 'pop';
+  const icon = el.closest('.icon-btn');
+  if (icon && icon.querySelector('.lucide-x, .ph-x, [data-lucide="x"]')) return 'cancel';
+  if (el.closest('.cd-btn--gray, .cd-modal-close, .test-back-btn, .combo-v2-skip-cancel')) return 'cancel';
+  return 'pop';
+}
+function _sfxTarget(start) {
+  for (let el = start, i = 0; el && el !== document.body && i < 6; el = el.parentElement, i++) {
+    if (el.matches && el.matches(_SFX_TAPPABLE)) return el;
+    if (getComputedStyle(el).cursor === 'pointer') return el;   // 표준 클래스가 없는 눌리는 요소(div 카드 등)
+  }
+  return null;
+}
+(function _initInteractionSfx() {
+  let down = null;
+  document.addEventListener('pointerdown', (e) => {
+    if (!e.isPrimary) return;
+    down = { x: e.clientX, y: e.clientY, t: performance.now() };
+  }, { capture: true, passive: true });
+  document.addEventListener('pointerup', (e) => {
+    if (!e.isPrimary || !down) return;
+    const d = down; down = null;
+    const now = performance.now();
+    if (now - d.t > 600 || Math.hypot(e.clientX - d.x, e.clientY - d.y) > 10) return;
+    const el = _sfxTarget(e.target);
+    if (!el || el.disabled || el.getAttribute('aria-disabled') === 'true' || el.closest('[inert]')) return;
+    const kind = _sfxKind(el);
+    if (!kind || kind === 'none') return;
+    // 핸들러(이 이벤트의 다음 순서)가 직접 소리를 냈는지 한 틱 기다려 확인 — 냈으면 겹치지 않게 건너뜀
+    setTimeout(() => {
+      if (_sfxLastAt >= d.t - 5) return;
+      _playSfx(kind + '.mp3');
+    }, 40);
+  }, { capture: true, passive: true });
+
+  // 모달·시트·오버레이가 열릴 때 page.mp3 — class에 overlay/modal/sheet가 든 요소가 hidden을 잃거나 --open/--show를 얻는 순간.
+  // 유저가 방금(1.2초 안) 조작한 경우만(페이지 진입 때 자동으로 뜨는 안내는 소리 없음). 다른 효과음이 이미 났으면(보상음 등) 겹치지 않게 건너뜀.
+  let lastTapAt = 0;
+  document.addEventListener('pointerdown', () => { lastTapAt = performance.now(); }, { capture: true, passive: true });
+  const MODAL_RE = /overlay|modal|sheet/;
+  const MODAL_SKIP = /onboarding-overlay|ob-overlay|ms-dbg|combo-v2|loading|save-check|ms-promo-timeout/;
+  let lastModalAt = 0;
+  const mo = new MutationObserver((records) => {
+    for (const r of records) {
+      const el = r.target;
+      if (!el || el.nodeType !== 1) continue;
+      const cls = typeof el.className === 'string' ? el.className : '';
+      if (!MODAL_RE.test(cls) || MODAL_SKIP.test(cls)) continue;
+      const old = r.oldValue || '';
+      let opened = false;
+      if (r.attributeName === 'hidden') {
+        opened = r.oldValue !== null && !el.hasAttribute('hidden');
+      } else {
+        const oldSet = new Set(old.split(/\s+/));
+        if (oldSet.has('hidden') && !el.classList.contains('hidden')) opened = true;
+        else for (const c of el.classList) { if (/--(open|show)$/.test(c) && !oldSet.has(c)) { opened = true; break; } }
+      }
+      if (!opened) continue;
+      const now = performance.now();
+      if (now - lastTapAt > 1200 || now - lastModalAt < 350 || now - _sfxLastAt < 150) continue;   // 같은 모달의 겹침 신호(overlay + 안쪽 시트)도 350ms 안에선 한 번만
+      lastModalAt = now;
+      _playSfx('page.mp3');
+    }
+  });
+  mo.observe(document.documentElement, { subtree: true, attributes: true, attributeFilter: ['class', 'hidden'], attributeOldValue: true });
+})();
 
 // 출석 랜덤상자 보상: 2~10 랜덤, 기댓값 3 (최빈값 2). SQL claim_daily_attendance()와 동일 가중치.
 const ATTENDANCE_REWARD_WEIGHTS = [5000, 2500, 1250, 625, 313, 156, 78, 39, 39]; // 값 2~10, 합 10000
@@ -4820,6 +4913,7 @@ async function consumePromoAttempt() {
   // Pro는 소진 개념 자체가 없다 — DB/로컬 카운트를 건드리지 않는다.
   // (강등 시 그날 쓴 횟수만큼 갑자기 차감돼 보이는 일이 없도록 기록도 남기지 않음)
   if (isPromoAttemptsUnlimited()) return Infinity;
+  if (APP_VERSION.includes('_dev')) return getPromoAttemptsLeft();   // DEV 빌드: 확인용으로 횟수를 소진하지 않음(DB·로컬 기록 안 함). 출시 때 _dev 접미어를 떼면 자동으로 정상 소진
   const today = _kstToday();
   const { token, userId } = getStoredAuth();
   if (!token || !userId) {
