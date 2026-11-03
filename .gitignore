@@ -50,8 +50,9 @@ AuthKey_*.p8
 # ========================
 # 드럼 키트 원본 (MuldjordKit FLAC 162MB — 앱엔 sound/drum/ 의 변환본 mp3만 씀)
 # ========================
-# 앱 패키징은 www/만 담으므로 루트 sound/drumkit/는 www/에 복사하지 않는 한 빌드에 안 들어감
-sound/drumkit/
+# sound/ = 앱이 실제로 쓰는 소리만(동기화 대상), sound_src/ = 원본·안 쓰는 소리(동기화 안 함).
+# 앱 패키징은 www/만 담으므로 sound_src/는 www/에 복사하지 않는 한 빌드에 안 들어감
+sound_src/drumkit/
 
 # ========================
 # Capacitor
