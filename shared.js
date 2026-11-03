@@ -52,7 +52,7 @@ if (window.Capacitor?.getPlatform?.() === 'ios') {
 // ── 상수 ─────────────────────────────────────────────────────
 const SUPABASE_URL  ='https://jbvkygeksohlysyvaoab.supabase.co';
 const SUPABASE_ANON = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Impidmt5Z2Vrc29obHlzeXZhb2FiIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzYzOTk5NjgsImV4cCI6MjA5MTk3NTk2OH0.6RSgChy0Yq0H2TJpZPSoMKQ2V-OYfR0XzE1aJBBZkXI';
-const APP_VERSION   = '1.3.6.1_pre';
+const APP_VERSION   = '1.4.0';
 const SUPABASE_STORAGE_KEY = 'sb-jbvkygeksohlysyvaoab-auth-token';
 
 // 이용약관/개인정보처리방침 버전 — 광고식별자 수집 항목 추가(2026-09) 시 1로 올림.
@@ -2286,6 +2286,8 @@ const PROMO_UNTIL_KEY = 'chorditor_promo_until';
 
 // 플랜 시트 하단 안내(결제 구독 기본값). 프로모션 유저에겐 다른 문구로 교체된다.
 const PLAN_CANCEL_INFO_DEFAULT = '구독은 결제일 기준 결제 주기(월간 또는 연간)에 따라 자동으로 갱신되며, 갱신 24시간 전까지 언제든 해지할 수 있습니다. 해지는 Google Play 스토어 > 구독 메뉴에서 가능합니다.';
+// iOS: 결제는 구매 확인 시 Apple ID로 청구, 구독 기간 종료 24시간 전까지 해지하지 않으면 자동 갱신, 설정에서 관리·해지(App Store 심사 요구 안내)
+const PLAN_CANCEL_INFO_IOS = '구독 결제는 구매 확인 시 Apple ID 계정으로 청구되며, 현재 구독 기간이 끝나기 최소 24시간 전에 해지하지 않으면 같은 기간으로 자동 갱신됩니다. 구독 관리와 해지는 구매 후 설정 > Apple ID(내 이름) > 구독에서 언제든 할 수 있습니다.';
 
 // 유효한 프로모션 플랜이면 만료 Date, 아니면 null (만료 시각 지나면 자동 무효)
 function getPromoUntil() {
@@ -2820,6 +2822,7 @@ window._handleShareImport = function(rawCode) {
 
 // ── RevenueCat (인앱 결제) ─────────────────────────────────────
 const REVENUECAT_ANDROID_KEY = 'goog_KNGCSoBxhHnHfZuTVgJoNKglKhM';
+const REVENUECAT_IOS_KEY     = 'appl_TtyeVcbMbcFMLgjHwOMvgZwhZEi';   // 공개 SDK 키(앱에 들어가는 값). RevenueCat 'Chorditor iOS'(App Store) 앱
 const ENTITLEMENT_PRO  = 'pro_entitlement';
 const PRODUCT_PRO      = 'pro_monthly';
 const PRODUCT_PRO_YEARLY = 'pro_yearly'; // Play Console/RevenueCat에 상품 등록 필요(배포 전 확인)
@@ -2828,12 +2831,11 @@ let _billingReady = Promise.resolve();
 
 async function initBilling() {
   if (!window.Capacitor?.isNativePlatform()) return;
-  if (_isIOSNative()) return; // iOS용 RevenueCat 키 미설정 — 안드로이드 키(goog_)로 configure 금지(스모크 테스트)
   _billingReady = (async () => {
     const Purchases = window.Capacitor?.Plugins?.Purchases;
     if (!Purchases) { console.warn('[Billing] Purchases 플러그인 없음'); return; }
     window._RC = Purchases;
-    await Purchases.configure({ apiKey: REVENUECAT_ANDROID_KEY });
+    await Purchases.configure({ apiKey: _isIOSNative() ? REVENUECAT_IOS_KEY : REVENUECAT_ANDROID_KEY });   // 플랫폼마다 키가 다름(iOS appl_ / 안드로이드 goog_)
   })();
   try { await _billingReady; }
   catch(e) { console.warn('[Billing] initBilling 실패:', e); }
@@ -2882,8 +2884,28 @@ async function updateSupabasePlan(plan) {
 
 // ── 플랜 바텀시트 & 결제 함수 ────────────────────────────────
 
+// iOS 결제 도움말 — 마크업의 기본 문구는 Google Play 기준이라 iOS에서는 열 때 Apple ID·설정 기준으로 교체
+const BILLING_FAQ_IOS = [
+  ['결제는 어떤 계정으로 청구되나요?', 'App Store에 로그인된 Apple ID로 결제됩니다.'],
+  ['구독 취소는 어떻게 하나요?', '설정 → 상단의 내 이름 → 구독에서 Chorditor를 선택해 취소할 수 있습니다.'],
+  ['환불은 어떻게 받나요?', 'reportaproblem.apple.com에서 Apple에 환불을 요청할 수 있습니다.'],
+  ['앱 계정과 Apple ID가 다르면?', '구독은 결제한 Apple ID에 묶여서, 다른 Apple ID로는 구독을 관리할 수 없습니다.'],
+  ['구독했는데 앱에서 Free로 표시되면?', '플랜 설명창 하단의 "구매 복원" 버튼을 눌러주세요.'],
+];
 function openBillingFaq() {
   analytics.track('billing_faq_opened', {});
+  if (_isIOSNative()) {
+    const body = document.querySelector('#billing-faq-modal .billing-faq-body');
+    if (body) {
+      body.innerHTML = '';
+      BILLING_FAQ_IOS.forEach(function (it) {
+        const item = document.createElement('div'); item.className = 'faq-item';
+        const q = document.createElement('div'); q.className = 'faq-q'; q.textContent = it[0];
+        const a = document.createElement('div'); a.className = 'faq-a'; a.textContent = it[1];
+        item.appendChild(q); item.appendChild(a); body.appendChild(item);
+      });
+    }
+  }
   document.getElementById('billing-faq-modal')?.classList.remove('hidden');
   if (typeof lucide !== 'undefined') lucide.createIcons();
 }
@@ -2932,7 +2954,7 @@ async function purchasePlan(planId, cycle) {
     try {
       const { customerInfo: currentInfo } = await window._RC.getCustomerInfo();
       const activeSubs = currentInfo?.activeSubscriptions || [];
-      if (activeSubs.length > 0) {
+      if (activeSubs.length > 0 && !_isIOSNative()) {   // upgradeInfo(oldSKU·prorationMode)는 안드로이드 전용 — iOS는 구독 그룹의 등급이 업그레이드·다운그레이드를 처리
         purchaseParams.upgradeInfo = { oldSKU: activeSubs[0], prorationMode: 1 };
       }
     } catch(e) {}
@@ -3142,8 +3164,10 @@ function openPlanSheet(triggerSource, extraProps) {
       ? '프로모션 코드로 받은 Pro 플랜입니다. '
         + promoUntil.toLocaleDateString('ko-KR', { year: 'numeric', month: 'long', day: 'numeric' })
         + '까지 이용할 수 있으며, 자동 결제나 갱신은 되지 않습니다.'
-      : PLAN_CANCEL_INFO_DEFAULT;
+      : (_isIOSNative() ? PLAN_CANCEL_INFO_IOS : PLAN_CANCEL_INFO_DEFAULT);
   }
+  const storeHint = document.getElementById('plan-sheet-store-hint');
+  if (storeHint) storeHint.textContent = _isIOSNative() ? '구독은 설정 > Apple ID > 구독에서 언제든지 취소할 수 있습니다.' : '구독은 Google Play에서 언제든지 취소할 수 있습니다.';
 
   const faqBtn     = document.getElementById('plan-sheet-faq-btn');
   const restoreBtn = document.getElementById('plan-sheet-restore-btn');
@@ -3225,7 +3249,7 @@ function _initPlanSheet() {
   </div>
   <div class="plan-sheet-footer">
     <button class="btn btn-primary plan-card-btn" id="plan-sheet-btn-pro">구독하기</button>
-    <span class="hint">구독은 Google Play에서 언제든지 취소할 수 있습니다.</span>
+    <span class="hint" id="plan-sheet-store-hint">구독은 Google Play에서 언제든지 취소할 수 있습니다.</span>
   </div>
 </div>
 <div class="modal-overlay hidden" id="billing-faq-modal" onclick="closeBillingFaq()">

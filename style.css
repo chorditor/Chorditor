@@ -24474,7 +24474,8 @@ html[lang="en"] .combo-v2-sort-sub { display: none; }
 .lec2-a, .lec2-b { grid-area: 1 / 1; position: relative; opacity: 0; pointer-events: none; transition: opacity var(--lec-fade) cubic-bezier(0.33, 1, 0.68, 1); }
 .lec2-a.is-on, .lec2-b.is-on { opacity: 1; }
 /* 7th 코드 줄 — 4번째 음까지 쌓이는 줄이라 음은 줄이지 않고 14px 그대로(1장처럼 scale로 줄이지 않음). 열 간격은 처음부터 넓게 */
-.lec2-grid { --lec-pitch: min(64px, calc((100vw - 2 * var(--cd-inset)) / 7)); margin-inline: auto; }
+/* 상한 60px = 무대 최대폭(420px) ÷ 7 — 64px(448px)면 무대보다 넓어서 margin auto가 가운데 맞춤을 못 하고(넘치면 auto 마진이 0) 왼쪽에 붙어 오른쪽으로 14px 쏠렸음(넓은 화면에서 4번째 열이 중앙에서 어긋남) */
+.lec2-grid { --lec-pitch: min(60px, calc((100vw - 2 * var(--cd-inset)) / 7)); margin-inline: auto; }
 .lec2-grid .lec-stack { margin-top: var(--space-3); }
 .lec2-grid .lec-note { font: var(--type-label-lg); font-weight: var(--weight-semibold); }
 .lec2-grid .lec-note:not(.is-focus) { color: var(--text-secondary); }   /* 음이름은 회색(외울 대상이 아닌 과정) — 파랑 강조(.is-focus)는 그대로 우선 */

@@ -727,33 +727,46 @@
       }).join('') + '</span>';
     }).join('');
   }
-  // 코드를 박 위치에 놓음. 앞 코드와 겹치면 겹치지 않게 오른쪽으로 밀어냄(억지로 끼우지 않음). 쪼개진 칸은 Rel.IIm 다음 코드를 1박 뒤(Rel.IIm이 더 넓으면 그만큼 뒤)에 놓음
+  // 코드를 박 위치에 놓음. 앞 코드와 겹치면 겹치지 않게 놓되 마디 세로선은 넘지 않음(아래 place). 쪼개진 칸은 Rel.IIm 다음 코드를 1박 뒤(Rel.IIm이 더 넓으면 그만큼 뒤)에 놓음
   function layoutScore(sc) {
     if (!sc) return;
     sc.querySelectorAll('.lec6-row').forEach(function (row) {
       const bw = (row.clientWidth - 2 * SC_PAD) / 8, mid = row.querySelector('.lec6-bar.is-mid'), end = row.querySelector('.lec6-bar.is-r');
       if (mid) mid.style.left = Math.round(SC_PAD + bw * 4 - 1) + 'px';   // 세로선 두께(2px)가 양끝·마디선 모두 같게 보이도록 위치를 정수로
       if (end) end.style.left = (row.clientWidth - 2) + 'px';
-      const place = function () {   // 코드를 박 위치에 놓고 첫 코드의 시작과 마지막 코드의 오른쪽 끝을 돌려줌
-        let prev = -Infinity, first = null;
-        row.querySelectorAll('.lec2-slot').forEach(function (s) {
+      // 규칙: 한 마디(4박) 안에 들어가는 코드는 공간이 좁아도 그 마디 세로선을 넘지 않는다 — 앞 코드와 겹치면 뒤 코드를 오른쪽으로 밀지 않고(옆 마디 침범) 마디 안에서 앞 코드들을 왼쪽으로 당겨 맞춤.
+      // 마디 안에 다 못 들어가면 그 줄의 글자를 줄여 다시 맞춤. 돌려주는 ratio = 가장 빡빡한 마디의 (들어갈 수 있는 폭 ÷ 필요한 폭), 1 미만이면 아직 넘침
+      const place = function () {
+        const slots = Array.prototype.slice.call(row.querySelectorAll('.lec2-slot'));
+        slots.forEach(function (s) {
           const rel = s.querySelector('.lec5-rel');
           if (rel) rel.style.marginRight = s.classList.contains('is-open') ? Math.max(SC_GAP, bw - rel.offsetWidth) + 'px' : '';
           const aft = s.querySelector('.lc6-aft') || s.querySelector('.lc6-tail');   // 칸 뒤쪽에 코드가 덧붙는 칸(6장의 Bdim7, 기반 진행의 Am7) — 덧붙는 코드는 원래 코드 1박 뒤(원래 코드가 더 넓으면 그만큼 뒤)
           if (aft) aft.style.marginLeft = s.classList.contains('is-open') ? Math.max(SC_GAP, bw - s.querySelector('.lec2-sname:not(.lec5-rel)').offsetWidth) + 'px' : '';
-          const x = Math.max(SC_PAD + bw * s.dataset.b + SC_GAP, prev + SC_GAP);
-          s.style.left = x + 'px';
-          if (first === null) first = x;
-          prev = x + s.offsetWidth;
         });
-        return { first: first, end: prev };
+        let ratio = Infinity;
+        [0, 1].forEach(function (m) {
+          const lo = SC_PAD + bw * 4 * m + SC_GAP, hi = SC_PAD + bw * 4 * (m + 1) - SC_GAP;   // 마디 안쪽 범위(마디선·세로선에서 SC_GAP씩 안쪽)
+          const ms = slots.filter(function (s) { return (s.dataset.b < 4 ? 0 : 1) === m; });
+          if (!ms.length) return;
+          const ws = ms.map(function (s) { return s.offsetWidth; }), xs = [];
+          ms.forEach(function (s, i) { xs.push(Math.max(SC_PAD + bw * s.dataset.b + SC_GAP, i ? xs[i - 1] + ws[i - 1] + SC_GAP : lo)); });   // 박 위치, 겹치면 오른쪽으로
+          let limit = hi;
+          for (let i = ms.length - 1; i >= 0; i--) { xs[i] = Math.min(xs[i], limit - ws[i]); limit = xs[i] - SC_GAP; }   // 마디 끝을 넘으면 왼쪽으로 당김
+          const need = ws.reduce(function (a, b) { return a + b; }, 0) + SC_GAP * (ms.length - 1);
+          if (xs[0] < lo - 0.5) {   // 당겨도 마디 시작을 넘어감 = 마디 안에 못 들어감 → 시작에서부터 이어 놓고(넘침) ratio로 글자를 줄이게 함
+            xs[0] = lo;
+            for (let i = 1; i < ms.length; i++) xs[i] = xs[i - 1] + ws[i - 1] + SC_GAP;
+          }
+          ratio = Math.min(ratio, (hi - lo) / need);
+          ms.forEach(function (s, i) { s.style.left = xs[i] + 'px'; });
+        });
+        return { ratio: ratio };
       };
-      // 한 줄의 코드가 오른쪽 세로선을 넘으면(코드가 많은 줄) 그 줄의 코드 글자만 줄여서 맞춤 — 겹치게 끼우지도, 선 밖으로 내보내지도 않음
       row.style.removeProperty('--sc-fs');
       let r = place(), fs = parseFloat(getComputedStyle(row.querySelector('.lec2-sname')).fontSize) || 18;
-      const lim = row.clientWidth - SC_PAD - SC_GAP;
-      for (let n = 0; n < 4 && r.end > lim && fs > 12; n++) {
-        fs = Math.max(12, fs * (lim - r.first) / (r.end - r.first) - 0.1);
+      for (let n = 0; n < 6 && r.ratio < 1 && fs > 12; n++) {
+        fs = Math.max(12, fs * r.ratio - 0.1);
         row.style.setProperty('--sc-fs', fs + 'px');
         r = place();
       }
@@ -1428,7 +1441,7 @@
       return wait(LEAD_MS + B + 2100);
     } },
     // 7. Cm7로도 해결 — 오른쪽 CM7에서 3음(E)·7음(B)이 반음씩 내려가(굴러 바뀜) Cm7이 됨. 파랑은 C·Eb만(CM7의 C·E에서 이어짐, Bb·이름·문구는 강조 없음). 이유는 뒤에서 설명한다고 문구로 예고. 소리는 바뀐 뒤 G7 → Cm7
-    { text: 'G7은 Cm7 코드로도 해결할 수 있어요\n왜 그런지는 나중에 알려줄게요', run: function () {
+    { text: 'G7은 Cm7 코드로도 해결할 수 있어요\n왜 그런지는 나중에 알려드릴게요', run: function () {
       const a = w3('lec4-wa'), b = w3('lec4-wb'), t0 = audioT0(), A = 500, S1 = A + SETTLE_MS + 700, S2 = S1 + 1600;
       strum(fretsToMidis(v4('G7')), t0 + S1 / 1000, 1.5, 0.7);
       strum(fretsToMidis(v4('Cm7')), t0 + S2 / 1000, 2.0, 1.0);
@@ -1872,7 +1885,7 @@
     ['G7/B', 'Bdim7', 'Bm7(b5)', 'Db7'], ['A7/C#', 'C#dim7', 'C#m7(b5)', 'Eb7'], ['B7/D#', 'D#dim7', 'D#m7(b5)', 'F7'],
     ['C7/E', 'Edim7', 'Em7(b5)', 'Gb7'], ['D7/F#', 'F#dim7', 'F#m7(b5)', 'Ab7'], ['E7/G#', 'G#dim7', 'G#m7(b5)', 'Bb7'],
   ];
-  const LEG6 = ['다이어토닉', '도미넌트', '1전위', 'dim7', 'm7(b5)', '서브'];   // 총정리 표의 줄 이름(표 아래 범례, 줄마다 색) — 표의 줄 순서와 같음
+  const LEG6 = ['다이어토닉', '세컨더리', '1전위', 'dim7', 'm7(b5)', '서브'];   // 총정리 표의 줄 이름(표 아래 범례, 줄마다 색) — 표의 줄 순서와 같음
   const SONG6_NEW = ['C', 'Em7(b5)', 'FM7', 'A7/C#', ['Dm7', 'Bdim7'], 'CM7', ['Bm7(b5)', 'Bb7'], 'Am7'];   // C - Em7(b5) - FM7 - A7/C# | Dm7 Bdim7 CM7 Am7 Bm7(b5) Bb7 Am7 - (5번 칸의 Am7은 withTail이 덧붙임). 5장 결과(SONG5_NEW)에서 Gm7·C7 → Em7(b5) 한 칸, A7→A7/C#, Dm7 뒤에 Bdim7, E7→Bb7
   function sfx6(root, tail) { return root + '<span class="lec3-sfx">' + tail.replace(/\([^)]*\)/g, function (m) { return '<sup class="cc-sup">' + m + '</sup>'; }) + '</span>'; }   // 꼬리의 괄호 (9)·(#11)·(b13)은 항상 위첨자(7장 텐션)   // 이름에서 바뀐 꼬리만 파랑
   function slots6(id) { return q2('#' + id + ' .lec2-slot'); }
@@ -3389,6 +3402,11 @@
       let p;
       try { p = Promise.resolve(st.run()); } catch (e) { p = Promise.resolve(); console.error('[combo-lecture] step ' + (i + 1) + ' 연출 오류', e); }
       await Promise.race([p.catch(function (e) { console.error('[combo-lecture] step ' + (i + 1) + ' 연출 오류', e); }), failsafe(st.failsafe || STEP_FAILSAFE_MS)]);
+      if (!(done && i === target)) {   // 묶음 단계(chainSteps)는 연출 안에서 자기 뒤 문구를 띄움 — 빨리 돌리는 동안 그 문구가 남아 보이지 않게 비움(1장 동요 단계는 피아노 음색을 처음 받는 동안 실제로 기다려서 앞 페이즈 문구가 화면에 비쳤음)
+        const qEl = $('combo-v2-lec-text');
+        qEl.classList.remove('test-question--in');
+        qEl.textContent = '';
+      }
     }
     L.seeking = false;
     if (tok !== L.tok) return;   // 빨리 돌리는 사이 닫힘·다른 이동

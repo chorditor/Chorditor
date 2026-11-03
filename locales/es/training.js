@@ -539,7 +539,7 @@ I18N.add('es', {
     '전위코드도 기능별로 나눠 볼게요!': '¡Clasifiquemos también las inversiones por función!',
     '작은별의 진행을 전위코드를 사용해서 리하모니 해볼게요!': '¡Reharmonicemos la progresión de "Estrellita"\nusando inversiones!',
     '그래서 5도와 1도 코드는 정말 잘 어울리는 조합이에요': 'Por eso los acordes de los grados 5 y 1\nson una combinación excelente',
-    'G7은 Cm7 코드로도 해결할 수 있어요 왜 그런지는 나중에 알려줄게요': 'G7 también puede resolver a un Cm7\nTe explicaré por qué más adelante',
+    'G7은 Cm7 코드로도 해결할 수 있어요 왜 그런지는 나중에 알려드릴게요': 'G7 también puede resolver a un Cm7\nTe explicaré por qué más adelante',
     '이렇게 5도는 1도랑 너무 잘 어울리기 때문에 때로는 코드진행을 지배하기도 해요': 'El grado 5 combina tan bien con el 1\nque a veces domina la progresión',
     '다이어토닉 코드를 볼게요!': '¡Veamos los acordes diatónicos!',
     '이제는 익숙해진 G7 코드가 C key의 도미넌트예요': 'El ya conocido acorde G7\nes el dominante de C key',

@@ -540,7 +540,7 @@ I18N.add('en', {
     '전위코드도 기능별로 나눠 볼게요!': 'Let\'s sort inversions by function too!',
     '작은별의 진행을 전위코드를 사용해서 리하모니 해볼게요!': 'Let\'s reharmonize the Twinkle Twinkle progression\nusing inversions!',
     '그래서 5도와 1도 코드는 정말 잘 어울리는 조합이에요': 'So the 5th and 1st chords\nare a really good match',
-    'G7은 Cm7 코드로도 해결할 수 있어요 왜 그런지는 나중에 알려줄게요': 'G7 can also resolve to a Cm7 chord\nI\'ll explain why later',
+    'G7은 Cm7 코드로도 해결할 수 있어요 왜 그런지는 나중에 알려드릴게요': 'G7 can also resolve to a Cm7 chord\nI\'ll explain why later',
     '이렇게 5도는 1도랑 너무 잘 어울리기 때문에 때로는 코드진행을 지배하기도 해요': 'The 5th goes so well with the 1st\nthat it can sometimes take over the progression',
     '다이어토닉 코드를 볼게요!': 'Let\'s look at the diatonic chords!',
     '이제는 익숙해진 G7 코드가 C key의 도미넌트예요': 'The familiar G7 chord\nis the dominant of C key',
