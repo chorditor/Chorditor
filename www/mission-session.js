@@ -1235,6 +1235,7 @@ function _msDrawEntry(canvas, entry, name) {
     barreRange: entry.barreRanges?.[0] ?? null,
     fretNumber: entry.fretNumber,
     patternR:   entry.patternR,
+    slotFret:   entry.slotFret, // 2번째 칸 규칙(근음이 2번째 칸)
     source:     entry.source,
   }, {
     chordName: name,

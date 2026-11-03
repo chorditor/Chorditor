@@ -19,6 +19,37 @@
   // 줄 인덱스: 0=6번줄(E), 1=5번줄(A), 2=4번줄(D), 3=3번줄(G), 4=2번줄(B), 5=1번줄(e)
   window.chordNoteName = fn;
 
+  // ── 다이어그램 2번째 칸 규칙 ─────────────────────────────────
+  // "불가능한 경우가 아니라면 근음(슬래시 코드는 베이스 음)이 있는 프렛이 항상 코드 다이어그램의 2번째 칸에 온다."
+  // frets: 캔버스 순서(0=1번줄 … 5=6번줄). 반환: 2번째 칸의 프렛 번호(=라벨 숫자) / 불가능하면 null.
+  //  불가능 = 근음 점이 없거나(개방현·뮤트) 1프렛이거나, 2번째 칸에 맞추면 다른 점이 1~4칸 밖으로 나가는 경우.
+  const _CANVAS_PCS = [4, 11, 7, 2, 9, 4];
+  const _NAME_PC = { C:0, 'C#':1, Db:1, D:2, 'D#':3, Eb:3, E:4, F:5, 'F#':6, Gb:6, G:7, 'G#':8, Ab:8, A:9, 'A#':10, Bb:10, B:11 };
+  function slotFretFor(frets, name) {
+    if (!frets || !name) return null;
+    const slash = name.lastIndexOf('/');
+    const m = (slash >= 0 ? name.slice(slash + 1) : name).match(/^[A-G][#b]?/);
+    if (!m) return null;
+    const pc = _NAME_PC[m[0]];
+    const pressed = frets.filter(f => f !== null && f > 0);
+    if (pc === undefined || !pressed.length) return null;
+    const mn = Math.min(...pressed), mx = Math.max(...pressed);
+    for (let s = frets.length - 1; s >= 0; s--) {   // 낮은 줄(6번줄) 쪽 근음부터
+      const f = frets[s];
+      if (f === null || f < 2 || (_CANVAS_PCS[s] + f) % 12 !== pc) continue;
+      const off = f - 2;
+      if (mn - off >= 1 && mx - off <= 4) return f;
+    }
+    return null;
+  }
+  window.slotFretFor = slotFretFor;
+  // 사전 항목 → 라벨(2번째 칸) 프렛 번호. 에디터/노트로 저장할 때 fretNumber로 쓴다.
+  // 2번째 칸 규칙이 불가능한 항목은 예전 계산(pattern은 patternR+1, static은 fretNumber, 최소 2).
+  window.entryLabelFret = function (e) {
+    if (e.slotFret != null) return e.slotFret;
+    return Math.max(2, e.source === 'pattern' ? (e.patternR ?? e.fretNumber) + 1 : e.fretNumber);
+  };
+
   // 플랫 근음 → 샵 근음 정규화 (라이브러리 키 분류용)
   const FLAT_TO_SHARP = { 'Db':'C#', 'Eb':'D#', 'Gb':'F#', 'Ab':'G#', 'Bb':'A#' };
 
@@ -42,6 +73,55 @@
     'sus2', 'aug', 'dim', 'aug7', 'dim7', 'm7(b5)', '6', 'm6',
     'slash', 'hybrid', 'tension',  // 후순위 — 분수 → 하이브리드 → 텐션
   ];
+
+  // ── 운지법(손가락 번호) 추천 순서 ─────────────────────────────
+  // 프렛 문자열이 같으면(코드명·소스 무관) 같은 손모양이므로, 손가락 번호 후보를 하나의 풀로 모아
+  // 중복을 없앤 뒤 아래 순서로 정렬해 같은 프렛 문자열을 쓰는 모든 항목에 똑같이 준다.
+  //   1) FINGERING_FIRST 예외 표에 있으면 그 후보가 맨 앞
+  //   2) 새끼손가락(4번)이 없는 후보가 먼저 — 4번을 쓰는 운지가 일반적으로 더 어렵다.
+  //      (둘 다 4번이 있거나 둘 다 없으면 이 규칙은 판단하지 않는다)
+  //   3) 나머지는 라이브러리 순서 — 정적(CHORD_STATIC) 먼저, 같은 소스끼리는 데이터 파일 순서
+  // 예외 표: 프렛 문자열(6번줄→1번줄) → 먼저 추천할 손가락 번호.
+  const FINGERING_FIRST = {
+    '3 2 0 0 0 3': '3 2 x x x 4',  // G — 현업에선 2 1 x x x 3과 반반이지만 Gsus4·G7 등 G 계열과 손가락 배치가 이어지게
+  };
+
+  // ── 보이싱(프렛 배치) 추천 순서 ────────────────────────────────
+  // 같은 코드 이름 안에서 보이싱을 아래 단계 순으로 늘어놓는다(이름이 다른 항목끼리의 자리는 바꾸지 않는다).
+  //    1) 오픈코드 — 개방현(0프렛)을 하나라도 쓰는 보이싱. 안에서는 OPEN_FIRST(선호 모양) → 낮은 프렛 → 베이스 줄이 낮은(6번줄) 순
+  //    2) 자주 쓰는 패턴 — COMMON_PATTERNS 와 모양이 같은 것. 근음 프렛이 낮은 순 → 근음 6·5·4번줄 순 → 표에 적힌 순(`>`)
+  //    3) 기타 특수코드 패턴 — 패턴 소스인데 위 표에 없는 것. 낮은 프렛 → 베이스 줄 순
+  //    4) 나머지(정적 보이싱 중 오픈이 아닌 것). 낮은 프렛 → 베이스 줄 순
+  //    5) 잘 안 쓰는 정적 — chord-voicings.js 의 CHORD_STATIC_RARE 에서 온 것(잘 쓰는 정적·패턴과 같은 모양이면 제외)
+  //    6) 안 쓰는 패턴 — 패턴 소스이면서 개방현이 3개 이상(패턴의 r이 낮아서 생기는 모양). OPEN_UNUSED_EXEMPT 에 적힌 것은 제외
+  // 낮은 프렛 = 눌린 줄 중 가장 낮은 프렛(개방현 제외). 데이터의 fretNumber 는 표시 위치용이라 쓰지 않는다.
+  // 모양 비교 표기: 6번줄→1번줄, 근음 줄의 프렛을 5로 옮긴 값.
+  const COMMON_PATTERNS = {
+    'M':      { 6: ['577655'], 5: ['x57775'], 4: ['xx5787'] },
+    'm':      { 6: ['577555'], 5: ['x57765'], 4: ['xx5786'] },
+    'sus4':   { 6: ['577755'], 5: ['x57785'], 4: ['xx5788'] },
+    'sus2':   {                5: ['x57755'], 4: ['xx5785'] },
+    'M7':     { 6: ['5x665x', '576655'], 5: ['x57675', 'x5767x'], 4: ['xx5777'] },
+    '7':      { 6: ['575655', '5x565x'], 5: ['x57575', 'x5453x'], 4: ['xx5767'] },
+    'm7':     { 6: ['5x555x', '577585'], 5: ['x57565', 'x5356x'], 4: ['xx5766'] },
+    'm7(b5)': { 6: ['5x554x'],           5: ['x5656x'],           4: ['xx5666'] },
+  };
+  // 오픈코드 중 먼저 추천할 모양 — 프렛 문자열(6번줄→1번줄)
+  const OPEN_FIRST = new Set([
+    '0 2 2 0 3 0',   // Em7
+  ]);
+  // 개방현이 없어도 오픈코드처럼 맨 앞 단계에 둘 정적 보이싱 — 프렛 문자열(6번줄→1번줄)
+  const STATIC_FIRST = new Set([
+    'x x 3 2 1 1',   // F
+  ]);
+  // 개방현 3개 이상이어도 실제로 쓰이는 패턴 보이싱 — 프렛 문자열(6번줄→1번줄)
+  const OPEN_UNUSED_EXEMPT = new Set([
+    '0 2 2 2 0 0',   // Esus4
+    'x 2 2 0 0 0',   // Em/B
+    '0 2 0 1 2 0',   // E7(13)
+  ]);
+  // 이 quality 는 지금 순서가 이미 맞아서 건드리지 않는다
+  const VOICING_ORDER_SKIP = new Set(['dim7']);
 
   // ── 파싱 헬퍼 ────────────────────────────────────────────────
 
@@ -101,7 +181,22 @@
     const lib = {};
     const ALL_ROOTS = ['C','C#','D','D#','E','F','F#','G','G#','A','A#','B'];
 
+    // 운지 후보 풀: 프렛 문자열(6번줄→1번줄) → 후보들. 항목을 만들 때마다 poolAdd로 모은다
+    const fretKey   = frets => frets.slice().reverse().map(f => f === null ? 'x' : f).join(' ');
+    const fingerKey = fg    => fg.slice().reverse().map(f => f === null ? 'x' : f).join(' ');
+    const pool = new Map();
+    let poolSeq = 0;
+    const poolAdd = e => {
+      const k = fretKey(e.frets);
+      if (!pool.has(k)) pool.set(k, []);
+      pool.get(k).push({
+        key: fingerKey(e.fingering), fingering: e.fingering, barre: e.barre, barreRange: e.barreRange,
+        rank: (e.source === 'static' ? 0 : 1e6) + poolSeq++,   // 정적 먼저, 같은 소스끼리는 생성(=데이터 파일) 순서
+      });
+    };
+
     const STATIC  = window.CHORD_STATIC  || [];
+    const RARE    = window.CHORD_STATIC_RARE || [];   // 잘 안 쓰는 정적 보이싱 — 추천 순서에서 뒤쪽
     const PATTERN = window.CHORD_PATTERN || [];
 
     // 1) 패턴 보이싱 ─────────────────────────────────────────
@@ -178,13 +273,15 @@
           name:         sharpName,
           flatName,
           source:       'pattern',
+          rare:         false,
         };
         lib[rootNote].push(patEntry);
+        poolAdd(patEntry);
       }
     });
 
     // 2) 정적 보이싱 ─────────────────────────────────────────
-    STATIC.forEach(([fretsStr, names, fingersStr, quality, fretNum, opts]) => {
+    STATIC.concat(RARE).forEach(([fretsStr, names, fingersStr, quality, fretNum, opts], rowIdx) => {
       // 입력: 6번줄→1번줄 순 / 캔버스: 1번줄→6번줄 순 → 반전
       const frets   = parseTokens(fretsStr).reverse();
       const fingers = parseFingers(fingersStr).reverse();
@@ -243,8 +340,10 @@
           name,
           flatName,
           source:       'static',
+          rare:         rowIdx >= STATIC.length,   // CHORD_STATIC_RARE 에서 온 항목
         };
         lib[rootKey].push(staticEntry);
+        poolAdd(staticEntry);
       });
     });
 
@@ -279,6 +378,7 @@
           base.fingerings.push(entry.fingering);
           base.barres.push(entry.barre);
           base.barreRanges.push(entry.barreRange);
+          base.rare = !!base.rare && !!entry.rare;   // 잘 쓰는 정적·패턴과 겹치는 모양이면 "잘 안 쓰는" 취급 안 함
           // static source 우선 보존: pattern이 먼저 정렬돼도 static entry와 병합 시 source='static' 유지
           if (entry.source === 'static') {
             base.source      = 'static';
@@ -293,6 +393,83 @@
         }
       });
       lib[root] = merged;
+    });
+
+    // 4-1) 보이싱 추천 순서 — 같은 코드 이름의 항목끼리만 자리를 바꾼다(그 이름 항목들이 차지하던 자리 안에서)
+    const voicingKey = (e, idx) => {
+      const key    = fretKey(e.frets);
+      const zeros  = e.frets.filter(f => f === 0).length;
+      const fretted = e.frets.filter(f => f !== null && f > 0);
+      const minFret = fretted.length ? Math.min(...fretted) : 0;
+      let bass = 0;                                    // 가장 낮은 소리가 나는 줄(6번줄=6). 캔버스 배열은 0=1번줄
+      for (let i = e.frets.length - 1; i >= 0; i--) if (e.frets[i] !== null) { bass = i + 1; break; }
+      const bassRank = 6 - bass;                       // 6번줄 0, 5번줄 1, ...
+      const pure = e.source === 'pattern';             // 정적 보이싱과 겹치지 않은 순수 패턴
+      if (pure && zeros >= 3 && !OPEN_UNUSED_EXEMPT.has(key)) return [6, idx];
+      if (e.rare) return [5, minFret, bassRank, idx];
+      if (zeros >= 1 || STATIC_FIRST.has(key)) return [1, OPEN_FIRST.has(key) ? 0 : 1, minFret, bassRank, idx];
+      const table = COMMON_PATTERNS[e.quality];
+      if (table) {
+        for (const rs of [6, 5, 4]) {
+          const rootFret = e.frets[rs - 1];
+          if (!table[rs] || rootFret == null || rootFret <= 0) continue;
+          const shape = e.frets.slice().reverse().map(f => f === null ? 'x' : f - rootFret + 5).join('');
+          const at = table[rs].indexOf(shape);
+          if (at !== -1) return [2, rootFret, 6 - rs, at, idx];
+        }
+      }
+      return [pure ? 3 : 4, minFret, bassRank, idx];
+    };
+    const cmpKey = (a, b) => {
+      for (let i = 0; i < Math.max(a.length, b.length); i++) if (a[i] !== b[i]) return (a[i] ?? -1) - (b[i] ?? -1);
+      return 0;
+    };
+    ALL_ROOTS.forEach(root => {
+      const list = lib[root];
+      if (!list) return;
+      const slots = new Map();   // 코드 이름 → 그 이름 항목들의 자리(index)
+      list.forEach((e, i) => {
+        if (VOICING_ORDER_SKIP.has(e.quality)) return;
+        if (!slots.has(e.name)) slots.set(e.name, []);
+        slots.get(e.name).push(i);
+      });
+      slots.forEach(idxs => {
+        if (idxs.length < 2) return;
+        const sorted = idxs.map(i => ({ e: list[i], k: voicingKey(list[i], i) })).sort((x, y) => cmpKey(x.k, y.k)).map(x => x.e);
+        idxs.forEach((slot, n) => { list[slot] = sorted[n]; });
+      });
+    });
+
+    // 5) 운지법 추천 순서 — 프렛 문자열이 같은 항목은 코드명·소스와 무관하게 같은 풀·같은 순서를 쓴다
+    const orderedPool = new Map();
+    const getOrdered = k => {
+      if (orderedPool.has(k)) return orderedPool.get(k);
+      const uniq = [];
+      pool.get(k).slice().sort((a, b) => a.rank - b.rank).forEach(c => {
+        const dup = uniq.find(u => u.key === c.key);
+        if (!dup) { uniq.push(c); return; }
+        // 같은 손가락 번호가 소스마다 바레 정보만 다르면, 바레 정보가 있는 쪽을 쓴다
+        if (Object.keys(dup.barre).length === 0 && Object.keys(c.barre).length > 0) {
+          dup.barre = c.barre; dup.barreRange = c.barreRange;
+        }
+      });
+      const first = FINGERING_FIRST[k];
+      const rankOf = c => (c.key === first ? 0 : 2) + (c.fingering.includes(4) ? 1 : 0);   // 예외 표 < 4번 없음 < 4번 있음
+      const ordered = uniq.map((c, i) => ({ c, i })).sort((a, b) => rankOf(a.c) - rankOf(b.c) || a.i - b.i).map(x => x.c);
+      orderedPool.set(k, ordered);
+      return ordered;
+    };
+    ALL_ROOTS.forEach(root => {
+      (lib[root] || []).forEach(entry => {
+        const o = getOrdered(fretKey(entry.frets));
+        entry.fingerings  = o.map(c => c.fingering);
+        entry.barres      = o.map(c => c.barre);
+        entry.barreRanges = o.map(c => c.barreRange);
+        entry.fingering   = o[0].fingering;
+        entry.barre       = o[0].barre;
+        entry.barreRange  = o[0].barreRange;
+        entry.slotFret    = slotFretFor(entry.frets, entry.name);   // 2번째 칸 규칙 (null = 불가능 → 예전 방식)
+      });
     });
 
     return lib;

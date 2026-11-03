@@ -3530,7 +3530,7 @@ function libSaveToProject() {
   const dispName = useFlat ? _libEntry.flatName : _libEntry.name;
   // 에디터 "슬롯2 = fretNumber" 모델 — pattern: 라벨 r+1/offset r-1, static: 라벨 r/offset r-2 (라벨 최소 2)
   // (static 공식 하드코딩 시 pattern 보이싱 dot이 에디터에서 우측 1칸 밀림 — importLibChordToProject와 동일 공식)
-  const _saveFretNum = Math.max(2, _libEntry.source === 'pattern' ? _libEntry.fretNumber + 1 : _libEntry.fretNumber);
+  const _saveFretNum = window.entryLabelFret(_libEntry); // 2번째 칸 규칙(근음이 2번째 칸) 반영
   const fretOffset = _saveFretNum - 2;
   const activeFingering = (_libEntry.fingerings?.[_libFingeringIdx]) ?? _libEntry.fingerings?.[0] ?? _libEntry.fingering;
 
@@ -3575,6 +3575,8 @@ function libSaveToProject() {
       barre:      _libEntry.barres?.[_libFingeringIdx] ?? _libEntry.barres?.[0] ?? _libEntry.barre ?? {},
       barreRange: _libEntry.barreRanges?.[_libFingeringIdx] ?? _libEntry.barreRanges?.[0] ?? _libEntry.barreRange ?? null,
       fretNumber: _libEntry.fretNumber,
+      patternR:   _libEntry.patternR,
+      slotFret:   _libEntry.slotFret,
       source:     _libEntry.source,
       fingering:  _libFingerMode ? ((_libEntry.fingerings?.[_libFingeringIdx]) ?? _libEntry.fingerings?.[0] ?? _libEntry.fingering) : null,
     },
@@ -5379,6 +5381,12 @@ document.addEventListener('DOMContentLoaded', async () => {
   // 서브페이지 사이드바 로그아웃 버튼 → home.html로 넘어와서 트리거
   if (_urlParams.get('action') === 'logout') confirmLogout();
 
+  // ?quest=1 — 퀘스트 완료 알림 카드를 다른 페이지에서 탭하고 넘어온 경우: 퀘스트 창을 열고 주소에서 파라미터를 지운다(새로고침 시 재오픈 방지)
+  if (_urlParams.get('quest') === '1') {
+    try { history.replaceState(null, '', location.pathname + location.hash); } catch (_) {}
+    setTimeout(() => { if (typeof openQuestModal === 'function') openQuestModal(); }, 500);
+  }
+
   // library.html "에디터로" 인계 — sessionStorage에 남긴 선택 코드를 받아 기존 import 로직 실행.
   // 새로고침·직접 진입 등으로 인계 데이터가 없으면 아무것도 안 하고 일반 홈으로 연다.
   let _libHandoff = null;
@@ -5837,6 +5845,7 @@ function _drawLibCanvas(canvas, ratio, entry, nameOverride, fingeringIdx = 0, tr
     barreRange: entry.barreRanges?.[fingeringIdx] ?? entry.barreRanges?.[0] ?? entry.barreRange ?? null,
     fretNumber: entry.fretNumber,
     patternR:   entry.patternR, // ★ 누락 시 fretNumber로 폴백 → r+1 시작 패턴이 한 칸 밀림
+    slotFret:   entry.slotFret, // 2번째 칸 규칙(근음이 2번째 칸)
     source:     entry.source,   // ★ 누락 시 모듈이 static 취급 → offset/라벨 어긋남
     fingering:  entry.fingerings?.[fingeringIdx] ?? entry.fingerings?.[0] ?? entry.fingering,
   }, {
@@ -6171,9 +6180,7 @@ function importLibChordToProject() {
   // 에디터 상태에 라이브러리 코드 로드
   // 에디터는 "슬롯2 = fretNumber" 모델 → fretOffset = currentFretNumber - 2
   //  pattern: 라벨 r+1 → offset r-1 / static: 라벨 r → offset r-2 / 라벨 최소 2
-  const _r         = entry.fretNumber ?? 0;
-  const _isPat     = entry.source === 'pattern';
-  currentFretNumber = Math.max(2, _isPat ? _r + 1 : _r);
+  currentFretNumber = window.entryLabelFret(entry); // 2번째 칸 규칙(근음이 2번째 칸) 반영
   const fretOffset = currentFretNumber - 2;
 
   const activeFingering = (entry.fingerings?.[_libFingeringIdx]) ?? entry.fingerings?.[0] ?? entry.fingering;

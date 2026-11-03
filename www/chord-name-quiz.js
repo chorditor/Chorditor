@@ -66,6 +66,7 @@ function drawLibEntry(canvas, entry) {
     barreRange: entry.barreRanges?.[0] ?? null,
     fretNumber: entry.fretNumber,
     patternR:   entry.patternR, // ★ 누락 시 fretNumber로 폴백 → r+1 시작 패턴이 한 칸 밀림
+    slotFret:   entry.slotFret, // 2번째 칸 규칙(근음이 2번째 칸)
     source:     entry.source,  // 사전과 동일 분기 (pattern: r-1/r+1, static: r-2/r)
   }, {
     ratio: canvas.width / VoicingCanvas.BASE_W,
@@ -125,6 +126,7 @@ function drawLibEntryWithName(canvas, entry, name) {
     barreRange: entry.barreRanges?.[0] ?? null,
     fretNumber: entry.fretNumber,
     patternR:   entry.patternR, // ★ 누락 시 fretNumber로 폴백 → r+1 시작 패턴이 한 칸 밀림
+    slotFret:   entry.slotFret, // 2번째 칸 규칙(근음이 2번째 칸)
     source:     entry.source,  // 사전과 동일 분기 (pattern: r-1/r+1, static: r-2/r)
   }, {
     chordName: name,
@@ -137,16 +139,16 @@ function drawLibEntryWithName(canvas, entry, name) {
 // ══════════════════════════════════════════════════════════════
 
 const LEVEL_CONFIGS = [
-  { id: '1',  poolReady: true,  premium: false, name: '필수 코드',     info: '필수 코드 10개',                  timePerQ: '5초', timeSec: 5, count: 5,  locked: false },
-  { id: '2',  poolReady: true,  premium: false, name: '하이코드 입문', info: '하이코드 기초 M vs m',             timePerQ: '5초', timeSec: 5, count: 7,  locked: false },
-  { id: '3',  poolReady: true,  premium: false, name: '코드 꾸미기',   info: '세련된 소리가 나는 코드 모음',      timePerQ: '5초', timeSec: 5, count: 10, locked: false },
-  { id: '4',  poolReady: true,  premium: false, name: '필수 분수코드', info: '노래에서 자주 쓰이는 분수코드',     timePerQ: '5초', timeSec: 5, count: 10, locked: false },
-  { id: '5',  poolReady: true,  premium: false, name: '필수 7th코드',  info: 'M7 / m7 / 7 코드 정복하기',       timePerQ: '5초', timeSec: 5, count: 10, locked: false },
-  { id: 'c1', poolReady: true,  premium: false, type: 'challenge', name: '기본코드 챌린지', info: 'LEVEL1~5까지의 모든 코드가 등장합니다!', timePerQ: '5초', timeSec: 5, count: 10, locked: false },
-  { id: '6',  poolReady: true,  premium: false, name: '프렛의 확장',         info: '다양한 프렛에서의 코드를 익혀보세요.',     timePerQ: '5초', timeSec: 5, count: 10, locked: false },
-  { id: '7',  poolReady: true,  premium: false, name: '기능성 & 오픈코드',   info: '개방현을 활용하는 불규칙적인 코드',       timePerQ: '5초', timeSec: 5, count: 10, locked: false },
-  { id: '8',  poolReady: true,  premium: false, name: '7th 코드 정복하기',   info: '모든 7음 코드를 정복해보세요.',           timePerQ: '7초', timeSec: 7, count: 15, locked: false },
-  { id: 'c2', poolReady: true,  premium: false, type: 'challenge', name: '심화코드 챌린지',      info: '대부분의 코드가 수록되어 있습니다.',                              timePerQ: '7초', timeSec: 7, count: 15, locked: false },
+  { id: '1',  chipW: 48, poolReady: true,  premium: false, name: '필수 코드',     info: '필수 코드 10개',                  timePerQ: '5초', timeSec: 5, count: 5,  locked: false },
+  { id: '2',  chipW: 48, poolReady: true,  premium: false, name: '하이코드 입문', info: '하이코드 기초 M vs m',             timePerQ: '5초', timeSec: 5, count: 7,  locked: false },
+  { id: '3',  chipW: 60, poolReady: true,  premium: false, name: '코드 꾸미기',   info: '세련된 소리가 나는 코드 모음',      timePerQ: '5초', timeSec: 5, count: 10, locked: false },
+  { id: '4',  chipW: 48, poolReady: true,  premium: false, name: '필수 분수코드', info: '노래에서 자주 쓰이는 분수코드',     timePerQ: '5초', timeSec: 5, count: 10, locked: false },
+  { id: '5',  chipW: 48, poolReady: true,  premium: false, name: '필수 7th코드',  info: 'M7 / m7 / 7 코드 정복하기',       timePerQ: '5초', timeSec: 5, count: 10, locked: false },
+  { id: 'c1', chipW: 60, poolReady: true,  premium: false, type: 'challenge', name: '기본코드 챌린지', info: 'LEVEL1~5까지의 모든 코드가 등장합니다!', timePerQ: '5초', timeSec: 5, count: 10, locked: false },
+  { id: '6',  chipW: 68, poolReady: true,  premium: false, name: '프렛의 확장',         info: '다양한 프렛에서의 코드를 익혀보세요.',     timePerQ: '5초', timeSec: 5, count: 10, locked: false },
+  { id: '7',  chipW: 88, poolReady: true,  premium: false, name: '기능성 & 오픈코드',   info: '개방현을 활용하는 불규칙적인 코드',       timePerQ: '5초', timeSec: 5, count: 10, locked: false },
+  { id: '8',  chipW: 86, poolReady: true,  premium: false, name: '7th 코드 정복하기',   info: '모든 7음 코드를 정복해보세요.',           timePerQ: '7초', timeSec: 7, count: 15, locked: false },
+  { id: 'c2', chipW: 88, poolReady: true,  premium: false, type: 'challenge', name: '심화코드 챌린지',      info: '대부분의 코드가 수록되어 있습니다.',                              timePerQ: '7초', timeSec: 7, count: 15, locked: false },
   { id: '9',  poolReady: false, premium: false, name: '쉘 보이싱 & 드롭 보이싱', info: '다양한 보이싱을 익혀보세요.',          timePerQ: '—', timeSec: null, count: null, locked: true },
   { id: '10', poolReady: false, premium: false, name: '텐션코드',             info: '텐션의 세계로 여러분을 초대합니다.',     timePerQ: '—', timeSec: null, count: null, locked: true },
   { id: '11', poolReady: false, premium: false, name: '하이브리드 코드',      info: '코드 표기의 오묘한 세계',               timePerQ: '—', timeSec: null, count: null, locked: true },
@@ -2272,6 +2274,7 @@ function showResultView() {
   _quizStopEntrySound();
   _abandonSent = true; // 완주 세션 — 이후 페이지 이탈을 abandon으로 잡지 않는다
   saveSessionStats();
+  if (typeof questToastCheck === 'function') questToastCheck('quiz');   // 퀘스트 완료 알림(읽기 전용, 기록 RPC가 끝난 뒤 확인)
 
   const correctResults = _results.filter(r => r.isCorrect);
   const correctCount   = correctResults.length;
@@ -2326,6 +2329,9 @@ function showResultView() {
       <span class="ms-result-quiz-chip-time">${r.speedSec.toFixed(1)}s</span>
     </li>
   `).join('');
+  // 칩 너비(px) = 그 레벨 풀에서 가장 긴 코드 이름 기준 하드코딩(LEVEL_CONFIGS.chipW, 이름 폭 16px 기준 + 패딩 8px, 짝수 올림). 값이 없는 레벨은 CSS 기본값(G#7sus4(#9) 길이)
+  const _chipW = LEVEL_CONFIGS.find(c => c.id === _currentLevel)?.chipW;
+  if (_chipW) row.style.setProperty('--quiz-chip-w', _chipW + 'px');
   // 데스크탑 마우스 드래그 스크롤은 데일리미션 _msInitRowMouseDrag(가로 전용, momentum 포함)
   // 이식이 필요한데 이 페이지엔 아직 없음 — 터치 스크롤은 정상 동작, 데스크탑 드래그는 후속 작업
 

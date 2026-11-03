@@ -28,7 +28,8 @@
 
   // ── 1. 정적 보이싱 (CHORD_STATIC) ──────────────────────────
   // 형식: [ frets문자열, names배열, fingers문자열, quality, fretNumber? ]
-  const STATIC = window.CHORD_STATIC || [];
+  // 잘 안 쓰는 정적 보이싱(CHORD_STATIC_RARE)도 코드 인식에는 포함
+  const STATIC = (window.CHORD_STATIC || []).concat(window.CHORD_STATIC_RARE || []);
   STATIC.forEach(([fretsStr, names]) => {
     chordSuggester.addVoicing(fretsStr, names);
   });

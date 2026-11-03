@@ -2172,6 +2172,7 @@ function _chordImgSrc(chord, pxW) {
     const cv = document.createElement('canvas');
     VoicingCanvas.draw(cv, voicing, {
       chordName: chord.name, fingerNumMode: chord.fingerNumMode, ratio: pxW / VoicingCanvas.BASE_W,
+      bigFretLabel: true,
     });
     src = cv.toDataURL('image/png');
     _chordImgCache.set(key, src);
@@ -4352,6 +4353,7 @@ function _drawLibCanvas(canvas, ratio, entry, nameOverride = '') {
     barreRange: entry.barreRanges?.[0] ?? entry.barreRange ?? null,
     fretNumber: entry.fretNumber,
     patternR:   entry.patternR, // ★ 누락 시 fretNumber로 폴백 → r+1 시작 패턴이 한 칸 밀림
+    slotFret:   entry.slotFret, // 2번째 칸 규칙(근음이 2번째 칸)
     source:     entry.source,   // ★ 누락 시 모듈이 static 취급 → offset/라벨 어긋남
     fingering:  entry.fingerings?.[0] ?? entry.fingering,
   }, {
@@ -4588,7 +4590,8 @@ function libEntryToChord(entry) {
   const dispName   = useFlat ? entry.flatName : entry.name;
   // 에디터 "슬롯2 = fretNumber" 모델 — pattern: 라벨 r+1/offset r-1, static: 라벨 r/offset r-2 (라벨 최소 2)
   // (static 공식 하드코딩 시 pattern 보이싱 dot이 에디터에서 우측 1칸 밀림 — importLibChordToProject와 동일 공식)
-  const _saveFretNum = Math.max(2, entry.source === 'pattern' ? entry.fretNumber + 1 : entry.fretNumber);
+  // 2번째 칸 규칙(근음이 2번째 칸)을 지키는 라벨 프렛 — chords-library.js entryLabelFret
+  const _saveFretNum = window.entryLabelFret(entry);
   const fretOffset = _saveFretNum - 2;
   const activeFingering = entry.fingerings?.[0] ?? entry.fingering;
 
@@ -4630,6 +4633,8 @@ function libEntryToChord(entry) {
       barre:      entry.barres?.[0] ?? entry.barre ?? {},
       barreRange: entry.barreRanges?.[0] ?? entry.barreRange ?? null,
       fretNumber: entry.fretNumber,
+      patternR:   entry.patternR,
+      slotFret:   entry.slotFret,
       source:     entry.source,
       fingering:  _libFingerMode ? (entry.fingerings?.[0] ?? entry.fingering) : null,
     },

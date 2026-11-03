@@ -6962,7 +6962,7 @@ canvas {
 #chord-quiz-page .ms-result-quiz-row > .ms-result-quiz-chip:last-child  { margin-right: auto; }
 .ms-result-quiz-chip {
   flex-shrink: 0;
-  width: 64px;
+  width: var(--quiz-chip-w, 104px); /* 레벨별 가장 긴 코드 이름 기준 px — chord-name-quiz.js LEVEL_CONFIGS.chipW. 기본 104px = 향후 "G#7sus4(#9)". 레벨 풀에 더 긴 코드가 생기면 그 레벨 값도 올릴 것 */
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -6972,6 +6972,8 @@ canvas {
   background: var(--gray-light);
   box-sizing: border-box;
 }
+.ms-result-quiz-chip--correct { background: var(--pastel-green); }
+.ms-result-quiz-chip--wrong   { background: var(--pastel-red); }
 .ms-result-quiz-chip-num {
   font-size: var(--font-body-sm);
   font-weight: 600;
@@ -6980,14 +6982,17 @@ canvas {
 .ms-result-quiz-chip-mark {
   font-size: var(--font-title-sm);
   font-weight: 800;
+  color: var(--brand);
 }
 .ms-result-quiz-chip-name {
+  margin-top: var(--space-2); /* O/X와 코드 이름 사이 간격(gap 2px + 8px) */
   font-size: var(--font-label-lg);
   font-weight: 700;
-  color: var(--text-primary);
 }
+.ms-result-quiz-chip--correct .ms-result-quiz-chip-name { color: #1E6B45; } /* 진한 정답 초록 — 연한 초록 배경 위 대비 확보 */
+.ms-result-quiz-chip--wrong   .ms-result-quiz-chip-name { color: #A8322D; } /* 진한 오답 빨강 — 연한 빨강 배경 위 대비 확보 */
 .ms-result-quiz-chip-time {
-  font-size: var(--font-body-sm);
+  font-size: 12px;
   font-weight: 600;
   color: var(--text-secondary);
 }
@@ -8384,6 +8389,36 @@ body.onboarding-page .plan-sheet-inner { gap: 16px; }
   min-width: 32px;
   text-align: center;
 }
+/* 코드 사전: 운지 넘김 화살표는 다이어그램 카드(.lib-canvas-row) 좌우 바깥에, 세로 가운데로. 자리를 차지하지 않아(absolute) 생겨도 아무것도 움직이지 않는다.
+   화살표 모양(상자 가운데 6px)은 카드 테두리에서 약 21px 떨어진다. 가로 모드 우측 열의 좌우 패딩은 최소 16px라 좁은 폭에선 바깥 끝이 잘릴 수 있음(2026-11 사용자 확인: 문제 없음).
+   터치 영역은 ::before로 44px. 표시용 "1 / 2"는 이 배치에선 숨김 */
+.lib-canvas-row .lib-fingering-nav {
+  position: absolute;
+  top: 50%;
+  left: -37px;
+  right: -37px;
+  height: 24px;
+  transform: translateY(-50%);   /* margin-top은 #view-library 규칙이 0으로 덮으므로 transform으로 */
+  display: flex;
+  justify-content: space-between;
+  pointer-events: none;
+}
+.lib-canvas-row .lib-fingering-btn {
+  position: relative;
+  width: 24px;
+  height: 24px;
+  border: none;
+  background: none;
+  pointer-events: auto;
+}
+.lib-canvas-row .lib-fingering-btn:hover { background: none; }
+.lib-canvas-row .lib-fingering-btn::before {
+  content: '';
+  position: absolute;
+  inset: -10px;
+}
+.lib-canvas-row .lib-fingering-btn svg { width: 24px; height: 24px; }
+.lib-canvas-row .lib-fingering-label { display: none; }
 
 /* 검??결과 모달 ??lib-action-bar + lib-bottom ?�로 ?�라?�드 ??*/
 .lib-search-modal {
@@ -22896,8 +22931,12 @@ body.note-edit-page.embed .view {
   top: env(safe-area-inset-top, 0px);
 }
 
-/* 디버그 칩(🐞) 임시 숨김 — 노트 스플릿 디자인 작업 중. 다시 보려면 이 규칙만 삭제(칩 생성 코드는 shared.js 그대로) */
-#ms-dbg-chip, #ms-dbg-panel { display: none !important; }
+/* 디버그 칩(🐞) 임시 숨김 — 노트 스플릿 디자인 작업 중. 홈 화면(퀘스트 모달이 있는 페이지)에서만 보이고,
+   다른 페이지와 노트 스플릿 상태(.tab-notes-split)에서는 계속 숨김. 완전히 다시 보려면 이 규칙만 삭제(칩 생성 코드는 shared.js 그대로) */
+body:not(:has(#quest-modal-overlay)) #ms-dbg-chip,
+body:not(:has(#quest-modal-overlay)) #ms-dbg-panel,
+body:has(.app-shell.tab-notes-split) #ms-dbg-chip,
+body:has(.app-shell.tab-notes-split) #ms-dbg-panel { display: none !important; }
 
 /* ── 노트 스플릿: 좌측 목록 헤더 / 우측 악보 헤더 높이 통일 (64px) ──
    두 헤더는 서로 다른 문서(home.html / iframe의 user_project.html)라 변수를 양쪽에 같은 값으로 둔다 — 바꿀 땐 두 곳 같이.
@@ -24911,3 +24950,58 @@ html[lang="en"] .combo-v2-sort-sub { display: none; }
 .lec-pbar-mark svg { display: block; width: 100%; height: 100%; fill: var(--brand); animation: lecPbarBob 1.6s ease-in-out infinite; }
 @keyframes lecPbarBob { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-2px); } }
 @media (prefers-reduced-motion: reduce) { .lec-pbar-mark svg { animation: none; } }
+
+/* ── 퀘스트 완료 알림 카드 (shared.js showQuestToast) ──
+   우상단(탑바 높이에서 안전영역 + 8px 아래부터 — 탑바 위를 덮음), 오른쪽에서 슬라이드. 노란 테두리(--icon-yellow) + 회색(--gray-light) 반투명 바탕 + 약한 블러.
+   블러를 못 쓰는 웹뷰는 불투명도 높은 회색으로 대체 */
+.quest-toast {
+  position: fixed;
+  top: calc(env(safe-area-inset-top, 0px) + var(--space-2));
+  right: var(--grid-margin);
+  /* 글자에 맞춰 늘어나되 200px 이상 280px(또는 화면폭 − 좌우 여백) 이하 — 넘치면 이름+내용 줄만 줄바꿈 */
+  width: max-content;
+  min-width: 200px;
+  max-width: min(calc(100vw - 2 * var(--grid-margin)), 280px);
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-3);
+  border: 2px solid var(--icon-yellow);
+  border-radius: var(--space-2); /* 카드 표준(16)은 높이 50px대의 작은 카드에 커서 8px */
+  background: rgba(236, 236, 234, 0.94);
+  box-shadow: var(--cd-card-shadow);
+  z-index: 100100;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  transform: translateX(calc(100% + var(--grid-margin) + var(--space-2)));
+  opacity: 0;
+  transition: transform 0.45s cubic-bezier(0.22, 1, 0.36, 1), opacity 0.3s ease;
+}
+@supports ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+  .quest-toast {
+    background: rgba(236, 236, 234, 0.72);
+    -webkit-backdrop-filter: blur(6px);
+    backdrop-filter: blur(6px);
+  }
+}
+.quest-toast--in { transform: none; opacity: 1; }
+.quest-toast-icon { flex: none; width: 28px; height: 28px; object-fit: contain; }
+.quest-toast-text { min-width: 0; display: flex; flex-direction: column; gap: var(--space-1); }
+/* 중요 정보가 아니라 전 구간 고정 크기: 제목 14 / 이름+내용 12 */
+.quest-toast-title { font: var(--type-title-sm); font-size: 14px; letter-spacing: var(--tracking-base); color: #E09400; }
+.quest-toast-desc { font: var(--type-body-sm); font-size: 12px; letter-spacing: var(--tracking-base); color: var(--text-primary); }
+.quest-toast-name { font-weight: 600; }
+@media (prefers-reduced-motion: reduce) { .quest-toast { transition: opacity 0.2s ease; transform: none; } }
+
+/* 푸시 딥링크로 도착한 페이지의 로드 덮개 — 온보딩 스플래시와 같은 흰 화면 + 로고 + 이름(shared.js _deeplinkCoverLogo가 마크업을 채움).
+   기본 덮개의 늦게 뜨는 스피너(::after)는 끈다 */
+#page-cover.page-cover--logo {
+  background: #fff;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+}
+#page-cover.page-cover--logo::after { display: none; }

@@ -77,9 +77,15 @@
     const baseFret  = !voicing ? 0
                     : (isPattern ? (voicing.patternR ?? voicing.fretNumber ?? 0)
                                  : (voicing.fretNumber ?? 0));
+    // 2번째 칸 규칙: 근음(슬래시는 베이스 음)이 있는 프렛이 2번째 칸에 오도록 한다(불가능하면 null → 아래 예전 계산).
+    //  voicing.slotFret(사전 항목이 미리 계산)이 있으면 그것을, 없으면(저장된 노트 코드 등) 코드명으로 계산.
+    const slotFret = !voicing ? null
+                   : (voicing.slotFret !== undefined ? voicing.slotFret
+                      : (chordName && typeof global.slotFretFor === 'function' ? global.slotFretFor(voicing.frets, chordName) : null));
+    const useSlot  = slotFret != null;
     // 슬롯2에 표기되는 프렛 번호 (pattern: max(2, r+1) / static: r)
-    const labelFret = isPattern ? Math.max(2, baseFret + 1) : baseFret;
-    const showLabel = isPattern ? true : (baseFret >= 2);
+    const labelFret = useSlot ? slotFret : (isPattern ? Math.max(2, baseFret + 1) : baseFret);
+    const showLabel = useSlot ? true : (isPattern ? true : (baseFret >= 2));
 
     // 너트 — 슬롯1이 1프렛일 때(=슬롯2 표기가 2)만 두꺼운 선 표시
     const nutW  = Math.max(1, Math.round(9 * sc));
@@ -112,9 +118,10 @@
     //  pattern: max(0, r-1) → 라벨 max(2,r+1)이 항상 슬롯2에 오도록 정렬
     //           r=0(오픈 보이싱)일 때 r-1=-1이면 dot가 우측 1칸 밀려 라벨과 어긋남 → 0으로 clamp
     //  static : r>=2 → r-2 (입력 그대로 — dot/프렛번호 직접 지정), 그 외 0
-    const offset = isPattern
-      ? Math.max(0, baseFret - 1)
-      : (baseFret >= 2 ? baseFret - 2 : 0);
+    const offset = useSlot ? slotFret - 2
+      : (isPattern
+          ? Math.max(0, baseFret - 1)
+          : (baseFret >= 2 ? baseFret - 2 : 0));
     const frets      = offset ? rawFrets.map(f => f === null ? null : (f === 0 ? 0 : f - offset)) : rawFrets;
     const rawBarre   = voicing.barre || {};
     const barre      = offset
@@ -216,11 +223,14 @@
     //  static : 입력 그대로 — r>=2일 때만 r 표시
     if (showLabel) {
       c.save();
-      c.font         = `500 ${Math.round(28 * sc)}px "Pretendard", sans-serif`;
+      // bigFretLabel: 노트 슬롯처럼 66px 안팎으로 줄어 표시되는 곳용 — 글자 52(→약 8px), 아래 여백 80 안에 들어오도록 위로 당김
+      const lblSize = opts.bigFretLabel === true ? 52 : 28;
+      const lblGap  = opts.bigFretLabel === true ? 20 : 28;
+      c.font         = `500 ${Math.round(lblSize * sc)}px "Pretendard", sans-serif`;
       c.fillStyle    = '#666';
       c.textAlign    = 'center';
       c.textBaseline = 'top';
-      c.fillText(String(labelFret), tl + 1.5 * fw, tb + Math.round(28 * sc));
+      c.fillText(String(labelFret), tl + 1.5 * fw, tb + Math.round(lblGap * sc));
       c.restore();
     }
 

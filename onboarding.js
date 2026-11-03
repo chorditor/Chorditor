@@ -9,7 +9,10 @@
 // 아직 안 지났으면 오늘의 미션·출석 통합 페이지(attendance.html)로 먼저 보냄 — 그 페이지가 열릴 때 통과 시각을 기록.
 function goToHome() {
   _markSessionAlive();
-  const target = _consumePushTarget() || 'home.html';
+  const pushTarget = _consumePushTarget();
+  const target = pushTarget || 'home.html';
+  // 푸시 딥링크 도착 페이지의 로드 덮개에도 로고를 입히도록 표시(shared.js _deeplinkCoverLogo가 한 번 소비)
+  if (pushTarget) { try { sessionStorage.setItem(DEEPLINK_BOOT_KEY, '1'); } catch (_) {} }
   if (target === 'home.html') {
     const today = new Date().toISOString().slice(0, 10);
     if (localStorage.getItem('chorditor_dm_cleared_date') !== today) {
@@ -736,6 +739,20 @@ async function _restoreServerData() {
   ]);
 }
 
+// 푸시 딥링크 콜드 스타트 — 목적지 페이지가 열린 뒤 값이 바뀌어 보이지 않도록 플랜·피크를 스플래시(흰 화면 + 로고) 동안 확정한다.
+//  플랜: localStorage(chorditor_plan)에 반영 → 목적지가 첫 렌더부터 읽음 / 피크: 스냅샷을 sessionStorage로 넘김(shared.js peakPreloadSave).
+//  최대 5초만 기다린다(느린 망이어도 화면이 영영 안 열리는 일은 없게) — 못 받은 값은 예전처럼 목적지에서 늦게 갱신됨.
+async function _preloadForDeepLink() {
+  const { token } = getStoredAuth();
+  const jobs = [];
+  if (token && typeof fetchPlanWithToken === 'function') jobs.push(fetchPlanWithToken(token));
+  if (typeof peakPreloadSave === 'function') jobs.push(peakPreloadSave());
+  await Promise.race([
+    Promise.all(jobs.map(p => Promise.resolve(p).catch(() => {}))),
+    new Promise(r => setTimeout(r, 5000)),
+  ]);
+}
+
 // ── 인증된 유저 라우팅 (persona 유무 분기) ───────────────────
 //  persona 있음 → '시작하기' welcome 표시 (클릭 시 home)
 //  persona 없음 → 바로 persona step 진입 (_obFlow='existing')
@@ -765,6 +782,7 @@ async function _routeAuthedUser() {
   // (공유는 home.js가 pending code를 이어서 처리, 푸시는 goToHome이 목적지로 보냄)
   // 이 지름길은 로그인 + 온보딩 완료 유저 전용. 비로그인은 로그인 화면으로 보낸다.
   if (token && userId && (sessionStorage.getItem(PENDING_SHARE_CODE_KEY) || _hasPushTarget())) {
+    if (_hasPushTarget()) await _preloadForDeepLink();   // 푸시 딥링크: 스플래시 동안 플랜·피크 확정
     goToHome(); return;
   }
   // 네이티브 앱: 로그인 세션이 살아 있고 온보딩도 끝난 유저는 "시작하기" 없이 바로 진입

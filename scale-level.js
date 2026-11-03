@@ -5264,6 +5264,7 @@ function _recordScaleSubmit() {
   syncTrainingStatsToDB(); // 즉시 DB 반영 (fire-and-forget)
 
   if (typeof addXp === 'function') addXp(BEHAVE_XP.scale); // 행동형 XP: 스케일 세션 완료 (사일런트)
+  if (typeof questToastCheck === 'function') questToastCheck('scale'); // 퀘스트 완료 알림(읽기 전용, 기록 RPC가 끝난 뒤 확인)
 }
 
 /** 페이지 이탈 시 훈련 시간 누적 (문제 미완료여도 기록) */

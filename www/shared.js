@@ -1301,7 +1301,30 @@ function _rollAttendanceReward() {
   }
   return 10;
 }
-let _peakState = { balance: PEAK_CAP, peakbox_count: 0, loaded: false };
+// 푸시 딥링크 콜드 스타트: 온보딩(스플래시)에서 피크 잔액을 미리 받아 sessionStorage에 넘겨 두면(peakPreloadSave),
+// 목적지 페이지가 첫 렌더부터 실제 값으로 시작한다 — 기본값(PEAK_CAP)으로 그렸다가 응답 후 바뀌어 보이는 것을 막는다.
+// 한 번만 쓰고(읽자마자 삭제), 같은 계정이고 60초 안에 받은 값일 때만 인정. 이후 refreshPeakState()가 평소처럼 최신값으로 맞춘다.
+const PEAK_PRELOAD_KEY = '_peak_preload';
+function _peakPreloadTake() {
+  try {
+    const raw = sessionStorage.getItem(PEAK_PRELOAD_KEY);
+    if (!raw) return null;
+    sessionStorage.removeItem(PEAK_PRELOAD_KEY);
+    const o = JSON.parse(raw), uid = JSON.parse(localStorage.getItem(SUPABASE_STORAGE_KEY))?.user?.id;
+    if (!uid || o.uid !== uid || Date.now() - o.t > 60000 || typeof o.balance !== 'number') return null;
+    return { balance: o.balance, peakbox_count: o.peakbox_count || 0, loaded: true };
+  } catch (_) { return null; }
+}
+let _peakState = _peakPreloadTake() || { balance: PEAK_CAP, peakbox_count: 0, loaded: false };
+// 피크 잔액을 서버에서 받아 다음 페이지용 스냅샷으로 저장(화면 렌더·환급 전송 같은 부수 효과 없음)
+async function peakPreloadSave() {
+  try {
+    const uid = JSON.parse(localStorage.getItem(SUPABASE_STORAGE_KEY))?.user?.id;
+    const r = uid && await _peakRpc('get_peak_state');
+    if (!r) return;
+    sessionStorage.setItem(PEAK_PRELOAD_KEY, JSON.stringify({ uid, balance: r.balance, peakbox_count: r.peakbox_count, t: Date.now() }));
+  } catch (_) {}
+}
 
 function _peakAuth() {
   try {
@@ -1519,6 +1542,7 @@ function _sharedInitDebugChip() {
   panel.innerHTML =
     `<button data-action="peak-add" id="ms-dbg-peak-add">피크 +3</button>` +
     `<button data-action="peak-fill">피크 가득 채우기 (${PEAK_CAP})</button>` +
+    `<button data-action="quest-toast">퀘스트 알림 미리보기</button>` +
     (admin
       ? `<button data-action="reset-mission">↺ 데일리미션 초기화</button>` +
         `<button data-action="reset-promo">↺ 승급 도전 횟수 초기화</button>` +
@@ -1627,6 +1651,11 @@ function _sharedInitDebugChip() {
       }
       const addBtn = document.getElementById('ms-dbg-peak-add');
       if (addBtn) addBtn.textContent = `피크 +3 (현재 ${_peakState.balance}/${PEAK_CAP})`;
+      return;
+    }
+    if (action === 'quest-toast') { // 디자인 시안 — 서버·카운터와 무관, 누구나 사용 가능
+      closePanel();
+      showQuestToast({ name: '코드 맞추기', desc: '누적 5회 완료' });
       return;
     }
     closePanel();
@@ -1760,6 +1789,8 @@ document.addEventListener('DOMContentLoaded', () => {
   ['tap.mp3', 'reward.mp3', 'peakbox_open.mp3', 'stamp.mp3', 'page.mp3', 'pop.mp3', 'cancel.mp3', 'attendance.mp3'].forEach(_preloadSfx);
   // 퀘스트 목록 프리렌더 — 모달 열기 전에 미리 채워둠 (첫 오픈 즉시 표시)
   if (document.getElementById('quest-modal-body')) renderQuestList();
+  // 퀘스트 완료 알림 기준선(이미 수령 가능한 퀘스트를 "알림 완료"로) — 홈에서 한 번, 목록 프리렌더와 겹치지 않게 늦춰서
+  if (document.getElementById('quest-modal-body')) setTimeout(() => { if (typeof questToastSeed === 'function') questToastSeed(); }, 3000);
 });
 
 // 피크 아이콘 터치 → 완전충전까지 남은시간 라운드박스 팝업 (아이콘 바로 아래)
@@ -5279,6 +5310,199 @@ function closeQuestModal() {
   if (overlay) overlay.classList.remove('quest-modal-overlay--show');
 }
 
+// ── 퀘스트 완료 알림 카드 (우상단, 오른쪽에서 슬라이드) ─────────────────────
+// 읽기 전용 표시 컴포넌트: 카운터·수령 RPC는 건드리지 않는다. 탭하면 홈 퀘스트 창을 연다(홈이 아니면 home.html?quest=1로 이동).
+// 호출: 훈련이 끝난 곳에서 questToastCheck(그룹) — 아래 "퀘스트 완료 알림: 감지". _dev 디버그 칩 메뉴에서는 샘플 카드를 직접 띄운다.
+const QUEST_TOAST_MS = 4500;
+let _questToastEl = null, _questToastTimer = null;
+
+function hideQuestToast(immediate) {
+  clearTimeout(_questToastTimer);
+  const el = _questToastEl;
+  if (!el) return;
+  _questToastEl = null;
+  if (immediate) { el.remove(); return; }
+  el.classList.remove('quest-toast--in');
+  setTimeout(() => el.remove(), 500);
+}
+
+// info: { name: '코드 맞추기', desc: '누적 5회 완료' }
+// opts.noNav: true면 탭해도 이동하지 않고 카드만 닫는다(코드반주 재생 중 — 재생을 끊지 않기 위해)
+function showQuestToast(info, opts) {
+  hideQuestToast(true);
+  const el = document.createElement('div');
+  el.className = 'quest-toast';
+  el.setAttribute('role', 'status');
+  el.innerHTML =
+    `<img class="quest-toast-icon" src="image/badge.png" alt="">` +
+    `<div class="quest-toast-text">` +
+      `<div class="quest-toast-title">퀘스트 완료!</div>` +
+      `<div class="quest-toast-desc"><b class="quest-toast-name"></b> <span class="quest-toast-detail"></span></div>` +
+    `</div>`;
+  el.querySelector('.quest-toast-name').textContent = info?.name || '';
+  el.querySelector('.quest-toast-detail').textContent = info?.desc || '';
+  el.addEventListener('click', () => {
+    hideQuestToast();
+    if (opts && opts.noNav) return;
+    if (document.getElementById('quest-modal-overlay')) openQuestModal();   // 홈: 바로 퀘스트 창
+    else location.href = 'home.html?quest=1';                              // 그 외: 홈으로 가서 퀘스트 창 열기(home.js)
+  });
+  document.body.appendChild(el);
+  _questToastEl = el;
+  requestAnimationFrame(() => requestAnimationFrame(() => el.classList.add('quest-toast--in')));
+  _questToastTimer = setTimeout(() => hideQuestToast(), QUEST_TOAST_MS);
+}
+
+// ── 퀘스트 완료 알림: 감지 ────────────────────────────────────────────────
+// 원칙: 읽기 전용. 카운터를 올리거나 수령 RPC를 부르지 않는다 — 수령·카운트는 기존 경로 그대로 서버가 책임진다.
+// 흐름: 훈련 종료 지점이 questToastCheck(그룹)을 부른다 → ① 진행 중인 서버 기록(RPC)이 잠잠해질 때까지 기다림
+//       ② 그 그룹의 퀘스트 서버 값을 읽음 ③ "지금 수령 가능한데 아직 안 알린 것"만 카드로 띄움.
+// 중복 방지 = (퀘스트+티어) 키를 계정별로 localStorage에 저장(로그아웃 시 _wipeAccountLocalData가 같이 지움).
+// 놓쳐도 보상은 안 잃는다 — 홈의 빨간 점과 퀘스트 창 "수령 가능" 목록이 안전망.
+
+// _peakRpc에 "진행 중 호출 수 / 마지막 종료 시각 / 실패 수" 계측만 덧씌운다(반환값·예외는 그대로).
+// 실패 수는 로더가 서버 실패 시 기기 값으로 대신 계산하는 경우를 걸러내는 데 쓴다.
+let _qtPending = 0, _qtFail = 0, _qtLastEnd = 0;
+{
+  const _rawPeakRpc = _peakRpc;
+  _peakRpc = function (...args) {
+    _qtPending++;
+    let p;
+    try { p = _rawPeakRpc.apply(this, args); } catch (e) { _qtPending--; throw e; }
+    return Promise.resolve(p).then(
+      r => { if (r == null) _qtFail++; return r; },
+      e => { _qtFail++; throw e; }
+    ).finally(() => { _qtPending--; _qtLastEnd = Date.now(); });
+  };
+}
+
+const QT_STORE_PREFIX = 'quest_toast_notified:';
+// 훈련 종류 → 확인할 퀘스트 id (훈련시간 't'는 모든 훈련에 포함)
+const QT_GROUPS = {
+  quiz:        ['qz', 'ql', 'pf', 'cg', 't'],
+  scale:       ['sc', 'sl', 'sb', 'spf', 't'],
+  progression: ['pg', 'rq', 't'],
+  combo:       ['cq'],
+};
+const QT_ALL = ['a', 'i', 'nc', 'ns', 't', 'iv', 'qz', 'ql', 'pf', 'cg', 'sc', 'sl', 'sb', 'spf', 'pg', 'rq', 'cq'];
+
+function _qtUid() {
+  try { return JSON.parse(localStorage.getItem(SUPABASE_STORAGE_KEY))?.user?.id || null; } catch (_) { return null; }
+}
+function _qtLoad(uid) {   // 저장된 적이 없으면 null(=기준선 필요)
+  try {
+    const raw = localStorage.getItem(QT_STORE_PREFIX + uid);
+    return raw === null ? null : new Set(JSON.parse(raw));
+  } catch (_) { return null; }
+}
+function _qtSave(uid, set) {
+  try { localStorage.setItem(QT_STORE_PREFIX + uid, JSON.stringify([...set].slice(-500))); } catch (_) {}
+}
+const _qtSleep = ms => new Promise(r => setTimeout(r, ms));
+// 진행 중인 RPC가 0개이고 마지막 종료 후 400ms가 지날 때까지(최대 8초). 훈련 종료 때 날아가는 기록 RPC가 반영된 뒤에 읽기 위함
+async function _qtWaitIdle() {
+  const t0 = Date.now();
+  for (;;) {
+    if (_qtPending === 0 && Date.now() - _qtLastEnd >= 400) return true;
+    if (Date.now() - t0 > 8000) return false;
+    await _qtSleep(150);
+  }
+}
+
+// 수령 가능한 항목만 [{ key, name, desc }]로. 누적형은 total >= next_day, 반복형은 earned > claimed.
+function _qtTier(id, name, desc, q) {
+  return _isClaimable(q.total, q.next_day) ? [{ key: id + ':' + q.next_day, name, desc }] : [];
+}
+const _QT_LOADERS = {
+  a:  async () => { const q = await loadAttendanceQuest(); return _qtTier('a', '누적 출석', q.next_day + '일 누적 출석', q); },
+  i:  async () => { const q = await loadImageQuest();      return _qtTier('i', '코드 이미지 저장', q.next_day + '개 저장', q); },
+  nc: async () => { const q = await loadNoteQuest('create'); return _qtTier('nc', '노트 생성', q.next_day + '개 생성', q); },
+  ns: async () => { const q = await loadNoteQuest('share');  return _qtTier('ns', '노트 공유', q.next_day + '회 공유', q); },
+  t:  async () => { const q = await loadTimeQuest();       return _qtTier('t', '누적 훈련시간', _fmtTimeGoal(q.next_day) + ' 훈련', q); },
+  iv: async () => { const q = await loadInviteQuest();     return _qtTier('iv', '친구 초대', q.next_day + '명 초대 성공', q); },
+  qz: async () => { const q = await loadQuizQuest();       return _qtTier('qz', '코드 맞추기', '누적 ' + q.next_day + '회 완료', q); },
+  ql: async () => {
+    const q = await loadQuizLevelQuest();
+    return (q.next_level && q.done >= 1) ? [{ key: 'ql:' + q.next_level, name: '코드 맞추기 레벨', desc: '레벨' + q.next_level + ' 첫 완료' }] : [];
+  },
+  pf: async () => (await loadPerfectQuest()).filter(q => q.earned > q.claimed).map(q => ({
+    key: 'pf:' + q.level + ':' + q.claimed, name: QUIZ_LEVEL_NAMES[q.level] || ('레벨 ' + q.level), desc: '퍼펙트 정답 3회' })),
+  cg: async () => (await loadChallengeQuest()).filter(q => q.earned > q.claimed).map(q => ({
+    key: 'cg:' + q.ch + ':' + q.claimed, name: (CHALLENGE_LIST.find(c => c.ch === q.ch) || {}).name || q.ch, desc: '퍼펙트 정답 3회' })),
+  sc: async () => { const q = await loadScaleQuest();      return _qtTier('sc', '스케일 훈련', '누적 ' + q.next_day + '회 완료', q); },
+  sl: async () => {
+    const q = await loadScaleLevelQuest();
+    return (q.next_level && q.done) ? [{ key: 'sl:' + q.next_level, name: '스케일 레벨', desc: '레벨' + scaleLevelDisplayNo(q.next_level) + ' 첫 완료' }] : [];
+  },
+  sb: async () => ((await loadScaleBonusQuest()) || []).filter(q => !q.claimed && q.done).map(q => ({
+    key: 'sb:' + q.level, name: '스케일 레벨', desc: '레벨' + scaleLevelDisplayNo(q.level) + ' 첫 완료' })),
+  spf: async () => (await loadScalePerfectQuest()).filter(q => q.earned > q.claimed).map(q => ({
+    key: 'spf:' + q.level + ':' + q.claimed, name: SCALE_LEVEL_NAMES[q.level] || ('레벨 ' + q.level), desc: '퍼펙트 정답 3회' })),
+  pg: async () => { const q = await loadProgressionQuest(); return _qtTier('pg', '코드반주', '누적 ' + q.next_day + '회 연주', q); },
+  rq: async () => { const q = await loadRampQuest();        return _qtTier('rq', '점진 가속', '목표 BPM 도달 ' + q.next_day + '회', q); },
+  cq: async () => {
+    const q = await loadComboQuests(), out = [];
+    [['lecture', 'lec', '미니강의 수강 완료'], ['key', 'key', '종합 레벨 클리어']].forEach(k => {
+      const map = q[k[1]] || {};
+      for (let ch = 1; ch <= COMBO_QUEST_CHAPTERS; ch++) {
+        if ((map[ch] | 0) === 1) out.push({ key: 'cq:' + k[0] + ':' + ch, name: ch + '장 ' + COMBO_CHAPTER_NAMES[ch], desc: k[2] });
+      }
+    });
+    const clears = q.clears | 0, claimed = q.clears_claimed | 0;
+    if (Math.floor(clears / COMBO_QUEST_CLEAR_EVERY) > claimed) {
+      out.push({ key: 'cq:clear:' + claimed, name: '리하모니 화성학', desc: '레벨 클리어 ' + COMBO_QUEST_CLEAR_EVERY + '회' });
+    }
+    return out;
+  },
+};
+async function _qtCollect(ids) {
+  const lists = await Promise.all(ids.map(id => (_QT_LOADERS[id] || (async () => []))()));
+  return lists.flat();
+}
+
+// 기준선: 이미 수령 가능한 퀘스트는 "알림 완료"로 시드 → 업데이트 직후 한꺼번에 뜨지 않는다. 서버 호출이 하나라도 실패하면 만들지 않는다(기기 값이 섞였을 수 있음).
+let _qtRunning = false, _qtQueued = null;
+async function _qtSeed(uid) {
+  const failBefore = _qtFail;
+  const items = await _qtCollect(QT_ALL);
+  if (_qtFail !== failBefore) return;
+  _qtSave(uid, new Set(items.map(it => it.key)));
+}
+async function questToastSeed() {   // 홈 진입 시 한 번(저장된 기준선이 있으면 아무것도 안 함)
+  const uid = _qtUid();
+  if (!uid || !_peakAuth() || isTutorialSandbox() || _qtRunning || _qtLoad(uid) !== null) return;
+  _qtRunning = true;
+  try { if (await _qtWaitIdle()) await _qtSeed(uid); } catch (_) {} finally { _qtRunning = false; }
+}
+
+// group: 'quiz' | 'scale' | 'progression' | 'combo'. opts는 showQuestToast로 그대로 전달.
+async function questToastCheck(group, opts) {
+  if (isTutorialSandbox() || !_peakAuth()) return;
+  const uid = _qtUid();
+  if (!uid) return;
+  if (_qtRunning) { (_qtQueued = _qtQueued || new Map()).set(group, opts); return; }   // 동시 실행 금지 — 끝난 뒤 한 번 더
+  _qtRunning = true;
+  try {
+    await _qtSleep(600);                       // 기록 RPC가 막 출발할 시간
+    if (!(await _qtWaitIdle())) return;
+    const known = _qtLoad(uid);
+    if (known === null) { await _qtSeed(uid); return; }   // 기준선이 없으면 이번엔 기준선만 만들고 끝
+    const failBefore = _qtFail;
+    const items = await _qtCollect(QT_GROUPS[group] || []);
+    if (_qtFail !== failBefore) return;        // 서버 호출 실패 → 기기 값으로 계산된 결과일 수 있으니 버림
+    const fresh = items.filter(it => !known.has(it.key));
+    if (!fresh.length || _qtUid() !== uid) return;
+    fresh.forEach(it => known.add(it.key));    // 띄우는 시점에 기록
+    _qtSave(uid, known);
+    showQuestToast(fresh.length === 1 ? { name: fresh[0].name, desc: fresh[0].desc }
+                                      : { name: '퀘스트 ' + fresh.length + '개', desc: '완료' }, opts);
+  } catch (_) {
+  } finally {
+    _qtRunning = false;
+    if (_qtQueued) { const q = _qtQueued; _qtQueued = null; q.forEach((o, g) => questToastCheck(g, o)); }
+  }
+}
+
 // ── 경험치 획득 안내 (행동형 레퍼런스표, 프로필 XP바 클릭) ──
 // 값은 BEHAVE_XP 단일 소스 참조 → 적립 로직과 항상 일치.
 const XP_INFO_ROWS = [
@@ -5615,6 +5839,24 @@ function _consumePushTarget() {
     return url;
   } catch (_) { return null; }
 }
+
+// 푸시 딥링크로 목적지 페이지에 도착한 경우: 온보딩 스플래시(흰 화면 + 로고)와 같은 모양을 페이지 로드 덮개(#page-cover)에도 입혀
+// 스플래시 → 페이지 사이에 로고 없는 빈 덮개가 끼어 깜빡이지 않게 한다. goToHome()이 DEEPLINK_BOOT_KEY를 세우고, 도착한 페이지가 한 번만 쓴다.
+const DEEPLINK_BOOT_KEY = '_deeplink_boot';
+(function _deeplinkCoverLogo() {
+  try {
+    if (sessionStorage.getItem(DEEPLINK_BOOT_KEY) !== '1') return;
+    sessionStorage.removeItem(DEEPLINK_BOOT_KEY);
+    const apply = () => {
+      const c = document.getElementById('page-cover');
+      if (!c) return;
+      c.classList.add('page-cover--logo');
+      c.innerHTML = '<img class="onboarding-logo-img" src="image/logo/ios/Chorditor_newlogo_1_crop.svg" alt=""><div class="onboarding-logo">CHORDITOR</div>';
+    };
+    if (document.getElementById('page-cover')) apply();
+    else document.addEventListener('DOMContentLoaded', apply, { once: true });
+  } catch (_) {}
+})();
 
 // ── 온보딩 라우트 가드 ────────────────────────────────────────
 // 정책: 기본 차단(secure by default). 아래 면제 목록에 없는 모든 페이지는

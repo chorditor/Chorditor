@@ -1953,9 +1953,9 @@ function importLibChordToEditor() {
 
   // 에디터는 "슬롯2 = fretNumber" 모델 → fretOffset = currentFretNumber - 2
   //  pattern: 라벨 r+1 → offset r-1 / static: 라벨 r → offset r-2 / 라벨 최소 2
-  const _r         = entry.fretNumber ?? 0;
-  const _isPat     = entry.source === 'pattern';
-  currentFretNumber = Math.max(2, _isPat ? _r + 1 : _r);
+  // 에디터 페이지는 chords-library.js를 안 불러서 사전이 넘긴 slotFret(2번째 칸 규칙)을 그대로 쓴다.
+  currentFretNumber = entry.slotFret != null ? entry.slotFret
+    : Math.max(2, entry.source === 'pattern' ? (entry.patternR ?? entry.fretNumber ?? 0) + 1 : (entry.fretNumber ?? 0));
   const fretOffset = currentFretNumber - 2;
 
   const activeFingering = (entry.fingerings?.[_libFingeringIdx]) ?? entry.fingerings?.[0] ?? entry.fingering;

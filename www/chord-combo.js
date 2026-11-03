@@ -3229,7 +3229,7 @@ function _comboV2ArcDash(clearAt) {
 // 해금 상태는 따로 저장하지 않고 매번 이 두 사실에서 계산한다.
 //   keyPassed(c)    챕터 c의 종합 관문 통과 = 챕터 c 또는 더 높은 챕터의 종합 레벨 클리어, 또는 c < S(더 높은 챕터로 건너뛰는 테스트 통과). 해금 전용 — done에는 아무것도 쓰지 않음
 //   chapterOpen(n)  챕터 n의 미니강의를 들을 수 있는 권한 = n = 1 또는 keyPassed(n-1). 권한만으로는 레벨이 열리지 않는다
-//   lectureDone(n)  챕터 n의 미니강의를 끝까지 봄(prog._lec에 기록) 또는 n < S(더 높은 챕터로 건너뛰는 테스트를 통과 → 그 아래 챕터 강의는 본 것으로 간주).
+//   lectureDone(n)  챕터 n의 미니강의를 '실제로' 끝까지 봄(prog._lec에 기록). 건너뛰기로 해금됐어도 본 것으로 치지 않는다 — 퀘스트("미니강의 수강 완료")가 실제 수강 기준이라 화면 상태와 맞춘다.
 //                   아직 강의가 만들어지지 않은 챕터(COMBO_V2_LECTURE_READY에 없음)는 임시로 본 것으로 간주
 //   levelOpen(c,m)  챕터 강의 권한이 있고 강의를 끝까지 봤어야 하며: 첫 레벨 = 그 즉시 / 필수 구간 = 앞 레벨 클리어 또는 keyPassed(c) / 선택 구간 첫 레벨 = keyPassed(c) / 선택 구간 나머지 = 앞 레벨 클리어
 //   latestChapter   chapterOpen이 참인 가장 높은 챕터(접속 위치·미니강의 잠금·건너뛰기 카드 공통)
@@ -3255,12 +3255,15 @@ function _comboV2LectureDone(n, prog) {
   if (Array.isArray(prog._lec) && prog._lec.indexOf(n) >= 0) return true;
   // 수강 완료(_lec)는 이 기기에만 있고 서버에 안 올라가서, 재설치·새 기기에선 레벨 진행도(서버)만 돌아오고 강의는 처음 본 것으로 남아 1-1이 잠기는 모순이 생겼다(2026-10-31).
   // 레벨은 강의를 끝낸 챕터에서만 풀 수 있으니, 그 챕터(또는 더 높은 챕터)의 레벨을 푼 기록이 있으면 강의는 들은 것으로 본다.
+  // 단, 건너뛰기를 한 계정은 더 높은 챕터 기록이 낮은 챕터 강의를 봤다는 증거가 못 되므로 그 챕터 자신의 기록만 인정한다.
+  // (건너뛰기로 해금된 낮은 챕터는 강의를 처음부터 실제로 봐야 완료 — 건너뛰기만으로 수강 완료로 치지 않음)
+  const skipped = _comboV2Skips(prog).length > 0;
   for (const k in prog) {
     if (k.charAt(0) === '_') continue;
-    if (parseInt(k, 10) >= n && (prog[k] | 0) > 0) return true;
+    const ch = parseInt(k, 10);
+    if ((skipped ? ch === n : ch >= n) && (prog[k] | 0) > 0) return true;
   }
-  const sk = _comboV2Skips(prog);
-  return sk.length > 0 && n < sk[sk.length - 1];   // 더 높은 챕터로 건너뛰는 테스트를 통과: 그 아래 챕터의 강의는 본 것으로 간주(언제든 다시 볼 수 있음)
+  return false;
 }
 function _comboV2MaxChapter(prog) {   // latestChapter
   for (let n = 9; n >= 2; n--) if (_comboV2ChapterOpen(n, prog)) return n;
@@ -3639,6 +3642,7 @@ let _comboV2Syncing = false;
 async function _comboV2SyncFlush() {
   if (_comboV2Syncing || !_comboV2SyncAuthed()) return;
   _comboV2Syncing = true;
+  let sentQuest = false;   // 이번 flush에서 퀘스트 달성 보고가 서버에 반영됐는지 — 퀘스트 완료 알림 확인용(읽기 전용)
   try {
     for (;;) {
       const q = _comboV2SyncQLoad();
@@ -3649,10 +3653,12 @@ async function _comboV2SyncFlush() {
       if (!r || !r.ok) break;   // 실패 — 대기열 유지(다음 접속·다음 기록 때 재시도)
       q.shift();
       _comboV2SyncQSave(q);
+      if (op.t === 'q') sentQuest = true;
       if (op.t !== 'q') _comboV2MergeServer(op.t === 'skip' ? { skips: r.skips } : { levels: { [op.lv]: r.done } });
     }
   } finally {
     _comboV2Syncing = false;
+    if (sentQuest && typeof questToastCheck === 'function') questToastCheck('combo');
   }
 }
 // ── 계정에 붙는 부가 진행 표시: 수강 완료 챕터(_lec) · 환영 페이지를 본 적(_welcome) (2026-10-31) ──

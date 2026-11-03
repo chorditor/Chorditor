@@ -333,6 +333,7 @@ function _countAccompaniment() {
   localStorage.setItem('training_stats', JSON.stringify(s));
   if (typeof syncTrainingStatsToDB === 'function') syncTrainingStatsToDB();
   if (typeof addXp === 'function') addXp(BEHAVE_XP.progression);   // 행동형 XP: 카운트마다 (사일런트)
+  if (typeof questToastCheck === 'function') questToastCheck('progression', { noNav: true });   // 퀘스트 완료 알림 — 재생 중이라 탭해도 이동 안 함
 }
 
 // 점진 가속 퀘스트 카운터: 점진 가속이 시작 BPM에서 올라가 목표 BPM에 닿을 때 1회(재생 한 번에 한 번, 시작 BPM = 목표 BPM이면 세지 않음)
@@ -342,6 +343,7 @@ function _countRampReached() {
   s.ramp_completed = (s.ramp_completed || 0) + 1;
   localStorage.setItem('training_stats', JSON.stringify(s));
   if (typeof syncTrainingStatsToDB === 'function') syncTrainingStatsToDB();
+  if (typeof questToastCheck === 'function') questToastCheck('progression', { noNav: true });   // 퀘스트 완료 알림 — 재생 중이라 탭해도 이동 안 함
 }
 
 // 박 단위 단일 시계 (메트로놈과 같은 구조): 박 하나를 스케줄할 때 BPM을 한 번만 읽고, 그 박 안의 스트럼 셀·드럼 step 시각을

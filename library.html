@@ -104,15 +104,16 @@
                 <i data-lucide="play"></i>
               </button>
             </div>
-          </div>
-          <div class="lib-fingering-nav" id="lib-fingering-nav" style="display:none;">
-            <button class="lib-fingering-btn" onclick="prevLibFingering()">
-              <i data-lucide="chevron-left"></i>
-            </button>
-            <span class="lib-fingering-label">1 / 2</span>
-            <button class="lib-fingering-btn" onclick="nextLibFingering()">
-              <i data-lucide="chevron-right"></i>
-            </button>
+            <!-- 운지 넘김 — 다이어그램 카드 좌우 바깥 화살표. 자리를 차지하지 않아(absolute) 생겨도 아무것도 움직이지 않는다 -->
+            <div class="lib-fingering-nav" id="lib-fingering-nav" style="visibility:hidden;">
+              <button class="lib-fingering-btn" onclick="prevLibFingering()">
+                <i data-lucide="chevron-left"></i>
+              </button>
+              <span class="lib-fingering-label">1 / 2</span>
+              <button class="lib-fingering-btn" onclick="nextLibFingering()">
+                <i data-lucide="chevron-right"></i>
+              </button>
+            </div>
           </div>
           <!-- 다이어그램·운지 넘김 버튼 아래: 이미지 저장 + 재생(가로 배치에서 library.js가 기존 버튼을 옮겨 넣음) -->
           <div class="lib-codeview-tools" id="lib-codeview-tools"></div>
