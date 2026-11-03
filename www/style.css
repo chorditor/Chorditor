@@ -13073,9 +13073,8 @@ html[lang="ko"] .training-card-name--one br { display: none; }
      좌우는 -16/+16으로 상쇄해 카드 폭 = 패널 폭, 그림자(blur 14px)가 안 잘릴 버퍼는 유지 */
   margin-inline: calc(var(--space-4) * -1);
   padding: var(--space-8) var(--space-4) var(--space-8);
-  /* 패널 경계선에서 카드가 서서히 투명해지며 사라짐(위쪽 12px 페이드). 상단 패딩(32px)보다 짧아서 첫 카드는 안 흐려짐 */
-  -webkit-mask-image: linear-gradient(to bottom, transparent 0, #000 var(--space-3));
-  mask-image: linear-gradient(to bottom, transparent 0, #000 var(--space-3));
+  /* 위쪽 12px 페이드(mask-image)는 뺌 — 스크롤 영역에 마스크를 걸면 iOS가 카드 전체를 매 프레임 오프스크린으로 다시 그려서
+     좌하단이 흰색으로 가려지고 메모리가 터짐. 카드는 패널 경계선에서 그냥 잘림(overflow) */
 }
 .level-wheel-track::-webkit-scrollbar { display: none; }
 
@@ -18028,7 +18027,7 @@ html:not([lang="ko"]) .test-note-grid {
     rgba(255,255,255,0.5) 40%,
     rgba(255,255,255,0.15) 62%,
     transparent 75%);
-  filter: blur(14px);
+  /* filter: blur는 뺌 — 그라데이션이 이미 가장자리까지 부드럽고, 전체 화면 어두운 오버레이 위 블러가 iOS 합성 메모리를 크게 먹음 */
 }
 .peak-reveal-overlay.show .peak-reveal-glow {
   animation: peak-glow-in 0.5s ease-out 0.1s forwards;

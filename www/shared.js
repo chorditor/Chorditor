@@ -862,6 +862,34 @@ let _adShowingId  = null; // 지금 화면에 떠있는 adId(우리 쪽 키)
 let _adShowSettle = null; // 현재 show() 호출의 resolve — Reward/Dismissed/FailedToShow가 채운다
 let _adListenersReady = false;
 
+// 광고 준비 상태를 앱 실행 동안 페이지 사이에서 이어받는다(sessionStorage — 앱이 종료되면 같이 사라져 네이티브 캐시와 같이 간다).
+// 이유: 페이지를 열 때마다 광고 3개를 새로 prepare하면 광고 하나당 WebContent 프로세스(약 90MB)가 생겨 쌓여서
+//   iOS에서 5분 만에 29개·3.2GB가 되었고 먹통·앱 종료로 이어짐(2026-11-03 크래시 로그). 그래서 이미 받아둔 광고는 이어받고, 막 시작한 로딩은 다시 시작하지 않는다.
+const AD_STATE_KEY = 'ad_state_v1';
+const AD_PRELOAD_GAP_MS = 25 * 1000;   // 마지막 로딩 시작 후 이 시간 안에는 다른 페이지가 다시 prepare하지 않음
+function _adStateRead() {
+  try { return JSON.parse(sessionStorage.getItem(AD_STATE_KEY)) || {}; } catch (_) { return {}; }
+}
+function _adStateWrite(st) {
+  try { sessionStorage.setItem(AD_STATE_KEY, JSON.stringify(st)); } catch (_) {}
+}
+function _adStatePersistReady() {   // 지금 페이지의 준비된 광고를 저장
+  const st = _adStateRead();
+  st.ready = {};
+  Object.keys(_adReady).forEach(id => {
+    if (_adReady[id]) st.ready[id] = { real: _adRealKey[id] || id, at: _adLoadedAt[id] || Date.now() };
+  });
+  _adStateWrite(st);
+}
+function _adStateRestoreReady() {   // 앞 페이지가 받아둔 신선한 광고를 이어받음
+  const ready = _adStateRead().ready || {};
+  Object.keys(ready).forEach(id => {
+    const r = ready[id];
+    if (!r || Date.now() - (r.at || 0) > AD_STALE_MS || _adReady[id]) return;
+    _adReady[id] = true; _adRealKey[id] = r.real || id; _adLoadedAt[id] = r.at;
+  });
+}
+
 function _adFlushWaiters(adId, ok) {
   (_adWaiters[adId] || []).forEach(fn => fn(ok));
   delete _adWaiters[adId];
@@ -888,11 +916,15 @@ function isAdFreeUser() { return getPlan() === 'pro'; }
 function _preloadAllRewardedAds() {
   if (isAdFreeUser()) return; // Pro는 광고를 쓸 일이 없으므로 트래픽·메모리 낭비 방지
   _adRegisterListeners();
-  if (MS_AD_ENABLED) {
-    _preloadOne(AD_UNIT_IDS.mission_reward);
-    _preloadOne(AD_UNIT_IDS.persona_promo_retry);
-  }
-  if (PEAK_AD_ENABLED) _preloadOne(AD_UNIT_IDS.peak_recharge);
+  const ids = [];
+  if (MS_AD_ENABLED) ids.push(AD_UNIT_IDS.mission_reward, AD_UNIT_IDS.persona_promo_retry);
+  if (PEAK_AD_ENABLED) ids.push(AD_UNIT_IDS.peak_recharge);
+  if (!ids.some(id => !_adReady[id])) return;                 // 전부 앞 페이지가 받아둠
+  const st = _adStateRead();
+  if (st.at && Date.now() - st.at < AD_PRELOAD_GAP_MS) return; // 다른 페이지가 방금 로딩을 시작함
+  st.at = Date.now();
+  _adStateWrite(st);
+  ids.forEach(_preloadOne);
 }
 
 // 전역 1회만 등록 — 여러 페이지/여러 호출에서 중복 등록되지 않도록 플래그로 막는다.
@@ -900,6 +932,7 @@ function _adRegisterListeners() {
   const AdMob = window.Capacitor?.Plugins?.AdMob;
   if (!AdMob || _adListenersReady) return;
   _adListenersReady = true;
+  _adStateRestoreReady();
 
   AdMob.addListener('onRewardedVideoAdLoaded', info => {
     // 순차 로딩이라 지금 로딩 중이던 요청은 항상 _adLoadingId 하나뿐 — 이걸로 매칭한다.
@@ -911,6 +944,7 @@ function _adRegisterListeners() {
       _adRealKey[id] = info?.adUnitId || id; // show()에서 이 실제 키로 호출해야 함
       _adReady[id] = true;
       _adLoadedAt[id] = Date.now();
+      _adStatePersistReady();
       _adFlushWaiters(id, true);
     }
     _adPumpLoadQueue();
@@ -973,6 +1007,7 @@ async function _showRewardedAd(adId, debugTag) {
     if (!ok) { console.warn('[AdMob] ' + debugTag + ': 로딩 실패/타임아웃'); return false; }
   }
   _adReady[adId] = false; // 소비
+  _adStatePersistReady();  // 다른 페이지가 이미 쓴 광고를 준비됨으로 착각하지 않게
   _adShowingId = adId;
   const result = new Promise(resolve => { _adShowSettle = resolve; });
   try {
@@ -1100,14 +1135,21 @@ function _getSfxCtx() {
 document.addEventListener('pointerdown', () => { try { if (_sfxCtx && _sfxCtx.state !== 'running') _sfxCtx.resume(); } catch (e) {} }, { capture: true, passive: true });  // 오래 켜둔 뒤 효과음 무음 방지
 function _preloadSfx(src) {
   const ctx = _getSfxCtx();
-  if (ctx && !_sfxBuffers[src] && !_sfxBuffers['_loading_' + src]) {
-    _sfxBuffers['_loading_' + src] = true;
-    fetch('sound/' + src)
-      .then(r => r.arrayBuffer())
-      .then(buf => new Promise((res, rej) => ctx.decodeAudioData(buf, res, rej)))
-      .then(b => { _sfxBuffers[src] = b; })
-      .catch(() => {});
+  if (ctx) {
+    if (!_sfxBuffers[src] && !_sfxBuffers['_loading_' + src]) {
+      _sfxBuffers['_loading_' + src] = true;
+      fetch('sound/' + src)
+        .then(r => r.arrayBuffer())
+        .then(buf => new Promise((res, rej) => ctx.decodeAudioData(buf, res, rej)))
+        .then(b => { _sfxBuffers[src] = b; })
+        .catch(() => {});
+    }
+    return null;   // WebAudio 경로가 있으면 <audio>는 만들지 않는다 — 페이지마다 8개씩 만들면 iOS mediaplaybackd에 플레이어가 쌓여(5분에 26개) 먹통·앱 종료로 이어짐(2026-11-03 로그)
   }
+  return _sfxAudio(src);
+}
+// <audio> 폴백 — WebAudio가 없거나 아직 디코드 전일 때만, 쓰는 시점에 하나씩 만든다
+function _sfxAudio(src) {
   let a = _sfxCache[src];
   if (!a) { a = new Audio('sound/' + src); a.preload = 'auto'; try { a.load(); } catch (e) {} _sfxCache[src] = a; }
   return a;
@@ -1143,7 +1185,7 @@ function _playSfx(src, vol) {
   }
   // 폴백: 디코드 전이거나 WebAudio 미지원 — <audio>(안드로이드는 volume 무시될 수 있음)
   try {
-    const a = _preloadSfx(src);
+    const a = _sfxAudio(src);
     a.volume = gain;
     a.currentTime = 0;
     const p = a.play();

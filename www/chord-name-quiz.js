@@ -1888,7 +1888,7 @@ function renderQuestion() {
       const dpr    = window.devicePixelRatio || 1;
       canvas.width  = Math.round(W * dpr);
       canvas.height = Math.round(H * dpr);
-      drawLibEntryCached(canvas, entry);
+      drawLibEntry(canvas, entry);   // 큰 캔버스는 캐시 안 함 — 복사본이 메모리만 2배로 먹고(폭 키라 재사용도 거의 없음) iOS에서 앱이 튕김
     };
     drawMain(0);
 
