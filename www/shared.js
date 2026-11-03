@@ -2965,6 +2965,8 @@ async function purchasePlan(planId, cycle) {
     const newPlan = active[ENTITLEMENT_PRO] ? 'pro' : planId;
     setPlan(newPlan);
     await updateSupabasePlan(newPlan);
+    _planCurrentCycle = cycle;
+    if (typeof loadProfileFromDB === 'function') loadProfileFromDB().catch(() => {});   // 프로필 카드의 플랜 표시를 바로 갱신(안 하면 화면을 옮겨야 바뀜)
 
     analytics.track('plan_upgrade_completed', { to_plan: newPlan, cycle, source: _planSheetSource });
 
@@ -3058,6 +3060,50 @@ function _planSelectCycle(cycle) {
   _planSelectedCycle = cycle === 'monthly' ? 'monthly' : 'yearly';
   document.getElementById('plan-card-yearly')?.classList.toggle('plan-card--highlight', _planSelectedCycle === 'yearly');
   document.getElementById('plan-card-monthly')?.classList.toggle('plan-card--highlight', _planSelectedCycle === 'monthly');
+  _planUpdateCta();   // Pro 월간 구독자가 연간 카드를 고르면 "연간으로 변경", 아니면 "현재 플랜"
+}
+
+// 지금 스토어 구독의 주기('monthly' | 'yearly' | null=스토어 구독 아님·프로모션 Pro·Free). openPlanSheet가 RevenueCat에서 읽어 채움
+let _planCurrentCycle = null;
+async function _planLoadCurrentCycle() {
+  _planCurrentCycle = null;
+  if (getPlan() !== 'pro' || !window.Capacitor?.isNativePlatform()) return;
+  try {
+    await _billingReady;
+    if (!window._RC) return;
+    const { customerInfo } = await window._RC.getCustomerInfo();
+    const subs = customerInfo?.activeSubscriptions || [];
+    if (subs.some(function (s) { return String(s).includes(PRODUCT_PRO_YEARLY); })) _planCurrentCycle = 'yearly';
+    else if (subs.some(function (s) { return String(s).includes(PRODUCT_PRO); })) _planCurrentCycle = 'monthly';
+  } catch (e) { console.warn('[Billing] 현재 구독 주기 조회 실패:', e); }
+  _planUpdateCta();
+}
+// 플랜 시트 하단 버튼 — Free: 구독하기 / Pro: 현재 플랜(비활성). 단 iOS에서 월간 구독자가 연간 카드를 고르면 업그레이드 버튼
+// (같은 구독 그룹에서 연간이 위 등급이라 Apple이 바로 업그레이드·차액 정산. 안드로이드는 이 경로를 아직 검증 안 해서 열지 않음)
+function _planUpdateCta() {
+  const btn = document.getElementById('plan-sheet-btn-pro');
+  if (!btn) return;
+  const isNative = !!window.Capacitor?.isNativePlatform();
+  if (getPlan() === 'pro') {
+    if (_isIOSNative() && _planCurrentCycle === 'monthly' && _planSelectedCycle === 'yearly') {
+      btn.textContent = '연간으로 변경';
+      btn.disabled = false;
+      btn.onclick = () => purchasePlan('pro', 'yearly');
+    } else {
+      btn.textContent = '현재 플랜';
+      btn.disabled = true;
+      btn.onclick = null;
+    }
+    return;
+  }
+  btn.disabled = false;
+  if (isNative) {
+    btn.textContent = '구독하기';
+    btn.onclick = () => purchasePlan('pro', _planSelectedCycle);
+  } else {
+    btn.textContent = '앱에서 구독';
+    btn.onclick = () => alert('구독은 Android 앱에서 가능합니다.\nGoogle Play에서 Chorditor를 다운로드하세요.');
+  }
 }
 
 // 플랜 카드 가격을 스토어(Google Play)가 돌려준 값으로 교체 — 유저의 스토어 계정 국가 통화·금액 그대로.
@@ -3132,29 +3178,14 @@ function openPlanSheet(triggerSource, extraProps) {
     analytics.track('paywall_viewed', { trigger_source: triggerSource || 'unknown', current_plan: getPlan(), ...(extraProps || {}) });
   }
 
-  const plan     = getPlan();
   const isNative = window.Capacitor?.isNativePlatform();
 
   _planSelectCycle('yearly'); // 시트 열 때마다 추천(연간)부터 기본 선택
   if (isNative) _applyStorePrices();
 
-  const btn = document.getElementById('plan-sheet-btn-pro');
-  if (btn) {
-    if (plan === 'pro') {
-      btn.textContent = '현재 플랜';
-      btn.disabled = true;
-      btn.onclick = null;
-    } else {
-      btn.disabled = false;
-      if (isNative) {
-        btn.textContent = '구독하기';
-        btn.onclick = () => purchasePlan('pro', _planSelectedCycle);
-      } else {
-        btn.textContent = '앱에서 구독';
-        btn.onclick = () => alert('구독은 Android 앱에서 가능합니다.\nGoogle Play에서 Chorditor를 다운로드하세요.');
-      }
-    }
-  }
+  _planCurrentCycle = null;
+  _planUpdateCta();
+  _planLoadCurrentCycle();   // Pro면 현재 구독 주기를 읽어 버튼을 다시 맞춤(응답 전엔 "현재 플랜")
 
   // 프로모션 쿠폰으로 받은 Pro는 스토어 구독이 아니라 자동갱신·해지가 없다 → 안내 문구 분기
   const cancelInfo = document.getElementById('plan-cancel-info');
