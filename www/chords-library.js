@@ -34,6 +34,9 @@
     const pressed = frets.filter(f => f !== null && f > 0);
     if (pc === undefined || !pressed.length) return null;
     const mn = Math.min(...pressed), mx = Math.max(...pressed);
+    // 예외: 눌린 프렛이 전부 3프렛 이하(0~3프렛)면 근음 위치와 무관하게 항상 2프렛 라벨(= 실제 프렛 그대로, 왼쪽 굵은 너트선 표시).
+    //  너트(0프렛) 굵은 선이 중심을 잡아 줘서 근음이 2프렛이 아니어도 균형이 잡히는 초보자 영역이라 근음 규칙보다 우선한다.
+    if (mx <= 3) return 2;
     for (let s = frets.length - 1; s >= 0; s--) {   // 낮은 줄(6번줄) 쪽 근음부터
       const f = frets[s];
       if (f === null || f < 2 || (_CANVAS_PCS[s] + f) % 12 !== pc) continue;
