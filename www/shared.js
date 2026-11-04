@@ -644,7 +644,7 @@ async function syncProjectsOnLogin() {
 // 코드 카드 렌더 규칙(dots/openMute/barre/voicing/source)이 바뀌면 다시 뽑아야 한다.
 const SAMPLE_NOTE_KO = {
   name: '샘플 - 너에게 난 나에게 넌',
-  bpm: 100,
+  bpm: 74,
   chords: [
   {"name":"G","root":"G","triad":"","seventh":"","func":"","tensions":[],"bass":"","dots":[{"s":0,"f":3,"n":0},{"s":4,"f":2,"n":0},{"s":5,"f":3,"n":0}],"openMute":["open","open","open","open","open","open"],"barre":{},"barreRange":null,"source":"static","fretNumber":2,"fingerNumMode":false,"accidental":"sharp","voicing":{"frets":[3,0,0,0,2,3],"openMute":[null,"open","open","open",null,null],"barre":{},"barreRange":null,"fretNumber":2,"source":"static","fingering":null}},
   {"name":"D","root":"D","triad":"","seventh":"","func":"","tensions":[],"bass":"","dots":[{"s":0,"f":2,"n":0},{"s":1,"f":3,"n":0},{"s":2,"f":2,"n":0}],"openMute":["open","open","open","open","mute","mute"],"barre":{"0":true},"barreRange":null,"source":"static","fretNumber":2,"fingerNumMode":false,"accidental":"sharp","voicing":{"frets":[2,3,2,0,null,null],"openMute":[null,null,null,null,"mute","mute"],"barre":{"0":true},"barreRange":null,"fretNumber":2,"source":"static","fingering":null}},

@@ -3403,6 +3403,7 @@ function _tutorialReset() {
 
 function openTutorial() {
   exitPracticeMode();
+  stopScalePlay(); // 스케일 들어보기(음표 버튼) 재생 중이면 타이머째 중단 — 안 하면 튜토리얼 뒤에서 다음 음 예약이 계속 울림
   _tutorialMode = true;
   analytics.track('scale_tutorial_started', _scaleBase());
   GuitarAudio.stop();
