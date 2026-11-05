@@ -343,3 +343,36 @@ I18N.add('es', {
     [new RegExp('^(\\d+-\\d+) 이상 레벨 중 1회$'), 'Nivel {1} o superior, 1 vez'],
   ],
 });
+
+// ── 번역 누락 보강 (2026-11-05 추가) ── 코드맞추기 터치 안내·퀘스트 완료 알림·승급시험 안내/결과·리하모니 나가기 모달
+I18N.add('es', {
+  exact: {
+    '터치해서 소리도 들어보세요!': '¡Toca para escucharlo también!',
+    '퀘스트 완료!': '¡Misión completada!',
+    '퍼펙트 정답 3회': '3 rondas perfectas',
+    '하트 3개를 다 잃기 전에 끝까지 풀면 통과예요!': '¡Si terminas antes de perder los 3 corazones, apruebas!',
+    '기회': 'Oportunidades',
+    '하트 3개': '3 corazones',
+    '이번엔 통과하지 못했어요': 'Esta vez no aprobaste',
+    '하트를 모두 잃었어요': 'Perdiste todos los corazones',
+    '시간 초과': 'Tiempo agotado',
+    '도전 전': 'Sin intentar',
+    '통과 · 오답 없음': 'Aprobado · Sin errores',
+    '정답을 맞춰주세요!': '¡Elige la respuesta correcta!',
+    '지금 나가면 건너뛰기 테스트가 종료돼요.': 'Si sales ahora, la prueba para saltar termina.',
+    '미니강의를 그만두시겠어요?': '¿Salir de la minilección?',
+  },
+  mixed: {
+    '하트 3개를 다 잃기 전에<br>끝까지 풀면 통과예요!': 'Si terminas antes de perder<1/>los 3 corazones, apruebas!',
+    '지금 나가면 미니강의를<br>처음부터 다시 봐야 해요.': 'Si sales ahora, tendrás que<1/>ver la minilección desde el principio.',
+    '지금 나가면 아직 돌려받지 못한 피크는<br>받을 수 없고, 다시 연습할 때<br>피크를 사용해야 해요.': 'Si sales ahora, perderás las púas que<1/>aún no te devolvieron, y necesitarás<2/>púas para volver a practicar.',
+  },
+  patterns: [
+    [new RegExp('^레벨 클리어 (\\d+)회$'), 'Supera {1} niveles'],
+    [new RegExp('^남은 기회 (\\d+)개$'), 'Oportunidades restantes: {1}'],
+    [new RegExp('^통과 · 오답 (\\d+)개$'), 'Aprobado · {1} errores'],
+    [new RegExp('^(.+)에서 하트를 모두 잃었어요$'), 'Perdiste todos los corazones en {1}'],
+    [new RegExp('^(.+)에서 제한시간이 끝났어요$'), 'Se acabó el tiempo en {1}'],
+    [new RegExp('^(.+) 블럭을 채워주세요$'), 'Completa el bloque {1}'],
+  ],
+});

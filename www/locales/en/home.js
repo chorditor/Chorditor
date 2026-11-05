@@ -343,3 +343,36 @@ I18N.add('en', {
     [new RegExp('^(\\d+-\\d+) 이상 레벨 중 1회$'), 'Level {1} or higher, once'],
   ],
 });
+
+// ── 번역 누락 보강 (2026-11-05 추가) ── 코드맞추기 터치 안내·퀘스트 완료 알림·승급시험 안내/결과·리하모니 나가기 모달
+I18N.add('en', {
+  exact: {
+    '터치해서 소리도 들어보세요!': 'Tap to hear it too!',
+    '퀘스트 완료!': 'Quest complete!',
+    '퍼펙트 정답 3회': 'Get 3 perfect runs',
+    '하트 3개를 다 잃기 전에 끝까지 풀면 통과예요!': 'Finish before you lose all 3 hearts and you pass!',
+    '기회': 'Chances',
+    '하트 3개': '3 hearts',
+    '이번엔 통과하지 못했어요': "You didn't pass this time",
+    '하트를 모두 잃었어요': 'You lost all your hearts',
+    '시간 초과': 'Time up',
+    '도전 전': 'Not attempted',
+    '통과 · 오답 없음': 'Passed · No mistakes',
+    '정답을 맞춰주세요!': 'Pick the right answer!',
+    '지금 나가면 건너뛰기 테스트가 종료돼요.': 'If you leave now, the skip test will end.',
+    '미니강의를 그만두시겠어요?': 'Quit the mini-lesson?',
+  },
+  mixed: {
+    '하트 3개를 다 잃기 전에<br>끝까지 풀면 통과예요!': 'Finish before you lose<1/>all 3 hearts and you pass!',
+    '지금 나가면 미니강의를<br>처음부터 다시 봐야 해요.': "If you leave now, you'll have to<1/>watch the mini-lesson from the start.",
+    '지금 나가면 아직 돌려받지 못한 피크는<br>받을 수 없고, 다시 연습할 때<br>피크를 사용해야 해요.': "If you leave now, Picks you haven't<1/>gotten back are lost, and you'll need<2/>Picks to practice again.",
+  },
+  patterns: [
+    [new RegExp('^레벨 클리어 (\\d+)회$'), 'Clear {1} levels'],
+    [new RegExp('^남은 기회 (\\d+)개$'), 'Chances left: {1}'],
+    [new RegExp('^통과 · 오답 (\\d+)개$'), 'Passed · {1} wrong'],
+    [new RegExp('^(.+)에서 하트를 모두 잃었어요$'), 'You lost all your hearts in {1}'],
+    [new RegExp('^(.+)에서 제한시간이 끝났어요$'), 'Time ran out in {1}'],
+    [new RegExp('^(.+) 블럭을 채워주세요$'), 'Fill in the {1} block'],
+  ],
+});
