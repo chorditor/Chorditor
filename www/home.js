@@ -1824,39 +1824,7 @@ function _consumeAfterNotices() {
 //   pastHighlights (선택) sections와 형식 동일 — 있으면 얇은 구분선 아래 "과거 업데이트 다시보기"로 이어붙임
 //   ghostBtn     (선택) {label} — 있으면 "그냥 닫기"용 보조 버튼이 primary 왼쪽에 생김
 //   primaryBtn   (선택) {label, action} — action 없으면 그냥 닫기, label 없으면 '확인'
-const APP_NOTICES = [
-  {
-    id: 'v1_3_6',
-    version: '1.3.6 업데이트',
-    summary: '1.3.6 스케일 훈련 업데이트!<br>즉흥, 솔로 연주를 위한 편의성 패치!',
-    sections: [
-      {
-        title: '1. 연습 모드',
-        desc: '드럼·베이스·피아노 반주에 맞춰 스케일을 연주해요.<br>스타일과 BPM을 골라 보세요.',
-        image: 'image/notice_136_practice.png.jpg',
-        imageByLang: { en: 'image/notice_136_practice_en.jpg', ja: 'image/notice_136_practice_ja.jpg', es: 'image/notice_136_practice_es.jpg' },
-        shot: true,
-        extra: '<strong>스케일 훈련 → 레벨 → 기타 버튼</strong>에서 켤 수 있어요.',
-      },
-      {
-        title: '2. 새 레벨 · 튜토리얼',
-        desc: '메이저 펜타토닉·블루스가 추가됐어요.<br>? 버튼을 누르면 스케일 미니 강의를 볼 수 있어요.',
-        image: 'image/notice_136_buttons.png.jpg',
-        imageByLang: { en: 'image/notice_136_buttons_en.jpg', ja: 'image/notice_136_buttons_ja.jpg', es: 'image/notice_136_buttons_es.jpg' },
-        shot: true,
-      },
-      {
-        title: '3. 피크 소모량 표시',
-        desc: '이제 피크가 쓰이는 버튼마다 소모량이 표시돼요.<br>누르기 전에 몇 개가 쓰일지 미리 확인할 수 있어요.',
-        // 실제 앱의 연습하기 버튼(피크 뱃지 포함)을 그대로 그림 — 눌리지 않게 pointer-events:none(.update-notice-section-media--btn)
-        mediaHtml: '<button type="button" class="scale-card-practice-btn" tabindex="-1" aria-hidden="true"><i data-lucide="play"></i>연습하기</button>',
-        mediaClass: 'update-notice-section-media--btn',
-        extra: '<strong>스케일 훈련</strong>은 한 번 들어가면, 나갈 때까지 안의 기능을 횟수 제한 없이 쓸 수 있어요.',
-      },
-    ],
-    primaryBtn: { label: '확인' },
-  },
-];
+const APP_NOTICES = [];
 
 let _appNoticeDismissedThisLoad = false; // "다시 보지 않기" 안 눌러도 이번 페이지 로드에선 재노출 안 함
 let _appNoticeShowingId = null;
