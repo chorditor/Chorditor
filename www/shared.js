@@ -52,7 +52,7 @@ if (window.Capacitor?.getPlatform?.() === 'ios') {
 // ── 상수 ─────────────────────────────────────────────────────
 const SUPABASE_URL  ='https://jbvkygeksohlysyvaoab.supabase.co';
 const SUPABASE_ANON = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Impidmt5Z2Vrc29obHlzeXZhb2FiIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzYzOTk5NjgsImV4cCI6MjA5MTk3NTk2OH0.6RSgChy0Yq0H2TJpZPSoMKQ2V-OYfR0XzE1aJBBZkXI';
-const APP_VERSION   = '1.4.0';
+const APP_VERSION   = '1.4.1';
 const SUPABASE_STORAGE_KEY = 'sb-jbvkygeksohlysyvaoab-auth-token';
 
 // 이용약관/개인정보처리방침 버전 — 광고식별자 수집 항목 추가(2026-09) 시 1로 올림.
@@ -77,6 +77,14 @@ function _isAdminUser() { return getStoredAuth().userId === ADMIN_USER_ID; }
 // 비로그인은 여기서 판단하지 않는다(호출부가 각자 처리).
 async function checkNeedsOnboarding(token, userId, retries = 2) {
   if (!token || !userId) return false;
+  return (await checkOnboardingState(token, userId, retries)) !== 'done';
+}
+
+// 판정 결과를 3가지로 구분: 'done'(persona 있음) / 'needed'(조회 성공, persona 없음) / 'unknown'(조회 실패).
+// 관문(홈·훈련 페이지)은 'unknown'도 막아서 온보딩으로 보내고(fail-closed), 온보딩 페이지는 'unknown'이면
+// 설문 대신 다시 시도 화면을 띄운다 — 네트워크가 잠깐 끊긴 것만으로 기존 유저가 설문을 다시 하고
+// 페르소나(승급 단계)·닉네임 등이 덮어써지던 문제(2026-11-08) 방지.
+async function checkOnboardingState(token, userId, retries = 2) {
   // 토큰이 만료된 채로 조회하면 서버가 401만 반복하고, 그걸 "온보딩을 실제로 안 한 유저"랑
   // 구분을 못 해서 이미 온보딩 끝낸 유저가 온보딩 화면으로 튕기는 버그가 있었음(2026-08-31,
   // 앱을 오래 켜두거나 오랜만에 재개했을 때 토큰 만료로 재현). 조회 전에 만료 여부만 먼저
@@ -98,12 +106,12 @@ async function checkNeedsOnboarding(token, userId, retries = 2) {
       );
       if (resp.ok) {
         const rows = await resp.json();
-        return !(rows.length > 0 && rows[0].persona);
+        return (rows.length > 0 && rows[0].persona) ? 'done' : 'needed';
       }
     } catch (_) {}
     if (i < retries) await new Promise(r => setTimeout(r, 400 * (i + 1)));
   }
-  return true;
+  return 'unknown';
 }
 
 // ── 재동의 관문 판정 ──────────────────────────────────────────
@@ -471,13 +479,35 @@ function _projPendingSet(set) {
 function _projPendingAdd(ids) { const s = _projPendingGet(); ids.forEach(id => s.add(id)); _projPendingSet(s); }
 function _projPendingRemove(ids) { const s = _projPendingGet(); ids.forEach(id => s.delete(id)); _projPendingSet(s); }
 
+// 삭제 실패 재시도 대기 목록 — 오프라인·토큰 만료로 DB 삭제가 실패하면 다음 로그인 때 DB에 남은 노트가
+// 로컬로 복원돼 지운 노트가 되살아났다. 요청 전에 기록하고 DB가 지웠다고 답하면 지운다.
+const PROJ_DEL_PENDING_KEY = 'chorditor_proj_del_pending';
+function _projDelGet() {
+  try { return new Set(JSON.parse(localStorage.getItem(PROJ_DEL_PENDING_KEY) || '[]')); }
+  catch (e) { return new Set(); }
+}
+function _projDelSet(set) {
+  try {
+    if (set.size) localStorage.setItem(PROJ_DEL_PENDING_KEY, JSON.stringify([...set]));
+    else localStorage.removeItem(PROJ_DEL_PENDING_KEY);
+  } catch (e) {}
+}
+function _projDelAdd(ids) { const s = _projDelGet(); ids.forEach(id => s.add(id)); _projDelSet(s); }
+function _projDelRemove(ids) { const s = _projDelGet(); ids.forEach(id => s.delete(id)); _projDelSet(s); }
+
 // 업로드는 호출 순서대로 직렬 실행 — 같은 노트의 이전 저장이 뒤늦게 도착해 최신본을 덮어쓰는 것을 막는다.
 let _projSyncChain = Promise.resolve();
 
 // projects: 업로드할 노트(전체 목록이 아님). removedIds: DB에서 지울 노트 id.
 async function _syncProjectsToDB(projects, removedIds) {
-  const session = _authSessionSync();
-  if (!session) return; // 비로그인 — 로컬 전용으로 계속 동작
+  if (!_authSessionSync()) return; // 비로그인 — 로컬 전용으로 계속 동작
+  // 삭제분은 토큰 갱신을 기다리기 전에 먼저 대기 목록에 적어 둔다(그사이 페이지를 떠나도 다음에 다시 보냄)
+  if (removedIds && removedIds.length) {
+    _projPendingRemove(removedIds);
+    _projDelAdd(removedIds);
+  }
+  const session = await _freshSession();
+  if (!session) return;
   const headers = {
     'Content-Type': 'application/json',
     apikey: SUPABASE_ANON,
@@ -485,12 +515,13 @@ async function _syncProjectsToDB(projects, removedIds) {
   };
   // 삭제는 직렬 큐를 기다리지 않고 즉시 보낸다 — keepalive: 삭제 직후 location.href로 페이지 이동하는
   // 흐름(deleteProject 등)이 있어서, 큐 뒤에 두면 네비게이션이 이 요청을 끊어 DB row가 안 지워진다.
+  // 이번에 지운 노트 + 이전에 삭제가 실패해 대기 중인 노트를 함께 보낸다.
   let delP = Promise.resolve();
-  if (removedIds && removedIds.length) {
-    _projPendingRemove(removedIds);
-    delP = fetch(`${SUPABASE_URL}/rest/v1/projects?project_id=in.(${removedIds.join(',')})`, {
+  const delIds = [..._projDelGet()];
+  if (delIds.length) {
+    delP = fetch(`${SUPABASE_URL}/rest/v1/projects?project_id=in.(${delIds.join(',')})`, {
       method: 'DELETE', headers, keepalive: true,
-    }).catch(() => {});
+    }).then(r => { if (r.ok) _projDelRemove(delIds); }).catch(() => {});
   }
   if (!projects.length) { await delP; return; }
 
@@ -535,7 +566,7 @@ function _genShareCode16() {
 // 프로젝트당 공유 코드 1개 고정 — project.shareCode 있으면 재사용(payload만 최신화),
 // 없으면 새로 발급. payloadStr은 호출측 buildSharePayload(project) 결과를 그대로 전달.
 async function getOrCreateShareCode(project, payloadStr) {
-  const session = _authSessionSync();
+  const session = await _freshSession();
   if (!session) return null; // 공유 DB는 소유자 upsert라 로그인 필요 — 없으면 호출측에서 폴백
   const headers = {
     'Content-Type': 'application/json',
@@ -596,9 +627,10 @@ async function syncProjectsOnLogin() {
   // 그걸 실제 DB(projects 테이블)에 업로드해버린다. 샌드박스가 끝난 뒤에도
   // 그 DB row가 남아 다음 로그인 때 로컬로 복구되어 영구 오염된다.
   if (typeof isTutorialSandbox === 'function' && isTutorialSandbox()) return false;
-  const session = _authSessionSync();
+  const session = await _freshSession();
   if (!session) return false;
   const headers = { apikey: SUPABASE_ANON, Authorization: 'Bearer ' + session.access_token };
+  const delPending = _projDelGet();   // 지웠는데 DB 삭제가 아직 안 된 노트 — 복원하지 않고 삭제를 다시 보낸다
   try {
     const res = await fetch(
       `${SUPABASE_URL}/rest/v1/projects?user_id=eq.${session.user.id}&select=project_id,content`,
@@ -613,7 +645,7 @@ async function syncProjectsOnLogin() {
     const newerLocal = []; // 로컬이 DB보다 최신인 노트 → DB로 업로드
     const localIdx = new Map(local.map((p, i) => [p.id, i]));
     rows.forEach(r => {
-      if (!r.content) return;
+      if (!r.content || delPending.has(r.project_id)) return;
       const idx = localIdx.has(r.project_id) ? localIdx.get(r.project_id) : -1;
       if (idx === -1) { local.push(r.content); changed = true; return; }
       // 양쪽에 존재: content.updatedAt 비교 last-write-wins (다른 기기에서 편집한 최신본 반영)
@@ -630,7 +662,7 @@ async function syncProjectsOnLogin() {
 
     const missingInDb = local.filter(p => !dbIds.has(p.id));
     const toUpload = missingInDb.concat(newerLocal);
-    if (toUpload.length) await _syncProjectsToDB(toUpload, []);
+    if (toUpload.length || delPending.size) await _syncProjectsToDB(toUpload, []);   // 삭제 대기분도 여기서 함께 보냄
     return true;   // DB 조회·병합까지 끝남(호출부가 "DB에도 노트가 없다"를 판정할 수 있는 상태)
   } catch (e) { return false; /* 무시 — 다음 로그인 때 재시도 */ }
 }
@@ -1379,7 +1411,36 @@ function _peakAuth() {
 }
 
 // 세션 토큰 리프레시 (만료/401 시). 성공 시 새 access_token, 실패 시 null.
-async function _peakRefreshToken() {
+// 여러 요청이 동시에 갱신을 부르면 같은 refresh_token으로 여러 번 보내게 되므로, 진행 중인 갱신이 있으면 그 결과를 같이 기다린다.
+let _refreshInflight = null;
+function _peakRefreshToken() {
+  if (!_refreshInflight) {
+    _refreshInflight = _peakRefreshTokenOnce().finally(() => { _refreshInflight = null; });
+  }
+  return _refreshInflight;
+}
+
+// 직접 fetch하는 곳(노트 업로드·복원, 출석 조회, 푸시 토큰, 온보딩 저장)용 세션 — 네이티브 앱은 자동 갱신이 꺼져 있어
+// 앱을 1시간 넘게 켜 두면 만료된 토큰을 그대로 보내 401로 조용히 실패했다. 만료 1분 전이면 먼저 갱신한다.
+// 웹은 supabase-js가 직접 갱신하므로 여기서 갱신하지 않는다(따로 갱신하면 supabase-js가 가진 refresh_token이 무효가 됨).
+function _readAuthSession() {
+  try {
+    const s = JSON.parse(localStorage.getItem(SUPABASE_STORAGE_KEY) || 'null');
+    return (s?.access_token && s?.user?.id) ? s : null;
+  } catch (_) { return null; }
+}
+async function _freshSession() {
+  const s = _readAuthSession();
+  if (!s) return null;
+  const now = Math.floor(Date.now() / 1000);
+  if (window.Capacitor?.isNativePlatform() && s.expires_at && s.expires_at - 60 <= now) {
+    await _peakRefreshToken();
+    return _readAuthSession() || s;
+  }
+  return s;
+}
+
+async function _peakRefreshTokenOnce() {
   try {
     const stored = localStorage.getItem(SUPABASE_STORAGE_KEY);
     if (!stored) return null;
@@ -1433,11 +1494,9 @@ async function _peakRpc(fnName, body, opts) {
       else return null;
     }
     if (!resp.ok) return null;
-    // void 반환 RPC(delete_own_account)는 성공해도 본문이 비어 있다 — json()이 던져 null(=실패)로 오판하던 버그
-    if (opts && opts.voidOk) {
-      const txt = await resp.text();
-      return txt ? JSON.parse(txt) : true;
-    }
+    // void 반환 RPC(delete_own_account)는 성공해도 본문이 비어 있거나 'null'이다 — 본문을 읽으면 null(=실패)로 오판한다
+    // (빈 본문은 예전에 고쳤지만 'null' 본문은 여전히 실패로 판정했음). 응답 상태(resp.ok)만으로 성공을 판정한다.
+    if (opts && opts.voidOk) return true;
     return await resp.json();
   } catch (_) { return null; }
 }
@@ -1497,6 +1556,14 @@ async function consumePeak(cost, source) {
     }
     analytics.track('peak_consumed', { cost, balance_after: r.balance, training_type: source });
     return true;
+  }
+
+  // 로그인 상태에서 서버 차감이 실패(네트워크 등)하면 기기 잔액에서 몰래 빼지 않는다 —
+  // 서버엔 안 빠져서 공짜로 쓰게 되고, 화면 잔액도 서버와 어긋난다(유령 잔액). 시작을 막고 안내만 한다.
+  if (getStoredAuth().token) {
+    analytics.track('peak_consume_failed', { cost, training_type: source });
+    dmToast('연결을 확인한 뒤 다시 시도해 주세요');
+    return false;
   }
 
   const local = _localPeakGet();
@@ -2619,16 +2686,21 @@ function _wipeAccountLocalData() {
 async function _flushPendingProjects() {
   try {
     const pending = _projPendingGet();
-    if (!pending.size) return;
+    if (!pending.size && !_projDelGet().size) return;   // 못 올린 노트도, 못 지운 노트도 없음
     const list = loadProjects().filter(p => pending.has(p.id));
-    if (list.length) await Promise.race([_syncProjectsToDB(list, []), new Promise(r => setTimeout(r, 4000))]);
+    await Promise.race([_syncProjectsToDB(list, []), new Promise(r => setTimeout(r, 4000))]);
   } catch (_) {}
 }
 
-async function signOutWeb() {
+// opts.accountDeleted: 계정 삭제 직후 — 서버 계정이 이미 없어서 노트 업로드·푸시 토큰 삭제는 실패할 뿐이라 건너뛴다(최대 7초 대기 제거)
+async function signOutWeb(opts) {
+  const accountDeleted = !!(opts && opts.accountDeleted);
   analytics.track('sign_out', {});
   analytics.clearUserId();
-  await _flushPendingProjects();
+  if (!accountDeleted) {
+    await _flushPendingProjects();
+    await _deletePushTokenRow();   // 세션을 지우기 전에(삭제 요청에 토큰이 필요)
+  }
   // 튜토리얼 로컬 미러(진행도·A/B 배정)는 user_id로 키잉되지 않는다 —
   // 안 지우면 같은 기기의 다음 계정이 그대로 물려받는다.
   if (typeof Tutorial !== 'undefined') Tutorial.clearLocal();
@@ -2646,6 +2718,13 @@ async function signOutWeb() {
     // iOS: 구글 SDK에 남은 로그인 기록도 해제(안 지우면 다음 로그인이 이전 계정 복원 경로로 간다)
     if (_isIOSNative()) {
       try { await window.Capacitor?.Plugins?.SocialLogin?.logout({ provider: 'google' }); } catch (_) {}
+    } else {
+      // Android: 구글 로그인 기록도 해제(onboarding.js onboardingSwitchAccount와 동일) — 안 하면 다음 로그인 때
+      // 계정 선택 없이 같은 구글 계정으로 바로 들어간다. 홈에선 플러그인 초기화 전일 수 있어 2초만 기다린다
+      const GoogleAuth = window.Capacitor?.Plugins?.GoogleAuth;
+      if (GoogleAuth) {
+        try { await Promise.race([GoogleAuth.signOut().catch(() => {}), new Promise(r => setTimeout(r, 2000))]); } catch (_) {}
+      }
     }
     localStorage.removeItem(SUPABASE_STORAGE_KEY);
     _wipeAccountLocalData();
@@ -2677,20 +2756,40 @@ function _compareVersion(v1, v2) {
 // iOS 주소는 앱이 App Store에 출시된 뒤부터 열린다(TestFlight 중에는 열리지 않음).
 // forReview: iOS 에서 리뷰 작성 화면으로 바로 가는 파라미터를 붙인다.
 const IOS_APP_STORE_ID = '6829600015';
+// 웹(앱 아님): 안드로이드 브라우저면 Play, 그 외(아이폰·아이패드·PC)는 App Store 다운로드 페이지 —
+// 웹 유저는 거의 iOS 유저라 앱 설치로 유도한다(웹 사용자 줄이기). 웹은 리뷰 대신 설치가 목적이라 forReview를 무시.
 function _storeUrl(forReview) {
-  if (window.Capacitor?.getPlatform?.() === 'ios') {
+  const platform = window.Capacitor?.getPlatform?.();
+  if (platform === 'ios') {
     return 'https://apps.apple.com/app/id' + IOS_APP_STORE_ID + (forReview ? '?action=write-review' : '');
   }
-  return 'https://play.google.com/store/apps/details?id=com.chorditor.app';
+  if (platform === 'android' || /Android/i.test(navigator.userAgent || '')) {
+    return 'https://play.google.com/store/apps/details?id=com.chorditor.app';
+  }
+  return 'https://apps.apple.com/app/id' + IOS_APP_STORE_ID;
+}
+
+// 스토어 주소 열기. iOS 앱은 앱 안 브라우저 창(Browser 플러그인) 대신 App Store 앱으로 바로 넘긴다 —
+// itms-apps:// 주소로 이동하면 Capacitor가 웹뷰 이동을 막고 시스템(App Store 앱)으로 연다.
+function _openStoreUrl(url) {
+  try {
+    if (_isIOSNative()) { location.href = url.replace(/^https:\/\//, 'itms-apps://'); return; }
+    if (window.Capacitor?.Plugins?.Browser) { window.Capacitor.Plugins.Browser.open({ url }); return; }
+    window.open(url, '_blank');
+  } catch (_) {
+    try { window.open(url, '_blank'); } catch (__) {}
+  }
 }
 
 function openPlayStore() {
-  const url = _storeUrl();
-  if (window.Capacitor?.Plugins?.Browser) {
-    window.Capacitor.Plugins.Browser.open({ url });
-  } else {
-    window.open(url, '_blank');
-  }
+  _openStoreUrl(_storeUrl());
+}
+
+// 설정 > 앱 리뷰 남기기 — iOS 앱은 App Store 리뷰 작성 화면, 안드로이드 앱은 Play 앱 페이지,
+// 웹은 스토어 다운로드 페이지(설치 유도)
+function openAppReview() {
+  if (typeof analytics !== 'undefined') analytics.track('review_store_opened', { from: 'settings' });
+  _openStoreUrl(_storeUrl(true));
 }
 
 // onboarding.html은 정적 마크업 있음 → 그대로 사용. 다른 페이지는 마크업이 없어
@@ -3682,8 +3781,12 @@ async function advanceAttendance(onDone) {
   if (r) {
     res = r;
     if (r.reward > 0) _peakState = { ..._peakState, peakbox_count: (_peakState.peakbox_count || 0) + r.reward, loaded: true };
+  } else if (getStoredAuth().token) {
+    // 로그인 상태에서 RPC가 실패하면 로컬에 몰래 찍지 않는다(makeupAttendance와 동일) — 찍으면 서버엔 출석이 안 남고
+    // 다음 서버 조회 때 도장이 사라진다. null을 받은 dmEnsureAttended가 '출석함' 표시를 되돌려 다음에 다시 시도한다.
+    return null;
   } else {
-    res = _localAdvance();
+    res = _localAdvance();   // 비로그인/dev
   }
   _attState = { day: res.day, makeup_left: res.makeup_left, full: !!res.full, loaded: true };
   renderPeakboxBadge();
@@ -3699,7 +3802,8 @@ async function advanceAttendance(onDone) {
 // 걸로 보여주되 DB/로컬은 여기서 안 건드림(조회 시점에 값을 바꾸면 안 되는 원칙 유지, 실제
 // 반영은 advance_attendance_v2()/makeup_attendance_v3()가 호출될 때만).
 async function loadAttendanceState() {
-  const { token, userId } = getStoredAuth();
+  const _s = await _freshSession();
+  const token = _s?.access_token || null, userId = _s?.user?.id || null;
   let day, last, makeup, amonth;
   if (token && userId) {
     try {
@@ -3822,6 +3926,7 @@ async function dmEnsureAttended() {
   dmSave(s);
   try {
     const res = await advanceAttendance();
+    if (!res) throw new Error('attendance_rpc_failed');   // 서버에 안 찍힘 → 아래 catch가 되돌려 다음 기회에 재시도
     const t = dmLoad();
     t.stamp = res ? { day: res.day, advanced: !!res.advanced, reward: res.reward || 0, seen: false } : null;
     dmSave(t);
@@ -5820,15 +5925,8 @@ async function _savePushToken(token) {
   if (!token) return;
   try { localStorage.setItem(FCM_TOKEN_CACHE, token); } catch (_) {}
 
-  let accessToken = null, userId = null;
-  try {
-    const stored = localStorage.getItem(SUPABASE_STORAGE_KEY);
-    if (stored) {
-      const p = JSON.parse(stored);
-      accessToken = p?.access_token ?? null;
-      userId      = p?.user?.id     ?? null;
-    }
-  } catch (_) {}
+  const _s = await _freshSession();
+  const accessToken = _s?.access_token || null, userId = _s?.user?.id || null;
   if (!accessToken || !userId) return; // 로그인 후 재시도
 
   const platform = window.Capacitor?.getPlatform?.() || 'web';
@@ -5859,6 +5957,24 @@ async function _savePushToken(token) {
         'Authorization': `Bearer ${accessToken}`,
       },
     });
+  } catch (_) {}
+}
+
+// 로그아웃 시 이 기기의 푸시 토큰을 계정에서 떼어 낸다 — 안 하면 로그아웃한 기기로 이전 계정 푸시가 계속 간다.
+// 기기 토큰 캐시(_fcm_token)는 남기므로 다음 로그인 때 initPushNotifications가 새 계정으로 다시 등록한다. 실패해도 로그아웃은 진행(최대 3초).
+async function _deletePushTokenRow() {
+  try {
+    const token = localStorage.getItem(FCM_TOKEN_CACHE);
+    if (!token) return;
+    const s = await _freshSession();
+    if (!s) return;
+    await Promise.race([
+      fetch(`${SUPABASE_URL}/rest/v1/push_tokens?token=eq.${encodeURIComponent(token)}&user_id=eq.${s.user.id}`, {
+        method: 'DELETE',
+        headers: { 'apikey': SUPABASE_ANON, 'Authorization': `Bearer ${s.access_token}` },
+      }),
+      new Promise(r => setTimeout(r, 3000)),
+    ]);
   } catch (_) {}
 }
 
@@ -6262,15 +6378,7 @@ function reviewRespond(kind) {
 }
 
 function reviewOpenStore() {
-  try {
-    if (window.Capacitor?.Plugins?.Browser) {
-      window.Capacitor.Plugins.Browser.open({ url: REVIEW_STORE_URL });
-    } else {
-      window.open(REVIEW_STORE_URL, '_blank');
-    }
-  } catch (_) {
-    try { window.open(REVIEW_STORE_URL, '_blank'); } catch (__) {}
-  }
+  _openStoreUrl(REVIEW_STORE_URL);   // iOS 앱은 App Store 앱으로 바로(설정 > 앱 리뷰 남기기와 같은 방식)
 }
 
 // review_rated → subscriptions 동기화 (재설치 후 재노출 방지)

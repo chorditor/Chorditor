@@ -3270,12 +3270,24 @@ canvas {
   border-radius: 99px;
   margin: 12px auto 0;
 }
-.gsheet-header { display: flex; align-items: center; justify-content: center; padding: 10px 20px 2px; }
-.gsheet-title { font-size: 17px; font-weight: 700; color: var(--text-primary); }
+/* 스타일 가이드 맞춤(2026-11-08): 제목 --type-title-lg(모달 타이틀), 여백 4px 배수 + 좌우 그리드 마진 16px */
+.gsheet-header { display: flex; align-items: center; justify-content: center; padding: 16px 16px 0; }
+.gsheet-title { font: var(--type-title-lg); letter-spacing: var(--tracking-base); color: var(--text-primary); }
 .gsheet-inner { padding: 20px 24px; }
-.gsheet-desc { font-size: 14px; color: var(--text-secondary); line-height: 1.5; text-align: center; }
-.gsheet-footer { display: flex; gap: 10px; padding: 4px 20px 20px; }
-.gsheet-footer .btn { flex: 1; }
+#confirm-sheet .gsheet-inner { padding: 24px 16px; flex-direction: column; gap: 8px; }
+/* 계정 삭제 시 구독 해지 안내(빨간 강조) + 해지 경로 + 구독 관리 밑줄 텍스트 버튼 — .hidden은 전역 규칙이 아니라 각자 선언 */
+.gsheet-note { font: var(--type-body-bold); letter-spacing: var(--tracking-base); color: var(--accent); text-align: center; margin-top: 8px; }
+.gsheet-link {
+  min-height: 44px; padding: 0 8px;   /* 터치 영역 44px */
+  background: none; border: none; cursor: pointer;
+  font: var(--type-label-lg); letter-spacing: var(--tracking-base); color: var(--text-primary);
+  text-decoration: underline; text-underline-offset: 4px;
+}
+.gsheet-note.hidden, .gsheet-link.hidden, #confirm-sheet-path.hidden { display: none; }
+.gsheet-desc { font: var(--type-body); letter-spacing: var(--tracking-base); color: var(--text-secondary); text-align: center; }
+/* 확인 시트 버튼 — .cd-btn(§12) 높이·글자·모서리 그대로, 가로 2개가 폭을 반씩 */
+.gsheet-footer { display: flex; gap: 8px; padding: 0 16px 16px; }
+.gsheet-footer .cd-btn { flex: 1; width: auto; }
 
 .sound-sheet-row { display: flex; align-items: center; gap: 12px; }
 .sound-sheet-row i { color: var(--text-secondary); width: 20px; height: 20px; flex-shrink: 0; }
@@ -5612,6 +5624,8 @@ canvas {
   gap: 16px;
 }
 .onboarding-brand .onboarding-desc { margin-bottom: 0; }
+#onboarding-retry-text { margin-bottom: 0; text-align: center; }   /* 다시 시도 버튼과 한 묶음(간격은 .onboarding-actions gap 16px) */
+#onboarding-retry-text.hidden { display: none; }   /* .hidden은 전역 규칙이 아님 — 없으면 평소 로그인 화면에도 문구가 보임 */
 /* 메인 온보딩 레이아웃: 브랜드는 위쪽, 로그인 영역은 브랜드와 푸터 사이 세로 가운데, 푸터는 아래(절대배치) */
 #onboarding-overlay {
   flex-direction: column;
@@ -9900,7 +9914,9 @@ body.onboarding-page .plan-sheet-inner { gap: 16px; }
   align-items: center;
   text-align: center;
   letter-spacing: -0.025em;
+  position: relative;   /* 우상단 X 버튼(#app-notice-close, .cd-modal-close absolute) 기준 */
 }
+#app-notice-close.hidden { display: none; }
 .update-notice-logo { width: 40px; height: 40px; object-fit: contain; margin-bottom: 16px; flex-shrink: 0; }
 .update-notice-version {
   font-family: 'Pretendard', 'Noto Sans JP', sans-serif;
@@ -9963,7 +9979,8 @@ body.onboarding-page .plan-sheet-inner { gap: 16px; }
   margin: 0;
 }
 .update-notice-section-desc {
-  font-size: 13px;
+  font-size: 16px;
+  letter-spacing: -0.02em;
   color: var(--brand);
   line-height: 1.6;
   margin: 0;
@@ -10001,7 +10018,8 @@ body.onboarding-page .plan-sheet-inner { gap: 16px; }
   overflow: visible;
 }
 .update-notice-section-extra {
-  font-size: 13px;
+  font-size: 16px;
+  letter-spacing: -0.02em;
   color: var(--brand);
   line-height: 1.5;
   margin: 0;
@@ -10030,6 +10048,9 @@ body.onboarding-page .plan-sheet-inner { gap: 16px; }
 }
 
 .update-notice-btns { width: 100%; display: flex; gap: 8px; margin-bottom: 16px; flex-shrink: 0; }
+/* App Store 이동 버튼 — 크기·모서리·색은 .cd-btn(§12) 그대로, 여기선 로고+문구 한 줄 배치만 */
+.update-notice-store-btn { display: inline-flex; align-items: center; justify-content: center; gap: var(--cd-btn-icon-gap); margin: 0 auto; white-space: nowrap; }
+.update-notice-store-btn svg { width: var(--cd-btn-icon-size); height: var(--cd-btn-icon-size); flex-shrink: 0; }
 .update-notice-btn {
   flex: 1;
   padding: 13px;

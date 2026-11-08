@@ -284,3 +284,10 @@
     ],
   });
 })();
+
+// 연결 실패 안내 (2026-11-08 추가)
+I18N.add('es', {
+  exact: {
+    '연결을 확인한 뒤 다시 시도해 주세요': 'Revisa tu conexión e inténtalo de nuevo',
+  },
+});

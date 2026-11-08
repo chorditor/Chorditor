@@ -376,3 +376,13 @@ I18N.add('es', {
     [new RegExp('^(.+) 블럭을 채워주세요$'), 'Completa el bloque {1}'],
   ],
 });
+
+// 계정 삭제 — 구독 해지 안내 (2026-11-08 추가)
+I18N.add('es', {
+  exact: {
+    'Pro 구독은 계정을 삭제해도 자동으로 해지되지 않아요. 먼저 구독을 해지한 뒤 계정을 삭제해 주세요.': 'Eliminar tu cuenta no cancela tu suscripción Pro. Cancela primero la suscripción y luego elimina tu cuenta.',
+    '설정 > Apple ID(내 이름) > 구독': 'Ajustes > Apple ID (tu nombre) > Suscripciones',
+    'Google Play 스토어 > 결제 및 구독 > 구독': 'Google Play Store > Pagos y suscripciones > Suscripciones',
+    '구독 관리로 이동': 'Gestionar suscripción',
+  },
+});

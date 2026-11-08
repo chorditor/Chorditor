@@ -110,13 +110,16 @@ async function _startOnboardingSteps() {
     return;
   }
   const { token, userId } = getStoredAuth();
-  if (token && userId && !(await checkNeedsOnboarding(token, userId))) {
+  const obState = (token && userId) ? await checkOnboardingState(token, userId) : 'needed';
+  if (obState === 'done') {
     localStorage.setItem('onboarding_done', '1');
     goToHome();
     return;
   }
+  // 확인 실패 — 재설치 후 재로그인한 기존 유저일 수 있어 설문을 띄우지 않는다(끝내면 페르소나·닉네임이 덮어써짐)
+  if (obState === 'unknown') { _obShowRetry(); return; }
 
-  // persona 미입력(또는 확인 실패) → 온보딩 스텝 표시
+  // persona 미입력 → 온보딩 스텝 표시
   document.getElementById('onboarding-overlay')?.classList.add('hidden');
   _showStep('ob-step1');
 }
@@ -455,11 +458,7 @@ const INVITE_ERROR_MESSAGES = {
 
 // Supabase RPC 호출 (온보딩 전용 경량 헬퍼). 비로그인 상태면 anon 키만으로 호출.
 async function _obRpc(fnName, body) {
-  let token = null;
-  try {
-    const stored = localStorage.getItem(SUPABASE_STORAGE_KEY);
-    if (stored) token = JSON.parse(stored)?.access_token || null;
-  } catch (_) {}
+  const token = (await _freshSession())?.access_token || null;
   const headers = { 'Content-Type': 'application/json', 'apikey': SUPABASE_ANON };
   if (token) headers['Authorization'] = `Bearer ${token}`;
   const resp = await fetch(`${SUPABASE_URL}/rest/v1/rpc/${fnName}`, {
@@ -512,8 +511,18 @@ async function obStep8Complete() {
 }
 
 // 온보딩 완료 → Supabase 저장 → (신규)home / (기존)시작하기 화면
+let _obFinishing = false;   // 완료 처리 중 — 마지막 화면 버튼 연타로 두 번 처리되는 것 방지
 async function _obFinishOnboarding() {
-  await _saveOnboardingData();
+  if (_obFinishing) return;
+  _obFinishing = true;
+  // 저장(설문 답·페르소나)이 실패하면 유저에게 알리지 않고 지금 화면에 머문다 — 다음 버튼을 한 번 더 누르면 다시 저장한다.
+  // (넘어가면 관문이 페르소나 없음을 보고 설문으로 되돌려 보내고, 초대코드 보상도 유실된다)
+  if (!(await _saveOnboardingData())) {
+    _obFinishing = false;
+    const b8 = document.getElementById('ob-step8-complete');
+    if (b8) { b8.disabled = false; b8.textContent = '시작하기'; }   // obStep8Complete가 바꿔 둔 "저장 중..." 되돌림
+    return;
+  }
   // subscriptions row가 생긴 뒤에 지급해야 보상이 유실되지 않는다.
   if (_obData.invite_code) await _redeemInviteCode(_obData.invite_code);
   localStorage.setItem('onboarding_done', '1');
@@ -531,8 +540,10 @@ async function _obFinishOnboarding() {
   _obShowPlan(function () {
     _obLog('onboarding_completed', { duration_sec: Math.round((Date.now() - (_obFirstAt || Date.now())) / 1000), plan_result: _obPlanResult, used_invite: !!_obData.invite_code });
     // 공유 링크로 들어온 경우엔 '시작하기' 탭 없이 바로 home(→ 공유 노트로 이동)
-    if (_obFlow === 'existing' && !sessionStorage.getItem(PENDING_SHARE_CODE_KEY)) {
-      // 기존 유저(persona 미입력) → '시작하기' 화면 거쳐 home
+    // 네이티브 앱도 바로 home — 이 경로는 스플래시(로고만, 버튼 숨김) 상태라 '시작하기'를 띄우면 버튼이 안 보여 갇힌다
+    // (재실행 시 _routeAuthedUser가 시작하기 없이 바로 진입하는 것과도 동일)
+    if (_obFlow === 'existing' && !sessionStorage.getItem(PENDING_SHARE_CODE_KEY) && !window.Capacitor?.isNativePlatform()) {
+      // 기존 유저(persona 미입력, 웹) → '시작하기' 화면 거쳐 home
       _showStartScreen();
     } else {
       // 신규 가입 (또는 공유 링크로 들어온 기존 유저) → 바로 home
@@ -585,6 +596,19 @@ function _showStartScreen() {
   document.getElementById('onboarding-overlay')?.classList.remove('hidden');
   const startBtn = document.getElementById('onboarding-start-btn');
   if (startBtn) { startBtn.classList.remove('hidden'); startBtn.textContent = '시작하기'; }
+}
+
+// 온보딩 완료 여부 조회가 실패했을 때(네트워크 등) — 로고 화면에 안내 문구와 다시 시도 버튼만 띄운다.
+// 다시 시도는 페이지를 새로 불러 처음(세션 확인 → 조회)부터 다시 한다.
+function _obShowRetry() {
+  document.querySelectorAll('.ob-overlay--step').forEach(el => el.classList.add('hidden'));
+  const ov = document.getElementById('onboarding-overlay');
+  ov?.classList.remove('hidden', 'onboarding-overlay--splash');   // 스플래시 상태면 버튼 영역이 숨겨져 있음
+  ['onboarding-loading', 'onboarding-signin-loading', 'onboarding-google-btn', 'onboarding-apple-btn',
+    'onboarding-start-btn', 'onboarding-switch-btn'].forEach(id => document.getElementById(id)?.classList.add('hidden'));
+  document.getElementById('onboarding-retry-text')?.classList.remove('hidden');
+  document.getElementById('onboarding-retry-btn')?.classList.remove('hidden');
+  _obLog('onboarding_check_failed', {});
 }
 
 // ── 년도 휠피커 ─────────────────────────────────────────────
@@ -659,14 +683,13 @@ async function _saveInitialPattern(token, userId) {
   }
 }
 
+// 성공 여부를 돌려준다(true = 설문 답과 페르소나가 모두 저장됨). 임시 패턴 저장 실패는 진입과 무관해 성공으로 본다.
 async function _saveOnboardingData() {
   try {
-    const stored = localStorage.getItem(SUPABASE_STORAGE_KEY);
-    if (!stored) return;
-    const session = JSON.parse(stored);
+    const session = await _freshSession();
     const token  = session?.access_token;
     const userId = session?.user?.id;
-    if (!token || !userId) return;
+    if (!token || !userId) return false;
     const resp = await fetch(`${SUPABASE_URL}/rest/v1/subscriptions?on_conflict=user_id`, {
       method: 'POST',
       headers: {
@@ -693,6 +716,7 @@ async function _saveOnboardingData() {
       const errBody = await resp.text();
       console.error('[Onboarding] subscriptions 저장 실패:', resp.status, errBody);
       _obLog('onboarding_save_failed', { where: 'subscriptions', status: resp.status });
+      return false;
     }
     // persona는 subscriptions가 아니라 user_persona_profile이 유일한 소스(2026-08-31).
     // checkNeedsOnboarding이 바로 다음에 이 테이블을 재조회하므로 fire-and-forget 아닌 await 필수
@@ -711,12 +735,15 @@ async function _saveOnboardingData() {
       if (!ppResp.ok) {
         console.error('[Onboarding] user_persona_profile 저장 실패:', ppResp.status, await ppResp.text());
         _obLog('onboarding_save_failed', { where: 'persona', status: ppResp.status });
+        return false;
       }
     }
     await _saveInitialPattern(token, userId);
+    return true;
   } catch(e) {
     console.error('[Onboarding] subscriptions 저장 예외:', e);
     _obLog('onboarding_save_failed', { where: 'exception', status: null });
+    return false;
   }
 }
 
@@ -759,9 +786,12 @@ async function _preloadForDeepLink() {
 async function _routeAuthedUser() {
   await _restoreServerData(); // 스피너 유지한 채 서버 데이터 복원 완료까지 대기
   const { token, userId } = getStoredAuth();
-  if (token && userId && await checkNeedsOnboarding(token, userId)) {
+  const obState = (token && userId) ? await checkOnboardingState(token, userId) : null;
+  // 조회 실패 → 설문도 홈도 아닌 다시 시도 화면(통과시키면 프로필 없는 유저가 생기고,
+  // 설문을 띄우면 기존 유저의 페르소나·닉네임이 덮어써진다)
+  if (obState === 'unknown') { _obShowRetry(); return; }
+  if (obState === 'needed') {
     // 기존 유저 · persona 미입력 → 바로 persona step
-    // (조회 실패 시에도 여기로 온다 — 통과시키면 프로필 없는 유저가 생긴다)
     _obFlow = 'existing';
     document.getElementById('onboarding-loading')?.classList.add('hidden');
     document.getElementById('onboarding-overlay')?.classList.add('hidden');
@@ -839,6 +869,7 @@ async function onboardingSwitchAccount() {
   // 실제 세션 해제: 앱 수동키만 지우면 web은 supabase-js 자체 세션(sb-*-auth-token),
   // android는 GoogleAuth 캐시가 남아 같은 계정으로 조용히 재로그인됨.
   await _flushPendingProjects();
+  await _deletePushTokenRow();   // shared.js signOutWeb과 동일 — 세션을 지우기 전에
   if (typeof Tutorial !== 'undefined') Tutorial.clearLocal();
   try {
     if (!window.Capacitor?.isNativePlatform()) {

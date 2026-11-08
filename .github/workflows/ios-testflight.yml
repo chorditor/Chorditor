@@ -11,9 +11,9 @@ on:
   workflow_dispatch:
     inputs:
       marketing_version:
-        description: 'CFBundleShortVersionString (예: 1.4.0)'
+        description: 'CFBundleShortVersionString (예: 1.4.1)'
         required: false
-        default: '1.4.0'
+        default: '1.4.1'
   push:
     tags:
       - 'ios-tf-*'
@@ -97,7 +97,7 @@ jobs:
         env:
           ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
           ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
-          MARKETING_VERSION: ${{ inputs.marketing_version || '1.4.0' }}
+          MARKETING_VERSION: ${{ inputs.marketing_version || '1.4.1' }}
         run: |
           xcodebuild archive \
             -project ios/App/App.xcodeproj \

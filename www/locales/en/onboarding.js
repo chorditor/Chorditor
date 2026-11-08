@@ -108,3 +108,11 @@ I18N.add('en', {
     [/^(\d{4})년$/, '{1}'], // 태어난 년도 휠
   ],
 });
+
+// 연결 실패 안내 (2026-11-08 추가)
+I18N.add('en', {
+  exact: {
+    '연결이 불안정해요. 잠시 후 다시 시도해 주세요.': 'Your connection is unstable. Please try again in a moment.',
+    '다시 시도': 'Try again',
+  },
+});

@@ -31,6 +31,8 @@
           <span class="onboarding-spinner"></span>
           <span class="onboarding-signin-loading-text">로그인 중...</span>
         </div>
+        <p class="onboarding-desc hidden" id="onboarding-retry-text">연결이 불안정해요. 잠시 후 다시 시도해 주세요.</p>
+        <button class="onboarding-start-btn hidden" id="onboarding-retry-btn" onclick="location.reload()">다시 시도</button>
         <button class="onboarding-start-btn hidden" id="onboarding-start-btn" onpointerdown="handleStart()">시작하기</button>
         <span class="onboarding-switch-account hidden" id="onboarding-switch-btn" onpointerdown="onboardingSwitchAccount()">다른 계정으로 변경</span>
         <button class="btn onboarding-btn hidden" id="onboarding-google-btn" onpointerdown="onboardingSignIn()">

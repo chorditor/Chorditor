@@ -1824,14 +1824,49 @@ function _consumeAfterNotices() {
 //   pastHighlights (선택) sections와 형식 동일 — 있으면 얇은 구분선 아래 "과거 업데이트 다시보기"로 이어붙임
 //   ghostBtn     (선택) {label} — 있으면 "그냥 닫기"용 보조 버튼이 primary 왼쪽에 생김
 //   primaryBtn   (선택) {label, action} — action 없으면 그냥 닫기, label 없으면 '확인'
-const APP_NOTICES = [];
+//                action이 페이지를 떠나지 않으면(새 탭 열기 등) 끝에서 checkAndShowNotice()를 직접 불러 다음 흐름을 이어 줄 것
+//   when         (선택) () => boolean — false면 이 공지를 건너뜀(플랫폼·기기별 공지용)
+//   closeX       (선택) true면 우상단 X 닫기 버튼 표시(ghostBtn 대신 쓸 때)
+
+// iOS 앱 출시 공지 대상 — 웹(앱 아님)으로 접속한 유저 중 안드로이드 브라우저만 제외(아이폰·아이패드·PC).
+// 안드로이드 앱만 있던 시절 iOS 유저에게 웹 주소를 임시로 안내해서, 웹 유저는 거의 iOS 유저다.
+// PC로 쓰던 유저도 애플 기기 앱으로 넘어오도록 PC 브라우저에도 띄운다.
+function _isIOSLaunchNoticeTarget() {
+  if (window.Capacitor?.isNativePlatform()) return false;
+  return !/Android/i.test(navigator.userAgent || '');
+}
+
+const APP_NOTICES = [
+  {
+    id: 'ios_launch_web_2026_11',   // 배포 후 변경 금지
+    // 웹 주소는 한국 유저에게만 안내했음 — 한국어 앱에서만 노출
+    when: () => _isIOSLaunchNoticeTarget() && getLang() === 'ko',
+    version: '아이폰 앱이 나왔어요!',
+    // summary만 쓰면 아래 구분선과 빈 섹션 여백이 남아서 문구를 섹션 하나로 둠(소제목 없음)
+    sections: [{
+      desc: '앱으로 더 빠르고 편하게 연습해 보세요.',
+      // 웹 가입 당시엔 Apple 로그인이 없었으므로 구글 계정 안내
+      extra: '지금 쓰는 구글 계정으로 로그인하면 노트와 기록이 그대로 이어져요.',
+    }],
+    closeX: true,   // 닫기는 우상단 X
+    primaryBtn: {
+      label: 'App Store에서 다운로드',
+      appleLogo: true,   // 앱 표준 버튼(cd-btn--brand) + 애플 로고, 한 줄
+      // 국가 코드 없는 주소 — 기기에서 열면 App Store 앱이 그 Apple ID 국가 스토어로 연다
+      action: () => {
+        window.open('https://apps.apple.com/app/id' + IOS_APP_STORE_ID, '_blank');
+        checkAndShowNotice();   // 페이지를 떠나지 않으므로 다음 공지·출석 흐름을 이어 줌
+      },
+    },
+  },
+];
 
 let _appNoticeDismissedThisLoad = false; // "다시 보지 않기" 안 눌러도 이번 페이지 로드에선 재노출 안 함
 let _appNoticeShowingId = null;
 
 function maybeShowAppNotice() {
   if (_appNoticeDismissedThisLoad) return false;
-  const notice = APP_NOTICES.find(n => !localStorage.getItem('chorditor_notice_seen_' + n.id));
+  const notice = APP_NOTICES.find(n => (!n.when || n.when()) && !localStorage.getItem('chorditor_notice_seen_' + n.id));
   if (!notice) return false;
   _renderAppNotice(notice);
   return true;
@@ -1842,7 +1877,7 @@ function maybeShowAppNotice() {
 function _renderNoticeSections(list) {
   return (list || []).map(s => ({ ...s, image: s.imageByLang?.[getLang()] || s.image })).map(s => `
     <div class="update-notice-section">
-      <div class="update-notice-section-title">${s.title}</div>
+      ${s.title ? `<div class="update-notice-section-title">${s.title}</div>` : ''}
       <p class="update-notice-section-desc">${s.desc}</p>
       ${s.image ? `<div class="update-notice-section-media${s.shot ? ' update-notice-section-media--shot' : ''}"><img src="${s.image}" alt=""></div>`
         : s.mediaHtml ? `<div class="update-notice-section-media${s.mediaClass ? ' ' + s.mediaClass : ''}">${s.mediaHtml}</div>` : ''}
@@ -1873,9 +1908,14 @@ function _renderAppNotice(notice) {
   const ghostHtml = notice.ghostBtn
     ? `<button class="update-notice-btn update-notice-btn--ghost" onclick="closeAppNotice(false)">${notice.ghostBtn.label || '확인'}</button>`
     : '';
+  document.getElementById('app-notice-close')?.classList.toggle('hidden', !notice.closeX);
   const primaryLabel = notice.primaryBtn?.label || '확인';
-  document.getElementById('app-notice-btns').innerHTML = ghostHtml
-    + `<button class="update-notice-btn update-notice-btn--primary" onclick="closeAppNotice(true)">${primaryLabel}</button>`;
+  // primaryBtn.appleLogo: 앱 표준 버튼(§12 cd-btn--brand, 폭은 문구 길이만큼) + 흰 애플 로고 — App Store 이동용
+  const APPLE_LOGO_SVG = '<svg viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M12.152 6.896c-.948 0-2.415-1.078-3.96-1.04-2.04.027-3.91 1.183-4.961 3.014-2.117 3.675-.546 9.103 1.519 12.09 1.013 1.454 2.208 3.09 3.792 3.039 1.52-.065 2.09-.987 3.935-.987 1.831 0 2.35.987 3.96.948 1.637-.026 2.676-1.48 3.676-2.948 1.156-1.688 1.636-3.325 1.662-3.415-.039-.013-3.182-1.221-3.22-4.857-.026-3.04 2.48-4.494 2.597-4.559-1.429-2.09-3.623-2.324-4.39-2.376-2-.156-3.675 1.09-4.61 1.09zM15.53 3.83c.843-1.012 1.4-2.427 1.245-3.83-1.207.052-2.662.805-3.532 1.818-.78.896-1.454 2.338-1.273 3.714 1.338.104 2.715-.688 3.559-1.701z"/></svg>';   // onboarding.html Apple 로그인 버튼과 같은 로고
+  const primaryHtml = notice.primaryBtn?.appleLogo
+    ? `<button class="cd-btn cd-btn--brand cd-btn--auto-width update-notice-store-btn" onclick="closeAppNotice(true)">${APPLE_LOGO_SVG}<span>${primaryLabel}</span></button>`
+    : `<button class="update-notice-btn update-notice-btn--primary" onclick="closeAppNotice(true)">${primaryLabel}</button>`;
+  document.getElementById('app-notice-btns').innerHTML = ghostHtml + primaryHtml;
 
   document.getElementById('app-notice-overlay')?.classList.remove('hidden');
   if (typeof lucide !== 'undefined') lucide.createIcons(); // 섹션 그래픽에 data-lucide 아이콘(도장) 쓰는 경우 렌더
@@ -3970,12 +4010,23 @@ function selectLanguage(code) {
 // ── 사운드 볼륨 바텀시트 → shared.js 로 이동(코드진행·주법훈련 페이지와 공용) ──
 
 // ── 확인 바텀시트(로그아웃/계정삭제 공용) ───────────────────────
-function openConfirmSheet({ title, desc, btnText, danger, onConfirm }) {
+// note: 빨간 강조 안내 / notePath: 그 아래 보조 줄 / link: {label, onClick} 밑줄 텍스트 버튼 — 셋 다 선택(없으면 숨김)
+function openConfirmSheet({ title, desc, note, notePath, link, btnText, danger, onConfirm }) {
   document.getElementById('confirm-sheet-title').textContent = title;
   document.getElementById('confirm-sheet-desc').innerHTML = desc.replace(/\n/g, '<br>');
+  const noteEl = document.getElementById('confirm-sheet-note');
+  noteEl.textContent = note || '';
+  noteEl.classList.toggle('hidden', !note);
+  const pathEl = document.getElementById('confirm-sheet-path');
+  pathEl.textContent = notePath || '';
+  pathEl.classList.toggle('hidden', !notePath);
+  const linkEl = document.getElementById('confirm-sheet-link');
+  linkEl.textContent = link ? link.label : '';
+  linkEl.onclick = link ? link.onClick : null;
+  linkEl.classList.toggle('hidden', !link);
   const btn = document.getElementById('confirm-sheet-btn');
   btn.textContent = btnText;
-  btn.className = 'btn ' + (danger ? 'btn-danger' : 'btn-primary');
+  btn.className = 'cd-btn ' + (danger ? 'cd-btn--red' : 'cd-btn--brand');   // 스타일 가이드 §12
   btn.onclick = () => { closeConfirmSheet(); onConfirm(); };
   document.getElementById('confirm-sheet-overlay').classList.add('gsheet-overlay--open');
   document.getElementById('confirm-sheet').classList.add('gsheet--open');
@@ -4001,22 +4052,55 @@ function confirmLogout() {
   });
 }
 
+// 계정 삭제 요청이 실패로 끝났을 때 계정이 실제로 남아 있는지 확인 — 서버는 지웠는데 응답만 못 받은(네트워크 끊김) 경우를
+// 성공으로 처리해서, 이미 없는 계정에 갇히지 않게 한다. true = 계정 없음(삭제됨) / false = 계정 있음 또는 확인 못 함
+async function _accountGone() {
+  const s = _readAuthSession();
+  if (!s) return false;
+  try {
+    const r = await fetch(`${SUPABASE_URL}/auth/v1/user`, { headers: { apikey: SUPABASE_ANON, Authorization: 'Bearer ' + s.access_token } });
+    if (r.ok) return false;
+    const j = await r.json().catch(() => ({}));
+    return r.status === 404 || j.error_code === 'user_not_found' || j.code === 'user_not_found';
+  } catch (_) { return false; }
+}
+
+// 스토어 구독 관리 화면 열기 — RevenueCat이 주는 관리 주소 우선, 없으면 플랫폼별 기본 주소
+async function openSubscriptionManagement() {
+  _playTap();
+  let url = null;
+  try { url = (await window._RC?.getCustomerInfo())?.customerInfo?.managementURL || null; } catch (_) {}
+  if (!url) {
+    url = _isIOSNative() ? 'https://apps.apple.com/account/subscriptions'
+                         : 'https://play.google.com/store/account/subscriptions?package=com.chorditor.app';
+  }
+  if (typeof analytics !== 'undefined') analytics.track('subscription_manage_opened', { from: 'delete_account' });
+  if (window.Capacitor?.Plugins?.Browser) window.Capacitor.Plugins.Browser.open({ url });
+  else window.open(url, '_blank');
+}
+
 function confirmDeleteAccount() {
   _playTap();
+  // 스토어로 결제한 Pro만(쿠폰 Pro는 결제가 없음) — 계정을 지워도 Apple·Google 구독은 해지되지 않고 계속 결제된다
+  const subscribed = getPlan() === 'pro' && !getPromoUntil();
   openConfirmSheet({
     title: '계정 삭제',
     desc: '계정을 삭제하면 모든 노트와 데이터가 영구적으로 삭제되며 복구할 수 없습니다.',
+    note: subscribed ? 'Pro 구독은 계정을 삭제해도 자동으로 해지되지 않아요. 먼저 구독을 해지한 뒤 계정을 삭제해 주세요.' : '',
+    notePath: subscribed ? (_isIOSNative() ? '설정 > Apple ID(내 이름) > 구독' : 'Google Play 스토어 > 결제 및 구독 > 구독') : '',
+    link: subscribed ? { label: '구독 관리로 이동', onClick: openSubscriptionManagement } : null,
     btnText: '삭제',
     danger: true,
     onConfirm: async () => {
-      const r = await _peakRpc('delete_own_account', {}, { voidOk: true });
+      let r = await _peakRpc('delete_own_account', {}, { voidOk: true });
+      if (r === null && await _accountGone()) r = true;   // 서버는 지웠는데 응답만 못 받은 경우
       if (r === null) {
         if (typeof showTextToast === 'function') showTextToast('삭제에 실패했어요. 다시 시도해주세요.');
         return;
       }
       if (typeof analytics !== 'undefined') analytics.track('account_deleted', {});
       closeSettings();
-      await signOutWeb();
+      await signOutWeb({ accountDeleted: true });
       location.reload();
     },
   });
