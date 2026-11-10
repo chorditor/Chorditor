@@ -28,6 +28,14 @@ create index if not exists idx_push_broadcast_pending
   on public.push_broadcast (scheduled_at)
   where status = 'pending';
 
+-- 2026-11-04: 업데이트 안내용 필터 3종 추가(전부 기본값=기존 동작 그대로).
+--   exclude_version_from: 이 버전 "이상"인 유저 제외(예: '1.4' → 1.4.x 이상 제외). 버전 NULL/형식불명은 포함.
+--   platform: 해당 플랫폼 토큰만(예: 'android'). NULL이면 전체.
+--   include_pro: true면 결제/프로모 Pro 유저도 포함(기본 false = 기존처럼 제외).
+alter table public.push_broadcast add column if not exists exclude_version_from text;
+alter table public.push_broadcast add column if not exists platform text;
+alter table public.push_broadcast add column if not exists include_pro boolean not null default false;
+
 -- 예정시각(scheduled_at) 지난 캠페인 중 대기중(pending) 또는 배치 처리 중이던(sending) 것
 -- 1건을 원자적으로 집어옴(동시실행 방지). scheduled_at은 최초 발송 시점뿐 아니라
 -- 배치 재개 시점도 함께 통제 — sending 상태여도 scheduled_at 지나기 전엔 재개 안 함.
@@ -59,16 +67,23 @@ grant execute on function public.claim_due_broadcast() to service_role;
 
 -- 기존 1-arg 시그니처 제거(새 3-arg 버전으로 대체, overload 혼재 방지)
 drop function if exists public.get_broadcast_targets(text);
+-- 2026-11-04: 3-arg 버전은 6-arg(아래)로 대체 — overload 혼재 시 RPC 호출 모호해짐
+drop function if exists public.get_broadcast_targets(text, bigint, int);
 
 -- 캠페인 대상 조회: 토큰 있는 유저 중 min_version_exclude 버전이 아닌(또는 버전 미확인) 유저,
 -- 그리고 이 캠페인(p_broadcast_id)으로 이미 push_send_log에 발송기록 남은 유저는 제외
 -- (배치 재개 시 중복발송 방지). p_limit로 배치 크기 제한.
 -- 2026-09-10: 결제 Pro / 유효 프로모 Pro 유저는 전 브로드캐스트에서 제외
 -- (프로모/선물성 공지가 대부분이라 이미 Pro인 유저에겐 뜬금없음. 공용 함수라 앞으로도 적용됨).
+-- 2026-11-04: p_include_pro=true면 Pro도 포함, p_platform으로 플랫폼 한정,
+--   p_exclude_version_from('1.4')이면 해당 버전 이상 제외(버전 NULL·형식불명은 "구버전 가능성"으로 포함).
 create or replace function public.get_broadcast_targets(
   p_min_version_exclude text default null,
   p_broadcast_id bigint default null,
-  p_limit int default 500
+  p_limit int default 500,
+  p_exclude_version_from text default null,
+  p_platform text default null,
+  p_include_pro boolean default false
 )
 returns table (
   user_id  uuid,
@@ -84,8 +99,18 @@ as $$
   left join public.subscriptions sub on sub.user_id = pt.user_id
   where (p_min_version_exclude is null
      or sub.app_version is distinct from p_min_version_exclude)
-    and coalesce(sub.plan, 'free') <> 'pro'
-    and not coalesce(sub.promo_plan = 'pro' and sub.promo_expires_at > now(), false)
+    and (p_include_pro or (
+          coalesce(sub.plan, 'free') <> 'pro'
+          and not coalesce(sub.promo_plan = 'pro' and sub.promo_expires_at > now(), false)
+        ))
+    and (p_platform is null or pt.platform = p_platform)
+    and (p_exclude_version_from is null
+         or case when sub.app_version ~ '^\d+\.\d+'
+              then (substring(sub.app_version from '^(\d+)')::int,
+                    substring(sub.app_version from '^\d+\.(\d+)')::int)
+                   < (split_part(p_exclude_version_from, '.', 1)::int,
+                      split_part(p_exclude_version_from, '.', 2)::int)
+              else true end)
     and not exists (
       select 1 from public.push_send_log l
       where l.user_id = pt.user_id
@@ -94,7 +119,7 @@ as $$
   limit p_limit;
 $$;
 
-grant execute on function public.get_broadcast_targets(text, bigint, int) to service_role;
+grant execute on function public.get_broadcast_targets(text, bigint, int, text, text, boolean) to service_role;
 
 -- 기존 3-arg 시그니처 제거(새 4-arg 버전으로 대체)
 drop function if exists public.finish_broadcast(bigint, int, int);

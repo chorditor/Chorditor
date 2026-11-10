@@ -100,6 +100,9 @@ interface BroadcastRow {
   title: string;
   body: string;
   min_version_exclude: string | null;
+  exclude_version_from: string | null;
+  platform: string | null;
+  include_pro: boolean;
   scheduled_at: string;
   status: string;
 }
@@ -129,8 +132,7 @@ async function claimDueBroadcast(): Promise<BroadcastRow | null> {
 }
 
 async function fetchTargets(
-  minVersionExclude: string | null,
-  broadcastId: number,
+  broadcast: BroadcastRow,
   limit: number,
 ): Promise<BroadcastTarget[]> {
   const resp = await fetch(`${SUPABASE_URL}/rest/v1/rpc/get_broadcast_targets`, {
@@ -140,7 +142,14 @@ async function fetchTargets(
       'Authorization': `Bearer ${SERVICE_ROLE}`,
       'Content-Type': 'application/json',
     },
-    body: JSON.stringify({ p_min_version_exclude: minVersionExclude, p_broadcast_id: broadcastId, p_limit: limit }),
+    body: JSON.stringify({
+      p_min_version_exclude: broadcast.min_version_exclude,
+      p_broadcast_id: broadcast.id,
+      p_limit: limit,
+      p_exclude_version_from: broadcast.exclude_version_from ?? null,
+      p_platform: broadcast.platform ?? null,
+      p_include_pro: broadcast.include_pro ?? false,
+    }),
   });
   if (!resp.ok) throw new Error(`get_broadcast_targets error ${resp.status}: ${await resp.text()}`);
   return await resp.json();
@@ -201,7 +210,7 @@ Deno.serve(async (_req) => {
     const sa = loadServiceAccount();
     const accessToken = await getAccessToken(sa);
     // BATCH_SIZE + 1개 조회해서 남는 게 있는지(마지막 배치인지) 판별
-    const fetched = await fetchTargets(broadcast.min_version_exclude, broadcast.id, BATCH_SIZE + 1);
+    const fetched = await fetchTargets(broadcast, BATCH_SIZE + 1);
     const isLastBatch = fetched.length <= BATCH_SIZE;
     const targets = fetched.slice(0, BATCH_SIZE);
 
