@@ -3249,7 +3249,7 @@ async function _applyStorePrices() {
     const perMonth = yPrice / 12;
     let text;
     if (yearly.currencyCode === 'KRW') {
-      text = (Math.round(perMonth / 100) * 100).toLocaleString('ko-KR') + '원'; // 기존 표기(약 5,000원)와 같은 형식
+      text = (Math.round(perMonth / 100) * 100).toLocaleString('ko-KR') + '원'; // 기존 표기(약 1,700원)와 같은 형식
     } else {
       try { text = new Intl.NumberFormat(undefined, { style: 'currency', currency: yearly.currencyCode, currencyDisplay: 'narrowSymbol' }).format(perMonth); }
       catch (_) { text = null; }
@@ -3350,16 +3350,16 @@ function _initPlanSheet() {
         <div class="plan-card-name">Pro 연간</div>
         <div class="plan-card-price">
           <div class="price-top">
-            <span class="hint" id="plan-hint-yearly">약 5,000원/월</span>
-            <span class="price-badge" id="plan-badge-yearly">28% 할인</span>
+            <span class="hint" id="plan-hint-yearly">약 1,700원/월</span>
+            <span class="price-badge" id="plan-badge-yearly">43% 할인</span>
           </div>
-          <span class="price-amount" id="plan-price-yearly">₩59,900<small>/년</small></span>
+          <span class="price-amount" id="plan-price-yearly">₩19,900<small>/년</small></span>
         </div>
       </div>
       <div class="plan-card" id="plan-card-monthly" onclick="_planSelectCycle('monthly')">
         <div class="plan-card-name">Pro 월간</div>
         <div class="plan-card-price">
-          <span class="price-amount" id="plan-price-monthly">₩6,900<small>/월</small></span>
+          <span class="price-amount" id="plan-price-monthly">₩2,900<small>/월</small></span>
         </div>
       </div>
     </div>
