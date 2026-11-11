@@ -2493,6 +2493,8 @@ function switchTab(tab, noAnim = false) {
   _notesSplitShellSync(); // 노트 탭 스플릿이면 탑바 숨김, 다른 탭으로 가면 복원
   // 노트 탭을 떠나면 우측 악보(iframe)를 비워 재생·타이머를 끊는다 — 복귀하면 마지막 노트를 다시 연다
   if (prevTab === 'projects' && tab !== 'projects') _notesSplitClose(true);
+  // 공유받은 노트를 불러오는 도중 노트 탭을 떠나면 불러오기 취소(아래 홈 탭 처리보다 먼저 — 보류했던 자동 팝업이 한 번만 이어지게)
+  if (prevTab === 'projects' && tab !== 'projects') _cancelShareWaitingOnLeave();
 
   // SPA 내부 탭 이동은 pagehide가 안 뜸 → 코드에디터 재생 중이던 사운드가 안 멈춤. 하드컷.
   // (stopPlayAll은 user_project.js 전용 함수라 home.html엔 없음 — GuitarAudio.panic()이 그래프 절단+재초기화까지 처리)
@@ -2817,7 +2819,7 @@ function handleNativeBack() {
   if (window.Tutorial?.isRunning?.()) { window.Tutorial.confirmSkip(); return; }
 
   // 공유받은 노트 한도 모달이 떠 있으면 뒤로가기 = [불러오기 취소] (모달을 남긴 채 홈 탭으로 넘어가지 않게)
-  if (!document.getElementById('share-limit-overlay')?.classList.contains('hidden')) { shareLimitCancel(); return; }
+  if (_isShareLimitModalOpen()) { shareLimitCancel(); return; }
 
   // user_project → 에디터로 들어온 모드: 화면 버튼이 없으므로 노트로 돌려보낸다
   if (_isFromProject && _editorReturnProjectId) {
@@ -5152,19 +5154,21 @@ const SHARE_WAITING_PAYLOAD_KEY = 'np_share_waiting_payload';
 function _getShareWaitingPayload() {
   try { return JSON.parse(sessionStorage.getItem(SHARE_WAITING_PAYLOAD_KEY) || 'null'); } catch (_) { return null; }
 }
+// 뒤로가기(연습 중단) 모달과 같은 방식 — 오버레이는 style.display로 열고 닫고, 열 때마다 통통 튀는 등장 애니메이션을 다시 재생
+function _isShareLimitModalOpen() {
+  return document.getElementById('share-limit-overlay')?.style.display === 'flex';
+}
 function _openShareLimitModal() {
   const ov = document.getElementById('share-limit-overlay');
   if (!ov) return;
-  ov.classList.remove('hidden');
-  requestAnimationFrame(() => requestAnimationFrame(() => {
-    ov.querySelector('.cd-modal')?.classList.add('cd-modal--in');
-  }));
+  if (typeof _playSfx === 'function') _playSfx('cancel.mp3');   // showLeavePracticeModal과 같은 여는 소리
+  ov.style.display = 'flex';
+  const modal = ov.querySelector('.leave-practice-modal');
+  if (modal) { modal.style.animation = 'none'; void modal.offsetWidth; modal.style.animation = ''; }
 }
 function _closeShareLimitModal() {
   const ov = document.getElementById('share-limit-overlay');
-  if (!ov) return;
-  ov.classList.add('hidden');
-  ov.querySelector('.cd-modal')?.classList.remove('cd-modal--in');
+  if (ov) ov.style.display = 'none';
 }
 // [불러오기 취소] — 보관한 내용을 버리고 끝. 공유 처리가 끝났으니 보류했던 자동 팝업도 풀어 준다(홈 복귀 시 표시).
 function shareLimitCancel() {
@@ -5177,7 +5181,15 @@ function shareLimitCancel() {
 function shareLimitGoDelete() {
   _closeShareLimitModal();
   renderProjectsList();
+  if (_notesSplitCollapsed) _notesSplitSetCollapsed(false);   // 노트 목록 패널이 접혀 있으면(오버레이 모드 기본값) 펼쳐서 바로 지울 노트를 고를 수 있게
 }
+// 불러오는 도중(한도 모달이 떠 있거나 목록 위 대기 버튼이 있는 동안) 노트 탭을 떠나면 [불러오기 취소]와 같이 처리 — 대기분을 버린다.
+// 이탈 경로 전부(CLAUDE.md 0-2): 다른 탭 이동·Android 뒤로가기(→ switchTab), 다른 페이지 이동·새로고침·종료(pagehide), 홈 버튼·앱 전환(visibilitychange)
+function _cancelShareWaitingOnLeave() {
+  if (_isShareLimitModalOpen() || _getShareWaitingPayload()) shareLimitCancel();
+}
+window.addEventListener('pagehide', _cancelShareWaitingOnLeave);
+document.addEventListener('visibilitychange', () => { if (document.hidden) _cancelShareWaitingOnLeave(); });
 // 목록 위 [공유받은 노트 불러오기]
 function importWaitingSharedNote() {
   const payload = _getShareWaitingPayload();
