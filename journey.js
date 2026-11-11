@@ -50,9 +50,29 @@ function renderJourney() {
   for (let i = 0; i < JNY_COUNT; i++) {
     const y = JNY_Y0 + i * JNY_S;
     const x = CX + A * Math.sin(Math.PI * i / JNY_N);
-    html += '<div class="journey-node' + (i === JNY_ACTIVE ? ' journey-node--active' : '') + '" style="left:' + x.toFixed(1) + 'px;top:' + y + 'px">' + jnyNumSvg(i + 1) + '</div>';
+    html += '<div class="journey-node' + (i === JNY_ACTIVE ? ' journey-node--active' : '') + '" data-sfx="pop2" style="left:' + x.toFixed(1) + 'px;top:' + y + 'px">' + jnyNumSvg(i + 1) + '</div>';
   }
   nodesEl.innerHTML = html;
+
+  // 홈 탭의 '다른 커리큘럼 보기' 버튼(노드 영역 좌상단): 윗변을 1번 노드의 윗변에 맞춘다(스크롤 맨 위 기준 위치로 고정)
+  const switchBtn = document.getElementById('journey-switch-btn');
+  const firstNode = nodesEl.firstElementChild;
+  if (switchBtn && firstNode && stage.offsetTop) {
+    const top = (stage.offsetTop + firstNode.offsetTop) + 'px';
+    switchBtn.style.top = top;
+    const side = document.getElementById('journey-side');   // 우상단 세로 버튼 묶음도 같은 높이에서 시작
+    if (side) side.style.top = top;
+  }
+}
+
+// 진행도(배너 오른쪽 큰 숫자 + '진행도' 라벨). 코스 데이터가 아직 없어 값은 자리표시(샘플) — 데이터가 생기면 호출하는 쪽에서 done/total을 넘긴다.
+const JNY_PROGRESS_SAMPLE = { done: 1, total: 30 };
+function renderJourneyProgress(done, total) {
+  const d = done ?? JNY_PROGRESS_SAMPLE.done, t = total ?? JNY_PROGRESS_SAMPLE.total;
+  const elDone = document.getElementById('jhs-done');
+  const elTotal = document.getElementById('jhs-total');
+  if (elDone) elDone.textContent = d;
+  if (elTotal) elTotal.textContent = t;
 }
 
 function closeJourney() {
@@ -67,13 +87,17 @@ function closeJourney() {
 }
 
 document.addEventListener('DOMContentLoaded', () => {
+  let _rt = null;
+  window.addEventListener('resize', () => { clearTimeout(_rt); _rt = setTimeout(renderJourney, 120); });
+
+  // 홈 탭(home.html)에 임베드된 경우: 페이지 초기화(커버·진입 애니메이션)는 home.js 몫이고,
+  // 경로 렌더는 홈 탭이 보일 때 home.js가 renderJourney()를 부른다(숨겨진 동안은 폭이 0이라 재야 한다).
+  if (!document.body.classList.contains('journey-page')) return;
+
   const shell = document.querySelector('.app-shell');
   if (shell) shell.classList.add('project-enter');
 
   renderJourney();
-
-  let _rt = null;
-  window.addEventListener('resize', () => { clearTimeout(_rt); _rt = setTimeout(renderJourney, 120); });
 
   lucide.createIcons();
 

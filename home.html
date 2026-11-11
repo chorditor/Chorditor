@@ -19,14 +19,31 @@
 
   <div class="app-shell">
 
-    <!-- ── 탑바 (style-guide.md §11 cd-topbar) — 홈 탭: 브랜드(로고·앱이름·버전) + 튜토리얼 + 설정.
-         서브뷰(에디터·코드사전·노트)에선 JS가 브랜드를 숨기고 뒤로가기(#back-btn)를 보여줌 ── -->
+    <!-- ── 탑바 (style-guide.md §11 cd-topbar) — 홈 탭(나의 기타 여정): 피크바. 도구·프로필 탭: 브랜드(로고·앱이름·버전) + 설정.
+         도구 탭 서브뷰(에디터·코드사전·유틸리티)에선 JS가 브랜드를 숨기고 뒤로가기(#back-btn)를 보여줌 ── -->
     <header class="cd-topbar">
-      <button id="back-btn" class="hidden" onpointerdown="enterFromBlock(event,this,'home')">
+      <button id="back-btn" class="hidden" onpointerdown="enterFromBlock(event,this,'main')">
         <i data-lucide="chevron-left"></i>
       </button>
       <span class="cd-topbar-brand"><img src="image/logo/ios/Chorditor_newlogo_1_crop.svg" alt="" class="cd-topbar-logo">CHORDITOR<span id="home-banner-version" class="cd-topbar-version"></span></span>
-      <!-- 튜토리얼 재진입 — 건너뛰거나 중간에 멈춘 유저용. 홈 탭에서만 노출 -->
+      <!-- 홈 탭 전용 탑바 줄 — 왼쪽부터 [승급 단계 배지] [닉네임] ······ [선물상자] [피크]. JS switchTab이 .hidden 토글.
+           선물상자·피크는 #topbar-currency(다른 서브페이지 탑바와 같은 마크업)이고, 이 줄 안에서는 박스 없이 직접 항목으로 놓인다 -->
+      <div class="home-topbar-strip" id="home-topbar-strip">
+        <!-- 승급 단계 배지(재질 = 단계, 로마자 I~V). 이미지는 renderHomeBadge()가 현재 페르소나로 지정 -->
+        <div class="home-topbar-badge" id="home-topbar-badge"><img id="home-topbar-badge-img" src="image/badge_1_bronze.png" alt=""></div>
+        <span class="home-topbar-nick" id="home-topbar-nick"></span>
+        <div class="topbar-currency" id="topbar-currency">
+          <div class="currency-item currency-item--clickable" onclick="openPeakboxModal()">
+            <span class="currency-count" id="currency-peakbox-count">0</span>
+            <div class="currency-icon-box"><img src="image/gift.png" alt=""></div>
+          </div>
+          <div class="currency-item currency-item--clickable" onclick="openPeakTimerPopup(event)">
+            <span class="currency-count" id="currency-peak-count">30/30</span>
+            <div class="currency-icon-box"><img src="image/peak.svg" alt=""></div>
+          </div>
+        </div>
+      </div>
+      <!-- 튜토리얼 재진입 — 건너뛰거나 중간에 멈춘 유저용. 도구 탭 메인에서만 노출 -->
       <button id="tutorial-entry-btn" class="icon-btn cd-topbar-end hidden" onclick="_playTap(); openTutorialModal()" aria-label="튜토리얼">
         <i data-lucide="circle-help"></i>
         <span class="tut-entry-dot" id="tutorial-entry-dot" hidden></span>
@@ -41,11 +58,48 @@
     <!-- ── 메인 콘텐츠 ── -->
     <main class="cd-main cd-main--stage" id="main-content">
 
-      <!-- ── 홈 탭 ── -->
+      <!-- ── 홈 탭: 나의 기타 여정 (journey.html의 경로 UI를 그대로 옮김 — 렌더는 journey.js) ── -->
       <div class="tab-view" id="tab-view-home">
+        <div class="journey-home" id="view-home">
+          <header class="journey-head"><div class="journey-head-card">
+            <!-- 좌: 현재 커리큘럼 타이틀(자리표시 — 코스 데이터가 생기면 교체). 우: 진행도(큰 숫자 + 라벨) -->
+            <div class="journey-head-text">
+              <span class="journey-head-label" id="journey-head-persona"></span>
+              <span class="journey-head-title" id="journey-head-title">코드 반주 여정</span>
+            </div>
+            <div class="journey-head-stat" id="journey-head-stat" aria-label="진행도">
+              <span class="jhs-num"><span id="jhs-done">0</span><span class="jhs-slash">/</span><span id="jhs-total">0</span></span>
+              <span class="jhs-label">진행도</span>
+            </div>
+          </div></header>
+          <!-- 다른 커리큘럼 보기 — 노드 영역 좌상단(배너 바로 아래 왼쪽)에 떠 있는 버튼. 선택창은 아직 없음 -->
+          <button type="button" class="journey-switch-btn" id="journey-switch-btn" onclick="openCurriculumSelect()" aria-label="다른 커리큘럼 보기">
+            <img src="image/book_icon.png" alt="">
+          </button>
+          <!-- 노드 영역 우상단 세로 배치(위→아래): 레벨 · 오늘의 미션 · 퀘스트. 책 버튼과 같은 높이에서 시작 -->
+          <div class="journey-side" id="journey-side">
+            <button type="button" class="journey-side-btn" id="hs-level" onclick="switchTab('profile')" aria-label="레벨">
+              <span class="hs-level-text"><span>Lv</span><span id="hs-level-num">1</span></span>
+            </button>
+            <button type="button" class="journey-side-btn" id="hs-mission" onclick="openTodayMission()" aria-label="오늘의 미션">
+              <img src="image/calender.png" alt="">
+            </button>
+            <button type="button" class="journey-side-btn" id="hs-quest" onclick="openQuestModal()" aria-label="퀘스트 보상">
+              <img src="image/badge.png" alt="">
+              <span class="hs-quest-dot" id="hs-quest-dot" hidden></span>
+            </button>
+          </div>
+          <section class="journey-body">
+            <div class="journey-stage" id="journey-stage"><svg id="journey-svg" aria-hidden="true"></svg><div id="journey-nodes"></div></div>
+          </section>
+        </div>
+      </div><!-- /tab-view-home -->
 
-        <!-- 홈 화면 -->
-        <div class="view" id="view-home">
+      <!-- ── 도구 탭: 옛 홈(훈련소·코드 사전·코드 에디터·유틸리티 블록, 에디터·사전·유틸리티 서브뷰) ── -->
+      <div class="tab-view hidden" id="tab-view-tools">
+
+        <!-- 도구 메인 화면 -->
+        <div class="view" id="view-tools-main">
           <!-- Z Flip 힌지 기준 상단 스택(튜토리얼 배너+출석보드+광고배너) 묶음 — 힌지 위 50vh에 맞춰 정렬할 때만 사용 -->
           <div class="home-top-stack">
           <!-- 튜토리얼 배너 + 출석/퀘스트 보드 (단일 카드로 병합) -->
@@ -148,10 +202,10 @@
               <div class="home-block-title">코드 에디터</div>
               <div class="home-block-desc">코드표 제작 · 이미지 저장</div>
             </div>
-            <div class="home-block home-block--soon home-block--img" id="home-block-journey">
-              <div class="home-block-icon"><i class="ph-bold ph-map-trifold"></i></div>
-              <div class="home-block-title">나의 기타 여정</div>
-              <div class="home-block-desc">Coming Soon</div>
+            <div class="home-block home-block--img" id="home-block-utility" onpointerdown="enterFromBlock(event,this,'utility')">
+              <div class="home-block-icon"><i class="ph-bold ph-toolbox"></i></div>
+              <div class="home-block-title">유틸리티</div>
+              <div class="home-block-desc">튜너 · 메트로놈</div>
             </div>
           </div>
         </div>
@@ -403,14 +457,11 @@
 
       </div>
 
-      </div><!-- /tab-view-home -->
-
-      <!-- ── 도구 탭 ── -->
-      <div class="tab-view hidden" id="tab-view-tools">
-
+        <!-- 유틸리티 뷰 (옛 도구 탭의 튜너·메트로놈 카드) -->
+        <div class="view hidden" id="view-utility">
         <div class="training-scroll" id="view-tools">
 
-          <span class="page-title">도구</span>
+          <span class="page-title">유틸리티</span>
 
           <div class="training-section-label">도구 목록</div>
           <div class="training-grid">
@@ -434,6 +485,7 @@
           </div><!-- /training-grid -->
 
         </div><!-- /training-scroll -->
+        </div><!-- /view-utility -->
 
       </div><!-- /tab-view-tools -->
 
@@ -1202,6 +1254,8 @@
   <script src="voicing-canvas.js"></script>
   <script src="tutorial-steps.js"></script>
   <script src="tutorial.js"></script>
+  <script src="journey-numbers.js"></script>
+  <script src="journey.js"></script>
   <script src="home.js"></script>
   <script src="chord-voicings.js"></script>
   <script src="chords-library.js"></script>

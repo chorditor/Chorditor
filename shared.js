@@ -52,7 +52,7 @@ if (window.Capacitor?.getPlatform?.() === 'ios') {
 // ── 상수 ─────────────────────────────────────────────────────
 const SUPABASE_URL  ='https://jbvkygeksohlysyvaoab.supabase.co';
 const SUPABASE_ANON = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Impidmt5Z2Vrc29obHlzeXZhb2FiIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzYzOTk5NjgsImV4cCI6MjA5MTk3NTk2OH0.6RSgChy0Yq0H2TJpZPSoMKQ2V-OYfR0XzE1aJBBZkXI';
-const APP_VERSION   = '1.4.1';
+const APP_VERSION   = '1.5.0_dev';
 const SUPABASE_STORAGE_KEY = 'sb-jbvkygeksohlysyvaoab-auth-token';
 
 // 이용약관/개인정보처리방침 버전 — 광고식별자 수집 항목 추가(2026-09) 시 1로 올림.
@@ -1895,7 +1895,7 @@ document.addEventListener('DOMContentLoaded', () => {
   // 모달용 이미지 프리로드 — 세션 중 모달 첫 오픈 시 아이콘 늦게 뜨는 끊김 방지
   ['image/gift.png', 'image/gift2.png', 'image/peak.svg'].forEach(src => { new Image().src = src; });
   // 효과음 프리로드 — 첫 재생 디코드 지연 제거(화면전환과 레이스 방지)
-  ['tap.mp3', 'reward.mp3', 'peakbox_open.mp3', 'stamp.mp3', 'page.mp3', 'pop.mp3', 'cancel.mp3', 'attendance.mp3'].forEach(_preloadSfx);
+  ['tap.mp3', 'reward.mp3', 'peakbox_open.mp3', 'stamp.mp3', 'page.mp3', 'pop.mp3', 'pop2.mp3', 'cancel.mp3', 'attendance.mp3'].forEach(_preloadSfx);
   // 퀘스트 목록 프리렌더 — 모달 열기 전에 미리 채워둠 (첫 오픈 즉시 표시)
   if (document.getElementById('quest-modal-body')) renderQuestList();
   // 퀘스트 완료 알림 기준선(이미 수령 가능한 퀘스트를 "알림 완료"로) — 홈에서 한 번, 목록 프리렌더와 겹치지 않게 늦춰서
@@ -5079,6 +5079,37 @@ function setUserPersona(key) {
   _syncPersonaToProfile(key); // 승급/강등 즉시 DB반영(fire-and-forget) — user_persona_profile.js 참고
 }
 
+// ── 커리큘럼(나의 기타 여정 코스) — 단계(페르소나)별 · 갈래별 이름과 "지금 걷는 코스" ──
+// 갈래: comping = 코드반주, soloing = 솔로잉. 이름은 커리큘럼 선택 화면과 홈 배너가 같이 쓴다(여기가 유일한 원본).
+const CURRICULUM_KINDS = ['comping', 'soloing'];
+const CURRICULUM_NAMES = {
+  unboxing:      { comping: '코드반주 비기너',   soloing: '솔로연주 비기너' },
+  beginner:      { comping: '코드진행 따라잡기', soloing: '스케일 입문' },
+  sheet_reader:  { comping: '코드진행 정복',     soloing: '즉흥연주 기초' },
+  home_master:   { comping: '반주이론 정복',     soloing: '즉흥연주 중급' },
+  guitar_master: { comping: '고급 화성학 이론',  soloing: '즉흥연주 고급' },
+};
+const CURRICULUM_STORE_KEY = 'chorditor_curriculum';   // { stage, kind } — 커리큘럼 선택 화면에서 고른 코스
+
+// 지금 걷는 코스 { stage, kind }. 고른 적이 없으면: 단계 = 내 페르소나, 갈래 = 활동유형(pref_type)에서 정한다
+// (soloing → 솔로잉, 그 외 comping/harmony/toolkit/없음 → 코드반주. 활동유형은 설문 임시값이고 매달 배치가 갱신한다).
+function getCurrentCurriculum() {
+  try {
+    const saved = JSON.parse(localStorage.getItem(CURRICULUM_STORE_KEY) || 'null');
+    if (saved && PERSONA_STAGES.indexOf(saved.stage) !== -1 && CURRICULUM_KINDS.indexOf(saved.kind) !== -1) return saved;
+  } catch (_) {}
+  const pref = localStorage.getItem('user_pref_type');
+  return { stage: getUserPersona(), kind: pref === 'soloing' ? 'soloing' : 'comping' };
+}
+function setCurrentCurriculum(stage, kind) {
+  if (PERSONA_STAGES.indexOf(stage) === -1 || CURRICULUM_KINDS.indexOf(kind) === -1) return;
+  try { localStorage.setItem(CURRICULUM_STORE_KEY, JSON.stringify({ stage, kind })); } catch (_) {}
+}
+function getCurrentCurriculumName() {
+  const c = getCurrentCurriculum();
+  return CURRICULUM_NAMES[c.stage][c.kind];
+}
+
 // user_persona_profile은 pref_type/skill_type/engagement_type은 30일 배치갱신이지만
 // persona만은 승급/강등 즉시 반영되는 하이브리드 테이블로 씀(유저관리 총집합 테이블).
 // 실패해도 조용히 무시 — 다음 30일 배치가 subscriptions.persona에서 다시 복사해가므로
@@ -5231,6 +5262,29 @@ function renderProfileXp() {
 
 // 데스크탑 사이드바 유저 닉네임/플랜 — home.html은 loadProfileFromDB()가 이미 처리하므로
 // 그 함수가 없는(=home.html이 아닌) 서브페이지에서만 호출됨
+// 내 닉네임: subscriptions.nickname → 구글 계정 이름 → null. 홈 탭 탑바용(캐시 localStorage 'chorditor_nick_cache')
+const NICK_CACHE_KEY = 'chorditor_nick_cache';
+async function fetchMyNickname() {
+  try {
+    const stored = localStorage.getItem(SUPABASE_STORAGE_KEY);
+    if (!stored) return null;
+    const session = JSON.parse(stored);
+    const token = session?.access_token;
+    const userId = session?.user?.id;
+    const fallback = session?.user?.user_metadata?.full_name || null;
+    if (!token || !userId) return fallback;
+    const resp = await fetch(
+      `${SUPABASE_URL}/rest/v1/subscriptions?user_id=eq.${userId}&select=nickname`,
+      { headers: { 'apikey': SUPABASE_ANON, 'Authorization': `Bearer ${token}` } }
+    );
+    if (!resp.ok) return fallback;
+    const rows = await resp.json();
+    const nick = rows[0]?.nickname || fallback;
+    if (nick) { try { localStorage.setItem(NICK_CACHE_KEY, nick); } catch (_) {} }
+    return nick;
+  } catch (_) { return null; }
+}
+
 async function loadSidebarUserInfo() {
   const _sv = (id, v) => { const el = document.getElementById(id); if (el) el.textContent = v; };
   try {
@@ -5496,6 +5550,8 @@ async function renderQuestList() {
 
   const dot = document.getElementById('hdb-quest-dot');
   if (dot) dot.hidden = top.length === 0;
+  const dot2 = document.getElementById('hs-quest-dot');   // 홈 탭 우상단 퀘스트 버튼의 점
+  if (dot2) dot2.hidden = top.length === 0;
 }
 
 function openQuestModal() {

@@ -227,9 +227,9 @@ const Tutorial = (() => {
   // 튜토리얼 이탈 시 홈 화면으로 복귀시킨 뒤 보류 플로우 실행.
   // 노트 페이지(user_project.html)에는 탭 전환 함수가 없으므로 페이지 이동으로 대체한다.
   function _returnHomeAndRelease(showReferral) {
-    if (typeof switchTab !== 'function') { location.href = 'home.html'; return; }
-    switchTab('home', true);
-    if (typeof enterFromHome === 'function') enterFromHome('home', true);
+    if (typeof switchTab !== 'function') { location.href = 'home.html?tab=tools'; return; }
+    switchTab('tools', true);
+    if (typeof enterFromTools === 'function') enterFromTools('main', true);
     _releaseHomeFlow(showReferral);
   }
 

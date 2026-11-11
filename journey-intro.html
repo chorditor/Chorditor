@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <!-- 언어 결정·화면 번역: 다른 스크립트·본문보다 먼저 -->
+  <script src="i18n.js"></script>
+  <meta name="color-scheme" content="light dark" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <title>Chorditor - 나의 기타 여정 시작</title>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css" />
+  <link rel="stylesheet" href="style.css" />
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
+</head>
+<body class="journey-intro-page">
+
+  <!-- 페이지 커버: 초기화 완료 전 화면 가림 -->
+  <div id="page-cover"></div>
+
+  <div class="app-shell" id="journey-intro-page">
+
+    <!-- ── 탑바: 순수 돌아가기라 `<` (style-guide §11-3c) ── -->
+    <header class="cd-topbar">
+      <button id="back-btn" class="icon-btn" onpointerup="closeJourneyIntro()">
+        <i data-lucide="chevron-left"></i>
+      </button>
+    </header>
+
+    <main class="cd-main" id="main-content">
+      <!-- 타이틀·본문·메인·하단 버튼은 JS가 단계(로딩 → 결과)별로 채운다. 구조·클래스는 승급시험 안내(mission-session)와 같음 -->
+      <div class="ms-title" id="ji-title">
+        <div class="ms-title-row">
+          <span class="ms-title-icon" id="ji-title-icon" style="display:none"></span>
+          <h2 class="ms-title-text" id="ji-title-text"></h2>
+        </div>
+        <p class="ms-title-desc" id="ji-title-desc" style="display:none"></p>
+      </div>
+      <div class="ms-main" id="ji-main"></div>
+    </main>
+
+  </div><!-- /app-shell -->
+
+  <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.js"></script>
+  <script src="https://unpkg.com/@phosphor-icons/web"></script>
+  <script src="analytics-sdk.js"></script>
+  <script src="shared.js"></script>
+  <script src="journey-intro.js"></script>
+</body>
+</html>

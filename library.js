@@ -1163,7 +1163,7 @@ function _leaveLibrary(url) {
 
 function closeLibraryPage() {
   _playTap();
-  _leaveLibrary('home.html');
+  _leaveLibrary('home.html?tab=tools');
 }
 
 // ═════════════════════════════════════════════════

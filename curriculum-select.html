@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <!-- 언어 결정·화면 번역: 다른 스크립트·본문보다 먼저 -->
+  <script src="i18n.js"></script>
+  <meta name="color-scheme" content="light dark" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <title>Chorditor - 커리큘럼 선택</title>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css" />
+  <link rel="stylesheet" href="style.css" />
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
+</head>
+<body class="curriculum-select-page">
+
+  <!-- 페이지 커버: 초기화 완료 전 화면 가림 -->
+  <div id="page-cover"></div>
+
+  <div class="app-shell" id="curriculum-select-page">
+
+    <!-- ── 탑바: 홈 위를 덮는 화면이라 X만 (style-guide §11-3c) ── -->
+    <header class="cd-topbar">
+      <button id="back-btn" class="icon-btn" onpointerup="closeCurriculumSelect()" aria-label="닫기">
+        <i data-lucide="x"></i>
+      </button>
+    </header>
+
+    <main class="cd-main" id="main-content">
+      <div class="jcs-stage">
+
+        <!-- 좌: 코드반주(통기타) / 우: 솔로잉(일렉기타). 로티 + 바닥 그림자(도형) + 커리큘럼 이름(작은 라벨 한 줄) -->
+        <div class="jcs-courses" id="jcs-courses">
+          <button type="button" class="jcs-course" id="jcs-course-comping" data-kind="comping" onpointerup="jcsPick('comping')">
+            <span class="jcs-art" id="jcs-art-comping"></span>
+            <span class="jcs-shadow"></span>
+            <span class="jcs-name" id="jcs-name-comping"></span>
+          </button>
+          <button type="button" class="jcs-course" id="jcs-course-soloing" data-kind="soloing" onpointerup="jcsPick('soloing')">
+            <span class="jcs-art" id="jcs-art-soloing"></span>
+            <span class="jcs-shadow"></span>
+            <span class="jcs-name" id="jcs-name-soloing"></span>
+          </button>
+          <!-- 준비 중인 단계: 두 코스 전체를 흐리게 덮고 가운데에 자물쇠 + 안내(JS가 .is-soon 토글) -->
+          <div class="jcs-soon" aria-live="polite">
+            <i class="ph-fill ph-lock"></i>
+            <span class="jcs-soon-text">아직 준비중이에요</span>
+          </div>
+        </div>
+
+        <!-- 단계(페르소나) 이동: ‹ [배지 이름] › — 단계마다 열려 있는 커리큘럼이 다르다 -->
+        <div class="jcs-persona">
+          <button type="button" class="jcs-arrow" id="jcs-prev" onpointerup="jcsMove(-1)" aria-label="이전 단계">
+            <i class="ph-fill ph-caret-left"></i>
+          </button>
+          <div class="jcs-persona-center">
+            <!-- 글자가 화살표 사이 정중앙, 배지는 글자 왼쪽에 붙어 있다(글자 폭이 바뀌어도 글자는 안 움직임) -->
+            <span class="jcs-persona-label">
+              <img class="jcs-persona-badge" id="jcs-persona-badge" src="image/badge_1_bronze.png" alt="">
+              <span class="jcs-persona-name" id="jcs-persona-name"></span>
+            </span>
+          </div>
+          <button type="button" class="jcs-arrow" id="jcs-next" onpointerup="jcsMove(1)" aria-label="다음 단계">
+            <i class="ph-fill ph-caret-right"></i>
+          </button>
+        </div>
+
+      </div>
+    </main>
+
+  </div><!-- /app-shell -->
+
+  <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.js"></script>
+  <script src="https://unpkg.com/@phosphor-icons/web"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/lottie-web/5.12.2/lottie.min.js"></script>
+  <script src="analytics-sdk.js"></script>
+  <script src="shared.js"></script>
+  <script src="curriculum-select.js"></script>
+</body>
+</html>

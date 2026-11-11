@@ -297,7 +297,7 @@ let _pendingEditRestore = null;
 
 // 탭 네비게이션 상태 (home.html SPA에서 이관 — _updateBackBtn 등에서 참조)
 let _activeTab         = 'projects';
-let _homeSubView       = 'home';
+let _toolsSubView       = 'main';
 let _projectsSubView   = 'project';  // user_project는 항상 개별 프로젝트 뷰
 
 // 에디터 상태 폴백 (drawCanvas data=null 호출 시 / _doSavePNG 에서 사용)
@@ -969,7 +969,7 @@ function handleNativeBack() {
 
 function _updateBackBtn() {
   const show =
-    (_activeTab === 'home' && _homeSubView !== 'home') ||
+    (_activeTab === 'tools' && _toolsSubView !== 'main') ||
     (_activeTab === 'projects' && _projectsSubView !== 'list');
   const btn = document.getElementById('back-btn');
   if (!btn) return;
@@ -1027,18 +1027,18 @@ function navigateTo(view, projectId, opts = {}) {
   }
 
   if (view === 'editor') {
-    enterFromHome('editor');
+    enterFromTools('editor');
     return;
   }
 
   if (view === 'library') {
-    enterFromHome('library');
+    enterFromTools('library');
     return;
   }
 }
 
 function switchMainTab(tab) {
-  if (tab === 'editor' || tab === 'library') enterFromHome(tab);
+  if (tab === 'editor' || tab === 'library') enterFromTools(tab);
 }
 
 // ═══════════════════════════════════════════════════════════════

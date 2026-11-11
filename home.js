@@ -440,8 +440,8 @@ let _isFromProject         = false; // user_project → 에디터 진입 모드 
 let _fromLibraryToEditor   = false; // 코드사전 '에디터로' → 에디터 진입 시 true. 에디터 뒤로가기를 사전으로 복귀시킴
 
 // 하단 탭 네비게이션 상태
-let _activeTab      = 'home';    // 'home' | 'projects' | 'profile'
-let _homeSubView    = 'home';    // 'home' | 'editor' | 'library'
+let _activeTab      = 'home';    // 'home'(나의 기타 여정) | 'tools'(도구 = 옛 홈) | 'projects' | 'profile'
+let _toolsSubView    = 'main';    // 도구 탭 안의 서브뷰: 'main' | 'editor' | 'library' | 'utility'
 let _projectsSubView = 'list';   // 'list' | 'project'
 
 
@@ -1793,12 +1793,12 @@ let _currentNoticeId = null;
 // — 출석모달과 공지팝업이 동시에 뜨는 걸 막기 위해, 홈 진입 시 출석플로우를 여기 담아두고
 // checkAndShowNotice()가 "더 띄울 공지 없음"을 확인한 시점에만 소비한다.
 let _afterNoticesCallback = null;
-// 홈 화면(탭+서브뷰 둘 다)이 실제로 보이고 있을 때만 소비 — 공지 확인(fetch) 대기 중에
-// 유저가 이미 다른 탭/서브뷰로 이동했다면 그 화면 위에 출석모달이 뜨지 않도록 보류하고,
-// switchTab('home')/enterFromHome('home')에서 홈 복귀 시점에 다시 시도한다.
+// 홈 탭(앱을 열면 처음 보이는 탭)이 실제로 보이고 있을 때만 소비 — 공지 확인(fetch) 대기 중에
+// 유저가 이미 다른 탭으로 이동했다면 그 화면 위에 출석모달이 뜨지 않도록 보류하고,
+// switchTab('home')에서 홈 복귀 시점에 다시 시도한다.
 function _consumeAfterNotices() {
   if (!_afterNoticesCallback) return;
-  if (_activeTab !== 'home' || _homeSubView !== 'home') return;
+  if (_activeTab !== 'home') return;
   const cb = _afterNoticesCallback;
   _afterNoticesCallback = null;
   cb();
@@ -2494,18 +2494,23 @@ function switchTab(tab, noAnim = false) {
 
   // 설정(톱니) 버튼: 프로필 탭에서만 노출
   document.getElementById('settings-btn')?.classList.toggle('hidden', tab !== 'profile');
-  // 튜토리얼 재진입 아이콘은 홈 화면에서만 — 탭뿐 아니라 서브뷰(에디터·코드사전)도 봐야 한다.
-  // 서브뷰 전환은 switchTab을 안 거치므로 enterFromHome에서도 같은 판정을 한다.
+  // 튜토리얼 재진입 아이콘은 도구 탭 메인에서만 — 탭뿐 아니라 서브뷰(에디터·코드사전·유틸리티)도 봐야 한다.
+  // 서브뷰 전환은 switchTab을 안 거치므로 enterFromTools에서도 같은 판정을 한다.
   _updateTutorialEntryBtn();
-  if (tab === 'home') window.Tutorial?.refreshEntryDot?.(); // 남은 스텝 강조 dot 갱신
+  if (tab === 'tools') window.Tutorial?.refreshEntryDot?.(); // 남은 스텝 강조 dot 갱신
 
-  // 레벨 위젯: 홈 탭에서만 노출
-  document.getElementById('topbar-level')?.classList.toggle('hidden', tab !== 'home');
-  if (tab === 'home' && typeof renderTopbarLevel === 'function') renderTopbarLevel();
+  // 레벨 위젯(도구 탭 메인 상단 카드 안): 도구 탭에서만 노출
+  document.getElementById('topbar-level')?.classList.toggle('hidden', tab !== 'tools');
+  if (tab === 'tools' && typeof renderTopbarLevel === 'function') renderTopbarLevel();
 
   if (tab === 'profile' && typeof renderProfileXp === 'function') renderProfileXp();
 
-  if (tab === 'home') enterFromHome('home');
+  if (tab === 'tools') enterFromTools('main');
+  // 탑바: 홈 탭 = 피크바(브랜드 숨김), 그 외 탭 = 브랜드. 도구 탭 안에서는 enterFromTools가 서브뷰별로 브랜드를 정한다
+  document.getElementById('home-topbar-strip')?.classList.toggle('hidden', tab !== 'home');
+  if (tab !== 'tools') document.querySelector('.cd-topbar-brand')?.classList.toggle('hidden', tab === 'home');
+  // 홈 탭(나의 기타 여정): 방금 hidden에서 풀렸으므로 폭을 다시 재서 경로를 그린다
+  if (tab === 'home' && typeof renderJourney === 'function') { renderJourney(); window.lucide?.createIcons?.(); renderHomeBadge(); }
   if (tab === 'projects') {
     _notesSplitSync();
     _notesSplitDefaultCollapsed();
@@ -2522,6 +2527,44 @@ function switchTab(tab, noAnim = false) {
     analytics.setScreen(tab);
     if (prevTab !== tab) analytics.track('tab_switched', { from: prevTab, to: tab });
   }
+}
+
+// 홈 탭 탑바의 승급 단계 배지 + 챕터 진행 표시 — 현재 페르소나 단계(0~4)에 맞는 배지 이미지를 고른다.
+const _HOME_BADGES = ['badge_1_bronze', 'badge_2_silver', 'badge_3_gold', 'badge_4_diamond', 'badge_5_challenger'];
+function renderHomeBadge() {
+  const img = document.getElementById('home-topbar-badge-img');
+  if (img) {
+    const idx = Math.max(0, PERSONA_STAGES.indexOf(getUserPersona()));
+    img.src = 'image/' + _HOME_BADGES[idx] + '.png';
+  }
+  // 배너 타이틀 위 라벨: 현재 승급 단계 이름(예: 언박싱 1일차)
+  const personaEl = document.getElementById('journey-head-persona');
+  if (personaEl) personaEl.textContent = PERSONA_NAMES[getUserPersona()] || PERSONA_NAMES.unboxing;
+  if (typeof renderJourneyProgress === 'function') renderJourneyProgress();
+  // 배너 타이틀: 지금 걷는 커리큘럼의 이름(커리큘럼 선택 화면에서 고른 코스, 없으면 단계·활동유형 기본값)
+  const titleEl = document.getElementById('journey-head-title');
+  if (titleEl) titleEl.textContent = getCurrentCurriculumName();
+  // 우상단 세로 버튼의 레벨 숫자(레벨 위젯과 같은 XP 계산)
+  const lvEl = document.getElementById('hs-level-num');
+  if (lvEl && typeof xpToLevel === 'function') lvEl.textContent = xpToLevel(parseInt(localStorage.getItem('user_xp') || '0', 10)).level;
+  // 닉네임: 캐시로 먼저 즉시 그리고, 최신값은 조회가 끝나면 갈아끼운다
+  const nickEl = document.getElementById('home-topbar-nick');
+  if (nickEl && APP_VERSION.includes('_dev')) {
+    nickEl.textContent = '개발자'; // DEV 빌드: 목업 닉네임(실제 닉네임 조회 안 함). 출시 때 _dev 접미어를 떼면 자동으로 정상 동작
+  } else if (nickEl) {
+    try { nickEl.textContent = localStorage.getItem(NICK_CACHE_KEY) || ''; } catch (_) {}
+    fetchMyNickname().then(n => { if (n && nickEl.textContent !== n) nickEl.textContent = n; });
+  }
+}
+
+// 홈 우상단 '오늘의 미션' → 출석 페이지(닫으면 홈 탭으로 돌아오게 ?from=home)
+function openTodayMission() {
+  setTimeout(() => { location.href = 'attendance.html?from=home'; }, 150);
+}
+
+// 홈 책 버튼 → 커리큘럼 선택 화면(별도 페이지, 홈 위를 덮음). 탭 효과음이 끊기지 않게 잠깐 뒤에 이동
+function openCurriculumSelect() {
+  setTimeout(() => { location.href = 'curriculum-select.html?from=home'; }, 150);
 }
 
 // ─── 탭 애니메이션 후 진입 ───────────────────────────────────
@@ -2576,22 +2619,14 @@ function enterFromBlock(e, el, view) {
         setTimeout(_go, 450); // 폴백: 재생 차단/지연돼도 반드시 이동
         return;
       }
-      // 나의 기타 여정은 별도 페이지(journey.html) — library와 같은 방식으로 실제 페이지 이동.
-      if (view === 'journey') {
-        let _navd = false;
-        const _go = () => { if (!_navd) { _navd = true; location.href = 'journey.html'; } };
-        _tapP.then(() => setTimeout(_go, 240));
-        setTimeout(_go, 450); // 폴백: 재생 차단/지연돼도 반드시 이동
-        return;
-      }
       // 에디터에서 뒤로가기(back-btn = 'home') 시, 사전 경유로 왔으면 홈 대신 사전 페이지로 복귀
-      if (view === 'home' && _homeSubView === 'editor' && _fromLibraryToEditor) {
+      if (view === 'main' && _toolsSubView === 'editor' && _fromLibraryToEditor) {
         _fromLibraryToEditor = false;
         location.href = 'library.html';
         return;
       }
       _fromLibraryToEditor = false; // 에디터 이탈 시 소진
-      enterFromHome(view, false, false);
+      enterFromTools(view, false, false);
     }
   }
 
@@ -2657,12 +2692,10 @@ function tapSwitchTab(el, tab) {
   }, 150);
 }
 
-// ─── 홈 탭 → 서브뷰 진입 ─────────────────────────────────────
-async function enterFromHome(view, skipAnim = false, reverse = false) {
-  const prevView = _homeSubView;
-  _homeSubView = view;
-  // 홈 서브뷰로 돌아왔고 보류 중인 출석플로우가 있으면 지금 실행
-  if (view === 'home') _consumeAfterNotices();
+// ─── 도구 탭 → 서브뷰 진입 (main / editor / library / utility) ─────────────
+async function enterFromTools(view, skipAnim = false, reverse = false) {
+  const prevView = _toolsSubView;
+  _toolsSubView = view;
   // 서브뷰 전환 애니메이션(250ms) 시작과 동시에 즉시 반영 — outgoing view의 hidden 처리는
   // animationend 후에야 붙어서(250ms 지연) :has(#view-library:not(.hidden)) 기준으로 margin을
   // 걸면 전환 끝나고도 한참 뒤 레이아웃이 갑자기 줄어드는 버그가 생김
@@ -2673,7 +2706,7 @@ async function enterFromHome(view, skipAnim = false, reverse = false) {
     if (typeof GuitarAudio !== 'undefined') await GuitarAudio.stop({ wait: true });
   }
 
-  const ids = { home: 'view-home', editor: 'view-editor', library: 'view-library' };
+  const ids = { main: 'view-tools-main', editor: 'view-editor', library: 'view-library', utility: 'view-utility' };
   const incoming = document.getElementById(ids[view]);
   const outgoing = prevView !== view ? document.getElementById(ids[prevView]) : null;
 
@@ -2685,7 +2718,7 @@ async function enterFromHome(view, skipAnim = false, reverse = false) {
       document.getElementById(id)?.classList.toggle('hidden', id !== ids[view])
     );
   } else {
-    let forward = view !== 'home';
+    let forward = view !== 'main';
     if (reverse) forward = !forward; // 에디터→사전 복귀 등: 방향 반전
     // outgoing: animationend 미발화 대비 타임아웃 폴백 (SPA DOM 재사용 버그 방지)
     outgoing.classList.add(forward ? 'slide-out-left' : 'slide-out-right');
@@ -2714,9 +2747,9 @@ async function enterFromHome(view, skipAnim = false, reverse = false) {
   _updateBackBtn();
   _updateTutorialEntryBtn(); // 서브뷰(에디터·코드사전)로 들어가면 튜토리얼 아이콘도 같이 내린다
 
-  // 탑바 타이틀: 홈 화면에서만 표시
+  // 탑바 타이틀: 도구 탭 메인에서만 표시
   const topBarTitle = document.querySelector('.cd-topbar-brand');
-  if (topBarTitle) topBarTitle.classList.toggle('hidden', view !== 'home');
+  if (topBarTitle) topBarTitle.classList.toggle('hidden', view !== 'main');
 
   // 탑바 배경: 라이브러리에서는 흰색
   const topBar = document.querySelector('.cd-topbar');
@@ -2781,14 +2814,14 @@ function handleNativeBack() {
   }
 
   // 코드 사전에서 "에디터로" 넘어온 에디터 → 사전 페이지로 복귀(화면의 뒤로가기 버튼과 동일)
-  if (_activeTab === 'home' && _homeSubView === 'editor' && _fromLibraryToEditor) {
+  if (_activeTab === 'tools' && _toolsSubView === 'editor' && _fromLibraryToEditor) {
     _fromLibraryToEditor = false;
     location.href = 'library.html';
     return;
   }
 
   // 탭 안의 서브뷰(에디터·코드사전 / 노트 상세) → 그 탭의 최상위로
-  if (_activeTab === 'home' && _homeSubView !== 'home') { enterFromHome('home'); return; }
+  if (_activeTab === 'tools' && _toolsSubView !== 'main') { enterFromTools('main'); return; }
   if (_activeTab === 'projects' && _projectsSubView !== 'list') { switchTab('projects'); return; }
 
   // 홈이 아닌 탭 → 홈 탭으로
@@ -2828,7 +2861,7 @@ function _updateBackBtn() {
     return;
   }
   const show =
-    (_activeTab === 'home' && _homeSubView !== 'home') ||
+    (_activeTab === 'tools' && _toolsSubView !== 'main') ||
     (_activeTab === 'projects' && _projectsSubView !== 'list');
   const btn = document.getElementById('back-btn');
   if (!btn) return;
@@ -2885,18 +2918,18 @@ function navigateTo(view, projectId, opts = {}) {
   }
 
   if (view === 'editor') {
-    enterFromHome('editor');
+    enterFromTools('editor');
     return;
   }
 
   if (view === 'library') {
-    enterFromHome('library');
+    enterFromTools('library');
     return;
   }
 }
 
 function switchMainTab(tab) {
-  if (tab === 'editor' || tab === 'library') enterFromHome(tab);
+  if (tab === 'editor' || tab === 'library') enterFromTools(tab);
 }
 
 // ═══════════════════════════════════════════════════════════════
@@ -5420,7 +5453,8 @@ document.addEventListener('DOMContentLoaded', async () => {
   // 언어 변경 새로고침 복귀: 프로필 탭 + 설정 화면을 열린 상태로 복원(selectLanguage가 표시를 남김)
   const _reopenSettings = sessionStorage.getItem('reopen_settings') === '1';
   sessionStorage.removeItem('reopen_settings');
-  const _initTab       = _reopenSettings ? 'profile' : (_urlParams.get('tab') || 'home');
+  // ?subview=(에디터/사전/유틸리티)만 붙은 옛 링크는 도구 탭으로 — 서브뷰가 도구 탭 안에 있다
+  const _initTab       = _reopenSettings ? 'profile' : (_urlParams.get('tab') || (_urlParams.get('subview') ? 'tools' : 'home'));
   // ?note=ID — 다른 페이지(에디터·코드사전·노트 단독 주소)에서 특정 노트를 열어 달라는 요청. 노트 탭 진입 시 이 노트를 먼저 연다
   const _noteParam = _urlParams.get('note');
   if (_noteParam) {
@@ -5451,13 +5485,13 @@ document.addEventListener('DOMContentLoaded', async () => {
   }
 
   if (_libHandoff) {
-    switchTab('home', true);
+    switchTab('tools', true);
     _libEntry        = _libHandoff.entry;
     _libFingeringIdx = _libHandoff.fingeringIdx || 0;
     _libFingerMode   = _libHandoff.fingerMode !== false;
     const _accMode   = _libHandoff.accidental === 'flat' ? 'flat' : 'sharp';
     if (_accMode !== accidental) setAccidental(_accMode);
-    enterFromHome('editor', true); // 페이지 로드 직후라 슬라이드 없이 바로 에디터 — 이후 import 안의 navigateTo는 같은 뷰라 즉시 처리
+    enterFromTools('editor', true); // 페이지 로드 직후라 슬라이드 없이 바로 에디터 — 이후 import 안의 navigateTo는 같은 뷰라 즉시 처리
     importLibChordToProject(); // 에디터에 코드 로드 + _fromLibraryToEditor = true (뒤로가기 → library.html)
   // user_project → 에디터 진입
   } else if (_fromProject && _urlParams.get('view') === 'editor') {
@@ -5465,9 +5499,9 @@ document.addEventListener('DOMContentLoaded', async () => {
     _editorEditingChordId  = _fromChordId || null;
     _isFromProject         = true;
 
-    // 홈탭 + 에디터 뷰 바로 오픈
-    switchTab('home', true);
-    enterFromHome('editor', true);
+    // 도구 탭 + 에디터 뷰 바로 오픈
+    switchTab('tools', true);
+    enterFromTools('editor', true);
 
     // 기존 코드 편집이면 state 복원
     if (_fromChordId) {
@@ -5495,7 +5529,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     // ?subview= 붙여서 홈으로 돌아온 경우 서브뷰 복원(에디터/라이브러리)
     const _initSubview = _urlParams.get('subview');
     if (_initSubview && _initSubview !== 'home') {
-      enterFromHome(_initSubview, true);
+      enterFromTools(_initSubview, true);
     }
     if (_reopenSettings) {
       // 슬라이드 없이 바로 열린 상태로(커버가 걷힐 때 밀려 올라오는 모습이 보이지 않게)
@@ -5534,7 +5568,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   }
 
   // 홈 모멘텀 스크롤 + 탑페이드
-  const _homeView    = document.getElementById('view-home');
+  const _homeView    = document.getElementById('view-tools-main'); // 도구 탭 메인(옛 홈) 스크롤
   const _mainContent = document.querySelector('.cd-main');
 
   function initMomentumScroll(el) {
