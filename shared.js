@@ -2901,14 +2901,14 @@ async function shareProjectViaOS() {
   const el = document.getElementById('share-code-input');
   const url = el?.dataset.shareUrl || '';
   if (!url) return;
-  const title = el.dataset.projectName || 'Chorditor';
-  const text = I18N.t(`${title} 코드 진행을 확인해보세요!`);
+  // 링크만 보낸다 — 문구(text)·제목(title)을 붙이면 카카오톡 등에 링크와 별개의 메시지가 한 번 더 전송됨.
+  // 받는 쪽 미리보기(제목·설명·이미지)는 공유 페이지(share/index.html)의 og 태그가 채운다.
   const Share = window.Capacitor?.Plugins?.Share;
   try {
     if (Share) {
-      await Share.share({ title, text, url });
+      await Share.share({ url });
     } else if (navigator.share) {
-      await navigator.share({ title, text, url });
+      await navigator.share({ url });
     } else {
       throw new Error('no share api');
     }
