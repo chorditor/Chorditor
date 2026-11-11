@@ -1036,6 +1036,18 @@
     </div>
   </div>
 
+  <!-- ── 공유받은 노트: 무료 노트 한도가 가득 찬 상태 — cd-modal 스타일1(§15), 버튼 2개(취소 / 삭제하러 가기) ── -->
+  <div class="modal-overlay hidden" id="share-limit-overlay">
+    <div class="cd-modal" onclick="event.stopPropagation()">
+      <div class="cd-modal-title">노트가 가득 찼어요</div>
+      <div class="cd-modal-desc">무료 플랜은 노트를 3개까지 가질 수 있어요.<br>기존 노트를 삭제하고 공유받은 노트를 불러올까요?</div>
+      <div class="cd-modal-actions">
+        <button class="cd-btn cd-btn--gray" onclick="shareLimitCancel()">불러오기 취소</button>
+        <button class="cd-btn cd-btn--brand" onclick="shareLimitGoDelete()">기존 노트 삭제하기</button>
+      </div>
+    </div>
+  </div>
+
   <!-- ── 모달: 이벤트 보상 팝업 (버전 감사 이벤트 등 1회성 지급) ── -->
   <div class="modal-overlay hidden" id="event-modal-overlay">
     <div class="event-modal" onclick="event.stopPropagation()">

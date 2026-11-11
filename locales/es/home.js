@@ -113,6 +113,13 @@
       '유효하지 않은 공유 코드입니다.': 'Ese código no es válido.',
       '공유 코드가 올바르지 않습니다.': 'Ese código no parece correcto.',
       '공유받은 노트': 'Canción compartida',
+      '노트가 가득 찼어요': 'Ya no caben más canciones',
+      '무료 플랜은 노트를 3개까지 가질 수 있어요.': 'El plan gratuito permite hasta 3 canciones.',
+      '기존 노트를 삭제하고 공유받은 노트를 불러올까요?': '¿Borras una canción para importar la compartida?',
+      '불러오기 취소': 'Cancelar importación',
+      '기존 노트 삭제하기': 'Borrar una canción',
+      '공유받은 노트 불러오기': 'Importar canción compartida',
+      '노트를 삭제하면 불러올 수 있어요': 'Borra una canción para poder importarla',
 
       // ── 프로필 ──
       '활동 기록': 'Actividad',

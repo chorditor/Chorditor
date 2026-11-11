@@ -4,6 +4,57 @@
 
 ---
 
+## 2026-11-11: Android 노트 공유 버튼 무반응 — iframe의 Capacitor 플러그인 호출이 버려짐
+
+### 증상
+Android 앱에서 노트 공유 모달의 공유(OS 공유 시트) 버튼을 눌러도 아무 일도 없음. 링크 복사 버튼은 정상이라, 복사한 뒤 직접 붙여넣어야만 공유 가능.
+
+### 처음 잘못 짚은 방향
+`shareProjectViaOS()`(`shared.js`)와 `@capacitor/share` 플러그인 원본만 읽고 "코드 경로는 맞다, 실기기 logcat 없이는 원인 확정 불가"로 결론냄. **그 버튼이 어느 프레임에서 실행되는지**를 보지 않았음 — 1.4.x부터 노트는 항상 홈 노트 탭의 iframe(`user_project.html?embed=1`, `docs/notes-split-view-plan.md`) 안에서 열린다.
+
+### 진짜 원인
+- Capacitor Android는 iframe에도 `window.Capacitor`를 주입한다(`addDocumentStartJavaScript`는 같은 출처의 모든 프레임에 들어감) → iframe 코드는 자기가 네이티브 환경이라고 판단하고 `Capacitor.Plugins.Share.share()`를 부름.
+- 그런데 네이티브 브리지 `node_modules/@capacitor/android/.../MessageHandler.java`는 `isMainFrame`이 아니면 `Logger.warn("Plugin execution is allowed in Main Frame only")`만 남기고 호출을 버린다.
+- 호출한 쪽 약속(Promise)은 성공도 실패도 하지 않고 영원히 대기 → `catch`에도 안 걸려서 오류 하나 없이 무반응.
+- `shared.js` 맨 위 `_embedCapacitorFacade`가 iframe 호출을 부모 프레임으로 넘겨 주는 장치였지만, **iOS 기준**(iframe에 `window.Capacitor`가 없음)으로만 만들어져 `if (window.Capacitor) return;`으로 Android를 건너뜀.
+- 링크 복사는 플러그인이 아니라 웹 API(`navigator.clipboard`)라서 정상 동작 → "복사만 된다"는 증상과 일치.
+
+### 수정
+`_embedCapacitorFacade`가 iframe에 `window.Capacitor`가 이미 있을 때(Android)도 동작 — 자기 Capacitor는 두고 `PASS` 목록(`SaveImage`·`Share`·`Browser`)만 부모 프레임의 플러그인으로 바꿔 끼움(`Plugins`를 Proxy로 감쌈). 같은 원인으로 Android 노트의 이미지 저장(`SaveImage`)도 막혀 있었을 가능성이 높음(같이 해결, 실기기 확인 필요).
+
+### 미리 감지하는 법 (체크리스트)
+- **네이티브 플러그인을 부르는 코드를 만들거나 고칠 때: "이 코드가 iframe(`embed=1`) 안에서도 실행되는가?"부터 확인.** 노트 화면(`user_project.js`)과 거기서 쓰는 `shared.js` 함수는 iframe에서 실행된다.
+- iframe에서 실행되면 그 플러그인이 `_embedCapacitorFacade`의 `PASS`에 있는지 확인하고 없으면 추가. iOS(주입 없음)와 Android(주입되지만 호출 버림) 둘 다 막히는 구조라 한쪽 기기에서만 확인하고 끝내지 말 것.
+- "눌러도 아무 반응 없음 + 오류도 없음"이면 **끝나지 않는 약속**(네이티브가 응답을 안 줌)을 먼저 의심. 실기기 logcat에서 `Main Frame only` 경고를 찾으면 바로 확정된다.
+- 코드 경로만 읽고 "원인 불명"으로 결론 내기 전에, 실행 위치(최상위 문서인가 iframe인가)와 플랫폼별 브리지 차이를 확인할 것.
+
+---
+
+## 2026-11-11: 공유 링크로 노트를 받으면 무료 한도(3개)를 넘김 → 기존 노트 전부 잠김 위험
+
+### 증상(사용자 보고)
+무료 유저가 노트 3개를 가진 상태에서 공유 링크를 열면 4번째 노트가 그대로 생성됨 — 한도를 막는 로직이 없음.
+
+### 보고보다 더 컸던 실제 피해
+노트 개수가 한도를 넘는 순간 `isNotesLockedState()`(`shared.js`, Pro→Free 강등용 잠금)가 참이 된다 → **'중요' 표시가 없는 기존 노트가 전부 잠김.** 유저 입장에선 링크 하나 열었더니 자기 노트들이 잠기는 사고. 보고된 증상("한도를 안 막는다")만 고쳤으면 이 연쇄를 놓쳤을 것.
+
+### 원인
+노트 생성 경로가 여러 개인데 한도 검사(`canCreateProject()`)는 새 노트 만들기 버튼 경로(`promptCreateProject`·`confirmCreateProject`)에만 있었고, 공유 링크 소비 경로 `_consumePendingShareCode()`(`home.js`·`user_project.js` 두 곳)는 `loadProjects() → push → saveProjects`로 바로 저장했음.
+
+### 수정
+- `_consumePendingShareCode()`에서 `canCreateProject()`가 거짓이면 노트를 만들지 않고 받은 내용을 `sessionStorage`(`np_share_waiting_payload`)에 보관 → 노트 탭으로 이동해 [기존 노트 삭제하기 / 불러오기 취소] 모달.
+- 삭제를 고르면 목록 맨 위 [공유받은 노트 불러오기]가 자리가 날 때까지 비활성 → 자리가 나면 눌러서 생성.
+- `user_project.js` 쪽 소비 경로는 한도가 찼으면 코드를 그대로 두고 홈으로 넘겨 같은 흐름을 탐.
+
+### 미리 감지하는 법 (체크리스트)
+- **노트(`projects`)를 새로 만드는 코드를 쓰거나 고칠 때: `loadProjects()` 결과에 `push`하고 `saveProjects()`하는 모든 경로에 `canCreateProject()` 검사가 있는지 grep.** 생성 경로: 새 노트 버튼, 공유 링크(`_consumePendingShareCode`), 붙여넣기 불러오기, 샘플 노트(`seedSampleNoteIfEmpty`), 튜토리얼, 로그인 동기화 복구(`syncProjectsOnLogin`) 등.
+- 한도 관련 버그는 "한도를 넘는다"에서 끝나지 않는다 — **한도 초과 상태가 다른 기능(잠금 `isNotesLockedState`)의 트리거**가 되는지 같이 확인. 숫자 한도 하나가 여러 기능의 조건으로 쓰이면, 우회 경로 하나가 연쇄 피해를 만든다.
+- 외부 진입(딥링크·푸시·공유·로그인 복구)은 버튼 UI를 거치지 않으므로 버튼 쪽 가드가 적용되지 않는다고 가정하고 따로 점검.
+- **같은 구멍 발견 → 수정(2026-11-11 문서화 중 grep)**: 노트 탭 [불러오기](공유 코드 붙여넣기) → "새 노트로" 경로 `confirmImport('new')`(`home.js`)도 `canCreateProject()` 없이 `push → saveProjects` 하고 있었음. 새 노트 만들기와 같은 처리(모달 닫고 `openPlanModal('note_limit')`)로 막음. 기존 노트에 덮어쓰는 경로는 개수가 안 늘어서 해당 없음.
+- 남은 확인점: 로그인 동기화(`syncProjectsOnLogin`)가 DB 노트를 복구하면서 한도를 넘길 수 있는지는 이번에 보지 않았음.
+
+---
+
 ## 2026-08-11: 태블릿 세로 gap 값 변경이 화면에 반영 안 됨
 
 ### 증상

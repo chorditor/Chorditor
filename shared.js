@@ -8,13 +8,26 @@
 // 이미지 저장(공유 시트) 등이 웹 분기로 떨어지고 analytics platform이 'web'으로 찍혔다.
 // 부모 객체를 통째로 쓰면 AdMob·appUrlOpen·푸시 리스너가 iframe에서 한 번 더 등록돼 중복 처리되므로,
 // 플랫폼 판별과 리스너 없는 플러그인(SaveImage·Share·Browser)만 노출한다.
+// Android는 반대로 iframe에도 window.Capacitor가 주입되지만, 네이티브 브리지(@capacitor/android MessageHandler)가
+// 최상위 프레임이 아닌 곳의 플러그인 호출을 "Plugin execution is allowed in Main Frame only" 경고만 남기고 버린다 —
+// 호출한 쪽 약속은 끝나지도 실패하지도 않아서 노트의 공유 버튼이 눌러도 아무 반응이 없었다(복사는 웹 기능이라 됨).
+// 그래서 Android iframe에서도 같은 플러그인(SaveImage·Share·Browser)은 부모 프레임의 객체로 호출을 넘긴다.
 (function _embedCapacitorFacade() {
-  if (window.Capacitor || window.parent === window) return;
+  if (window.parent === window) return;
   if (new URLSearchParams(location.search).get('embed') !== '1') return;
   let pc = null;
   try { pc = window.parent.Capacitor; } catch (_) { return; }
   if (!pc) return;
   const PASS = ['SaveImage', 'Share', 'Browser'];
+  if (window.Capacitor) {   // Android: 자기 Capacitor는 그대로 두고 위 플러그인만 부모 것으로 바꿔 끼움
+    const own = window.Capacitor.Plugins || {};
+    try {
+      window.Capacitor.Plugins = new Proxy(own, {
+        get: (t, name) => (PASS.includes(name) && pc.Plugins?.[name]) ? pc.Plugins[name] : t[name],
+      });
+    } catch (_) {}
+    return;
+  }
   window.Capacitor = {
     getPlatform: () => pc.getPlatform(),
     isNativePlatform: () => pc.isNativePlatform(),
@@ -52,7 +65,7 @@ if (window.Capacitor?.getPlatform?.() === 'ios') {
 // ── 상수 ─────────────────────────────────────────────────────
 const SUPABASE_URL  ='https://jbvkygeksohlysyvaoab.supabase.co';
 const SUPABASE_ANON = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Impidmt5Z2Vrc29obHlzeXZhb2FiIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzYzOTk5NjgsImV4cCI6MjA5MTk3NTk2OH0.6RSgChy0Yq0H2TJpZPSoMKQ2V-OYfR0XzE1aJBBZkXI';
-const APP_VERSION   = '1.4.1';
+const APP_VERSION   = '1.4.2_pre';
 const SUPABASE_STORAGE_KEY = 'sb-jbvkygeksohlysyvaoab-auth-token';
 
 // 이용약관/개인정보처리방침 버전 — 광고식별자 수집 항목 추가(2026-09) 시 1로 올림.
@@ -2863,7 +2876,7 @@ async function copyShareUrl() {
   if (!url) return;
   if (navigator.clipboard) await navigator.clipboard.writeText(url).catch(() => _fallbackCopy(url));
   else _fallbackCopy(url);
-  if (typeof showTextToast === 'function') showTextToast('링크 복사됨!');
+  if (typeof showTextToast === 'function') showTextToast('현재 노트의 앱 링크를 복사했어요!');
   incrementStat('shares');
   analytics.track('share_initiated', { type: 'url' });
 
@@ -2896,13 +2909,22 @@ async function shareProjectViaOS() {
       await Share.share({ title, text, url });
     } else if (navigator.share) {
       await navigator.share({ title, text, url });
-    } else if (navigator.clipboard) {
-      await navigator.clipboard.writeText(url);
-      if (typeof showTextToast === 'function') showTextToast('링크 복사됨!');
+    } else {
+      throw new Error('no share api');
     }
     incrementStat('shares');
     analytics.track('share_initiated', { type: 'native' });
-  } catch (e) { /* 사용자가 공유 취소한 경우 등 — 무시 */ }
+  } catch (e) {
+    // 사용자가 공유 창을 닫은 경우만 조용히 끝낸다(Android/iOS 플러그인 "Share canceled", 웹 AbortError).
+    const msg = String(e?.message || e || '');
+    if (/cancel/i.test(msg) || e?.name === 'AbortError') return;
+    // 그 외 실패(공유 창이 안 뜸 등)는 이전처럼 삼키지 않는다 — 원인을 logcat에 남기고, 링크를 복사해 공유는 이어지게 한다.
+    console.warn('[share] native share failed:', msg);
+    if (navigator.clipboard) await navigator.clipboard.writeText(url).catch(() => _fallbackCopy(url));
+    else _fallbackCopy(url);
+    if (typeof showTextToast === 'function') showTextToast('공유 창을 열지 못해 링크를 복사했어요.');
+    analytics.track('share_failed', { type: 'native', reason: msg.slice(0, 120) });
+  }
 }
 
 // ── 공유 링크/코드로 앱 진입 (Android Activity → WebView, 또는 ?share=/?c= URL) ──
@@ -2913,6 +2935,7 @@ async function shareProjectViaOS() {
 const PENDING_SHARE_CODE_KEY = 'np_pending_share_code';
 window._handleShareImport = function(rawCode) {
   sessionStorage.setItem(PENDING_SHARE_CODE_KEY, rawCode);
+  window._shareEntryHold = true; // 홈: 공지·출석 등 자동 팝업을 홈 탭 복귀 때까지 보류(home.js checkAndShowNotice)
   if (typeof _consumePendingShareCode === 'function') _consumePendingShareCode();
   // 코드 사전은 처리 함수가 없는 별도 페이지 — 저장만 해두면 홈에 갈 때까지 노트가 안 생기므로 홈으로 보내 즉시 처리시킨다
   // (코드 에디터는 작업 중인 코드가 날아갈 수 있어 보내지 않음 — 홈에 돌아갈 때 처리됨)
