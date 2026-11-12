@@ -71,7 +71,7 @@
 | 항목 | 우려 |
 |---|---|
 | 안드로이드 한글 IME | 가사 입력 첫 글자 분리 버그 이력(`bug_korean_ime_split`). iframe 안에서 재발 여부 |
-| Capacitor 플러그인 | iframe에서 브리지(네이티브 공유, 앱 플러그인 등)가 노출되는지 |
+| Capacitor 플러그인 | **확인됨(2026-11-11, 실제 버그)** — iOS는 iframe에 `window.Capacitor`가 없고, Android는 있지만 네이티브가 iframe의 플러그인 호출을 버린다(약속이 영원히 대기 → 무반응). 노트 공유 버튼이 Android에서 무반응이었던 원인. 대응: `shared.js` `_embedCapacitorFacade`가 `PASS` 목록 플러그인을 부모 프레임으로 넘긴다. **iframe 안에서 새 플러그인을 쓰면 반드시 `PASS`에 추가** — 자세한 경위는 `docs/debugging_log.md` 2026-11-11 |
 | 오디오 | iframe 안 Web Audio의 사용자 제스처 활성화·재생 정상 여부, 부모와 컨텍스트가 분리되는 점 |
 | 하드웨어 뒤로가기 / 이탈 | iframe 안 `backButton` 핸들러와 부모 핸들러의 충돌, 이탈 시 소리 정지 |
 | 페이지 이동 | iframe 안에서 `editor.html` 등으로 이동할 때 iframe만 이동하는 문제 → 최상위(`top`) 이동으로 바꿔야 함 |

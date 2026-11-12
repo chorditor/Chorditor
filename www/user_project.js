@@ -4893,7 +4893,8 @@ function buildSharePayload(project) {
     (line.slots || new Array(8).fill(null))
       .map(id => id !== null && idToIdx[id] !== undefined ? idToIdx[id] : null)
   );
-  return JSON.stringify({ v: 2, bpm: project.bpm ?? 120, capo: project.capo ?? 0,
+  // name: 받는 쪽이 원래 노트 제목 그대로 새 노트를 만든다(이 필드가 없는 예전 링크는 기본 이름)
+  return JSON.stringify({ v: 2, name: project.name || '', bpm: project.bpm ?? 120, capo: project.capo ?? 0,
                           col: project.colCount || 4, chords, arr });
 }
 async function generateShareCode(project) {
@@ -5016,11 +5017,13 @@ function applyImportPayload(projectId, payload, opts) {
 async function _consumePendingShareCode() {
   const raw = sessionStorage.getItem(PENDING_SHARE_CODE_KEY);
   if (!raw) return;
+  // 무료 노트 한도가 찼으면 여기서 만들지 않고 코드를 그대로 둔 채 홈으로 — 홈(home.js)이 삭제/취소 선택 흐름을 띄운다
+  if (!canCreateProject()) { _navTop('home.html?tab=projects'); return; }
   sessionStorage.removeItem(PENDING_SHARE_CODE_KEY);
   const payload = await parseShareCode(raw);
   if (!payload) { alert('공유 코드가 올바르지 않습니다.'); return; }
   const p = {
-    id: genId(), name: I18N.t('공유받은 노트'), pinned: false, pinnedOrder: 0, important: false, importantOrder: 0,
+    id: genId(), name: payload.name || I18N.t('공유받은 노트'), pinned: false, pinnedOrder: 0, important: false, importantOrder: 0,
     capo: 0, bpm: 120, colCount: 4, createdAt: Date.now(), updatedAt: Date.now(), chords: [], arrangement: [],
   };
   const list = loadProjects(); list.push(p); saveProjects(list);

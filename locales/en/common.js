@@ -134,6 +134,8 @@
       // ── 공유 ──
       'Chorditor로 코드 진행을 만들고 연습해보세요!': 'Build and practice chord progressions with Chorditor!',
       '링크 복사됨!': 'Link copied!',
+      '현재 노트의 앱 링크를 복사했어요!': 'Copied the app link to this song!',
+      '공유 창을 열지 못해 링크를 복사했어요.': 'Could not open the share menu, so we copied the link.',
       'Chorditor 알림': 'Chorditor notifications',
 
       // ── 퀘스트 ──

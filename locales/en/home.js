@@ -113,6 +113,13 @@
       '유효하지 않은 공유 코드입니다.': "That share code isn't valid.",
       '공유 코드가 올바르지 않습니다.': "That share code doesn't look right.",
       '공유받은 노트': 'Shared Song',
+      '노트가 가득 찼어요': 'Your songs are full',
+      '무료 플랜은 노트를 3개까지 가질 수 있어요.': 'The Free plan holds up to 3 songs.',
+      '기존 노트를 삭제하고 공유받은 노트를 불러올까요?': 'Delete a song to import the shared one?',
+      '불러오기 취소': 'Cancel import',
+      '기존 노트 삭제하기': 'Delete a song',
+      '공유받은 노트 불러오기': 'Import shared song',
+      '노트를 삭제하면 불러올 수 있어요': 'Delete a song to import it',
 
       // ── 프로필 ──
       '활동 기록': 'Activity',

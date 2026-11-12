@@ -1804,6 +1804,38 @@ function _consumeAfterNotices() {
   cb();
 }
 
+// ── 공유 링크(딥링크)로 들어온 경우: 자동 팝업 보류 ──────────────────
+// 공유받은 노트를 바로 보여줘야 하므로 공지·이벤트·리뷰·튜토리얼·출석(데일리미션) 같은 자동 팝업을 띄우지 않고,
+// 유저가 홈 탭으로 돌아갔을 때 한 번 이어서 띄운다. (강제 업데이트 안내는 shared.js 별도 경로라 영향 없음)
+// window._shareEntryHold는 shared.js의 _handleShareImport(앱 실행 중 링크 도착)도 켠다.
+let _noticesDeferredByShare = false;
+let _shareStashedAfterNotices = null; // 보류 동안 출석 콜백을 빼 둔다 — 탭 복귀 경로(_consumeAfterNotices)가 공지보다 먼저 출석을 띄우지 않게
+// 앱이 공유 링크로 '처음 실행'된 경우 — 코드가 네이티브에서 늦게(Android 0.8초 뒤) 도착하므로 실행 주소를 직접 확인한다.
+// 실행 주소는 앱이 꺼질 때까지 그대로라, 같은 실행 중 다른 페이지에서 홈으로 돌아올 때 다시 걸리지 않게 1회만 본다.
+const SHARE_LAUNCH_SEEN_KEY = 'np_share_launch_seen';
+window._shareLaunchCheck = (async () => {
+  try {
+    const App = window.Capacitor?.Plugins?.App;
+    if (!App?.getLaunchUrl || sessionStorage.getItem(SHARE_LAUNCH_SEEN_KEY)) return;
+    sessionStorage.setItem(SHARE_LAUNCH_SEEN_KEY, '1');
+    const res = await App.getLaunchUrl();
+    if (res?.url?.startsWith('chorditor://import')) window._shareEntryHold = true;
+  } catch (_) {}
+})();
+// 보류 해제 — 홈 탭 복귀 시, 또는 공유 처리가 노트를 열지 못하고 끝났을 때(잘못된 코드·불러오기 취소)
+function _releaseShareEntryHold() {
+  window._shareEntryHold = false;
+  if (!_noticesDeferredByShare) return;
+  if (_activeTab !== 'home') return; // 홈이 아니면 복귀 시점(switchTab)에 다시 시도
+  _noticesDeferredByShare = false;
+  // 다음 틱에 공지부터 다시 — switchTab이 이어서 부르는 enterFromHome('home')의 출석 소비보다 뒤에 콜백을 되돌려야
+  // 공지 → 출석 순서가 지켜진다(되돌린 출석 콜백은 공지 체인 끝에서 소비됨)
+  setTimeout(() => {
+    if (_shareStashedAfterNotices) { _afterNoticesCallback = _shareStashedAfterNotices; _shareStashedAfterNotices = null; }
+    checkAndShowNotice();
+  }, 0);
+}
+
 // ── 앱 업데이트 공지 (버전별 신규기능 안내, 1회성 — 로그인 여부 무관) ──────
 // UI 껍데기(app-notice-overlay, home.html)는 고정, 내용은 여기 배열에 데이터로만 추가.
 // id는 seen 여부 localStorage 키(chorditor_notice_seen_<id>) 생성에 쓰임 — 한번 배포한 공지의
@@ -1937,6 +1969,12 @@ function closeAppNotice(primary) {
 }
 
 async function checkAndShowNotice() {
+  await window._shareLaunchCheck;
+  if (window._shareEntryHold) { // 공유 링크 진입 — 홈 복귀 때 이어서
+    _noticesDeferredByShare = true;
+    if (_afterNoticesCallback) { _shareStashedAfterNotices = _afterNoticesCallback; _afterNoticesCallback = null; }
+    return;
+  }
   if (maybeShowAppNotice()) return; // 신규 기능 안내가 DB 공지보다 우선
   if (!_authReady) { _consumeAfterNotices(); return; }
   const stored = localStorage.getItem(SUPABASE_STORAGE_KEY);
@@ -2455,6 +2493,8 @@ function switchTab(tab, noAnim = false) {
   _notesSplitShellSync(); // 노트 탭 스플릿이면 탑바 숨김, 다른 탭으로 가면 복원
   // 노트 탭을 떠나면 우측 악보(iframe)를 비워 재생·타이머를 끊는다 — 복귀하면 마지막 노트를 다시 연다
   if (prevTab === 'projects' && tab !== 'projects') _notesSplitClose(true);
+  // 공유받은 노트를 불러오는 도중 노트 탭을 떠나면 불러오기 취소(아래 홈 탭 처리보다 먼저 — 보류했던 자동 팝업이 한 번만 이어지게)
+  if (prevTab === 'projects' && tab !== 'projects') _cancelShareWaitingOnLeave();
 
   // SPA 내부 탭 이동은 pagehide가 안 뜸 → 코드에디터 재생 중이던 사운드가 안 멈춤. 하드컷.
   // (stopPlayAll은 user_project.js 전용 함수라 home.html엔 없음 — GuitarAudio.panic()이 그래프 절단+재초기화까지 처리)
@@ -2490,7 +2530,11 @@ function switchTab(tab, noAnim = false) {
   _updateBackBtn();
 
   // 홈 탭으로 돌아왔고 보류 중인 출석플로우가 있으면 지금 실행
-  if (tab === 'home') _consumeAfterNotices();
+  // (공유 링크 진입으로 공지부터 보류됐으면 공지 → 출석 순서로 처음부터 이어서 띄움)
+  if (tab === 'home') {
+    if (window._shareEntryHold || _noticesDeferredByShare) _releaseShareEntryHold();
+    else _consumeAfterNotices();
+  }
 
   // 설정(톱니) 버튼: 프로필 탭에서만 노출
   document.getElementById('settings-btn')?.classList.toggle('hidden', tab !== 'profile');
@@ -2773,6 +2817,9 @@ let _backPressTimestamp = 0;
 function handleNativeBack() {
   // 튜토리얼 중엔 화면을 옮기면 진행이 깨진다 → 그만둘지 묻는다(건너뛰기 버튼과 같은 경로).
   if (window.Tutorial?.isRunning?.()) { window.Tutorial.confirmSkip(); return; }
+
+  // 공유받은 노트 한도 모달이 떠 있으면 뒤로가기 = [불러오기 취소] (모달을 남긴 채 홈 탭으로 넘어가지 않게)
+  if (_isShareLimitModalOpen()) { shareLimitCancel(); return; }
 
   // user_project → 에디터로 들어온 모드: 화면 버튼이 없으므로 노트로 돌려보낸다
   if (_isFromProject && _editorReturnProjectId) {
@@ -3068,6 +3115,7 @@ function renderProjectsList() {
   const recent    = projects.filter(p => !p.pinned && !p.important).sort((a, b) => b.updatedAt - a.updatedAt);
 
   container.innerHTML = '';
+  _renderShareWaitingBar(container); // 공유받은 노트가 한도 때문에 대기 중일 때만 목록 맨 위에 표시
 
   const locked = isNotesLockedState(projects);
   _renderProjectsSection(container, '중요', important);
@@ -4881,7 +4929,8 @@ function buildSharePayload(project) {
     (line.slots || new Array(8).fill(null))
       .map(id => id !== null && idToIdx[id] !== undefined ? idToIdx[id] : null)
   );
-  return JSON.stringify({ v: 2, bpm: project.bpm ?? 120, capo: project.capo ?? 0,
+  // name: 받는 쪽이 원래 노트 제목 그대로 새 노트를 만든다(이 필드가 없는 예전 링크는 기본 이름)
+  return JSON.stringify({ v: 2, name: project.name || '', bpm: project.bpm ?? 120, capo: project.capo ?? 0,
                           col: project.colCount || 4, chords, arr });
 }
 async function generateShareCode(project) {
@@ -4995,6 +5044,13 @@ function confirmImport(mode) {
   if (mode === 'new') {
     const name = document.getElementById('import-new-name').value.trim();
     if (!name) { alert('노트 이름을 입력하세요.'); return; }
+    // 무료 노트 한도 — 새 노트 만들기(confirmCreateProject)와 같은 처리. 막지 않으면 한도 초과로 '중요' 아닌 기존 노트가 전부 잠김(docs/debugging_log.md 2026-11-11)
+    if (!canCreateProject()) {
+      analytics.track('project_limit_hit', { current_count: loadProjects().length, plan_limit: getPlanLimit('maxProjects') });
+      closeModal('modal-import');
+      openPlanModal('note_limit');
+      return;
+    }
     const p = { id: genId(), name, pinned: false, pinnedOrder: 0, important: false, importantOrder: 0, capo: 0, bpm: 120,
                 colCount: 4, createdAt: Date.now(), updatedAt: Date.now(), chords: [], arrangement: [] };
     const list = loadProjects(); list.push(p); saveProjects(list); targetId = p.id;
@@ -5069,14 +5125,90 @@ async function _consumePendingShareCode() {
   if (!raw) return;
   sessionStorage.removeItem(PENDING_SHARE_CODE_KEY);
   const payload = await parseShareCode(raw);
-  if (!payload) { alert('공유 코드가 올바르지 않습니다.'); return; }
+  if (!payload) { alert('공유 코드가 올바르지 않습니다.'); _releaseShareEntryHold(); return; }
+  // 무료 노트 한도가 이미 찼으면 만들지 않는다 — 만들면 한도 초과(강등 잠금 상태)로 '중요' 아닌 기존 노트가 전부 잠긴다.
+  // 받은 내용은 보관해 두고 노트 탭에서 [기존 노트 삭제하기 / 불러오기 취소]를 고르게 한다.
+  if (!canCreateProject()) {
+    sessionStorage.setItem(SHARE_WAITING_PAYLOAD_KEY, JSON.stringify(payload));
+    if (_activeTab !== 'projects') switchTab('projects');
+    else renderProjectsList();
+    _openShareLimitModal();
+    return;
+  }
+  _createNoteFromSharePayload(payload);
+}
+
+function _createNoteFromSharePayload(payload) {
   const p = {
-    id: genId(), name: I18N.t('공유받은 노트'), pinned: false, pinnedOrder: 0, important: false, importantOrder: 0,
+    id: genId(), name: payload.name || I18N.t('공유받은 노트'), pinned: false, pinnedOrder: 0, important: false, importantOrder: 0,
     capo: 0, bpm: 120, colCount: 4, createdAt: Date.now(), updatedAt: Date.now(), chords: [], arrangement: [],
   };
   const list = loadProjects(); list.push(p); saveProjects(list);
   applyImportPayload(p.id, payload, { applyBpm: true, applyCapo: true, applyCol: true });
   _openNoteInHome(p.id);
+}
+
+// ── 공유받은 노트 대기(무료 노트 한도 가득) ─────────────────────────
+// 보관 위치는 sessionStorage — 앱을 끄면 사라진다(그때는 링크를 다시 열면 됨).
+const SHARE_WAITING_PAYLOAD_KEY = 'np_share_waiting_payload';
+function _getShareWaitingPayload() {
+  try { return JSON.parse(sessionStorage.getItem(SHARE_WAITING_PAYLOAD_KEY) || 'null'); } catch (_) { return null; }
+}
+// 뒤로가기(연습 중단) 모달과 같은 방식 — 오버레이는 style.display로 열고 닫고, 열 때마다 통통 튀는 등장 애니메이션을 다시 재생
+function _isShareLimitModalOpen() {
+  return document.getElementById('share-limit-overlay')?.style.display === 'flex';
+}
+function _openShareLimitModal() {
+  const ov = document.getElementById('share-limit-overlay');
+  if (!ov) return;
+  if (typeof _playSfx === 'function') _playSfx('cancel.mp3');   // showLeavePracticeModal과 같은 여는 소리
+  ov.style.display = 'flex';
+  const modal = ov.querySelector('.leave-practice-modal');
+  if (modal) { modal.style.animation = 'none'; void modal.offsetWidth; modal.style.animation = ''; }
+}
+function _closeShareLimitModal() {
+  const ov = document.getElementById('share-limit-overlay');
+  if (ov) ov.style.display = 'none';
+}
+// [불러오기 취소] — 보관한 내용을 버리고 끝. 공유 처리가 끝났으니 보류했던 자동 팝업도 풀어 준다(홈 복귀 시 표시).
+function shareLimitCancel() {
+  _closeShareLimitModal();
+  sessionStorage.removeItem(SHARE_WAITING_PAYLOAD_KEY);
+  renderProjectsList();
+  _releaseShareEntryHold();
+}
+// [기존 노트 삭제하기] — 모달만 닫고 노트 목록에 남는다. 목록 위 [공유받은 노트 불러오기]는 노트를 지워 자리가 나면 눌린다.
+function shareLimitGoDelete() {
+  _closeShareLimitModal();
+  renderProjectsList();
+  if (_notesSplitCollapsed) _notesSplitSetCollapsed(false);   // 노트 목록 패널이 접혀 있으면(오버레이 모드 기본값) 펼쳐서 바로 지울 노트를 고를 수 있게
+}
+// 불러오는 도중(한도 모달이 떠 있거나 목록 위 대기 버튼이 있는 동안) 노트 탭을 떠나면 [불러오기 취소]와 같이 처리 — 대기분을 버린다.
+// 이탈 경로 전부(CLAUDE.md 0-2): 다른 탭 이동·Android 뒤로가기(→ switchTab), 다른 페이지 이동·새로고침·종료(pagehide), 홈 버튼·앱 전환(visibilitychange)
+function _cancelShareWaitingOnLeave() {
+  if (_isShareLimitModalOpen() || _getShareWaitingPayload()) shareLimitCancel();
+}
+window.addEventListener('pagehide', _cancelShareWaitingOnLeave);
+document.addEventListener('visibilitychange', () => { if (document.hidden) _cancelShareWaitingOnLeave(); });
+// 목록 위 [공유받은 노트 불러오기]
+function importWaitingSharedNote() {
+  const payload = _getShareWaitingPayload();
+  if (!payload) { renderProjectsList(); return; }
+  if (!canCreateProject()) { renderProjectsList(); return; }
+  sessionStorage.removeItem(SHARE_WAITING_PAYLOAD_KEY);
+  _createNoteFromSharePayload(payload);
+  renderProjectsList();
+}
+// renderProjectsList()가 매번 부른다 — 삭제 등으로 목록이 다시 그려질 때 버튼 활성 상태가 따라간다.
+function _renderShareWaitingBar(container) {
+  if (!_getShareWaitingPayload()) return;
+  const canImport = canCreateProject();
+  const bar = document.createElement('div');
+  bar.className = 'share-waiting-bar';
+  bar.innerHTML =
+    `<button class="cd-btn cd-btn--brand share-waiting-btn" type="button" onclick="importWaitingSharedNote()"${canImport ? '' : ' disabled'}>공유받은 노트 불러오기</button>` +
+    (canImport ? '' : `<p class="share-waiting-hint">노트를 삭제하면 불러올 수 있어요</p>`);
+  container.appendChild(bar);
 }
 
 // ── OAuth 리다이렉트 후 처리 (웹 전용, shared.js에서 typeof 가드로 호출) ──
@@ -5622,6 +5754,8 @@ document.addEventListener('DOMContentLoaded', async () => {
     history.replaceState(null, '', location.pathname);
     sessionStorage.setItem(PENDING_SHARE_CODE_KEY, shareParam);
   }
+  // 처리할 공유 코드를 들고 홈에 들어왔으면(웹 ?c=, 로그인·온보딩을 거쳐 온 경우, 코드 사전에서 넘어온 경우) 자동 팝업 보류
+  if (sessionStorage.getItem(PENDING_SHARE_CODE_KEY)) window._shareEntryHold = true;
 
   await initBilling();
 

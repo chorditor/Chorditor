@@ -11,9 +11,10 @@
 //   화면 원칙(CLAUDE.md 0-5): 단계마다 "핵심"을 정하고 그것만 진하게/파랑, 나머지는 옅게. 요소는 자리를 옮기지 않고 투명도·색으로만 등장·강조·교체
 //   (최종 구성의 높이를 처음부터 잡아 둠 → 단계가 바뀌어도 화면이 움직이지 않음).
 //
-//   이탈(CLAUDE.md 0-2): 탑바 X·Android 뒤로가기(handleComboBack → comboV2LectureBack)는 확인 모달 후, 홈/앱 전환(visibilitychange)·
-//   탭 닫기/새로고침/페이지 이동(pagehide)은 확인 없이 — 모두 abort() 하나로 처리(소리 하드컷 panic/resetPiano, 타이머·애니메이션 취소, 처음 상태로 초기화).
-//   정리 뒤에 도착하는 늦은 콜백은 세대 번호(L.tok)로 막는다. 이 강의는 "처음부터" 정책(다시 열면 1단계부터).
+//   이탈(CLAUDE.md 0-2): 탑바 X·Android 뒤로가기(handleComboBack → comboV2LectureBack)는 확인 모달 후, 탭 닫기/새로고침/페이지 이동(pagehide)은
+//   확인 없이 — 모두 abort() 하나로 처리(소리 하드컷 panic/resetPiano, 타이머·애니메이션 취소, 처음 상태로 초기화).
+//   정리 뒤에 도착하는 늦은 콜백은 세대 번호(L.tok)로 막는다. 닫았다가 다시 열면 1단계부터.
+//   홈/앱 전환(visibilitychange)만 예외 — 정리하지 않고 그 순간 그대로 일시정지, 앱에 돌아오면 멈춘 지점부터 즉시 이어서 재생(맨 아래 pauseLecture/resumeLecture).
 //   수강 완료는 마지막 "완료"를 눌렀을 때만 기록(진행도 객체의 _lec 배열). 중간 이탈은 기록하지 않는다.
 // ───────────────────────────────────────────────────────────
 (function () {
@@ -128,7 +129,7 @@
 
   // ── 상태 ──
   // gen: 묶음이 바뀔 때마다 올라가는 번호 — 이전 묶음에서 늦게 도착한 콜백이 "다음"을 켜지 못하게 막음 / ready: 지금 묶음이 끝나서 "다음"을 눌러도 되는 상태 / watch: ready가 아닐 때 버튼을 강제로 꺼 두는 감시 타이머
-  const L = { open: false, ch: 0, step: -1, group: -1, gen: 0, ready: false, watch: null, tok: 0, timers: [], pend: new Map(), rewatch: false, skipping: false, draining: false, vnow: 0, vid: 0, anims: [], sounded: false, pianoUsed: false, trimmed: false, resetTimer: null, heard: -1, seeking: false, pbarJump: false, autoNext: false };   // heard: 진행 바 — 이 챕터에서 끝까지 들은 마지막 단계 / seeking: 진행 바로 다른 단계로 가는 중(앞 단계를 빨리 돌리는 동안)
+  const L = { open: false, ch: 0, step: -1, group: -1, gen: 0, ready: false, watch: null, tok: 0, timers: [], pend: new Map(), rewatch: false, skipping: false, draining: false, vnow: 0, vid: 0, anims: [], sounded: false, pianoUsed: false, trimmed: false, resetTimer: null, heard: -1, seeking: false, pbarJump: false, autoNext: false, paused: false, fs: new Set(), pausedAnims: [] };   // paused/fs/pausedAnims: 앱 전환(백그라운드) 일시정지 — 아래 pauseLecture / heard: 진행 바 — 이 챕터에서 끝까지 들은 마지막 단계 / seeking: 진행 바로 다른 단계로 가는 중(앞 단계를 빨리 돌리는 동안)
 
   // 동요에서 줄였던 기타 출력을 되돌림 — 소리가 짧은 페이드로 끊긴 뒤에(그 사이 갑자기 커지지 않게). 하드컷(panic)은 스스로 되돌림
   function releaseTrim(hard) {
@@ -158,8 +159,18 @@
       drainSkip();
       return r0.id;
     }
-    const rec = { fn: fn, at: Date.now() + ms };
-    const id = setTimeout(function () { L.pend.delete(id); if (tok === L.tok) fn(); }, ms);
+    const rec = { fn: fn, tok: tok };
+    if (L.paused) {   // 일시정지 중에 생긴 예약(소리 준비 완료 등 비동기로 도착) — 실제 타이머 없이 남은 시간만 들고 있다가 복귀 때 시작
+      rec.id = --L.vid; rec.at = Date.now() + ms; rec.left = ms;
+      L.pend.set(rec.id, rec);
+      return rec.id;
+    }
+    return armLater(rec, ms);
+  }
+  // 예약 하나를 실제 타이머로 걸기 — later()와 일시정지 복귀(resumeLecture)가 같이 씀
+  function armLater(rec, ms) {
+    rec.at = Date.now() + ms;
+    const id = setTimeout(function () { L.pend.delete(id); if (rec.tok === L.tok) rec.fn(); }, ms);
     rec.id = id;
     L.pend.set(id, rec);
     L.timers.push(id);
@@ -167,7 +178,15 @@
   }
   function wait(ms) { return new Promise(function (res) { later(res, ms); }); }
   // 연출이 안 끝날 때를 대비한 안전 타이머 — 건너뛰기(skipGroup)가 예약 콜백을 한꺼번에 실행할 때 이것까지 실행하면 연출이 끝나기 전에 "끝났다"고 판단하므로 later()를 거치지 않음
-  function failsafe(ms) { return new Promise(function (res) { L.timers.push(setTimeout(res, ms)); }); }
+  // 일시정지 때 같이 멈춰야 해서(백그라운드 동안 혼자 흘러가면 연출이 덜 끝났는데 단계가 끝남) 목록(L.fs)에 모아 둠
+  function failsafe(ms) { return new Promise(function (res) { armFailsafe({ res: res }, ms); }); }
+  function armFailsafe(r, ms) {
+    r.at = Date.now() + ms;
+    L.fs.add(r);
+    if (L.paused) { r.left = ms; return; }
+    r.id = setTimeout(function () { L.fs.delete(r); r.res(); }, ms);
+    L.timers.push(r.id);
+  }
   // 약속이 ms 안에 안 풀려도(또는 실패해도) 풀어 줌 — 소리 샘플 로딩이 막혀 강의가 멈추는 것을 방지
   function withTimeout(p, ms) {
     return new Promise(function (res) {
@@ -193,6 +212,7 @@
     L.anims = L.anims.filter(function (x) { return x.playState !== 'idle' && x.playState !== 'finished'; });   // 끝난 것은 목록에서 뺌
     L.anims.push(a);
     if (L.skipping) fireFinish(a, L.tok);
+    else if (L.paused) { try { a.pause(); } catch (e) {} L.pausedAnims.push(a); }   // 일시정지 중에 생긴 애니메이션도 멈춘 채로 두었다가 복귀 때 재생
     return a;
   }
 
@@ -3363,6 +3383,7 @@
     L.autoNext = false;
     L.timers.forEach(clearTimeout);
     L.timers = [];
+    L.fs.clear();
     L.pend.clear();
     L.skipping = false;
     L.anims.forEach(function (a) { try { a.cancel(); } catch (e) {} });
@@ -3436,6 +3457,7 @@
     releaseTrim(false);
     L.timers.forEach(clearTimeout);
     L.timers = [];
+    L.fs.clear();
     L.pend.clear();
     clearDelays();
     hot(-1);
@@ -3521,6 +3543,7 @@
     L.watch = null;
     L.timers.forEach(clearTimeout);
     L.timers = [];
+    L.fs.clear();
     L.pend.clear();
     L.skipping = false;
     L.seeking = false;   // 빨리 돌리던 중 닫히면 그 루프는 영영 안 끝나므로(예약·안전 타이머가 지워짐) 여기서 풀어 둠 — 안 풀면 다음에 열 때 진행 바가 계속 막힘
@@ -3540,6 +3563,9 @@
     releaseTrim(hard);
     L.sounded = false;
     L.pianoUsed = false;
+    if (L.paused) lecAudioClock(true);   // 일시정지 중 닫혀도(뒤로가기 확인 등) 멈춰 둔 오디오 시계·상태가 남지 않게
+    L.paused = false;
+    L.pausedAnims = [];
     const was = L.open;
     L.open = false;
     setTopbarLec(false);
@@ -3767,8 +3793,69 @@
     }
     return false;
   };
-  window.addEventListener('pagehide', function () { abort('pagehide'); });
-  document.addEventListener('visibilitychange', function () { if (document.hidden) abort('background'); });
+  // ── 앱 전환(백그라운드) = 일시정지, 돌아오면 멈춘 지점부터 즉시 이어서 ──
+  // 이 강의는 "이어하기" 정책(CLAUDE.md 0-2 2층 구조 ②): 실행 중인 것은 전부 멈추되(①) 처음으로 되돌리지 않고 그 순간의 상태를 그대로 얼려 둔다.
+  //  · 타이머: later() 예약(L.pend)·안전 타이머(L.fs)를 끄고 남은 시간만 기억 → 복귀 때 남은 시간으로 다시 건다
+  //  · 화면: 강의 영역의 모든 애니메이션(Web Animation·CSS 전환·CSS 애니메이션 — 진행 바 게이지, 문구 페이드 포함)을 pause → 복귀 때 play
+  //  · 소리: 강의 소리는 전부 오디오 시계(Tone.now) 기준으로 미리 예약돼 있어서, 오디오 컨텍스트를 suspend하면 울리던 음·예약된 음이 그 자리에서 멈추고 resume하면 그대로 이어짐
+  // 화면 타이머와 오디오 시계를 같은 순간에 멈추고 같은 순간에 풀어서 연출과 소리의 맞춤이 어긋나지 않는다.
+  function lecAudioClock(run) {
+    try {
+      const ctx = Tone.getContext().rawContext;
+      if (run) { if (ctx.state !== 'running') ctx.resume(); }
+      else if (ctx.state === 'running') ctx.suspend();
+    } catch (e) {}
+  }
+  function lecAnimations() {
+    const sec = $('combo-v2-lecture');
+    if (!sec || typeof document.getAnimations !== 'function') return L.anims.slice();
+    return document.getAnimations().filter(function (a) { const t = a.effect && a.effect.target; return t && sec.contains(t); });
+  }
+  function pauseLecture() {
+    if (!L.open || L.paused) return;
+    L.paused = true;
+    const now = Date.now();
+    L.pend.forEach(function (r) {   // 실제 타이머만(건너뛰기용 가상 예약은 id가 음수 — 그대로 둠)
+      if (!(r.id > 0) || r.left != null) return;
+      clearTimeout(r.id);
+      r.left = Math.max(0, r.at - now);
+    });
+    L.fs.forEach(function (r) {
+      if (r.left != null) return;
+      clearTimeout(r.id);
+      r.left = Math.max(0, r.at - now);
+    });
+    L.pausedAnims = lecAnimations().filter(function (a) { return a.playState === 'running'; });
+    L.pausedAnims.forEach(function (a) { try { a.pause(); } catch (e) {} });
+    lecAudioClock(false);
+  }
+  function resumeLecture() {
+    if (!L.paused) return;
+    L.paused = false;
+    if (!L.open) { L.pausedAnims = []; return; }
+    lecAudioClock(true);
+    const recs = [];
+    L.pend.forEach(function (r) { if (r.left != null) recs.push(r); });
+    recs.forEach(function (r) {
+      const left = r.left;
+      delete r.left;
+      L.pend.delete(r.id);
+      armLater(r, left);
+    });
+    L.fs.forEach(function (r) {
+      if (r.left == null) return;
+      const left = r.left;
+      delete r.left;
+      L.fs.delete(r);
+      armFailsafe(r, left);
+    });
+    L.pausedAnims.forEach(function (a) { if (a.playState === 'paused') { try { a.play(); } catch (e) {} } });
+    L.pausedAnims = [];
+  }
+  // 페이지 이탈(pagehide)은 그대로 처음 상태로 정리. 단 iOS는 앱을 백그라운드로 보낼 때도 pagehide가 오고 문서가 살아 있으므로(guitar-audio.js 복귀 처리 참고),
+  // 이미 일시정지된 상태(앞서 visibilitychange로 숨겨짐)면 정리하지 않고 멈춘 채 둔다 — 실제로 페이지가 바뀌면 문서와 함께 타이머·소리도 사라짐
+  window.addEventListener('pagehide', function () { if (L.paused) return; abort('pagehide'); });
+  document.addEventListener('visibilitychange', function () { if (document.hidden) pauseLecture(); else resumeLecture(); });
 
   maybeShowWelcome();
 })();
