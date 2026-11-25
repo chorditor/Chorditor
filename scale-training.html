@@ -56,11 +56,58 @@
         <!-- ── Ch. 1: 기초 스케일 연습 ── -->
           <div class="scale-item-list" id="ch-1" data-subtitle="기초 스케일 연습">
 
-            <!-- 1. 메이저 스케일 -->
-            <div class="scale-item-card scale-item-card--template cd-card" data-key="major" data-level="1">
+            <!-- 메이저 펜타토닉 스케일 (내부 레벨 25, 표시 1 — 2026-11-25 메이저와 순서 바꿈) -->
+            <div class="scale-item-card scale-item-card--template cd-card" data-key="major-pentatonic" data-level="25">
               <div class="scale-card-header">
                 <div class="lw-row1">
                   <span class="lw-badge">LEVEL 1</span>
+                  <span class="lw-row1-right"></span>
+                </div>
+                <span class="lw-name">메이저 펜타토닉 스케일</span>
+              </div>
+
+              <div class="scale-card-shot">
+                <div class="fb-full-neck fb-shot-neck">
+                    <div class="fb-string" style="top:8.33%; height:1px;"></div>
+                    <div class="fb-string" style="top:25.00%; height:1.5px;"></div>
+                    <div class="fb-string" style="top:41.67%; height:2px;"></div>
+                    <div class="fb-string" style="top:58.33%; height:2.5px;"></div>
+                    <div class="fb-string" style="top:75.00%; height:3px;"></div>
+                    <div class="fb-string" style="top:91.67%; height:3.5px;"></div>
+                    <div class="fb-fret-line" style="left:25.00%;"></div>
+                    <div class="fb-fret-line" style="left:50.00%;"></div>
+                    <div class="fb-fret-line" style="left:75.00%;"></div>
+                    <div class="fb-note" style="left:37.50%; top:8.33%;"></div>
+                    <div class="fb-note" style="left:87.50%; top:8.33%;"></div>
+                    <div class="fb-note" style="left:37.50%; top:25.00%;"></div>
+                    <div class="fb-note" style="left:87.50%; top:25.00%;"></div>
+                    <div class="fb-note" style="left:12.50%; top:41.67%;"></div>
+                    <div class="fb-note fb-note--root" style="left:87.50%; top:41.67%;"></div>
+                    <div class="fb-note" style="left:12.50%; top:58.33%;"></div>
+                    <div class="fb-note" style="left:87.50%; top:58.33%;"></div>
+                    <div class="fb-note fb-note--root" style="left:37.50%; top:75.00%;"></div>
+                    <div class="fb-note" style="left:87.50%; top:75.00%;"></div>
+                    <div class="fb-note" style="left:37.50%; top:91.67%;"></div>
+                    <div class="fb-note" style="left:87.50%; top:91.67%;"></div>
+                </div>
+                <div class="fb-full-nums">
+                  <div class="fb-fret-num" style="left:37.50%;">3</div>
+                  <div class="fb-fret-num" style="left:87.50%;">5</div>
+                </div>
+              </div>
+
+              <div class="scale-card-notes"></div>
+
+              <button class="scale-card-practice-btn" onpointerup="onScalePracticeTap(this)">
+                <i data-lucide="play"></i>연습하기
+              </button>
+            </div>
+
+            <!-- 메이저 스케일 (내부 레벨 1, 표시 2 — 2026-11-25 펜타토닉과 순서 바꿈) -->
+            <div class="scale-item-card scale-item-card--template cd-card" data-key="major" data-level="1">
+              <div class="scale-card-header">
+                <div class="lw-row1">
+                  <span class="lw-badge">LEVEL 2</span>
                   <span class="lw-row1-right"></span>
                 </div>
                 <span class="lw-name">메이저 스케일</span>
@@ -98,53 +145,6 @@
                 <div class="fb-full-nums">
                   <div class="fb-fret-num" style="left:30.00%;">3</div>
                   <div class="fb-fret-num" style="left:70.00%;">5</div>
-                </div>
-              </div>
-
-              <div class="scale-card-notes"></div>
-
-              <button class="scale-card-practice-btn" onpointerup="onScalePracticeTap(this)">
-                <i data-lucide="play"></i>연습하기
-              </button>
-            </div>
-
-            <!-- 메이저 펜타토닉 스케일 (내부 레벨 25, 표시 2) -->
-            <div class="scale-item-card scale-item-card--template cd-card" data-key="major-pentatonic" data-level="25">
-              <div class="scale-card-header">
-                <div class="lw-row1">
-                  <span class="lw-badge">LEVEL 2</span>
-                  <span class="lw-row1-right"></span>
-                </div>
-                <span class="lw-name">메이저 펜타토닉 스케일</span>
-              </div>
-
-              <div class="scale-card-shot">
-                <div class="fb-full-neck fb-shot-neck">
-                    <div class="fb-string" style="top:8.33%; height:1px;"></div>
-                    <div class="fb-string" style="top:25.00%; height:1.5px;"></div>
-                    <div class="fb-string" style="top:41.67%; height:2px;"></div>
-                    <div class="fb-string" style="top:58.33%; height:2.5px;"></div>
-                    <div class="fb-string" style="top:75.00%; height:3px;"></div>
-                    <div class="fb-string" style="top:91.67%; height:3.5px;"></div>
-                    <div class="fb-fret-line" style="left:25.00%;"></div>
-                    <div class="fb-fret-line" style="left:50.00%;"></div>
-                    <div class="fb-fret-line" style="left:75.00%;"></div>
-                    <div class="fb-note" style="left:37.50%; top:8.33%;"></div>
-                    <div class="fb-note" style="left:87.50%; top:8.33%;"></div>
-                    <div class="fb-note" style="left:37.50%; top:25.00%;"></div>
-                    <div class="fb-note" style="left:87.50%; top:25.00%;"></div>
-                    <div class="fb-note" style="left:12.50%; top:41.67%;"></div>
-                    <div class="fb-note fb-note--root" style="left:87.50%; top:41.67%;"></div>
-                    <div class="fb-note" style="left:12.50%; top:58.33%;"></div>
-                    <div class="fb-note" style="left:87.50%; top:58.33%;"></div>
-                    <div class="fb-note fb-note--root" style="left:37.50%; top:75.00%;"></div>
-                    <div class="fb-note" style="left:87.50%; top:75.00%;"></div>
-                    <div class="fb-note" style="left:37.50%; top:91.67%;"></div>
-                    <div class="fb-note" style="left:87.50%; top:91.67%;"></div>
-                </div>
-                <div class="fb-full-nums">
-                  <div class="fb-fret-num" style="left:37.50%;">3</div>
-                  <div class="fb-fret-num" style="left:87.50%;">5</div>
                 </div>
               </div>
 
@@ -1442,8 +1442,10 @@
     </div>
   </div>
 
-  <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.js"></script>
-  <script src="https://unpkg.com/@phosphor-icons/web"></script>
+  <script src="https://unpkg.com/lucide@1.80.0/dist/umd/lucide.min.js"></script>
+  <!-- Phosphor 아이콘: 쓰는 굵기만(bold, fill) — 예전 로더는 6종 스타일(약 640KB)을 매번 받았음(2026-11-25 최적화) -->
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@phosphor-icons/web@2.1.2/src/bold/style.css" />
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@phosphor-icons/web@2.1.2/src/fill/style.css" />
   <script src="analytics-sdk.js"></script>
   <script src="shared.js"></script>
   <script src="scale-data.js"></script>

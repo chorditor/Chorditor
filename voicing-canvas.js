@@ -22,6 +22,8 @@
 //   ratio         : canvas px / BASE_W. 미지정 시 canvas.width 기준 자동 산출.
 //   fingerNumMode : true → 도트에 손가락 번호 표시 (voicing.fingering 필요)
 //   transparent   : true → 흰 배경 채우지 않고 투명 유지 (기본 false=흰색)
+//   markColors    : 줄별(1번줄→6번줄) O·X 표시 색 배열 (선택 — null/생략 시 기본색, 강의에서 개방현 강조용)
+//   dotColors     : 줄별(1번줄→6번줄) 점 채우기 색 배열 (선택 — null/생략 시 기본색). 개방현 줄에 색을 주면 O 대신 그 색으로 채운 원(점 강조 = 원 채우기, 여정 강의·퀴즈)
 // ═══════════════════════════════════════════════════════════════
 (function (global) {
   'use strict';
@@ -148,18 +150,24 @@
       if (v !== 'mute' && coveredByBarre.has(s)) return;
       const y = tt + s * sh;
       const x = tl - Math.round(BASE_OPEN_W / 2 * sc);
+      const mark = (opts.markColors && opts.markColors[s]) || '#242729';   // markColors: 줄별 O·X 표시 색(선택, 없으면 기본색)
       if (v === 'mute') {
         const half = ds * 0.38;
         c.save();
-        c.strokeStyle = '#242729';
+        c.strokeStyle = mark;
         c.lineWidth   = Math.round(ds * 0.18);
         c.lineCap     = 'round';
         c.beginPath(); c.moveTo(x - half, y - half); c.lineTo(x + half, y + half); c.stroke();
         c.beginPath(); c.moveTo(x + half, y - half); c.lineTo(x - half, y + half); c.stroke();
         c.restore();
+      } else if (frets[s] === 0 && opts.dotColors && opts.dotColors[s]) {   // 강조한 개방현 — O 대신 채운 원(점과 같은 크기)
+        c.save();
+        c.fillStyle = opts.dotColors[s];
+        c.beginPath(); c.arc(x, y, ds / 2, 0, Math.PI * 2); c.fill();
+        c.restore();
       } else if (frets[s] === 0) {
         c.save();
-        c.strokeStyle = '#242729';
+        c.strokeStyle = mark;
         c.lineWidth   = Math.max(1, ds * 0.15);
         c.beginPath(); c.arc(x, y, ds * 0.45, 0, Math.PI * 2); c.stroke();
         c.restore();
@@ -203,7 +211,7 @@
       c.save();
       c.beginPath();
       c.arc(cx, cy, r, 0, Math.PI * 2);
-      c.fillStyle = '#242729';
+      c.fillStyle = (opts.dotColors && opts.dotColors[s]) || '#242729';
       c.fill();
       if (fingerNumMode) {
         const n      = typeof fingering?.[s] === 'number' ? fingering[s] : 0;
@@ -224,7 +232,8 @@
     if (showLabel) {
       c.save();
       // bigFretLabel: 노트 슬롯처럼 66px 안팎으로 줄어 표시되는 곳용 — 글자 52(→약 8px), 아래 여백 80 안에 들어오도록 위로 당김
-      const lblSize = opts.bigFretLabel === true ? 52 : 28;
+      //  fretLabelSize: 글자 크기를 직접 지정(기준 440폭 단위 — 기본 28). 여정 D6 4지선다처럼 작게 그려지는 보기에서 약간 키울 때(2026-11-15)
+      const lblSize = typeof opts.fretLabelSize === 'number' ? opts.fretLabelSize : (opts.bigFretLabel === true ? 52 : 28);
       const lblGap  = opts.bigFretLabel === true ? 20 : 28;
       c.font         = `500 ${Math.round(lblSize * sc)}px "Pretendard", sans-serif`;
       c.fillStyle    = '#666';

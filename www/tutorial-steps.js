@@ -1535,14 +1535,14 @@ const TUTORIAL_CHAPTERS = (() => {
   ];
 
   // 홈 화면(0번 구간)으로 되돌리는 진입 함수.
-  // switchTab·enterFromHome은 home.js에만 있어서 training.html·user_project.html에서는 없다.
+  // switchTab·enterFromTools은 home.js에만 있어서 training.html·user_project.html에서는 없다.
   // 변형에 따라 앞 챕터가 어느 페이지에서 끝날지 달라지므로(B: 훈련소 → 노트 만들기),
   // 함수가 없으면 페이지 자체를 옮긴다 — 진행 위치는 continueNext가 미리 저장해 두므로
   // home.html의 resume()이 그대로 이어받는다.
   const _enterHome = () => {
-    if (typeof window.switchTab !== 'function') { location.href = 'home.html'; return; }
-    window.switchTab('home', true);
-    return window.enterFromHome?.('home', true);
+    if (typeof window.switchTab !== 'function') { location.href = 'home.html?tab=tools'; return; }
+    window.switchTab('tools', true);
+    return window.enterFromTools?.('main', true);
   };
 
   // 챕터 정의. key는 순서가 바뀌어도 변하지 않는 식별자다 —
@@ -1553,7 +1553,7 @@ const TUTORIAL_CHAPTERS = (() => {
       title: '코드 에디터',
       steps: STEP1_STEPS,
       // enterFirst: 0번 구간이 있는 화면 / enter: 중간 구간부터 시작할 때 진입할 화면
-      enterFirst: () => window.enterFromHome?.('home', true),
+      enterFirst: () => window.enterFromTools?.('main', true),
       // 코드 에디터는 별도 페이지(editor.html) — 이어받기는 그 페이지의 Tutorial.resume()이 한다
       enter:      () => { location.href = 'editor.html'; },
       doneDesc:  '코드 에디터를 다 둘러봤어요.',
@@ -1561,7 +1561,7 @@ const TUTORIAL_CHAPTERS = (() => {
     'library': {
       title: '코드 사전',
       steps: STEP2_STEPS,
-      enterFirst: () => window.enterFromHome?.('home', true),
+      enterFirst: () => window.enterFromTools?.('main', true),
       // 코드 사전은 별도 페이지(library.html) — 이어받기는 그 페이지의 Tutorial.resume()이 한다
       enter:      () => { location.href = 'library.html'; },
       doneDesc:  '코드 사전을 다 둘러봤어요.',

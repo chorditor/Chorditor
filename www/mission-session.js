@@ -32,8 +32,13 @@ window.msPersonaList = function () {
 // 실제 소스는 shared.js getUserPersona()(localStorage 캐시, home.js가 DB subscriptions.persona에서
 // 내려받아 동기화해둠) — 다른 유저 데이터(XP 등)와 동일하게 localStorage가 일상 source of truth.
 // 프로필 화면(persona-track)이 보는 값과 항상 동일 — 별도 dev override 없음.
+// 여정 승급시험(?journey=1, 홈 여정 지도 책 아래 버튼 — 2026-11-25): 칭호가 아니라 '여정 등급'(shared.js getJourneyGrade)의 시험.
+//  출제(문제풀·문항수·제한시간)·다음 단계 모두 여정 등급 기준. 합격하면 여정 등급이 오르고, 칭호가 그보다 낮으면 칭호도 같이 오른다.
+//  ?journey 없이 들어오면(프로필 단계 트랙) 예전 그대로 칭호(페르소나) 승급시험.
+const MS_PROMO_JOURNEY = new URLSearchParams(location.search).get('journey') === '1' && typeof getJourneyGrade === 'function';
+const MS_PROMO_KIND = MS_PROMO_JOURNEY ? 'journey' : 'persona';   // 퍼널 로그 구분값
 const MS_PERSONA = {
-  id: typeof getUserPersona === 'function' ? getUserPersona() : MS_PERSONA_DEFAULT,
+  id: MS_PROMO_JOURNEY ? getJourneyGrade() : (typeof getUserPersona === 'function' ? getUserPersona() : MS_PERSONA_DEFAULT),
   canDowngrade: false, // 아래서 id 확정 후 갱신(언박싱1일차는 강등할 아래 단계가 없음)
 };
 // 문제풀은 mission-persona-pools.js에서 페르소나 id로 조회 (내용 추가는 그 파일에서만)
@@ -50,6 +55,7 @@ const MS_POOL = MS_PERSONA_POOLS[MS_PERSONA.id];
 let _msPromoActive = false;      // msShowPersonaPromoIntro 진입~성공/실패화면 도달 사이 true
 let _msPromoLastStage = null;    // intro/quiz/scale/combo
 let _msPromoFromPersona = null;  // 시험 시작 시점의 현재 페르소나(성공해도 바뀌므로 미리 저장)
+let _msPromoPersonaRaised = false;   // 여정 승급시험 합격으로 칭호도 같이 올랐는지(합격 화면에 '새 페르소나' 줄을 보일지)
 function _msTrackPromoStage(stage) {
   _msPromoActive = true;
   _msPromoLastStage = stage;
@@ -77,7 +83,7 @@ function _msSendAbandonLogs() {
 
   let sent = false;
   if (_msPromoActive && _msPromoLastStage) {
-    analytics.track('persona_promo_abandoned', { last_stage: _msPromoLastStage, from_persona: _msPromoFromPersona });
+    analytics.track('persona_promo_abandoned', { last_stage: _msPromoLastStage, from_persona: _msPromoFromPersona, exam_kind: MS_PROMO_KIND });
     sent = true;
   }
   if (!sent) return;
@@ -1338,7 +1344,7 @@ function msShowPersonaPromoIntro() {
   // 즉시 그리고, 최신값은 아래 _msPromoRefreshAttemptsBadge()가 백그라운드로 받아와 배지만 갱신.
   const next = _msPromoNextPersona();
   const nextName = next.name || '다음 단계';
-  document.getElementById('ms-title-text').textContent = `${nextName} 승급 시험`;
+  document.getElementById('ms-title-text').textContent = MS_PROMO_JOURNEY ? `${nextName} 여정 승급 시험` : `${nextName} 승급 시험`;
   _msSetTitleIcon('ph-fill ph-trophy', '#E0A526');
   const promoIntroDesc = document.getElementById('ms-title-desc');
   promoIntroDesc.style.display = ''; // 문제풀이 화면(display:none)을 거쳐 돌아온 경우 대비
@@ -1399,7 +1405,7 @@ async function msPersonaPromoStart() {
     _msPromoAttemptsCache = Math.max(0, _msPromoAttemptsCache - 1); // 배지 즉시반영(네트워크 응답 기다리지 않음)
   }
   consumePromoAttempt().then(left => { _msPromoAttemptsCache = left; }).catch(() => {}); // DB에는 실제 소진 그대로 기록
-  if (typeof analytics !== 'undefined') analytics.track('persona_promo_started', { from_persona: _msPromoFromPersona });
+  if (typeof analytics !== 'undefined') analytics.track('persona_promo_started', { from_persona: _msPromoFromPersona, exam_kind: MS_PROMO_KIND });
   _playConfirmSfx();
   _msTransitionView(() => msShowPersonaPromoSection(0));
 }
@@ -1575,7 +1581,14 @@ function msPersonaPromoFinish() {
   if (allPass) {
     // 결과화면 진입 전에 커밋 — 성공화면과 확인버튼 사이 이탈(앱종료 등)에도 승급이 남게
     const next = _msPromoNextPersona();
-    if (next.id && typeof setUserPersona === 'function') setUserPersona(next.id);
+    if (MS_PROMO_JOURNEY) {   // 여정 승급시험: 여정 등급을 올리고, 칭호가 그보다 낮으면 칭호도 같이(여정 등급은 칭호를 넘지 않음)
+      if (next.id) {
+        setJourneyGrade(next.id);
+        _msPromoPersonaRaised = PERSONA_STAGES.indexOf(next.id) > PERSONA_STAGES.indexOf(getUserPersona());
+        if (_msPromoPersonaRaised && typeof setUserPersona === 'function') setUserPersona(next.id);
+      }
+    }
+    else if (next.id && typeof setUserPersona === 'function') setUserPersona(next.id);
     msShowPersonaPromoSuccess();
     return;
   }
@@ -1603,7 +1616,7 @@ function msShowPersonaPromoSuccess() {
   if (xpAwarded > 0 && typeof addXp === 'function') addXp(xpAwarded);
   if (typeof analytics !== 'undefined') {
     analytics.track('persona_promo_finished', {
-      result: 'success', from_persona: _msPromoFromPersona, to_persona: next.id || null,
+      result: 'success', from_persona: _msPromoFromPersona, to_persona: next.id || null, exam_kind: MS_PROMO_KIND, persona_raised: MS_PROMO_JOURNEY ? _msPromoPersonaRaised : true,
       xp_awarded: xpAwarded,
       sections: _msPromoSections().map(s => ({
         key: s.key, correct: _msPromoRealResults[s.key]?.correct ?? null, total: s.total, status: _msPromoRealResults[s.key]?.status ?? null,
@@ -1622,7 +1635,7 @@ function msShowPersonaPromoSuccess() {
   document.getElementById('ms-main').innerHTML = `
     <div class="ms-promo-success-header ms-stagger-pending">
       <p class="ms-promo-success-title">승급 성공!</p>
-      <p class="ms-promo-success-subtitle">이제부터 ${nextName}예요</p>
+      <p class="ms-promo-success-subtitle">${MS_PROMO_JOURNEY ? `이제부터 ${nextName} 여정이에요` : `이제부터 ${nextName}예요`}</p>
     </div>
     <div class="ms-chord-tutorial ms-promo-success-view">
       <p class="ms-chord-lead ms-stagger-pending">3영역 모두 통과했어요</p>
@@ -1630,16 +1643,22 @@ function msShowPersonaPromoSuccess() {
         <div class="ms-promo-info-card" id="ms-promo-info-card">
           <div class="ms-promo-info-row">
             <i class="ph-fill ph-sparkle" style="color:#E0A526"></i>
-            <span class="ms-promo-info-label">새 페르소나</span>
+            <span class="ms-promo-info-label">${MS_PROMO_JOURNEY ? '새 여정 등급' : '새 페르소나'}</span>
             <span class="ms-promo-info-value">${nextName}</span>
           </div>
+          ${MS_PROMO_JOURNEY && _msPromoPersonaRaised ? `
+          <div class="ms-promo-info-row">
+            <i class="ph-fill ph-sparkle" style="color:#E0A526"></i>
+            <span class="ms-promo-info-label">새 페르소나</span>
+            <span class="ms-promo-info-value">${nextName}</span>
+          </div>` : ''}
           <div class="ms-promo-info-row">
             <i class="ph-fill ph-lightning" style="color:#4f7cff"></i>
             <span class="ms-promo-info-label">획득 경험치</span>
             <span class="ms-promo-info-value">+${xpAwarded} XP</span>
           </div>
         </div>
-        <p class="ms-chord-hint">다음 단계 콘텐츠가 열렸어요!</p>
+        <p class="ms-chord-hint">${MS_PROMO_JOURNEY && next.id && !JOURNEY_GRADES_WITH_CONTENT.includes(next.id) ? '다음 단계 여정은 준비 중이에요' : '다음 단계 콘텐츠가 열렸어요!'}</p>
       </div>
     </div>
     <div class="ms-bottom-actions">
@@ -1677,7 +1696,10 @@ function msPersonaPromoSuccessConfirm() {
   // setUserPersona()는 msPersonaPromoFinish()에서 이미 커밋됨(채점 통과 시점).
   // TODO: DB subscriptions.persona 갱신은 아직 미연동 — 로그인 기기 간 동기화 필요해지면 여기서 같이 호출
   // 사운드가 실제로 들리기 전에 페이지 이동이 끊어버리는 걸 방지 — 짧게 지연 후 이동
-  setTimeout(() => { location.href = 'home.html'; }, 150);
+  // 여정 승급시험: 오른 등급의 여정이 아직 없으면 '준비 중' 안내(journey-intro.html?soon=등급)로, 있으면 홈으로
+  const grade = MS_PROMO_JOURNEY ? getJourneyGrade() : null;
+  const dest = grade && !JOURNEY_GRADES_WITH_CONTENT.includes(grade) ? 'journey-intro.html?soon=' + grade : 'home.html';
+  setTimeout(() => { location.href = dest; }, 150);
 }
 
 // ── 실패 화면 ── timedOut=true면 "제한시간 초과로 무제한 시간에 이어푼 것"이라는 안내 한 줄 추가.
@@ -1688,7 +1710,7 @@ function msShowPersonaPromoFail(timedOut = false, resultOverride = null, heartsO
   const result = resultOverride || _msPromoMockResult();
   if (typeof analytics !== 'undefined') {
     analytics.track('persona_promo_finished', {
-      result: 'fail', from_persona: _msPromoFromPersona, timed_out: timedOut, hearts_out: heartsOut,
+      result: 'fail', from_persona: _msPromoFromPersona, exam_kind: MS_PROMO_KIND, timed_out: timedOut, hearts_out: heartsOut,
       sections: result.map(s => ({ key: s.key, correct: s.correct, total: s.total, status: s.status, wrong: s.wrong })),
     });
   }
@@ -1784,7 +1806,7 @@ async function msPersonaPromoFailRetry() {
   consumePromoAttempt().then(left => { _msPromoAttemptsCache = left; }).catch(() => {}); // DB에는 실제 소진 그대로 기록
   Object.keys(_msPromoRealResults).forEach(k => delete _msPromoRealResults[k]); // 지난 시도 채점 결과 초기화
   _msPromoFromPersona = MS_PERSONA.id;
-  if (typeof analytics !== 'undefined') analytics.track('persona_promo_started', { from_persona: _msPromoFromPersona });
+  if (typeof analytics !== 'undefined') analytics.track('persona_promo_started', { from_persona: _msPromoFromPersona, exam_kind: MS_PROMO_KIND });
   _playConfirmSfx();
   _msTransitionView(() => msShowPersonaPromoSection(0));
 }

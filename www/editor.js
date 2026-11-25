@@ -2033,7 +2033,7 @@ function _returnToProject(returnId) {
 function closeEditorPage() {
   _playTap();
   if (_isFromProject && _editorReturnProjectId) { _returnToProject(_editorReturnProjectId); return; }
-  _leaveEditor(_fromLibraryToEditor ? 'library.html' : 'home.html');
+  _leaveEditor(_fromLibraryToEditor ? 'library.html' : 'home.html?tab=tools');
 }
 
 // ═════════════════════════════════════════════════

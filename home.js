@@ -2554,7 +2554,8 @@ function switchTab(tab, noAnim = false) {
   document.getElementById('home-topbar-strip')?.classList.toggle('hidden', tab !== 'home');
   if (tab !== 'tools') document.querySelector('.cd-topbar-brand')?.classList.toggle('hidden', tab === 'home');
   // 홈 탭(나의 기타 여정): 방금 hidden에서 풀렸으므로 폭을 다시 재서 경로를 그린다
-  if (tab === 'home' && typeof renderJourney === 'function') { renderJourney(); window.lucide?.createIcons?.(); renderHomeBadge(); }
+  if (tab === 'home' && typeof renderJourney === 'function') { if (typeof jnyMarkEnter === 'function') jnyMarkEnter(); renderJourney();   // jnyMarkEnter: 홈 세션이 만료됐으면 지금 할 노드로(journey.js)
+    window.lucide?.createIcons?.(); renderHomeBadge(); }
   if (tab === 'projects') {
     _notesSplitSync();
     _notesSplitDefaultCollapsed();
@@ -2848,6 +2849,11 @@ async function enterFromTools(view, skipAnim = false, reverse = false) {
 let _backPressTimestamp = 0;
 
 function handleNativeBack() {
+  // 노트 스플릿 악보의 가로 스크롤 재생 모드 → 그 모드만 닫는다(iframe이 정리 함수 _hsClose 실행)
+  if (document.querySelector('.app-shell.note-hscroll')) {
+    try { document.getElementById('notes-split-frame')?.contentWindow?.postMessage({ type: 'note-hscroll-close' }, '*'); } catch (_) {}
+    return;
+  }
   // 튜토리얼 중엔 화면을 옮기면 진행이 깨진다 → 그만둘지 묻는다(건너뛰기 버튼과 같은 경로).
   if (window.Tutorial?.isRunning?.()) { window.Tutorial.confirmSkip(); return; }
 
@@ -3083,6 +3089,8 @@ function _notesSplitPickInitialId() {
   return first ? first.id : null;
 }
 function _notesSplitSync() {
+  // 가로 스크롤 재생 모드 중엔 회전해도 스플릿을 닫지 않는다(닫으면 악보 iframe이 사라져 모드가 끊김) — 모드를 나갈 때 다시 맞춘다
+  if (document.querySelector('.app-shell.note-hscroll')) return;
   _notesSplitShellSync();
   const tab = document.getElementById('tab-view-projects');
   if (!tab) return;
@@ -3123,6 +3131,10 @@ window.addEventListener('message', e => {
   const frame = document.getElementById('notes-split-frame');
   if (!frame || e.source !== frame.contentWindow) return;
   if (e.data?.type === 'notes-split-expand') _notesSplitSetCollapsed(false);
+  else if (e.data?.type === 'note-hscroll') { // 악보의 가로 스크롤 재생 모드 — 부모도 전체화면(style.css .note-hscroll)
+    document.querySelector('.app-shell')?.classList.toggle('note-hscroll', !!e.data.on);
+    if (!e.data.on) _notesSplitSync(); // 모드 중 회전·창 크기 변경을 미뤄 둔 것 반영
+  }
   else if (e.data?.type === 'plan-sheet-open') openPlanSheet(e.data.triggerSource, e.data.extraProps);
   else if (e.data?.type === 'notes-split-ready') { // iframe이 (다시) 로드돼 첫 렌더를 마침 — 현재 상태 전달, 이후 전환은 메시지로
     _notesSplitFrameReady = true;
@@ -5795,6 +5807,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   // ── DEV 빌드: 인증 체크 없이 바로 진입 ──────────────────────
   if (APP_VERSION.includes('_dev')) {
+    if (await _journeyGate()) return;   // 여정을 고르지 않았으면 여정 선택 화면으로(필수)
     initSupabase().catch(() => {});
     // 출석플로우는 공지팝업이 전부 닫힌 뒤로 미룸(동시 노출 금지) — 튜토리얼 자동 노출
     // 대상이면 어차피 그 내부에서 건너뛰기 이후로 보류됨
@@ -5824,6 +5837,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         window.location.replace('onboarding.html'); return;
       }
       _authReady = true;
+      if (await _journeyGate()) return;   // 여정을 고르지 않았으면 여정 선택 화면으로(필수, 서버 기록 확인 뒤)
       _setOnboardedCache(session.user.id); // 다른 페이지의 관문이 재조회를 건너뛰도록
       analytics.setUserId(session.user.id);
       analytics.track('app_open', { platform: window.Capacitor?.getPlatform?.() || 'web', project_count: loadProjects().length });
@@ -5864,6 +5878,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     if (!_hasOAuth) { window.location.replace('onboarding.html'); return; }
   }
   _setOnboardedCache(getStoredAuth().userId); // 다른 페이지의 관문이 재조회를 건너뛰도록
+  if (await _journeyGate()) return;   // 여정을 고르지 않았으면 여정 선택 화면으로(필수, 서버 기록 확인 뒤)
   analytics.track('app_open', { platform: 'web', project_count: loadProjects().length });
   // 출석플로우는 공지팝업이 전부 닫힌 뒤로 미룸(동시 노출 금지) — 튜토리얼 자동 노출
   // 대상이면 어차피 그 내부에서 건너뛰기 이후로 보류됨
@@ -5877,6 +5892,17 @@ document.addEventListener('DOMContentLoaded', async () => {
   _consumePendingShareCode();
   setTimeout(() => checkAndShowNotice(), 1000);
 });
+
+// ── 여정 선택 필수 관문(2026-11-25 — 가입·업데이트 뒤 여정을 고르기 전엔 홈 진입 불가) ──
+//  기기에 고른 여정이 있으면 통과(서버 등급·갈래 병합은 뒤에서 조용히). 없으면 서버 기록을 먼저 확인(재설치·다른 기기) → 그래도 없으면 여정 선택 화면.
+//  여정 선택 화면(journey-intro.html)은 고르고 나면 노드1 설명으로 이어진다. 반환 true = 이동함(호출부는 홈 초기화를 멈춤)
+async function _journeyGate() {
+  if (hasChosenJourney()) { pullJourneyState().catch(() => {}); if (typeof jnySyncProgress === 'function') jnySyncProgress(); if (typeof jnyFetchBoost === 'function') jnyFetchBoost(); return false; }   // 여정 진행도(B2)·7일 부스트(B5)도 뒤에서 맞춤
+  try { await pullJourneyState(); } catch (_) {}
+  if (hasChosenJourney()) { if (typeof jnySyncProgress === 'function') jnySyncProgress(); if (typeof jnyFetchBoost === 'function') jnyFetchBoost(); return false; }
+  location.replace('journey-intro.html');
+  return true;
+}
 
 // ═══════════════════════════════════════════════════════════════
 // 코드 라이브러리

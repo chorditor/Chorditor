@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <!-- 언어 결정·화면 번역: 다른 스크립트·본문보다 먼저 -->
+  <script src="i18n.js"></script>
+  <meta name="color-scheme" content="light dark" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <title>Chorditor - 나의 기타 여정</title>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css" />
+  <link rel="stylesheet" href="style.css" />
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
+</head>
+<body class="journey-lesson-page">
+
+  <!-- 페이지 커버: 초기화 완료 전 화면 가림 -->
+  <div id="page-cover"></div>
+
+  <!-- 나의 기타 여정 노드 강의 — 화면 틀(문구 3줄 자리 · 무대 · 진행 바)은 리하모니 화성학 미니강의와 같은 마크업·CSS(id·클래스 그대로).
+       엔진은 journey-lesson.js, 노드 내용은 journey-lessons/<노드>.js -->
+  <div class="app-shell">
+    <!-- 탑바: 컨텐츠를 소모하는 화면이라 X (style-guide §11-3c). 누르면 확인 모달 → 홈 -->
+    <header class="cd-topbar jl-topbar">
+      <button id="back-btn" class="icon-btn" onpointerup="journeyLessonBack()" aria-label="닫기">
+        <i data-lucide="x"></i>
+      </button>
+      <!-- 퀴즈 진행 막대(퀴즈 중에만 보임) — 코드맞추기·리하모니와 같은 컴포넌트(style-guide §21, √ 곡선) -->
+      <div class="ms-progress-track" id="jq-track" hidden><div class="ms-progress-fill" id="jq-fill"></div></div>
+      <!-- 피크 개수 — 리하모니 문제 화면과 같음(피크상자 없이 개수만). 강의 중엔 자리만 두고 숨김(.jl-topbar.is-lec) -->
+      <div class="topbar-currency" id="topbar-currency" style="margin-left:auto;">
+        <div class="currency-item currency-item--clickable" onclick="openPeakTimerPopup(event)">
+          <span class="currency-count" id="currency-peak-count">30/30</span>
+          <div class="currency-icon-box"><img src="image/peak.svg" alt=""></div>
+        </div>
+      </div>
+    </header>
+
+    <!-- 노드 퀴즈 — 리하모니 화성학 문제 화면(chord-combo.html #combo-view-quiz-v2)과 같은 구조·클래스.
+         combo-stage(슬라이드 기준 박스) 안에 퀴즈 뷰가 오른쪽에서 들어오고, 오답풀이 안내·완주 오버레이도 같은 박스 안. 문제·채점은 노드 파일 -->
+    <div class="combo-stage">
+      <main id="jq-view" class="cd-main quiz-view quiz-view--right combo-v2-quiz">
+        <header class="cd-head">
+          <div class="combo-v2-q-titlerow">
+            <div class="combo-v2-q-title" id="jq-title"></div>
+          </div>
+          <!-- 오답풀이 중에만 표시 -->
+          <div class="combo-v2-review-badge" id="jq-review-badge" hidden>오답풀기</div>
+        </header>
+        <section class="cd-body">
+          <!-- 문제 영역 — 안내 카드 + 유형별 조작(지판·보기·짝 카드). 노드 파일이 그림 -->
+          <div class="combo-v2-quiz-content" id="jq-content"></div>
+          <!-- 하단 제출 버튼 — 고르기 전엔 비활성, 제출하면 정답 연두 / 오답 빨강 + "다음". 공용 클릭음은 pop(회색 버튼 클래스라 기본은 '취소' 소리가 남) -->
+          <button class="cd-btn cd-btn--gray combo-v2-submit" id="jq-btn" data-sfx="pop" disabled>제출하기</button>
+        </section>
+      </main>
+
+      <!-- 오버레이(문제 화면 위) — 리하모니와 같은 마크업·id(디자인은 #combo-v2-intro/#combo-v2-clear 규칙 그대로). 줄·요소가 순서대로(.combo-v2-seq) 등장 -->
+      <section id="combo-v2-overlay" class="combo-v2-overlay" hidden>
+        <div id="combo-v2-intro" class="combo-v2-scene" hidden>
+          <div class="combo-v2-intro-main">
+            <img src="image/peak.svg" alt="" class="combo-v2-seq combo-v2-seq--pop combo-v2-intro-peak" data-peak>
+            <div class="combo-v2-seq combo-v2-scene-title" data-peak>오답을 모두 풀면<br>사용한 피크를 돌려받아요</div><!-- 개수는 쓰지 않음 — 문제마다 쓰는 구조라 숫자가 크게 보여 어색함(사용자 지정) -->
+            <div class="combo-v2-seq combo-v2-scene-title" hidden id="combo-v2-intro-title-pro">이제 오답풀이예요</div>
+          </div>
+          <div class="combo-v2-intro-sub">
+            <div class="combo-v2-seq combo-v2-scene-line">끝까지 완주해야 퀴즈 클리어예요</div>
+            <div class="combo-v2-seq combo-v2-scene-line jl-intro-note">틀려도 맞힐 때까지 다시 도전할 수 있어서 부담 없어요!</div>
+          </div>
+        </div>
+        <div id="combo-v2-clear" class="combo-v2-scene" hidden>
+          <img src="image/trophy.png" alt="" class="combo-v2-seq combo-v2-seq--pop combo-v2-clear-trophy">
+          <div class="combo-v2-seq combo-v2-scene-title combo-v2-clear-title" id="combo-v2-clear-title">완주!</div>
+          <div class="combo-v2-seq combo-v2-scene-line combo-v2-clear-level" id="combo-v2-clear-level"></div>
+          <div class="combo-v2-seq combo-v2-scene-line" id="combo-v2-clear-praise"></div>
+          <div class="combo-v2-seq combo-v2-scene-line combo-v2-clear-refund" id="combo-v2-clear-refund" hidden><img src="image/peak.svg" alt="" class="combo-v2-clear-refund-icon"><span>사용한 피크를 돌려받았어요</span></div>
+          <button class="combo-v2-seq combo-v2-clear-btn" id="combo-v2-clear-btn">돌아가기</button>
+        </div>
+      </section>
+    </div>
+  </div>
+
+  <section id="combo-v2-lecture" class="combo-v2-lec">
+    <main class="cd-main combo-v2-lec-body">
+      <div class="combo-v2-lec-content">
+        <p class="test-question-text combo-v2-lec-text" id="combo-v2-lec-text"></p>
+        <div class="combo-v2-lec-stage" id="combo-v2-lec-stage"></div>
+      </div>
+      <div class="test-btn-row combo-v2-lec-actions">
+        <button type="button" class="test-submit-btn cd-btn cd-btn--brand combo-v2-lec-next" id="combo-v2-lec-next" disabled><span id="combo-v2-lec-next-label">다음</span></button>
+        <div class="lec-pbar" id="lec-pbar">
+          <div class="lec-pbar-bar" id="lec-pbar-bar">
+            <span class="lec-pbar-rail" id="lec-pbar-rail"><span class="lec-pbar-mark"><svg viewBox="0 0 16 20"><path d="M3 1h10a2 2 0 0 1 2 2v9.2a2 2 0 0 1-.7 1.5L8 19l-6.3-5.3a2 2 0 0 1-.7-1.5V3a2 2 0 0 1 2-2z"/></svg></span></span>
+            <div class="lec-pbar-track" id="lec-pbar-track"><div class="lec-pbar-fill" id="lec-pbar-fill"></div></div>
+            <div class="lec-pbar-segs" id="lec-pbar-segs"></div>
+          </div>
+          <div class="lec-pbar-nav">
+            <button type="button" class="cd-btn cd-btn--gray lec-pbar-btn" id="lec-pbar-prev" disabled>이전</button>
+            <button type="button" class="cd-btn cd-btn--blue lec-pbar-btn" id="lec-pbar-next" disabled>다음</button>
+          </div>
+        </div>
+      </div>
+    </main>
+  </section>
+
+  <script src="https://unpkg.com/lucide@1.80.0/dist/umd/lucide.min.js"></script>
+  <script src="analytics-sdk.js"></script>
+  <script src="shared.js"></script>
+  <script src="guitar-samples.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/tone/14.8.49/Tone.js"></script>
+  <script src="guitar-audio.js"></script>
+  <script src="tab-render.js"></script>
+  <script src="fret-gesture.js"></script>
+  <script src="chord-voicings.js"></script>
+  <script src="chords-library.js"></script>
+  <script src="voicing-canvas.js"></script>
+  <script src="journey-lesson.js"></script>
+  <script src="journey-quiz-kit.js"></script>
+</body>
+</html>

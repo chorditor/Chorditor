@@ -856,7 +856,7 @@
           <!-- 아랫묶음: 보충 설명 -->
           <div class="combo-v2-intro-sub">
             <div class="combo-v2-seq combo-v2-scene-line">끝까지 완주해야 레벨 클리어예요</div>
-            <div class="combo-v2-seq combo-v2-scene-line">틀려도 맞힐 때까지 다시 도전할 수 있어서 부담 없어요!</div>
+            <div class="combo-v2-seq combo-v2-scene-line">틀려도 맞힐 때까지 다시 도전할 수 있어서 부담 없어요!</div>
           </div>
         </div>
         <div id="combo-v2-clear" class="combo-v2-scene" hidden>
@@ -886,8 +886,10 @@
     </div>
   </div>
 
-  <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.js"></script>
-  <script src="https://unpkg.com/@phosphor-icons/web"></script>
+  <script src="https://unpkg.com/lucide@1.80.0/dist/umd/lucide.min.js"></script>
+  <!-- Phosphor 아이콘: 쓰는 굵기만(bold, fill) — 예전 로더는 6종 스타일(약 640KB)을 매번 받았음(2026-11-25 최적화) -->
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@phosphor-icons/web@2.1.2/src/bold/style.css" />
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@phosphor-icons/web@2.1.2/src/fill/style.css" />
   <script src="analytics-sdk.js"></script>
   <script src="shared.js"></script>
   <script src="chord-voicings.js"></script>

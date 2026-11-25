@@ -393,3 +393,40 @@ I18N.add('es', {
     '구독 관리로 이동': 'Gestionar suscripción',
   },
 });
+
+// ── 나의 기타 여정 노드 강의 (2026-11-12 추가) — journey-lesson.html / journey-lessons/fretboard-reading.js ──
+I18N.add('es', {
+  exact: {
+    '기타 지판 읽기': 'Leer el diapasón',
+    '퀴즈 시작!': '¡Empezar quiz!',
+    '강의를 그만두시겠어요?': '¿Salir de la lección?',
+    '코드반주 비기너 여정을 시작해요!': '¡Empecemos tu camino de\nacompañamiento para principiantes!',
+    '이번 여정에서는 코드반주에 꼭 필요한 지식과 연습법을 알려드려요': 'En este camino aprenderás lo esencial\ny cómo practicar para acompañar',
+    '여정이 끝나면 배우고 싶은 노래를 스스로 찾아서 배울 수 있게 될 거예요!': '¡Al final podrás encontrar\ny aprender por tu cuenta\nlas canciones que quieras!',
+    '기타가 있다면 꼭 옆에 두고 함께 보면서 따라와 주세요!': '¡Si tienes guitarra, tenla a tu lado\ny sigue la lección mirándola!',
+    '기타 코드를 처음 잡기 전에 먼저 알아야 할 것이 있어요': 'Antes de tocar tu primer acorde,\nhay algo que debes saber',
+    '가장 얇은 줄이 1번줄, 가장 굵은 줄이 6번줄이에요': 'La cuerda más fina es la 1ª,\nla más gruesa es la 6ª',
+    '기타 지판을 보면 톡 튀어나온 세로선들을 볼 수 있죠?': 'Si miras el diapasón de tu guitarra,\nverás líneas que sobresalen, ¿verdad?',
+    '하지만 연주할 때는 프렛 사이의 칸을 프렛 번호로 불러요': 'Pero al tocar, llamamos al espacio\nentre trastes por su número',
+    '헤드 쪽부터 1프렛, 2프렛… 순서대로 번호를 붙여요': 'Desde el clavijero: traste 1, traste 2…\nlos numeramos en orden',
+    '앞으로는 줄번호와 프렛번호를 알아야 효율적으로 배울 수 있어요': 'Saber los números de cuerda y traste\nte ayudará a aprender mejor',
+    '정답이에요! 이제 다음으로 넘어가봅시다!': '¡Correcto!\n¡Sigamos adelante!',
+    '앞으로 코드를 잡을 때 어떤 손가락으로 누를지 일일이 얘기하면 번거롭겠죠?': 'Decir qué dedo usar en cada acorde\nsería muy pesado, ¿verdad?',
+    '검지부터 1, 2, 3, 4 엄지는 T라고 불러요': 'Desde el índice: 1, 2, 3, 4\nEl pulgar se llama T',
+    '지금 보이는 점은 무슨 의미일까요?': '¿Qué significa este punto?',
+    '기타가 있다면 중지로 3번줄 2프렛을 직접 눌러보세요!': '¡Si tienes guitarra, presiona\nla 3ª cuerda, traste 2,\ncon el dedo corazón!',
+    '이제 배운 내용을 퀴즈로 풀어보면서 지판과 손가락 번호에 익숙해져 봐요!': '¡Ahora haz un quiz de lo aprendido\ny acostúmbrate al diapasón\ny a los números de los dedos!',
+  },
+  mixed: {
+    '기타 지판에는 <span>6개의 줄이 있어요': 'El diapasón de la guitarra tiene <1>6 cuerdas</1>',
+    '줄을 누르면 실제로 닿는 이 선을 <span>프렛이라고 불러요': 'Estas líneas que toca la cuerda\nal presionarla se llaman <1>trastes</1>',
+    '<span>2번줄 1프렛은 어디일까요? 직접 찾아서 눌러주세요!': '¿Dónde está la <1>2ª cuerda, traste 1</1>?\n¡Búscala y tócala!',
+    '그래서 손가락에 <span>번호를 사용해요!': '¡Por eso usamos <1>números</1> para los dedos!',
+    '바로 3번줄 2프렛을 2번 손가락, 즉 <span>중지로 누르라는 뜻이에요!': '¡Significa presionar la 3ª cuerda,\ntraste 2, con el dedo 2,\nes decir, el <1>dedo corazón</1>!',
+    '퀴즈에는 <span>시간 제한이 없어요 기타가 있다면 꼭 같이 눌러보면서 풀어주세요!': 'El quiz <1>no tiene límite de tiempo</1>\n¡Si tienes guitarra,\ntoca a la vez mientras respondes!',
+    '지금 나가면 강의를<br>처음부터 다시 봐야 해요.': 'Si sales ahora, tendrás que<1/>ver la lección desde el principio.',
+  },
+  patterns: [
+    [/^(\d)프렛$/, 'Traste {1}'],
+  ],
+});

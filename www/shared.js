@@ -18,7 +18,7 @@
   let pc = null;
   try { pc = window.parent.Capacitor; } catch (_) { return; }
   if (!pc) return;
-  const PASS = ['SaveImage', 'Share', 'Browser'];
+  const PASS = ['SaveImage', 'Share', 'Browser', 'Media']; // Media = iOS 악보 저장하기(사진 앱 저장, user_project.js _scrapSaveToDevice)
   if (window.Capacitor) {   // Android: 자기 Capacitor는 그대로 두고 위 플러그인만 부모 것으로 바꿔 끼움
     const own = window.Capacitor.Plugins || {};
     try {
@@ -65,7 +65,7 @@ if (window.Capacitor?.getPlatform?.() === 'ios') {
 // ── 상수 ─────────────────────────────────────────────────────
 const SUPABASE_URL  ='https://jbvkygeksohlysyvaoab.supabase.co';
 const SUPABASE_ANON = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Impidmt5Z2Vrc29obHlzeXZhb2FiIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzYzOTk5NjgsImV4cCI6MjA5MTk3NTk2OH0.6RSgChy0Yq0H2TJpZPSoMKQ2V-OYfR0XzE1aJBBZkXI';
-const APP_VERSION   = '1.4.2';
+const APP_VERSION   = '1.5.0_dev';
 const SUPABASE_STORAGE_KEY = 'sb-jbvkygeksohlysyvaoab-auth-token';
 
 // 이용약관/개인정보처리방침 버전 — 광고식별자 수집 항목 추가(2026-09) 시 1로 올림.
@@ -1908,7 +1908,7 @@ document.addEventListener('DOMContentLoaded', () => {
   // 모달용 이미지 프리로드 — 세션 중 모달 첫 오픈 시 아이콘 늦게 뜨는 끊김 방지
   ['image/gift.png', 'image/gift2.png', 'image/peak.svg'].forEach(src => { new Image().src = src; });
   // 효과음 프리로드 — 첫 재생 디코드 지연 제거(화면전환과 레이스 방지)
-  ['tap.mp3', 'reward.mp3', 'peakbox_open.mp3', 'stamp.mp3', 'page.mp3', 'pop.mp3', 'cancel.mp3', 'attendance.mp3'].forEach(_preloadSfx);
+  ['tap.mp3', 'reward.mp3', 'peakbox_open.mp3', 'stamp.mp3', 'page.mp3', 'pop.mp3', 'pop2.mp3', 'cancel.mp3', 'attendance.mp3'].forEach(_preloadSfx);
   // 퀘스트 목록 프리렌더 — 모달 열기 전에 미리 채워둠 (첫 오픈 즉시 표시)
   if (document.getElementById('quest-modal-body')) renderQuestList();
   // 퀘스트 완료 알림 기준선(이미 수령 가능한 퀘스트를 "알림 완료"로) — 홈에서 한 번, 목록 프리렌더와 겹치지 않게 늦춰서
@@ -2007,10 +2007,77 @@ function renderPeakboxBadge() {
   });
 }
 
-// 피크상자 직접 열기: reveal 모달에서 1개/5개씩 개봉. 미개봉 상태(gift)로 시작.
+// 피크상자 사용 모달: 표준 .cd-modal(스타일3 = X + 버튼 2개, 제목 "피크 보충하기" + 설명). 수량 스테퍼로 열 개수를 고르고 [상자 열기].
+// [추가 구매] = 피크상자 구매 페이지(openPeakShop). 상자가 0개여도 모달은 열린다(추가 구매 자리 때문에).
+let _peakboxQty = 1;
 function openPeakboxModal() {
   _playSfx('pop.mp3');
-  if (_peakState.peakbox_count <= 0) return;
+  if (typeof analytics !== 'undefined') analytics.track('peakbox_modal_viewed', { peakbox_count: _peakState.peakbox_count || 0, balance: _peakState.balance || 0 });   // 분석(2026-11-26)
+  let ov = document.getElementById('peakbox-overlay');
+  if (!ov) {
+    ov = document.createElement('div');
+    ov.id = 'peakbox-overlay';
+    ov.className = 'modal-overlay hidden';
+    ov.innerHTML = `
+      <div class="cd-modal peakbox-modal" id="peakbox-modal" role="dialog" aria-modal="true" aria-labelledby="peakbox-modal-title">
+        <button type="button" class="cd-modal-close" aria-label="닫기" onclick="closePeakboxModal()"><i data-lucide="x"></i></button>
+        <div class="peakbox-modal-art" aria-hidden="true"><img class="peakbox-modal-icon" src="image/gift.png" alt=""></div>
+        <div class="cd-modal-title" id="peakbox-modal-title">피크 보충하기</div>
+        <div class="cd-modal-desc">상자를 열어서 피크를 보충하세요!</div>
+        <div class="peakbox-stepper">
+          <button type="button" class="peakbox-step" id="peakbox-dec" aria-label="하나 빼기" onclick="_peakboxStep(-1)"><i class="ph-bold ph-minus"></i></button>
+          <span class="peakbox-qty" id="peakbox-qty" aria-live="polite">1개</span>
+          <button type="button" class="peakbox-step" id="peakbox-inc" aria-label="하나 더하기" onclick="_peakboxStep(1)"><i class="ph-bold ph-plus"></i></button>
+        </div>
+        <div class="peakbox-reward"><img src="image/peak.svg" alt=""><span id="peakbox-reward-num">+${PEAKBOX_REWARD}</span></div>
+        <div class="cd-modal-actions peakbox-actions">
+          <button type="button" class="cd-btn cd-btn--blue" id="peakbox-refill-btn" onclick="openPeakShop('peakbox_modal')">추가 구매</button>
+          <button type="button" class="cd-btn cd-btn--brand" id="peakbox-use-btn" onclick="_peakboxUse()">상자 열기</button>
+        </div>
+      </div>`;
+    document.body.appendChild(ov);
+    ov.addEventListener('click', (e) => { if (e.target === ov) closePeakboxModal(); });
+    if (window.lucide && lucide.createIcons) lucide.createIcons();
+  }
+  _peakboxQty = _peakState.peakbox_count > 0 ? 1 : 0;
+  _peakboxRender();
+  const modal = ov.querySelector('#peakbox-modal');
+  modal.classList.remove('cd-modal--in');
+  ov.classList.remove('hidden');
+  requestAnimationFrame(() => requestAnimationFrame(() => modal.classList.add('cd-modal--in')));
+}
+function closePeakboxModal() {
+  const ov = document.getElementById('peakbox-overlay');
+  if (!ov || ov.classList.contains('hidden')) return;
+  ov.querySelector('#peakbox-modal')?.classList.remove('cd-modal--in');
+  ov.classList.add('hidden');
+}
+function _peakboxRender() {
+  const have = _peakState.peakbox_count;
+  _peakboxQty = Math.max(have > 0 ? 1 : 0, Math.min(_peakboxQty, have));
+  const q = document.getElementById('peakbox-qty');
+  if (q) q.textContent = _peakboxQty + '개';
+  const dec = document.getElementById('peakbox-dec');
+  const inc = document.getElementById('peakbox-inc');
+  if (dec) dec.disabled = _peakboxQty <= 1;
+  if (inc) inc.disabled = _peakboxQty >= have;
+  const rw = document.getElementById('peakbox-reward-num');
+  if (rw) rw.textContent = '+' + (PEAKBOX_REWARD * _peakboxQty);
+  const use = document.getElementById('peakbox-use-btn');
+  if (use) use.disabled = _peakboxQty <= 0;
+}
+function _peakboxStep(d) {
+  _peakboxQty += d;
+  _peakboxRender();
+}
+function _peakboxUse() {
+  const n = _peakboxQty;
+  if (n <= 0) return;
+  closePeakboxModal();
+  _peakboxOpenN(n);
+}
+// 상자 n개 실제 개봉 → 결과는 기존 피크 등장 연출(showPeakReveal)로.
+async function _peakboxOpenN(n) {
   // 상자 1개 실제 개봉(RPC 우선, 실패 시 로컬 폴백). 성공 시 true.
   const openOnce = async () => {
     const r = await _peakRpc('open_peakbox');
@@ -2027,37 +2094,193 @@ function openPeakboxModal() {
     _peakState = { balance: newBal, peakbox_count: newBox, loaded: true };
     return true;
   };
-  const openN = async (n) => {
-    let opened = 0;
-    for (let i = 0; i < n && _peakState.peakbox_count > 0; i++) {
-      if (await openOnce()) opened++; else break;
-    }
-    if (opened > 0) {
-      _playSfx('peakbox_open.mp3');
-      renderPeakBadge();
-      renderPeakboxBadge();
-      analytics.track('peakbox_opened', { reward: PEAKBOX_REWARD * opened, balance_after: _peakState.balance });
-    }
-    const remain = _peakState.peakbox_count;
-    if (remain > 0) {
-      showPeakReveal(PEAKBOX_REWARD * opened, {
-        button2Text: '닫기', onButton2: closePeakReveal,
-        buttonText: '계속 열기', onButton: () => openN(1),
-        subText: '피크상자 ' + remain + '개 남음',
-      });
-    } else {
-      showPeakReveal(PEAKBOX_REWARD * opened, {
-        buttonText: '닫기', onButton: closePeakReveal,
-        subText: '피크상자 0개 남음',
-      });
-    }
-  };
-  showPeakReveal(null, {
-    icon: 'gift',
-    labelText: _peakState.peakbox_count + '개 남음',
-    button2Text: '1개 열기', onButton2: () => openN(1),
-    buttonText: '5개 열기', onButton: () => openN(5),
+  let opened = 0;
+  for (let i = 0; i < n && _peakState.peakbox_count > 0; i++) {
+    if (await openOnce()) opened++; else break;
+  }
+  if (opened > 0) {
+    _playSfx('peakbox_open.mp3');
+    renderPeakBadge();
+    renderPeakboxBadge();
+    analytics.track('peakbox_opened', { reward: PEAKBOX_REWARD * opened, balance_after: _peakState.balance });
+  }
+  const remain = _peakState.peakbox_count;
+  if (remain > 0) {
+    showPeakReveal(PEAKBOX_REWARD * opened, {
+      button2Text: '닫기', onButton2: closePeakReveal,
+      buttonText: '계속 열기', onButton: () => { closePeakReveal(); openPeakboxModal(); },
+      subText: '피크상자 ' + remain + '개 남음',
+    });
+  } else {
+    showPeakReveal(PEAKBOX_REWARD * opened, {
+      buttonText: '닫기', onButton: closePeakReveal,
+      subText: '피크상자 0개 남음',
+    });
+  }
+}
+
+// 피크상자 구매 페이지(1회성 결제): 아래에서 올라오는 전체 화면(.settings-page-overlay 재사용) + 표준 탑바(X · 피크상자 · 피크).
+// 위 = 플랜 홍보 배너(풀블리드 직사각형, 헤더 'PRO' + 본문. 글자·화살표는 홈 광고 배너 .ad-banner-* 재사용), 아래 = 상자 패키지 4개(요금제 시트 카드 .plan-card 재사용).
+// 지금은 디자인만 — 패키지 카드는 결제 동작 없음. 가격은 원화 고정 표기(나중에 스토어 가격으로 교체).
+// 피크상자 사용 모달 위에 덮어 열리고, X로 닫으면 아래 모달이 그대로 보인다.
+// productId = 스토어(Play Console 소비성 / App Store 소모품)·RevenueCat 상품 ID — 등록한 ID와 같아야 함. price = 스토어 응답 전·웹에서 보이는 기본 표기(원화)
+const PEAKSHOP_PACKS = [
+  { boxes: 10,  price: '2,900',  productId: 'peakbox_10',  icon: 'image/gift_10.png' },
+  { boxes: 30,  price: '6,900',  productId: 'peakbox_30',  icon: 'image/gift_30.png', badge: '추천' },
+  { boxes: 50,  price: '9,900',  productId: 'peakbox_50',  icon: 'image/gift_50.png' },
+  { boxes: 100, price: '17,900', productId: 'peakbox_100', icon: 'image/gift_100.png' },
+];
+
+// ── 피크상자 구매(백엔드 계획서 B6) ──
+//  결제는 RevenueCat(구독과 같은 SDK), 상자 지급은 **서버만**: 결제가 확정되면 RevenueCat 웹훅 → Supabase Edge Function이
+//  거래 번호당 한 번 지급(환불이면 회수). 앱은 지급하지 않고, 결제 뒤 서버의 상자 개수가 늘었는지만 몇 초 확인해 화면을 갱신한다.
+//  ⚠ 웹훅·지급 함수는 아직 없음 → 지금 결제하면 상자는 서버 작업 뒤에 들어옴. 스토어에 상품이 아직 없으면 '준비 중' 안내.
+const PEAKBOX_OFFERING_ID = 'peakbox';   // RevenueCat 오퍼링(구독과 분리)
+let _peakshopBusy = false;
+function _peakshopNotice(msg) {
+  if (typeof showTextToast === 'function') showTextToast(msg); else alert(msg);
+}
+// RevenueCat 오퍼링에서 상품 ID로 패키지 찾기 — 'peakbox' 오퍼링 우선, 없으면 모든 오퍼링에서
+async function _peakshopPackages() {
+  if (!window._RC) return {};
+  try {
+    const res = await window._RC.getOfferings();
+    const offerings = res?.offerings ?? res;
+    const all = offerings?.all || {};
+    const list = [].concat(all[PEAKBOX_OFFERING_ID]?.availablePackages || [],
+      ...Object.keys(all).filter(k => k !== PEAKBOX_OFFERING_ID).map(k => all[k].availablePackages || []));
+    const map = {};
+    PEAKSHOP_PACKS.forEach(k => {
+      const pkg = list.find(p => p.product?.identifier === k.productId || p.identifier === k.productId || String(p.product?.identifier || '').startsWith(k.productId + ':'));
+      if (pkg) map[k.productId] = pkg;
+    });
+    return map;
+  } catch (e) { console.warn('[Peakshop] 오퍼링 조회 실패:', e); return {}; }
+}
+// 구매 페이지 가격을 스토어가 알려 준 현지 통화 가격으로(네 상품이 모두 있을 때만 — 통화가 섞여 보이지 않게)
+async function _peakshopApplyPrices() {
+  const map = await _peakshopPackages();
+  if (PEAKSHOP_PACKS.some(k => !map[k.productId]?.product?.priceString)) return;
+  PEAKSHOP_PACKS.forEach(k => {
+    const el = document.querySelector('.peakshop-item[data-product="' + k.productId + '"] .peakshop-item-price');
+    if (el) el.textContent = map[k.productId].product.priceString;
   });
+}
+// 결제 뒤 서버 지급 확인 — 상자 개수가 before + boxes 이상이 될 때까지 최대 약 12초
+async function _peakshopWaitGrant(before, boxes) {
+  for (let i = 0; i < 8; i++) {
+    await new Promise(r => setTimeout(r, i === 0 ? 800 : 1500));
+    const st = await refreshPeakState();
+    if ((st.peakbox_count || 0) >= before + boxes) return true;
+  }
+  return false;
+}
+// 구매 페이지 상자 카드 탭 → 결제
+async function _peakshopPackTap(boxes, price) {
+  const pack = PEAKSHOP_PACKS.find(k => k.boxes === boxes);
+  const ev = { boxes: boxes, product_id: pack ? pack.productId : null, price_krw: Number(String(price).replace(/,/g, '')) || null };
+  const track = (name, extra) => { if (typeof analytics !== 'undefined') analytics.track(name, Object.assign({}, ev, extra || {})); };
+  track('peakshop_pack_tapped');
+  if (!pack || _peakshopBusy) return;
+  if (!window.Capacitor?.isNativePlatform?.()) { _peakshopNotice('피크상자 구매는 앱에서 할 수 있어요'); return; }
+  const { userId } = getStoredAuth();
+  if (!userId) { _peakshopNotice('로그인 후 구매할 수 있어요'); return; }   // 지급은 계정 기준이라 로그인 필수
+  if (!window._RC) { _peakshopNotice('결제를 준비하고 있어요. 잠시 후 다시 시도해 주세요'); return; }
+
+  _peakshopBusy = true;
+  try {
+    await window._RC.logIn({ appUserID: userId }).catch(() => {});   // 웹훅이 이 계정으로 지급하도록(app_user_id = Supabase 유저 id)
+    const pkg = (await _peakshopPackages())[pack.productId];
+    if (!pkg) { track('peakshop_purchase_failed', { reason: 'product_not_found' }); _peakshopNotice('아직 준비 중인 상품이에요'); return; }
+    const before = _peakState.peakbox_count || 0;
+    track('peakshop_purchase_started', { store_price: pkg.product?.priceString || null, currency: pkg.product?.currencyCode || null });
+    await window._RC.purchasePackage({ aPackage: pkg });
+    track('peakshop_purchase_completed', { store_price: pkg.product?.priceString || null, currency: pkg.product?.currencyCode || null });
+    const granted = await _peakshopWaitGrant(before, pack.boxes);
+    if (granted) {
+      closePeakShop();
+      openPeakboxModal();   // 산 상자를 바로 열 수 있게
+    } else {
+      track('peakshop_grant_delayed');
+      _peakshopNotice('결제가 완료됐어요. 상자는 잠시 후 들어와요');
+    }
+  } catch (e) {
+    const msg = String(e?.message || e?.code || '').toLowerCase();
+    if (msg.includes('cancel')) track('peakshop_purchase_cancelled');
+    else {
+      track('peakshop_purchase_failed', { reason: e?.message || e?.code || 'unknown' });
+      console.error('[Peakshop] 구매 실패:', e);
+      _peakshopNotice('결제 중 문제가 생겼어요. 다시 시도해 주세요');
+    }
+  } finally {
+    _peakshopBusy = false;
+  }
+}
+// source = 어디서 열었는지(분석: peakbox_modal 상자 열기 모달 / peak_buffer 피크부족 모달)
+function openPeakShop(source) {
+  if (typeof analytics !== 'undefined') analytics.track('peakshop_viewed', { source: source || null, peakbox_count: _peakState.peakbox_count || 0, balance: _peakState.balance || 0 });
+  let pg = document.getElementById('peakshop-page');
+  if (!pg) {
+    pg = document.createElement('div');
+    pg.id = 'peakshop-page';
+    pg.className = 'settings-page-overlay peakshop-page';
+    pg.setAttribute('role', 'dialog');
+    pg.setAttribute('aria-modal', 'true');
+    pg.setAttribute('aria-label', '피크상자 구매');
+    const packs = PEAKSHOP_PACKS.map(function (k) {   // 2열, 칸 안은 세로: 상자 그림 + 개수 라벨(.peakshop-label, 받은 에셋 gift_N_labeled.png의 라벨을 CSS로 옮김) 위, 가격 아래
+      return `
+        <div class="plan-card peakshop-item" role="button" tabindex="0" data-product="${k.productId}" onclick="_peakshopPackTap(${k.boxes}, '${k.price}')">
+          ${k.badge ? `<div class="plan-card-badge peakshop-badge">${k.badge}</div>` : ''}
+          <div class="peakshop-item-art">
+            <img class="peakshop-item-icon" src="${k.icon}" alt="">
+            <span class="peakshop-label">${k.boxes}개</span>
+          </div>
+          <span class="price-amount peakshop-item-price">₩${k.price}</span>
+        </div>`;
+    }).join('');
+    pg.innerHTML = `
+      <header class="cd-topbar">
+        <button type="button" class="icon-btn cd-topbar-back" aria-label="닫기" onclick="closePeakShop()"><i data-lucide="x"></i></button>
+        <div class="topbar-currency" style="margin-left:auto;">
+          <div class="currency-item">
+            <span class="currency-count" id="currency-peakbox-count">0</span>
+            <div class="currency-icon-box"><img src="image/gift.png" alt=""></div>
+          </div>
+          <div class="currency-item">
+            <span class="currency-count" id="currency-peak-count">30/30</span>
+            <div class="currency-icon-box"><img src="image/peak.svg" alt=""></div>
+          </div>
+        </div>
+      </header>
+      <main class="cd-main">
+        <div class="peakshop-banner cd-card">
+          <div class="peakshop-banner-head">PRO</div>
+          <div class="peakshop-banner-body">
+            <div class="ad-banner-text">
+              <div class="ad-banner-title peakshop-banner-title">Pro 플랜으로<br>실력을 성장시키세요!</div>
+              <div class="ad-banner-desc peakshop-banner-desc">피크·시간 제한 없이 마음껏 연습<br>코디터의 모든 기능을 자유롭게</div>
+            </div>
+            <img class="peakshop-banner-art" src="image/pro_banner_guitar.png" alt="">
+          </div>
+          <div class="peakshop-banner-foot">
+            <button type="button" class="cd-btn peakshop-banner-btn" onclick="openPlanSheet('peakbox_shop')">플랜 보기</button>
+          </div>
+        </div>
+        <div class="plan-cards peakshop-list">
+          <span class="hint">상자 구매</span>
+          ${packs}
+        </div>
+      </main>`;
+    document.body.appendChild(pg);
+    if (window.lucide && lucide.createIcons) lucide.createIcons();
+  }
+  renderPeakBadge();
+  renderPeakboxBadge();
+  requestAnimationFrame(() => pg.classList.add('settings-page-overlay--open'));
+  _peakshopApplyPrices();   // 스토어 현지 통화 가격(상품 등록 뒤). 실패·미등록이면 기본 원화 표기 그대로
+}
+function closePeakShop() {
+  document.getElementById('peakshop-page')?.classList.remove('settings-page-overlay--open');
 }
 
 // 피크 등장 연출: 흰색 후광 + 둥둥 떠있는 아이콘. 탭 시 사라짐.
@@ -3169,11 +3392,11 @@ async function _peakBufferWatchAd() {
   // DB 확정 반영 후에만 보상 팝업(다른 곳과 동일 컴포넌트 재사용 — 아이콘+"+3 피크" 등장 연출)
   showPeakReveal(PEAK_AD_RECHARGE_AMOUNT, { subText: '광고 보상으로 충전됐어요!' });
 }
-// "Pro 플랜 보기" — 완충모달 닫고 구독시트 오픈 (2026-09-07 재도입, 광고충전과 대등노출)
-function _peakBufferOpenPlan() {
-  if (typeof analytics !== 'undefined') analytics.track('peak_buffer_plan_clicked', {});
+// "추가 구매" — 완충모달 닫고 피크상자 구매 페이지 오픈 (2026-11-25: [Pro 플랜 보기] 대체)
+function _peakBufferOpenShop() {
+  if (typeof analytics !== 'undefined') analytics.track('peak_buffer_shop_clicked', { training_type: _peakBufferSource });
   closePeakBuffer();
-  openPlanSheet('peak_buffer', { training_type: _peakBufferSource });
+  openPeakShop('peak_buffer');
 }
 
 // 연간/월간 카드 선택 상태 — 카드를 눌러 고르면 하단 CTA 버튼이 그 주기로 결제
@@ -3426,8 +3649,10 @@ function _initPlanSheet() {
     <img class="peak-buffer-icon" src="image/peak.svg" alt="">
     <div class="peak-buffer-title">피크가 부족해요</div>
     <div class="peak-buffer-desc">Pro 플랜이면 피크 걱정 없이<br>무제한으로 연습할 수 있어요!</div>
-    <button class="peak-buffer-cta" onclick="_peakBufferWatchAd()">충전하기 <i class="ph-fill ph-play-circle"></i></button>
-    <button class="peak-buffer-plan" onclick="_peakBufferOpenPlan()">Pro 플랜 보기</button>
+    <div class="cd-modal-actions">
+      <button type="button" class="cd-btn cd-btn--blue" onclick="_peakBufferOpenShop()">추가 구매</button>
+      <button type="button" class="cd-btn cd-btn--brand peak-buffer-ad-btn" onclick="_peakBufferWatchAd()">광고 보기<span class="peak-buffer-ad-reward"><img src="image/peak.svg" alt="">+${PEAK_AD_RECHARGE_AMOUNT}</span></button>
+    </div>
   </div>
 </div>`;
   while (el.firstChild) document.body.appendChild(el.firstChild);
@@ -4586,16 +4811,18 @@ const SCALE_LEVEL_NAMES = {
 function _scalePerfectReward(lvl) { lvl = _scaleTierLvl(lvl); return lvl <= 5 ? 3 : (lvl <= 17 ? 5 : 8); }
 
 // 화면에 보이는 스케일 레벨 번호 — 내부 번호(ID, 서버 기록·분석 기준)와 다름.
-// 챕터1에 메이저 펜타토닉(ID 25)·메이저 블루스(ID 26)를 메이저 바로 뒤(표시 2·3번)에 끼우면서
-// 기존 레벨의 기록이 어긋나지 않게 ID는 그대로 두고 표시 번호만 +2 함. scale-training.html 배지와 동기화.
+// 챕터1에 메이저 펜타토닉(ID 25)·메이저 블루스(ID 26)를 끼우면서 기존 레벨의 기록이 어긋나지 않게 ID는 그대로 두고 표시 번호만 바꿈.
+// 표시 순서(2026-11-25 메이저 펜타토닉과 메이저 순서 바꿈): 1 = 메이저 펜타토닉(ID 25), 2 = 메이저(ID 1), 3 = 메이저 블루스(ID 26), 4~ = ID 2~(+2).
+// scale-training.html 배지·카드 순서와 동기화.
 function scaleLevelDisplayNo(id) {
-  if (id === 25) return 2;
+  if (id === 25) return 1;
+  if (id === 1) return 2;
   if (id === 26) return 3;
-  return id >= 2 ? id + 2 : id;
+  return id + 2;
 }
 
-// 퀘스트 대상 스케일 레벨 ID를 화면 표시 순서로: 1, 25(메이저 펜타토닉), 26(메이저 블루스), 2~20
-const SCALE_QUEST_LEVELS_DISPLAY_ORDER = [1, 25, 26, ...Array.from({ length: SCALE_LVL_MAX - 1 }, (_, i) => i + 2)];
+// 퀘스트 대상 스케일 레벨 ID를 화면 표시 순서로: 25(메이저 펜타토닉), 1(메이저), 26(메이저 블루스), 2~20
+const SCALE_QUEST_LEVELS_DISPLAY_ORDER = [25, 1, 26, ...Array.from({ length: SCALE_LVL_MAX - 1 }, (_, i) => i + 2)];
 
 // ── 퀘스트: 신규 레벨(25·26) 첫 완료 — 순차 체인(1~20)과 독립된 1회성 퀘스트 ─────────────
 // 서버: get_scale_bonus_quest / claim_scale_bonus_quest (supabase/scale_major_levels.sql). 폴백은 로컬 stats.
@@ -5102,6 +5329,94 @@ function setUserPersona(key) {
   _syncPersonaToProfile(key); // 승급/강등 즉시 DB반영(fire-and-forget) — user_persona_profile.js 참고
 }
 
+// ── 커리큘럼(나의 기타 여정 코스) — 단계(페르소나)별 · 갈래별 이름과 "지금 걷는 코스" ──
+// 갈래: comping = 코드반주, soloing = 솔로잉. 이름은 커리큘럼 선택 화면과 홈 배너가 같이 쓴다(여기가 유일한 원본).
+const CURRICULUM_KINDS = ['comping', 'soloing'];
+const CURRICULUM_NAMES = {
+  unboxing:      { comping: '코드반주 비기너',   soloing: '솔로연주 비기너' },
+  beginner:      { comping: '코드진행 따라잡기', soloing: '스케일 입문' },
+  sheet_reader:  { comping: '코드진행 정복',     soloing: '즉흥연주 기초' },
+  home_master:   { comping: '반주이론 정복',     soloing: '즉흥연주 중급' },
+  guitar_master: { comping: '고급 화성학 이론',  soloing: '즉흥연주 고급' },
+};
+const CURRICULUM_STORE_KEY = 'chorditor_curriculum';   // { stage, kind } — 커리큘럼 선택 화면에서 고른 코스
+
+// 지금 걷는 코스 { stage, kind }. 고른 적이 없으면: 단계 = 언박싱(모든 유저가 언박싱 여정부터 — 2026-11-25, 칭호와 무관),
+// 갈래 = 활동유형(pref_type)에서 정한다(soloing → 솔로잉, 그 외 comping/harmony/toolkit/없음 → 코드반주. 활동유형은 설문 임시값이고 매달 배치가 갱신한다).
+// stage = 지도에 깔린 코스의 단계(콘텐츠가 있는 단계). 여정 등급(getJourneyGrade — 승급시험으로 오름)과는 별개:
+// 등급이 올라가도 그 단계 여정이 아직 없으면 지금 코스를 그대로 걷는다.
+function getCurrentCurriculum() {
+  try {
+    const saved = JSON.parse(localStorage.getItem(CURRICULUM_STORE_KEY) || 'null');
+    if (saved && PERSONA_STAGES.indexOf(saved.stage) !== -1 && CURRICULUM_KINDS.indexOf(saved.kind) !== -1) return saved;
+  } catch (_) {}
+  const pref = localStorage.getItem('user_pref_type');
+  return { stage: 'unboxing', kind: pref === 'soloing' ? 'soloing' : 'comping' };
+}
+
+// ── 여정 등급(2026-11-25) — 페르소나 칭호(getUserPersona, 공통 칭호·데일리 난이도)와 따로 관리 ──
+//  모든 유저는 언박싱 등급부터. 여정 승급시험(mission-session.html?promo=1&journey=1)에 합격해야 한 단계씩 오른다.
+//  칭호가 기타마스터여도 여정 등급은 언박싱일 수 있다. 두 과정(코드반주·솔로) 공통 하나.
+//  ⚠ 지금은 기기 저장만(여정 진행도와 같음) — 서버 저장은 여정 진행 서버 저장 작업 때 같이
+const JOURNEY_GRADE_KEY = 'chorditor_journey_grade';
+const JOURNEY_GRADES_WITH_CONTENT = ['unboxing'];   // 여정 콘텐츠가 있는 등급 — 없는 등급으로 오르면 '준비 중' 안내(journey-intro.html?soon=등급)
+function getJourneyGrade() {
+  const g = localStorage.getItem(JOURNEY_GRADE_KEY);
+  return PERSONA_STAGES.indexOf(g) !== -1 ? g : 'unboxing';
+}
+function setJourneyGrade(key) {
+  if (PERSONA_STAGES.indexOf(key) === -1) return;
+  try { localStorage.setItem(JOURNEY_GRADE_KEY, key); } catch (_) {}
+  _pushJourneyState(key, null);
+}
+
+// ── 여정 등급·고른 갈래 서버 동기화(B3·B4, supabase/journey_state.sql) ──
+//  올리기: RPC save_journey_state(p_grade, p_kind) — 등급은 서버에서 올라가는 방향만, null 인자는 그 칸을 건드리지 않음. 비로그인·dev는 _peakRpc가 null(조용히 건너뜀)
+function _pushJourneyState(grade, kind) {
+  if (typeof _peakRpc !== 'function') return;
+  _peakRpc('save_journey_state', { p_grade: grade || null, p_kind: kind || null }).catch(() => {});
+}
+//  내려받기: 홈 진입 때(home.js _journeyGate). 서버 등급이 높으면 기기에 반영, 기기가 높으면 서버로 올림(재설치·다른 기기 대비).
+//  고른 갈래는 기기에 없을 때만 서버 값을 씀(기기에서 방금 고른 값이 우선), 서버에 없고 기기에 있으면 올림. 실패·시간 초과(3초)는 기기 값 그대로
+async function pullJourneyState() {
+  const { token, userId } = getStoredAuth();
+  if (!token || !userId) return;
+  let row = null;
+  try {
+    const ctrl = typeof AbortController !== 'undefined' ? new AbortController() : null;
+    const t = ctrl ? setTimeout(() => ctrl.abort(), 3000) : null;
+    const resp = await fetch(`${SUPABASE_URL}/rest/v1/user_persona_profile?user_id=eq.${userId}&select=journey_grade,journey_kind`,
+      { headers: { apikey: SUPABASE_ANON, Authorization: `Bearer ${token}` }, signal: ctrl ? ctrl.signal : undefined });
+    if (t) clearTimeout(t);
+    if (!resp.ok) return;
+    row = (await resp.json())[0] || {};
+  } catch (_) { return; }
+  const sIdx = PERSONA_STAGES.indexOf(row.journey_grade), lIdx = PERSONA_STAGES.indexOf(getJourneyGrade());
+  if (sIdx > lIdx) { try { localStorage.setItem(JOURNEY_GRADE_KEY, row.journey_grade); } catch (_) {} }
+  const chosen = hasChosenJourney();
+  if (!chosen && CURRICULUM_KINDS.indexOf(row.journey_kind) !== -1) setCurrentCurriculum('unboxing', row.journey_kind, { local: true });
+  const pushGrade = lIdx > Math.max(0, sIdx) ? getJourneyGrade() : null;
+  const pushKind = chosen && !row.journey_kind ? getCurrentCurriculum().kind : null;
+  if (pushGrade || pushKind) _pushJourneyState(pushGrade, pushKind);
+}
+// opts.local = true: 기기에만(서버에서 내려받은 값을 반영할 때 — 다시 올리지 않음). 기본은 고른 갈래를 서버에도 저장(B4)
+function setCurrentCurriculum(stage, kind, opts) {
+  if (PERSONA_STAGES.indexOf(stage) === -1 || CURRICULUM_KINDS.indexOf(kind) === -1) return;
+  try { localStorage.setItem(CURRICULUM_STORE_KEY, JSON.stringify({ stage, kind })); } catch (_) {}
+  if (!(opts && opts.local)) _pushJourneyState(null, kind);
+}
+// 여정을 고른 적이 있는지(여정 선택 필수 관문 — 2026-11-25). 기본값(getCurrentCurriculum의 활동유형 추정)은 고른 것으로 치지 않는다
+function hasChosenJourney() {
+  try {
+    const saved = JSON.parse(localStorage.getItem(CURRICULUM_STORE_KEY) || 'null');
+    return !!(saved && CURRICULUM_KINDS.indexOf(saved.kind) !== -1);
+  } catch (_) { return false; }
+}
+function getCurrentCurriculumName() {
+  const c = getCurrentCurriculum();
+  return CURRICULUM_NAMES[c.stage][c.kind];
+}
+
 // user_persona_profile은 pref_type/skill_type/engagement_type은 30일 배치갱신이지만
 // persona만은 승급/강등 즉시 반영되는 하이브리드 테이블로 씀(유저관리 총집합 테이블).
 // 실패해도 조용히 무시 — 다음 30일 배치가 subscriptions.persona에서 다시 복사해가므로
@@ -5254,6 +5569,29 @@ function renderProfileXp() {
 
 // 데스크탑 사이드바 유저 닉네임/플랜 — home.html은 loadProfileFromDB()가 이미 처리하므로
 // 그 함수가 없는(=home.html이 아닌) 서브페이지에서만 호출됨
+// 내 닉네임: subscriptions.nickname → 구글 계정 이름 → null. 홈 탭 탑바용(캐시 localStorage 'chorditor_nick_cache')
+const NICK_CACHE_KEY = 'chorditor_nick_cache';
+async function fetchMyNickname() {
+  try {
+    const stored = localStorage.getItem(SUPABASE_STORAGE_KEY);
+    if (!stored) return null;
+    const session = JSON.parse(stored);
+    const token = session?.access_token;
+    const userId = session?.user?.id;
+    const fallback = session?.user?.user_metadata?.full_name || null;
+    if (!token || !userId) return fallback;
+    const resp = await fetch(
+      `${SUPABASE_URL}/rest/v1/subscriptions?user_id=eq.${userId}&select=nickname`,
+      { headers: { 'apikey': SUPABASE_ANON, 'Authorization': `Bearer ${token}` } }
+    );
+    if (!resp.ok) return fallback;
+    const rows = await resp.json();
+    const nick = rows[0]?.nickname || fallback;
+    if (nick) { try { localStorage.setItem(NICK_CACHE_KEY, nick); } catch (_) {} }
+    return nick;
+  } catch (_) { return null; }
+}
+
 async function loadSidebarUserInfo() {
   const _sv = (id, v) => { const el = document.getElementById(id); if (el) el.textContent = v; };
   try {
@@ -5519,6 +5857,8 @@ async function renderQuestList() {
 
   const dot = document.getElementById('hdb-quest-dot');
   if (dot) dot.hidden = top.length === 0;
+  const dot2 = document.getElementById('hs-quest-dot');   // 홈 탭 우상단 퀘스트 버튼의 점
+  if (dot2) dot2.hidden = top.length === 0;
 }
 
 function openQuestModal() {

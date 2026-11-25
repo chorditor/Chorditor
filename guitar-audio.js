@@ -56,6 +56,7 @@ const GuitarAudio = (() => {
   let _masterGain   = null;
   let _outGain      = null; // 컴프레서 뒤 최종 출력 게인 — 설정>사운드 마스터 볼륨 적용(압축에 안 먹힘)
   let _ready        = false;
+  let _samplerGen   = 0;    // _init 세대 — 버려진 샘플러의 늦은 onload 무시
   let _pending      = [];   // ready 전 요청 큐
   let _lastNotes    = [];   // 마지막 재생된 노트 목록
   let _releaseTimer = null; // 자동 감쇄 타이머
@@ -105,11 +106,25 @@ const GuitarAudio = (() => {
     }, SUSTAIN_MS);
   }
 
+  // 기타 샘플(guitar-samples.js, 1.4MB) 지연 로드 — 페이지가 이 파일을 <script>로 넣지 않았으면 여기서 비동기로 불러온 뒤 _init.
+  //  홈처럼 소리가 주된 기능이 아닌 화면은 태그를 빼서 첫 화면을 먼저 그리게 함(2026-11-25 홈 최적화). 소리 요청은 그 사이 _pending에 쌓였다가 준비되면 재생
+  let _samplesLoading = false;
+  function _loadSamplesThenInit() {
+    if (_samplesLoading) return;
+    _samplesLoading = true;
+    const sc = document.createElement('script');
+    sc.src = 'guitar-samples.js';
+    sc.onload = () => { _samplesLoading = false; _init(); };
+    sc.onerror = () => { _samplesLoading = false; console.error('[GuitarAudio] guitar-samples.js 로드 실패'); };
+    document.head.appendChild(sc);
+  }
+
   function _init() {
     if (typeof Tone === 'undefined') {
       console.error('[GuitarAudio] Tone.js 없음 — guitar-audio.js보다 먼저 로드 필요');
       return;
     }
+    if (typeof GUITAR_SAMPLES === 'undefined') { _loadSamplesThenInit(); return; }
     const urls = _buildSampleUrls();
     if (!urls) return;
     const _compressor = new Tone.Compressor({
@@ -137,12 +152,16 @@ const GuitarAudio = (() => {
     _fxIn = _highShelf;
     _initTap(urls); // dot 탭 전용 버스(+샘플 버퍼) — _masterGain을 거치지 않고 같은 EQ·컴프레서로 들어감
 
+    // 세대 번호: panic()이 연달아 불리면 버려진 샘플러의 onload가 늦게 와서 새 샘플러가 로드 전인데 _ready를 켜던 문제
+    //  (2026-11-24 여정 리듬 듣기 퀴즈 — 문제 전환 하드컷 + earPlay 하드컷이 겹쳐 기타 음이 가끔 안 들림). 현재 세대의 onload만 받음
+    const samplerGen = ++_samplerGen;
     _sampler = new Tone.Sampler({
       urls,
       baseUrl: '',
       attack: 0.005,
       release: 0.08,
       onload: () => {
+        if (samplerGen !== _samplerGen) return;
         _ready = true;
         _pending.forEach(fn => fn());
         _pending = [];
@@ -200,15 +219,17 @@ const GuitarAudio = (() => {
 
 
   // 코드 에디터/사전용 — MIDI 배열 직접 스트럼
-  function strumNotes(midis, interval) {
+  // atTime(선택): 이 오디오 시각(Tone 컨텍스트 기준 초)에 친다 — 노트 전체 재생처럼 박에 정확히 맞춰 미리 예약할 때.
+  //   없으면 지금(Tone.now()). 지난 시각이면(샘플러 준비 대기 등) 지금으로 당긴다.
+  function strumNotes(midis, interval, atTime) {
     _run(() => {
       _wakeAudio(); // 복귀 후 컨텍스트가 interrupted/suspended로 남은 경우 대비 (§11 #11)
       _restoreOutput();
       const notes = midis.map(midiToName);
       if (_releaseTimer) clearTimeout(_releaseTimer);
-      if (_lastNotes.length) _sampler.triggerRelease(_lastNotes, Tone.now());
+      const now1 = atTime != null ? Math.max(atTime, Tone.now()) : Tone.now();
+      if (_lastNotes.length) _sampler.triggerRelease(_lastNotes, now1);
       _lastNotes = notes;
-      const now1 = Tone.now();
       notes.forEach((note, i) => _sampler.triggerAttack(note, now1 + i * (interval ?? 0.055)));
       _scheduleAutoRelease();
     });
@@ -334,6 +355,7 @@ const GuitarAudio = (() => {
 
   // 탭 경로의 모든 울림을 fade(초) 동안 끊음
   function _tapStopAll(fade) {
+    _artStopAll(fade);   // 주법 울림(artNote)도 같은 탭 버스라 같이
     if (!_tapVoices.size || typeof Tone === 'undefined') return;
     const t = Tone.immediate();
     _tapVoices.forEach(v => _tapEndVoice(v, t, fade));
@@ -344,6 +366,7 @@ const GuitarAudio = (() => {
   function _tapDispose() {
     _tapVoices.forEach(v => clearTimeout(v.timer));
     _tapVoices.clear();
+    _artVoices.clear();   // 주법 울림도 같은 버스 — 버스를 떼면 같이 끊김
     if (_tapBus) { try { _tapBus.disconnect(); _tapBus.dispose(); } catch (e) {} _tapBus = null; }
   }
 
@@ -384,6 +407,139 @@ const GuitarAudio = (() => {
     if (!voice || typeof Tone === 'undefined') return;
     if (_tapVoices.get(voice.key) === voice) _tapVoices.delete(voice.key);
     _tapEndVoice(voice, Tone.immediate(), TAP_RELEASE_FADE);
+  }
+
+  // ── 주법 탭 경로: 해머링·풀링오프·슬라이드 (2026-11-20, 여정 노드20) ─────────────────────────
+  // 소리 값은 docs/articulation-test.html에서 사용자가 귀로 확정한 것(2026-11-20):
+  //   · 해머링·풀링오프·슬라이드는 새 샘플을 틀지 않는다 — 피크로 친 울림 하나의 재생 속도(음높이)만 바꿈(실제 기타처럼 진동 하나가 이어짐).
+  //     새 음 샘플을 겹치면 피크 어택이 다시 나고, 같은 샘플 두 벌이 겹쳐 '솨악'(위상 간섭)이 생겨 기타에서 불가능한 소리가 됨(시험에서 확인, 폐기)
+  //   · 손가락이 더하는 에너지 = 같은 울림을 그 순간 살짝 키우고(bump) 8kHz 위를 살짝 밝혔다가(bright) 되돌림.
+  //     화이트노이즈 타격음·긁는 소리는 쓰지 않음(거슬림 — 사용자 판단). 밝아지는 대역을 2.5kHz로 내리면 인공적인 '음'이 생김
+  //   · 풀링오프 = 앞 음의 배음(기음 ×1.5 위)을 아주 작게 남겨 바디 공명처럼. 개방현 도약은 더 길게
+  //   · 슬라이드 = 지나가는 프렛마다 한 칸씩 음높이를 바꾸고 그 순간 음량을 살짝 꺼뜨림(잡음 없이)
+  //   · 밴딩 없음(노드20 사용자 지정 — 나중에 생겨도 노드20에서는 쓰지 않음)
+  // tap 경로의 버스·버퍼(_tapBus·_tapSamples)를 같이 씀 → panic()/_tapDispose·이탈(_tapStopAll)이 같이 끊음. 줄(key)마다 울림 하나.
+  // at(초, 오디오 시계 — Tone.now()와 같은 시계)을 주면 그 시각에 예약(강의 시연), 없으면 지금
+  const ART = {
+    vel: 1, brightHz: 8000,
+    hammer: { glide: 0.004, boost: 1.0, bump: 1.15, bright: 4, rise: 0.006, back: 0.12 },
+    pull:   { glide: 0.004, boost: 1.05, bump: 1.25, bright: 2, rise: 0.005, back: 0.15, res: 0.03, resHp: 1.5, resTime: 0.6, resTimeOpen: 2.0 },
+    slide:  { msPerFret: 45, smooth: 0.25, dip: 0.94, perFret: 0.95 },
+  };
+  const _artVoices = new Map();   // key → { src, g, shelf, base, buf, midi, level, t0, rate }
+  function _artCtx() { return Tone.getContext().rawContext; }
+  function _artAt(at) { const now = _artCtx().currentTime; return (typeof at === 'number' && at > now) ? at : now; }
+  const _artRatio = (base, midi) => Math.pow(2, (midi - base) / 12);
+  // 샘플 고르기 — phrase(이 동작에서 낼 음 전부)가 있으면 가장 멀리 옮겨야 하는 거리가 가장 작은 샘플(개방현 도약 12→0 등), 없으면 가장 가까운 샘플
+  function _artBase(midi, phrase) {
+    const notes = phrase && phrase.length ? phrase : [midi];
+    const far = s => Math.max(...notes.map(n => Math.abs(n - s.midi)));
+    return _tapSamples.reduce((a, b) => far(b) < far(a) ? b : a);
+  }
+  function _artEnd(v, t, fade) {
+    const g = v.g.gain;
+    fade = Math.max(fade, 0.002);
+    try {
+      if (g.cancelAndHoldAtTime) { g.cancelAndHoldAtTime(t); g.linearRampToValueAtTime(0, t + fade); }
+      else g.setTargetAtTime(0, t, fade / 5);
+      v.src.stop(t + fade + 0.05);
+    } catch (e) {}
+  }
+  // 피크로 친 음(새 울림). 같은 key의 앞 울림은 짧게 끊음. opt: { at, phrase, vel }
+  function artNote(key, midi, opt) {
+    opt = opt || {};
+    if (typeof Tone === 'undefined' || !_tapReady || !_tapBus) return null;
+    if (typeof _sfxMarkPlayed === 'function') _sfxMarkPlayed();
+    if (Tone.getContext().state !== 'running') { try { Tone.start(); } catch (e) {} }
+    if (_outGain) _outGain.gain.value = ((typeof _getSfxMasterVolume === 'function') ? _getSfxMasterVolume() : 1) * _outTrim;
+    const c = _artCtx(), t = _artAt(opt.at);
+    const prev = _artVoices.get(key);
+    if (prev) _artEnd(prev, t, TAP_RETRIGGER_FADE);
+    const base = _artBase(midi, opt.phrase), buf = base.buf.get();
+    const src = c.createBufferSource();
+    src.buffer = buf;
+    const rate = _artRatio(base.midi, midi);
+    src.playbackRate.setValueAtTime(rate, t);
+    const shelf = c.createBiquadFilter();
+    shelf.type = 'highshelf'; shelf.frequency.value = ART.brightHz; shelf.gain.value = 0;
+    const g = c.createGain();
+    const vel = opt.vel ?? ART.vel;
+    g.gain.setValueAtTime(0, t);
+    g.gain.linearRampToValueAtTime(vel, t + 0.003);
+    src.connect(shelf); shelf.connect(g);
+    Tone.connect(g, _tapBus);
+    src.start(t);
+    const v = { key, src, g, shelf, base: base.midi, buf, midi, level: vel, t0: t, rate };
+    _artVoices.set(key, v);
+    return v;
+  }
+  // 풀링오프 앞 음의 배음 공명 — 앞 음을 같은 높이·지금 울리는 위치로 한 벌 더 틀어 기음을 걷어내고(하이패스) 아주 작게 서서히 사라지게
+  function _artRes(v, t, open) {
+    const p = ART.pull, c = _artCtx();
+    const src = c.createBufferSource();
+    src.buffer = v.buf;
+    src.playbackRate.setValueAtTime(v.rate, t);
+    const hz = 440 * Math.pow(2, (v.midi - 69) / 12);
+    const hp = c.createBiquadFilter(); hp.type = 'highpass'; hp.frequency.value = hz * p.resHp; hp.Q.value = 0.7;
+    const lp = c.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 6000; lp.Q.value = 0.5;
+    const g = c.createGain();
+    const lv = Math.max(v.level * p.res, 0.0002), len = open ? p.resTimeOpen : p.resTime;
+    g.gain.setValueAtTime(0.0001, t);
+    g.gain.exponentialRampToValueAtTime(lv, t + 0.015);
+    g.gain.setTargetAtTime(0, t + 0.015, len / 4);
+    src.connect(hp); hp.connect(lp); lp.connect(g);
+    Tone.connect(g, _tapBus);
+    const pos = Math.min(Math.max(0, (t - v.t0) * v.rate), v.buf.duration - 0.05);   // 앞 음이 지금 울리고 있는 위치(근사)
+    try { src.start(t, pos); src.stop(t + len + 0.3); } catch (e) {}
+  }
+  // 해머링(kind 'hammer')·풀링오프('pull') — key의 울림 하나에서 음높이만 바꿈. opt: { at, open(개방현으로 내려감 — 공명 길게) }
+  function artLegato(key, midi, kind, opt) {
+    opt = opt || {};
+    const v = _artVoices.get(key), p = ART[kind];
+    if (!v || !p) return;
+    const t = _artAt(opt.at);
+    if (kind === 'pull' && p.res > 0) _artRes(v, t, opt.open);
+    const level = v.level * p.boost;
+    v.rate = _artRatio(v.base, midi);
+    v.src.playbackRate.setTargetAtTime(v.rate, t, p.glide / 3);
+    v.g.gain.setTargetAtTime(level * p.bump, t, p.rise / 3);
+    v.g.gain.setTargetAtTime(level, t + p.rise, p.back / 4);
+    v.shelf.gain.setTargetAtTime(p.bright, t, p.rise / 3);
+    v.shelf.gain.setTargetAtTime(0, t + p.rise, p.back / 4);
+    v.midi = midi; v.level = level;
+  }
+  // 슬라이드 — key의 울림을 midi까지 한 칸(반음)씩. opt: { at, msPerFret } (지판을 끌 때는 프렛선을 넘을 때마다 한 칸씩 부름 → msPerFret 0에 가깝게)
+  function artSlide(key, midi, opt) {
+    opt = opt || {};
+    const v = _artVoices.get(key);
+    if (!v || midi === v.midi) return;
+    const p = ART.slide, t = _artAt(opt.at);
+    const n = Math.abs(midi - v.midi), dir = midi > v.midi ? 1 : -1;
+    const step = (opt.msPerFret ?? p.msPerFret) / 1000;
+    const tau = Math.max(step * p.smooth, 0.0008) / 2;
+    for (let i = 1; i <= n; i++) {
+      const tk = t + step * (i - 0.5);                // 프렛선을 넘는 순간
+      v.rate = _artRatio(v.base, v.midi + dir * i);
+      v.src.playbackRate.setTargetAtTime(v.rate, tk, tau);
+      v.level *= p.perFret;                            // 마찰로 조금씩 줄어듦
+      v.g.gain.setTargetAtTime(v.level * p.dip, tk, 0.002);
+      v.g.gain.setTargetAtTime(v.level, tk + 0.006, 0.008);
+    }
+    v.midi = midi;
+  }
+  // key의 울림을 짧은 페이드로 끊음(손을 다 뗐을 때 — 사용자 지정 소프트컷). opt: { at, fade }
+  function artStop(key, opt) {
+    opt = opt || {};
+    const v = _artVoices.get(key);
+    if (!v || typeof Tone === 'undefined') return;
+    _artVoices.delete(key);
+    _artEnd(v, _artAt(opt.at), opt.fade ?? 0.03);
+  }
+  function _artStopAll(fade) {
+    if (!_artVoices.size || typeof Tone === 'undefined') return;
+    const t = _artCtx().currentTime;
+    _artVoices.forEach(v => _artEnd(v, t, fade));
+    _artVoices.clear();
   }
 
   // 화면을 떠나면(앱 전환·홈 버튼·페이지 이동) 탭으로 울리던 음을 즉시 끊음
@@ -435,10 +591,21 @@ const GuitarAudio = (() => {
   }
 
   // Tone.js 로드 완료 후 자동 초기화 (외부 스크립트 onload 이후 실행됨)
+  //  샘플이 페이지에 이미 있으면(<script src="guitar-samples.js">) 예전처럼 DOMContentLoaded에 바로.
+  //  없으면(지연 로드 화면) 첫 화면을 다 그린 뒤 한가할 때 불러와 초기화 — 그 전에 들어온 재생 요청은 대기했다가 준비되면 울림
+  function _autoInit() {
+    if (typeof GUITAR_SAMPLES !== 'undefined') { _init(); return; }
+    const start = () => {
+      if (window.requestIdleCallback) requestIdleCallback(_init, { timeout: 1500 });
+      else setTimeout(_init, 300);
+    };
+    if (document.readyState === 'complete') start();
+    else window.addEventListener('load', start, { once: true });
+  }
   if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', _init);
+    document.addEventListener('DOMContentLoaded', _autoInit);
   } else {
-    _init();
+    _autoInit();
   }
 
   async function resume() { await Tone.start(); }
@@ -616,5 +783,5 @@ const GuitarAudio = (() => {
     _initPiano();
   }
 
-  return { playChord, strumNotes, strumAt, strumAtCut, cutAt, playNote, tapNote, tapRelease, stop, panic, ready, resume, syncContext, setOutputVolume, setOutputTrim, setPianoGain, STRUM_INTERVAL_SAMPLE, playPianoChord, pianoReady, stopPiano, resetPiano, fadeOutPiano, warmupPiano, playBassNote, bassReady, resetBass };
+  return { playChord, strumNotes, strumAt, strumAtCut, cutAt, playNote, tapNote, tapRelease, artNote, artLegato, artSlide, artStop, stop, panic, ready, resume, syncContext, setOutputVolume, setOutputTrim, setPianoGain, STRUM_INTERVAL_SAMPLE, playPianoChord, pianoReady, stopPiano, resetPiano, fadeOutPiano, warmupPiano, playBassNote, bassReady, resetBass };
 })();

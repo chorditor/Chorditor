@@ -432,6 +432,8 @@ function openNoteSaveChoice(projectId, anchorEl) {
   const ov = document.getElementById('note-save-overlay');
   const pop = document.getElementById('note-save-popup');
   if (!ov || !pop) return;
+  // 악보 저장하기: 웹에도 보인다(옵션·미리보기 확인용). 실제 저장은 앱만(onScrapSave)
+  document.getElementById('note-save-scrap-item')?.classList.remove('hidden');
   ov.classList.remove('hidden');
   // 세로는 버튼 하단, 가로는 버튼이 아니라 악보탭 전체(.project-inner)의 우측 끝에 붙임
   const r = anchorEl ? anchorEl.getBoundingClientRect() : { bottom: 56 };
@@ -444,22 +446,16 @@ function closeNoteSaveChoice() {
   document.getElementById('note-save-overlay')?.classList.add('hidden');
 }
 
-// 프리미엄 게이트: 앱 공용 요금제 바텀시트 오픈
-// openPlanSheet() 내부에서 이미 paywall_viewed를 트래킹하므로 여기서 중복 트래킹하지 않는다.
-function _noteSaveGate() {
-  openPlanSheet('note_save');
-}
-
 function noteSaveChoosePaletteImages() {
   closeNoteSaveChoice();
-  if (getPlan() === 'free') { _noteSaveGate(); return; } // 프리미엄 게이트 → 바텀시트 페이월
+  // 2026-11-25 무료 개방(이전: free면 요금제 바텀시트). 모달 안 투명배경만 프리미엄 유지(openImgSaveModal)
   if (_paletteSaveChords().length === 0) { alert('저장할 코드가 없습니다.'); return; }
   openImgSaveModal();
 }
 
 async function noteSaveChooseText() {
   closeNoteSaveChoice();
-  if (getPlan() === 'free') { _noteSaveGate(); return; } // 프리미엄 게이트 → 바텀시트 페이월
+  // 2026-11-25 무료 개방(이전: free면 요금제 바텀시트)
   const p = getProject(_noteSaveProjectId);
   if (!p) return;
   // 미저장 편집 반영: 현재 라인 DOM이 있으면 먼저 저장
@@ -668,6 +664,313 @@ function _downloadPngZip(files, zipName) {
 }
 
 // ═══════════════════════════════════════════════════════════════
+// 악보 전체 저장(스크랩) — Pro 전용. 저장은 앱(Android·iOS)만, 웹은 옵션·미리보기까지만(서비스 중단 예정).
+// 노트 전체를 화면 비율(세로 3:4·4:5·9:16 / 가로는 뒤집어서)에 맞춘 이미지 여러 장으로 기기 사진첩에만 저장한다(공유 경로 없음).
+// 짧은 변 1080px(1080p). 1페이지만 위에 제목, 모든 페이지 맨 아래 가운데에 페이지 번호(-1-).
+// 줄(메타 + 코드 + 가사 + 마디줄)은 쪼개지 않고, 페이지(가로 2분할이면 단)에 안 들어가면 다음으로 넘긴다.
+// ═══════════════════════════════════════════════════════════════
+const SCRAP_RATIOS = { '3:4': [3, 4], '4:5': [4, 5], '9:16': [9, 16] }; // 세로 기준 폭:높이
+const SCRAP_SHORT = 1080;   // 짧은 변(px)
+const SCRAP = {             // 페이지 안 치수(px, 짧은 변 1080 기준)
+  margin: 80, colGap: 64,
+  titleFont: 52, titleLh: 64, headerGap: 56, pageNumFont: 24,
+  metaFont: 24, metaH: 36,
+  chordGap: 8, nameFont: 28, nameH: 40,
+  lyricFont: 32, lyricLh: 46, lineGap: 10, tickH: 12, rowGap: 40,
+};
+const _scrap = { open: false, orient: 'port', ratio: '3:4', split: false, gen: 0 };
+
+function _scrapIsApp() { return !!window.Capacitor?.isNativePlatform?.(); }
+
+function noteSaveChooseScrap() {
+  closeNoteSaveChoice();
+  // 무료도 옵션·미리보기까지는 본다(어떤 기능인지 알게) — 페이월은 [저장]에서(onScrapSave) // 프리미엄 게이트 → 요금제 바텀시트
+  // 미저장 편집 반영(텍스트 복사와 같은 처리)
+  const linesEl = document.querySelector('.project-lines');
+  if (linesEl?.isConnected) saveAllLines(_noteSaveProjectId, linesEl);
+  _scrap.orient = 'port'; _scrap.ratio = '3:4'; _scrap.split = false; // 세로가 기본
+  _scrap.gen++;
+  _scrapSyncOpts();
+  _scrapShowStep('opts');
+  _scrap.open = true;
+  // 웹은 미리보기까지만 — Pro면 저장 버튼 비활성(웹은 서비스 중단 예정이라 저장 경로 없음). 무료는 눌러서 페이월을 본다
+  const saveBtn = document.getElementById('scrap-save-btn');
+  if (saveBtn) {
+    saveBtn.disabled = !_scrapIsApp() && getPlan() !== 'free';
+    // 무료는 노란 왕관으로 프리미엄 표시 — 이미지 저장 '투명 배경' 옵션과 같은 왕관(.ism-premium-crown) 재사용. Pro는 글자만
+    saveBtn.innerHTML = getPlan() === 'free' ? '<i class="ph-fill ph-crown-simple ism-premium-crown"></i>저장' : '저장';
+  }
+  lucide.createIcons();
+  document.getElementById('scrap-overlay')?.classList.remove('hidden');
+  // 표준 모달 등장: 오버레이를 보인 뒤 더블 rAF 다음에 --in(스타일가이드 §15 — 바로 붙이면 트랜지션이 씹힘)
+  const gen = _scrap.gen;
+  requestAnimationFrame(() => requestAnimationFrame(() => {
+    if (_scrap.open && gen === _scrap.gen) document.getElementById('scrap-modal')?.classList.add('cd-modal--in');
+  }));
+}
+
+function closeScrapModal() {
+  if (!_scrap.open) return;
+  _scrap.open = false;
+  _scrap.gen++; // 진행 중인 미리보기 렌더 결과를 버린다
+  document.getElementById('scrap-modal')?.classList.remove('cd-modal--in');
+  document.getElementById('scrap-overlay')?.classList.add('hidden');
+}
+
+function _scrapShowStep(step) {
+  document.getElementById('scrap-step-opts')?.classList.toggle('hidden', step !== 'opts');
+  document.getElementById('scrap-step-preview')?.classList.toggle('hidden', step !== 'preview');
+}
+
+function scrapSetOpt(key, v) {
+  _scrap[key] = v;
+  _scrapSyncOpts();
+}
+
+// 토글 표시 — 가로면 비율 글자를 뒤집고(4:3·5:4·16:9) '페이지 분할'을 켠다
+function _scrapSyncOpts() {
+  const mark = (id, v) => document.querySelectorAll(`#${id} .acc-btn`).forEach(b => b.classList.toggle('active', b.dataset.v === String(v)));
+  mark('scrap-orient', _scrap.orient);
+  mark('scrap-ratio', _scrap.ratio);
+  const land = _scrap.orient === 'land';
+  // 페이지 분할은 가로 전용 — 세로에선 보이되 비활성(안 나눔으로 표시). 고른 값은 남겨 두고 가로로 돌아오면 복원
+  mark('scrap-split', land && _scrap.split ? 1 : 0);
+  document.getElementById('scrap-split')?.classList.toggle('is-disabled', !land);
+  document.querySelectorAll('#scrap-split .acc-btn').forEach(b => { b.disabled = !land; });
+  document.querySelectorAll('#scrap-ratio .acc-btn').forEach(b => {
+    const [a, c] = b.dataset.v.split(':');
+    b.textContent = land ? `${c}:${a}` : `${a}:${c}`;
+  });
+}
+
+function scrapBackToOpts() { _scrap.gen++; _scrapShowStep('opts'); }
+
+function _scrapPageSize() {
+  const [a, b] = SCRAP_RATIOS[_scrap.ratio];
+  const long = Math.round(SCRAP_SHORT * b / a);
+  return _scrap.orient === 'port' ? { w: SCRAP_SHORT, h: long } : { w: long, h: SCRAP_SHORT };
+}
+
+async function scrapShowPreview() {
+  const gen = ++_scrap.gen;
+  const doc = await _scrapBuild();
+  if (gen !== _scrap.gen || !doc) return;
+  _scrapDrawPage(document.getElementById('scrap-preview-canvas'), doc, 0);
+  const el = document.getElementById('scrap-pages');
+  if (el) el.textContent = `총 ${doc.pages.length}장 · 1페이지 미리보기`;
+  _scrapShowStep('preview');
+}
+
+async function onScrapSave() {
+  if (getPlan() === 'free') { closeScrapModal(); openPlanSheet('note_scrap'); return; } // 프리미엄 게이트 → 요금제 바텀시트
+  if (!_scrapIsApp()) return;
+  const btn = document.getElementById('scrap-save-btn');
+  if (btn?.disabled) return;
+  if (btn) btn.disabled = true;
+  let saved = 0, total = 0;
+  try {
+    const doc = await _scrapBuild();
+    if (!doc) return;
+    total = doc.pages.length;
+    const title = (doc.title || 'note').replace(/[\\/:*?"<>|\x00-\x1f]/g, '_');
+    try {
+      for (let i = 0; i < total; i++) {
+        const cv = document.createElement('canvas');
+        _scrapDrawPage(cv, doc, i);
+        const dataUrl = cv.toDataURL('image/png');
+        cv.width = cv.height = 0; // 큰 캔버스 메모리 즉시 반납
+        await _scrapSaveToDevice(dataUrl, `${title}_${i + 1}.png`);
+        saved++;
+      }
+    } catch (e) {
+      console.error('악보 저장 실패:', e);
+      alert(saved
+        ? `${total}장 중 ${saved}장만 저장했어요. 사진 접근 권한을 확인해 주세요.`
+        : '저장하지 못했어요. 사진 접근 권한을 확인해 주세요.');
+    }
+    if (saved) {
+      if (saved === total) closeScrapModal();
+      incrementStat('images');
+      showSaveToast();
+    }
+    analytics.track('image_saved', { source: 'note_scrap', orient: _scrap.orient, ratio: _scrap.ratio, split: _scrap.split, count: saved, success: saved > 0 });
+  } finally {
+    if (btn) btn.disabled = false;
+  }
+}
+
+// 기기 사진첩에만 저장(공유 시트 없음). Android = SaveImage 플러그인(갤러리), iOS = Media 플러그인(사진 앱, 추가 전용 권한)
+async function _scrapSaveToDevice(dataUrl, fileName) {
+  const P = window.Capacitor?.Plugins || {};
+  if (_isIOSNative()) {
+    if (!P.Media) throw new Error('Media 플러그인 없음');
+    await P.Media.savePhoto({ path: dataUrl });
+  } else {
+    if (!P.SaveImage) throw new Error('SaveImage 플러그인 없음');
+    await P.SaveImage.saveToGallery({ base64: dataUrl.split(',')[1], fileName });
+  }
+}
+
+// 페이지 구성: 줄마다 높이를 재서 단(column)·페이지에 채운다
+async function _scrapBuild() {
+  const project = getProject(_noteSaveProjectId);
+  if (!project) return null;
+  try { await Promise.all([document.fonts.load('400 32px Pretendard'), document.fonts.load('600 28px Pretendard'), document.fonts.load('700 52px Pretendard')]); } catch (_) {}
+  const size = _scrapPageSize();
+  const cols = (_scrap.orient === 'land' && _scrap.split) ? 2 : 1;
+  const colW = (size.w - SCRAP.margin * 2 - SCRAP.colGap * (cols - 1)) / cols;
+  // 본문 시작: 1페이지는 제목 아래, 2페이지부터는 제목이 없어 위 여백 바로 아래
+  const firstTop = SCRAP.margin + SCRAP.titleLh + SCRAP.headerGap;
+  const bodyH = top => size.h - SCRAP.margin - top;
+  const measure = document.createElement('canvas').getContext('2d');
+  const rows = project.arrangement || [];
+  const doc = { size, colW, firstTop, title: (project.name || '').trim(), pages: [], chordCache: new Map() };
+  const newPage = () => ({ cols: Array.from({ length: cols }, () => []) });
+  let page = newPage(), c = 0, y = 0;
+  rows.forEach((row, i) => {
+    const info = _scrapRowInfo(measure, project, row, rows[i - 1] || null, i === 0, colW);
+    if (y > 0 && y + info.h > bodyH(doc.pages.length ? SCRAP.margin : firstTop)) {
+      c++; y = 0;
+      if (c >= cols) { doc.pages.push(page); page = newPage(); c = 0; }
+    }
+    page.cols[c].push({ info, y });
+    y += info.h + SCRAP.rowGap;
+  });
+  doc.pages.push(page);
+  return doc;
+}
+
+function _scrapFont(weight, px) { return `${weight} ${px}px Pretendard, sans-serif`; }
+
+// 가사 줄바꿈(글자 단위, 폭 maxW). 사용자가 넣은 줄바꿈(\n)은 그대로
+function _scrapWrap(ctx, text, maxW) {
+  const out = [];
+  (text || '').split('\n').forEach(part => {
+    let cur = '';
+    for (const ch of part) {
+      if (cur && ctx.measureText(cur + ch).width > maxW) { out.push(cur); cur = ch.trim() ? ch : ''; }
+      else cur += ch;
+    }
+    out.push(cur);
+  });
+  return out;
+}
+
+// 한 줄 = (메타: 박자·BPM·카포) + 코드(다이어그램, 슬롯 숨김 노트면 이름) + 가사 + 마디줄. 메타 표기 기준은 buildProjectLine과 같다
+function _scrapRowInfo(ctx, project, row, prevRow, isFirst, w) {
+  const bars = getRowBars(row);
+  const slotN = Math.round(bars * SLOTS_PER_BAR.landscape); // 박 단위 전부(가로 화면과 같은 8칸 해상도)
+  const slotW = w / ROW_SLOT_CAP.landscape;
+  const lineW = w * bars / 2;
+  const meter = getRowMeter(project, row), prevMeter = prevRow ? getRowMeter(project, prevRow) : null;
+  const bpm = getRowBpm(project, row), prevBpm = prevRow ? getRowBpm(project, prevRow) : null;
+  const capo = getRowCapo(project, row.id), prevCapo = prevRow ? getRowCapo(project, prevRow.id) : null;
+  const meta = [];
+  if (isFirst || (prevMeter && (prevMeter.num !== meter.num || prevMeter.den !== meter.den))) meta.push(`${meter.num}/${meter.den}`);
+  if (isFirst || (prevBpm != null && prevBpm !== bpm)) meta.push(`♩=${bpm}`);
+  if (capo > 0 && (isFirst || prevCapo !== capo)) meta.push(`${capo} Capo`);
+  const chords = [];
+  for (let k = 0; k < slotN; k++) {
+    const id = (row.slots || [])[k];
+    const chord = id && project.chords ? project.chords.find(ch => ch.id === id) : null;
+    if (chord) chords.push({ k, chord });
+  }
+  const textMode = project.slotsHidden === true;
+  const diaW = Math.floor(slotW - 6);
+  const diaH = Math.round(diaW * VoicingCanvas.BASE_H / VoicingCanvas.BASE_W);
+  const chordH = chords.length ? (textMode ? SCRAP.nameH : diaH) : 0;
+  ctx.font = _scrapFont(400, SCRAP.lyricFont);
+  const lyric = _scrapWrap(ctx, row.text, lineW);
+  const metaH = meta.length ? SCRAP.metaH : 0;
+  const lyricTop = metaH + chordH + (chordH ? SCRAP.chordGap : 0);
+  const lineY = lyricTop + lyric.length * SCRAP.lyricLh + SCRAP.lineGap;
+  return { slotW, lineW, meta: meta.join('  '), metaH, chords, textMode, diaW, diaH, lyric, lyricTop, lineY, h: lineY + SCRAP.tickH / 2 };
+}
+
+function _scrapChordImg(doc, chord, w) {
+  const key = chord.id + '|' + w;
+  let cv = doc.chordCache.get(key);
+  if (!cv) {
+    cv = document.createElement('canvas');
+    VoicingCanvas.draw(cv, chordToVoicing(chord), {
+      chordName: chord.name, fingerNumMode: chord.fingerNumMode, ratio: w / VoicingCanvas.BASE_W, bigFretLabel: true,
+    });
+    doc.chordCache.set(key, cv);
+  }
+  return cv;
+}
+
+function _scrapCss(name, fb) {
+  return getComputedStyle(document.documentElement).getPropertyValue(name).trim() || fb;
+}
+
+function _scrapDrawPage(cv, doc, idx) {
+  const { size } = doc;
+  cv.width = size.w; cv.height = size.h;
+  const ctx = cv.getContext('2d');
+  const C = { text: _scrapCss('--text-primary', '#242729'), sub: _scrapCss('--text-secondary', '#6b6560'), line: _scrapCss('--border', '#d9d4cc') };
+  ctx.fillStyle = '#fff';
+  ctx.fillRect(0, 0, size.w, size.h);
+  ctx.textBaseline = 'alphabetic';
+  const M = SCRAP.margin, maxW = size.w - M * 2;
+  ctx.textAlign = 'left';
+  // 머리: 제목(한 줄, 넘치면 말줄임) — 1페이지에만
+  if (idx === 0) {
+    ctx.fillStyle = C.text;
+    ctx.font = _scrapFont(700, SCRAP.titleFont);
+    let title = doc.title || '제목 없음';
+    if (ctx.measureText(title).width > maxW) {
+      while (title && ctx.measureText(title + '…').width > maxW) title = title.slice(0, -1);
+      title += '…';
+    }
+    ctx.fillText(title, M, M + SCRAP.titleFont);
+  }
+  // 본문
+  const top = idx === 0 ? doc.firstTop : M;
+  doc.pages[idx].cols.forEach((list, c) => {
+    const x0 = M + c * (doc.colW + SCRAP.colGap);
+    list.forEach(({ info, y }) => _scrapDrawRow(ctx, doc, info, x0, top + y, C));
+  });
+  // 페이지 번호: 아래 여백 가운데(-1-)
+  ctx.fillStyle = C.sub;
+  ctx.font = _scrapFont(400, SCRAP.pageNumFont);
+  ctx.textAlign = 'center';
+  ctx.fillText(`-${idx + 1}-`, size.w / 2, size.h - M / 2 + SCRAP.pageNumFont / 3);
+  ctx.textAlign = 'left';
+}
+
+function _scrapDrawRow(ctx, doc, r, x, y, C) {
+  if (r.meta) {
+    ctx.fillStyle = C.sub;
+    ctx.font = _scrapFont(400, SCRAP.metaFont);
+    ctx.fillText(r.meta, x, y + SCRAP.metaFont);
+  }
+  const cy = y + r.metaH;
+  r.chords.forEach(({ k, chord }) => {
+    const sx = x + k * r.slotW;
+    if (r.textMode) {
+      ctx.fillStyle = C.text;
+      ctx.font = _scrapFont(600, SCRAP.nameFont);
+      ctx.fillText(chord.name || '', sx, cy + SCRAP.nameFont);
+    } else {
+      ctx.drawImage(_scrapChordImg(doc, chord, r.diaW), sx, cy, r.diaW, r.diaH);
+    }
+  });
+  ctx.fillStyle = C.text;
+  ctx.font = _scrapFont(400, SCRAP.lyricFont);
+  r.lyric.forEach((t, i) => ctx.fillText(t, x, y + r.lyricTop + i * SCRAP.lyricLh + SCRAP.lyricFont));
+  // 마디줄: 가로선 + 양 끝·마디 경계마다 짧은 세로선(노트 화면 보조선과 같은 모양)
+  const ly = y + r.lineY;
+  ctx.fillStyle = C.line;
+  ctx.fillRect(x, ly - 1, r.lineW, 2);
+  const barW = doc.colW / 2;
+  const ticks = [0];
+  for (let b = 1; b * barW < r.lineW - 1; b++) ticks.push(b * barW);
+  ticks.push(r.lineW - 2);
+  ticks.forEach(tx => ctx.fillRect(x + tx, ly - SCRAP.tickH / 2, 2, SCRAP.tickH));
+}
+
+// ═══════════════════════════════════════════════════════════════
 // fret 입력
 // ═══════════════════════════════════════════════════════════════
 let currentFretNumber = 2;
@@ -680,7 +983,8 @@ let audioCtx = null;
 const OPEN_MIDI = [64, 59, 55, 50, 45, 40];
 const STRUM_INTERVAL = 0.008;
 
-function playChord(chord, capoOverride) {
+// atTime(선택): 오디오 절대시각에 미리 예약(전체 재생). 없으면 지금 친다(슬롯 터치 등)
+function playChord(chord, capoOverride, atTime) {
   const notes = [];
   const fretBase = chord.fretNumber >= 2 ? chord.fretNumber - 2 : 0;
   // capoOverride: 줄 단위 카포 변경점(line.capo)의 효력 카포. 미지정 시 프로젝트 기본 카포.
@@ -703,7 +1007,7 @@ function playChord(chord, capoOverride) {
   }
   const sorted = notes.sort((a, b) => b.s - a.s);
   if (!sorted.length) return;
-  GuitarAudio.strumNotes(sorted.map(n => n.midi), STRUM_INTERVAL);
+  GuitarAudio.strumNotes(sorted.map(n => n.midi), STRUM_INTERVAL, atTime);
 }
 
 function buildBarreMap(dotList, barre) {
@@ -961,6 +1265,9 @@ function _refreshUndoBtn() {
 // 노트 페이지는 홈이 아니므로 종료하지 않는다 — 화면의 뒤로가기 버튼과 똑같이
 // 노트 목록으로 물러난다. 앱 종료는 홈 탭 최상위(home.js)에서만 일어난다.
 function handleNativeBack() {
+  if (_scrap.open) { closeScrapModal(); return; } // 악보 전체 저장 시트
+  if (document.getElementById('metro-picker')) { _closeMetroPicker(); return; } // 메트로놈 알약 선택
+  if (_hs.open) { _hsClose(); return; } // 가로 스크롤 뷰가 열려 있으면 뷰만 닫는다
   if (IS_EMBED) return; // 임베드(iframe)에선 부모(home.js)가 뒤로가기를 처리한다
   // 튜토리얼 중엔 화면을 옮기면 진행이 깨진다 → 그만둘지 묻는다(건너뛰기 버튼과 같은 경로).
   if (window.Tutorial?.isRunning?.()) { window.Tutorial.confirmSkip(); return; }
@@ -1344,9 +1651,13 @@ let playbackActive = false;
 let _userScrollHoldUntil = 0;   // 사용자 스크롤 감지 시 이 시각까지 자동스크롤 중단
 let _autoScrollLineId = null;   // 자동스크롤이 마지막으로 처리한 줄 (줄 단위 갱신용)
 let currentPlayTimeout = null;
+let currentVisTimeout = null;  // 전체 재생: 슬롯 화면(재생 막대·자동 스크롤) 갱신 타이머
+let _playGen = 0;              // 전체 재생 세대 — 멈춘 뒤 늦게 도착한 화면 타이머 무시
+const PLAY_LEAD_MS = 80;       // 코드 소리를 실제 시각보다 이만큼 먼저 깨어나 오디오 시계에 예약(타이머 지연 흡수)
 let metronomeActive = false;
+let metronomeMode = 'click'; // 켜져 있을 때 소리 종류: 'click'(메트로놈) | 'drum'(드럼). 끄면 metronomeActive=false
 let metronomeSchedulerTimeout = null;
-let metronomeBeats = []; // [{ ms, isDownbeat }] 재생 전 구간의 박 스케줄 — 줄마다 다른 BPM/박자를 반영
+let metronomeBeats = []; // [{ ms, isDownbeat, num, den, pos }] (num·den=그 줄 박자, pos=마디 안 박 번호) 재생 전 구간의 박 스케줄 — 줄마다 다른 BPM/박자를 반영
 let metronomeNextBeatTime = 0;
 let metronomeBeatCount = 0;
 let playbackStartAudioTime = 0;
@@ -1427,7 +1738,8 @@ function scheduleMetronome() {
     if (playbackEndAudioTime > 0 && metronomeNextBeatTime >= playbackEndAudioTime) break;
     if (metronomeBeatCount >= metronomeBeats.length) break; // 스케줄 끝(곡 종료)
     const beat = metronomeBeats[metronomeBeatCount];
-    metronomeClick(metronomeNextBeatTime, beat.isDownbeat);
+    if (metronomeMode === 'drum') _metroDrumBeat(beat, metronomeNextBeatTime);
+    else metronomeClick(metronomeNextBeatTime, beat.isDownbeat);
     metronomeNextBeatTime += beat.ms / 1000;
     metronomeBeatCount++;
   }
@@ -1465,16 +1777,105 @@ function syncMetronomeToPlayback() {
   playbackEndAudioTime  = audioCtx.currentTime + (playbackTotalMs - elapsedMs) / 1000;
 }
 
+// 드럼 비트 생성 규칙(사용자 지정 2026-11-25) — 하이햇은 어떤 박자든 8분음표마다. 킥·스네어는 박자별:
+//  · 분모 4: 2/4 킥1·스네어2, 3/4 킥1·스네어3, 4/4 킥1·3·스네어2·4, 5/4 킥1·4·스네어2·5(메트로놈 페이지 '드럼1'과 같음).
+//    6/4 이상은 박마다 킥·스네어 번갈아(4/4를 이어 가는 느낌).
+//  · 분모 8: 3박씩 묶어 묶음 머리에 킥·스네어 번갈아 — 6/8 = 킥1·스네어4, 12/8 = 6/8 두 번(킥1·7·스네어4·10), 9/8 = 킥1·7·스네어4.
+//    3으로 안 나눠지면(5/8·7/8) 3박 묶음이 먼저, 나머지는 2박씩(5/8 = 3+2, 7/8 = 3+2+2).
+//  · 분모 2는 4분음표로 바꿔(2/2 = 4/4) 같은 규칙, 분모 16은 하이햇이 2박마다(8분음표) 오고 킥·스네어는 분모 8 규칙을 반으로.
+// 패턴 단위는 8분음표 칸(step). 한 박(pulse) = 8/분모 칸.
+const _noteDrumCache = new Map();
+// 8분음표 박자(분모 8)의 강세 묶음 — 3으로 나눠지면 3씩, 아니면 3을 먼저 두고 나머지 2씩(5/8 = 3+2, 7/8 = 3+2+2). 드럼·코드슬롯 공용
+function _noteEighthGroups(steps) {
+  const groups = [];
+  if (steps % 3 === 0) { for (let g = 0; g < steps / 3; g++) groups.push(3); return groups; }
+  let left = steps;
+  if (left % 2 === 1 && left >= 3) { groups.push(3); left -= 3; }
+  while (left > 0) { groups.push(Math.min(2, left)); left -= 2; }
+  return groups;
+}
+// 코드슬롯을 강세에 맞춰 울릴 마디 안 시작 위치(8분음표 칸, 0부터). 가로 데이터 4칸 기준(세로는 그중 0·2번 칸만 쓴다).
+// 분모 8이면서 마디를 똑같이 나누면 8분음표 칸·강세에서 벗어나는 박자(5/8·7/8·9/8·10/8·11/8 …)만 — 나머지는 null(똑같이 나눔).
+//  · 2번 칸 = 마디 가운데에 가장 가까운 묶음 머리(같으면 앞쪽) → 세로·가로 어느 화면이든 같은 데이터가 같은 시각에 울린다
+//  · 1번 칸 = 0~2번 칸 사이, 3번 칸 = 2번 칸~마디 끝 사이에서 그 구간 가운데에 가장 가까운 묶음 머리, 없으면 구간의 마지막 8분음표
+//  예) 5/8 = 0·2·3·4, 7/8 = 0·2·3·5, 9/8 = 0·2·3·6
+function _noteSlotStarts(num, den) {
+  if (den !== 8 || num < 4 || num % 6 === 0) return null;
+  const heads = [];
+  let at = 0;
+  _noteEighthGroups(num).forEach(len => { heads.push(at); at += len; });
+  const pick = (from, to) => { // [from, to) 안의 묶음 머리 중 구간 가운데에 가장 가까운 것(같으면 앞쪽), 없으면 to-1
+    const mid = (from + to) / 2;
+    let best = null;
+    heads.forEach(h => { if (h > from && h < to && (best == null || Math.abs(h - mid) < Math.abs(best - mid))) best = h; });
+    return best != null ? best : to - 1;
+  };
+  const s2 = pick(0, num);
+  return [0, pick(0, s2), s2, pick(s2, num)];
+}
+function _noteDrumPattern(num, den) {
+  const key = num + '/' + den;
+  if (_noteDrumCache.has(key)) return _noteDrumCache.get(key);
+  const perPulse = 8 / den;                       // 박 하나에 든 8분음표 칸 수(분모 16이면 0.5)
+  const steps = Math.max(1, Math.round(num * perPulse));
+  const kick = [], snare = [];
+  if (den <= 4) {
+    const q = den === 4 ? num : num * (4 / den);  // 4분음표 박 수(분모 2·1은 4분음표로 환산)
+    const fixed = { 2: [[0], [1]], 3: [[0], [2]], 4: [[0, 2], [1, 3]], 5: [[0, 3], [1, 4]] }[q];
+    if (fixed) { kick.push(...fixed[0]); snare.push(...fixed[1]); }
+    else for (let b = 0; b < q; b++) (b % 2 ? snare : kick).push(b);
+    for (let k = 0; k < kick.length; k++) kick[k] *= 2;   // 4분음표 박 → 8분음표 칸
+    for (let k = 0; k < snare.length; k++) snare[k] *= 2;
+  } else {
+    const groups = _noteEighthGroups(steps); // 8분음표 칸 기준 묶음
+    let at = 0;
+    groups.forEach((len, g) => { (g % 2 ? snare : kick).push(at); at += len; });
+  }
+  const hat = Array.from({ length: steps }, (_, k) => k);
+  const patt = { perPulse, kick, snare, hat };
+  _noteDrumCache.set(key, patt);
+  return patt;
+}
+// 박 하나 분량의 드럼을 절대시각으로 예약 — 이 박이 덮는 8분음표 칸마다 킥·스네어·하이햇.
+// Tone 컨텍스트가 audioCtx와 같은 시계라(GuitarAudio.syncContext) 시각을 그대로 쓴다
+function _metroDrumBeat(beat, t) {
+  if (typeof DrumAudio === 'undefined') return;
+  const patt = _noteDrumPattern(beat.num, beat.den || 4);
+  const from = beat.pos * patt.perPulse, to = from + patt.perPulse;
+  for (let step = Math.ceil(from - 1e-9); step < to - 1e-9; step++) {
+    const st = t + ((step - from) / patt.perPulse) * (beat.ms / 1000);
+    if (patt.kick.includes(step)) DrumAudio.hit('kick', st);
+    if (patt.snare.includes(step)) DrumAudio.hit('snare', st);
+    if (patt.hat.includes(step)) DrumAudio.hit('hat', st, 0.6);
+  }
+}
+// 드럼 노드는 Tone 컨텍스트에 붙는다 — 재생 시작 때 GuitarAudio.syncContext가 컨텍스트를 audioCtx로 바꾸면 새로 만든다
+let _noteDrumCtx = null;
+async function _ensureNoteDrum() {
+  if (typeof DrumAudio === 'undefined' || typeof Tone === 'undefined') return;
+  const ctx = Tone.getContext();
+  if (_noteDrumCtx !== ctx) { DrumAudio.rebuild(); _noteDrumCtx = ctx; }
+  try { await DrumAudio.ready(); } catch (_) {}
+}
+
 async function startMetronome() {
   if (!audioCtx) audioCtx = new AudioCtx();
   if (audioCtx.state === 'suspended') await audioCtx.resume();
   if (metronomeSchedulerTimeout) { clearTimeout(metronomeSchedulerTimeout); metronomeSchedulerTimeout = null; }
+  if (metronomeMode === 'drum') {
+    const gen = ++_metroStartGen;
+    await _ensureNoteDrum(); // 샘플 디코딩 대기 — 끝난 뒤 지금 재생 위치로 합류(아래 sync)
+    if (gen !== _metroStartGen || !metronomeActive || metronomeMode !== 'drum') return; // 기다리는 동안 끄거나 바꿈
+  }
   syncMetronomeToPlayback();
   scheduleMetronome();
 }
 
+let _metroStartGen = 0; // 드럼 준비를 기다리던 startMetronome이 정지·전환 뒤에 늦게 시작하지 않게
 function _stopMetronomeAudio() {
+  _metroStartGen++;
   if (metronomeSchedulerTimeout) { clearTimeout(metronomeSchedulerTimeout); metronomeSchedulerTimeout = null; }
+  if (typeof DrumAudio !== 'undefined') DrumAudio.stop(); // 예약된 드럼까지 즉시 끊음
   // 이미 예약된 클릭까지 즉시 끊는다. 타이머만 끄면 룩어헤드 분량이 그대로 울린다.
   const nodes = _metronomeNodes;
   _metronomeNodes = [];
@@ -1489,23 +1890,78 @@ function _stopMetronomeAudio() {
 function stopMetronome() {
   metronomeActive = false;
   _stopMetronomeAudio();
-  const btn = document.getElementById('metronome-btn');
-  if (btn) btn.classList.remove('active');
+  _closeMetroPicker();
+  _renderMetronomeBtn();
 }
 
-function toggleMetronome() {
-  metronomeActive = !metronomeActive;
-  analytics.track('metronome_toggled', { active: metronomeActive });
+// 헤더 버튼 = 켜진 소리의 아이콘(메트로놈/드럼) + 켜짐 표시
+function _renderMetronomeBtn() {
   const btn = document.getElementById('metronome-btn');
-  if (btn) btn.classList.toggle('active', metronomeActive);
-  window.Tutorial?.notify(`metronome:${metronomeActive ? 'on' : 'off'}`);
-  if (metronomeActive && playbackActive) {
-    // 재생 중에 켜면 지금 위치의 박에 맞춰 즉시 재합류
-    startMetronome();
-  } else if (!metronomeActive) {
-    // 끄면 오디오 즉시 중단
-    _stopMetronomeAudio();
+  if (!btn) return;
+  btn.classList.toggle('active', metronomeActive);
+  const icon = metronomeActive && metronomeMode === 'drum' ? 'drum' : 'metronome';
+  if (btn.dataset.icon !== icon) {
+    btn.dataset.icon = icon;
+    btn.innerHTML = `<i data-lucide="${icon}"></i>`;
+    lucide.createIcons();
   }
+}
+
+// mode: 'click' | 'drum' | null(끄기)
+function setMetronomeMode(mode) {
+  const wasActive = metronomeActive, prevMode = metronomeMode;
+  metronomeActive = !!mode;
+  if (mode) metronomeMode = mode;
+  if (wasActive === metronomeActive && prevMode === metronomeMode) return;
+  analytics.track('metronome_toggled', { active: metronomeActive, mode: metronomeActive ? metronomeMode : null });
+  _renderMetronomeBtn();
+  if (wasActive !== metronomeActive) window.Tutorial?.notify(`metronome:${metronomeActive ? 'on' : 'off'}`);
+  // 소리 종류가 바뀌거나 꺼지면 앞 소리(예약분 포함) 하드컷 → 켜져 있고 재생 중이면 지금 박에 재합류
+  _stopMetronomeAudio();
+  if (metronomeActive && playbackActive) startMetronome();
+}
+
+// 메트로놈 켜고 끄기(메트로놈 소리) — 튜토리얼 단계가 직접 부른다
+function toggleMetronome() {
+  setMetronomeMode(metronomeActive ? null : 'click');
+}
+
+// 헤더 버튼 → 아래에 알약 선택(메트로놈 / 드럼). 고르면 켜지고 닫힘, 켜진 아이콘을 다시 누르면 꺼짐.
+// 튜토리얼 중엔 알약이 스포트라이트 밖이라 예전처럼 바로 켜고 끈다.
+function onMetronomeBtnClick(btn) {
+  if (window.Tutorial?.isRunning?.()) { toggleMetronome(); return; }
+  if (document.getElementById('metro-picker')) { _closeMetroPicker(); return; }
+  const ov = document.createElement('div');
+  ov.className = 'metro-picker-overlay';
+  ov.id = 'metro-picker-overlay';
+  ov.addEventListener('click', _closeMetroPicker);
+  const pill = document.createElement('div');
+  pill.className = 'metro-picker';
+  pill.id = 'metro-picker';
+  [['click', 'metronome', '메트로놈'], ['drum', 'drum', '드럼']].forEach(([mode, icon, label]) => {
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.className = 'metro-picker-btn' + (metronomeActive && metronomeMode === mode ? ' active' : '');
+    b.setAttribute('aria-label', label);
+    b.innerHTML = `<i data-lucide="${icon}"></i>`;
+    b.addEventListener('click', e => {
+      e.stopPropagation();
+      setMetronomeMode(metronomeActive && metronomeMode === mode ? null : mode);
+      _closeMetroPicker();
+    });
+    pill.appendChild(b);
+  });
+  document.body.append(ov, pill);
+  lucide.createIcons();
+  // 버튼 바로 아래, 가로 가운데 정렬(화면 밖으로 나가지 않게)
+  const r = btn.getBoundingClientRect();
+  const w = pill.offsetWidth;
+  pill.style.top = (r.bottom + 8) + 'px';
+  pill.style.left = Math.max(8, Math.min(window.innerWidth - w - 8, r.left + r.width / 2 - w / 2)) + 'px';
+}
+function _closeMetroPicker() {
+  document.getElementById('metro-picker')?.remove();
+  document.getElementById('metro-picker-overlay')?.remove();
 }
 
 async function stopPlayAll(options = {}) {
@@ -1513,10 +1969,12 @@ async function stopPlayAll(options = {}) {
   playbackEndAudioTime = 0;
   _stopMetronomeAudio();
   if (currentPlayTimeout) { clearTimeout(currentPlayTimeout); currentPlayTimeout = null; }
+  if (currentVisTimeout) { clearTimeout(currentVisTimeout); currentVisTimeout = null; }
   const stopPromise = GuitarAudio.stop({ wait: options.wait === true });
   document.querySelectorAll('.row-playhead').forEach(el => el.remove());
   const btn = document.getElementById('play-all-btn');
   if (btn) { btn.innerHTML = '<i data-lucide="play"></i>'; lucide.createIcons(); }
+  if (_hs.open) _hsOnStopped();
   if (options.wait) await stopPromise;
 }
 
@@ -1526,11 +1984,14 @@ window.addEventListener('pagehide', () => {
   playbackActive = false;
   _stopMetronomeAudio();
   if (currentPlayTimeout) { clearTimeout(currentPlayTimeout); currentPlayTimeout = null; }
+  if (currentVisTimeout) { clearTimeout(currentVisTimeout); currentVisTimeout = null; }
   if (typeof Tone !== 'undefined') { try { Tone.getDestination().mute = true; } catch (e) {} }
   if (typeof GuitarAudio !== 'undefined' && GuitarAudio.panic) GuitarAudio.panic();
 });
 
-async function playAll(projectId, startIndex = 0) {
+// opts.hs: 가로 스크롤 재생 모드에서 호출 — 슬롯은 항상 마디당 4칸(가로 데이터)으로 나열하고,
+// 칸이 바뀔 때 노트 화면 대신 가로 스크롤 뷰(_hsOnSlot)가 재생 막대·페이지 넘김을 처리한다.
+async function playAll(projectId, startIndex = 0, opts = {}) {
   stopPlayAll();
 
   const project = getProject(projectId);
@@ -1541,8 +2002,10 @@ async function playAll(projectId, startIndex = 0) {
   if (audioCtx.state === 'suspended') await audioCtx.resume();
   if (isFirstInit) await GuitarAudio.syncContext(audioCtx); // Tone.js 동기화
   else await GuitarAudio.resume();
+  // 오디오 준비를 기다리는 사이 가로 스크롤 뷰에서 일시정지·나가기가 눌렸으면 시작하지 않는다
+  if (opts.hs && (!_hs.open || opts.gen !== _hs.gen)) return;
 
-  const land = currentSlotLand;
+  const land = opts.hs ? true : currentSlotLand;
 
   // 줄마다 박자·BPM·마디 수가 다를 수 있으므로 슬롯 하나하나의 재생 시간을 개별 계산해서 순서대로 나열.
   // 슬롯 수는 박자(분자)와 무관(마디 수 기준)이므로, 그 줄의 총 연주 시간(마디 수×분자×펄스)을
@@ -1561,22 +2024,38 @@ async function playAll(projectId, startIndex = 0) {
     const step = land ? 1 : 2;
     const totalBeats = bars * meter.num;
     const totalMsForRow = totalBeats * pulseMs;
-    const slotMs = totalMsForRow / slotCount;
+    // 슬롯 길이: 기본은 줄 시간을 똑같이 나눔. 분모 8의 홀수 묶음 박자(5/8·7/8·9/8 …)는 강세 묶음 머리에 맞춘 시작 위치로(_noteSlotStarts).
+    // 마디 수가 정수일 때만(반 마디 줄은 똑같이 나눔)
+    const starts = Number.isInteger(bars) ? _noteSlotStarts(meter.num, meter.den) : null;
+    const slotMsList = [];
+    for (let k = 0; k < slotCount; k++) {
+      if (!starts) { slotMsList.push(totalMsForRow / slotCount); continue; }
+      const dataIdx = k * step;                       // 가로 데이터 칸(마디당 4칸)
+      const bar = Math.floor(dataIdx / 4), pos = dataIdx % 4;
+      const nextIdx = dataIdx + step;
+      const nBar = Math.floor(nextIdx / 4), nPos = nextIdx % 4;
+      const startE = bar * meter.num + starts[pos];
+      const endE = nextIdx >= bars * 4 ? bars * meter.num : nBar * meter.num + starts[nPos];
+      slotMsList.push((endE - startE) * pulseMs);
+    }
+    let rowLeftMs = totalMsForRow;
     for (let k = 0; k < slotCount; k++) {
       const dataIdx = k * step;
       orderedSlots.push({
         chordId: row.slots?.[dataIdx] ?? null,
         lineId: row.id,
         slotIdx: dataIdx,
-        slotMs,
+        slotMs: slotMsList[k],
+        rowRemainMs: rowLeftMs,                       // 이 슬롯부터 줄 끝까지 남은 시간(재생 막대 길이)
         rowSlotCount: slotCount,
         posInRow: k,
         rowCapo: _runCapo,
       });
+      rowLeftMs -= slotMsList[k];
     }
     // 박(pulse) 단위 스케줄 — 마디 첫 박(다운비트)마다 강세, 분자 그대로 반영
     for (let b = 0; b < totalBeats; b++) {
-      metronomeBeats.push({ ms: pulseMs, isDownbeat: (b % meter.num) === 0 });
+      metronomeBeats.push({ ms: pulseMs, isDownbeat: (b % meter.num) === 0, num: meter.num, den: meter.den, pos: b % meter.num });
     }
   });
   if (!orderedSlots.length) return;
@@ -1610,6 +2089,13 @@ async function playAll(projectId, startIndex = 0) {
   const refWallTime = performance.now() - elapsedMsAtStart;
   // 메트로놈만 STRUM_LEAD_MS 만큼 뒤로 — 코드 스트로크가 정박보다 살짝 먼저 시작되게 한다
   playbackStartWallTime = refWallTime + STRUM_LEAD_MS;
+  // 코드 소리도 메트로놈·드럼과 같은 오디오 시계에 예약한다. refWallTime(곡 기준 시각)에 해당하는 오디오 시각을 한 번 잡고,
+  // 슬롯 n의 소리 = audioRef + 누적ms. 예전엔 setTimeout이 깬 "지금" 쳐서 타이머 지연·화면 작업만큼 코드가 불규칙하게 밀렸다.
+  const _rawCtx = Tone.getContext().rawContext;
+  const audioRef = _rawCtx.currentTime - (performance.now() - refWallTime) / 1000;
+  // 코드 정보는 시작 때 한 번만 읽는다(슬롯마다 getProject로 노트 전체를 다시 해석하던 지연 제거)
+  const chordMap = new Map((project.chords || []).map(c => [c.id, c]));
+  const runGen = ++_playGen;
   let i = startIndex;
   let _accMs = elapsedMsAtStart;
   let _playheadEl = null;
@@ -1624,9 +2110,28 @@ async function playAll(projectId, startIndex = 0) {
       window.Tutorial?.enableNext?.();
       return;
     }
+    const idx = i;
     const item = orderedSlots[i++];
-
-    const slotEl = document.querySelector(`[data-line-id="${item.lineId}"][data-slot-idx="${item.slotIdx}"]`);
+    const slotAccMs = _accMs;
+    // ① 소리 먼저 — 이 슬롯의 정확한 오디오 시각에 예약(PLAY_LEAD_MS 먼저 깨어 있으므로 아직 미래)
+    if (item.chordId) {
+      const chord = chordMap.get(item.chordId);
+      if (chord) playChord(chord, item.rowCapo, audioRef + slotAccMs / 1000);
+    }
+    // ② 다음 슬롯 깨우기 — 다음 소리 시각보다 PLAY_LEAD_MS 먼저. 마지막 뒤(곡 끝)는 정확한 끝 시각에
+    _accMs += item.slotMs;
+    const isLast = i >= orderedSlots.length;
+    currentPlayTimeout = setTimeout(next, Math.max(0, refWallTime + _accMs - (isLast ? 0 : PLAY_LEAD_MS) - performance.now()));
+    // ③ 화면(재생 막대·자동 스크롤)은 그 슬롯이 실제로 울리는 시각에 — 소리 예약 뒤라 화면 작업이 박을 밀지 못한다
+    // (앞 슬롯 화면 타이머는 지우지 않는다 — 슬롯이 PLAY_LEAD_MS보다 짧아도 화면 갱신이 빠지지 않게. 멈춤 뒤엔 runGen으로 무시)
+    currentVisTimeout = setTimeout(() => {
+      currentVisTimeout = null;
+      if (playbackActive && runGen === _playGen) _visualSlot(item, idx);
+    }, Math.max(0, refWallTime + slotAccMs - performance.now()));
+  }
+  function _visualSlot(item, idx) {
+    const slotEl = opts.hs ? null : document.querySelector(`[data-line-id="${item.lineId}"][data-slot-idx="${item.slotIdx}"]`);
+    if (opts.hs && _hs.open) _hsOnSlot(idx, item);
     if (slotEl) {
       const lineEl = slotEl.closest('.project-line');
       // 줄이 바뀌었을 때만 재생 막대를 새로 배치 — 같은 줄 안에서는 슬롯을 넘어가도
@@ -1644,7 +2149,7 @@ async function playAll(projectId, startIndex = 0) {
           const usedFrac = item.rowSlotCount / maxSlots;
           const startPct = (item.posInRow / item.rowSlotCount) * usedFrac * 100;
           const endPct = usedFrac * 100;
-          const remainingMs = (item.rowSlotCount - item.posInRow) * item.slotMs;
+          const remainingMs = item.rowRemainMs;
           _playheadEl.style.setProperty('--sweep-start', startPct + '%');
           _playheadEl.style.setProperty('--sweep-end', endPct + '%');
           _playheadEl.style.setProperty('--sweep-dur', remainingMs + 'ms');
@@ -1667,22 +2172,309 @@ async function playAll(projectId, startIndex = 0) {
       }
     }
 
-    if (item.chordId) {
-      const p = getProject(projectId);
-      const chord = p?.chords.find(c => c.id === item.chordId);
-      if (chord) await playChord(chord, item.rowCapo);
-    }
-    // playChord 소요 시간을 빼고 정확한 다음 슬롯 시각까지만 대기
-    _accMs += item.slotMs;
-    const nextExpected = refWallTime + _accMs;
-    const delay = Math.max(0, nextExpected - performance.now());
-    currentPlayTimeout = setTimeout(next, delay);
   }
 
   // 메트로놈은 원점(playbackStartWallTime)이 확정된 뒤, 코드 재생과 같은 순간에 붙인다.
   // 예전엔 이 호출이 lucide.createIcons() 앞에 있어 두 시계의 원점이 수십 ms 어긋났다.
   if (metronomeActive) startMetronome();
   next();
+}
+
+// ═══════════════════════════════════════════════════════════════
+// 가로 스크롤 재생 모드 — 노트 헤더 눈동자 버튼 오른쪽 아이콘으로 진입하는 전체화면 뷰
+//  상단: 마디줄을 좌우로 이어 붙인 진행 영역(코드 다이어그램 + 가사). 한 화면 = 세로 1마디 / 가로 2마디.
+//        재생 중엔 화면이 고정되고, 재생 칸이 화면 밖으로 나가면 그 마디가 왼쪽 끝에 오도록 넘긴다.
+//        멈춰 있을 땐 손으로 넘기고, 놓으면 마디 시작점에 스냅(CSS scroll-snap).
+//  하단: 세로 화면에서만 — 현재 줄·다음 줄의 가사와 코드 이름. 가로 화면에선 만들지 않는다.
+//  재생은 playAll(opts.hs) 엔진을 그대로 쓴다(시계·메트로놈·줄별 BPM·박자·카포).
+// ═══════════════════════════════════════════════════════════════
+const _hs = {
+  open: false, el: null, track: null, lower: null, projectId: null,
+  land: false, barW: 0,
+  slots: [],        // playAll(opts.hs) 슬롯 순서와 같은 순서: { lineId, x, w, barX, posInRow, n }
+  lineEls: {},      // lineId → 상단 줄 블록
+  curIdx: -1, curLineId: null, playheadEl: null, lowerLineId: null,
+  pausedIdx: -1, pausedScroll: -1,
+  needReady: false, // 하드컷(panic) 뒤라 샘플러 재로딩을 기다려야 하는지
+  gen: 0,           // 늦게 끝나는 비동기(오디오 준비)가 닫힌 뒤·일시정지 뒤에 재생을 살리지 못하게
+  resizeTimer: null, scrollRaf: 0,
+};
+
+function _hsChordNameNodes(name) {
+  // 코드 이름 소괄호 부분 위첨자(노트 텍스트 모드와 같은 처리)
+  const frag = document.createDocumentFragment();
+  const pIdx = name.indexOf('(');
+  if (pIdx === -1) { frag.appendChild(document.createTextNode(name)); return frag; }
+  frag.appendChild(document.createTextNode(name.slice(0, pIdx)));
+  const sup = document.createElement('sup');
+  sup.textContent = name.slice(pIdx);
+  frag.appendChild(sup);
+  return frag;
+}
+
+function openHScrollView(projectId) {
+  if (_hs.open) return;
+  // 노트 화면에서 재생 중이었다면 끊고 들어온다(다른 맥락의 소리)
+  if (playbackActive) { stopPlayAll(); GuitarAudio.panic(); _hs.needReady = true; }
+  _hs.open = true;
+  // 노트 탭 스플릿(iframe) 안이면 부모(home.js)도 전체화면으로 — 독바·목록·카드 숨김
+  if (IS_EMBED) { try { window.parent.postMessage({ type: 'note-hscroll', on: true }, '*'); } catch (_) {} }
+  _hs.projectId = projectId;
+  _hs.curIdx = -1; _hs.curLineId = null; _hs.lowerLineId = null;
+  _hs.pausedIdx = -1; _hs.pausedScroll = -1;
+  _hs.gen++;
+
+  const el = document.createElement('div');
+  el.className = 'hs-view';
+  el.innerHTML = `
+    <div class="hs-bar">
+      <button class="hs-btn" id="hs-close-btn" aria-label="나가기"><i data-lucide="x"></i></button>
+      <button class="hs-btn" id="hs-play-btn" aria-label="재생"><i data-lucide="play"></i></button>
+    </div>
+    <div class="hs-upper"><div class="hs-track"></div></div>
+    <div class="hs-lower"></div>`;
+  document.body.appendChild(el);
+  _hs.el = el;
+  _hs.track = el.querySelector('.hs-track');
+  _hs.lower = el.querySelector('.hs-lower');
+  el.querySelector('#hs-close-btn').onclick = () => _hsClose();
+  el.querySelector('#hs-play-btn').onclick = () => { playbackActive ? _hsPause() : _hsPlay(); };
+  _hs.track.addEventListener('scroll', _hsOnScroll, { passive: true });
+  window.addEventListener('resize', _hsOnResize);
+  document.addEventListener('visibilitychange', _hsOnVisibility);
+  lucide.createIcons();
+  _hsRender(0);
+}
+
+// 상단·하단을 그린다. anchorIdx = 왼쪽 끝에 둘 슬롯(그 슬롯이 속한 마디의 시작점으로 스크롤)
+function _hsRender(anchorIdx) {
+  const project = getProject(_hs.projectId);
+  if (!project || !_hs.el) return;
+  _hs.land = window.innerWidth > window.innerHeight;
+  _hs.el.classList.toggle('hs-view--land', _hs.land);
+  const track = _hs.track;
+  track.innerHTML = '';
+  _hs.slots = []; _hs.lineEls = {}; _hs.playheadEl = null;
+
+  const vw = track.clientWidth;
+  const barW = vw / (_hs.land ? 2 : 1);
+  _hs.barW = barW;
+  const slotW = barW / 4;
+  const imgH = slotW * VoicingCanvas.BASE_H / VoicingCanvas.BASE_W;
+  const pxW = Math.min(VoicingCanvas.BASE_W, Math.ceil(slotW * Math.min(window.devicePixelRatio || 1, 3)));
+
+  let x = 0;
+  project.arrangement.forEach(row => {
+    const bars = getRowBars(row);
+    const layout = computeRowLayout(bars) || computeRowLayout(2);
+    const n = layout.landscapeSlots;
+    const lineW = bars * barW;
+    const lineEl = document.createElement('div');
+    lineEl.className = 'hs-line';
+    lineEl.style.width = lineW + 'px';
+
+    const chords = document.createElement('div');
+    chords.className = 'hs-chords';
+    chords.style.gridTemplateColumns = `repeat(${n}, 1fr)`;
+    chords.style.gridAutoRows = imgH + 'px';
+    for (let k = 0; k < n; k++) {
+      const cell = document.createElement('div');
+      cell.className = 'hs-slot';
+      const chordId = row.slots?.[k] ?? null;
+      const chord = chordId ? project.chords.find(c => c.id === chordId) : null;
+      if (chord) {
+        const img = document.createElement('img');
+        img.src = _chordImgSrc(chord, pxW);
+        img.alt = chord.name;
+        cell.appendChild(img);
+      }
+      chords.appendChild(cell);
+      _hs.slots.push({ lineId: row.id, x: x + k * slotW, w: slotW, barX: x + Math.floor(k / 4) * barW, posInRow: k, n });
+    }
+    lineEl.appendChild(chords);
+
+    // 가사 + 보조선(노트의 마디줄 디자인): 마디 경계마다 짧은 세로선
+    const lyric = document.createElement('div');
+    lyric.className = 'hs-lyric';
+    lyric.textContent = row.text || '';
+    const barCount = Math.max(1, Math.ceil(bars));
+    for (let b = 0; b <= barCount; b++) {
+      const tick = document.createElement('span');
+      tick.className = 'hs-tick';
+      tick.style.left = Math.min(b * barW, lineW - 1) + 'px';
+      lyric.appendChild(tick);
+    }
+    lineEl.appendChild(lyric);
+
+    // 스냅 지점: 마디 시작마다
+    for (let b = 0; b < barCount; b++) {
+      const snap = document.createElement('span');
+      snap.className = 'hs-snap';
+      snap.style.left = (b * barW) + 'px';
+      lineEl.appendChild(snap);
+    }
+
+    track.appendChild(lineEl);
+    _hs.lineEls[row.id] = lineEl;
+    x += lineW;
+  });
+  // 마지막 마디도 왼쪽 끝에 올 수 있게 남는 폭만큼 여백
+  const tail = document.createElement('div');
+  tail.className = 'hs-tail';
+  tail.style.width = Math.max(0, vw - barW) + 'px';
+  track.appendChild(tail);
+
+  const s = _hs.slots[Math.max(0, Math.min(anchorIdx, _hs.slots.length - 1))];
+  track.scrollLeft = s ? s.barX : 0;
+  _hsRenderLower(true);
+}
+
+// 하단(세로 화면 전용): 현재 줄 + 다음 줄. 현재 줄 = 재생 중이면 재생 줄, 아니면 화면 왼쪽 마디의 줄
+function _hsRenderLower(force) {
+  if (!_hs.el) return;
+  if (_hs.land) { if (_hs.lower.firstChild) _hs.lower.innerHTML = ''; _hs.lowerLineId = null; return; }
+  const project = getProject(_hs.projectId);
+  if (!project) return;
+  const lineId = _hs.curLineId || _hs.slots[_hsIndexAtScroll(_hs.track.scrollLeft)]?.lineId;
+  if (!force && lineId === _hs.lowerLineId) return;
+  _hs.lowerLineId = lineId;
+  _hs.lower.innerHTML = '';
+  const rows = project.arrangement;
+  const at = Math.max(0, rows.findIndex(r => r.id === lineId));
+  [rows[at], rows[at + 1]].forEach((row, i) => {
+    const lineEl = document.createElement('div');
+    lineEl.className = 'hs-lower-line' + (i === 0 ? ' hs-lower-line--cur' : '');
+    if (!row) { _hs.lower.appendChild(lineEl); return; }
+    const n = (computeRowLayout(getRowBars(row)) || computeRowLayout(2)).landscapeSlots;
+    const names = document.createElement('div');
+    names.className = 'hs-lower-names';
+    for (let k = 0; k < n; k++) {
+      const cell = document.createElement('div');
+      cell.className = 'hs-lower-name';
+      const chordId = row.slots?.[k] ?? null;
+      const chord = chordId ? project.chords.find(c => c.id === chordId) : null;
+      if (chord) cell.appendChild(_hsChordNameNodes(chord.name));
+      names.appendChild(cell);
+    }
+    const lyric = document.createElement('div');
+    lyric.className = 'hs-lower-lyric';
+    lyric.style.width = (n / 8 * 100) + '%';
+    lyric.textContent = row.text || '';
+    lineEl.append(names, lyric);
+    _hs.lower.appendChild(lineEl);
+  });
+}
+
+function _hsIndexAtScroll(sl) {
+  const k = _hs.slots.findIndex(s => s.x >= sl - 1);
+  return k < 0 ? Math.max(0, _hs.slots.length - 1) : k;
+}
+
+// playAll(opts.hs)가 슬롯을 울릴 때마다 호출
+function _hsOnSlot(idx, item) {
+  const s = _hs.slots[idx];
+  if (!s) return;
+  _hs.curIdx = idx;
+  const btn = document.getElementById('hs-play-btn');
+  if (btn && !btn.dataset.playing) {
+    btn.dataset.playing = '1';
+    btn.setAttribute('aria-label', '일시정지');
+    btn.innerHTML = '<i data-lucide="pause"></i>';
+    lucide.createIcons();
+  }
+  // 재생 막대: 줄이 바뀔 때만 다시 놓고 줄 끝까지 이어서 스윕(노트 화면과 같은 방식)
+  if (s.lineId !== _hs.curLineId || !_hs.playheadEl?.isConnected) {
+    const lineEl = _hs.lineEls[s.lineId];
+    if (lineEl) {
+      if (!_hs.playheadEl) { _hs.playheadEl = document.createElement('div'); _hs.playheadEl.className = 'row-playhead hs-playhead'; }
+      _hs.playheadEl.remove();
+      _hs.playheadEl.style.setProperty('--sweep-start', (s.posInRow / s.n * 100) + '%');
+      _hs.playheadEl.style.setProperty('--sweep-end', '100%');
+      _hs.playheadEl.style.setProperty('--sweep-dur', (item.rowRemainMs ?? ((s.n - s.posInRow) * item.slotMs)) + 'ms');
+      lineEl.appendChild(_hs.playheadEl);
+    }
+    _hs.curLineId = s.lineId;
+    _hsRenderLower(false);
+  }
+  // 화면 고정 — 재생 칸이 화면 밖이면 그 마디가 왼쪽 끝에 오도록 넘김
+  const track = _hs.track;
+  const sl = track.scrollLeft, vw = track.clientWidth;
+  if (s.x < sl - 1 || s.x + s.w > sl + vw + 1) track.scrollTo({ left: s.barX, behavior: 'smooth' });
+}
+
+// 재생이 멈췄을 때(일시정지·끝까지 재생·다른 경로의 stopPlayAll) — stopPlayAll이 호출
+function _hsOnStopped() {
+  const btn = document.getElementById('hs-play-btn');
+  if (btn) {
+    delete btn.dataset.playing;
+    btn.setAttribute('aria-label', '재생');
+    btn.innerHTML = '<i data-lucide="play"></i>';
+    lucide.createIcons();
+  }
+  _hs.playheadEl = null; // .row-playhead는 stopPlayAll이 이미 지움
+  _hs.curLineId = null;
+}
+
+async function _hsPlay() {
+  const gen = ++_hs.gen;
+  const sl = _hs.track.scrollLeft;
+  // 일시정지 뒤 화면을 그대로 두었으면 멈춘 칸부터, 손으로 넘겼으면 지금 화면 왼쪽 마디부터
+  const start = (_hs.pausedIdx >= 0 && Math.abs(sl - _hs.pausedScroll) < 2) ? _hs.pausedIdx : _hsIndexAtScroll(sl);
+  _hs.pausedIdx = -1;
+  if (_hs.needReady) { await GuitarAudio.ready(); _hs.needReady = false; }
+  if (!_hs.open || gen !== _hs.gen) return;
+  playAll(_hs.projectId, start, { hs: true, gen });
+}
+
+// 일시정지 = 소리 하드컷, 위치는 기억
+function _hsPause() {
+  _hs.gen++;
+  if (_hs.curIdx >= 0) { _hs.pausedIdx = _hs.curIdx; _hs.pausedScroll = _hs.track.scrollLeft; }
+  stopPlayAll();
+  GuitarAudio.panic();
+  _hs.needReady = true;
+  _hs.curIdx = -1;
+  _hsRenderLower(false);
+}
+
+// 나가기 — X·Android 뒤로가기가 같은 함수를 부른다(여러 번 불려도 안전)
+function _hsClose() {
+  if (!_hs.open) return;
+  _hs.gen++;
+  _hs.open = false;
+  if (playbackActive) { stopPlayAll(); GuitarAudio.panic(); _hs.needReady = true; }
+  clearTimeout(_hs.resizeTimer);
+  cancelAnimationFrame(_hs.scrollRaf);
+  window.removeEventListener('resize', _hsOnResize);
+  document.removeEventListener('visibilitychange', _hsOnVisibility);
+  _hs.el?.remove();
+  _hs.el = _hs.track = _hs.lower = _hs.playheadEl = null;
+  _hs.slots = []; _hs.lineEls = {};
+  if (IS_EMBED) { try { window.parent.postMessage({ type: 'note-hscroll', on: false }, '*'); } catch (_) {} }
+}
+
+// 앱 전환·홈 버튼 — 소리는 끊고 위치는 남긴다
+function _hsOnVisibility() {
+  if (document.hidden && _hs.open && playbackActive) _hsPause();
+}
+
+// 기기 회전·창 크기 변경 — 재생 중이면 일시정지하고, 보던 칸 기준으로 다시 그린다
+function _hsOnResize() {
+  clearTimeout(_hs.resizeTimer);
+  _hs.resizeTimer = setTimeout(() => {
+    if (!_hs.open) return;
+    if (playbackActive) _hsPause();
+    const anchor = _hs.pausedIdx >= 0 ? _hs.pausedIdx : _hsIndexAtScroll(_hs.track.scrollLeft);
+    _hsRender(anchor);
+    if (_hs.pausedIdx >= 0) _hs.pausedScroll = _hs.track.scrollLeft;
+  }, 150);
+}
+
+// 멈춰 있을 때 손으로 넘기면 하단 두 줄을 화면 왼쪽 마디의 줄로 맞춘다
+function _hsOnScroll() {
+  if (playbackActive || _hs.land) return;
+  cancelAnimationFrame(_hs.scrollRaf);
+  _hs.scrollRaf = requestAnimationFrame(() => _hsRenderLower(false));
 }
 
 // ═══════════════════════════════════════════════════════════════
@@ -1918,6 +2710,21 @@ function renderProjectView(projectId) {
     window.Tutorial?.notify(`slotshidden:${!slotsHidden}`);
   };
 
+  // 가로 스크롤 재생 모드 버튼 (눈동자 버튼 우측) — 전체화면 뷰(openHScrollView)를 연다.
+  // lucide에 가로 문서 아이콘이 없어 lucide 'file' 획 규격(24 viewBox, 선 2)으로 가로형을 직접 그림
+  const hscrollBtn = document.createElement('button');
+  hscrollBtn.className = 'btn slot-toggle-btn hscroll-mode-btn';
+  hscrollBtn.title = '가로 스크롤 모드';
+  hscrollBtn.onclick = () => openHScrollView(projectId);
+  hscrollBtn.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">'
+    + '<path d="M16 4H4a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V10Z"/>'
+    + '<path d="M16 4v4a2 2 0 0 0 2 2h4"/><path d="M6 12h8"/><path d="M6 16h12"/></svg>';
+
+  // 눈동자 + 가로 스크롤 버튼 묶음 (좌측 그룹)
+  const viewBtns = document.createElement('div');
+  viewBtns.className = 'project-view-btns';
+  viewBtns.append(slotToggleBtn, hscrollBtn);
+
   // row2 좌우 그룹 — 좌: BPM·카포 / 우: 메트로놈·재생
   const row2Left = document.createElement('div');
   row2Left.className = 'project-header-row2-controls project-header-row2-left';
@@ -2005,9 +2812,10 @@ function renderProjectView(projectId) {
   const metronomeBtn = document.createElement('button');
   metronomeBtn.id = 'metronome-btn';
   metronomeBtn.className = 'btn metronome-btn' + (metronomeActive ? ' active' : '');
-  metronomeBtn.innerHTML = '<i data-lucide="metronome"></i>';
+  metronomeBtn.dataset.icon = metronomeActive && metronomeMode === 'drum' ? 'drum' : 'metronome';
+  metronomeBtn.innerHTML = `<i data-lucide="${metronomeBtn.dataset.icon}"></i>`;
   metronomeBtn.title = '메트로놈';
-  metronomeBtn.onclick = () => toggleMetronome();
+  metronomeBtn.onclick = () => onMetronomeBtnClick(metronomeBtn);
   row2Right.appendChild(metronomeBtn);
 
   // 전체재생 버튼
@@ -2037,12 +2845,12 @@ function renderProjectView(projectId) {
     row2Right.appendChild(undoBtn);
     const headerRowLand = document.createElement('div');
     headerRowLand.className = 'project-header-row1 project-header-landrow';
-    headerRowLand.append(slotToggleBtn, row2Left, row2Right);
+    headerRowLand.append(viewBtns, row2Left, row2Right);
     header.appendChild(headerRowLand);
   } else {
     row1Right.appendChild(undoBtn);
     if (!isEditMode) row1Right.style.display = 'none';
-    headerRow1.appendChild(slotToggleBtn);
+    headerRow1.appendChild(viewBtns);
     headerRow1.appendChild(row1Right);
     header.appendChild(headerRow1);
     header.appendChild(headerRow2);
@@ -5117,6 +5925,8 @@ document.addEventListener('DOMContentLoaded', async () => {
       if (e.data?.type === 'notes-split-collapsed') {
         document.body.classList.toggle('list-collapsed', !!e.data.collapsed);
         _npCollapseAnimUntil = performance.now() + 320; // home.js NOTES_SPLIT_ANIM_MS(280) + 여유
+      } else if (e.data?.type === 'note-hscroll-close') {
+        _hsClose(); // 부모가 받은 Android 뒤로가기
       } else if (e.data?.type === 'notes-split-open') {
         _embedOpenProject(e.data.id); // 다른 노트로 전환 — 새로 로드하지 않음
       }

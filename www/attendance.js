@@ -15,6 +15,8 @@ const DM_MISSION_LIST = [
 
 // 첫 접속(onboarding.js goToHome)으로 열렸는가 — 닫기가 X, 오늘 이미 출석했으면 건너뜀
 const _attFromLaunch = new URLSearchParams(location.search).get('from') === 'launch';
+// 닫기 복귀지점: 앱을 열자마자 거친 경우·홈 탭 우상단 버튼(?from=home)에서 온 경우는 홈 탭, 그 외(도구 탭 카드)는 도구 탭
+const _attHomeUrl = (_attFromLaunch || new URLSearchParams(location.search).get('from') === 'home') ? 'home.html' : 'home.html?tab=tools';
 
 // ── 닫기 (홈으로 복귀) ────────────────────────────────────────
 function closeAttendancePage() {
@@ -22,9 +24,9 @@ function closeAttendancePage() {
   const shell = document.querySelector('.app-shell');
   if (shell) {
     shell.classList.add('project-exit');
-    setTimeout(() => { location.href = 'home.html'; }, 260);
+    setTimeout(() => { location.href = _attHomeUrl; }, 260);
   } else {
-    location.href = 'home.html';
+    location.href = _attHomeUrl;
   }
 }
 

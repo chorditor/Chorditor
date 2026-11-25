@@ -107,6 +107,7 @@ function jcsPick(kind) {
   const st = JCS_STAGES[_jcsIdx];
   if (!st.open) return;                       // 준비 중인 단계는 고를 수 없다
   setCurrentCurriculum(st.key, kind);         // 홈 배너의 커리큘럼 이름이 이 값을 따라간다
+  if (typeof analytics !== 'undefined') analytics.track('journey_selected', { kind: kind, stage: st.key, entry: 'book', user_persona: getUserPersona() });   // 분석: 책 아이콘으로 과정 전환
   closeCurriculumSelect();                    // 고른 뒤 처음 온 곳(홈/시작 안내)으로 돌아간다 — 확정 흐름은 아직 미정(임시)
 }
 

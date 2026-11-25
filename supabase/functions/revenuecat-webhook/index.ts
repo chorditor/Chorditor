@@ -47,6 +47,49 @@ serve(async (req: Request) => {
     Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
   )
 
+  // ── 피크상자(소비성 상품, 2026-11-26 B6 — supabase/peakbox_purchase.sql) ─────────────
+  // 구독 처리보다 먼저 가른다: 소비성 상품의 환불도 CANCELLATION으로 오는데, 아래 구독 분기로 흘러가면
+  // 구독 상태(cancel_at_period_end 등)를 잘못 바꾼다.
+  const productId: string = event.product_id ?? ''
+  if (productId.startsWith('peakbox_')) {
+    // 상자 지급은 위조되면 곧 돈이므로 인증 값이 설정돼 있지 않으면 처리하지 않는다(500 → RevenueCat이 재시도, 설정 후 처리됨)
+    if (!WEBHOOK_AUTH) {
+      console.error('[Webhook] REVENUECAT_WEBHOOK_AUTH 미설정 — 피크상자 이벤트 처리 거부')
+      return new Response('Webhook auth not configured', { status: 500 })
+    }
+    // 앱은 구매 전에 Supabase 유저 id로 RevenueCat 로그인 — 익명 id($RCAnonymousID…)면 지급할 계정이 없음(재시도해도 같아서 200)
+    if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(appUserId)) {
+      console.error(`[Webhook] 피크상자 ${eventType} | 계정 아님(${appUserId}) — 수동 확인 필요 | ${productId}`)
+      return new Response('OK', { status: 200 })
+    }
+    const txn: string = event.transaction_id ?? event.original_transaction_id ?? ''
+    if (!txn) {
+      console.error(`[Webhook] 피크상자 ${eventType} | transaction_id 없음 | user: ${appUserId}`)
+      return new Response('OK', { status: 200 })
+    }
+    if (eventType === 'NON_RENEWING_PURCHASE') {
+      const { data, error } = await supabase.rpc('grant_peakbox_purchase', {
+        p_user_id: appUserId, p_transaction_id: txn, p_product_id: productId,
+        p_environment: event.environment ?? null, p_event_id: event.id ?? null,
+      })
+      if (error) {   // DB 오류는 재시도 받도록 500
+        console.error('[Webhook] grant_peakbox_purchase 오류:', error)
+        return new Response('Grant failed', { status: 500 })
+      }
+      console.log(`[Webhook] 피크상자 지급 | ${appUserId} | ${productId} | ${txn} | ${JSON.stringify(data)}`)
+    } else if (eventType === 'CANCELLATION' || eventType === 'REFUND') {
+      const { data, error } = await supabase.rpc('refund_peakbox_purchase', { p_transaction_id: txn })
+      if (error) {
+        console.error('[Webhook] refund_peakbox_purchase 오류:', error)
+        return new Response('Refund failed', { status: 500 })
+      }
+      console.log(`[Webhook] 피크상자 환불 회수 | ${appUserId} | ${productId} | ${txn} | ${JSON.stringify(data)}`)
+    } else {
+      console.log(`[Webhook] 피크상자 ${eventType} | 처리 안 함 | ${txn}`)
+    }
+    return new Response('OK', { status: 200 })
+  }
+
   // 플랜 결정 (이벤트의 entitlement_ids 기준)
   let plan = 'free'
   if (entitlementIds.includes('pro_entitlement'))           plan = 'pro'

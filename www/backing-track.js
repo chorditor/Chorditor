@@ -39,6 +39,16 @@ const BackingTrack = (() => {
         9: [[0], [9, '7', '전환!', 'pair'], [2, 'm'], [7, '7']],
         // 레벨 13(프리지안): i-bII-i-bII (C 기준 Cm Db Cm Db) — 공통 진행의 DbM7을 Db 트라이어드로
         13: [[0, 'm'], [1], [0, 'm'], [1]],
+        // 여정 D15~D19(펜타토닉 G·C·A·E·D폼) 자유 연주 진행(사용자 지정) — 스케일 훈련 레벨이 아니라 journey-lessons/pentatonic-forms.js가 level로 이 열쇠를 넘김
+        'jny-penta':   [[0], [9, 'm'], [5], [7]],              // G폼: C Am F G
+        'jny-penta-c': [[2, 'm'], [7], [0], [9, 'm']],         // C폼: Dm G C Am
+        'jny-penta-a': [[5], [7], [4, 'm'], [9, 'm']],         // A폼: F G Em Am
+        'jny-penta-e': [[0], [7], [9, 'm'], [5]],              // E폼: C G Am F
+        'jny-penta-d': [[9, 'm'], [4, 'm'], [5], [7]],         // D폼: Am Em F G
+        'jny-major-c':  [[0], [7], [9, 'm'], [5]],             // 솔로 D14 메이저 C폼 2연음 리듬 칸(사용자 지정 2026-11-24): C G Am F
+        'jny-major-ag': [[2, 'm'], [7], [0], [9, 'm']],        // 솔로 D15 메이저 A·G폼: Dm G C Am
+        'jny-major-ed': [[5], [7], [4, 'm'], [9, 'm']],        // 솔로 D16 메이저 E·D폼: F G Em Am
+        'jny-chroma':  [[2, 'm7'], [7, '7'], [0, 'M7'], [9, 'm7']],   // 솔로연주 비기너 D11 크로메틱 리듬 훈련(사용자 지정 2026-11-23): Dm7 G7 CM7 Am7 — 5~8프렛 크로메틱과 key가 맞음
       },
     },
     // 재즈1 — 스윙(한 마디 12칸 = 박마다 셋잇단 3칸). 드럼: 라이드 스팽-가-랭 + 2·4박 발 하이햇 + 약한 킥(DRUM_SETS 7),
@@ -416,6 +426,7 @@ const BackingTrack = (() => {
     _cueEvents = [];
     _lastChordIdx = -1;
     _nextTime = _ctx().currentTime + START_DELAY_SEC;
+    _t0 = _nextTime;   // 첫 마디 시작 시각(오디오 시계) — 반주 박에 맞춰 다른 소리를 얹을 때(여정 D10·D11 상하행 시연, 2026-11-24)
     _timer = setInterval(_tick, TICK_MS);
     _tick();
     return true;
@@ -440,6 +451,8 @@ const BackingTrack = (() => {
   }
 
   function isPlaying() { return _timer !== null; }
+  let _t0 = 0;
+  function startTime() { return _t0; }
 
   // 도달한 폼 전환 신호 중 가장 최근 것('orig' | 'pair')을 꺼냄, 없으면 null. rAF에서 읽을 것(오디오 시계 기준)
   function consumeDueForm() {
@@ -482,5 +495,5 @@ const BackingTrack = (() => {
     });
   }
 
-  return { start, stop, isPlaying, getProgression, getCurrentChordIndex, consumeDueForm };
+  return { start, stop, isPlaying, getProgression, getCurrentChordIndex, consumeDueForm, startTime };
 })();

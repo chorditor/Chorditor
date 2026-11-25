@@ -613,9 +613,9 @@ function closeMetronomePage() {
   const shell = document.querySelector('.app-shell');
   if (shell) {
     shell.classList.add('project-exit');
-    setTimeout(() => { location.href = 'home.html?tab=tools'; }, 260);
+    setTimeout(() => { location.href = 'home.html?tab=tools&subview=utility'; }, 260);
   } else {
-    location.href = 'home.html?tab=tools';
+    location.href = 'home.html?tab=tools&subview=utility';
   }
 }
 

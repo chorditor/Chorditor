@@ -177,7 +177,7 @@
   cursor: pointer;
   transition: opacity .15s, transform 0.12s ease-out;
 }
-.cd-btn:hover { opacity: 0.85; }
+@media (hover: hover) and (pointer: fine) { .cd-btn:hover { opacity: 0.85; } }   /* 마우스 기기만 — 터치는 누른 뒤 :hover가 남아, 같은 자리에 새로 뜬 버튼이 옅게 보임 */
 .cd-btn:active { transform: scale(0.96); }
 .cd-btn:disabled { opacity: 0.35; cursor: not-allowed; pointer-events: none; }
 .cd-btn--auto-width { width: auto; }
@@ -3018,6 +3018,46 @@ canvas {
   font-weight: 700;
   cursor: pointer;
 }
+/* 악보 저장하기 모달(user_project.html #scrap-modal) — 표준 .cd-modal(스타일3: X + 버튼 2개 가로) 안쪽만 */
+.scrap-modal { max-height: calc(100dvh - 32px); overflow-y: auto; }
+.scrap-step { width: 100%; margin-top: var(--space-4); }
+.scrap-field {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-4);
+  margin-bottom: var(--space-4);
+  text-align: left;
+}
+.scrap-label { font: var(--type-label-lg); font-weight: var(--weight-semibold); color: var(--text-primary); }
+.scrap-field .accidental-toggle { width: min(200px, 60%); flex-shrink: 0; }
+/* 3칸 토글 — 흰 알약이 1/3 폭으로 칸을 따라간다 */
+/* 아이콘 토글(방향·페이지 분할) — lucide 아이콘 크기 */
+/* 페이지 분할: 세로일 때 비활성(가로 전용) */
+.scrap-field .accidental-toggle.is-disabled { opacity: .4; cursor: default; }
+.scrap-field .accidental-toggle.is-disabled .acc-btn { cursor: default; }
+.scrap-field .acc-btn svg { width: 18px; height: 18px; }
+.accidental-toggle--3::after { width: calc((100% - 6px) / 3); }
+.accidental-toggle--3:has(.acc-btn:nth-child(2).active)::after { transform: translateX(100%); }
+.accidental-toggle--3:has(.acc-btn:nth-child(3).active)::after { transform: translateX(200%); }
+.scrap-step .cd-modal-actions { margin-top: var(--space-6); }
+/* 저장 버튼 왕관(무료 플랜) — 아이콘 + 글자 가운데 정렬 */
+#scrap-save-btn { display: inline-flex; align-items: center; justify-content: center; gap: var(--cd-btn-icon-gap); }
+#scrap-save-btn .ism-premium-crown { display: inline; } /* 공용 왕관은 기본 숨김(.locked일 때만 보임) — 이 버튼엔 무료일 때만 넣으므로 바로 보임 */
+.scrap-preview { display: flex; justify-content: center; }
+#scrap-preview-canvas {
+  display: block;
+  max-width: 100%;
+  max-height: 50dvh;
+  border-radius: 8px;
+  box-shadow: 0 0 0 1px rgba(0,0,0,.08);
+}
+.scrap-pages {
+  margin-top: var(--space-2);
+  font: var(--type-caption);
+  color: var(--text-muted);
+}
+.scrap-step.hidden, .note-save-item.hidden { display: none; }
 .ism-save-btn.locked {
   background: var(--brand);
   color: #fff;
@@ -3400,6 +3440,70 @@ canvas {
 .cd-modal-actions--col { flex-direction: column; }
 .cd-modal-actions .cd-btn { flex: 1; width: auto; } /* 가로배치: cd-btn 기본 고정폭 대신 폭을 나눠 채움 */
 .cd-modal-actions--col .cd-btn { flex: none; width: 100%; } /* 세로배치: flex:1은 높이를 늘려버려서 별도로 폭만 100% */
+
+/* 피크상자 사용 모달(shared.js openPeakboxModal) — 표준 .cd-modal 안쪽만. 버튼은 표준 .cd-btn(추가 구매 blue / 상자 열기 brand) */
+.peakbox-modal.cd-modal { padding-top: var(--space-12); }   /* 위로 튀어나온 상자 그림의 안쪽 부분(24px) + 제목까지 24px */
+.peakbox-modal .cd-modal-title { margin-bottom: var(--space-1); }   /* 타이틀↔설명 4px(표준 8px보다 좁게) */
+.peakbox-modal-art { position: absolute; top: -40px; left: 50%; width: 64px; height: 64px; margin-left: -32px; pointer-events: none; }   /* 상자 그림: 모달 위쪽 가장자리에 걸쳐 밖으로 튀어나옴. 정확히 절반(-32px)보다 8px 더 위 — 시각 중심 보정 */
+.peakbox-modal-icon { display: block; width: 100%; height: 100%; object-fit: contain;
+  filter: drop-shadow(0 0 8px rgba(255, 214, 10, 0.7)) drop-shadow(0 6px 6px rgba(0, 0, 0, 0.22)); }   /* 입체감: 노란 빛 + 아래 그림자(여정 상자 노드 '받을 수 있음'과 같은 빛). 움직임 없음 */
+.peakbox-stepper { display: inline-flex; align-items: center; justify-content: center; gap: var(--space-2); padding: 0 var(--space-1); border: 1px solid var(--border); background: var(--surface); border-radius: 12px; }   /* 스테퍼 전체를 감싸는 테두리(높이 36px에 맞춰 모서리 12px). 위 간격 = 그림 아래 16px */
+.peakbox-step { position: relative; width: 36px; height: 36px; padding: 0; border: none; background: none; color: var(--text-primary); display: flex; align-items: center; justify-content: center; cursor: pointer; -webkit-tap-highlight-color: transparent; }
+.peakbox-step i { font-size: 11px; -webkit-text-stroke: 0.5px currentColor; }   /* ph-bold가 가장 굵은 선이라 글꼴 외곽선으로 살짝 더 굵게 */   /* 테두리 없이 작은 +/− (터치 영역은 44px 유지) */
+.peakbox-step::before { content: ''; position: absolute; inset: calc((36px - var(--cd-icon-btn-size)) / 2); }   /* 보이는 크기 36px로 줄여도 터치 영역은 44px 유지 */
+.peakbox-step:active { opacity: 0.6; }
+.peakbox-step:disabled { opacity: 0.3; cursor: default; }
+.peakbox-qty { min-width: 2.5em; font: var(--type-title); font-size: 16px; letter-spacing: var(--tracking-base); color: var(--text-primary); font-variant-numeric: tabular-nums; }
+.peakbox-reward { display: flex; align-items: center; justify-content: center; gap: var(--cd-peak-gap); margin-top: var(--space-3); font: var(--type-title); font-size: 18px; font-weight: 700; letter-spacing: var(--tracking-base); color: var(--text-secondary); }   /* 스테퍼 아래: 피크 아이콘 + 얻을 피크(상자 수 × 5) — 피크바 숫자와 같은 두께·색 */
+.peakbox-reward img { height: 22px; width: auto; }   /* 피크 아이콘 키움(피크바 16px보다 크게) */
+.peakbox-actions { margin-top: var(--space-6); }
+
+/* 피크상자 구매 페이지(shared.js openPeakShop) — 틀은 .settings-page-overlay, 탑바·본문은 표준 cd-topbar/cd-main,
+   배너 안쪽은 홈 광고 배너(.home-ad-banner-slide--1/.ad-banner-*), 패키지는 요금제 카드(.plan-card) 재사용. 여기엔 배치만 */
+.peakshop-page { padding-top: 0; }   /* 상단 안전영역은 cd-topbar가 담당(이중 적용 방지) */
+.peakshop-page .cd-main > * { width: 100%; max-width: 800px; margin-inline: auto; }   /* 본문(배너·상품 목록) 폭 최대 800px, 넓은 화면에서 가운데 */
+.peakshop-banner.cd-card {   /* .cd-card 흰 배경보다 우선 */
+  background:   /* 메시 그라데이션: 어두운 바탕 위에 크게 흐린 빛 덩어리 4개를 겹쳐 물감처럼 섞음(띠 경계 없음) */
+    radial-gradient(60% 90% at 0% 0%, rgba(76, 45, 150, 0.8), transparent 70%),       /* 왼쪽 위 짙은 보라 — 흰 타이틀이 놓이는 자리라 어둡게(흰 글자 명암비 약 9:1) */
+    radial-gradient(55% 80% at 100% 15%, rgba(47, 107, 255, 0.7), transparent 70%),   /* 오른쪽 위 블루 */
+    radial-gradient(50% 70% at 75% 100%, rgba(0, 180, 255, 0.45), transparent 70%),   /* 오른쪽 아래 하늘 */
+    radial-gradient(60% 80% at 20% 100%, rgba(86, 57, 144, 0.6), transparent 70%),    /* 왼쪽 아래 어두운 보라 */
+    #1E3A8A;                                                                           /* 바탕: 진한 블루(블랙은 너무 어두워 교체) */
+  /* 이전(선형 대각선): linear-gradient(135deg, var(--brand) 0~25%, #3757B3 50%, #563990 75~100%) */
+  flex: none; margin-top: var(--space-4);   /* 높이는 내용대로(문구가 좁은 화면에서 줄바꿈됨) */
+  display: flex; flex-direction: column;
+}   /* 카드(.cd-card, style-guide §13-1). overflow는 걸지 않음(그림자 잘림) */
+.peakshop-banner-head { display: none; }   /* 헤더(PRO 띠) 잠시 숨김 — 사용자 지시. 다시 쓰려면 이 줄만 지움(배경은 배너 전체로 옮김) */
+.peakshop-banner-body { flex: 1; min-height: 0; padding: var(--space-4); display: flex; align-items: center; justify-content: space-between; gap: var(--space-3); }
+.peakshop-banner-art { flex: none; height: 112px; width: auto; }   /* 우측 일러스트(기타 치는 아이, 336px 원본 = 3배) */
+.peakshop-banner-foot { padding: 0 var(--space-4) var(--space-4); }   /* 하단 버튼 영역 */
+.cd-btn.peakshop-banner-btn { width: 100%; background: #fff; color: var(--brand); letter-spacing: var(--tracking-tight); }   /* 카드 폭 전체, 흰 배경 + 브랜드 컬러 글자 */
+.ad-banner-title.peakshop-banner-title { font-size: 18px; font-weight: 700; line-height: 1.4; letter-spacing: var(--tracking-tight); color: #fff; }
+.ad-banner-desc.peakshop-banner-desc { margin-top: var(--space-5); font-size: 13px; line-height: 1.4; letter-spacing: var(--tracking-tight); color: #fff; word-break: keep-all; }   /* 내용 두 줄을 한 덩어리로(<br>) — 줄 사이에 .ad-banner-text gap 4px이 끼지 않게. 행간 1.4(토큰 1.2는 빡빡, 1.5는 넓음 — 사용자 조정) */
+.peakshop-banner .ad-banner-desc br { display: inline; }   /* 769px~ 공용 규칙이 br을 숨겨도 두 줄 유지 */
+.plan-cards.peakshop-list { flex: none; margin-top: var(--space-6); }   /* .plan-cards·.plan-card 등 공용 규칙이 파일 뒤쪽(5300줄대)이라 두 클래스로 우선순위를 올림 */
+.plan-cards.peakshop-list { display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-2); }   /* 패키지 2열 */
+.peakshop-list > .hint { grid-column: 1 / -1; text-align: center; font-size: 18px; font-weight: 600; color: var(--text-primary); letter-spacing: var(--tracking-tight); margin-bottom: var(--space-4); }   /* "상자 구매" 제목: 두 칸 다 차지, 가운데, 18px/600, 진한 글자, 자간 -2%. 위(배너↔제목) 24px = 아래(칸 간격 8 + 16) 24px */
+.plan-card.peakshop-item { flex-direction: column; align-items: center; gap: var(--space-2); padding: var(--space-3); cursor: pointer; -webkit-tap-highlight-color: transparent; }   /* 칸 안 세로: 그림(+라벨) 위, 가격 아래 */
+.peakshop-item:active { opacity: 0.7; }
+.plan-card-badge.peakshop-badge { top: var(--space-2); right: auto; left: var(--space-2); }   /* 요금제 카드 "추천" 배지 재사용, 좌상단으로만 옮김 */
+.peakshop-item-art { flex: none; display: flex; flex-direction: column; align-items: center; }   /* 상자 그림 + 그 아래 개수 라벨 한 덩어리(받은 에셋 gift_N_labeled.png 배치 그대로) */
+.peakshop-item-icon { width: auto; height: 72px; }
+/* 개수 라벨 — gift_N_labeled.png의 노란 알약 라벨을 CSS로 옮김(색은 에셋에서 뽑은 값: 위 밝은 노랑 → 아래 주황, 글자 진갈색).
+   에셋 고유 색이라 토큰 밖 값. 그림 아래에 4px 겹쳐 붙음 */
+.peakshop-label {
+  margin-top: calc(var(--space-1) * -1);
+  padding: 0 var(--space-3);
+  height: 24px;
+  display: inline-flex; align-items: center;
+  border-radius: 999px;
+  background: linear-gradient(180deg, #FEDC62 0%, #FDD95F 45%, #FDBE39 85%, #EE8D1F 100%);
+  box-shadow: inset 0 2px 0 rgba(255, 244, 196, 0.7), inset 0 -2px 0 rgba(224, 120, 20, 0.55), 0 2px 4px rgba(0, 0, 0, 0.18);
+  font: var(--type-label-lg); font-weight: 800; letter-spacing: var(--tracking-tight);
+  color: #732A04;
+  white-space: nowrap;
+}
+.price-amount.peakshop-item-price { flex: none; align-self: stretch; padding: var(--space-2) 0; border-radius: var(--cd-btn-radius); background: #2196F3; color: #fff; text-align: center; font: var(--type-title); font-size: 16px; letter-spacing: var(--tracking-tight); }   /* 가격 영역: 칸 폭 전체 파랑 띠(#2196F3, 사용자 지정), 흰 글자. 숫자 두께 600, 자간 -2% */
 
 /* 2026-09-10: 7일 체험권 모달 전용 — cd-modal 표준엔 없는 상단 로고 아이콘.
    이 모달만의 예외라 컴포넌트 자체(§15)엔 반영 안 함, style.css에도 이 한 곳에만 정의 */
@@ -4082,6 +4186,136 @@ canvas {
   box-shadow: 0 1px 4px rgba(0,0,0,0.15);
 }
 .slot-toggle-btn svg { width: var(--icon-circle-svg); height: var(--icon-circle-svg); }
+/* 눈동자 + 가로 스크롤 모드 버튼 묶음 — 원형 버튼 간격 토큰 */
+.project-view-btns {
+  display: flex;
+  align-items: center;
+  gap: var(--icon-circle-gap);
+  flex-shrink: 0;
+}
+.project-view-btns .slot-toggle-btn { margin-right: 0; }
+/* 가로 스크롤 재생 모드 — 2026-11-25 보류(구현 안 함). 진입 버튼만 숨김, 코드(openHScrollView·.hs-*)는 남아 있음 */
+.hscroll-mode-btn { display: none; }
+
+/* ── 가로 스크롤 재생 모드 (user_project.js openHScrollView) ── */
+.hs-view {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  display: flex;
+  flex-direction: column;
+  background: var(--text-primary); /* 뷰모드 배경 — 브랜드(#1a1a1a)보다 약간 연한 회색 #242729 */
+  padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
+  user-select: none;
+  -webkit-user-select: none;
+}
+.hs-bar {
+  flex-shrink: 0;
+  height: 56px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding-inline: calc(var(--grid-margin) - 10px); /* 터치 44px 안 아이콘 24px — 아이콘 끝선을 그리드 끝선에 맞춤 */
+}
+.hs-btn {
+  width: 44px;
+  height: 44px;
+  padding: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  background: none;
+  color: var(--surface); /* 진한 바탕 위 버튼 — 흰 아이콘 */
+  cursor: pointer;
+}
+.hs-btn svg { width: 24px; height: 24px; }
+/* 상단: 진행 영역 — 남는 세로 공간의 가운데 */
+.hs-upper {
+  flex: 1;
+  min-height: 0;
+  background: var(--surface); /* 뷰 영역 = 흰색, 그 밖은 진한 바탕 */
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+}
+.hs-track {
+  display: flex;
+  align-items: flex-start;
+  overflow-x: auto;
+  overflow-y: hidden;
+  scroll-snap-type: x mandatory;
+  overscroll-behavior-x: contain;
+  scrollbar-width: none;
+}
+.hs-track::-webkit-scrollbar { display: none; }
+.hs-line {
+  position: relative; /* 재생 막대(.row-playhead)·스냅 지점 기준 */
+  flex: 0 0 auto;
+}
+.hs-tail { flex: 0 0 auto; height: 1px; }
+.hs-chords { display: grid; }
+.hs-slot { padding: 0 2px; }
+.hs-slot img { width: 100%; height: 100%; object-fit: contain; display: block; }
+.hs-lyric {
+  position: relative;
+  margin-top: 8px;
+  padding: 0 8px 8px;
+  min-height: 1.2em;
+  font: var(--type-title);
+  letter-spacing: var(--tracking-base);
+  color: var(--text-primary);
+  white-space: pre-wrap;
+  word-break: break-word;
+  border-bottom: 1px solid #E0E0DE;
+}
+.hs-tick {
+  position: absolute;
+  bottom: -5px;
+  width: 1px;
+  height: 10px;
+  background: #E0E0DE;
+  pointer-events: none;
+}
+.hs-snap {
+  position: absolute;
+  top: 0;
+  width: 1px;
+  height: 1px;
+  scroll-snap-align: start;
+  pointer-events: none;
+}
+/* 하단: 세로 화면 전용 — 현재 줄·다음 줄(코드 이름 + 가사) */
+.hs-lower {
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  padding: var(--space-4) var(--grid-margin) var(--grid-margin);
+  background: var(--surface);
+  border-top: 1px solid var(--gray-light);
+  pointer-events: none;
+}
+.hs-view--land .hs-lower { display: none; }
+.hs-lower-line { min-height: 48px; color: var(--text-muted); }
+.hs-lower-line--cur { color: var(--text-primary); }
+.hs-lower-names {
+  display: grid;
+  grid-template-columns: repeat(8, 1fr);
+  min-height: 1.2em;
+  font: var(--type-label-lg);
+  font-weight: var(--weight-semibold);
+}
+.hs-lower-name { white-space: nowrap; overflow: visible; }
+.hs-lower-lyric {
+  margin-top: var(--space-1);
+  padding-bottom: var(--space-1);
+  min-height: 1.5em;
+  font: var(--type-body);
+  white-space: pre-wrap;
+  word-break: break-word;
+  border-bottom: 1px solid #E0E0DE;
+}
 
 
 /* ?�?� 코드?�롯 ?�스??모드 (slotsHidden) ?�?� */
@@ -5375,6 +5609,43 @@ canvas {
 }
 .note-save-item:active { background: var(--bg); }
 
+/* 노트 메트로놈 버튼 아래 알약 선택(메트로놈 / 드럼) — user_project.js onMetronomeBtnClick. 바깥은 투명 오버레이로 닫음 */
+.metro-picker-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  background: transparent;
+}
+.metro-picker {
+  position: fixed;
+  z-index: 1001;
+  display: flex;
+  gap: var(--space-1);
+  padding: var(--space-1);
+  background: #ffffff;
+  border-radius: 999px;
+  box-shadow: 0 0 0 1px rgba(0,0,0,0.06), 0 8px 24px rgba(0,0,0,0.16);
+  transform-origin: top center;
+  animation: note-save-pop-in .18s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+.metro-picker-btn {
+  width: 44px;
+  height: 44px;
+  padding: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  border-radius: 50%;
+  background: none;
+  color: var(--text-muted);
+  cursor: pointer;
+}
+.metro-picker-btn svg { width: 24px; height: 24px; }
+.metro-picker-btn:active { background: var(--bg); }
+/* 켜진 소리 — 아이콘 선만 파랑(옵션패널 아이콘 선택 규칙 §20-3) */
+.metro-picker-btn.active { color: var(--blue); }
+
 .upgrade-modal { max-width: 320px; }
 .upgrade-modal-body {
   padding: 4px 20px 12px;
@@ -5702,7 +5973,7 @@ canvas {
   box-shadow: 0 1px 4px rgba(0,0,0,.08);
   transition: background .15s, transform 0.2s cubic-bezier(0.34, 1.56, 0.64, 1);
 }
-.onboarding-btn:hover { background: var(--surface); }
+@media (hover: hover) and (pointer: fine) { .onboarding-btn:hover { background: var(--surface); } }
 .onboarding-btn:active { transform: scale(0.92); }
 /* 소셜 로그인 버튼(Google/Apple) — 라벨 길이와 무관하게 같은 크기. 높이·모서리는 .cd-btn 토큰(§12) 재사용 */
 #onboarding-google-btn, #onboarding-apple-btn {
@@ -5986,7 +6257,7 @@ canvas {
      (컴포지팅 stale-paint) → 독립 GPU 레이어로 승격시켜 항상 정상 페인트되게 강제 */
   transform: translateZ(0);
 }
-.onboarding-start-btn:hover { opacity: 0.82; }
+@media (hover: hover) and (pointer: fine) { .onboarding-start-btn:hover { opacity: 0.82; } }   /* 마우스 기기만 — 터치는 [다음]을 누른 자리에 다음 화면 버튼이 뜨면 :hover가 남아 옅게 열렸음 */
 .onboarding-start-btn:active { transform: translateZ(0) scale(0.96); }
 .onboarding-start-btn.hidden { display: none; }
 .onboarding-start-btn:disabled {
@@ -6004,7 +6275,7 @@ canvas {
   text-decoration: underline;
   text-underline-offset: 3px;
 }
-.onboarding-switch-account:hover { color: var(--text-secondary); }
+@media (hover: hover) and (pointer: fine) { .onboarding-switch-account:hover { color: var(--text-secondary); } }
 .onboarding-switch-account.hidden { display: none; }
 
 /* ?�?� ?�보???�?�권 ?�터 ?�?� */
@@ -7639,7 +7910,7 @@ canvas {
   text-decoration: underline;
   text-underline-offset: 3px;
 }
-.ob-skip-link:hover { color: var(--text-secondary); }
+@media (hover: hover) and (pointer: fine) { .ob-skip-link:hover { color: var(--text-secondary); } }
 
 /* 초대코드 확인 결과 팝업 */
 .ob-invite-result-overlay {
@@ -7879,8 +8150,8 @@ canvas {
 :is(#ob-step-purpose, #ob-step-freq, #ob-step-source) .ob-choice-item:nth-child(7) { animation-delay: 1.73s; }
 
 /* 알림 안내 — Step8처럼 위(문구)·가운데(아이콘)·아래(버튼) */
-#ob-step-push .ob-main { justify-content: flex-start; }
-#ob-step-push .ob-subtitle { margin: -12px 0 0; }
+:is(#ob-step-push, .ji-step) .ob-main { justify-content: flex-start; }   /* 여정 모드 선택(journey-intro)도 같은 배치 */
+:is(#ob-step-push, .ji-step) .ob-subtitle { margin: -12px 0 0; }
 .ob-push-icon-wrap {
   flex: 1;
   width: 100%;
@@ -10397,7 +10668,7 @@ body.onboarding-page .plan-sheet-inner { gap: 16px; }
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: 32px;
+  padding: 24px;   /* 상자 열기 모달(.modal-overlay)과 같은 바깥 여백 */
   background: rgba(0,0,0,0.48);
   opacity: 0;
   pointer-events: none;
@@ -10410,15 +10681,15 @@ body.onboarding-page .plan-sheet-inner { gap: 16px; }
 .peak-buffer-modal {
   position: relative;
   width: 100%;
-  max-width: 320px;
+  max-width: 300px;   /* 크기·여백·모서리 = 상자 열기 모달(.peakbox-modal)과 동일 */
   box-sizing: border-box;
   display: flex;
   flex-direction: column;
   align-items: center;
   gap: 10px;
-  padding: 28px 24px 20px;
+  padding: 28px 20px 16px;
   background: #fff;
-  border-radius: 20px;
+  border-radius: 18px;
   box-shadow: 0 8px 32px rgba(0,0,0,0.18);
   transform: scale(0.94);
   transition: transform 0.22s ease;
@@ -10437,6 +10708,11 @@ body.onboarding-page .plan-sheet-inner { gap: 16px; }
   justify-content: center;
 }
 .peak-buffer-close svg { width: 20px; height: 20px; }
+/* [광고 보기] 오른쪽 보상 표시(피크 아이콘 + "+3"). 버튼 반폭(약 125px)에 한 줄로 들어가도록 줄바꿈 금지 */
+.cd-btn.peak-buffer-ad-btn { display: inline-flex; align-items: center; justify-content: center; gap: var(--space-1); white-space: nowrap; }
+.peak-buffer-modal .cd-modal-actions .cd-btn { flex: 1 1 0; min-width: 0; padding-inline: var(--space-1); }   /* 두 버튼 폭 항상 반반 — 기준 폭 0에서 나눠도 좌우 안쪽 여백은 따로 더해지므로 두 버튼 여백을 같게(4px) */
+.peak-buffer-ad-reward { display: inline-flex; align-items: center; gap: 2px; }
+.peak-buffer-ad-reward img { height: var(--cd-btn-icon-size); width: auto; }
 .peak-buffer-overlay--open .peak-buffer-modal {
   transform: scale(1);
 }
@@ -10459,44 +10735,12 @@ body.onboarding-page .plan-sheet-inner { gap: 16px; }
   line-height: 1.5;
   margin-bottom: 8px;
 }
-.peak-buffer-cta {
-  width: 100%;
-  padding: 13px;
-  border: none;
-  border-radius: 12px;
-  background: var(--brand);
-  color: #fff;
-  font-size: 15px;
-  font-weight: 700;
-  font-family: 'Pretendard', 'Noto Sans JP', sans-serif;
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 6px;
-}
-.peak-buffer-cta .ph-play-circle { font-size: 19px; }
-.peak-buffer-cta:active { opacity: 0.85; }
-.peak-buffer-plan {
-  width: 100%;
-  padding: 12px;
-  border: 1.5px solid var(--border);
-  border-radius: 12px;
-  background: none;
-  color: var(--text-primary);
-  font-size: 14px;
-  font-weight: 700;
-  font-family: 'Pretendard', 'Noto Sans JP', sans-serif;
-  cursor: pointer;
-}
-.peak-buffer-plan:active { opacity: 0.85; }
 .plan-sheet {
   position: fixed;
   bottom: 0;
   left: 0;
   right: 0;
-  width: 90%; /* 뷰포트 무관 항상 90% — margin:auto로 중앙정렬(left/right:0과 함께 있어도
-                 width+margin:auto가 우선해서 폭이 강제됨) */
+  width: 100%; /* 좌우 여백 없이 화면 폭 전체(사용자 지정 2026-11-25, 이전 90%). 안쪽 콘텐츠 폭은 header/inner/footer가 따로 제한 */
   margin-inline: auto;
   background: var(--bg, #F5F5F5);
   border-radius: 28px 28px 0 0;
@@ -17965,6 +18209,14 @@ html:not([lang="ko"]) .test-note-grid {
   background: var(--gray-light);
   color: var(--text-primary);
 }
+/* 여정 노드 즉시 해금 모달(journey.js jnyAskUnlock) — 피크 아이콘 아래 부연 설명. 위 간격은 "-N"이 아이콘 아래로 8px 내려온 몫 포함 */
+.journey-unlock-note {
+  display: block;
+  margin-top: var(--space-5);
+  font-size: 14px;
+  line-height: 1.5;
+  color: var(--text-secondary);
+}
 /* 피크 소모 안내 본문: 큰 피크 아이콘 + 우측 하단에 작은 "x5" */
 .peak-confirm-body {
   position: relative; /* 수량 표기는 아이콘 우하단에 겹쳐 배치 */
@@ -18230,11 +18482,7 @@ html:not([lang="ko"]) .test-note-grid {
     max-width: 400px;
   }
 
-  /* 태블릿 가로·데스크탑 공통 50%. 태블릿 세로(Fold 세로 포함)는 아래 세로 전용 블록에서
-     75%로 재지정(더 뒤에 있어서 우선 적용). 높이는 전역 90vh 그대로 */
-  .plan-sheet {
-    width: 50%;
-  }
+  /* 시트 폭은 전 구간 100%(좌우 여백 없음, 2026-11-25 — 이전 태블릿 가로·데스크탑 50%). 높이는 전역 90vh 그대로 */
   /* 콘텐츠 기준폭 — 시트(.plan-sheet) 폭의 80% */
   .plan-sheet-header,
   .plan-sheet-inner,
@@ -18417,10 +18665,7 @@ html:not([lang="ko"]) .test-note-grid {
     width: 75%;
     margin-inline: auto;
   }
-  /* 바텀시트 — 태블릿 세로(Fold 세로 포함)만 75%, 가로/데스크탑은 공통 블록의 50% 유지 */
-  .plan-sheet {
-    width: 75%;
-  }
+  /* 바텀시트(.plan-sheet) 폭은 전 구간 100%(2026-11-25 — 이전 태블릿 세로 75%) */
   .profile-container--stats { min-height: 360px; }
   .profile-stat-card {
     min-height: 160px;
@@ -21816,18 +22061,19 @@ body.tut-lock .tut-allow * {
 }
 
 /* 피크바(§7) — 전부 --cd-topbar-*/--cd-peak-* 토큰 참조(값은 :root, 769px~는 위 블록).
-   전역 #topbar-currency 규칙(22×26·12px 등)과 훈련소 전용 규칙을 대체 */
-.cd-topbar #topbar-currency { box-sizing: border-box; height: var(--cd-peak-h); padding-block: 0; }
+   전역 #topbar-currency 규칙(22×26·12px 등)과 훈련소 전용 규칙을 대체.
+   피크상자 구매 페이지(.peakshop-page)는 홈 탑바와 id가 겹치지 않게 id 없이 같은 피크바를 써서 클래스로 같이 묶음 */
+.cd-topbar #topbar-currency, .peakshop-page .topbar-currency { box-sizing: border-box; height: var(--cd-peak-h); padding-block: 0; }
 .cd-topbar .currency-item { gap: var(--cd-peak-gap); box-sizing: border-box; height: var(--cd-peak-h); padding-block: 0; }
-.cd-topbar #topbar-currency .currency-icon-box { width: var(--cd-peak-box); height: var(--cd-peak-box); }
+.cd-topbar #topbar-currency .currency-icon-box, .peakshop-page .topbar-currency .currency-icon-box { width: var(--cd-peak-box); height: var(--cd-peak-box); }
 /* 이미지 아이콘은 키라인 보정 — 박스를 꽉 채우면 lucide보다 커 보임. 정사각(선물상자)·세로직사각(피크) 각각 별도 크기 */
-.cd-topbar #topbar-currency .currency-icon-box img[src$="gift.png"] { width: var(--cd-peak-img-square); height: var(--cd-peak-img-square); }
-.cd-topbar #topbar-currency .currency-icon-box img[src$="peak.svg"] { width: auto; height: var(--cd-peak-img-tall); }
-.cd-topbar #topbar-currency .currency-count { font-size: var(--cd-peak-font); }
-.cd-topbar #topbar-currency { margin-right: 4px; }   /* 피크바 우측 끝 여백 4px */
-.cd-topbar #topbar-currency { padding-left: 0; padding-right: 0; }   /* 카드 제거(2026-10-30) — 안쪽 여백 없음. 아래 첫·마지막 항목의 padding+음수 margin은 배치는 그대로 두고 터치 영역만 바깥으로 넓힘 */
-.cd-topbar #topbar-currency .currency-item:first-child { padding-left: var(--cd-peak-pad-x); margin-left: calc(var(--cd-peak-pad-x) * -1); }
-.cd-topbar #topbar-currency .currency-item:last-child { padding-right: var(--cd-peak-pad-x); margin-right: calc(var(--cd-peak-pad-x) * -1); }
+.cd-topbar #topbar-currency .currency-icon-box img[src$="gift.png"], .peakshop-page .topbar-currency .currency-icon-box img[src$="gift.png"] { width: var(--cd-peak-img-square); height: var(--cd-peak-img-square); }
+.cd-topbar #topbar-currency .currency-icon-box img[src$="peak.svg"], .peakshop-page .topbar-currency .currency-icon-box img[src$="peak.svg"] { width: auto; height: var(--cd-peak-img-tall); }
+.cd-topbar #topbar-currency .currency-count, .peakshop-page .topbar-currency .currency-count { font-size: var(--cd-peak-font); }
+.cd-topbar #topbar-currency, .peakshop-page .topbar-currency { margin-right: 4px; }   /* 피크바 우측 끝 여백 4px */
+.cd-topbar #topbar-currency, .peakshop-page .topbar-currency { padding-left: 0; padding-right: 0; }   /* 카드 제거(2026-10-30) — 안쪽 여백 없음. 아래 첫·마지막 항목의 padding+음수 margin은 배치는 그대로 두고 터치 영역만 바깥으로 넓힘 */
+.cd-topbar #topbar-currency .currency-item:first-child, .peakshop-page .topbar-currency .currency-item:first-child { padding-left: var(--cd-peak-pad-x); margin-left: calc(var(--cd-peak-pad-x) * -1); }
+.cd-topbar #topbar-currency .currency-item:last-child, .peakshop-page .topbar-currency .currency-item:last-child { padding-right: var(--cd-peak-pad-x); margin-right: calc(var(--cd-peak-pad-x) * -1); }
 
 /* ═══ 카드 .cd-card (style-guide §13) ═══════════════════════════════
    배경은 단색, 깊이는 그림자 + 테두리 링(::before 대각선 그라데이션)으로만. 값은 :root의 --cd-card-* 토큰.
@@ -22964,6 +23210,24 @@ body.note-edit-page.embed .view {
   top: env(safe-area-inset-top, 0px);
 }
 
+/* 노트 스플릿 악보의 가로 스크롤 재생 모드(user_project.js openHScrollView → home.js .note-hscroll) — 전체화면 뷰모드.
+   탑바·독바·좌측 목록·카드(라운드·그림자·바깥 여백)를 없애고 악보 iframe이 화면 전체를 쓴다.
+   iframe 안에선 안전영역 값이 0이라, 안전영역은 여기서 진한 바탕(.hs-view와 같은 색) 패딩으로 비운다 */
+.app-shell.note-hscroll .cd-topbar,
+.app-shell.note-hscroll .cd-dockbar,
+.app-shell.note-hscroll #tab-view-projects.notes-split #view-projects-list { display: none; }
+.app-shell.note-hscroll #tab-view-projects.notes-split .notes-split-pane {
+  top: 0;
+  left: 0;
+  padding: env(safe-area-inset-top, 0px) env(safe-area-inset-right, 0px) env(safe-area-inset-bottom, 0px) env(safe-area-inset-left, 0px);
+  background: var(--text-primary);
+  z-index: 10;
+}
+.app-shell.note-hscroll .notes-split-card {
+  border-radius: 0;
+  box-shadow: none;
+}
+
 /* 디버그 칩(🐞) 임시 숨김 — 노트 스플릿 디자인 작업 중. 홈 화면(퀘스트 모달이 있는 페이지)에서만 보이고,
    다른 페이지와 노트 스플릿 상태(.tab-notes-split)에서는 계속 숨김. 완전히 다시 보려면 이 규칙만 삭제(칩 생성 코드는 shared.js 그대로) */
 body:not(:has(#quest-modal-overlay)) #ms-dbg-chip,
@@ -23355,15 +23619,78 @@ body.embed.list-collapsed .project-title-bar { padding-left: 38px; }   /* 버튼
   justify-content: center;
   cursor: pointer;   /* 앱 공용 탭 효과음(shared.js _initInteractionSfx)이 cursor:pointer 요소를 눌린 것으로 보고 pop을 낸다 */
   -webkit-tap-highlight-color: transparent;
+  /* 옆면(두께 8px) = 같은 타원을 4px·8px 아래에 두 장. 예전엔 1px마다 8장이었는데, 타원 가장자리는 거의 수직이라 두 장 사이 틈이 0.1px 남짓(안 보임) —
+     노드 100여 개를 스크롤 때마다 다시 그리는 비용을 줄이려고 3겹으로(2026-11-25 홈 최적화) */
   box-shadow:
-    0 1px 0 var(--jd-side), 0 2px 0 var(--jd-side), 0 3px 0 var(--jd-side), 0 4px 0 var(--jd-side),
-    0 5px 0 var(--jd-side), 0 6px 0 var(--jd-side), 0 7px 0 var(--jd-side), 0 8px 0 var(--jd-side),
+    0 4px 0 var(--jd-side), 0 8px 0 var(--jd-side),
     0 14px 14px -4px rgba(0,0,0,0.18);
   transition: transform .1s, box-shadow .1s;
 }
 /* 활성(현재) 노드 — 블루 디스크 + 흰 숫자 */
-.journey-node--active { --jd-side: #5275c6; background: #6a97ff; color: #fff; }
+.journey-node--clear { --jd-side: #5275c6; background: #6a97ff; color: #fff; }   /* 클리어 노드(별 1개 이상) — 파랑 디스크 + 흰 숫자(예전 활성 노드 색) */
 .journey-num { width: 38px; height: 38px; display: block; flex-shrink: 0; } /* 숫자 높이 약 22px(58/100 비율) */
+/* 잠금해제 노드(타이머 경과·피크 해제, 별 0개) — 디스크 테두리만 연한 파랑(활성 노드 파랑 기준). 디스크·옆면·숫자 색은 그대로 */
+.journey-node--unlocked { border: 2px solid rgba(106, 151, 255, 0.45); }   /* 연하게(사용자 지정) — 활성 노드 파랑 #6a97ff의 45% */
+/* 잠긴 노드 — 숫자 대신 자물쇠(색은 노드 글자색 그대로) */
+.journey-lock { width: 22px; height: 22px; display: block; flex-shrink: 0; }
+/* 타이머 노드 — 숫자 대신 남은 시간을 노드 위에 겹쳐 표시. 노드(68px) 밖으로 넘쳐도 됨(기획안 §1-7) */
+.journey-timer {
+  position: relative;
+  white-space: nowrap;
+  font: var(--type-label-lg);
+  font-weight: 700;
+  letter-spacing: var(--tracking-base);
+  font-variant-numeric: tabular-nums;
+  color: inherit;   /* 회색 — 노드 숫자·자물쇠와 같은 글자색(#86827c) */
+  text-shadow: 0 0 4px #fff, 0 0 2px #fff;   /* 넘친 글자가 뒤 줄 곡선 위에서도 읽히게 */
+  pointer-events: none;
+}
+/* 노드 늘리기(2026-11-24, hub/submissions/2026-11-24_dev-plan_journey-node-expansion.md) — 퀴즈 노드('1-1')·피크상자 노드·새로 열린 노드 연출 */
+.journey-node--quiz { width: 58px; height: 44px; margin: -22px 0 0 -29px; }   /* 퀴즈 노드 디스크 — 설명 노드(68×52)보다 약간 작게(사용자 지정 2026-11-25, 약 85%). 옆면 두께·중심 위치는 그대로 */
+/* 잠긴 퀴즈 노드 = 설명 노드와 같은 자물쇠(사용자 지정 2026-11-25 — 예전 옅은 '1-1'). '1-1' 크기는 journey.js JNY_QUIZ_NUM_PX, 색은 설명 노드와 같음 */
+.journey-node--box { --jd-side: transparent; background: transparent; box-shadow: none; }   /* 상자 노드는 디스크 없이 상자 그림만 */
+.journey-node--box:active { transform: translateY(2px); box-shadow: none; }
+/* 활성 노드(열렸고 아직 안 한 노드 = 지금 할 노드) 둥둥 뜨기(사용자 지정 2026-11-25 — 파동 대신). 설명·퀴즈 노드 공통
+   위아래로 6px 천천히 오르내림. 새로 열리는 연출(--opening) 중에는 그 연출이 먼저, 누르는 동안엔 멈추고 원래 눌림(:active 아래로 6px) 그대로 */
+.journey-node--unlocked:not(.journey-node--opening):not(.journey-node--pre) { animation: jnyNodeFloat 2.4s ease-in-out infinite; }
+.journey-node--unlocked:active { animation: none; }
+@keyframes jnyNodeFloat { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-6px); } }
+@media (prefers-reduced-motion: reduce) { .journey-node--unlocked:not(.journey-node--opening):not(.journey-node--pre) { animation: none; } }
+/* 상자 바닥 그림자(사용자 지정 2026-11-25) — 상자 아래 납작한 타원이 바닥에 깔려 입체감. 상자(z 1) 뒤, 줄 위. 흔들릴 때도 그림자는 제자리 */
+.journey-node--box::after { content: ''; position: absolute; z-index: 0; left: 50%; top: calc(50% + 17px); width: 40px; height: 10px; margin-left: -20px; border-radius: 50%; background: rgba(0, 0, 0, 0.22); filter: blur(2px); pointer-events: none; }
+.journey-box-img { position: relative; z-index: 1; width: 48px; height: 48px; object-fit: contain; display: block; pointer-events: none; filter: drop-shadow(0 4px 4px rgba(0, 0, 0, 0.16)); transition: filter .4s, opacity .4s; }
+.journey-node--box { z-index: 1; }   /* 상자는 경로 줄(오선) 위에 겹쳐 그림 — 반투명 없이 불투명(사용자 지정 2026-11-25) */
+.journey-node--box.journey-node--locked .journey-box-img { filter: grayscale(1) drop-shadow(0 4px 4px rgba(0, 0, 0, 0.12)); }   /* 7개 전 = 흑백(불투명) */
+/* 받은 뒤 = 컬러 그대로, 흔들림·빛·반짝임 없음(반투명 안 씀) */
+.journey-node--box.journey-node--ready .journey-box-img { animation: jnyBoxWiggle 1.6s ease-in-out infinite; filter: drop-shadow(0 0 8px rgba(255, 214, 10, 0.7)) drop-shadow(0 4px 4px rgba(0, 0, 0, 0.16)); }   /* 받을 수 있음 = 컬러 + 흔들림 + 노란 빛 */
+.journey-box-spark { position: absolute; z-index: 0; left: 50%; top: 50%; width: 76px; height: 76px; margin: -38px 0 0 -38px; border-radius: 50%; pointer-events: none;
+}   /* 반짝임 두 개만 담는 자리(뒤의 반투명 빛 원은 없앰 — 2026-11-25 반투명 금지) */
+.journey-box-spark::before, .journey-box-spark::after {   /* 반짝임 두 개 — 네 꼭짓점 별(마름모 두 개를 겹친 모양) */
+  content: ''; position: absolute; width: 10px; height: 10px; background: #FFD60A;
+  clip-path: polygon(50% 0, 62% 38%, 100% 50%, 62% 62%, 50% 100%, 38% 62%, 0 50%, 38% 38%);
+  animation: jnyBoxTwinkle 1.6s ease-in-out infinite;
+}
+.journey-box-spark::before { left: 8px; top: 10px; }
+.journey-box-spark::after { right: 6px; top: 22px; width: 8px; height: 8px; animation-delay: .8s; }
+/* 화면 밖이면 반복 애니메이션 멈춤(journey.js jnyWatchAnims) — 노드 자신·상자 그림·반짝임 둘 다 */
+.journey-node--unlocked.is-offscreen:not(.journey-node--opening):not(.journey-node--pre),   /* 둥둥 규칙(:not 두 개 포함)보다 우선순위가 높아야 해서 같은 꼴로 */
+.journey-node.is-offscreen .journey-box-img,
+.journey-node.is-offscreen .journey-box-spark,
+.journey-node.is-offscreen .journey-box-spark::before,
+.journey-node.is-offscreen .journey-box-spark::after { animation-play-state: paused; }
+@keyframes jnyBoxWiggle { 0%, 60%, 100% { transform: rotate(0) translateY(0); } 70% { transform: rotate(-8deg) translateY(-3px); } 80% { transform: rotate(7deg) translateY(-3px); } 90% { transform: rotate(-4deg) translateY(-1px); } }
+@keyframes jnyBoxTwinkle { 0%, 100% { transform: scale(0) rotate(0); opacity: 0; } 50% { transform: scale(1) rotate(45deg); opacity: 1; } }
+/* 지도로 돌아왔을 때 새로 열린 노드(journey.js jnyShowNews) — 옅게 기다렸다가(--pre) 통 튀며 열림 + 파란 빛 */
+.journey-node--pre { opacity: 0.35; transform: scale(0.85); }
+.journey-node--opening { animation: jnyNodeOpen .65s cubic-bezier(0.34, 1.56, 0.64, 1) both; }
+@keyframes jnyNodeOpen {
+  0% { opacity: 0.35; transform: scale(0.85); filter: drop-shadow(0 0 0 rgba(106, 151, 255, 0)); }
+  55% { opacity: 1; transform: scale(1.14); filter: drop-shadow(0 0 12px rgba(106, 151, 255, 0.85)); }
+  100% { opacity: 1; transform: scale(1); filter: drop-shadow(0 0 0 rgba(106, 151, 255, 0)); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .journey-node--box.journey-node--ready .journey-box-img, .journey-box-spark, .journey-box-spark::before, .journey-box-spark::after { animation: none; }
+}
 .journey-node::before { content: ''; position: absolute; inset: -8px -6px -14px; border-radius: 50%; }
 .journey-node:active {
   transform: translateY(6px);
@@ -23371,6 +23698,238 @@ body.embed.list-collapsed .project-title-bar { padding-left: 38px; }   /* 버튼
     0 1px 0 var(--jd-side), 0 2px 0 var(--jd-side),
     0 4px 6px -2px rgba(0,0,0,0.18);
 }
+/* 노드 아래 별 3개 — 노드 아래 테두리에 겹친 호 모양. 위치·기울기·그라데이션은 journey.js(jnyStarsHtml·jnyStarDefs). 딴 별 = 노랑, 못 딴 별 = 회색 */
+.journey-star-defs { position: absolute; width: 0; height: 0; overflow: hidden; }
+.journey-star { position: absolute; width: 26px; height: 26px; pointer-events: none; overflow: visible; filter: drop-shadow(0 2px 2px rgba(0, 0, 0, 0.14)); }
+.journey-star-face { stroke-width: 2.6; stroke-linejoin: round; }   /* 같은 색 굵은 선 + 둥근 이음 = 꼭짓점이 둥근 별 */
+.journey-star-base { fill: #D3D0CA; stroke: #D3D0CA; stroke-width: 2.6; stroke-linejoin: round; }   /* 바닥층(아래로 1.6) — 노드 옆면과 같은 회색 */
+.journey-star.is-on .journey-star-base { fill: #C99700; stroke: #C99700; }
+.journey-star-shine { fill: none; stroke: rgba(255, 255, 255, 0.85); stroke-width: 1.6; stroke-linecap: round; }   /* 왼쪽 위 반사광 */
+.journey-star:not(.is-on) .journey-star-shine { stroke: rgba(255, 255, 255, 0.7); }
+/* 노드 말풍선 — 노드 아래 [제목 + 시작하기]. 위치·꼬리 x(--jb-tail-x)는 journey.js(jnyOpenBubble)가 지정 */
+.journey-bubble {
+  position: absolute;
+  z-index: 3;
+  width: 240px;
+  padding: var(--space-5);   /* 안쪽 여백 20px(사용자 지정 2026-11-20 — 16px에서 키움) */
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  background: var(--cd-card-bg);
+  border: 1px solid var(--border);
+  border-radius: var(--cd-card-radius);
+  box-shadow: var(--cd-card-shadow);
+  transform-origin: var(--jb-tail-x, 50%) 0;
+  animation: journeyBubbleIn .28s cubic-bezier(0.34, 1.5, 0.64, 1);
+}
+.journey-bubble::after {   /* 꼬리 — 노드 쪽(위)을 향함 */
+  content: '';
+  position: absolute;
+  top: -6px;
+  left: calc(var(--jb-tail-x, 50%) - 6px);
+  width: 12px;
+  height: 12px;
+  background: var(--cd-card-bg);
+  border-top: 1px solid var(--border);
+  border-left: 1px solid var(--border);
+  transform: rotate(45deg);
+  border-radius: 2px 0 0 0;
+}
+.journey-bubble-title {
+  font: var(--type-title-sm);
+  letter-spacing: var(--tracking-base);
+  color: var(--text-primary);
+  margin-top: calc(var(--font-title-sm) * -0.3);   /* 위 여백 = 눈에 보이는 글자 윗선까지 16px(사용자 지정 2026-11-20 — 말풍선 위·아래 실제 여백 같게). 줄 높이 위쪽 빈 공간을 걷음(대략값 — text-box를 지원하면 아래에서 정확히) */
+}
+@supports (text-box: trim-start cap alphabetic) {
+  .journey-bubble-title { margin-top: 0; text-box: trim-start cap alphabetic; }   /* 글자 윗선(cap)에서 줄 상자를 자름 → 위 여백이 정확히 패딩 16px */
+}
+.journey-bubble-head { display: flex; flex-direction: column; gap: var(--space-1); }   /* 제목 + 노드 진행도 한 묶음(제목과 4px) */
+.journey-bubble-prog { font: var(--type-body-sm); letter-spacing: var(--tracking-base); color: var(--text-secondary); }   /* 노드 진행도 '2/3' = 딴 별 수 / 3 */
+.journey-bubble-btn { width: 100%; }
+.journey-bubble-btns { display: flex; gap: var(--space-2); margin-top: calc(var(--space-2) * -1); font: var(--type-label-lg); margin-bottom: calc((var(--font-label-lg) * 0.7 - var(--cd-icon-btn-size)) / 2); margin-bottom: calc((1cap - var(--cd-icon-btn-size)) / 2); }   /* 아래 여백 = 텍스트 버튼 글자 아랫선(기준선)까지 16px — 터치 44px 상자에서 글자 아래 빈 부분을 음수 마진으로 걷어 위 여백(제목 글자 윗선까지 16px)과 같게(사용자 지정 2026-11-20). 1cap = 이 글꼴의 대문자 높이(못 쓰는 웹뷰는 앞 줄의 0.7em 대략값) */   /* 별을 딴 노드 — 텍스트 버튼 2개를 반반 칸으로, 글자는 각 칸 가운데(사용자 지정 2026-11-20 — 제목은 좌측 정렬). 터치 높이 44px라 제목과의 간격은 버튼 여백으로 */
+/* 텍스트 버튼 — 앱 공용 텍스트 버튼(.combo-v2-skip-cancel·.combo-v2-clear-btn)과 같은 글자·터치 영역. 다음 레벨은 파랑, 설명 다시듣기는 보조색 */
+.journey-bubble-tbtn { flex: 1 1 0; min-width: 0; min-height: var(--cd-icon-btn-size); padding: 0 var(--space-1); border: none; background: none; font: var(--type-label-lg); font-weight: var(--weight-semibold); letter-spacing: var(--tracking-base); color: var(--text-secondary); white-space: nowrap; cursor: pointer; -webkit-tap-highlight-color: transparent; }
+.journey-bubble-tbtn--primary { color: var(--blue); }
+.journey-bubble-tbtn:active { opacity: 0.6; }
+@keyframes journeyBubbleIn {
+  from { opacity: 0; transform: scale(0.8); }
+  to   { opacity: 1; transform: scale(1); }
+}
+
+/* ── 여정 노드 강의(journey-lesson.html) — 화면 틀은 리하모니 미니강의(.combo-v2-lec*) 그대로, 무대 안 부품만 여기.
+   무대 높이 220px 고정(lecture-style §6-1), 위쪽 정렬. 노드 파일이 무대에 .is-jny를 붙임 */
+.combo-v2-lec-stage.is-jny { height: 220px; justify-content: flex-start; gap: 0; padding-top: var(--space-6); }
+/* 층 — 지판(#jl-lfb)과 왼손 그림(#jl-lhand)을 같은 자리에 겹쳐 두고 .is-on으로만 전환(lecture-style §4 층 겹치기) */
+.jl-layers { display: grid; justify-items: center; align-items: start; width: 100%; }
+.jl-layer { grid-area: 1 / 1; opacity: 0; transition: opacity var(--lec-fade) cubic-bezier(0.33, 1, 0.68, 1); }
+.jl-layer.is-on { opacity: 1; }
+#jl-lguitar { pointer-events: none; }   /* 노드1 도입의 둥둥 뜨는 기타 그림 — 맨 위에 쌓인 층이라 안 보일 때도 지판 누르기(2번줄 1프렛 찾기)를 가로채지 않게(§4-30) */
+.jl-layer[id^="jl-l"]:not(.is-on) { pointer-events: none; }   /* 노드1 — 안 보이는 층(긴 지판 #jl-lfull·왼손 그림 #jl-lhand 등)이 맨 아래 짧은 지판(#jl-lfb) 위에서 터치를 가로채 '2번줄 1프렛 찾기'가 잘 안 눌리던 문제(사용자 지적 2026-11-20, §4-30) */
+/* 노드1 지판 크기 — 5단계 스코프(사용자 지정 2026-11-20). 360px 기준 한 벌(0~5프렛 지판만 260px = 52px × 5칸, 줄번호 자리 포함 304px)을 `scale` 하나로 키움(스타일 가이드 §17). 값은 '지판만의 너비 ÷ 260'. 1단계(~480px) 260px → 2단계(481px~) 320px. 3~5단계 값은 아직 정하지 않아 2단계 값을 이어받음 */
+:root { --jl-fb-scale: 1; }
+@media (min-width: 412px) { :root { --jl-fb-scale: calc(300 / 260); } }   /* 412px~ 프렛 구간 300px(사용자 지정, 360px = 260px 기준) */
+@media (min-width: 481px) { :root { --jl-fb-scale: calc(320 / 260); } }
+#jl-lfb, #jl-lfull { transform: scale(var(--jl-fb-scale)); transform-origin: 50% 0; }   /* 짧은 지판·긴 지판 층을 같은 배율·같은 기준점으로(칸 7에서 즉시 맞바꿔도 티가 안 남) */
+/* 빈 화면에 새 그림·에셋이 나타날 때는 밑에서 올라옴(여정 강의 공통 규칙 — 가이드 §4-32, 사용자 지정 2026-11-20): 층에 .jl-rise — 아래 12px에서 제자리로 + 서서히 보임(0.6초), 사라질 땐 다른 층과 같은 빠르기 */
+.jl-layer.jl-rise { transform: translateY(12px); transition: opacity var(--lec-fade) cubic-bezier(0.33, 1, 0.68, 1), transform var(--lec-fade) cubic-bezier(0.33, 1, 0.68, 1); }
+.jl-layer.jl-rise.is-on { transform: translateY(0); transition-duration: 0.6s; }
+#jl-lguitar.jl-rise.is-on { transition-duration: 1.2s; }   /* 노드1 도입 기타 그림은 더 천천히(1.2초 — 사용자 지정 2026-11-20) */
+#jl-lguitar { --ms-buffer-icon-size: 144px; }   /* 기타 그림 크기 — 데일리 미션 대기 화면(모바일 96px)보다 크게(사용자 지정 2026-11-20). 무대 220px 안: 그림 144 + 간격 14 + 그림자 약 14 + 둥둥 ±7 */
+/* 0~5프렛 가로 지판 — 스케일 훈련 지판(.fb-*)과 같은 색·비율. 위치·크기는 journey-lessons/fretboard-reading.js가 px로 지정.
+   강조: .is-focus = 파랑(지금 핵심), .is-dim = 옅게(지금 핵심이 아님) */
+.jl-fb { position: relative; }
+#jl-lfb .jl-fb { transition: transform 0.5s cubic-bezier(0.33, 1, 0.68, 1); }
+#jl-lfb .jl-fb--c { transform: translateX(-22px); }   /* 노드1 칸 1·2 — 줄번호 자리(너트 왼쪽 44px)가 비어 있어 지판이 오른쪽으로 쏠려 보임 → 절반만큼 왼쪽으로 옮겨 너트~끝을 무대 가운데에. 칸 3에서 줄번호를 띄우기 전에 제자리로(0.5초, 사용자 지정 2026-11-20) */
+.jl-fb-neck { position: relative; }
+.jl-fb-str {   /* 줄은 너트부터. 처음엔 길이 0 → .is-in에서 헤드 쪽부터 그어짐 */
+  position: absolute; left: 46px; right: 0; background: #1a1a1a; border-radius: 1px; z-index: 2;   /* 너트 오른쪽 끝(44 + 너트 폭 4 ÷ 2)부터 — 너트 밑으로 안 들어감(사용자 지정 2026-11-20) */
+  transform: translateY(-50%) scaleX(0); transform-origin: 0 50%;
+  transition: transform 0.5s cubic-bezier(0.33, 1, 0.68, 1), background-color var(--lec-fade), opacity var(--lec-fade);
+}
+.jl-fb-str.is-in { transform: translateY(-50%) scaleX(1); }
+.jl-fb-str.is-focus { background: var(--blue); }
+.jl-fb-str.is-dim { opacity: 0.25; }
+.jl-fb-fret { position: absolute; top: 10px; bottom: 10px; width: 1.5px; background: #d0d0d0; transform: translateX(-50%); z-index: 1; transition: background-color var(--lec-fade), width var(--lec-fade); }   /* 1번줄 중심 ~ 6번줄 중심 */
+.jl-fb-fret.is-focus { background: var(--blue); width: 3px; }
+.jl-fb-nut { position: absolute; top: 9.625px; bottom: 8.7px; width: 4px; background: #1a1a1a; border-radius: 0; transform: translateX(-50%); z-index: 2; transition: background-color var(--lec-fade); }   /* 너트 — 위아래 직각, 1번줄 윗선(중심 10 − 굵기 0.75/2)부터 6번줄 아랫선(중심 110 + 굵기 2.6/2 = 111.3, 아래에서 8.7)까지 정확히 맞물림. 두께 4px(사용자 지정 2026-11-20 — 3 → 4, 둥근 끝 → 직각). 줄 굵기(JS FB_STR_W)를 바꾸면 같이 바꿀 것 */
+.jl-fb-nut.is-focus { background: var(--blue); }
+.jl-fb-dot { position: absolute; top: 50%; width: 9px; height: 9px; border-radius: 50%; background: #d8d8d8; transform: translate(-50%, -50%); }
+.jl-fb-snum, .jl-fb-num { font: var(--type-label-sm); font-weight: 600; color: var(--text-muted); opacity: 0; transition: opacity var(--lec-fade), color var(--lec-fade); }
+.jl-fb-snum { position: absolute; transform: translateY(-50%); white-space: nowrap; }   /* 줄 이름('1번줄') — 너트 왼쪽(개방현 자리), 그 줄 높이. 오른쪽 끝을 너트에 맞춤(JS right) */
+.jl-fb-snum.is-dim { opacity: 0.25; }
+.jl-fb-snum.is-in:not(.is-dim), .jl-fb-num.is-in { opacity: 1; }
+.jl-fb-snum.is-focus, .jl-fb-num.is-focus { color: var(--blue); }
+.jl-fb-nums { position: relative; height: 16px; margin-top: var(--space-2); }
+.jl-fb-num { position: absolute; top: 0; transform: translateX(-50%); white-space: nowrap; }   /* 프렛 이름('1프렛') — 그 칸 아래 가운데 */
+/* 0~15프렛 긴 지판(#jl-lfull, 지판 점 설명) — 0~5 지판과 같은 크기로 이어 그리고 304px 창(.jl-fv) 안에서 옆으로 밀어 보여 줌(JS fnSlide).
+   색·굵기는 0~5 지판과 같고 클래스만 따로(jl-fn-*: 0~5 지판의 줄·프렛선 강조에 섞이지 않게) */
+.jl-fv { overflow: hidden; }
+.jl-fn-track { transition: transform 0.7s cubic-bezier(0.65, 0, 0.35, 1); will-change: transform; }
+.jl-fn-str { position: absolute; left: 46px; right: 0; background: #1a1a1a; border-radius: 1px; transform: translateY(-50%); z-index: 2; }
+.jl-fn-fret { position: absolute; top: 10px; bottom: 10px; width: 1.5px; background: #d0d0d0; transform: translateX(-50%); z-index: 1; }
+.jl-fn-nut { position: absolute; top: 9.625px; bottom: 8.7px; width: 4px; background: #1a1a1a; border-radius: 0; transform: translateX(-50%); z-index: 2; }   /* 0~5 지판 너트(.jl-fb-nut)와 똑같이 — 층을 즉시 맞바꿀 때 티가 안 나게 */
+.jl-fn-dot { position: absolute; width: 9px; height: 9px; border-radius: 50%; background: #d8d8d8; transform: translate(-50%, -50%); transition: background-color var(--lec-fade), transform var(--lec-fade); }
+.jl-fn-dot.is-focus { background: var(--blue); transform: translate(-50%, -50%) scale(1.3); }
+.jl-fn-num { position: absolute; top: 0; transform: translateX(-50%); white-space: nowrap; font: var(--type-label-sm); font-weight: 600; color: var(--text-muted); opacity: 0; transition: opacity var(--lec-fade), color var(--lec-fade); }
+.jl-fn-num.is-in { opacity: 1; }
+.jl-fn-num.is-focus { color: var(--blue); }
+/* 짚는 점 — 파랑 원(안에 손가락 번호), 통통 튀며 나타남 */
+.jl-fb-press {
+  position: absolute; width: 20px; height: 20px; margin: -10px 0 0 -10px; border-radius: 50%; background: var(--blue); z-index: 3;
+  display: flex; align-items: center; justify-content: center;
+  opacity: 0; transform: scale(0.4);
+  transition: opacity 0.2s, transform 0.38s cubic-bezier(0.34, 1.5, 0.64, 1);
+}
+.jl-fb-press.is-in { opacity: 1; transform: scale(1); }
+.jl-fb-press-n { font: var(--type-label-sm); font-weight: 700; color: #fff; }
+/* ── D2 음이름과 메이저스케일(journey-lessons/note-names.js) ── */
+/* 음이름 줄 — 칸 7개, 위 음이름(알파벳) / 아래 계이름. 처음엔 둘 다 숨김(.is-in으로 나타남). 강조 .is-focus = 파랑, .is-dim = 옅게 */
+.n2-row { display: flex; gap: var(--space-1); padding-top: var(--space-4); }
+.n2-cell { position: relative; width: 40px; display: flex; flex-direction: column; align-items: center; gap: var(--space-1); }
+.n2-let, .n2-syl, .n2-hz { opacity: 0; transition: opacity var(--lec-fade), color var(--lec-fade); }
+.n2-let { font: var(--type-headline); color: var(--text-primary); }
+.n2-syl { font: var(--type-title-sm); color: var(--text-secondary); }
+.n2-let.is-in, .n2-syl.is-in, .n2-hz.is-in { opacity: 1; }
+.n2-syl.is-in.is-dim { opacity: 0.25; }
+.n2-let.is-focus, .n2-syl.is-focus { color: var(--blue); }
+.n2-hz { position: absolute; top: 100%; margin-top: var(--space-2); font: var(--type-label-sm); font-weight: 600; color: var(--blue); white-space: nowrap; }
+/* 피아노 건반 C4~D5 — 위치·크기는 JS(px). 짚은 건반 = 파랑. 위 = 스케일 순번, 아래 = 온/반(반 = 파랑) */
+.n2-kb { position: relative; }
+.n2-knums, .n2-ksteps { position: relative; height: 20px; }
+.n2-knums { margin-bottom: var(--space-1); }
+.n2-ksteps { margin-top: var(--space-1); }
+.n2-keys { position: relative; }
+.n2-key { position: absolute; top: 0; display: flex; align-items: flex-end; justify-content: center; transition: background-color var(--lec-fade); }
+.n2-key--w { width: 32px; height: 100%; background: #fff; border: 1px solid var(--border); border-radius: 0 0 6px 6px; padding-bottom: var(--space-1); }
+.n2-key--b { width: 20px; height: 68px; background: #1a1a1a; border-radius: 0 0 4px 4px; z-index: 1; padding-bottom: var(--space-1); }
+.n2-key--w.is-focus { background: var(--blue); border-color: var(--blue); }
+.n2-key--b.is-focus { background: var(--blue); }
+.n2-kl { font: var(--type-label-sm); font-weight: 600; color: var(--text-muted); transition: color var(--lec-fade), opacity var(--lec-fade); }
+.n2-key--b .n2-kl { font-size: 11px; color: #fff; opacity: 0; }   /* 검은 건반 이름(F# 등)은 짚었을 때만 */
+.n2-key.is-focus .n2-kl { color: #fff; opacity: 1; }
+.n2-key.is-scale .n2-kl { opacity: 1; font-weight: 700; }   /* 스케일 음 이름 — 짚은 뒤에도 남음(흰 건반 = 브랜드색 진하게, 검은 건반 = 흰색) */
+.n2-key--w.is-scale:not(.is-focus) .n2-kl { color: var(--brand); }
+.n2-key--b.is-scale:not(.is-focus) .n2-kl { color: #fff; }
+.n2-knum, .n2-kstep { position: absolute; top: 0; transform: translateX(-50%); font: var(--type-label-sm); font-weight: 700; opacity: 0; transition: opacity var(--lec-fade); white-space: nowrap; }
+.n2-knum { color: var(--text-secondary); }
+.n2-kstep { color: var(--text-muted); }
+.n2-kstep.is-half { color: var(--blue); }
+.n2-knum.is-in, .n2-kstep.is-in { opacity: 1; }
+/* 0~4프렛 지판 — 오른쪽 끝 40px을 부드럽게 투명하게(줄이 이어지다 사라짐). 폭은 JS(4프렛선 + 44px) */
+/* 마지막 칸(--n2-fade = 한 칸 폭, JS) 위에 흰 그라데이션을 덮어 부드럽게 사라지게 — 스케일 훈련 지판 가장자리(.fretboard-fade-right)와 같은 방식.
+   (예전 mask-image는 요소 박스 밖을 전부 잘라서, 지판 왼쪽 바깥에 놓이는 튜닝 음 힌트(.n2-tune)가 잘렸음) */
+.n2-fbfade { position: relative; }
+.n2-fbfade::after { content: ''; position: absolute; top: 0; bottom: 0; right: 0; width: var(--n2-fade, 40px); background: linear-gradient(to left, #ffffff 15%, rgba(255, 255, 255, 0)); pointer-events: none; z-index: 5; }
+/* D2 기타 지판(.n2-sfb) — 스케일 훈련 퀴즈 지판(.fb-*) 그대로 쓰고 여기엔 강의·퀴즈에 필요한 것만:
+   강의 = 줄이 너트부터 그어짐(.n2-sfb--draw → .is-in), 울리는 줄 파랑(.is-focus), 빈 동그라미 안 음이름(.n2-open), 점 팝(.n2-pop) / 퀴즈 = 빈 동그라미 왼쪽 튜닝 음(.n2-tune) */
+.n2-sfb--draw .fb-string { transform: translateY(-50%) scaleX(0); transform-origin: 0 50%; transition: transform 0.5s cubic-bezier(0.33, 1, 0.68, 1), background-color var(--lec-fade); }
+.n2-sfb--draw .fb-string.is-in { transform: translateY(-50%) scaleX(1); }
+.n2-sfb .fb-string.is-focus { background: var(--blue); }
+.n2-sfb .fb-nut-line { top: calc(100% / 12 - 0.5px); bottom: calc(100% / 12 - 1.75px); border-radius: 0; }   /* 너트 = 1번줄 윗선(굵기 1 ÷ 2)부터 6번줄 아랫선(3.5 ÷ 2)까지, 위아래 직각 — 줄 끝이 너트 밖으로 삐져나오지 않게(노드1 .jl-fb-nut과 같은 방식). STRING_THICKNESS를 바꾸면 같이 바꿀 것 */
+.n2-sfb .fb-open-hint { display: flex; align-items: center; justify-content: center; }   /* 크기·테두리는 스케일 훈련 그대로(22px) — 안의 음이름(강의 힌트)만 가운데 */
+.n2-open { font-size: calc(11 * var(--fbu)); font-weight: 700; color: var(--text-secondary); opacity: 0; transition: opacity var(--lec-fade), color var(--lec-fade); }
+.n2-open.is-in { opacity: 1; }
+.n2-open.is-focus { color: var(--blue); }
+.n2-pop { animation: fb-note-pop 0.18s cubic-bezier(0.34, 1.56, 0.64, 1) both; }
+.n2-tune { position: absolute; transform: translate(calc(-100% - 13 * var(--fbu)), -50%); font-size: calc(15 * var(--fbu)); font-weight: 800; color: var(--text-primary); pointer-events: none; }   /* 튜닝 음 힌트 — 크고 굵게(사용자 지정) */
+/* 노드 퀴즈(#jq-view, journey-lesson.html) — 리하모니 문제 화면(.combo-v2-quiz) 규칙을 그대로 쓰고, 지판·보기 배치만 여기.
+   지판은 안내 카드와 아래(보기 또는 제출 버튼) 사이 세로 가운데(리하모니 연결형·배치형과 같은 방식) */
+#jq-view .jq-board { margin-block: auto; padding-block: var(--space-6); display: flex; justify-content: center; }
+#jq-view .jq-board-view { max-width: 304px; overflow: hidden; transform: scale(var(--jl-fb-scale)); transform-origin: 50% 0; }   /* 지판 확대 — 강의 지판과 같은 배율(프렛 구간 260 → 481px~ 320, 아래 여백은 JS fitBoard) */   /* 별 2·3(0~9·0~15프렛)은 창 폭(0~5프렛 지판과 같은 304px)만 보임 — 유저는 밀 수 없고 문제마다 코드가 위치를 정함(placeView) */
+#jq-view .jq-choices.jq-cq-choices { margin-top: 0; }   /* 사지선다 — 다른 노드와 같은 2×2 카드(.jq-cq-choices, 본문 폭 가득). 선택됨(탭하면 꺼짐)은 아래 .is-sel */
+#jq-view .jq-choices .ms-quiz-choice-card--text { font-size: 16px; }   /* 노드1 사지선다 보기 글자 16px 고정(사용자 지정) */
+#jq-view .jq-cq-choices .ms-quiz-choice-card.is-sel { transform: translateY(2px); background: var(--gray-light); box-shadow: inset 0 3px 6px rgba(0,0,0,.18), inset 0 1px 2px rgba(0,0,0,.12); }
+/* D2 퀴즈 ①③④ — 코드 맞추기 문제 화면 템플릿(.ms-quiz-question-card·.ms-quiz-choice-card 공용 외형)을 여정 문제 화면 안에 놓음.
+   코드 맞추기 페이지 전용 배치 규칙(:is(#chord-quiz-page, …))은 이 화면에 안 걸리므로 필요한 것만 여기서: 문제 카드 높이, 말풍선, 2×2 카드 높이, 좌상단 번호 */
+#jq-view .jq-qcard { flex: none; height: 168px; min-height: 0; justify-content: center; gap: var(--space-2); }
+#jq-view .jq-qsub { font: var(--type-label-lg); font-weight: 600; letter-spacing: var(--tracking-base); color: var(--text-secondary); }
+#jq-view .jq-qname--sm { font: var(--type-title-lg); letter-spacing: var(--tracking-base); text-align: center; }   /* 문장형 문제(스케일 유형) */
+#jq-view .jq-qem { font-style: normal; color: var(--blue); }   /* 문제 문장 안 강조(아닌) */
+#jq-view .jq-qask { font: var(--type-body); letter-spacing: var(--tracking-base); color: var(--text-secondary); }   /* 카드 안 문제 문구(이름 아래) */   /* 'C 메이저스케일'처럼 긴 이름 */
+#jq-view .jq-cq-answer { margin-top: auto; padding-top: var(--space-6); display: flex; flex-direction: column; gap: 12px; }   /* 답 영역 — 아래(제출 버튼 위)로 붙임 */
+#jq-view .jq-bubble {   /* 코드 맞추기 말풍선(.cq-bubble ≤768px)과 같은 모양 */
+  position: relative; align-self: flex-start; height: 44px; display: flex; align-items: center; padding-inline: var(--space-4);
+  font: var(--type-label-lg); font-weight: 600; letter-spacing: var(--tracking-base); color: var(--text-primary); white-space: nowrap;
+  border-radius: 16px; background: var(--surface); filter: drop-shadow(0 2px 6px rgba(0, 0, 0, 0.12));
+}
+#jq-view .jq-bubble::after { content: ''; position: absolute; left: 14px; bottom: -8px; width: 14px; height: 9px; background: var(--surface); clip-path: polygon(0 0, 100% 0, 0 100%); }
+#jq-view .jq-cq-choices { grid-template-columns: 1fr 1fr; gap: 12px; }   /* 공용 넓은 화면 규칙(1×4 등)과 무관하게 항상 2×2 */
+#jq-view .jq-cq-choices .ms-quiz-choice-card { position: relative; aspect-ratio: auto; height: 88px; }
+#jq-view .jq-cq-choices.is-locked .ms-quiz-choice-card { pointer-events: none; }
+#jq-view .jq-cq-choices .ms-quiz-choice-card::before {   /* 좌상단 번호 1~4 — 코드 맞추기와 같은 원형 디스크 + 노드 숫자 */
+  content: ''; position: absolute; top: var(--space-2); left: var(--space-2); width: 20px; height: 20px; border-radius: 50%;
+  background: var(--cq-num-img) center / calc(var(--cd-num-digit) / 0.58 * 100%) no-repeat #f5f5f5; pointer-events: none;
+}
+#jq-view .jq-cq-choices > .ms-quiz-choice-card:nth-child(1) { --cq-num-img: var(--cd-num-img-1); }
+#jq-view .jq-cq-choices > .ms-quiz-choice-card:nth-child(2) { --cq-num-img: var(--cd-num-img-2); }
+#jq-view .jq-cq-choices > .ms-quiz-choice-card:nth-child(3) { --cq-num-img: var(--cd-num-img-3); }
+#jq-view .jq-cq-choices > .ms-quiz-choice-card:nth-child(4) { --cq-num-img: var(--cd-num-img-4); }
+/* 퀴즈 지판의 개방현(0프렛) 자리 — 스케일 훈련(.fb-open-hint)처럼 빈 동그라미를 미리 그려 둠. 누르면 그 위에 파란 점이 채워짐 */
+.jl-open-hint { position: absolute; width: 20px; height: 20px; border-radius: 50%; border: 2px solid rgba(0, 0, 0, 0.18); transform: translate(-50%, -50%); z-index: 2; pointer-events: none; }
+/* 여정 강의 탑바 — 진행 막대 오른쪽에 피크 개수가 들어가므로(리하모니와 같음) 공용 대칭 여백을 풀고, 강의 중엔 피크를 자리만 두고 숨김 */
+.jl-topbar:has(.ms-progress-track) { padding-right: var(--cd-inset); }
+.jl-topbar.is-lec .topbar-currency { visibility: hidden; }
+/* 오답 고스트 점 —틀리게 누른 자리에 연한 코랄(오답 색)로 잠깐 떴다 사라짐(투명도 0.4까지만, JS 애니메이션). 지판 누르기는 #jl-neck pointerdown */
+.jl-fb-ghost { position: absolute; width: 20px; height: 20px; margin: -10px 0 0 -10px; border-radius: 50%; background: var(--icon-coral); opacity: 0; z-index: 3; pointer-events: none; }
+.jl-fb-neck { touch-action: manipulation; }
+/* 왼손 그림(손가락 끝에 번호) + 오른쪽 목록('검지 : 1') — 번호는 원 없이 브랜드 컬러 글자만. 그림 번호와 목록 한 줄이 함께 통통 튀며 나타남 */
+.jl-handwrap { display: flex; align-items: center; gap: var(--space-6); }
+#jl-lhand .jl-handwrap { transition: transform 0.5s cubic-bezier(0.33, 1, 0.68, 1); }
+#jl-lhand .jl-handwrap--c { transform: translateX(var(--hand-dx, 0px)); }   /* 노드1 손가락 번호 첫 칸 — 오른쪽 목록이 아직 안 보여 손 그림만 무대 가운데에(--hand-dx = (목록 폭 + 간격)/2, JS 실측). 다음 칸에서 목록을 띄우기 전에 제자리로(사용자 지정 2026-11-20) */
+.jl-hand { position: relative; height: 180px; flex-shrink: 0; }
+.jl-hand img { display: block; height: 100%; width: auto; user-select: none; -webkit-user-drag: none; }
+.jl-hand-lr { position: absolute; left: 56%; top: 100%; margin-top: var(--space-1); transform: translateX(-50%); font: var(--type-label-lg); font-weight: var(--weight-semibold); color: var(--text-secondary); pointer-events: none; }   /* 손 그림 아래 'L'(왼손) — 손바닥 가운데쯤(그림 폭 56% — 엄지가 왼쪽으로 뻗어 그림 상자 가운데보다 오른쪽, 사용자 지정 2026-11-20) 아래 4px, 그림과 같이 움직임 */
+.jl-hand-n {
+  position: absolute; transform: translate(-50%, -50%) scale(0.4);
+  font: var(--type-title); color: var(--brand); opacity: 0;
+  transition: opacity 0.2s, transform 0.38s cubic-bezier(0.34, 1.5, 0.64, 1);
+}
+.jl-hand-n.is-in { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+.jl-hand-list { display: flex; flex-direction: column; gap: var(--space-2); }
+.jl-hand-li { font: var(--type-body); letter-spacing: var(--tracking-base); color: var(--text-secondary); white-space: nowrap; opacity: 0; transition: opacity var(--lec-fade); }
+.jl-hand-li b { font-weight: var(--weight-semibold); color: var(--brand); }
+.jl-hand-li.is-in { opacity: 1; }
 
 /* 코드 조합 훈련 선택 뷰 v2 — 옛 #combo-view-select 위에 덮는 개편 화면(옛 뷰 정리 시 접두어 combo-v2로 일괄 검색) */
 .combo-v2-main {
@@ -25040,47 +25599,35 @@ html[lang="en"] .combo-v2-sort-sub { display: none; }
 }
 #page-cover.page-cover--logo::after { display: none; }
 
-/* ── 나의 기타 여정 시작 안내(journey-intro.html) ──────────────────────────────
-   승급시험 안내(mission-session)와 같은 구조·같은 .ms-* 부품을 재사용한다(타이틀·스태거·버퍼·하단 버튼).
-   이 페이지에서만 필요한 것: 배경/탑바 틴트, 안쪽 여백 정리, 본문 강조, 텍스트 버튼, 버튼 등장. */
-#journey-intro-page .cd-topbar {
-  background: rgba(58, 46, 36, 0.03);
-  position: relative;
-  z-index: 50;
+/* ── 여정 모드 선택(journey-intro.html) ──────────────────────────────
+   온보딩 단계 화면(.onboarding-overlay.ob-overlay--step + .ob-*)을 그대로 쓴다. 배치는 알림 안내(#ob-step-push)와 같음:
+   위(타이틀·부가설명) / 가운데(그림, 남는 공간 위2:아래3) / 아래(시작 버튼 + 작은 링크). 등장 연출도 알림 안내와 같은 규칙에 묶음(아래 온보딩 섹션).
+   이 페이지에서만 필요한 것: 코스 그림 크기와 그 아래 코스 이름. */
+.ji-step .ob-subtitle { font-size: 14px; color: var(--brand); }   /* 부가설명: 온보딩(13px·옅은 회색)보다 크고 브랜드 색(차콜블랙)으로 — 이 화면만 */
+/* 등장 연출 — 업계 기준(0.4~0.5초·전체 1초 안)은 너무 빠르게 느껴져(사용자 확인) 한 단계 늦춤: 온보딩(약 2초)과 업계 기준의 중간.
+   타이틀 → 부가설명 → 그림 → 버튼을 150ms 간격으로, 각 0.7초. 다 보이기까지 약 1.35초(JS JI_READY_MS와 같은 값).
+   다른 여정으로 바꿀 때도 같은 값으로 다시 재생된다. 곡선·이동 거리(ob-rise-in 20px)는 온보딩 그대로 */
+.ji-step .ob-title,
+.ji-step .ob-subtitle,
+.ji-step .ji-art-wrap,
+.ji-step .ob-bottom-actions { animation: ob-rise-in 0.7s cubic-bezier(0.16, 1, 0.3, 1) both; }
+.ji-step .ob-title { animation-delay: 0.2s; }
+.ji-step .ob-subtitle { animation-delay: 0.35s; }
+.ji-step .ji-art-wrap { animation-delay: 0.5s; }
+.ji-step .ob-bottom-actions { animation-delay: 0.65s; }
+.ji-step .onboarding-start-btn { background: var(--blue); color: #fff; }   /* 여정 시작하기 = 블루(이 화면만, 온보딩 [다음]은 검정 그대로) */
+/* 추가안내 1 — 지금 단계 배지(홈 탑바 배지와 같은 그림) */
+.ji-badge { display: block; width: min(32vw, 120px); aspect-ratio: 1 / 1; object-fit: contain; }
+/* 추가안내 2 — 버튼 위 보충 문구(읽기 우선순위 낮음 → 아래 묶음, style-guide §22). 마지막 줄은 한 단계 옅게, 버튼과는 조금 더 띄움 */
+.ji-note { margin: 0; font-size: 14px; line-height: 1.5; color: var(--text-secondary); text-align: center; }
+.ji-note--sub { margin-bottom: var(--space-2); font-size: 13px; color: var(--text-muted); }
+.ji-art { display: block; width: min(60vw, 200px); aspect-ratio: 1 / 1; object-fit: contain; }
+.ji-course-name {
+  margin-top: var(--space-3);
+  font: var(--type-title-sm);
+  letter-spacing: var(--tracking-tight);
+  color: var(--text-primary);
 }
-#journey-intro-page .cd-main {
-  background: linear-gradient(to bottom, rgba(58, 46, 36, 0.03), #ffffff 160px);
-  padding-top: 20px;
-}
-/* cd-main이 이미 좌우 그리드 마진을 주므로, .ms-* 부품의 자체 좌우 패딩은 걷어 이중 인셋을 막는다 */
-#journey-intro-page .ms-title,
-#journey-intro-page .ms-chord-lead,
-#journey-intro-page .ms-buffer,
-#journey-intro-page .ms-bottom-actions { padding-inline: 0; }
-/* 본문 3줄 — 핵심 구절(기초 코드 / 코드진행 / 노래 적용)만 진하게, 나머지는 옅게(핵심 위계) */
-#journey-intro-page .ji-result { padding-bottom: min(14vh, 112px); box-sizing: border-box; gap: 8px; }
-#journey-intro-page .ji-lead {
-  font-size: var(--font-title);
-  line-height: 1.5;
-  text-align: center;
-  color: var(--text-secondary);
-}
-#journey-intro-page .ji-lead b { font-weight: 800; color: var(--text-primary); }
-#journey-intro-page .ji-actions { display: flex; flex-direction: column; align-items: center; gap: 4px; }
-/* 텍스트 버튼 — 눈에 덜 띄게(잘못 평가됐을 때만 쓰는 출구). 터치 영역 44px */
-.ji-text-btn {
-  min-height: 44px;
-  padding: 0 16px;
-  background: none;
-  border: 0;
-  font: inherit;
-  font-size: var(--font-label-lg);
-  font-weight: 600;
-  color: var(--text-muted);
-  cursor: pointer;
-}
-.ji-btn-pending { opacity: 0; pointer-events: none; }
-#ji-start-btn, #ji-other-btn { transition: opacity 0.35s ease; }
 
 /* ── 홈 탭 = 나의 기타 여정(home.html #tab-view-home) ─────────────────────────────
    journey.html의 경로 UI(.journey-head/.journey-stage/.journey-node)를 그대로 쓰고, 탭 안에서의 배치만 정한다.
@@ -25184,6 +25731,32 @@ html[lang="en"] .combo-v2-sort-sub { display: none; }
 .hs-level-text span:first-child { font-size: var(--font-caption); }
 .hs-quest-dot { position: absolute; top: 4px; right: 4px; width: 9px; height: 9px; border-radius: 50%; background: var(--blue); border: 1.5px solid #fff; }
 .hs-quest-dot[hidden] { display: none; }
+/* 훈련 연계 배너 — 지도에서 6줄 곡선이 반대쪽으로 휜 빈 자리에 뜨는 작은 카드(journey.js jnyTrainBannersHtml이 위치·폭 계산).
+   카드 외형은 .cd-card 그대로, 위치만 절대배치(.cd-card의 position:relative를 2클래스로 덮음). 노드 높이 가운데 정렬 */
+.journey-train-banner.cd-card {
+  position: absolute;
+  transform: translateY(-50%);
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  padding: var(--space-3);
+  border: 0;
+  text-align: left;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  transition: transform 0.12s ease;
+}
+.journey-train-banner.cd-card:active { transform: translateY(-50%) scale(0.96); }
+.journey-train-banner.cd-card.is-locked { cursor: default; opacity: 0.5; }
+.journey-train-banner.cd-card.is-locked:active { transform: translateY(-50%); }   /* 해금 전엔 눌림 효과 없음 */
+/* 2줄: 타이틀(굵게) / 훈련 세부내용. 해금 전엔 카드 전체를 옅게 */
+.jtb-title { font: var(--type-label-lg); font-weight: 700; letter-spacing: var(--tracking-tight); color: var(--text-primary); }
+.jtb-detail { font: var(--type-label-sm); letter-spacing: var(--tracking-tight); color: var(--text-secondary); word-break: keep-all; }
+/* 7일 부스트 — 불꽃(32px, 옆 아이콘과 같은 크기·그림자) 아래 남은 시간 '일:시:분'. 숫자 폭이 바뀌어도 흔들리지 않게 고정폭 숫자 */
+.hs-boost { height: auto; flex-direction: column; gap: var(--space-1); }
+.hs-boost[hidden] { display: none; }
+.hs-boost-time { font: var(--type-caption); font-weight: 700; font-variant-numeric: tabular-nums; letter-spacing: var(--tracking-tight); color: var(--text-secondary); white-space: nowrap; }
 .journey-switch-btn img {
   display: block;
   width: 44px;
@@ -25194,7 +25767,17 @@ html[lang="en"] .combo-v2-sort-sub { display: none; }
 }
 /* 누르는 동안 살짝 작아졌다가 떼면 돌아온다 */
 .journey-switch-btn:active img { transform: scale(0.88); }
-/* 배너(챕터 헤더 카드) 오른쪽 진행도 — 큰 숫자(현재/전체) + 아래 라벨. 값은 journey.js renderJourneyProgress.
+/* 승급시험 버튼 — 책 버튼과 같은 모양(44px 그림 = 터치 영역), 책 아래 24px(오른쪽 세로 묶음과 같은 간격). top은 journey.js가 책 기준으로 덮는다.
+   잠김(여정 등급 = 칭호인데 진행도 100% 전, 또는 마지막 단계) = 흑백 + 옅게 + 자물쇠. 눌러도 반응 없음 */
+.journey-promo-btn { top: calc(80px + 14px + 44px + var(--space-6)); height: auto; flex-direction: column; gap: var(--space-1); }
+/* 그림 아래 라벨 '승급시험' — 트로피만으로는 시험인지 안 읽혀서(사용자 지정). 버튼 폭(44px)보다 길어도 한 줄로, 가운데 기준으로 넘침 */
+.journey-promo-label { font: var(--type-caption); font-weight: 700; letter-spacing: var(--tracking-tight); color: var(--text-secondary); white-space: nowrap; }
+.journey-promo-btn.is-locked img { filter: grayscale(1) drop-shadow(3px 3px 2px rgba(0, 0, 0, 0.18)); opacity: 0.55; }
+.journey-promo-btn.is-locked .journey-promo-label { opacity: 0.55; }
+/* 자물쇠 — 잠김일 때만, 트로피(44px) 정중앙 위. 보조 글자색(살짝 그레이) + 흐린 트로피 위에서도 읽히게 흰 테두리 그림자 */
+.journey-promo-lock { display: none; position: absolute; top: 11px; left: 50%; margin-left: -11px; color: var(--text-secondary); filter: drop-shadow(0 0 2px #fff) drop-shadow(0 0 2px #fff); pointer-events: none; }
+.journey-promo-btn.is-locked .journey-promo-lock { display: block; }
+/* 배너(챕터 헤더 카드) 오른쪽 진행도 — 큰 퍼센트 + 게이지 + 아래 라벨(2026-11-25, 예전 현재/전체 숫자). 값은 journey.js renderJourneyProgress.
    왼쪽과는 세로 구분선(옛 가이드 버튼 영역과 같은 모양)으로 가른다 */
 .journey-head-stat {
   flex-shrink: 0;
@@ -25208,7 +25791,9 @@ html[lang="en"] .combo-v2-sort-sub { display: none; }
   gap: var(--space-1);
 }
 .jhs-num { font: var(--type-headline-sm); letter-spacing: var(--tracking-base); color: var(--text-primary); white-space: nowrap; }
-.jhs-slash { margin-inline: 3px; }   /* 숫자와 슬래시 사이 간격 +3px(양쪽) */
+/* 진행도 게이지(2026-11-25) — 퍼센트 숫자 아래 얇은 막대. 바탕 = 연회색, 채움 = 파랑(값은 journey.js renderJourneyProgress) */
+.jhs-bar { display: block; width: 56px; height: 6px; border-radius: 999px; background: var(--gray-light); overflow: hidden; }
+.jhs-fill { display: block; width: 0; height: 100%; border-radius: inherit; background: var(--blue); transition: width .6s cubic-bezier(0.16, 1, 0.3, 1); }
 .jhs-label { font: var(--type-label-sm); letter-spacing: var(--tracking-base); color: var(--text-secondary); }
 #home-topbar-strip #topbar-currency { display: contents; }
 /* 래퍼가 사라져 그 margin-right(4px)도 같이 없어졌으므로, 마지막 항목의 터치 확장 음수 마진에서 4px를 되돌려 우측 끝 여백을 유지 */
@@ -25322,3 +25907,477 @@ html[lang="en"] .combo-v2-sort-sub { display: none; }
 .jcs-courses.is-soon .jcs-course { filter: blur(6px); }
 .jcs-soon i { font-size: 40px; line-height: 1; color: var(--text-secondary); }
 .jcs-soon-text { font: var(--type-label-lg); font-size: 14px; font-weight: 700; letter-spacing: var(--tracking-base); color: var(--text-secondary); }
+
+/* 여정 D3 첫 코드 잡아보기 — 코드 다이어그램은 VoicingCanvas(캔버스) 그대로 */
+.n3-cw { position: relative; display: block; }
+/* 노드 3 무대(D5 little-star.js 큰 다이어그램도 같은 클래스·같은 크기 — 가이드 §4-40) — 다이어그램 하나만 띄울 때 크기가 412px부터 300px(높이 240)라 무대도 위 여백 24 + 240 = 264px로 키움(360px대는 245px·높이 196이라 기본 220) */
+@media (min-width: 412px) { .combo-v2-lec-stage.is-jny.n3-stage { height: 264px; } }
+@media (min-width: 481px) { .combo-v2-lec-stage.is-jny.n3-stage { height: 296px; } }   /* 2단계(481px~) 이상: 340px·높이 272 + 위 여백 24 */
+.n3-cw canvas, .n3-two canvas { display: block; }
+.n3-two { display: flex; gap: 0; justify-content: center; }
+.n3-two canvas + canvas { margin-left: var(--n3-two-gap, 16px); }   /* 눈에 보이는 간격 44px가 되도록 JS(diagW)가 계산 — 음수면 투명 여백끼리 겹침 */
+
+/* 여정 D3 퀴즈(#jq-view) — 다이어그램은 VoicingCanvas(캔버스) 그대로. 점 찍기 점(.n3q-dot)만 DOM — 캔버스 위에 겹쳐 %로 놓음(위치·크기는 voicing-canvas.js 기준 치수) */
+#jq-view .jq-qcard--diag { height: auto; padding: var(--space-4); }
+#jq-view .n3q-cv { display: block; }
+#jq-view .jq-cq-choices--diag .ms-quiz-choice-card { height: auto; aspect-ratio: 440 / 352; }
+#jq-view .jq-cq-choices--diag .ms-quiz-choice-canvas-slot { display: flex; align-items: center; justify-content: center; }
+/* 여정 D6 4지선다(다이어그램 보기 4개) — 2×2를 한 화면에 담도록 카드 최소 높이를 이름 보기 카드(.jq-cq-choices 88px)와 같게.
+   다이어그램은 카드 안 80%에 440:352 비율로 맞춤(코드 맞추기 넓은 화면 규칙과 같은 식 — 폭·높이 중 먼저 닿는 쪽 기준) */
+/* 남는 세로 공간은 보기 카드가 위로 늘어나 채움(사용자 지정 2026-11-15): 답 영역이 문제 카드 아래 남는 공간을 전부 차지하고, 2×2 두 줄이 그 높이를 반씩(최소 88px — 이름 보기 카드와 같음) */
+#jq-view .jq-cq-answer:has(.jq-cq-choices--diag4) { flex: 1; }
+#jq-view .jq-cq-choices--diag4 { flex: 1; grid-auto-rows: minmax(88px, 1fr); }
+#jq-view .jq-cq-choices--diag4 .ms-quiz-choice-card { aspect-ratio: auto; height: auto; container-type: size; }
+#jq-view .jq-cq-choices--diag4 .ms-quiz-choice-canvas-slot { width: min(80cqw, calc(80cqh * 440 / 352)); height: auto; aspect-ratio: 440 / 352; }
+.n3q-wrap { position: relative; touch-action: manipulation; -webkit-tap-highlight-color: transparent; }
+.n3q-dots { position: absolute; inset: 0; pointer-events: none; }
+.n3q-dot { position: absolute; aspect-ratio: 1; transform: translate(-50%, -50%); border-radius: 50%; background: #242729; box-sizing: border-box; display: flex; align-items: center; justify-content: center; color: #fff; font: 400 calc(var(--n3q-w, 300px) * 0.056) 'Pretendard', sans-serif; }   /* 글자 크기 = 다이어그램 점 안 손가락 번호와 같은 비율(점 지름 × 0.675) */   /* 찍은 점 = 다이어그램 점과 같은 색 */
+.n3q-dot.is-ok { background: #34C759; }                                                  /* 정답 초록 — .ms-quiz-choice-card--correct와 같은 색 */
+.n3q-dot.is-ng { background: #FF3B30; }                                                  /* 오답 빨강 */
+.n3q-dot.is-miss { background: transparent; border: 2px dashed var(--text-muted); color: var(--text-secondary); }      /* 못 찾은 자리 점선 원(스케일 훈련 --missed와 같은 표현) */
+/* 개방현을 채웠을 때는 캔버스의 O 표시와 같은 고리(바깥 지름 점의 1.05배·두께 0.15배 — voicing-canvas.js 개방현 O) */
+.n3q-dot.is-open { background: transparent; border: calc(var(--n3q-w, 300px) * 5.472 / 440) solid #242729; }
+.n3q-dot.is-open.is-ok { background: transparent; border-color: #34C759; }
+.n3q-dot.is-open.is-ng { background: transparent; border-color: #FF3B30; }
+.n3q-dot.is-open.is-miss { border: 2px dashed var(--text-muted); }
+
+/* 여정 D4 스트로크 기초 — 스트로크 기호는 주법 화면과 같은 도형(인라인 svg, currentColor). 코드 다이어그램은 VoicingCanvas(캔버스) + 손가락 점(.n4-dot)만 DOM으로 겹침(D3 퀴즈 .n3q-dot과 같은 방식·같은 색) */
+.n4-icons { display: flex; gap: var(--space-8); justify-content: center; align-items: flex-start; }
+.n4-ic { display: flex; flex-direction: column; align-items: center; gap: var(--space-2); color: #242729; transition: color var(--lec-fade); }
+.n4-ic svg { width: 72px; height: 72px; }
+.n4-ic span { font: var(--type-label-lg); font-weight: var(--weight-semibold); color: var(--text-muted); opacity: 0; transition: opacity var(--lec-fade), color var(--lec-fade); }
+.n4-ic.is-name span { opacity: 1; }
+.n4-ic.is-focus, .n4-ic.is-focus span { color: var(--blue); }
+
+.n4-hands { display: flex; gap: var(--space-4); justify-content: center; align-items: flex-start; }
+.n4-hf { display: none; flex-direction: column; align-items: center; gap: var(--space-1); margin: 0; }
+.n4-hf.is-show { display: flex; }
+.n4-hfw { position: relative; }
+.n4-hf img { display: block; width: 150px; height: 150px; }
+/* 손톱 손 위 화살표(검지 = 다운, 엄지 = 업) — 한 손 크게 보일 때만 */
+.n4-ar { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; opacity: 0; transition: opacity var(--lec-fade); }
+.n4-ar line { stroke: var(--blue); stroke-width: 2.5; stroke-linecap: round; }
+.n4-ar polygon { fill: var(--blue); stroke: var(--blue); stroke-width: 1; stroke-linejoin: round; }
+.n4-ar-l { position: absolute; transform: translateX(-50%); font: var(--type-label-lg); font-weight: var(--weight-semibold); line-height: 1.2; color: var(--blue); white-space: nowrap; opacity: 0; transition: opacity var(--lec-fade); }
+.n4-ar.is-in, .n4-ar-l.is-in { opacity: 1; }
+.n4-hands:not(.is-one) .n4-ar, .n4-hands:not(.is-one) .n4-ar-l { display: none; }
+.n4-hf figcaption { font: var(--type-label-lg); font-weight: var(--weight-semibold); color: var(--text-secondary); }
+.n4-hands.is-one .n4-hf img { width: 196px; height: 196px; }
+.n4-hands.is-one .n4-hf figcaption { display: none; }
+
+/* 주법 칸 — 코드반주 훈련 주법 디스플레이(.strum-play-grid·.strum-beat-cell·.strum-ico·.strum-playhead)를 그대로 씀. 이 페이지 전용 값만: 칸 크기(훈련 모바일 값 26/14), 위아래 구분선·패딩 없음, 재생 위치선 파랑 2px */
+/* 다이어그램 + 주법 칸 레이아웃 — 무대(220px)·문구 위치는 다른 노드와 같음.
+   위 영역 160px = 다이어그램(영역 안 절대 위치, JS가 폭·왼쪽 당김을 정함) / 아래 영역 = 다이어그램 아래 ~ 하단 진행 바 위 여백 전체(높이는 JS fitSz — 무대 밖으로 넘쳐도 무대 높이는 그대로).
+   주법 칸은 아래 영역의 상하·좌우 가운데 */
+.jl-layer.n4-full { justify-self: stretch; }   /* 층을 무대 폭 전체로(영역 가운데 = 무대 가운데) */
+.n4-stack { display: flex; flex-direction: column; }
+.n4-dz { position: relative; height: 160px; flex: none; }   /* JS DZ_H와 같은 값 */
+.n4-dz > .n4-cw { position: absolute; top: 0; left: 50%; }
+.n4-sz { flex: none; display: flex; align-items: center; justify-content: center; gap: var(--space-4); transition: opacity var(--lec-fade); }
+.n4-sz.is-out { opacity: 0; }   /* 마무리 페이즈에서 다운 → 업 칸으로 바꿀 때 잠깐 사라짐 */
+/* 코드 전환 칸 '다시보기' 버튼(노드 4 페이즈 4) — 다이어그램 아래 32px, 텍스트 버튼(터치 44px). 층(#n4-trans)이 안 보일 땐 다른 층 위에서 터치를 가로채지 않게 */
+.jl-layer[id^="n4-"]:not(.is-on) { pointer-events: none; }
+.n4-sz.n4-rz { align-items: flex-start; padding-top: var(--space-8); }
+.n4-replay { display: inline-flex; align-items: center; gap: var(--space-1); min-height: 44px; padding: 0 var(--space-4); background: none; border: 0; font: inherit; font-size: var(--font-label-lg); font-weight: 600; color: var(--text-secondary); cursor: pointer; animation: n4-replay-in 0.3s ease both; }
+.n4-replay[hidden] { display: none; }
+.n4-replay:disabled { opacity: 0.35; pointer-events: none; }
+.n4-replay:active { color: var(--text-primary); }
+@keyframes n4-replay-in { from { opacity: 0; } to { opacity: 1; } }
+.n4-cw canvas { display: block; }
+.n4-cw .n4-cur, .n4-cw .n4-old { position: absolute; top: 0; left: 0; }   /* 지판만 그린 .n4-base(자리 차지) 위에 겹침 */
+.n4-cw .n4-old { opacity: 0; pointer-events: none; }   /* 코드가 바뀔 때만 이전 그림을 잠깐 보여 주며 옅어짐(JS fadeDiag) */
+.n4-sg { --sg-cell: 36px; --sg-stroke: 20px; --sg-cut: 14px; padding: 16px 0 0; flex: none; }   /* 위 16px = 강세 기호 자리 */
+.n4-sg::before, .n4-sg::after { content: none; }
+.n4-sg .strum-playhead { width: 2px; background: var(--blue); }
+.n4-vm { position: absolute; top: 0; left: calc(2px + var(--sg-cell) / 2); transform: translateX(-50%); display: flex; color: #555555; opacity: 0; transition: opacity var(--lec-fade); }   /* 강세 기호(악보 표준 >) — 첫 박 칸 위. 색 = 스트로크 기호와 같은 회색(.strum-play-grid .strum-ico) — 강조색(파랑) 쓰지 않음(사용자 지정 2026-11-21, 설명 중 잠깐 강조만 허용) */
+.n4-vm.is-in { opacity: 1; }
+/* 노드 4 마무리 칸 — 다운(강세)·업 주법 칸을 위아래로, 각 칸 위에 이름표. 무대 안(196px) 세로 가운데.
+   이름표 ↔ 칸 8px(한 묶음) / 두 묶음 사이 24px(다른 묶음 — 그리드 마진 16px 초과, style-guide §5). 업 칸은 강세 기호가 없어 위 16px 자리를 뺌(이름표와 보이는 간격을 다운과 같게) */
+.n4-sum { height: 196px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: var(--space-6); }
+.n4-sum-g { display: flex; flex-direction: column; align-items: center; gap: var(--space-2); }
+.n4-sum-l { font-size: var(--font-label-lg); font-weight: 600; line-height: 1.2; color: var(--text-secondary); }
+.n4-sum-g + .n4-sum-g .n4-sg { padding-top: 0; }
+
+.n4-cw { position: relative; display: block; }
+.n4-dots { position: absolute; inset: 0; pointer-events: none; }
+.n4-dot { position: absolute; aspect-ratio: 1; transform: translate(-50%, -50%); border-radius: 50%; background: #242729; box-sizing: border-box; display: flex; align-items: center; justify-content: center; color: #fff; font: 400 calc(var(--n4-w, 245px) * 0.056) 'Pretendard', sans-serif; opacity: 0; transition: left calc(0.6s * var(--n4-sp, 1)) cubic-bezier(0.33, 1, 0.68, 1), top calc(0.6s * var(--n4-sp, 1)) cubic-bezier(0.33, 1, 0.68, 1), opacity calc(0.4s * var(--n4-sp, 1)); }   /* --n4-sp = 전환 시간 배율(JS seqMove) */   /* 다이어그램 점과 같은 색·글자 비율 */
+.n4-dot.is-on { opacity: 1; }
+.n4-dot.is-snap { transition: none; }
+
+/* 여정 D4 퀴즈 — 스트로크 기호·소리 아이콘(인라인 svg, currentColor). 문제 카드 안은 크게, 보기 카드 안은 중간 */
+.n4q-ico { display: flex; align-items: center; justify-content: center; color: var(--text-primary); }
+.n4q-ico svg { width: 48px; height: 48px; }
+.n4q-ico--q svg { width: 72px; height: 72px; }
+#jq-view .ms-quiz-choice-card--text.n4q-txt { font: var(--type-title-lg); font-weight: var(--weight-semibold); }   /* 다운·업 스트로크 이름 보기 — 공용(24px/800)보다 약간 작게, 두께 600(사용자 지정) */
+
+/* ── 여정 D5 작은 별 연주하기(journey-lessons/little-star.js) — 다이어그램·점·위/아래 영역은 D4(.n4-*) 그대로.
+   작은 별 층: 위 영역(A·D·E 다이어그램 세 개, 100px — JS DZ_H.s와 같은 값) + 아래 영역(악보, 남은 여백의 상하 가운데 — fitSz).
+   악보 = 리하모니 작은별 악보(.lec6-row/.lec6-ln/.lec6-bar) 모양 그대로, 한 줄 4마디 × 3줄. 마디 하나 = 버튼(터치 = 그 마디부터 재생) */
+.n4-dz.n5-dzs { height: 100px; }
+.n5-trio { display: flex; height: 100%; }   /* A·D·E 세 다이어그램 — 무대 폭 3등분, 전환 없음 */
+.n5-tc { flex: 1 1 0; min-width: 0; position: relative; }
+.n5-tc canvas { position: absolute; top: 0; left: 50%; display: block; }   /* 지판 가운데가 칸 가운데에 오도록 JS가 margin-left로 당김 */
+/* 여정 D7 마이너 코드 — 장조에서 바뀌는 손가락 점만 파랑(JS morph·compare) / 정리 층 세 다이어그램의 반음 낮아진 자리 고리(Em은 손가락을 뗀 빈자리) */
+.n4-dot.n7-hot { background: var(--blue); }
+.jl-layer[id^="n7-"]:not(.is-on) { pointer-events: none; }   /* D7 — 안 보이는 비교 층(n7-cmp, 맨 위)이 터치를 받지 않게(§4-30) */
+.n7-cmp canvas { cursor: pointer; -webkit-tap-highlight-color: transparent; }   /* 소리 비교 — 두 다이어그램 터치 = 그 코드 소리(2026-11-20) */
+.n7-names { display: flex; flex-direction: column; align-items: center; gap: var(--space-4); padding-top: var(--space-6); font: var(--type-headline-sm); letter-spacing: var(--tracking-base); color: var(--text-primary); }   /* D7 마무리 — 배운 코드 이름만 두 줄(위 메이저 / 아래 마이너) */
+.n7-nrow { display: flex; gap: var(--space-6); }   /* 코드 이름 사이 24px(글자 공백 하나로는 붙어 보임) */
+.n4-dots.n8-dots .n4-dot { border-radius: 999px; transition: left calc(0.6s * var(--n4-sp, 1)) cubic-bezier(0.33, 1, 0.68, 1), top calc(0.6s * var(--n4-sp, 1)) cubic-bezier(0.33, 1, 0.68, 1), height calc(0.6s * var(--n4-sp, 1)) cubic-bezier(0.33, 1, 0.68, 1), opacity calc(0.4s * var(--n4-sp, 1)); }   /* 여정 D8 — 바레 점: 높이(JS putDot)로 덮는 줄 범위만큼 늘인 알약, 높이도 전환(C → F에서 1번이 눕는 것처럼) */
+.n4-dots.n8-dots .n4-dot.is-snap { transition: none; }
+.n8-all .n5-trio + .n5-trio { margin-top: var(--space-2); }   /* D8 정리 층 — 기초 코드 9가지 3×3, 줄 높이는 JS paintTrio */
+/* 여정 D9 — 8비트 주법 칸(코드반주 훈련 .strum-play-grid + D4 .n4-sg, 칸 8개·2칸마다 굵은 박 구분선). 강세 V(.n4-vm)는 칸마다 하나씩 — 위치는 JS placeVm */
+#n9-sg .strum-ico { transition: opacity var(--lec-fade), transform var(--lec-fade), color var(--lec-fade); }   /* 다운업 → 헛 스트로크로 흐려질 때·박 짚기 색이 부드럽게(강의만 — 퀴즈 보기는 처음부터 그 모양) */
+.n9-sg .strum-beat-cell.is-hot .strum-ico { color: var(--blue); }   /* 박 짚기 — 그 박 두 칸의 기호만 파랑(칸 채색은 쓰지 않음 — 가이드 §4-5) */
+#jq-view .jq-cq-choices.n9q-choices { grid-template-columns: 1fr; }   /* 주법 듣기 보기 2개 — 주법 칸이 길어 한 줄에 하나 */
+#jq-view .n9q-choices .ms-quiz-choice-card { display: flex; align-items: center; justify-content: center; }
+.n9q-sg { --sg-cell: 30px; --sg-stroke: 18px; }   /* 보기 카드 안 주법 칸(8칸 약 250px) */
+.n9q-sg .n4-vm { transition: none; }
+/* 여정 D10 — 6/8 12칸 주법 칸은 칸을 줄여 무대(약 300px)·보기 카드(약 250px)에 넣음. 3·6칸은 D9 크기 그대로 */
+.n9-sg.is-c12 { --sg-cell: 24px; --sg-stroke: 16px; }
+.n4-dz.n9-sdz { display: flex; align-items: center; justify-content: center; }   /* D9 마무리 — 작은 별 악보 한 줄을 위 영역(160px) 가운데에(2026-11-21) */
+.n10-sc .n5-ly { font: var(--type-body-sm); letter-spacing: var(--tracking-base); }   /* D10 생일 축하 노래 — 마디 가사가 길어(최대 7글자) 한 단계 작게, 마디 폭 안에 들어가게(2026-11-21) */
+.n10-sc .n5-ly.n10-lyr { left: auto; right: 4px; }   /* 마디 오른쪽 끝에 붙는 가사(다 | 생일, 다 | 사랑, 신의 | 생일 — 사용자 지정) */
+.n10-acc { position: absolute; top: -6px; display: flex; color: #555555; }   /* 마디 중간 코드 전환(D) 강세 기호 — 코드 이름 위, 주법 칸 강세 기호와 같은 색 */
+.n10-acc svg { width: 12px; height: 8px; }   /* 코드 이름(18px) 글자 폭에 맞춘 크기 */
+.n4-dz.n10-sdz3 { height: auto; }   /* D10 고요한 밤 — 악보 3줄(약 224px)이라 위 영역 높이를 악보에 맞춤, 주법 칸은 그 아래 남은 여백 가운데(2026-11-21) */
+.jl-layer[id^="n10-"]:not(.is-on) { pointer-events: none; }   /* D10 — 안 보이는 층(맨 위 마무리 층 n10-sum 등)이 고요한 밤 마디 터치를 가로채지 않게(§4-30) */
+.n10-sum { display: flex; flex-direction: column; align-items: center; gap: var(--space-8); padding-top: var(--space-6); }   /* D10 마무리 — 배운 주법 둘을 위아래로(2026-11-21) */
+.n10-si { display: flex; flex-direction: column; align-items: center; gap: var(--space-2); }
+.n10-sl { font: var(--type-body-bold); letter-spacing: var(--tracking-base); color: var(--text-primary); }   /* 주법 이름 */
+.n9q-sg.is-c12 { --sg-cell: 20px; --sg-stroke: 13px; }
+.n3q-dot.is-gone { opacity: 0; transition: opacity 0.3s ease; }   /* D10 F 채우기 — 정답이면 찍은 1·2번줄 점이 사라지고 아래 다이어그램의 바레 막대가 드러남 */
+/* 여정 D11 — 코드진행 코드 4개 한 줄(D6 .n5-trio 칸 4개). 재생 중엔 지금 마디 코드만 진하게 */
+.n11-car.progd-chord-view-inner { height: 100%; }   /* D11 코드진행 캐러셀 — 코드반주 훈련 슬롯 규칙 그대로, 높이는 위 영역(160px) */
+/* 이웃(0.67배) 중심 거리 = JS --n11-d(보이는 그림끼리 12px 띄움 — money-calypso.js CAR_NEAR) */
+.n11-car .progd-slot canvas { position: absolute; top: 50%; left: 50%; transform: translateY(-50%); display: block; }   /* 지판 가운데가 슬롯 가운데에 오도록 JS가 margin-left로 당김 */
+.n11-car .progd-slot--prev { transform: translateX(calc(-1 * var(--n11-d, 60%))) scale(0.67); }
+.n11-car .progd-slot--next { transform: translateX(var(--n11-d, 60%)) scale(0.67); }
+.n11-car { -webkit-mask-image: linear-gradient(to right, transparent, #000 6px, #000 calc(100% - 6px), transparent); mask-image: linear-gradient(to right, transparent, #000 6px, #000 calc(100% - 6px), transparent); }   /* 좌우 끝에서 잘리는 부분만 흐리게(코드반주 훈련과 같음) */
+/* 여정 D12 트라이어드 — 건반(D2 .n2-* 부품) 위에 코드명(크게), 건반 아래 순번·도수(옅게 / 3음 파랑) */
+.n12-kname { height: 36px; margin-bottom: var(--space-6); text-align: center; font: var(--type-headline); letter-spacing: var(--tracking-base); color: var(--text-primary); opacity: 0; transition: opacity var(--lec-fade); }   /* 코드명 — 건반 위에 크게(사용자 지정). 비어 있어도 자리는 유지(건반이 위아래로 움직이지 않게) */
+.n12-kn-m { display: inline-block; max-width: 1em; overflow: hidden; vertical-align: bottom; color: var(--blue); transition: max-width 0.6s cubic-bezier(0.33, 1, 0.68, 1), opacity 0.6s ease; }   /* 메이저 표기 M — 접히며 사라짐(5번 칸 M 생략) */
+.n12-kn-m.is-gone { max-width: 0; opacity: 0; }
+.n12-kname.is-in { opacity: 1; }
+#n12-knums { margin: var(--space-1) 0 0; }   /* D12 — 순번·도수는 건반 아래(D2 .n2-knums는 건반 위라 아래 여백만 있음 → 위 여백으로 바꿈) */
+.n2-knum.is-in.n12-dim { opacity: 0.25; }
+.n2-knum.n12-hot { color: var(--blue); }
+/* D12 다이어그램 도수 점 — 누르는 자리 = .n4-dot(검은 점), 개방현 = 캔버스 O 위에 숫자만. 도수 글자는 따로 나타남 */
+.n4-dot.n12-open { background: transparent; color: #242729; }   /* 개방현 — O는 캔버스가 그림(다른 다이어그램과 같은 모양), 여기는 그 위에 겹치는 숫자만 */
+.n4-dot.n12-open.n7-hot { background: var(--blue); color: #fff; }   /* 3음 개방현(Em) — 파랑으로 채운 원이 캔버스 O를 덮음(강조 = 원 채우기, 사용자 지정 2026-11-17) */
+.jl-layer[id^="n12-"]:not(.is-on) { pointer-events: none; }   /* D12 — 안 보이는 층(뒤에 쌓인 정리 층 #n12-trio 등)이 다이어그램 층 위에서 마우스·터치를 가로채지 않게 */
+/* D12 참여형 — 학습자가 끄는 3음 점: 터치 받음(.n4-dots는 pointer-events 없음), 끄는 동안 스크롤 막음, 터치 영역 12px 넓힘, 파랑 파동으로 '끌 수 있음' 표시 */
+.n4-dot.n12-drag { pointer-events: auto; touch-action: none; cursor: grab; }
+.n4-dot.n12-drag::before { content: ''; position: absolute; inset: -12px; border-radius: 50%; }
+/* 끌 방향 힌트 — 파란 원 3개(진하기 0.5·0.3·0.15, 0.07초씩 늦게)가 지금 자리 → 반음 낮은 자리로 미끄러져 잔상처럼 보임, 1.6초마다 반복(--n12-from·--n12-to는 JS) */
+.n12-hint { position: absolute; aspect-ratio: 1; transform: translate(-50%, -50%); pointer-events: none; opacity: 0; animation: n12-swipe 1.6s cubic-bezier(0.33, 1, 0.68, 1) infinite; }
+.n12-hint i { display: block; width: 100%; height: 100%; border-radius: 50%; background: var(--blue); }
+@keyframes n12-swipe { 0% { left: var(--n12-from); opacity: 0; } 10% { left: var(--n12-from); opacity: 1; } 60% { left: var(--n12-to); opacity: 1; } 85%, 100% { left: var(--n12-to); opacity: 0; } }
+.n12-dl { opacity: 0; transition: opacity var(--lec-fade); }
+.n12-dl.is-in { opacity: 1; }
+/* D12 정리 표 — 네 가지 트라이어드 도수, 한 줄씩 나타남. 3음 칸 파랑 */
+.n12-sumwrap { display: flex; align-items: stretch; gap: var(--space-6); }   /* 표 + 오른쪽 세로 화살표(표 높이만큼) */
+.n12-arrow { display: flex; flex-direction: column; align-items: center; gap: var(--space-1); flex: none; opacity: 0; transition: opacity var(--lec-fade); }   /* 위 핑크 → 아래 블루 = 밝음 → 어두움(aug · M · m · dim). 라벨 + 화살표가 표 높이만큼 */
+.n12-arrow-svg { width: 20px; flex: 1 1 0; min-height: 0; }   /* 두꺼운 막대(8) + 꽉 찬 삼각형 머리(폭 20) */
+.n12-al { font: var(--type-label-sm); font-weight: 600; white-space: nowrap; }
+.n12-al--top { color: var(--icon-pink); }
+.n12-al--bot { color: var(--blue); }
+.n12-arrow.is-in { opacity: 1; }
+.n12-tbl { display: flex; flex-direction: column; gap: var(--space-3); }
+.n12-row { display: grid; grid-template-columns: 56px repeat(3, 44px); align-items: center; opacity: 0; transition: opacity var(--lec-fade); }
+.n12-row.is-in { opacity: 1; }
+.n12-rn { font: var(--type-title); color: var(--brand); text-align: center; }   /* 기호만(aug · M · m · dim), 브랜드색(사용자 지정) */
+.n12-c { text-align: center; font: var(--type-title); color: var(--text-primary); transition: color var(--lec-fade); }
+.n12-c3.is-hot { color: var(--blue); }
+.n12-mm { display: flex; justify-content: center; gap: var(--space-12); }   /* 노드19 마무리(2026-11-24) — 메이저·마이너 기호 + 아래 도수, 3음 칸은 정리 표와 같은 .n12-c3 */
+.n12-mmcol { display: flex; flex-direction: column; align-items: center; gap: var(--space-2); opacity: 0; transition: opacity var(--lec-fade); }
+.n12-mmcol.is-in { opacity: 1; }
+.n12-mmname { font: var(--type-display); color: var(--brand); }
+.n12-mmdeg { display: flex; gap: var(--space-3); }
+/* 노드13(다이어토닉 코드의 이해) — 리하모니 1장 격자(.lec-grid)를 여정 무대(.is-jny, 간격 0)에 그대로 씀. 가사는 격자와 다른 묶음이라 24px 띄움(리하모니 무대는 32px) */
+.n13-stage .lec-lyrics { margin-top: var(--space-6); }
+/* 노드15(펜타토닉 스케일 G폼) — D2 지판(.n2-sfb = 스케일 훈련 .fb-*)을 너트 없는 4~9프렛 창으로. 양 끝 칸은 흐리게(지판이 이어진다는 표시, 폭은 JS --n15-fade = 칸 폭 0.7) */
+.n15-sfb { position: relative; }
+/* 덮개는 상자 밖으로 4px 더 — 양 끝 프렛선(translateX(-50%))의 바깥 반쪽이 상자 밖에 그려져 흐림이 끝까지 안 덮였음(2026-11-23 사용자 지적). 늘린 4px는 처음부터 완전 흰색 */
+.n15-sfb::before, .n15-sfb::after { content: ''; position: absolute; top: 0; bottom: 0; width: calc(var(--n15-fade, 36px) + 4px); pointer-events: none; z-index: 5; }
+.n15-sfb::before { left: -4px; background: linear-gradient(to right, #ffffff calc(4px + var(--n15-fade, 36px) * 0.15), rgba(255, 255, 255, 0)); }
+.n15-sfb::after { right: -4px; background: linear-gradient(to left, #ffffff calc(4px + var(--n15-fade, 36px) * 0.15), rgba(255, 255, 255, 0)); }
+.n15-sfb .fb-note { transition: opacity var(--lec-fade), background-color var(--lec-fade); }
+.n15-sfb .fb-note-deg { transition: opacity var(--lec-fade); }
+.n15-sfb .fb-note.n15-lab-out .fb-note-deg { opacity: 0; }   /* 점 글자 바꾸기(음이름 → 도수 → 손가락 번호) — 글자만 옅어졌다 돌아옴 */
+.n15-sfb .fb-note.n15-root, .n15-sfb .fb-note.n15-sel { background: var(--blue); }   /* 글자 칸의 근음·G코드 모양(강의) / 퀴즈에서 고른 점 — 점 자체를 칠함(가이드 §4-27) */
+.n15-sfb .fb-note.n15-dim { opacity: 0.25; }
+.n15-sfb .fb-note.n15-miss { background: var(--icon-coral); opacity: 0; }   /* 직접 채우기에서 틀린 자리 — JS가 0.4 → 0으로 잠깐 띄움(가이드 §4-8) */
+.n15-sfb .fb-fret-num { transition: opacity var(--lec-fade), color var(--lec-fade); }
+.n15-sfb .fb-fret-num.n15-fn-x { opacity: 0; }   /* 6·8프렛 번호 — '4칸' 설명 때만 */
+.n15-sfb .fb-fret-num.n15-fn-x.is-in { opacity: 1; }
+.n15-sfb .fb-fret-num.is-focus { color: var(--blue); }
+.n15-fbl { position: relative; }
+/* 자유 연주 칸의 코드 이름 줄(C Am F G) — 지판 아래, 층 높이에 안 들어가게 절대 위치(무대 220px 밖 여백으로 넘침, 가이드 §4-22). 그 칸에서만 보임, 지금 코드 파랑 */
+.n15-prog { position: absolute; top: 100%; left: 0; right: 0; margin-top: var(--space-2); display: flex; justify-content: center; gap: var(--space-4); opacity: 0; transition: opacity var(--lec-fade); pointer-events: none; }
+.n15-prog.is-in { opacity: 1; }
+.n15-pc { font: var(--type-title-sm); color: var(--text-muted); transition: color var(--lec-fade); }
+.n15-pc.is-focus { color: var(--blue); }
+.n15-row .n2-cell { transition: width 0.5s cubic-bezier(0.33, 1, 0.68, 1), margin-right 0.5s cubic-bezier(0.33, 1, 0.68, 1), opacity var(--lec-fade); }
+.n15-row .n2-cell.n15-out { width: 0; margin-right: calc(-1 * var(--space-1)); opacity: 0; overflow: hidden; }   /* 4도·7도 칸이 빠지며 남은 칸이 모임 */
+/* 타브악보(tab-render.js, 2026-11-20 노드20) — Guitar Pro 타브 모양의 설명용 악보. 크기는 JS가 폭에서 계산, 색은 토큰만 */
+.tab-svg { display: block; overflow: visible; font-family: var(--font-family); }
+.tab-svg text { text-anchor: middle; dominant-baseline: central; fill: var(--text-primary); }
+.tab-line { stroke: var(--text-muted); stroke-width: 1; transition: stroke var(--lec-fade, 400ms); }
+.tab-line.is-on { stroke: var(--blue); stroke-width: 2; }
+.tab-bar { stroke: var(--text-secondary); stroke-width: 1; }
+.tab-bar-end { fill: var(--text-secondary); }
+.tab-svg .tab-head { font-weight: 700; }
+.tab-svg .tab-sn { font-weight: 600; fill: var(--text-muted); transition: fill var(--lec-fade, 400ms); }
+.tab-svg .tab-sn.is-on { fill: var(--blue); }
+.tab-n-bg { fill: var(--bg); }   /* 숫자 자리만 줄이 끊겨 보이게(무대·문제 화면 배경과 같은 색) */
+.tab-svg .tab-n text { font-weight: 600; transition: fill var(--lec-fade, 400ms); }
+.tab-svg .tab-n.is-on text { fill: var(--blue); }
+.tab-svg .tab-n.is-ok text { fill: #34C759; }   /* 채점 정답색(.fb-note--correct와 같음) */
+.tab-svg .tab-n.is-ng text { fill: #FF3B30; }   /* 채점 오답색(.fb-note--wrong와 같음) */
+.tab-arc { fill: none; stroke: var(--text-primary); stroke-width: 1.2; transition: stroke var(--lec-fade, 400ms); }
+.tab-sl { stroke: var(--text-primary); stroke-width: 1.4; transition: stroke var(--lec-fade, 400ms); }
+.tab-svg .tab-lb { font-weight: 600; font-style: italic; transition: fill var(--lec-fade, 400ms); }
+.tab-svg .tab-tup { font-weight: 600; font-style: italic; }   /* 셋잇단 묶음 아래 '3' */
+.tab-mk { transition: opacity var(--lec-fade, 400ms); }
+.tab-mk--hide { opacity: 0; }
+.tab-mk.is-on .tab-arc, .tab-mk.is-on .tab-sl { stroke: var(--blue); }
+.tab-svg .tab-mk.is-on .tab-lb { fill: var(--blue); }
+.tab-stem { stroke: var(--text-primary); stroke-width: 1.2; }   /* 리듬(줄 아래) — 음표 기둥·들보·꼬리·점·붙임줄 */
+.tab-beam, .tab-dot { fill: var(--text-primary); }
+.tab-pick { stroke: var(--text-primary); fill: var(--text-primary); }
+.tab-svg .tab-pick.is-on { stroke: var(--blue); fill: var(--blue); }   /* 지금 치는 음의 피킹 기호(숫자와 같이 파랑) */
+.tab-svg .tab-pick.is-ok { stroke: #34C759; fill: #34C759; }   /* 들보 아래 피킹 기호(다운 ㄇ · 업 V) — path는 fill none, ㄇ 윗막대(rect)만 채움 */
+.tab-flag, .tab-tie { fill: none; stroke: var(--text-primary); stroke-width: 1.2; }
+/* 노드20(기타 필수 스킬) — 무대 = 위 타브악보 + 아래 따라 하기 지판(2~5프렛, 점 없이). 둘을 같이 보는 강의라 무대만 350px(다른 노드 220px — 리듬 표시가 있는 악보 + 줄 간격을 넓힌 지판이 들어가게) */
+.combo-v2-lec-stage.is-jny.n20-stage { height: 350px; }
+.n20-main { display: flex; flex-direction: column; align-items: center; gap: var(--space-3); }
+.n20-tab, .n20-fbw { opacity: 0; transform: translateY(12px); transition: opacity var(--lec-fade) cubic-bezier(0.33, 1, 0.68, 1), transform var(--lec-fade) cubic-bezier(0.33, 1, 0.68, 1); }   /* 빈 무대에 나타날 땐 밑에서 올라옴(.jl-rise와 같은 값 — §4-32, 사용자 지정 2026-11-23) */
+.n20-tab.is-in, .n20-fbw.is-in { opacity: 1; transform: translateY(0); transition-duration: 0.6s; }
+.n20-fbw:not(.is-in) { pointer-events: none; }   /* 안 보이는 지판은 터치를 받지 않게 */
+#n20-main:not(.is-on) .n20-fbw { pointer-events: none; }   /* 층이 꺼졌을 때도(마지막 정리 페이즈 등 — 위에 다른 층이 떠도 아래 지판이 눌렸음, 2026-11-23) */
+.n20-main { position: relative; }
+.n20-hint { position: absolute; top: 100%; left: 0; right: 0; margin-top: var(--space-2); text-align: center; font: var(--type-body-sm); color: var(--text-secondary); opacity: 0; transition: opacity var(--lec-fade); pointer-events: none; }   /* 마우스 기기만(JS) — Shift 안내. 무대 아래에 붙음(D15 코드 이름 줄과 같은 자리 방식) */
+.n20-hint.is-in { opacity: 1; }
+.n20-sum { display: flex; justify-content: center; gap: var(--space-4); padding-top: var(--space-2); }   /* D20 마지막 페이즈 — 세 주법 정리(가로) */
+.n20-si { display: flex; flex-direction: column; align-items: center; gap: var(--space-2); }
+.n20-sl { font: var(--type-body-bold); letter-spacing: var(--tracking-base); color: var(--text-primary); }   /* 주법 이름 */
+.n20-hint .lec-em { color: var(--blue); }
+#jq-view .n20-qhint { margin: var(--space-2) 0 0; text-align: center; font: var(--type-body-sm); color: var(--text-secondary); }   /* 문제 ②③ 마우스 기기만 — Shift 안내 */
+#jq-view .n20-qhint .lec-em { color: var(--blue); }
+.n20-sfb .fb-fret-num { font-size: max(11px, calc(11 * var(--fbu))); }   /* 지판이 작아도 프렛 번호는 하한 11px */
+.n20-big .fb-note { width: calc(28 * var(--fbu)); height: calc(28 * var(--fbu)); }   /* 점 없는 2~5프렛 지판(강의 따라 하기·문제 ②) — 점을 크게(기본 22, 사용자 지정 2026-11-20). 스케일 블럭 지판(문제 ①③)은 그대로 */
+.n20-sfb .fb-note.n20-t { z-index: 4; }   /* 누르는 손가락 점 — 고스트·블럭 점 위 */
+.n20-sfb .fb-note.n20-snd { background: var(--blue); }   /* 그 줄에서 지금 소리 나는 손가락 */
+.n20-sfb .fb-note--ghost.n20-cur { opacity: 0.8; }   /* 문제 ③ — 지금 칠 줄 */
+#jq-view .jq-board.n20-qtab { padding-bottom: 0; }   /* 문제 ② — 악보와 지판은 한 묶음 */
+#jq-view .jq-board.n20-qtab + .jq-board { margin-top: 0; }
+/* 노드21(펜타토닉 대각 연결) — 무대 350px(지판 + 자유 연주 화살표 줄 두 개가 들어가게, D20과 같은 높이). 층 둘(지판·자유 연주)은 위쪽 정렬 세로 묶음 */
+.jl-layer.n21-l { justify-self: stretch; display: flex; flex-direction: column; align-items: center; }
+.jl-layer.n21-l:not(.is-on) { pointer-events: none; }   /* 안 보이는 층이 누르기를 가로채지 않게(가이드 §4-30) */
+.n21-flab { font: var(--type-title-sm); color: var(--text-secondary); margin-bottom: var(--space-2); min-height: calc(var(--font-title-sm) * 1.2); }   /* 지판 위 이름(폼·패턴) */
+.n21-flab .lec-em { color: var(--blue); }
+.n21-flab .n21-k1 { color: var(--blue); }
+.n21-flab .n21-k2 { color: var(--icon-pink); }   /* 두 패턴을 같이 볼 때 이름 색 = 점 색(패턴1 블루 · 패턴2 핑크 — 사용자 지정 2026-11-20) */
+.n21-sfb .fb-note-deg { font-size: max(11px, calc(12 * var(--fbu))); }   /* 점 글자(음이름·손가락 번호) 하한 11px */
+.n21-sfb .fb-note.n21-p1 { background: var(--blue); }
+.n21-sfb .fb-note.n21-p2 { background: var(--icon-pink); }   /* 두 패턴을 같이 볼 때 점 색 */
+/* 솔로 D13 대각 + G폼 칸(2026-11-24): 색 대신 진하기 — 설명하는 쪽만 기본 점(브랜드색), 나머지는 고스트(.fb-note--ghost와 같은 회색·투명도) */
+.n21-sfb .fb-note.n21-bk { transition: background var(--lec-fade, 400ms), opacity var(--lec-fade, 400ms); }
+.n21-sfb .fb-note.n21-off { background: #d8d8d8; opacity: 0.45; z-index: 2; }
+/* G폼 영역 상자 — 설명이 끝나 전부 진해질 때 켬. 바탕 = 브랜드색(#1a1a1a) 6%, 모서리 직각, 위아래 위치는 JS(좌우 여백과 같게) */
+.n21-gbox { position: absolute; border: 2px solid var(--brand); background: rgba(26, 26, 26, 0.06); opacity: 0; transition: opacity var(--lec-fade, 400ms); pointer-events: none; z-index: 1; }
+.n21-gbox.is-on { opacity: 1; }
+/* 슬라이드 화살표 — 두 점 사이 줄 위에 파란 선 + 화살촉(하행은 왼쪽 방향) */
+/* 노드21 슬라이드 화살표 — 두껍게(2026-11-23 사용자 지정: 막대 5px · 화살촉 18×13px, 이전 3px · 10×7px) */
+.n21-sl { position: absolute; height: 5px; margin-top: -2.5px; border-radius: 2.5px; background: var(--blue); opacity: 0; transition: opacity var(--lec-fade); z-index: 5; pointer-events: none; }   /* 지판·점(z 3)보다 위에 덮음(사용자 지정 2026-11-23) */
+.n21-sl.is-in { opacity: 1; }
+.n21-sl::after { content: ''; position: absolute; top: 50%; right: -2px; border: 9px solid transparent; border-left: 13px solid var(--blue); border-right: 0; transform: translateY(-50%); }
+.n21-sl.is-down::after { right: auto; left: -2px; border-left: 0; border-right: 13px solid var(--blue); }
+/* 3칸 표시 — 패턴1 끝 ~ 패턴2 시작 사이 줄 위에 옅은 막대 + '3칸' */
+.n21-gap { position: absolute; height: calc(14 * var(--fbu)); transform: translateY(-50%); background: none;   /* 글자는 줄 가운데, 바탕은 글자(span)에만 — 아래 */ opacity: 0; transition: opacity var(--lec-fade); z-index: 5; pointer-events: none; display: flex; align-items: center; justify-content: center; }
+.n21-gap.is-in { opacity: 1; }
+.n21-gap span { font: var(--type-caption); font-size: 12px; font-weight: 600; line-height: 1; padding: 1px 7px; color: var(--blue); background: linear-gradient(to right, rgba(255, 255, 255, 0), #ffffff 5px, #ffffff calc(100% - 5px), rgba(255, 255, 255, 0)); }   /* 좌우 가장자리 5px는 불투명도 그라데이션 — 가려진 줄이 끝에서 서서히 이어짐(2026-11-23) */   /* 2026-11-23 사용자 지정: 12px · 600, 줄 가운데 + 글자 크기에 딱 맞는 흰 바탕(넥 바탕색)으로 그 자리 줄만 가림 — 점·다른 칸은 그대로 보임 */
+/* 자유 연주 — 패턴·코드진행 고르기(화살표 + 가운데 이름) */
+/*  화살표·이름을 스트로크 알약 하나로 묶음 — 솔로 D10 폼 선택(.n10s-sel)과 같은 디자인(사용자 지정 2026-11-24, 코드반주·솔로 두 코스 모두) */
+.n21-car { display: flex; align-items: center; justify-content: center; width: max-content; margin-inline: auto; height: 40px; padding: 0 var(--space-1); border: 1px solid var(--border); border-radius: 999px; }
+#n21-pcar { margin-top: calc(var(--font-title-sm) * 1.2 - 40px); }   /* 알약 아랫선 = 지판 이름 줄(.n21-flab) 아랫선 — 자유 연주 지판이 패턴 칸 지판과 같은 자리(2026-11-23). 알약은 위로만 커짐 */
+.n21-car + .n21-fbw, .n21-fbw + .n21-car { margin-top: var(--space-2); }
+.n21-arr { position: relative; width: 28px; height: 32px; display: flex; align-items: center; justify-content: center; background: none; border: 0; padding: 0; color: var(--text-secondary); cursor: pointer; }
+.n21-arr::before { content: ''; position: absolute; inset: -6px -8px; }   /* 보이는 칸은 좁게, 터치 영역은 44px */
+.n21-arr svg { width: 12px; height: 12px; }   /* 작은 삼각형(사용자 지정) */
+.n21-car-lab { min-width: 40px; padding: 0 var(--space-1); text-align: center; font: var(--type-title-sm); color: var(--text-primary); }
+.n21-prog { display: flex; justify-content: center; gap: var(--space-3); }
+.n21-car-lab.n21-prog { min-width: 120px; }   /* 코드진행은 길이가 진행마다 달라 알약 폭이 덜 흔들리게(옛 최소 폭 그대로) */
+.n21-pc { font: var(--type-title-sm); color: var(--text-muted); transition: color var(--lec-fade); }
+.n21-pc.is-focus { color: var(--blue); }   /* 지금 반주 코드(D15 코드 이름 줄과 같음) */
+#jq-view .jq-qcard.n5q-pcard { height: 220px; }   /* 코드진행 문제 카드(D5·D6·D8) — 168px보다 높게(남는 세로 공간, 사용자 지정 2026-11-15) */
+#jq-view .n5q-pchoices .ms-quiz-choice-card { aspect-ratio: auto; height: 140px; }   /* 코드진행 보기 카드 — 높이를 키움(다이어그램 폭은 --n5q-dw) */
+#jq-view .n5q-choices.n5q-pchoices { --n5q-dw: 99px; grid-template-columns: repeat(3, minmax(0, 1fr)); }   /* 코드진행 보기 다이어그램(캔버스) 폭 — 5단계마다 그 단계 가장 좁은 화면의 보기 카드 안쪽에 맞춘 고정값(사용자 지정 2026-11-15). 칸 = (본문 폭 − 간격 12×2) ÷ 3 − 테두리 2. minmax(0, 1fr): 칸이 캔버스 폭만큼 늘어나 오른쪽으로 벗어나지 않게. 2클래스 = 뒤에 있는 .n5q-choices(1fr)보다 우선 */
+/*   360px 99(본문 328) / 481px 139(본문 449) / 769px~ 172 — 769px 카드 안쪽 폭은 233이지만 카드 높이(140, 안쪽 138)에 다이어그램 높이(폭 × 0.8)가 들어가는 최대가 172. 1080·1600px도 172(본문 상한 800 → 카드 안쪽 256, 높이 제한 같음) */
+@media (min-width: 481px) { #jq-view .n5q-choices.n5q-pchoices { --n5q-dw: 139px; } }
+@media (min-width: 769px) { #jq-view .n5q-choices.n5q-pchoices { --n5q-dw: 172px; } }
+#jq-view .n5q-pchoices .ms-quiz-choice-canvas-slot { width: min(var(--n5q-dw), 100%); height: auto; aspect-ratio: 440 / 352; }   /* 카드 가운데(.jq-cq-choices--diag 슬롯 flex 가운데) — 캔버스 가운데 ≈ 지판 가운데 */
+.jl-layer.n5-song:not(.is-on) { pointer-events: none; }   /* 안 보이는 층의 마디 버튼이 터치를 받지 않게 */
+.n5-sc { --sc-pad: 10px; --sc-row: 64px; --sc-gap: var(--space-4); position: relative; width: 100%; max-width: 360px; }
+.n5-sc .lec6-row + .lec6-row { margin-top: var(--sc-gap); }
+.lec6-bar.n5-mb { top: 27px; height: 14px; left: calc(var(--sc-pad) + (100% - 2 * var(--sc-pad)) * var(--k) / 4 - 1px); }   /* 마디선(짧게) */
+.n5-m { position: absolute; top: 0; bottom: 0; left: calc(var(--sc-pad) + (100% - 2 * var(--sc-pad)) * var(--k) / 4); width: calc((100% - 2 * var(--sc-pad)) / 4); padding: 0; border: 0; background: none; font: inherit; color: inherit; cursor: pointer; -webkit-tap-highlight-color: transparent; }
+.n5-ch { position: absolute; top: var(--space-2); left: 4px; font: var(--type-title); letter-spacing: var(--tracking-base); color: var(--text-primary); transition: color 0.15s ease; }   /* 칸(2박) 시작 위치 + 4px(리하모니 악보 SC_GAP) */
+.n5-ch + .n5-ch { left: calc(50% + 4px); }
+.n5-ch.is-hot { color: var(--blue); }   /* 지금 울리는 코드 칸 */
+.n5-ly { position: absolute; top: 40px; left: 4px; font: var(--type-title-sm); letter-spacing: var(--tracking-base); color: var(--text-muted); white-space: pre; }   /* 가사 — 마디 시작에 왼쪽 정렬, 부른 글자 진하게·지금 글자 파랑(.lec-syl) */
+/* D5 퀴즈 ③ 코드 진행 — 문제 카드 안 2마디 악보(강의 악보 .lec6-row 모양, 코드 이름만) + 아래 A·D·E 다이어그램 3개 한 줄 */
+#jq-view .n5q-sc { --sc-pad: 10px; position: relative; width: 100%; max-width: 320px; }
+#jq-view .n5q-row { height: 56px; }
+#jq-view .n5q-ch { position: absolute; top: var(--space-2); left: calc(var(--sc-pad) + (100% - 2 * var(--sc-pad)) * var(--k) / 4 + 4px); font: var(--type-title); letter-spacing: var(--tracking-base); color: var(--text-primary); transition: color 0.15s ease; }
+#jq-view .n5q-ch.is-cur { color: var(--blue); }   /* 지금 누를 칸 */
+#jq-view .n5q-ch.is-ok { color: #34C759; }   /* 누른 칸 정답 — 보기 카드 정답 링과 같은 색 */
+#jq-view .n5q-ch.is-ng { color: #FF3B30; }   /* 누른 칸 오답(보기 카드 오답 링과 같은 색) — 본 문제는 틀린 채로 넘어감, 오답풀이는 0.5초 뒤 지움(그 칸에서 다시 — CLAUDE.md 0-8) */
+#jq-view .n5q-choices { grid-template-columns: repeat(3, 1fr); }
+/* ③ 문제 카드 보강(사용자 지정 2026-11-15): 좌상단 스피커(리하모니 설명 카드와 같은 자리·모양 — 카드 아무 곳이나 누르면 지금 칸 코드 소리), 지금 칸 위에 둥둥 떠 있는 화살표 */
+#jq-view .n5q-card { position: relative; }
+#jq-view .n5q-card .combo-v2-speaker {
+  left: calc(var(--space-4) - (var(--cd-icon-btn-size) - var(--cd-icon-btn-icon)) / 2);
+  top: calc(var(--space-4) - (var(--cd-icon-btn-size) - var(--cd-icon-btn-icon)) / 2);
+  width: var(--cd-icon-btn-size);
+  padding: 0;
+  justify-content: center;
+  color: var(--blue);
+}
+#jq-view .n5q-sc { margin-top: var(--space-2); }   /* 화살표 자리 */
+#jq-view .n5q-ch.is-cur::before {   /* 아래를 가리키는 작은 삼각형 — 글자 가운데 위 */
+  content: '';
+  position: absolute;
+  left: 50%;
+  bottom: calc(100% + 2px);
+  border-left: 6px solid transparent;
+  border-right: 6px solid transparent;
+  border-top: 8px solid var(--blue);
+  animation: n5qFloat 1.2s ease-in-out infinite;
+}
+@keyframes n5qFloat {
+  0%, 100% { transform: translate(-50%, 0); }
+  50% { transform: translate(-50%, -4px); }
+}
+#jq-view .jq-qask.n5q-hint { font-size: 13px; }   /* 코드진행 문제 카드 아래 힌트 안내 — 13px(사용자 지정) */
+#jq-view .cd-btn.combo-v2-submit.n5q-next { background: var(--blue); color: #fff; }   /* D5 코드진행 채점 뒤 "다음" — 정답·오답과 상관없이 블루(사용자 지정, 정오는 칸 색·벨로 알림) */
+/* D5 코드진행 — 틀린 칸만 코드 이름이 좌우로 호를 그리며 떨림(사용자 지정 2026-11-15, 칸마다 소리 대신). 글자 아래 가운데를 축으로 회전 → 끝이 호를 그림 */
+#jq-view .n5q-ch.is-shake { transform-origin: 50% 100%; animation: n5qShake 0.5s cubic-bezier(0.36, 0.07, 0.19, 0.97); }
+@keyframes n5qShake {
+  0%, 100% { transform: rotate(0deg); }
+  15% { transform: rotate(-14deg); }
+  35% { transform: rotate(12deg); }
+  55% { transform: rotate(-8deg); }
+  75% { transform: rotate(4deg); }
+}
+#combo-v2-intro .combo-v2-scene-line.jl-intro-note { font-size: 13px; color: var(--text-secondary); }   /* 여정 오답풀이 안내의 "부담 없어요" 줄 — 보충 문구라 13px·회색(사용자 지정 2026-11-15, 두 줄 처리 대신) */
+
+/* 노드20 풀링오프 '위로 긁듯이' 안내(2026-11-23) — 지판을 안 만지는 동안만, 떼는 손가락 자리에서 위(1번줄 쪽)로 점이 차례로 찍혔다 사라짐을 되풀이 */
+.n20-flick { position: absolute; width: calc(10 * var(--fbu)); height: calc(10 * var(--fbu)); border-radius: 50%; background: var(--blue); transform: translate(-50%, -50%); pointer-events: none; z-index: 5; opacity: 0; animation: n20-flick-dot 0.5s ease-out forwards; }
+@keyframes n20-flick-dot { 0% { opacity: 0.7; } 100% { opacity: 0; } }
+
+/* ═══ 솔로연주 비기너 새 노드(2026-11-23 — docs/solo-beginner-work-guide.md) ═══ */
+/* 공용 퀴즈 키트 지판(journey-quiz-kit.js board) — 양 끝 흐림이 없는 창에서도 D15 점 상태가 같게 */
+.jqk-sfb .fb-note.n15-root, .jqk-sfb .fb-note.n15-sel { background: var(--blue); }
+.jqk-sfb .fb-note.n15-dim { opacity: 0.25; }
+.jqk-sfb .fb-note.n15-miss { background: var(--icon-coral); opacity: 0; }
+.jqk-sfb .fb-string.is-focus { background: var(--blue); }
+.jqk-sfb .fb-note-deg { font-size: max(11px, calc(12 * var(--fbu))); }
+.jqk-sfb .fb-fret-num { font-size: max(11px, calc(11 * var(--fbu))); }
+.jqk-sfb .fb-open-hint { width: calc(22 * var(--fbu)); height: calc(22 * var(--fbu)); }   /* 개방현 빈 동그라미 = 점과 같은 크기(이 지판은 --fbu로 크기가 바뀌어 고정 22px면 개방현 점과 두 겹으로 보임) */
+/* 개방현(0프렛) 점 = 속 빈 원(스케일 훈련 .fb-note--open과 같은 2px 고리 — 안이 투명해 줄이 보임, 2026-11-24 노드17·18). 고리 색 = 그 점의 색(--jqk-ring).
+   직접 찍은 점·채점 결과(placed·correct·wrong)는 스케일 테스트처럼 채운 점 그대로, 못 찾은 점(missed)은 점선 그대로 */
+.jqk-sfb .fb-note.jqk-open:not(.fb-note--placed):not(.fb-note--correct):not(.fb-note--wrong):not(.fb-note--missed) { background: transparent !important; border: calc(2px * var(--fbs, 1)) solid var(--jqk-ring, var(--brand)); }
+.jqk-sfb .fb-note.jqk-open:not(.fb-note--placed):not(.fb-note--correct):not(.fb-note--wrong):not(.fb-note--missed) .fb-note-deg { color: var(--text-primary); }
+.jqk-sfb .fb-note.jqk-open.n17s-c0, .jqk-sfb .fb-note.jqk-open.n15-root, .jqk-sfb .fb-note.jqk-open.n15-sel, .jqk-sfb .fb-note.jqk-open.n14-pair, .jqk-sfb .fb-note.jqk-open.n3s-play, .jqk-sfb .fb-note.jqk-open.fb-note--playing { --jqk-ring: var(--blue); }
+.jqk-sfb .fb-note.jqk-open.n17s-c1, .jqk-sfb .fb-note.jqk-open.n14-new { --jqk-ring: var(--icon-pink); }
+.jqk-sfb .fb-note.jqk-open.n15-miss { --jqk-ring: var(--icon-coral); }
+.jqk-sfb .fb-note.jqk-open.fb-note--ghost { --jqk-ring: #d8d8d8; }
+.jqk-sfb .fb-note.jqk-open.fb-note--root:not(.fb-note--placed):not(.fb-note--correct):not(.fb-note--wrong):not(.fb-note--missed)::after { background: var(--brand); }
+.jqk-tab { display: flex; justify-content: center; margin-bottom: var(--space-2); }
+.jl-layer[id^="n3s-"]:not(.is-on), .jl-layer[id^="n9s-"]:not(.is-on), .jl-layer[id^="n10s-"]:not(.is-on),
+.jl-layer[id^="n14s-"]:not(.is-on), .jl-layer[id^="n17s-"]:not(.is-on), .jl-layer[id^="n18s-"]:not(.is-on), .jl-layer#n20s-names:not(.is-on) { pointer-events: none; }   /* 안 보이는 층은 터치를 받지 않게(가이드 §4-30) */
+
+/* D3 TAB악보와 크로메틱 — 피크 쥔 손 / 위 타브 + 아래 지판 */
+.n3s-hand { display: flex; justify-content: center; align-items: center; padding-top: var(--space-4); }
+.n3s-hand img { width: 160px; height: 160px; object-fit: contain; }
+.n3s-main { display: flex; flex-direction: column; align-items: center; gap: var(--space-2); }
+.n3s-tab, .n3s-fbw { opacity: 0; transform: translateY(12px); transition: opacity var(--lec-fade) cubic-bezier(0.33, 1, 0.68, 1), transform var(--lec-fade) cubic-bezier(0.33, 1, 0.68, 1); }
+.n3s-tab.is-in, .n3s-fbw.is-in { opacity: 1; transform: translateY(0); transition-duration: 0.6s; }
+/* D3 지판 — 1~12프렛을 그리고 무대 폭(JS width)에 맞춰 좌우를 잘라 5~8프렛만 가운데에(2026-11-24). 세로는 안 자름(점 팝이 위로 살짝 넘침) */
+.n3s-fbw { display: flex; justify-content: center; overflow-x: clip; }
+.n3s-fbw > .fb-full-wrapper { flex-shrink: 0; }
+.jqk-sfb .fb-note.n3s-play { background: var(--blue); }
+/* D3 타브 맨 앞 — TAB·줄 번호를 둘 다 그려 두고(tab-render headBoth) 바꿔 보여 줌(2026-11-24).
+   줄 번호는 6번줄부터 차례로 올라오고(JS fx 지연), TAB로 돌아갈 땐 둘이 1.2초 동안 천천히 겹쳐 바뀜 */
+.n3s-tab .tab-head { transition: opacity 1.2s ease; }
+.n3s-tab.is-nums .tab-head { opacity: 0; transition-duration: 0.4s; }
+.n3s-tab .tab-sn { opacity: 0; transform: translateY(8px); transform-box: fill-box; transition: opacity 1.2s ease, transform 1.2s ease, fill var(--lec-fade, 400ms); }
+.n3s-tab .tab-sn.is-up { opacity: 1; transform: none; transition: opacity 0.5s cubic-bezier(0.33, 1, 0.68, 1), transform 0.5s cubic-bezier(0.33, 1, 0.68, 1), fill var(--lec-fade, 400ms); }
+
+/* D9 기초 리듬 훈련 — 피킹 기호 / 4박 격자 / 네 줄 정리 */
+.n3s-sym { display: flex; justify-content: center; align-items: center; gap: var(--space-12); padding-top: var(--space-6); }
+.n3s-si { display: flex; flex-direction: column; align-items: center; gap: var(--space-2); color: var(--text-primary); transition: color 0.3s; }
+.n3s-si svg { width: 56px; height: 56px; }
+.n3s-si span { font: var(--type-body-bold); letter-spacing: var(--tracking-base); }
+.n3s-si.is-on { color: var(--blue); }
+.n9s-grid { display: flex; flex-direction: column; align-items: center; gap: var(--space-3); padding-top: var(--space-6); }
+.n9s-name { font: var(--type-title-sm); letter-spacing: var(--tracking-base); color: var(--text-primary); min-height: calc(var(--font-title-sm) * 1.2); }
+.n9s-pos { font: var(--type-body-sm); letter-spacing: var(--tracking-base); color: var(--text-secondary); }   /* 격자 아래 — 따라 칠 자리(3번줄 5프렛) */
+.n9s-g { display: flex; gap: var(--space-2); justify-content: center; }
+.n9s-beat { display: flex; flex-direction: column; align-items: center; gap: var(--space-1); }
+.n9s-bn { font: var(--type-caption); color: var(--text-muted); }
+.n9s-cells { display: flex; gap: 2px; padding-top: var(--space-1); border-top: 2px solid var(--border); }
+.n9s-c { width: var(--cw, 28px); height: 28px; display: flex; align-items: center; justify-content: center; border-radius: 6px; color: var(--text-primary); transition: background 0.12s, color 0.12s; }
+.n9s-c svg { width: min(16px, calc(var(--cw, 28px) - 2px)); height: 16px; }
+.n9s-c.is-hl { color: var(--blue); }
+.n9s-c.is-on { background: var(--blue); color: #fff; }
+.n9s-c.n9s-q { font: var(--type-label-lg); font-weight: 700; color: var(--blue); }
+/* D4 P4 끊김 비교 — 4연음 한 박 두 줄(위 스타카토 X / 아래 레가토 O), 피킹 기호 오른쪽에 정오답 기호(퀴즈 보기 정답·오답과 같은 색) — 2026-11-24 */
+.n9s-cmp { display: flex; flex-direction: column; align-items: center; gap: var(--space-8); padding-top: var(--space-6); }
+.n9s-row { display: flex; align-items: flex-end; gap: var(--space-4); opacity: 0; transform: translateY(12px); transition: opacity 0.6s cubic-bezier(0.33, 1, 0.68, 1), transform 0.6s cubic-bezier(0.33, 1, 0.68, 1); }
+.n9s-row.is-in { opacity: 1; transform: translateY(0); }
+.n9s-row .n9s-cells { border-top: 0; padding-top: 0; }   /* 박 가로줄 없음 — 한 박 에셋이라 필요 없음 */
+.n9s-deco { display: flex; gap: 2px; height: 14px; align-items: center; color: var(--text-primary); }   /* 칸 위 표기 줄 — 칸(.n9s-c 28px, 간격 2px)과 같은 폭 */
+.n9s-dot { width: 28px; display: flex; justify-content: center; }
+.n9s-dot::before { content: ''; width: 5px; height: 5px; border-radius: 50%; background: currentColor; }   /* 스타카토 점 */
+.n9s-slur { width: 118px; height: 14px; display: block; }   /* 레가토 이음줄 — 네 칸 폭(28 × 4 + 2 × 3) */
+.n9s-mk { display: flex; width: 28px; height: 28px; }
+.n9s-mk svg { width: 100%; height: 100%; }
+.n9s-mk--x { color: #FF3B30; }
+.n9s-mk--o { color: #34C759; }
+.n9q-spk { display: inline-flex; width: 40px; height: 40px; color: var(--blue); }
+.n9q-spk svg { width: 100%; height: 100%; }
+.n9q-grid .n9s-g { gap: 4px; }
+.n9q-grid .n9s-bn { display: none; }
+.ms-quiz-choice-card--text svg { width: 16px; height: 16px; vertical-align: -2px; margin-left: 4px; }
+
+/* D10·D11 리듬 적용 — 블럭 고르기 줄 + 지판 + 리듬 이름 */
+.n10s-main { display: flex; flex-direction: column; align-items: center; gap: var(--space-2); }
+/* 폼 선택 = 화살표·폼 이름을 스트로크 알약 하나로 묶음(사용자 지정 2026-11-24 — 화살표가 글자에서 너무 떨어져 보였음) */
+.n10s-sel { display: flex; align-items: center; justify-content: center; height: 40px; padding: 0 var(--space-1); border: 1px solid var(--border); border-radius: 999px; }
+.n10s-fn { font: var(--type-title-sm); letter-spacing: var(--tracking-base); color: var(--text-primary); min-width: 40px; padding: 0 var(--space-1); text-align: center; }
+.n10s-arr { position: relative; width: 28px; height: 32px; display: flex; align-items: center; justify-content: center; background: none; border: 0; padding: 0; color: var(--text-secondary); cursor: pointer; }   /* D21 .n21-arr와 같은 작은 삼각형 */
+.n10s-arr::before { content: ''; position: absolute; inset: -6px -8px; }   /* 보이는 칸은 좁게, 터치 영역은 44px */
+.n10s-arr svg { width: 12px; height: 12px; }
+.n10s-rh { font: var(--type-body-bold); letter-spacing: var(--tracking-base); color: var(--text-secondary); min-height: 1.5em; }
+.n10s-rh .lec-em { color: var(--blue); }
+.n10s-tab:empty { display: none; }   /* 타브악보 병행 표기(2026-11-24) — 리듬 칸에서만 그려짐 */
+
+/* D14~D18 지판 칸(메이저 스케일·CAGED·파워코드) — 위 이름 + 지판 */
+.n14s-fb { display: flex; flex-direction: column; align-items: center; gap: var(--space-2); }
+.n14s-fb [hidden] { display: none; }   /* 리듬 칸 전용 부품(폼 선택 알약 .n10s-sel은 display:flex라 hidden 속성이 안 먹음) — 솔로 D14~16 2연음 리듬 칸(2026-11-24) */
+.n14s-fn { font: var(--type-title-sm); letter-spacing: var(--tracking-base); color: var(--text-primary); min-height: calc(var(--font-title-sm) * 1.2); }
+.n14s-fn .lec-em { color: var(--blue); }
+.jqk-sfb .fb-note.n14-new { background: var(--icon-pink); }   /* 메이저에서 새로 더해진 4도·7도 */
+.jqk-sfb .fb-note.n14-pair { background: var(--blue); }       /* 반음 짝(3-4, 7-1) */
+.n17s-lab { position: relative; height: calc(var(--font-title-sm) * 1.3); }
+.n17s-l { position: absolute; top: 0; transform: translateX(-50%); font: var(--type-title-sm); opacity: 0; transition: opacity 0.4s; }
+.n17s-l.is-in { opacity: 1; }
+.n17s-l.n17s-c0 { color: var(--blue); }
+.n17s-l.n17s-c1 { color: var(--icon-pink); }
+.jqk-sfb .fb-note.n17s-c0 { background: var(--blue); }
+.jqk-sfb .fb-note.n17s-c1 { background: var(--icon-pink); }
+.jqk-sfb .fb-note.n17s-old { opacity: 0.35; }
+.n18s-name { font: var(--type-headline-sm); letter-spacing: var(--tracking-base); color: var(--text-primary); min-height: calc(var(--font-headline-sm) * 1.2); }

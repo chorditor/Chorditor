@@ -393,3 +393,40 @@ I18N.add('en', {
     '구독 관리로 이동': 'Manage subscription',
   },
 });
+
+// ── 나의 기타 여정 노드 강의 (2026-11-12 추가) — journey-lesson.html / journey-lessons/fretboard-reading.js ──
+I18N.add('en', {
+  exact: {
+    '기타 지판 읽기': 'Reading the Fretboard',
+    '퀴즈 시작!': 'Start Quiz!',
+    '강의를 그만두시겠어요?': 'Quit the lesson?',
+    '코드반주 비기너 여정을 시작해요!': "Let's begin your beginner\nchord accompaniment journey!",
+    '이번 여정에서는 코드반주에 꼭 필요한 지식과 연습법을 알려드려요': "On this journey you'll learn the knowledge\nand practice essential for accompaniment",
+    '여정이 끝나면 배우고 싶은 노래를 스스로 찾아서 배울 수 있게 될 거예요!': "By the end, you'll be able to find\nand learn the songs you want on your own!",
+    '기타가 있다면 꼭 옆에 두고 함께 보면서 따라와 주세요!': 'If you have a guitar, keep it next to you\nand follow along while looking at it!',
+    '기타 코드를 처음 잡기 전에 먼저 알아야 할 것이 있어요': "Before you play your first chord,\nthere's something you need to know",
+    '가장 얇은 줄이 1번줄, 가장 굵은 줄이 6번줄이에요': 'The thinnest string is the 1st string,\nthe thickest is the 6th string',
+    '기타 지판을 보면 톡 튀어나온 세로선들을 볼 수 있죠?': "Look at your guitar's fretboard\nand you'll see raised lines, right?",
+    '하지만 연주할 때는 프렛 사이의 칸을 프렛 번호로 불러요': 'But when playing, we call the space\nbetween frets by its fret number',
+    '헤드 쪽부터 1프렛, 2프렛… 순서대로 번호를 붙여요': 'Starting from the headstock: fret 1, fret 2…\nwe number them in order',
+    '앞으로는 줄번호와 프렛번호를 알아야 효율적으로 배울 수 있어요': 'Knowing string and fret numbers\nwill help you learn efficiently',
+    '정답이에요! 이제 다음으로 넘어가봅시다!': "Correct!\nLet's move on!",
+    '앞으로 코드를 잡을 때 어떤 손가락으로 누를지 일일이 얘기하면 번거롭겠죠?': 'Saying which finger to use for every chord\nwould get tedious, right?',
+    '검지부터 1, 2, 3, 4 엄지는 T라고 불러요': 'From the index finger: 1, 2, 3, 4\nThe thumb is called T',
+    '지금 보이는 점은 무슨 의미일까요?': 'What does this dot mean?',
+    '기타가 있다면 중지로 3번줄 2프렛을 직접 눌러보세요!': 'If you have a guitar, press 3rd string,\nfret 2 with your middle finger!',
+    '이제 배운 내용을 퀴즈로 풀어보면서 지판과 손가락 번호에 익숙해져 봐요!': "Now take a quiz on what you've learned\nand get used to the fretboard\nand finger numbers!",
+  },
+  mixed: {
+    '기타 지판에는 <span>6개의 줄이 있어요': 'The guitar fretboard has <1>6 strings</1>',
+    '줄을 누르면 실제로 닿는 이 선을 <span>프렛이라고 불러요': 'These lines the string touches when pressed\nare called <1>frets</1>',
+    '<span>2번줄 1프렛은 어디일까요? 직접 찾아서 눌러주세요!': 'Where is <1>2nd string, fret 1</1>?\nFind it and tap it!',
+    '그래서 손가락에 <span>번호를 사용해요!': 'So we give each finger a <1>number</1>!',
+    '바로 3번줄 2프렛을 2번 손가락, 즉 <span>중지로 누르라는 뜻이에요!': 'It means press 3rd string, fret 2\nwith finger 2, the <1>middle finger</1>!',
+    '퀴즈에는 <span>시간 제한이 없어요 기타가 있다면 꼭 같이 눌러보면서 풀어주세요!': 'The quiz has <1>no time limit</1>\nIf you have a guitar,\nplay along as you solve it!',
+    '지금 나가면 강의를<br>처음부터 다시 봐야 해요.': "If you leave now, you'll have to<1/>watch the lesson from the start.",
+  },
+  patterns: [
+    [/^(\d)프렛$/, 'Fret {1}'],
+  ],
+});
