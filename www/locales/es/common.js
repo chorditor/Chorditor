@@ -73,6 +73,27 @@
       // ── 출석 상자 ──
       '출석 완료!': '¡Check-in hecho!',
       '상자 열기': 'Abrir cajita',
+      '피크 보충하기': 'Recargar púas',
+      '추가 구매': 'Comprar más',
+      '상자 구매': 'Comprar cajitas',
+      '구매 후 상자를 하나라도 열면 환불할 수 없어요.': 'Si abres cualquier cajita después de comprar, no hay reembolso.',
+      // 피크상자 구매 페이지·상자 열기 모달·피크부족 모달·구매 안내(2026-11-26)
+      '광고 보기': 'Ver anuncio',
+      '상자를 열어서 피크를 보충하세요!': '¡Abre cajitas para recargar tus púas!',
+      '하나 빼기': 'Una menos',
+      '하나 더하기': 'Una más',
+      '피크상자 구매': 'Comprar Cajitas de Púas',
+      'Pro 플랜으로': 'Haz crecer tu nivel',
+      '실력을 성장시키세요!': '¡con el plan Pro!',
+      '피크·시간 제한 없이 마음껏 연습': 'Practica sin límites de púas ni de tiempo',
+      '코디터의 모든 기능을 자유롭게': 'Usa todas las funciones de Chorditor',
+      '플랜 보기': 'Ver planes',
+      '피크상자 구매는 앱에서 할 수 있어요': 'Las Cajitas de Púas se compran en la app',
+      '로그인 후 구매할 수 있어요': 'Inicia sesión para comprar',
+      '결제를 준비하고 있어요. 잠시 후 다시 시도해 주세요': 'Estamos preparando el pago. Inténtalo de nuevo en un momento',
+      '아직 준비 중인 상품이에요': 'Este producto aún no está disponible',
+      '결제가 완료됐어요. 상자가 들어오면 바로 알려드릴게요': 'Pago completado. Te avisaremos en cuanto lleguen tus cajitas',
+      '결제 중 문제가 생겼어요. 다시 시도해 주세요': 'Hubo un problema con el pago. Inténtalo de nuevo',
       '상자를 눌러 여세요': 'Toca la cajita para abrirla',
       '1.3.0 업데이트 감사 이벤트': 'Evento de agradecimiento 1.3.0',
       '기존 유저 분들에 대한 감사의 마음으로': 'Para agradecer a quienes ya nos acompañaban,',
@@ -108,6 +129,15 @@
       '구독은 결제일 기준 결제 주기(월간 또는 연간)에 따라 자동으로 갱신되며, 갱신 24시간 전까지 언제든 해지할 수 있습니다. 해지는 Google Play 스토어 > 구독 메뉴에서 가능합니다.':
         'La suscripción se renueva automáticamente en cada ciclo de pago (mensual o anual) a partir de tu fecha de pago. Puedes cancelarla en cualquier momento hasta 24 horas antes de la renovación, en Google Play Store > Suscripciones.',
       '결제는 어떤 계정으로 청구되나요?': '¿A qué cuenta se cobra?',
+      // 미번역 보충(2026-11-26 UI 점검)
+      "구독 결제는 구매 확인 시 Apple ID 계정으로 청구되며, 현재 구독 기간이 끝나기 최소 24시간 전에 해지하지 않으면 같은 기간으로 자동 갱신됩니다. 구독 관리와 해지는 구매 후 설정 > Apple ID(내 이름) > 구독에서 언제든 할 수 있습니다.": "El pago se cobra a tu Apple ID al confirmar la compra. La suscripción se renueva automáticamente por el mismo periodo salvo que la canceles al menos 24 horas antes de que termine el periodo actual. Puedes gestionarla o cancelarla cuando quieras en Ajustes > Apple ID (tu nombre) > Suscripciones.",
+      "App Store에 로그인된 Apple ID로 결제됩니다.": "Se cobra a la Apple ID con la que iniciaste sesión en el App Store.",
+      "설정 → 상단의 내 이름 → 구독에서 Chorditor를 선택해 취소할 수 있습니다.": "Ve a Ajustes → tu nombre arriba → Suscripciones, elige Chorditor y cancela.",
+      "reportaproblem.apple.com에서 Apple에 환불을 요청할 수 있습니다.": "Puedes pedir un reembolso a Apple en reportaproblem.apple.com.",
+      "앱 계정과 Apple ID가 다르면?": "¿Y si mi cuenta de la app y mi Apple ID son distintas?",
+      "구독은 결제한 Apple ID에 묶여서, 다른 Apple ID로는 구독을 관리할 수 없습니다.": "La suscripción queda ligada a la Apple ID que pagó, así que no puedes gestionarla desde otra Apple ID.",
+      "구독은 설정 > Apple ID > 구독에서 언제든지 취소할 수 있습니다.": "Puedes cancelar cuando quieras en Ajustes > Apple ID > Suscripciones.",
+      "연간으로 변경": "Cambiar a anual",
       '플레이스토어에서 앱을 다운받은 계정으로 결제됩니다.': 'A la cuenta con la que descargaste la app en Play Store.',
       '구독 취소는 어떻게 하나요?': '¿Cómo cancelo mi suscripción?',
       '플레이스토어 → 내 프로필 → 결제 및 정기 결제 → 정기 결제에서 취소할 수 있습니다.':
@@ -238,6 +268,8 @@
     },
 
     scoped: [
+      // 상자 개수 'N개'(상자 열기 모달 수량, 구매 페이지 상자 라벨) — 이 두 자리에서만. 전역 패턴으로 두면 'N개'가 낀 문장(출석 안내 등)의 문장 단위 번역이 깨질 수 있음
+      ['.peakshop-label, #peakbox-qty', Object.fromEntries(Array.from({ length: 1000 }, (_, i) => [i + '개', String(i)]))],
       ['.plan-card-badge', { '추천': 'Mejor precio' }],
     ],
 

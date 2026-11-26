@@ -13,10 +13,8 @@ const DM_MISSION_LIST = [
   { id: 'play',  name: '코드반주 훈련',   page: 'chordplay.html',       tone: 'green'  },
 ];
 
-// 첫 접속(onboarding.js goToHome)으로 열렸는가 — 닫기가 X, 오늘 이미 출석했으면 건너뜀
-const _attFromLaunch = new URLSearchParams(location.search).get('from') === 'launch';
-// 닫기 복귀지점: 앱을 열자마자 거친 경우·홈 탭 우상단 버튼(?from=home)에서 온 경우는 홈 탭, 그 외(도구 탭 카드)는 도구 탭
-const _attHomeUrl = (_attFromLaunch || new URLSearchParams(location.search).get('from') === 'home') ? 'home.html' : 'home.html?tab=tools';
+// 닫기 복귀지점: 홈 탭 우상단 버튼(?from=home)에서 온 경우는 홈 탭, 그 외(도구 탭 카드)는 도구 탭
+const _attHomeUrl = new URLSearchParams(location.search).get('from') === 'home' ? 'home.html' : 'home.html?tab=tools';
 
 // ── 닫기 (홈으로 복귀) ────────────────────────────────────────
 function closeAttendancePage() {
@@ -267,11 +265,6 @@ document.addEventListener('DOMContentLoaded', async () => {
   const shell = document.querySelector('.app-shell');
   if (shell) shell.classList.add('project-enter');
 
-  if (_attFromLaunch) {
-    // 첫 접속: 닫기는 X. 오늘 이 페이지를 한 번 보여줬다고 기록(onboarding.js goToHome 판정용 — 날짜 형식 그대로)
-    document.getElementById('dm-back-icon')?.setAttribute('data-lucide', 'x');
-    try { localStorage.setItem('chorditor_dm_cleared_date', new Date().toISOString().slice(0, 10)); } catch (_) {}
-  }
   lucide.createIcons();
 
   // 관리자 전용 진단: 제목을 1.5초 길게 누르면 서버 동기화 응답을 알림으로 보여줌(콘솔 없이 앱에서 확인용)
@@ -289,9 +282,6 @@ document.addEventListener('DOMContentLoaded', async () => {
   await dmEnsureAttended();   // 미션을 이미 끝냈는데 도장이 안 찍혔다면(보고 도중 앱이 꺼진 경우 등) 여기서 찍음
   const state = await loadAttendanceState();
   const pending = _dmPendingStamp();
-
-  // 첫 접속인데 오늘 출석을 이미 마쳤다면(연출도 이미 봤다면) 이 페이지를 건너뜀
-  if (_attFromLaunch && state.doneToday && !pending) { location.replace('home.html'); return; }
 
   _attInfo = state;
   _attDoneToday = pending ? false : state.doneToday;   // 연출 전엔 아직 출석 전으로 보여줌

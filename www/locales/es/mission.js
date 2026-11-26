@@ -13,6 +13,12 @@
       '오늘 훈련 결과보기': 'Ver los resultados de hoy',
       '오늘은 출석을 완료했어요': 'Ya hiciste check-in hoy',
       '아직 오늘 출석을 못했어요': 'Aún no haces check-in hoy',
+      // 미번역 보충(2026-11-26 UI 점검)
+      "이번 달 보충출석을 모두 썼어요": "Ya usaste todos tus Congelar Racha de este mes",
+      "보충출석 3회를 다 썼어요. 광고를 보면 1칸씩 더 채울 수 있어요": "Usaste los 3 Congelar Racha. Mira un anuncio para llenar un día más",
+      "광고 보고 보충출석": "Ver anuncio para congelar",
+      "광고를 끝까지 봐야 채워져요": "Mira el anuncio completo para llenarlo",
+      "보충출석에 실패했어요. 다시 시도해주세요.": "No se pudo usar Congelar Racha. Inténtalo de nuevo.",
       '보충출석': 'Congelar Racha',
       '이번 달 출석 완료!': '¡Mes completo!',
       '이번 달 출석을 모두 채웠어요.': 'Completaste todos los check-ins de este mes.',
@@ -184,6 +190,7 @@
     ],
 
     patterns: [
+      [/^(\d+)개만 더 완료하면 출석해요$/, m => 'Te ' + (m[1] === '1' ? 'falta 1' : 'faltan ' + m[1]) + ' para hacer check-in'],
       [/^(\d+)월 출석$/, m => 'Check-ins de ' + MONTH[m[1] - 1]],
       [/^제한시간 (\d+)초 안에$/, 'Tienes {1} segundos'],
 

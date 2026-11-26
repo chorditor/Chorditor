@@ -18,7 +18,7 @@ const I18N_LANGS = [
 const I18N_STORAGE_KEY = 'app_lang';
 const I18N_FALLBACK    = 'en'; // 지원하지 않는 기기 언어
 // locales/<lang>/ 아래 사전 파일 이름(확장자 제외). 파일을 추가하면 여기에도 추가.
-const I18N_PARTS = ['common', 'home', 'onboarding', 'training', 'scale', 'mission', 'tutorial', 'project'];
+const I18N_PARTS = ['common', 'home', 'onboarding', 'training', 'scale', 'mission', 'tutorial', 'project', 'journey'];
 
 function _i18nSupported(code) {
   return I18N_LANGS.some(l => l.code === code);

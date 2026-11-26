@@ -5,6 +5,10 @@ I18N.add('es', {
     '저장하기': 'Guardar',
     '팔레트 저장': 'Guardar paleta',
     '텍스트 복사': 'Copiar texto',
+    // 미번역 보충(2026-11-26 UI 점검)
+    "팔레트 코드 한 번에 저장": "Guardar todos los acordes de la paleta",
+    "목록 펼치기": "Mostrar lista",
+    "일시정지": "Pausa",
     '마디 정보 수정': 'Editar datos del compás',
     '기본값': 'Predeterminado',
     '박자': 'Compás',
@@ -30,6 +34,20 @@ I18N.add('es', {
     '코드 팔레트 접기/펼치기': 'Contraer/expandir la paleta de acordes',
     '저장할 코드가 없습니다.': 'No hay acordes para guardar.',
     '이 코드를 삭제하시겠습니까?': '¿Eliminar este acorde?',
+
+    // ── 악보 저장하기 모달(user_project.html #scrap-modal, 2026-11-26) ──
+    '악보 저장하기': 'Guardar partitura',
+    '방향': 'Orientación',
+    '세로': 'Vertical',
+    '가로': 'Horizontal',
+    '비율': 'Proporción',
+    '페이지 분할': 'Dividir página',
+    '안 나눔': 'Sin dividir',
+    '2분할': '2 columnas',
+    '선택 완료': 'Listo',
+    '옵션 변경': 'Cambiar opciones',
+    '제목 없음': 'Sin título',
+    '저장하지 못했어요. 사진 접근 권한을 확인해 주세요.': 'No se pudo guardar. Revisa el permiso de acceso a las fotos.',
 
     // ── 튜토리얼 시드·선물 노트 ──
     // 가사는 영어 원문(1806년, 저작권 소멸)을 그대로 씀 — 스페인어 역사는 출처·권리가 불분명함.
@@ -65,4 +83,9 @@ I18N.add('es', {
     '이 페이지는 Google Play 데이터 보안 정책에 따른 계정 삭제 안내 페이지입니다.':
       'Esta página explica la eliminación de cuentas según la política de seguridad de datos de Google Play.',
   },
+  patterns: [
+    // 악보 저장하기 — 미리보기 장수·일부 저장 실패 안내
+      [/^총 (\d+)장 · 1페이지 미리보기$/, m => m[1] + (m[1] === '1' ? ' página' : ' páginas') + ' en total · Vista previa de la página 1'],
+      [/^(\d+)장 중 (\d+)장만 저장했어요\. 사진 접근 권한을 확인해 주세요\.$/, m => 'Solo se guardaron ' + m[2] + ' de ' + m[1] + ' páginas. Revisa el permiso de acceso a las fotos.'],
+  ],
 });

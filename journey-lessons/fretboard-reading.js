@@ -483,8 +483,8 @@
     for (let s = 1; s <= 6; s++) for (let f = QZ_FRETS[0]; f <= QZ_FRETS[1]; f++) all.push([s, f]);
     const pos = shuffle(all).slice(0, nFind + nRead);
     const qs = [];
-    pos.slice(0, nFind).forEach(function (p) { qs.push({ type: 'find', s: p[0], f: p[1], view: pickView(p[1], true) }); });
-    pos.slice(nFind).forEach(function (p) { qs.push({ type: 'read', s: p[0], f: p[1], view: pickView(p[1], false), choices: readChoices(p[0], p[1]) }); });
+    pos.slice(0, nFind).forEach(function (p) { qs.push({ type: 'find', s: p[0], f: p[1], view: pickView(p[1], true), vw: QV_W }); });
+    pos.slice(nFind).forEach(function (p) { qs.push({ type: 'read', s: p[0], f: p[1], view: pickView(p[1], false), vw: QV_W, choices: readChoices(p[0], p[1]) }); });
     for (let k = 0; k < nPair; k++) {
       const fingers = shuffle(QZ_FINGERS.slice()).slice(0, 3);   // 5개 중 3개
       qs.push({ type: 'pair', fingers: fingers, order: { left: shuffle(fingers.slice()), right: shuffle(fingers.slice()) } });
@@ -553,30 +553,35 @@
   }
   function cur() { return qz.qs[qz.phase === 'review' ? qz.wrong[qz.rvPos] : qz.idx]; }
   // 지판(0~5프렛) — 줄 이름·프렛 이름 없이(읽는 훈련), 개방현 자리에 빈 동그라미(스케일 훈련과 같음)
-  function boardHtml() { return '<div class="jq-board"><div class="jq-board-view" id="jq-board-view">' + fretboardHtml(QZ_FRETS[1]) + '</div></div>'; }   // 5프렛보다 넓으면 창(304px)만 보임 — 위치는 placeView가 정함(유저는 밀 수 없음)
-  // 긴 지판(별 2·3)은 오른쪽 끝에 여유(줄만 이어짐)를 붙여 지판 길이 − 창 폭이 프렛선 바로 뒤에서 끝나게 — 마지막 창 위치도 칸 경계에서 시작(placeView)
+  // 문제 지판 창(2026-11-26 사용자 지정) — 한 화면에 프렛 4칸 + 양끝 이웃 칸이 아주 살짝(QV_S). 창을 본문 폭에 맞춰 통째로 확대(비율 유지, fitBoard)
+  const QV_S = 10;                         // 양끝에 살짝 보이는 이웃 칸 폭(360px 기준 좌표)
+  const QV_W = 4 * FB_FRET_W + 2 * QV_S;   // 228 — 창 폭
+  function boardHtml() { return '<div class="jq-board"><div class="jq-board-view" id="jq-board-view" style="width:' + QV_W + 'px">' + fretboardHtml(QZ_FRETS[1]) + '</div></div>'; }   // 창(QV_W)만 보임 — 위치는 placeView가 정함(유저는 밀 수 없음)
+  // 지판 오른쪽 끝에 여유(줄만 이어짐)를 붙여 마지막 창에서도 마지막 칸 뒤로 살짝 보이는 자리가 있게(placeView)
   function padBoard() {
     const fb = q('.jl-fb')[0], end = boardEnd();
-    if (fb && end) fb.style.width = (end + FB_W) + 'px';
+    if (fb && end) fb.style.width = (end + QV_W) + 'px';
   }
-  // 문제 지판 확대(--jl-fb-scale, 481px~ 프렛 구간 260→320) — transform은 자리를 안 바꾸므로 늘어난 높이만큼 아래 여백을 더함(resize마다 다시)
+  // 문제 지판 확대(비율 유지) — 지판(줄 6개 영역) 높이를 정수 px로 고정(사용자 지정 2026-11-26): 모바일(~480px) 144px, 태블릿(481px~) 172px.
+  //  본문 폭이 모자라면 폭에 맞춰 줄임(360px 미만 대비). transform은 자리를 안 바꾸므로 늘어난 높이만큼 아래 여백을 더함(resize마다 다시)
   function fitBoard() {
     const v = $('jq-board-view');
     if (!v) return;
-    v.style.marginBottom = '';
-    const k = v.getBoundingClientRect().width / v.offsetWidth || 1;
+    const box = v.parentElement;
+    const h = window.matchMedia('(min-width: 481px)').matches ? 172 : 144;
+    const k = Math.min(h / FB_H, box.clientWidth / QV_W);
+    v.style.transform = 'scale(' + k + ')';
     v.style.marginBottom = ((k - 1) * v.offsetHeight) + 'px';
   }
   window.addEventListener('resize', fitBoard);
   function mountBoard() {
     padBoard();
     setCls(q('.jl-fb-str'), 'is-in', true);
-    // 프렛 번호 — 별 1(0~5프렛, 한 화면)은 쓰지 않음. 별 2·3은 지판을 옆으로 밀어 보느라 전체가 안 보이므로 점이 찍힌 칸(3·5·7·9·12·15)에만 숫자로(사용자 지정)
+    // 프렛 번호 — 창이 지판 일부만 보여 주므로(별 1도 프렛 4칸 창, 2026-11-26) 점이 찍힌 칸(3·5·7·9·12·15)에만 숫자로(사용자 지정)
     q('.jl-fb-num').forEach(function (el) {
-      if (qz.star >= 2 && [3, 5, 7, 9, 12, 15].indexOf(+el.dataset.f) >= 0) { el.textContent = el.dataset.f; el.classList.add('is-in'); }
+      if ([3, 5, 7, 9, 12, 15].indexOf(+el.dataset.f) >= 0) { el.textContent = el.dataset.f; el.classList.add('is-in'); }
       else el.remove();
     });
-    if (qz.star < 2) q('.jl-fb-nums').forEach(function (el) { el.hidden = true; });
     let hints = '';
     for (let sN = 1; sN <= 6; sN++) hints += '<span class="jl-open-hint" style="left:' + (FB_OPEN_W / 2) + 'px;top:' + strY(sN) + 'px"></span>';
     $('jl-neck').insertAdjacentHTML('beforeend', hints);
@@ -584,27 +589,24 @@
     fitBoard();
   }
 
-  // 지판 창 — 유저는 밀 수 없고(사용자 지정) 창 위치는 문제를 만들 때 확정(pickView → it.view), 화면은 그 값만 적용(placeView). 지판이 창(FB_W 304px)보다 길 때만(별 2·3)
-  //  창은 칸 경계에서만 시작: 맨 앞(0 — 개방현 자리가 다 보임) 또는 프렛선 바로 뒤(개방현·너트가 아예 안 보임). 어중간하게 잘린 칸이 왼쪽에 생기지 않게
-  //  지판 끝에 여유(줄만 이어짐)를 붙여 마지막 시작점도 프렛선 바로 뒤가 되게(boardEnd)
-  function boardEnd() {   // 창을 가장 오른쪽으로 민 시작점(= 지판 길이 − 창 폭). 지판이 창 안에 다 들어가면 0
+  // 지판 창 — 유저는 밀 수 없고(사용자 지정) 창 위치는 문제를 만들 때 확정(pickView → it.view), 화면은 그 값만 적용(placeView).
+  //  창 = 프렛 4칸이 온전히 + 양끝 이웃 칸이 QV_S만큼 살짝(2026-11-26). 시작점: 맨 앞(0 — 개방현 자리부터) 또는 f번 칸 왼쪽 − QV_S
+  function boardEnd() {   // 창을 가장 오른쪽으로 민 시작점(마지막 4칸 + 양끝 살짝). 지판이 창 안에 다 들어가면 0
     const w = FB_OPEN_W + QZ_FRETS[1] * FB_FRET_W;
-    if (w <= FB_W) return 0;
-    let k = 0;
-    while (lineX(k) + 2 < w - FB_W) k++;
-    return lineX(k) + 2;
+    if (w <= QV_W) return 0;
+    return cellX(QZ_FRETS[1] - 3) - QV_S;
   }
   //  찾아 누르기: 정답 칸이 다 보이는 시작점 중 무작위(늘 가운데면 답이 드러남) / 사지선다: 점 칸이 가운데에 가장 가까운 시작점
   function pickView(f, random) {
     const max = boardEnd();
     if (!max) return 0;
     const starts = [0];
-    for (let k = 0; lineX(k) + 2 <= max; k++) starts.push(lineX(k) + 2);   // 프렛선(너트 포함) 바로 뒤 — 선 굵기만큼 넘겨 선이 왼쪽 끝에 걸리지 않게
+    for (let a = 1; cellX(a) - QV_S <= max; a++) starts.push(cellX(a) - QV_S);   // a~a+3번 칸이 온전히, 양옆 칸은 살짝
     const cellL = f ? cellX(f) : 0, cellR = f ? cellX(f) + FB_FRET_W : FB_OPEN_W;
-    const fits = starts.filter(function (x) { return cellL >= x && cellR <= x + FB_W; });
+    const fits = starts.filter(function (x) { return cellL >= x && cellR <= x + QV_W; });   // 정답 칸은 살짝 보이는 자리가 아니라 온전히 보이는 창만
     const pool = fits.length ? fits : starts;
     if (random) return pool[Math.floor(Math.random() * pool.length)];
-    const want = fretX(f || 0) - FB_W / 2;
+    const want = fretX(f || 0) - QV_W / 2;
     return pool.reduce(function (best, x) { return Math.abs(x - want) < Math.abs(best - want) ? x : best; }, pool[0]);
   }
   function placeView(it) {
@@ -950,9 +952,9 @@
     qz = { star: star, qs: makeQuestions(QZ_STAR_CFG[star].n), idx: 0, wrong: [], phase: 'main', rvPos: 0, done: 0, judged: false, canRetry: false, over: false, paid: {}, correct: 0, refunded: 0, short: false };
     const saved = sessLoad();
     if (saved) SESS_FIELDS.forEach(function (k) { if (saved[k] !== undefined) qz[k] = saved[k]; });
-    qz.qs.forEach(function (it) {   // 예전 판에 저장된 퀴즈 — 화면 값이 없으면 한 번만 채워 이 값으로 고정
+    qz.qs.forEach(function (it) {   // 예전 판에 저장된 퀴즈 — 화면 값이 없거나 옛 창 폭(304px, ~2026-11-26)으로 정한 값이면 한 번만 다시 채워 이 값으로 고정
       if (it.type === 'pair' && !it.order) it.order = { left: shuffle(it.fingers.slice()), right: shuffle(it.fingers.slice()) };
-      if (it.type !== 'pair' && it.view == null) it.view = pickView(it.f, it.type === 'find');
+      if (it.type !== 'pair' && (it.view == null || it.vw !== QV_W)) { it.view = pickView(it.f, it.type === 'find'); it.vw = QV_W; }
     });
     $('jq-track').hidden = false;
     $('jq-fill').style.width = '0%';

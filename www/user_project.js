@@ -918,7 +918,7 @@ function _scrapDrawPage(cv, doc, idx) {
   if (idx === 0) {
     ctx.fillStyle = C.text;
     ctx.font = _scrapFont(700, SCRAP.titleFont);
-    let title = doc.title || '제목 없음';
+    let title = doc.title || I18N.t('제목 없음');   // 캔버스 글자는 DOM 치환이 안 닿음 → 직접 번역
     if (ctx.measureText(title).width > maxW) {
       while (title && ctx.measureText(title + '…').width > maxW) title = title.slice(0, -1);
       title += '…';

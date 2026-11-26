@@ -65,7 +65,7 @@ if (window.Capacitor?.getPlatform?.() === 'ios') {
 // ── 상수 ─────────────────────────────────────────────────────
 const SUPABASE_URL  ='https://jbvkygeksohlysyvaoab.supabase.co';
 const SUPABASE_ANON = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Impidmt5Z2Vrc29obHlzeXZhb2FiIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzYzOTk5NjgsImV4cCI6MjA5MTk3NTk2OH0.6RSgChy0Yq0H2TJpZPSoMKQ2V-OYfR0XzE1aJBBZkXI';
-const APP_VERSION   = '1.5.0_pre1';
+const APP_VERSION   = '1.5.0';
 const SUPABASE_STORAGE_KEY = 'sb-jbvkygeksohlysyvaoab-auth-token';
 
 // 이용약관/개인정보처리방침 버전 — 광고식별자 수집 항목 추가(2026-09) 시 1로 올림.
@@ -1402,7 +1402,24 @@ function _peakPreloadTake() {
     return { balance: o.balance, peakbox_count: o.peakbox_count || 0, loaded: true };
   } catch (_) { return null; }
 }
-let _peakState = _peakPreloadTake() || { balance: PEAK_CAP, peakbox_count: 0, loaded: false };
+// 마지막으로 받은 피크·상자 값(계정별, 2026-11-26) — 페이지를 열 때마다 기본값 30으로 그렸다가 서버 응답 뒤 바뀌어 보이던 깜빡임 방지.
+// 서버(또는 로컬 폴백) 값을 받아 그릴 때마다 저장하고, 다음 페이지는 이 값으로 먼저 그린 뒤 refreshPeakState()가 최신값으로 맞춘다.
+const PEAK_LAST_KEY = 'chorditor_peak_last';
+function _peakLastTake() {
+  try {
+    const o = JSON.parse(localStorage.getItem(PEAK_LAST_KEY) || 'null'), uid = JSON.parse(localStorage.getItem(SUPABASE_STORAGE_KEY))?.user?.id;
+    if (!o || !uid || o.uid !== uid || typeof o.balance !== 'number') return null;
+    return { balance: o.balance, peakbox_count: o.peakbox_count || 0, loaded: false };   // loaded=false: 아직 이번 페이지에서 서버 확인 전
+  } catch (_) { return null; }
+}
+function _peakLastSave() {
+  if (!_peakState.loaded || typeof _peakState.balance !== 'number') return;   // 기본값·저장값(확인 전)은 저장하지 않음
+  try {
+    const uid = JSON.parse(localStorage.getItem(SUPABASE_STORAGE_KEY))?.user?.id;
+    if (uid) localStorage.setItem(PEAK_LAST_KEY, JSON.stringify({ uid, balance: _peakState.balance, peakbox_count: _peakState.peakbox_count || 0 }));
+  } catch (_) {}
+}
+let _peakState = _peakPreloadTake() || _peakLastTake() || { balance: PEAK_CAP, peakbox_count: 0, loaded: false };
 // 피크 잔액을 서버에서 받아 다음 페이지용 스냅샷으로 저장(화면 렌더·환급 전송 같은 부수 효과 없음)
 async function peakPreloadSave() {
   try {
@@ -1546,6 +1563,7 @@ async function refreshPeakState() {
 }
 
 function renderPeakBadge() {
+  _peakLastSave();
   document.querySelectorAll('#currency-peak-count').forEach(el => {
     el.textContent = getPlan() === 'pro' ? '∞' : `${_peakState.balance + _peakRefundPending()}/${PEAK_CAP}`;   // 환급 대기분(아직 서버에 안 보낸 것)도 미리 보여 줌
   });
@@ -1874,7 +1892,8 @@ document.addEventListener('DOMContentLoaded', () => {
   injectAppChrome(); // 탑바 브랜드 + 데스크탑 사이드바 — 모든 페이지 공통(DOM 이동 로직보다 먼저)
 
   if (document.getElementById('currency-peak-count') || document.getElementById('currency-peakbox-count')) {
-    renderPeakBadge(); // RPC 응답 전 즉시 렌더 (Pro는 ∞ 즉시 표시)
+    renderPeakBadge(); // RPC 응답 전 즉시 렌더 (Pro는 ∞ 즉시 표시) — 값은 마지막으로 받은 값(_peakLastTake), 없으면 기본값
+    renderPeakboxBadge();
     refreshPeakState();
   }
 
@@ -2002,6 +2021,7 @@ function closePeakTimerPopup() {
 
 // ── 인앱 재화: 피크상자 (열면 피크 5개 충전, 오버충전 허용) ───
 function renderPeakboxBadge() {
+  _peakLastSave();
   document.querySelectorAll('#currency-peakbox-count').forEach(el => {
     el.textContent = String(_peakState.peakbox_count);
   });
@@ -2133,8 +2153,8 @@ const PEAKSHOP_PACKS = [
 
 // ── 피크상자 구매(백엔드 계획서 B6) ──
 //  결제는 RevenueCat(구독과 같은 SDK), 상자 지급은 **서버만**: 결제가 확정되면 RevenueCat 웹훅 → Supabase Edge Function이
-//  거래 번호당 한 번 지급(환불이면 회수). 앱은 지급하지 않고, 결제 뒤 서버의 상자 개수가 늘었는지만 몇 초 확인해 화면을 갱신한다.
-//  ⚠ 웹훅·지급 함수는 아직 없음 → 지금 결제하면 상자는 서버 작업 뒤에 들어옴. 스토어에 상품이 아직 없으면 '준비 중' 안내.
+//  거래 번호당 한 번 지급(환불이면 회수). 앱은 지급하지 않는다.
+//  지급이 들어오면 어느 페이지에서든 피크상자 획득 모달(_peakboxGrantCheck). 스토어에 상품이 없으면 '준비 중' 안내.
 const PEAKBOX_OFFERING_ID = 'peakbox';   // RevenueCat 오퍼링(구독과 분리)
 let _peakshopBusy = false;
 function _peakshopNotice(msg) {
@@ -2166,15 +2186,84 @@ async function _peakshopApplyPrices() {
     if (el) el.textContent = map[k.productId].product.priceString;
   });
 }
-// 결제 뒤 서버 지급 확인 — 상자 개수가 before + boxes 이상이 될 때까지 최대 약 12초
-async function _peakshopWaitGrant(before, boxes) {
-  for (let i = 0; i < 8; i++) {
-    await new Promise(r => setTimeout(r, i === 0 ? 800 : 1500));
-    const st = await refreshPeakState();
-    if ((st.peakbox_count || 0) >= before + boxes) return true;
-  }
-  return false;
+// ── 결제 뒤 지급 확인 → 피크상자 획득 모달 (2026-11-26) ──
+//  지급은 웹훅이라 몇 초~몇 분 늦을 수 있다. 결제 성공 시 '대기 표시'를 기기에 남기고, 어느 페이지에 있든
+//  (shared.js가 모든 페이지에 있음) 서버의 본인 구매 기록(peakbox_purchases, RLS 본인 읽기)에 새 지급 행이 생기면
+//  상자 개수를 갱신하면서 획득 모달을 띄운다. 거래 번호별로 한 번만 띄움(본 거래 번호를 기기에 기록).
+//  상자 개수 비교가 아니라 구매 행으로 보는 이유: 기다리는 동안 상자를 열거나 다른 보상을 받아도 틀리지 않게.
+const PEAKBOX_PENDING_KEY = 'chorditor_peakbox_pending';   // [{ uid, at(ms, 결제 시작 시각) }]
+const PEAKBOX_SHOWN_KEY   = 'chorditor_peakbox_shown_tx';  // 획득 모달을 띄운 거래 번호(최근 50개)
+const PEAKBOX_PENDING_TTL = 3 * 24 * 3600 * 1000;          // 웹훅이 끝내 안 오면 3일 뒤 대기 표시 정리
+let _peakboxGrantTimer = null, _peakboxGrantBusy = false;
+function _peakboxJsonGet(key) { try { return JSON.parse(localStorage.getItem(key) || '[]') || []; } catch (_) { return []; } }
+function _peakboxPendingList() {
+  const now = Date.now();
+  const list = _peakboxJsonGet(PEAKBOX_PENDING_KEY).filter(p => p && p.uid && now - p.at < PEAKBOX_PENDING_TTL);
+  try { localStorage.setItem(PEAKBOX_PENDING_KEY, JSON.stringify(list)); } catch (_) {}
+  return list;
 }
+function _peakboxAddPending(uid, at) {
+  const list = _peakboxPendingList();
+  list.push({ uid: uid, at: at });
+  try { localStorage.setItem(PEAKBOX_PENDING_KEY, JSON.stringify(list)); } catch (_) {}
+  _peakboxScheduleGrantCheck(800);
+}
+// 다음 확인 시각: 결제 직후 2분은 3초마다, 30분까지는 20초마다, 그 뒤로는 페이지를 열거나 앱으로 돌아올 때만
+function _peakboxScheduleGrantCheck(delay) {
+  clearTimeout(_peakboxGrantTimer);
+  _peakboxGrantTimer = setTimeout(_peakboxGrantCheck, delay);
+}
+async function _peakboxGrantCheck() {
+  _peakboxGrantTimer = null;
+  if (_peakboxGrantBusy || document.hidden) return;
+  const pending = _peakboxPendingList();
+  if (!pending.length) return;
+  const sess = typeof _freshSession === 'function' ? await _freshSession() : null;
+  const uid = sess?.user?.id;
+  const mine = pending.filter(p => p.uid === uid);
+  if (!uid || !mine.length) return;
+  _peakboxGrantBusy = true;
+  try {
+    // 획득 연출이 이미 떠 있으면(다른 보상) 겹치지 않게 다음 확인으로 미룸
+    const rv = document.getElementById('peak-reveal-overlay');
+    if (rv && rv.classList.contains('show')) { _peakboxScheduleGrantCheck(3000); return; }
+    const since = new Date(Math.min.apply(null, mine.map(p => p.at)) - 10 * 60 * 1000).toISOString();   // 기기·서버 시계 차이 여유 10분
+    let rows = null;
+    try {
+      const resp = await fetch(`${SUPABASE_URL}/rest/v1/peakbox_purchases?select=transaction_id,boxes,granted_at&user_id=eq.${uid}&granted_at=gte.${encodeURIComponent(since)}&order=granted_at.asc`,
+        { headers: { apikey: SUPABASE_ANON, Authorization: `Bearer ${sess.access_token}` } });
+      if (resp.ok) rows = await resp.json();
+    } catch (_) {}
+    const shown = _peakboxJsonGet(PEAKBOX_SHOWN_KEY);
+    const fresh = (rows || []).filter(r => r && r.transaction_id && shown.indexOf(r.transaction_id) === -1);
+    if (fresh.length) {
+      // 새 지급 행 하나 = 대기 표시 하나(오래된 것부터 지움). 여러 건이 한꺼번에 들어오면 합쳐서 한 번에 보여줌
+      const n = Math.min(fresh.length, mine.length);
+      const take = fresh.slice(0, n);
+      const boxes = take.reduce((a, r) => a + (r.boxes || 0), 0);
+      try { localStorage.setItem(PEAKBOX_SHOWN_KEY, JSON.stringify(shown.concat(take.map(r => r.transaction_id)).slice(-50))); } catch (_) {}
+      const left = _peakboxPendingList();
+      mine.sort((a, b) => a.at - b.at).slice(0, n).forEach(p => { const i = left.findIndex(q => q.uid === p.uid && q.at === p.at); if (i !== -1) left.splice(i, 1); });
+      try { localStorage.setItem(PEAKBOX_PENDING_KEY, JSON.stringify(left)); } catch (_) {}
+      await refreshPeakState();   // 탑바 상자 개수 먼저 갱신
+      closePeakShop();
+      if (document.getElementById('peakbox-overlay') && !document.getElementById('peakbox-overlay').classList.contains('hidden')) _peakboxRender();
+      if (typeof analytics !== 'undefined') analytics.track('peakshop_grant_shown', { boxes: boxes, delay_sec: Math.round((Date.now() - mine[0].at) / 1000) });
+      showPeakboxRewardModal(boxes, undefined, { source: 'peakbox_purchase' });
+    }
+    const still = _peakboxPendingList().filter(p => p.uid === uid);
+    if (still.length) {
+      const age = Date.now() - Math.max.apply(null, still.map(p => p.at));
+      if (age < 2 * 60 * 1000) _peakboxScheduleGrantCheck(3000);
+      else if (age < 30 * 60 * 1000) _peakboxScheduleGrantCheck(20000);
+    }
+  } finally {
+    _peakboxGrantBusy = false;
+  }
+}
+document.addEventListener('visibilitychange', () => { if (!document.hidden) _peakboxScheduleGrantCheck(300); });
+if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', () => _peakboxScheduleGrantCheck(1200));
+else _peakboxScheduleGrantCheck(1200);
 // 구매 페이지 상자 카드 탭 → 결제
 async function _peakshopPackTap(boxes, price) {
   const pack = PEAKSHOP_PACKS.find(k => k.boxes === boxes);
@@ -2192,18 +2281,18 @@ async function _peakshopPackTap(boxes, price) {
     await window._RC.logIn({ appUserID: userId }).catch(() => {});   // 웹훅이 이 계정으로 지급하도록(app_user_id = Supabase 유저 id)
     const pkg = (await _peakshopPackages())[pack.productId];
     if (!pkg) { track('peakshop_purchase_failed', { reason: 'product_not_found' }); _peakshopNotice('아직 준비 중인 상품이에요'); return; }
-    const before = _peakState.peakbox_count || 0;
+    const startedAt = Date.now();
     track('peakshop_purchase_started', { store_price: pkg.product?.priceString || null, currency: pkg.product?.currencyCode || null });
     await window._RC.purchasePackage({ aPackage: pkg });
     track('peakshop_purchase_completed', { store_price: pkg.product?.priceString || null, currency: pkg.product?.currencyCode || null });
-    const granted = await _peakshopWaitGrant(before, pack.boxes);
-    if (granted) {
-      closePeakShop();
-      openPeakboxModal();   // 산 상자를 바로 열 수 있게
-    } else {
-      track('peakshop_grant_delayed');
-      _peakshopNotice('결제가 완료됐어요. 상자는 잠시 후 들어와요');
-    }
+    // 지급(웹훅)이 들어오는 순간 어느 페이지에서든 획득 모달 — _peakboxGrantCheck. 12초 안에 안 오면 지연만 기록(분석용)
+    _peakboxAddPending(userId, startedAt);
+    setTimeout(() => {
+      if (_peakboxPendingList().some(p => p.uid === userId && p.at === startedAt)) {
+        track('peakshop_grant_delayed');
+        _peakshopNotice('결제가 완료됐어요. 상자가 들어오면 바로 알려드릴게요');
+      }
+    }, 12000);
   } catch (e) {
     const msg = String(e?.message || e?.code || '').toLowerCase();
     if (msg.includes('cancel')) track('peakshop_purchase_cancelled');
@@ -2269,6 +2358,7 @@ function openPeakShop(source) {
         <div class="plan-cards peakshop-list">
           <span class="hint">상자 구매</span>
           ${packs}
+          <p class="peakshop-note">구매 후 상자를 하나라도 열면 환불할 수 없어요.</p>
         </div>
       </main>`;
     document.body.appendChild(pg);

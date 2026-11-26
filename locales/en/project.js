@@ -5,6 +5,10 @@ I18N.add('en', {
     '저장하기': 'Save',
     '팔레트 저장': 'Save palette',
     '텍스트 복사': 'Copy text',
+    // 미번역 보충(2026-11-26 UI 점검)
+    "팔레트 코드 한 번에 저장": "Save all palette chords",
+    "목록 펼치기": "Show list",
+    "일시정지": "Pause",
     '마디 정보 수정': 'Edit bar info',
     '기본값': 'Default',
     '박자': 'Time signature',
@@ -30,6 +34,20 @@ I18N.add('en', {
     '코드 팔레트 접기/펼치기': 'Collapse/expand chord palette',
     '저장할 코드가 없습니다.': 'No chords to save.',
     '이 코드를 삭제하시겠습니까?': 'Delete this chord?',
+
+    // ── 악보 저장하기 모달(user_project.html #scrap-modal, 2026-11-26) ──
+    '악보 저장하기': 'Save sheet music',
+    '방향': 'Orientation',
+    '세로': 'Portrait',
+    '가로': 'Landscape',
+    '비율': 'Aspect ratio',
+    '페이지 분할': 'Split page',
+    '안 나눔': 'No split',
+    '2분할': '2 columns',
+    '선택 완료': 'Done',
+    '옵션 변경': 'Change options',
+    '제목 없음': 'Untitled',
+    '저장하지 못했어요. 사진 접근 권한을 확인해 주세요.': "Couldn't save. Please check photo access permission.",
 
     // ── 튜토리얼 시드·선물 노트(가사는 저작권이 소멸한 동요) ──
     '작은 별': 'Twinkle Twinkle',
@@ -64,4 +82,9 @@ I18N.add('en', {
     '이 페이지는 Google Play 데이터 보안 정책에 따른 계정 삭제 안내 페이지입니다.':
       "This page explains account deletion as required by Google Play's data safety policy.",
   },
+  patterns: [
+    // 악보 저장하기 — 미리보기 장수·일부 저장 실패 안내
+      [/^총 (\d+)장 · 1페이지 미리보기$/, m => m[1] + (m[1] === '1' ? ' page' : ' pages') + ' in total · Page 1 preview'],
+      [/^(\d+)장 중 (\d+)장만 저장했어요\. 사진 접근 권한을 확인해 주세요\.$/, m => 'Saved only ' + m[2] + ' of ' + m[1] + ' pages. Please check photo access permission.'],
+  ],
 });

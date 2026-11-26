@@ -261,6 +261,8 @@
   const LINE_MS = 1100;
   function showCaption(text, seq) {
     const qEl = $('combo-v2-lec-text');
+    // 번역: 문구를 통째로(강조 span·줄바꿈 포함) 사전에서 찾음 — DOM에 넣은 뒤 조각별로 바뀌면 어순이 깨지므로(locales/<언어>/journey.js)
+    if (typeof I18N !== 'undefined' && I18N.t) text = I18N.t(text);
     const html = seq ? text.split('\n').map(function (ln, k) { return k ? '<span class="lec-ln" style="animation-delay:' + (k * LINE_MS) + 'ms">' + ln + '</span>' : ln; }).join('\n') : text;
     // 캡션 박스(.test-question-text)는 display:flex라 안에 글자·span이 섞이면 각각 가로로 나란한 칸이 되어 문장이 끊김 → 전체를 span 하나(.lec-cap)로 감싸 한 덩어리로
     qEl.innerHTML = '<span class="lec-cap">' + html + '</span>';

@@ -13,6 +13,12 @@
       '오늘 훈련 결과보기': "See today's results",
       '오늘은 출석을 완료했어요': "You're checked in for today",
       '아직 오늘 출석을 못했어요': "You haven't checked in yet today",
+      // 미번역 보충(2026-11-26 UI 점검)
+      "이번 달 보충출석을 모두 썼어요": "You've used all your Streak Freezes this month",
+      "보충출석 3회를 다 썼어요. 광고를 보면 1칸씩 더 채울 수 있어요": "You've used all 3 Streak Freezes. Watch an ad to fill one more day",
+      "광고 보고 보충출석": "Watch ad to freeze",
+      "광고를 끝까지 봐야 채워져요": "Watch the full ad to fill it",
+      "보충출석에 실패했어요. 다시 시도해주세요.": "Couldn't use the Streak Freeze. Please try again.",
       '보충출석': 'Streak Freeze',
       '이번 달 출석 완료!': 'Month complete!',
       '이번 달 출석을 모두 채웠어요.': "You've filled in every check-in this month.",
@@ -184,6 +190,7 @@
     ],
 
     patterns: [
+      [/^(\d+)개만 더 완료하면 출석해요$/, m => m[1] + ' more to check in'],
       [/^(\d+)월 출석$/, m => MONTH[m[1] - 1] + ' check-ins'],
       [/^제한시간 (\d+)초 안에$/, 'You have {1} seconds'],
 

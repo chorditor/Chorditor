@@ -5,21 +5,13 @@
 
 // ── 온보딩 관문 통과 → home.html(또는 보류된 푸시 딥링크)로 이동 ──
 // 여기서 세션 생존 마커를 세워야 이후 웜 진입이 온보딩을 건너뛴다.
-// 목적지가 home.html일 때만(푸시 딥링크가 있으면 그쪽이 우선) 오늘 데일리미션 게이트를
-// 아직 안 지났으면 오늘의 미션·출석 통합 페이지(attendance.html)로 먼저 보냄 — 그 페이지가 열릴 때 통과 시각을 기록.
+// (2026-11-26) 앱 시작 때 오늘의 미션(attendance.html)으로 자동 이동하던 것 제거 — 홈의 여정 선택 관문(home.js _journeyGate)과 겹쳐 의도치 않은 홈 이동이 생겼음.
 function goToHome() {
   _markSessionAlive();
   const pushTarget = _consumePushTarget();
   const target = pushTarget || 'home.html';
   // 푸시 딥링크 도착 페이지의 로드 덮개에도 로고를 입히도록 표시(shared.js _deeplinkCoverLogo가 한 번 소비)
   if (pushTarget) { try { sessionStorage.setItem(DEEPLINK_BOOT_KEY, '1'); } catch (_) {} }
-  if (target === 'home.html') {
-    const today = new Date().toISOString().slice(0, 10);
-    if (localStorage.getItem('chorditor_dm_cleared_date') !== today) {
-      window.location.replace('attendance.html?from=launch');
-      return;
-    }
-  }
   window.location.replace(target);
 }
 

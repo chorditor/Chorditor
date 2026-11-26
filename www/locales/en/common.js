@@ -72,6 +72,27 @@
       // ── 출석 상자 ──
       '출석 완료!': 'Checked in!',
       '상자 열기': 'Open box',
+      '피크 보충하기': 'Refill picks',
+      '추가 구매': 'Buy more',
+      '상자 구매': 'Buy Pick Boxes',
+      '구매 후 상자를 하나라도 열면 환불할 수 없어요.': 'No refunds once you open any box after buying.',
+      // 피크상자 구매 페이지·상자 열기 모달·피크부족 모달·구매 안내(2026-11-26)
+      '광고 보기': 'Watch ad',
+      '상자를 열어서 피크를 보충하세요!': 'Open boxes to refill your Picks!',
+      '하나 빼기': 'One less',
+      '하나 더하기': 'One more',
+      '피크상자 구매': 'Buy Pick Boxes',
+      'Pro 플랜으로': 'Grow your skills',
+      '실력을 성장시키세요!': 'with the Pro plan!',
+      '피크·시간 제한 없이 마음껏 연습': 'Practice freely, no Pick or time limits',
+      '코디터의 모든 기능을 자유롭게': 'Use every Chorditor feature',
+      '플랜 보기': 'See plans',
+      '피크상자 구매는 앱에서 할 수 있어요': 'Pick Boxes can be bought in the app',
+      '로그인 후 구매할 수 있어요': 'Log in to buy',
+      '결제를 준비하고 있어요. 잠시 후 다시 시도해 주세요': 'Getting payment ready. Please try again in a moment',
+      '아직 준비 중인 상품이에요': "This item isn't available yet",
+      '결제가 완료됐어요. 상자가 들어오면 바로 알려드릴게요': "Payment complete. We'll let you know as soon as your boxes arrive",
+      '결제 중 문제가 생겼어요. 다시 시도해 주세요': 'Something went wrong with the payment. Please try again',
       '상자를 눌러 여세요': 'Tap the box to open it',
       '1.3.0 업데이트 감사 이벤트': '1.3.0 Update Thank-You Event',
       '기존 유저 분들에 대한 감사의 마음으로': 'To thank our early players,',
@@ -107,6 +128,15 @@
       '구독은 결제일 기준 결제 주기(월간 또는 연간)에 따라 자동으로 갱신되며, 갱신 24시간 전까지 언제든 해지할 수 있습니다. 해지는 Google Play 스토어 > 구독 메뉴에서 가능합니다.':
         'Subscriptions renew automatically each billing cycle (monthly or yearly) from your payment date. You can cancel anytime up to 24 hours before renewal, under Google Play Store > Subscriptions.',
       '결제는 어떤 계정으로 청구되나요?': 'Which account gets charged?',
+      // 미번역 보충(2026-11-26 UI 점검)
+      "구독 결제는 구매 확인 시 Apple ID 계정으로 청구되며, 현재 구독 기간이 끝나기 최소 24시간 전에 해지하지 않으면 같은 기간으로 자동 갱신됩니다. 구독 관리와 해지는 구매 후 설정 > Apple ID(내 이름) > 구독에서 언제든 할 수 있습니다.": "Payment is charged to your Apple ID at confirmation of purchase. Your subscription renews automatically for the same period unless canceled at least 24 hours before the current period ends. You can manage or cancel anytime after purchase in Settings > Apple ID (your name) > Subscriptions.",
+      "App Store에 로그인된 Apple ID로 결제됩니다.": "Payments go to the Apple ID signed in to the App Store.",
+      "설정 → 상단의 내 이름 → 구독에서 Chorditor를 선택해 취소할 수 있습니다.": "Go to Settings → your name at the top → Subscriptions, choose Chorditor and cancel.",
+      "reportaproblem.apple.com에서 Apple에 환불을 요청할 수 있습니다.": "You can request a refund from Apple at reportaproblem.apple.com.",
+      "앱 계정과 Apple ID가 다르면?": "What if my app account and Apple ID don't match?",
+      "구독은 결제한 Apple ID에 묶여서, 다른 Apple ID로는 구독을 관리할 수 없습니다.": "Subscriptions are tied to the Apple ID that paid, so you can't manage them from a different Apple ID.",
+      "구독은 설정 > Apple ID > 구독에서 언제든지 취소할 수 있습니다.": "You can cancel anytime in Settings > Apple ID > Subscriptions.",
+      "연간으로 변경": "Switch to yearly",
       '플레이스토어에서 앱을 다운받은 계정으로 결제됩니다.': 'The account you used to download the app from the Play Store.',
       '구독 취소는 어떻게 하나요?': 'How do I cancel my subscription?',
       '플레이스토어 → 내 프로필 → 결제 및 정기 결제 → 정기 결제에서 취소할 수 있습니다.':
@@ -237,6 +267,8 @@
     },
 
     scoped: [
+      // 상자 개수 'N개'(상자 열기 모달 수량, 구매 페이지 상자 라벨) — 이 두 자리에서만. 전역 패턴으로 두면 'N개'가 낀 문장(출석 안내 등)의 문장 단위 번역이 깨질 수 있음
+      ['.peakshop-label, #peakbox-qty', Object.fromEntries(Array.from({ length: 1000 }, (_, i) => [i + '개', String(i)]))],
       ['.plan-card-badge', { '추천': 'Best value' }],
     ],
 
