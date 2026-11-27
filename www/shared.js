@@ -3791,16 +3791,16 @@ function _initPlanSheet() {
         <div class="plan-card-name">Pro 연간</div>
         <div class="plan-card-price">
           <div class="price-top">
-            <span class="hint" id="plan-hint-yearly">약 1,700원/월</span>
-            <span class="price-badge" id="plan-badge-yearly">43% 할인</span>
+            <span class="hint" id="plan-hint-yearly">약 2,900원/월</span>
+            <span class="price-badge" id="plan-badge-yearly">40% 할인</span>
           </div>
-          <span class="price-amount" id="plan-price-yearly">₩19,900<small>/년</small></span>
+          <span class="price-amount" id="plan-price-yearly">₩35,000<small>/년</small></span>
         </div>
       </div>
       <div class="plan-card" id="plan-card-monthly" onclick="_planSelectCycle('monthly')">
         <div class="plan-card-name">Pro 월간</div>
         <div class="plan-card-price">
-          <span class="price-amount" id="plan-price-monthly">₩2,900<small>/월</small></span>
+          <span class="price-amount" id="plan-price-monthly">₩4,900<small>/월</small></span>
         </div>
       </div>
     </div>
