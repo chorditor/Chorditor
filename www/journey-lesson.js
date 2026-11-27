@@ -953,6 +953,7 @@
     const cover = $('page-cover');
     if (cover) requestAnimationFrame(function () { cover.classList.add('cover-out'); setTimeout(function () { cover.style.display = 'none'; }, 200); });
     if (!file) { console.warn('[journey-lesson] 노드 없음', q.toString()); return; }
+    if (typeof jnyRefreshQuizRefund === 'function') jnyRefreshQuizRefund();   // 퀴즈 환급량(실험 그룹) — 홈을 거치지 않고 들어온 경우 대비(shared.js)
     const sc = document.createElement('script');
     sc.src = 'journey-lessons/' + file + '.js';
     sc.onerror = function () { console.error('[journey-lesson] 노드 파일을 불러오지 못함', sc.src); };

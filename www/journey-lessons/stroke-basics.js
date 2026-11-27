@@ -575,31 +575,30 @@
   //   문제 수: 별 1 10 / 별 2·3 15 (D3과 같음). 유형 비율 ①:②:③ = 4:3:3 / 5:5:5 / 5:5:5(①은 pick·fill 반반, fill 빠진 점 수는 D3 규칙)
   //   저장: 별 수 = jnyStars(노드 id별), 하던 퀴즈 = jnyQuizSess:stroke-basics
   // ═══════════════════════════════════════════════════════════════
-  const QZ_STAR_CFG = { 1: { n: 10, pick: 2, fill: 2, sym: 3, ear: 3 }, 2: { n: 15, pick: 3, fill: 2, sym: 5, ear: 5 }, 3: { n: 15, pick: 2, fill: 3, sym: 5, ear: 5 } };   // 별 → 문제 수 / 유형별 문제 수(① = pick + fill)
+  const QZ_STAR_CFG = { 1: { n: 10, pick: 2, fill: 2, sym: 2, ear: 2, pat: 2 }, 2: { n: 15, pick: 3, fill: 2, sym: 3, ear: 4, pat: 3 }, 3: { n: 15, pick: 2, fill: 3, sym: 3, ear: 3, pat: 4 } };   // 별 → 문제 수 / 유형별 문제 수(① = pick + fill). pat = 주법 듣기(2026-11-27 추가 — 문제 수는 그대로 두고 sym·ear에서 나눔)
   const QZ_REFUND_EVERY = 5;      // 정답 이만큼마다
-  const QZ_REFUND_AMOUNT = 4;     // 이만큼 돌려줌 → 5문제당 순소모 1(사용자 지정 2026-11-12)
-  function netCost() { return Math.ceil(qz.qs.length / QZ_REFUND_EVERY); }   // 퀴즈 1회 최종 순소모 = 5문제당 1
+  function qzRefundAmount() { return typeof jnyQuizRefund === 'function' ? jnyQuizRefund() : 4; }   // 정답 5개마다 돌려주는 수 — 기본 4(사용자 지정 2026-11-12), 2×2 실험 그룹이면 +4/+3(shared.js jnyQuizRefund, 2026-11-27)
+  function netCost() { return Math.max(0, qz.qs.length - qzRefundAmount() * Math.floor(qz.qs.length / QZ_REFUND_EVERY)); }   // 퀴즈 1회 최종 순소모 = 5문제당 (5 − 환급량) — +4면 1, +3이면 2
   const STARS_KEY = 'jnyStars';
   const NODE_ID = 'stroke-basics';
   let qz = null;   // 세션 { star, qs, idx, wrong[], phase: 'main'|'review', rvPos, done, judged, canRetry, paid{}, correct, refunded, short }
   // ── 이어 풀기 — 새로고침·앱 종료·백그라운드 뒤에도 하던 퀴즈를 그 문제부터. 문제(순서·보기·짝)·진행·틀린 목록·피크 지불 기록을 이 기기에 저장 ──
-  //  X → '그만할래요'로 직접 나갔을 때와 완주했을 때만 지움. 저장분의 별이 지금 풀 별과 다르면 버림
-  const SESS_KEY = 'jnyQuizSess:' + NODE_ID;   // 노드마다 따로(D1 저장분을 덮지 않게)
-  const SESS_FIELDS = ['star', 'qs', 'idx', 'wrong', 'phase', 'rvPos', 'done', 'judged', 'canRetry', 'paid', 'correct', 'refunded'];
+  //  X로 나가도 저장(2026-11-27). 완주하면 지움. 마지막으로 답한 지 24시간이 지났거나 저장분의 별이 지금 풀 별과 다르면 버림
+  const SESS_FIELDS = ['star', 'qs', 'idx', 'wrong', 'phase', 'rvPos', 'done', 'judged', 'canRetry', 'paid', 'correct', 'refunded', 'at'];
   function sessSave() {
     if (!qz || qz.over || qz.quit) return;
     const o = { node: NODE_ID };
     SESS_FIELDS.forEach(function (k) { o[k] = qz[k]; });
-    try { localStorage.setItem(SESS_KEY, JSON.stringify(o)); } catch (e) {}
+    jnyQuizSessWrite(NODE_ID, o);
   }
   function sessLoad() {
     try {
-      const o = JSON.parse(localStorage.getItem(SESS_KEY) || 'null');
+      const o = jnyQuizSessRead(NODE_ID);
       if (!o || o.node !== NODE_ID || o.star !== window.JourneyLesson.quizStar(starsGet()) || !Array.isArray(o.qs)) return null;
       return o;
     } catch (e) { return null; }
   }
-  function sessClear() { try { localStorage.removeItem(SESS_KEY); } catch (e) {} }
+  function sessClear() { jnyQuizSessRemove(NODE_ID); }
 
   function starsGet() { try { return JSON.parse(localStorage.getItem(STARS_KEY) || '{}')[NODE_ID] || 0; } catch (e) { return 0; } }
   function starsSet(n) {
@@ -622,7 +621,7 @@
     const pc = balanced(cfg.pick), pv = shuffle(Array.from({ length: cfg.pick }, function (_, k) { return k % 2 ? 'd2n' : 'n2d'; }));
     for (let k = 0; k < cfg.pick; k++) qs.push({ type: 'pick', variant: pv[k], chord: pc[k], choices: shuffle(['E', 'A']), answer: pc[k] });
     const fc = balanced(cfg.fill);
-    const miss = fillMiss(star, cfg.fill), used = {};   // 채울 노트 수(별 1 = 2 / 별 2 = 3~4 / 별 3 = 5~6)
+    const miss = fillMiss(star, fc), used = {};   // 채울 노트 수(별 1 = 2 / 별 2 = 3~4 / 별 3 = E 5~6·A 4~5)
     for (let k = 0; k < cfg.fill; k++) qs.push(pickFill(fc[k], miss[k], used, fc));
     // ② 기호 2지선다 — 다운·업 반반, 기호 → 이름 / 이름 → 기호 반반
     const sd = balancedDU(cfg.sym), sv = shuffle(Array.from({ length: cfg.sym }, function (_, k) { return k % 2 ? 'd2n' : 'n2d'; }));
@@ -630,10 +629,14 @@
     // ③ 소리 듣고 2지선다 — 다운·업 반반, 코드(A·E)는 반반
     const ed = balancedDU(cfg.ear), ec = balanced(cfg.ear);
     for (let k = 0; k < cfg.ear; k++) qs.push({ type: 'ear', chord: ec[k], choices: shuffle(['D', 'U']), answer: ed[k] });
+    // ④ 주법 듣기 2지선다(2026-11-27 사용자 지정) — 일반 다운 4번 / 일반 업 4번 / 첫 박 강세 다운 중 정답 + 나머지 둘 중 하나. 정답 주법은 셋이 고르게, 코드(A·E)는 반반
+    const po = shuffle(PAT_IDS.slice());   // 문제 수가 3의 배수가 아닐 때 남는 몫이 늘 같은 주법으로 가지 않게 출발 순서를 섞음
+    const pa = shuffle(Array.from({ length: cfg.pat }, function (_, k) { return po[k % po.length]; })), pc2 = balanced(cfg.pat);
+    for (let k = 0; k < cfg.pat; k++) { const others = PAT_IDS.filter(function (x) { return x !== pa[k]; }); qs.push({ type: 'pat', chord: pc2[k], answer: pa[k], choices: shuffle([pa[k], others[rnd(others.length)]]) }); }
     // 순서(2026-11-20 사용자 지정 — 주법 문제와 코드 문제가 골고루 섞이게):
     //  코드 문제(pick·fill)는 전체에 고른 간격으로 자리를 잡고(간격 = 문제 수 ÷ 코드 문제 수, 시작점만 무작위), 나머지 자리에 주법 문제(sym·ear)를 섞어 넣음.
     //  코드 문제 안에서 점 찍기는 채울 노트가 적은 것부터(D3 규칙). 여러 번 짜 보고 ① 같은 문제 연속 ② 같은 유형 연속이 가장 적은 배열을 고름
-    const chordQs = qs.filter(function (q) { return q.type === 'pick' || q.type === 'fill'; }), strokeQs = qs.filter(function (q) { return q.type === 'sym' || q.type === 'ear'; });
+    const chordQs = qs.filter(function (q) { return q.type === 'pick' || q.type === 'fill'; }), strokeQs = qs.filter(function (q) { return q.type === 'sym' || q.type === 'ear' || q.type === 'pat'; });
     const total = qs.length, nc = chordQs.length, step = total / nc;
     const qk = function (q) { return q.type + ':' + (q.variant || '') + ':' + (q.chord || '') + ':' + (q.answer || '') + ':' + (q.ans ? q.ans.slice().sort().join(',') : ''); };
     let best = null, bestScore = Infinity;
@@ -678,9 +681,13 @@
     return { type: 'fill', chord: name, given: keep.filter(function (u) { return u.n > 0; }).map(function (u) { return u.n; }), givenOpen: keep.filter(function (u) { return u.n === 0; }).map(function (u) { return u.ss[0] + 1; }), ans: ans, miss: ans.length };
   }
   // 채울 노트 수(2026-11-20 전 노드 공통): 별 1 = 2개 / 별 2 = 3~4개 / 별 3 = 5~6개(반반, 코드 노트 수보다 많으면 전부)
-  function fillMiss(star, n) {
-    const lo = star === 1 ? 2 : star === 2 ? 3 : 5;
-    return star === 1 ? Array.from({ length: n }, function () { return 2; }) : shuffle(Array.from({ length: n }, function (_, k) { return k < Math.floor(n / 2) ? lo : lo + 1; }));
+  //  별 3(2026-11-27 사용자 지정 — A·E를 고르게 학습): E = 5~6개, A = 4~5개. A는 5노트라 E와 같은 5~6개로는 서로 다른 문제가 '전부 비우기' 하나뿐이어서
+  //   A 자리가 E로 바뀌어 나왔음. '전부 비우기'(E 6개·A 5개)는 코드마다 한 가지뿐이라 한 판에 코드당 1문제만, 나머지는 1개 적게
+  function fillMiss(star, chords) {
+    const n = chords.length;
+    if (star === 1) return chords.map(function () { return 2; });
+    if (star === 3) { const seen = {}; return chords.map(function (c) { const full = c === 'E' ? 6 : 5; if (seen[c]) return full - 1; seen[c] = true; return full; }); }
+    return shuffle(Array.from({ length: n }, function (_, k) { return k < Math.floor(n / 2) ? 3 : 4; }));
   }
   // 같은 점 찍기 문제(코드 + 빠진 자리)를 가능하면 두 번 내지 않음 — 선호 코드에서 안 쓴 문제를 먼저, 바닥나면 같은 풀의 다른 코드에서. 다 바닥났을 때만 겹침
   function pickFill(pref, miss, used, pool) {
@@ -730,7 +737,7 @@
   // ── 화면 — 리하모니 문제 화면(#combo-view-quiz-v2) 틀: 헤드(타이틀 + 오답풀기 배지) / 본문 / 하단 버튼 ──
   //  pick = 코드 맞추기 문제 화면 템플릿(문제 카드 .ms-quiz-question-card + 말풍선 + 2개 .ms-quiz-choice-card, 보기는 이름 글자 또는 다이어그램 canvas-slot) — 누르는 즉시 채점, 버튼은 채점 뒤 '다음'
   //  fill = 안내 카드 + 다이어그램(빠진 점을 눌러 찍기) + 제출하기
-  const QZ_TITLES = { pick: '알맞은 답을 고르세요', fill: '알맞은 답을 찍어주세요', sym: '알맞은 답을 고르세요', ear: '알맞은 답을 고르세요' };   // 타이틀은 일반 문구(사용자 지정) — 문제 내용은 카드에
+  const QZ_TITLES = { pick: '알맞은 답을 고르세요', fill: '알맞은 답을 찍어주세요', sym: '알맞은 답을 고르세요', ear: '알맞은 답을 고르세요', pat: '알맞은 답을 고르세요' };   // 타이틀은 일반 문구(사용자 지정) — 문제 내용은 카드에
 
   // 안내 카드 — 리하모니 _comboV2BuildInfoCard와 같은 3줄(앞 문구 / 강조 / 뒤 문구). mid가 없으면 2줄
   function infoCard(head, mid, tail) {
@@ -787,10 +794,33 @@
     if (GuitarAudio.resume) { try { await GuitarAudio.resume(); } catch (e) {} }
     GuitarAudio.strumNotes(midis, EAR_GAP);
   }
-  function playQ(it) { if (it.type === 'ear') playStroke(it.chord, it.answer); else playChord(it.chord); }
+  // 주법 듣기 — 강의와 같은 소리(강의 hit와 같은 줄 선택·세기·strumAt 경로, 노드 9 주법 듣기 playEar와 같은 방식), 두 마디. 빠르기는 이 노드 강의와 같은 70bpm(BEAT_MS)
+  //  dn = 매 박 6줄 다운(원래 세기) / up = 매 박 1~3번줄 업(약세) / acc = 첫 박 6줄 강세 + 나머지 1~4번줄 약세
+  const PAT_IDS = ['dn', 'up', 'acc'], PAT_BARS = 2;
+  let patGen = 0;   // 하드컷(stopSound)마다 올림 — 준비를 기다리는 사이 문제가 바뀌거나 보기를 골랐으면 재생하지 않음
+  function playPat(it) {
+    stopSound();   // 카드를 다시 누르면 앞 재생을 끊고 처음부터(CLAUDE.md 0-7)
+    if (typeof GuitarAudio === 'undefined') return;
+    const gen = patGen, c = chords()[it.chord];
+    Promise.resolve(GuitarAudio.resume ? GuitarAudio.resume() : null).catch(function () {}).then(function () { return GuitarAudio.ready(); }).then(function () {
+      if (gen !== patGen || !qz || qz.quit || qz.over || cur() !== it) return;
+      const t0 = Tone.now() + 0.1;
+      for (let b = 0; b < PAT_BARS * 4; b++) {
+        const t = t0 + b * BEAT_MS / 1000;
+        if (it.answer === 'up') GuitarAudio.strumAt(strokeMidis(c, 'u3'), 0.012, t, 1.0, 0.3, 'weak');
+        else if (it.answer === 'acc' && b % 4 === 0) GuitarAudio.strumAt(strokeMidis(c, 'all'), 0.012, t, 4 * BEAT_MS / 1000 + 0.05, 0.3, 'acc');
+        else if (it.answer === 'acc') GuitarAudio.strumAt(strokeMidis(c, 'w4'), 0.012, t, 1.0, 0.3, 'weak');
+        else GuitarAudio.strumAt(strokeMidis(c, 'all'), 0.012, t, 1.0, 0.3, null);
+      }
+    });
+  }
+  // 보기 주법 칸 — 강의 주법 칸(sgrid·cells)과 같은 마크업, 강세 주법만 첫 박 위 강세 기호
+  function patGrid(id) { return '<div class="strum-play-grid n4-sg n4q-sg"><span class="n4-vm' + (id === 'acc' ? ' is-in' : '') + '">' + ICON_ACC + '</span>' + cells(id === 'up' ? ICON_UP : ICON_DOWN) + '</div>'; }
+  function playQ(it) { if (it.type === 'pat') playPat(it); else if (it.type === 'ear') playStroke(it.chord, it.answer); else playChord(it.chord); }
   function stopSound() {
     clearTimeout(autoTimer);
     autoTimer = null;
+    patGen++;
     if (typeof GuitarAudio !== 'undefined' && GuitarAudio.panic) GuitarAudio.panic();   // 맥락 전환 → 하드컷(CLAUDE.md 0-7)
   }
   function autoPlay(it) {
@@ -848,6 +878,12 @@
         it.choices.map(function (c) { return '<button type="button" class="ms-quiz-choice-card ms-quiz-choice-card--text n4q-txt" data-v="' + c + '">' + STROKE_NAME[c] + '</button>'; }).join('') + '</div></div>';
       bindChoices();
       autoPlay(it);
+    } else if (it.type === 'pat') {   // 주법 듣기 — 문제 카드(소리 듣기와 같음) + 보기 2개(주법 칸, 한 줄에 하나 — 노드 9 주법 듣기와 같은 배치)
+      box.innerHTML = '<div class="ms-quiz-question-card jq-qcard"><span class="jq-qsub">주법 소리</span><span class="n4q-ico n4q-ico--q">' + ICON_SOUND + '</span><span class="jq-qask">' + EAR_HINT + '</span></div>' +
+        '<div class="jq-cq-answer"><div class="jq-bubble">들리는 주법을 고르세요</div><div class="ms-quiz-choices jq-cq-choices n9q-choices">' +
+        it.choices.map(function (c) { return '<div class="ms-quiz-choice-card" data-v="' + c + '">' + patGrid(c) + '</div>'; }).join('') + '</div></div>';
+      bindChoices();
+      autoPlay(it);
     } else {   // 점 찍기
       box.innerHTML = infoCard(it.chord + '코드의', '빠진 점을', '찍어주세요') +
         '<div class="jq-board"><div class="n3q-wrap" id="n3q-wrap">' + diagCard(it.chord) + '<div class="n3q-dots" id="n3q-dots"></div></div></div>';
@@ -874,10 +910,7 @@
   function payOnAnswer() {
     if (!needsPay()) return;
     qz.paid[qz.idx] = true;
-    if (typeof APP_VERSION !== 'undefined' && APP_VERSION.includes('_dev')) {
-      // DEV 빌드: 공용 consumePeak는 소모 없이 통과(shared.js 규칙)라 확인이 안 됨 → 화면 숫자만 흉내(서버·로컬 잔액은 그대로)
-      if (typeof _peakState !== 'undefined') { _peakState = Object.assign({}, _peakState, { balance: (_peakState.balance || 0) - 1 }); if (typeof renderPeakBadge === 'function') renderPeakBadge(); }
-    } else if (typeof consumePeak === 'function') consumePeak(1, 'journey');
+    if (typeof consumePeakInQuiz === 'function') consumePeakInQuiz(1, 'journey');   // 대기분 먼저·부족 모달 없음(shared.js) — 부족 안내는 render의 화면 숫자 판정에서만
     peakPop('−1');
   }
   function showShort() {
@@ -968,6 +1001,7 @@
   //  delay: 정답·오답음과 게이지를 이만큼 늦춤(찾아 누르기 — 누른 자리 소리가 먼저). 버튼은 그 순간 함께
   function verdict(ok, delay) {
     payOnAnswer();
+    qz.at = Date.now();   // 이어 풀기 기한(24시간)은 마지막으로 답한 때부터
     qz.judged = true;
     if (ok) qz.correct++;
     const due = ok && qz.correct % QZ_REFUND_EVERY === 0;   // 정답 5개째 — 환급은 정답음과 같은 순간에(아래 show)
@@ -979,7 +1013,7 @@
     const show = function () {
       judgeSound(ok);
       qProgress();
-      if (due) { refund(QZ_REFUND_AMOUNT); sessSave(); }   // (그 사이 새로고침돼 놓친 몫은 완주 때 맞춰 돌려줌)
+      if (due) { refund(qzRefundAmount()); sessSave(); }   // (그 사이 새로고침돼 놓친 몫은 완주 때 맞춰 돌려줌)
       qBtn(qz.canRetry ? '다시 풀기' : last ? '완료' : '다음', true, ok);
     };
     if (!delay) { show(); return; }
@@ -1139,9 +1173,10 @@
 
   function startQuiz() {
     const star = window.JourneyLesson.quizStar(starsGet());   // 순차: 다음 별(별 3 이후엔 별 3 반복)
-    qz = { star: star, qs: makeQuestions(star), idx: 0, wrong: [], phase: 'main', rvPos: 0, done: 0, judged: false, canRetry: false, over: false, paid: {}, correct: 0, refunded: 0, short: false };
+    qz = { star: star, qs: makeQuestions(star), idx: 0, wrong: [], phase: 'main', rvPos: 0, done: 0, judged: false, canRetry: false, over: false, paid: {}, correct: 0, refunded: 0, short: false, at: Date.now() };
     const saved = sessLoad();
     if (saved) SESS_FIELDS.forEach(function (k) { if (saved[k] !== undefined) qz[k] = saved[k]; });
+    if (typeof jnyQuizTrack === 'function') jnyQuizTrack('journey_quiz_started', NODE_ID, qz, { resumed: !!saved });   // 실험 분석(2026-11-27)
     $('jq-track').hidden = false;
     $('jq-fill').style.width = '0%';
     $('jq-btn').onclick = function () { if (qz.over) return; next(); };
@@ -1150,7 +1185,7 @@
     J.setQuizBack(function () {
       if (qz.phase === 'review') { quitQuiz(); J.goHome(); return; }   // 오답풀이 중엔 낸 피크가 없어 확인 없이
       if (typeof isLeavePracticeOpen === 'function' && isLeavePracticeOpen()) return;
-      showLeavePracticeModal(function () { quitQuiz(); J.goHome(); }, { title: '퀴즈를 그만두시겠어요?', desc: '지금 나가면 퀴즈를<br>처음부터 다시 풀어야 해요.' });
+      showLeavePracticeModal(function () { quitQuiz(); J.goHome(); }, { title: '퀴즈를 그만두시겠어요?', desc: '지금 나가도 24시간 안에 돌아오면<br>이어서 풀 수 있어요.' });
     });
     if (saved) {
       qProgress();
@@ -1158,11 +1193,12 @@
     } else render();
     $('jq-view').classList.remove('quiz-view--right');   // 리하모니와 같은 전환 — 오른쪽에서 들어옴
   }
-  // 직접 그만두기(X → 그만할래요, 오답풀이 중 X) — 저장분을 지우고 정리. 울리는 기타 소리 하드컷(CLAUDE.md 0-2)
+  // 직접 그만두기(X → 그만할래요, 오답풀이 중 X) — 이어 풀기 저장(24시간) 후 정리. 울리는 기타 소리 하드컷(CLAUDE.md 0-2)
   function quitQuiz() {
     clearTimeout(autoTimer); autoTimer = null;   // 예약된 자동 재생 취소(이탈 — CLAUDE.md 0-2)
+    sessSave();   // 어떤 경로로 나가도 이어 풀기 저장(24시간)
+    if (qz && !qz.over && !qz.quit && typeof jnyQuizTrack === 'function') jnyQuizTrack('journey_quiz_left', NODE_ID, qz, { reason: 'exit' });
     if (qz) qz.quit = true;   // 늦게 오는 정답·오답음 막음
-    sessClear();
     if (typeof flushPendingRefund === 'function') flushPendingRefund('journey');   // 이미 받은 도중 환급은 서버에 반영(회수하지 않음 — §1-5)
     overlayAbort();
     if (typeof GuitarAudio !== 'undefined' && GuitarAudio.panic) GuitarAudio.panic();
@@ -1170,6 +1206,7 @@
   // 백그라운드·새로고침·앱 종료(pagehide) — 소리만 즉시 끊고 환급은 서버로. 퀴즈 상태는 그대로(돌아오거나 다시 열면 이어서 — sessSave)
   function pauseQuiz() {
     if (!qz || qz.over) return;
+    if (!qz.quit && typeof jnyQuizTrack === 'function') jnyQuizTrack('journey_quiz_left', NODE_ID, qz, { reason: 'background' });   // 직접 나간 뒤의 pagehide는 빼고
     clearTimeout(autoTimer); autoTimer = null;
     sessSave();
     if (typeof flushPendingRefund === 'function') flushPendingRefund('journey');

@@ -449,6 +449,7 @@ function jnyWatchAnims(nodesEl) {
 //  dev 빌드(로그인 우회)는 서버를 부르지 않고 이 기기에서 처음 본 시각 + 7일로 표시만(효과 없음)
 const JNY_BOOST_KEY = 'chorditor_boost_start';     // dev 표시용(기기 기준 시작 시각)
 const JNY_BOOST_END_KEY = 'chorditor_boost_end';   // 서버 종료 시각(ms)
+const JNY_BOOST_DAYS_KEY = 'chorditor_boost_days';   // 서버 부스트 길이(일) — 2×2 실험 그룹마다 1일 또는 7일(2026-11-27)
 const JNY_BOOST_MS = 7 * 24 * 60 * 60 * 1000;
 let _jnyBoostTick = null;
 function jnyBoostEnd() {   // 서버 종료 시각(ms). 모르면 0
@@ -470,10 +471,12 @@ async function jnyFetchBoost() {
   _jnyBoostFetching = true;
   try {
     const r = await _peakRpc('get_or_start_boost');
+    if (typeof jnyApplyBoostResult === 'function') jnyApplyBoostResult(r);   // 퀴즈 환급량 저장·실험 배정 이벤트(shared.js)
     if (!r || !r.ok || !r.end) return;
     if (r.started) jnyTrack('journey_boost_started', { boost_end: new Date(r.end).toISOString(), plan: typeof getPlan === 'function' ? getPlan() : null });
     const prev = jnyBoostEnd();
     try { localStorage.setItem(JNY_BOOST_END_KEY, String(r.end)); } catch (e) {}
+    if (typeof r.start === 'number') { try { localStorage.setItem(JNY_BOOST_DAYS_KEY, String(Math.max(1, Math.round((r.end - r.start) / 86400000)))); } catch (e) {} }   // 부스트 길이(2×2 실험: 1일·7일) — 버튼 이름표용
     if (typeof r.now === 'number') { try { localStorage.setItem(JNY_SKEW_KEY, String(r.now - Date.now())); } catch (e) {} }
     if (document.getElementById('journey-nodes')) { if (prev !== r.end) renderJourney(); else jnyRenderBoost(); }   // 종료 시각을 처음 알게 되면 타이머 면제가 바뀌니 지도도 다시
   } catch (e) {
@@ -492,6 +495,9 @@ function jnyRenderBoost() {
   const isPro = typeof getPlan === 'function' && getPlan() === 'pro';
   btn.hidden = left <= 0 || isPro;   // Pro는 원래 타이머가 없어 부스트를 보여 주지 않음(시계는 계속 흐름)
   el.textContent = jnyFmtBoost(left);
+  const days = parseInt(localStorage.getItem(JNY_BOOST_DAYS_KEY) || '7', 10) === 1 ? 1 : 7;
+  const label = days + '일 부스트';   // 접근성 이름(화면엔 남은 시간만 보임) — i18n이 속성 변화를 보고 번역
+  if (btn.getAttribute('aria-label') !== label && !(window.I18N && I18N.t && btn.getAttribute('aria-label') === I18N.t(label))) btn.setAttribute('aria-label', label);
   if (left > 0 && !_jnyBoostTick) _jnyBoostTick = setInterval(jnyRenderBoost, 30 * 1000);   // 분 단위 표시라 30초마다 다시 셈
   if (left <= 0 && _jnyBoostTick) { clearInterval(_jnyBoostTick); _jnyBoostTick = null; }
 }

@@ -791,6 +791,8 @@ I18N.add('en', {
       "퀴즈를 그만두시겠어요?": "Leave the quiz?",
       "지금 나가면 퀴즈를": "If you leave now, you'll need to",
       "처음부터 다시 풀어야 해요.": "start the quiz over.",
+      "지금 나가도 24시간 안에 돌아오면": "If you leave now, come back within 24 hours",
+      "이어서 풀 수 있어요.": "to pick up where you left off.",
       "오답을 모두 풀면": "Solve all your mistakes",
       "사용한 피크를 돌려받아요": "to get your Picks back",
       "끝까지 완주해야 퀴즈 클리어예요": "Finish to the end to clear the quiz",

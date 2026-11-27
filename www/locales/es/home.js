@@ -15,6 +15,7 @@
       "다른 커리큘럼 보기": "Ver otros cursos",
       "레벨": "Nivel",
       "7일 부스트": "Impulso de 7 días",
+      "1일 부스트": "Impulso de 1 día",
       "이전 단계": "Nivel anterior",
       "개발자": "Desarrollador",
       "점마다 어느 손가락으로 누르는지\n번호를 붙일 수 있어요!": "¡Puedes numerar cada punto\nsegún el dedo que lo presiona!",

@@ -791,6 +791,8 @@ I18N.add('es', {
       "퀴즈를 그만두시겠어요?": "¿Salir del quiz?",
       "지금 나가면 퀴즈를": "Si sales ahora, tendrás que",
       "처음부터 다시 풀어야 해요.": "empezar el quiz de nuevo.",
+      "지금 나가도 24시간 안에 돌아오면": "Si sales ahora y vuelves en 24 horas,",
+      "이어서 풀 수 있어요.": "podrás seguir donde lo dejaste.",
       "오답을 모두 풀면": "Resuelve todos tus errores",
       "사용한 피크를 돌려받아요": "para recuperar tus púas",
       "끝까지 완주해야 퀴즈 클리어예요": "Termina hasta el final para superar el quiz",

@@ -1613,6 +1613,105 @@ async function consumePeak(cost, source) {
   return true;
 }
 
+// ── 여정 퀴즈 — 답할 때 피크 소모(2026-11-27 사용자 지정) ──
+// 부족 안내(완충 모달)는 퀴즈 화면이 "보이는 피크 수(잔액 + 환급 대기분) 0 + 아직 안 낸 문제로 가는 버튼"일 때만 띄운다.
+// 그래서 이 함수는 어떤 경우에도 모달을 띄우지 않는다(완주·오답풀이 화면 위에 부족 모달이 뜨던 버그 방지).
+//  ① 환급 대기분이 있으면 거기서 먼저 뺀다(서버 호출 없음) → "서버 잔액 = 보이는 수 − 대기분"이 유지돼 서버 차감이 거절될 일이 없다
+//  ② 대기분이 없을 때만 서버에서 차감. 보이는 숫자는 응답을 기다리지 않고 바로 1 내린다(다음 버튼 판정이 늘 화면 숫자와 같게)
+//  ③ 그래도 서버가 거절하면(다른 기기에서 써서 어긋남) 모달 없이 진행하고 기록만 남긴다
+async function consumePeakInQuiz(cost, source) {
+  if (getPlan() === 'pro') return true;
+  const pend = _peakRefundPending();
+  if (pend >= cost && !_peakRefundFlushing) {   // 전송 중인 대기분은 건드리지 않음(전송 성공 뒤 대기분에서 빼는 값과 엇갈림)
+    _peakRefundPendingSet(pend - cost);
+    renderPeakBadge();
+    analytics.track('peak_consumed', { cost, from_pending: true, balance_after: _peakState.balance + _peakRefundPending(), training_type: source });
+    return true;
+  }
+  _peakState = { ..._peakState, balance: (_peakState.balance || 0) - cost };   // 화면 숫자 먼저(서버 응답이 오면 그 값으로 덮음)
+  renderPeakBadge();
+  if (APP_VERSION.includes('_dev')) return true;   // DEV 빌드: 서버·로컬 잔액은 그대로 두고 화면 숫자만(consumePeak의 DEV 규칙과 같음)
+  const r = await _peakRpc('consume_peak', { p_cost: cost });
+  if (r) {
+    _peakState = { balance: r.balance, peakbox_count: r.peakbox_count, loaded: true };
+    renderPeakBadge();
+    analytics.track(r.ok ? 'peak_consumed' : 'peak_consume_desync', { cost, balance_after: r.balance, training_type: source });
+    return !!r.ok;
+  }
+  if (getStoredAuth().token) {   // 로그인 상태 서버 실패(네트워크 등) — 기기 잔액에서 몰래 빼지 않음(consumePeak와 같은 이유). 모달·토스트 없이 기록만
+    analytics.track('peak_consume_failed', { cost, training_type: source });
+    return false;
+  }
+  const local = _localPeakGet();   // 비로그인 — 기기 잔액
+  const newBal = Math.max(0, local.balance - cost);
+  _localPeakSet(newBal, local.peakbox_count);
+  _peakState = { balance: newBal, peakbox_count: local.peakbox_count, loaded: true };
+  renderPeakBadge();
+  analytics.track(local.balance >= cost ? 'peak_consumed' : 'peak_consume_desync', { cost, balance_after: newBal, training_type: source });
+  return local.balance >= cost;
+}
+
+// ── 2×2 관찰 실험(2026-11-27, supabase/experiment_refund_boost.sql) — 퀴즈 환급(+4/+3) × 부스트(7일/1일) ──
+// 서버 get_or_start_boost가 부스트를 처음 시작할 때 그룹을 배정하고 refund를 돌려줌 → 이 기기에 저장해 퀴즈가 읽음.
+// 홈(journey.js jnyFetchBoost)과 퀴즈 화면(journey-lesson.js)에서 부름. 값이 없으면(비로그인·첫 응답 전) 지금과 같은 4
+const JNY_QUIZ_REFUND_KEY = 'chorditor_quiz_refund';
+function jnyQuizRefund() {
+  let n = 4;
+  try { n = parseInt(localStorage.getItem(JNY_QUIZ_REFUND_KEY), 10); } catch (_) {}
+  return n >= 1 && n <= 4 ? n : 4;
+}
+// 서버 응답 처리 — 환급량 저장 + 처음 배정된 순간 experiment_assigned 한 번
+function jnyApplyBoostResult(r) {
+  if (!r || !r.ok) return;
+  if (typeof r.refund === 'number') { try { localStorage.setItem(JNY_QUIZ_REFUND_KEY, String(r.refund)); } catch (_) {} }
+  if (r.assigned && r.experiment && typeof analytics !== 'undefined') {
+    let cleared = 0;
+    try { const st = JSON.parse(localStorage.getItem('jnyStars') || '{}'); cleared = Object.keys(st).filter(k => st[k] >= 3).length; } catch (_) {}
+    analytics.track('experiment_assigned', {
+      experiment: r.experiment, group: r.group, refund: r.refund, boost_days: r.boost_days,
+      signup_at: r.signup_at ? new Date(r.signup_at).toISOString() : null,
+      peak_visible: (_peakState.balance || 0) + _peakRefundPending(),   // 배정 순간 화면 피크 수(잔액 + 환급 대기분)
+      nodes_cleared: cleared,                                          // 퀴즈 3까지 끝낸 노드 수(이 기기 기록)
+      plan: getPlan(),
+    });
+  }
+}
+// 여정 퀴즈 시작·이탈 이벤트(2026-11-27 실험 분석 — 이어 풀기율·중도 포기율). 공용 퀴즈 코드와 노드 파일이 같은 속성으로 남김
+function jnyQuizTrack(name, nodeId, qz, extra) {
+  if (typeof analytics === 'undefined' || !qz) return;
+  analytics.track(name, Object.assign({
+    node_id: nodeId, quiz_k: qz.star, phase: qz.phase, idx: qz.idx, done: qz.done,
+    total: qz.qs ? qz.qs.length : null, wrong: qz.wrong ? qz.wrong.length : 0, refund: jnyQuizRefund(),
+    course_kind: new URLSearchParams(location.search).get('course'),
+  }, extra || {}));
+}
+// 퀴즈 화면 진입 때 — 홈을 거치지 않고 들어온 경우에도 서버 값으로 맞춤(dev·비로그인은 건너뜀)
+async function jnyRefreshQuizRefund() {
+  if (APP_VERSION.includes('_dev')) return;
+  try { jnyApplyBoostResult(await _peakRpc('get_or_start_boost')); } catch (_) {}
+}
+
+// ── 여정 퀴즈 이어 풀기 저장(2026-11-27 사용자 지정) — 기기(localStorage)에만, 계정마다 따로 ──
+// 어떤 경로로 나가든 저장하고, 마지막으로 답한 때(at)부터 24시간이 지나면 버린다(학습이 끊긴 것으로 봄).
+// 화면에 들어오기만 하고 답하지 않으면 at이 그대로라 기한이 늘지 않는다. at이 없는 옛 저장분도 버린다.
+const JNY_QUIZ_SESS_TTL_MS = 24 * 60 * 60 * 1000;
+function _jnyQuizSessKey(nodeId) { return 'jnyQuizSess:' + (getStoredAuth().userId || 'guest') + ':' + nodeId; }
+function jnyQuizSessWrite(nodeId, o) {
+  try { localStorage.setItem(_jnyQuizSessKey(nodeId), JSON.stringify(o)); } catch (_) {}
+}
+function jnyQuizSessRead(nodeId) {
+  try { localStorage.removeItem('jnyQuizSess:' + nodeId); localStorage.removeItem('jnyQuizSess'); } catch (_) {}   // 계정 구분 전 옛 열쇠(기한 정보 없음) 정리 — 'jnyQuizSess'는 노드 1(fretboard-reading)의 옛 열쇠
+  try {
+    const o = JSON.parse(localStorage.getItem(_jnyQuizSessKey(nodeId)) || 'null');
+    if (!o) return null;
+    if (!(o.at > 0) || Date.now() - o.at > JNY_QUIZ_SESS_TTL_MS) { jnyQuizSessRemove(nodeId); return null; }
+    return o;
+  } catch (_) { return null; }
+}
+function jnyQuizSessRemove(nodeId) {
+  try { localStorage.removeItem(_jnyQuizSessKey(nodeId)); } catch (_) {}
+}
+
 // ── 콘텐츠앵커 상단 그라데이션 공용 헬퍼 (docs/style-guide.md §16) ────────────────
 // daily-mission(#dm-gate)/attendance(.attendance-page)에서 쓰던 "위쪽 옅은 틴트가 다음
 // 섹션 시작점에서 정확히 사라지는" 패턴을 공용 함수로 추출(2026-09-08, chord-combo.html
@@ -3363,7 +3462,10 @@ async function purchasePlan(planId, cycle) {
   //   모달을 되살리는 대신 그대로 삭제한다. → 구독하기 = 즉시 결제.
 
   cycle = cycle === 'yearly' ? 'yearly' : 'monthly';
-  analytics.track('plan_upgrade_started', { from_plan: getPlan(), to_plan: planId, cycle, source: _planSheetSource });
+  const productId = cycle === 'yearly' ? PRODUCT_PRO_YEARLY : PRODUCT_PRO;
+  // 매출 분석용 상품 정보(2026-11-27) — 피크상자 구매 이벤트(peakshop_purchase_*)와 같은 키. 가격은 스토어 상품을 찾은 뒤 채움(시작 이벤트엔 상품 id만)
+  const prod = { product_id: productId };
+  analytics.track('plan_upgrade_started', { from_plan: getPlan(), to_plan: planId, cycle, source: _planSheetSource, ...prod });
 
   try {
     const stored = localStorage.getItem(SUPABASE_STORAGE_KEY);
@@ -3373,7 +3475,6 @@ async function purchasePlan(planId, cycle) {
     }
   } catch(e) {}
 
-  const productId = cycle === 'yearly' ? PRODUCT_PRO_YEARLY : PRODUCT_PRO;
   try {
     const offeringsResult = await window._RC.getOfferings();
     const offerings = offeringsResult?.offerings ?? offeringsResult;
@@ -3384,6 +3485,10 @@ async function purchasePlan(planId, cycle) {
       p.identifier === productId || p.product?.identifier?.includes(productId)
     );
     if (!pkg) throw new Error('상품을 찾을 수 없습니다: ' + productId);
+    prod.product_id = pkg.product?.identifier || productId;
+    prod.store_price = pkg.product?.priceString || null;
+    prod.price = typeof pkg.product?.price === 'number' ? pkg.product.price : null;
+    prod.currency = pkg.product?.currencyCode || null;
 
     const purchaseParams = { aPackage: pkg };
     try {
@@ -3403,7 +3508,7 @@ async function purchasePlan(planId, cycle) {
     _planCurrentCycle = cycle;
     if (typeof loadProfileFromDB === 'function') loadProfileFromDB().catch(() => {});   // 프로필 카드의 플랜 표시를 바로 갱신(안 하면 화면을 옮겨야 바뀜)
 
-    analytics.track('plan_upgrade_completed', { to_plan: newPlan, cycle, source: _planSheetSource });
+    analytics.track('plan_upgrade_completed', { to_plan: newPlan, cycle, source: _planSheetSource, ...prod });
 
     // 구독은 항상 바텀시트에서 시작한다(plan.html 삭제로 다른 경로 없음) — 시트만 닫으면 됨
     closePlanSheet();
@@ -3411,9 +3516,9 @@ async function purchasePlan(planId, cycle) {
     const msg = (e?.message || e?.code || '').toLowerCase();
     const isCancelled = msg.includes('cancel');
     if (isCancelled) {
-      analytics.track('plan_upgrade_cancelled', { to_plan: planId, cycle, source: _planSheetSource });
+      analytics.track('plan_upgrade_cancelled', { to_plan: planId, cycle, source: _planSheetSource, ...prod });
     } else {
-      analytics.track('plan_upgrade_failed', { to_plan: planId, cycle, error: e?.message || 'unknown', source: _planSheetSource });
+      analytics.track('plan_upgrade_failed', { to_plan: planId, cycle, error: e?.message || 'unknown', source: _planSheetSource, ...prod });
       console.error('[Billing] purchasePlan 실패:', e);
       alert(e?.message || '결제 중 오류가 발생했습니다. 다시 시도해주세요.');
     }

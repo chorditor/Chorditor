@@ -122,13 +122,12 @@
 
   // ═══════════════════════════ 퀴즈 엔진 ═══════════════════════════
   const QZ_REFUND_EVERY = 5;      // 정답 이만큼마다
-  const QZ_REFUND_AMOUNT = 4;     // 이만큼 돌려줌 → 5문제당 순소모 1(사용자 지정 2026-11-12)
+  function qzRefundAmount() { return typeof jnyQuizRefund === 'function' ? jnyQuizRefund() : 4; }   // 정답 5개마다 돌려주는 수 — 기본 4(사용자 지정 2026-11-12), 2×2 실험 그룹이면 +4/+3(shared.js jnyQuizRefund, 2026-11-27)
   const STARS_KEY = 'jnyStars';
-  const SESS_FIELDS = ['star', 'qs', 'idx', 'wrong', 'phase', 'rvPos', 'done', 'judged', 'canRetry', 'paid', 'correct', 'refunded'];
+  const SESS_FIELDS = ['star', 'qs', 'idx', 'wrong', 'phase', 'rvPos', 'done', 'judged', 'canRetry', 'paid', 'correct', 'refunded', 'at'];
   const DEFAULT_TITLE = '알맞은 답을 고르세요';
   let D = null, qz = null, submitFn = null, bound = false;
 
-  function SESS_KEY() { return 'jnyQuizSess:' + D.nodeId; }
   function starsGet(id) { try { return JSON.parse(localStorage.getItem(STARS_KEY) || '{}')[id] || 0; } catch (e) { return 0; } }
   function starsSet(n) {
     const id = D.nodeId;
@@ -141,7 +140,7 @@
     if (!qz || qz.over || qz.quit) return;
     const o = { node: D.nodeId };
     SESS_FIELDS.forEach(function (k) { o[k] = qz[k]; });
-    try { localStorage.setItem(SESS_KEY(), JSON.stringify(o)); } catch (e) {}
+    jnyQuizSessWrite(D.nodeId, o);
   }
   // 하던 퀴즈(노드 id로) — 저장분의 별이 지금 풀 별과 다르면 버림. 노드가 canResume으로 부름
   // 노드가 문제 유형을 바꿨을 때 — 그 전에 저장된 이어 풀기(옛 유형 문제)는 새 화면으로 못 그리므로 버림. types(id, ['name', 'find']) = 지금 유형 목록
@@ -149,15 +148,15 @@
   function types(id, list) { TYPES[id] = list; }
   function sessLoad(id) {
     try {
-      const o = JSON.parse(localStorage.getItem('jnyQuizSess:' + id) || 'null');
+      const o = jnyQuizSessRead(id);
       if (!o || o.node !== id || o.star !== window.JourneyLesson.quizStar(starsGet(id)) || !Array.isArray(o.qs)) return null;
       if (TYPES[id] && !o.qs.every(function (q) { return q && TYPES[id].indexOf(q.type) >= 0; })) return null;
       return o;
     } catch (e) { return null; }
   }
-  function sessClear() { try { localStorage.removeItem(SESS_KEY()); } catch (e) {} }
+  function sessClear() { jnyQuizSessRemove(D.nodeId); }
   function isPro() { return typeof getPlan === 'function' && getPlan() === 'pro'; }
-  function netCost() { return Math.ceil(qz.qs.length / QZ_REFUND_EVERY); }   // 퀴즈 1회 순소모 = 5문제당 1
+  function netCost() { return Math.max(0, qz.qs.length - qzRefundAmount() * Math.floor(qz.qs.length / QZ_REFUND_EVERY)); }   // 퀴즈 1회 순소모 = 5문제당 (5 − 환급량) — +4면 1, +3이면 2
 
   // 소리 하드컷 — 문제 전환·보기 선택·오답풀이 진입·완주·이탈(CLAUDE.md 0-7)
   function stopSound() {
@@ -245,10 +244,7 @@
   function payOnAnswer() {
     if (!needsPay()) return;
     qz.paid[qz.idx] = true;
-    if (typeof APP_VERSION !== 'undefined' && APP_VERSION.includes('_dev')) {
-      // DEV 빌드: 공용 consumePeak는 소모 없이 통과(shared.js 규칙) → 화면 숫자만 흉내
-      if (typeof _peakState !== 'undefined') { _peakState = Object.assign({}, _peakState, { balance: (_peakState.balance || 0) - 1 }); if (typeof renderPeakBadge === 'function') renderPeakBadge(); }
-    } else if (typeof consumePeak === 'function') consumePeak(1, 'journey');
+    if (typeof consumePeakInQuiz === 'function') consumePeakInQuiz(1, 'journey');   // 대기분 먼저·부족 모달 없음(shared.js) — 부족 안내는 render의 화면 숫자 판정에서만
     peakPop('−1');
   }
   function showShort() {
@@ -283,6 +279,7 @@
   function verdict(ok, delay) {
     if (!qz || qz.judged) return;
     payOnAnswer();
+    qz.at = Date.now();   // 이어 풀기 기한(24시간)은 마지막으로 답한 때부터
     qz.judged = true;
     if (ok) qz.correct++;
     const due = ok && qz.correct % QZ_REFUND_EVERY === 0;
@@ -294,7 +291,7 @@
     const show = function () {
       judgeSound(ok);
       qProgress();
-      if (due) { refund(QZ_REFUND_AMOUNT); sessSave(); }
+      if (due) { refund(qzRefundAmount()); sessSave(); }
       qBtn(qz.canRetry ? '다시 풀기' : last ? '완료' : '다음', true, ok);
     };
     if (!delay) { show(); return; }
@@ -440,9 +437,10 @@
     D = def;
     const J = window.JourneyLesson;
     const star = window.JourneyLesson.quizStar(starsGet(D.nodeId));   // 순차: 다음 별(별 3 이후엔 별 3 반복)
-    qz = { star: star, qs: D.make(star), idx: 0, wrong: [], phase: 'main', rvPos: 0, done: 0, judged: false, canRetry: false, over: false, paid: {}, correct: 0, refunded: 0, short: false };
+    qz = { star: star, qs: D.make(star), idx: 0, wrong: [], phase: 'main', rvPos: 0, done: 0, judged: false, canRetry: false, over: false, paid: {}, correct: 0, refunded: 0, short: false, at: Date.now() };
     const saved = sessLoad(D.nodeId);
     if (saved) SESS_FIELDS.forEach(function (k) { if (saved[k] !== undefined) qz[k] = saved[k]; });
+    if (typeof jnyQuizTrack === 'function') jnyQuizTrack('journey_quiz_started', D.nodeId, qz, { resumed: !!saved });   // 실험 분석(2026-11-27)
     $('jq-track').hidden = false;
     $('jq-fill').style.width = '0%';
     $('jq-btn').onclick = function () { if (qz.over) return; next(); };
@@ -451,7 +449,7 @@
     J.setQuizBack(function () {
       if (qz.phase === 'review') { quit(); J.goHome(); return; }   // 오답풀이 중엔 낸 피크가 없어 확인 없이
       if (typeof isLeavePracticeOpen === 'function' && isLeavePracticeOpen()) return;
-      showLeavePracticeModal(function () { quit(); J.goHome(); }, { title: '퀴즈를 그만두시겠어요?', desc: '지금 나가면 퀴즈를<br>처음부터 다시 풀어야 해요.' });
+      showLeavePracticeModal(function () { quit(); J.goHome(); }, { title: '퀴즈를 그만두시겠어요?', desc: '지금 나가도 24시간 안에 돌아오면<br>이어서 풀 수 있어요.' });
     });
     if (!bound) {
       bound = true;
@@ -464,10 +462,11 @@
     } else render();
     $('jq-view').classList.remove('quiz-view--right');
   }
-  // 직접 그만두기 — 저장분을 지우고 정리. 울리는 소리 하드컷
+  // 직접 그만두기 — 이어 풀기 저장(24시간) 후 정리. 울리는 소리 하드컷
   function quit() {
+    sessSave();   // 어떤 경로로 나가도 이어 풀기 저장(24시간)
+    if (qz && !qz.over && !qz.quit && typeof jnyQuizTrack === 'function') jnyQuizTrack('journey_quiz_left', D.nodeId, qz, { reason: 'exit' });
     if (qz) qz.quit = true;
-    sessClear();
     if (typeof flushPendingRefund === 'function') flushPendingRefund('journey');
     overlayAbort();
     stopSound();
@@ -475,6 +474,7 @@
   // 백그라운드·새로고침·앱 종료 — 소리만 끊고 상태는 저장(돌아오면 이어서)
   function pause() {
     if (!qz || qz.over) return;
+    if (!qz.quit && typeof jnyQuizTrack === 'function') jnyQuizTrack('journey_quiz_left', D.nodeId, qz, { reason: 'background' });   // 직접 나간 뒤의 pagehide는 빼고
     sessSave();
     if (typeof flushPendingRefund === 'function') flushPendingRefund('journey');
     stopSound();

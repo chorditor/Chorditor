@@ -15,6 +15,7 @@
       "다른 커리큘럼 보기": "See other courses",
       "레벨": "Level",
       "7일 부스트": "7-day boost",
+      "1일 부스트": "1-day boost",
       "이전 단계": "Previous level",
       "개발자": "Developer",
       "점마다 어느 손가락으로 누르는지\n번호를 붙일 수 있어요!": "You can number each dot\nby which finger presses it!",
