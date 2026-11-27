@@ -10922,6 +10922,9 @@ body.onboarding-page .plan-sheet-inner { gap: 16px; }
 .profile-container--stats  { min-height: 160px; }
 .profile-container--invite { min-height: 100px; }
 .profile-container--code   { min-height: 90px; }
+/* iOS 앱: 코드로 혜택을 여는 기능은 쓰지 않음(App Store 3.1.1 — 앱 안에서 IAP 외 방법으로 유료 콘텐츠를 열 수 없음, 2026-11-27 반려 대응). 웹·안드로이드는 그대로 */
+html.ios-native .profile-container--invite,
+html.ios-native .profile-container--code { display: none; }
 .profile-container--plan .profile-plan-banner {
   height: 100%;
 }

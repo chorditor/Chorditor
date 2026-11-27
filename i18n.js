@@ -40,6 +40,15 @@ function legalPage(name) {
   const lang = getLang();
   return I18N_LEGAL_LANGS.includes(lang) ? name + '.' + lang + '.html' : name + '.html';
 }
+// 약관·개인정보처리방침 열기. iOS 앱은 웹뷰가 window.open(_blank)을 열지 않아 링크가 반응하지 않음(App Store 3.1.2 반려, 2026-11-27)
+//  → 웹에 게시된 같은 문서(GitHub Pages, main 기준)를 앱 안 브라우저(Capacitor Browser)로 연다. 웹·안드로이드는 그대로
+const LEGAL_WEB_BASE = 'https://chorditor.github.io/Chorditor/';
+function openLegalPage(name) {
+  const page = legalPage(name);
+  const cap = window.Capacitor;
+  if (cap?.getPlatform?.() === 'ios' && cap.Plugins?.Browser) { cap.Plugins.Browser.open({ url: LEGAL_WEB_BASE + page }); return; }
+  window.open(page, '_blank');
+}
 
 // 저장 후 새로고침(동적으로 만든 DOM까지 한 번에 바뀌도록)
 function setLang(code) {

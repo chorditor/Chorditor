@@ -146,8 +146,10 @@ function _obNativeSteps() {
   return !!window.Capacitor?.isNativePlatform() || new URLSearchParams(location.search).get('ob') === '1';
 }
 function _obFlowNow() {
-  return OB_FLOW.filter(id => id !== 'ob-step-push' || _obNativeSteps());
+  return OB_FLOW.filter(id => (id !== 'ob-step-push' || _obNativeSteps()) && (id !== 'ob-step6' || !_obNoInvite()));
 }
+// iOS 앱은 초대코드 입력 없음(App Store 3.1.1 — 코드로 피크상자 지급, 2026-11-27 반려 대응). 닉네임 다음 바로 완료
+function _obNoInvite() { return typeof _isIOSNative === 'function' && _isIOSNative(); }
 
 // ── 온보딩 분석 이벤트(onboarding_*) ──────────────────────────────
 // 화면 이름은 DOM id가 아니라 안정적인 이름(순서를 바꿔도 분석이 안 깨지게). 성별·출생년도·닉네임·초대코드 값은 기록하지 않는다(체류시간만).
@@ -355,10 +357,22 @@ function obStep3Next() {
   _showStep('ob-step4', 'ob-step3');
   _initYearPicker();
 }
+// 성별·출생년도는 선택 입력(App Store 5.1.1(v) 반려 대응, 2026-11-27) — 건너뛰면 값 없이(null) 다음으로
+function obStep3Skip() {
+  _obData.gender = null;
+  document.querySelectorAll('#ob-step3 .ob-big-card').forEach(c => c.classList.remove('ob-big-card--selected'));
+  document.getElementById('ob-step3-next').disabled = true;
+  _obLog('onboarding_step_skipped', { step: 'gender', time_on_step_sec: Math.round((Date.now() - _obStepAt) / 1000) });
+  _showStep('ob-step4', 'ob-step3');
+  _initYearPicker();
+}
 
-// Step 4: 년도 선택 → Step 5 이동
-function obStep4Next() {
-  _obAnswered('birth_year', null);   // 값은 기록하지 않음(개인정보)
+// Step 4: 년도 선택 → Step 5 이동. skip = 건너뛰기(출생년도 없이)
+function obStep4Next(skip) {
+  if (skip) {
+    _obData.birth_year = null;
+    _obLog('onboarding_step_skipped', { step: 'birth_year', time_on_step_sec: Math.round((Date.now() - _obStepAt) / 1000) });
+  } else _obAnswered('birth_year', null);   // 값은 기록하지 않음(개인정보)
   _showStep('ob-step5', 'ob-step4');
   // Google 이름 자동 채움
   try {
@@ -388,6 +402,7 @@ function obOnNicknameInput(input) {
 function obStep5Next() {
   if (!_obData.nickname) return;
   _obAnswered('nickname', null);   // 값은 기록하지 않음
+  if (_obNoInvite()) { _obFinishOnboarding(); return; }
   _showStep('ob-step6', 'ob-step5');
 }
 

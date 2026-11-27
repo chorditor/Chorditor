@@ -2236,6 +2236,7 @@ async function claimTrialOffer(source) {
 // 클레임 성공/실패 후엔 _trialOfferStatusCache=null 로 무효화하고 다시 부른다.
 let _trialOfferStatusCache;
 async function _trialOfferStatus(force) {
+  if (_isIOSNative()) return { eligible: false, deadline: null };   // iOS 앱은 체험권(쿠폰 코드로 Pro 지급) 없음 — App Store 3.1.1(2026-11-27 반려 대응)
   if (!force && _trialOfferStatusCache !== undefined) return _trialOfferStatusCache;
   const r = await _peakRpc('trial_offer_status', {});
   _trialOfferStatusCache = r && typeof r.eligible === 'boolean'

@@ -114,12 +114,12 @@
       <label class="ob-consent-check-row">
         <input type="checkbox" class="ob-consent-required" id="ob-terms-checkbox" onchange="obOnConsentCheck()">
         <span class="ob-consent-check-label"><span class="ob-consent-check-tag">(필수)</span> 이용약관 동의</span>
-        <span class="plan-legal-link" onpointerdown="event.stopPropagation();window.open(legalPage('Terms'),'_blank')">보기</span>
+        <span class="plan-legal-link" onpointerdown="event.stopPropagation();openLegalPage('Terms')">보기</span>
       </label>
       <label class="ob-consent-check-row">
         <input type="checkbox" class="ob-consent-required" id="ob-privacy-checkbox" onchange="obOnConsentCheck()">
         <span class="ob-consent-check-label"><span class="ob-consent-check-tag">(필수)</span> 개인정보처리방침 동의</span>
-        <span class="plan-legal-link" onpointerdown="event.stopPropagation();window.open(legalPage('Privacy'),'_blank')">보기</span>
+        <span class="plan-legal-link" onpointerdown="event.stopPropagation();openLegalPage('Privacy')">보기</span>
       </label>
       <label class="ob-consent-check-row">
         <input type="checkbox" class="ob-consent-required" id="ob-age-checkbox" onchange="obOnConsentCheck()">
@@ -238,7 +238,11 @@
         <button class="ob-big-card" data-value="male" onpointerdown="obSelectChoice(this,'gender')">남</button>
         <button class="ob-big-card" data-value="female" onpointerdown="obSelectChoice(this,'gender')">여</button>
       </div>
-      <button class="onboarding-start-btn ob-next-btn ob-next-btn--bottom" id="ob-step3-next" disabled onpointerdown="obStep3Next()">다음</button>
+      <!-- 선택 입력(App Store 5.1.1(v), 2026-11-27) — 건너뛰기는 다음 버튼 위 작은 밑줄 글자 -->
+      <div class="ob-bottom-actions">
+        <span class="ob-skip-link" onpointerdown="obStep3Skip()">건너뛰기</span>
+        <button class="onboarding-start-btn ob-next-btn ob-next-btn--bottom" id="ob-step3-next" disabled onpointerdown="obStep3Next()">다음</button>
+      </div>
     </div><!-- ob-main -->
   </div>
 
@@ -258,7 +262,10 @@
         <div class="ob-year-fade ob-year-fade--top"></div>
         <div class="ob-year-fade ob-year-fade--bottom"></div>
       </div>
-      <button class="onboarding-start-btn ob-next-btn ob-next-btn--bottom" id="ob-step4-next" onpointerdown="obStep4Next()">다음</button>
+      <div class="ob-bottom-actions">
+        <span class="ob-skip-link" onpointerdown="obStep4Next(true)">건너뛰기</span>
+        <button class="onboarding-start-btn ob-next-btn ob-next-btn--bottom" id="ob-step4-next" onpointerdown="obStep4Next()">다음</button>
+      </div>
     </div><!-- ob-main -->
   </div>
 
